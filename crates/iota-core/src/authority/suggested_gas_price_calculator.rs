@@ -1,8 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use iota_types::{
     base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction,
     transaction::TransactionDataAPI,
+};
+use rayon::iter::{
+    IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator,
 };
 
 use super::shared_object_congestion_tracker::ExecutionTime;
@@ -81,13 +84,9 @@ impl SuggestedGasPriceCalculator {
         execution_start_time: ExecutionTime,
         estimated_execution_duration: ExecutionTime,
     ) {
-        // If we don't have a max execution duration or
-        // `min_free_execution_slot_assigned` is false (which realizes
-        // the old Sui's canonical sequencer logic), we don't need to update
+        // If we don't have a max execution duration, we don't need to update
         // the congestion info since the reference gas price will be suggested.
-        if self.max_execution_duration_per_commit.is_none()
-            || !self.min_free_execution_slot_assigned
-        {
+        if self.max_execution_duration_per_commit.is_none() {
             return;
         }
 
@@ -122,177 +121,120 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
-        // If we don't have a max execution duration, suggest the reference gas price.
-        if self.max_execution_duration_per_commit.is_none() {
-            return self.reference_gas_price;
-        }
+        if let Some(max_execution_duration_per_commit) = self.max_execution_duration_per_commit {
+            debug_assert!(
+                estimated_execution_duration <= max_execution_duration_per_commit,
+                "This certificate alone has estimated execution duration of \
+                {estimated_execution_duration}, which is larger than the maximum execution \
+                duration per commit {max_execution_duration_per_commit}, so the certificate \
+                cannot be scheduled regardless of suggested gas price."
+            );
 
-        // If `min_free_execution_slot_assigned` is false (which realizes
-        // the old Sui's canonical sequencer logic), suggest the reference gas price.
-        if !self.min_free_execution_slot_assigned {
-            return self.reference_gas_price;
-        }
+            // TODO: store suggested gas price per combination of objects
+            // instead of calculating it every time.
+            // let x: HashMap<BTreeSet<ObjectID>, u64> = HashMap::new();
 
-        let max_execution_duration_per_commit = self
-            .max_execution_duration_per_commit
-            .expect("max_execution_duration_per_commit must not be None at this step");
+            let passing_gas_price = if self.min_free_execution_slot_assigned {
+                // ^ This branch corresponds to the new sequencer's logic.
 
-        debug_assert!(
-            estimated_execution_duration <= max_execution_duration_per_commit,
-            "This certificate alone has estimated execution duration of {}, which is larger than \
-                the maximum execution duration per commit {}, so the certificate cannot be \
-                scheduled regardless of suggested gas price.",
-            estimated_execution_duration,
-            max_execution_duration_per_commit,
-        );
-
-        let passing_gas_price = certificate
-            .shared_input_objects()
-            .filter_map(|object| {
-                self.congestion_info
-                    .get(&object.id)
-                    // If there is no congestion info for this object, that means none of the
-                    // scheduled transactions touched this object so far, so we can ignore it.
-                    .map(|per_object_congestion_info| {
-                        // Considering estimated execution duration of this (deferred) certificate,
-                        // find minimum gas price across scheduled transactions touching this
-                        // object such that the deferred certificate would fit.
-                        let mut min_gas_price_tx_congestion_info = None;
-                        for tx_congestion_info in per_object_congestion_info.iter().rev() {
-                            if tx_congestion_info.execution_start_time
-                                + estimated_execution_duration
-                                <= max_execution_duration_per_commit
-                            {
-                                min_gas_price_tx_congestion_info = Some(*tx_congestion_info);
-                                break;
-                            }
-                        }
-
-                        if let Some(min_gas_price_tx_congestion_info) =
-                            min_gas_price_tx_congestion_info
-                        {
-                            certificate
-                                .shared_input_objects()
-                                .filter_map(|object| {
-                                    self.congestion_info.get(&object.id).map(
-                                        |per_object_congestion_info| {
-                                            per_object_congestion_info
-                                                .iter()
-                                                .filter(|tx_congestion_info| {
-                                                    tx_congestion_info.execution_start_time
-                                                        >= min_gas_price_tx_congestion_info
-                                                            .execution_start_time
-                                                        && tx_congestion_info.execution_start_time
-                                                            <= min_gas_price_tx_congestion_info
-                                                                .execution_start_time
-                                                                + estimated_execution_duration
-                                                })
-                                                .map(|per_object_congestion_info| {
-                                                    per_object_congestion_info.gas_price
-                                                })
-                                                .max()
-                                                .unwrap_or(u64::MAX)
-                                        },
-                                    )
+                // Find all possible execution start times for certificate's shared objects
+                let mut possible_start_times = BTreeSet::from([ExecutionTime::MIN]);
+                possible_start_times.par_extend(
+                    certificate
+                        .shared_input_objects()
+                        .par_bridge()
+                        .filter_map(|object| {
+                            self.congestion_info
+                                .get(&object.id)
+                                .map(|per_object_congestion_info| {
+                                    per_object_congestion_info.par_iter().flat_map(|tx| {
+                                        [
+                                            tx.estimated_execution_duration,
+                                            tx.execution_start_time
+                                                + tx.estimated_execution_duration,
+                                        ]
+                                    })
                                 })
-                                .max()
-                                .unwrap_or(u64::MAX)
+                        })
+                        .flatten(),
+                );
+
+                possible_start_times
+                    .into_par_iter()
+                    .filter_map(|start_time| {
+                        let end_time = start_time + estimated_execution_duration;
+                        if end_time <= max_execution_duration_per_commit {
+                            Some(
+                        certificate
+                            .shared_input_objects()
+                            .par_bridge()
+                            .filter_map(|object| {
+                                self.congestion_info.get(&object.id).map(
+                                    |per_object_congestion_info| {
+                                        per_object_congestion_info
+                                            .par_iter()
+                                            .filter_map(|tx| {
+                                                if (tx.execution_start_time >= start_time
+                                                    && tx.execution_start_time < end_time)
+                                                    || (tx.execution_start_time
+                                                        + tx.estimated_execution_duration
+                                                        > start_time
+                                                        && tx.execution_start_time
+                                                            + tx.estimated_execution_duration
+                                                            <= end_time)
+                                                {
+                                                    Some(tx.gas_price)
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .max()
+                                    },
+                                )
+                            })
+                            .max()
+                            .flatten()
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "At least one of the shared input objects should have appeared \
+                                    in between execution start time of {start_time} and execution \
+                                    end time of {end_time}, otherwise this deferred \
+                                    certificate would be scheduled by the sequencer."
+                                );
+                            }),
+                    )
                         } else {
-                            u64::MAX
+                            None
                         }
                     })
-            })
-            .min()
-            .expect(
-                "At least one of the shared input objects should have appeared in scheduled \
-                    transactions earlier.",
-            );
-        debug_assert_ne!(
-            passing_gas_price,
-            u64::MAX,
-            "Something went wrong: passing gas price cannot be u64::MAX"
-        );
+                    .min()
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "This certificate alone has estimated execution duration of \
+                            {estimated_execution_duration}, which is larger than the maximum \
+                            execution duration per commit {max_execution_duration_per_commit}, \
+                            so the certificate cannot be scheduled regardless of suggested gas \
+                            price."
+                        );
+                    })
+            } else {
+                // ^ If `min_free_execution_slot_assigned` is false (which realizes
+                // the old Sui's canonical sequencer logic), suggested gas price
+                // calculations are different and easier.
+                todo!()
+            };
 
-        // let passing_gas_price = certificate
-        //     .shared_input_objects()
-        //     .filter_map(|object| {
-        //         self.congestion_info
-        //             .get(&object.id)
-        //             // If there is no congestion info for this object, that means none of the
-        //             // scheduled transactions touched this object so far, so we can ignore it.
-        //             .map(|per_object_congestion_info| {
-        //                 // Calculate available estimated execution duration for this shared object
-        //                 let available_estimated_execution_duration =
-        //                     max_execution_duration_per_commit
-        //                         - per_object_congestion_info
-        //                             .iter()
-        //                             .map(|ci| ci.estimated_execution_duration)
-        //                             .sum::<ExecutionTime>();
-        //
-        //                 if estimated_execution_duration > available_estimated_execution_duration {
-        //                     // Certificate's estimated execution duration is larger than the
-        //                     // available execution duration for this shared object. In other words,
-        //                     // this object is congested. There must exist the lowest gas price of
-        //                     // scheduled transaction touching this shared object such that the
-        //                     // deferred/cancelled certificate's would fully fit, i.e., would be
-        //                     // scheduled.
-        //
-        //                     let mut passing_gas_price = None;
-        //                     let mut accum_estimated_execution_duration =
-        //                         available_estimated_execution_duration;
-        //
-        //                     for tx_congestion_info in per_object_congestion_info.iter().rev() {
-        //                         accum_estimated_execution_duration +=
-        //                             tx_congestion_info.estimated_execution_duration;
-        //                         if accum_estimated_execution_duration
-        //                             >= estimated_execution_duration
-        //                         {
-        //                             // The accumulated estimated execution duration is sufficient
-        //                             // to fit this certificate, so we take the gas price of the
-        //                             // corresponding transaction and break the loop.
-        //                             passing_gas_price = Some(tx_congestion_info.gas_price);
-        //                             break;
-        //                         }
-        //                     }
-        //
-        //                     passing_gas_price.unwrap_or_else(|| {
-        //                         panic!(
-        //                             "Could not find the passing gas price for transaction with \
-        //                                 estimated execution duration of {}, meaning that this \
-        //                                 transaction alone would not even fit into maximum \
-        //                                 execution duration per commit {}",
-        //                             estimated_execution_duration, max_execution_duration_per_commit,
-        //                         )
-        //                     })
-        //                 } else {
-        //                     // This `else` branch means the following: the certificate would
-        //                     // be scheduled if it only touched this shared object. In other words,
-        //                     // this shared object alone is not the reason for deferring/cancelling
-        //                     // this certificate, so we can ignore congestion data for this object.
-        //
-        //                     0
-        //                 }
-        //             })
-        //     })
-        //     // Take max, which means the worst case object (most congested)
-        //     .max()
-        //     .expect(
-        //         "At least one of the shared input objects should have appeared in scheduled \
-        //             transactions earlier.",
-        //     );
-        //
-        // assert_ne!(
-        //     passing_gas_price, 0,
-        //     "At least one of the shared input objects must have been congested."
-        // );
+            // Suggested gas price equals passing_gas_price + 1. We add 1 to make this
+            // transaction would be scheduled if the same commit structure was repeated.
+            let suggested_gas_price = passing_gas_price + 1;
 
-        // Suggested gas price equals passing_gas_price + 1. We add 1 to make this
-        // transaction would be scheduled if the same commit structure was repeated.
-        let suggested_gas_price = passing_gas_price + 1;
-
-        // Make sure suggested_gas_price is not larger than the maximum possible gas
-        // price.
-        suggested_gas_price.min(self.max_gas_price)
+            // Make sure suggested gas price is not larger than the maximum possible gas
+            // price.
+            suggested_gas_price.min(self.max_gas_price)
+        } else {
+            // ^ If we don't have a max execution duration, suggest the reference gas price.
+            self.reference_gas_price
+        }
     }
 }
 
@@ -357,26 +299,17 @@ mod tests {
         );
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
-            if min_free_execution_slot_assigned {
-                // Note that `object_2` should not appear because it is accessed immutably.
-                let object_1_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_1,
-                        execution_start_time: execution_start_time_1,
-                        estimated_execution_duration: estimated_execution_duration_1,
-                    }]);
-                assert_eq!(
-                    suggested_gas_price_calculator.congestion_info,
-                    PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
-                );
-            } else {
-                // We don't have `min_free_execution_slot_assigned` set to `true`,
-                // so there is no need in updating the calculator's congestion info.
-                assert_eq!(
-                    suggested_gas_price_calculator.congestion_info,
-                    PerCommitCongestionInfo::new()
-                );
-            }
+            // Note that `object_2` should not appear because it is accessed immutably.
+            let object_1_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_1,
+                    execution_start_time: execution_start_time_1,
+                    estimated_execution_duration: estimated_execution_duration_1,
+                }]);
+            assert_eq!(
+                suggested_gas_price_calculator.congestion_info,
+                PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
+            );
         } else {
             // We don't have max execution duration per commit, so there is no need
             // in updating the calculator's congestion info.
@@ -404,42 +337,33 @@ mod tests {
         );
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
-            if min_free_execution_slot_assigned {
-                // Note that `object_3` should not appear because it is accessed immutably.
-                let object_1_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_1,
-                        execution_start_time: execution_start_time_1,
-                        estimated_execution_duration: estimated_execution_duration_1,
-                    }]);
-                let object_2_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_2,
-                        execution_start_time: execution_start_time_2,
-                        estimated_execution_duration: estimated_execution_duration_2,
-                    }]);
-                let object_4_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_2,
-                        execution_start_time: execution_start_time_2,
-                        estimated_execution_duration: estimated_execution_duration_2,
-                    }]);
-                assert_eq!(
-                    suggested_gas_price_calculator.congestion_info,
-                    PerCommitCongestionInfo::from([
-                        (object_1, object_1_expected_congestion_info),
-                        (object_2, object_2_expected_congestion_info),
-                        (object_4, object_4_expected_congestion_info),
-                    ]),
-                );
-            } else {
-                // We don't have `min_free_execution_slot_assigned` set to `true`,
-                // so there is no need in updating the calculator's congestion info.
-                assert_eq!(
-                    suggested_gas_price_calculator.congestion_info,
-                    PerCommitCongestionInfo::new()
-                );
-            }
+            // Note that `object_3` should not appear because it is accessed immutably.
+            let object_1_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_1,
+                    execution_start_time: execution_start_time_1,
+                    estimated_execution_duration: estimated_execution_duration_1,
+                }]);
+            let object_2_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_2,
+                    execution_start_time: execution_start_time_2,
+                    estimated_execution_duration: estimated_execution_duration_2,
+                }]);
+            let object_4_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_2,
+                    execution_start_time: execution_start_time_2,
+                    estimated_execution_duration: estimated_execution_duration_2,
+                }]);
+            assert_eq!(
+                suggested_gas_price_calculator.congestion_info,
+                PerCommitCongestionInfo::from([
+                    (object_1, object_1_expected_congestion_info),
+                    (object_2, object_2_expected_congestion_info),
+                    (object_4, object_4_expected_congestion_info),
+                ]),
+            );
         } else {
             // We don't have max execution duration per commit, so there is no need
             // in updating the calculator's congestion info.
@@ -466,49 +390,40 @@ mod tests {
         );
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
-            if min_free_execution_slot_assigned {
-                // Note that `object_3` should not appear because it is accessed immutably.
-                let object_1_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_1,
-                        execution_start_time: execution_start_time_1,
-                        estimated_execution_duration: estimated_execution_duration_1,
-                    }]);
-                let object_2_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_2,
-                        execution_start_time: execution_start_time_2,
-                        estimated_execution_duration: estimated_execution_duration_2,
-                    }]);
-                let object_4_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_2,
-                        execution_start_time: execution_start_time_2,
-                        estimated_execution_duration: estimated_execution_duration_2,
-                    }]);
-                let object_5_expected_congestion_info =
-                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                        gas_price: gas_price_3,
-                        execution_start_time: execution_start_time_3,
-                        estimated_execution_duration: estimated_execution_duration_3,
-                    }]);
-                assert_eq!(
-                    suggested_gas_price_calculator.congestion_info,
-                    PerCommitCongestionInfo::from([
-                        (object_1, object_1_expected_congestion_info),
-                        (object_2, object_2_expected_congestion_info),
-                        (object_4, object_4_expected_congestion_info),
-                        (object_5, object_5_expected_congestion_info),
-                    ]),
-                );
-            } else {
-                // We don't have `min_free_execution_slot_assigned` set to `true`,
-                // so there is no need in updating the calculator's congestion info.
-                assert_eq!(
-                    suggested_gas_price_calculator.congestion_info,
-                    PerCommitCongestionInfo::new()
-                );
-            }
+            // Note that `object_3` should not appear because it is accessed immutably.
+            let object_1_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_1,
+                    execution_start_time: execution_start_time_1,
+                    estimated_execution_duration: estimated_execution_duration_1,
+                }]);
+            let object_2_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_2,
+                    execution_start_time: execution_start_time_2,
+                    estimated_execution_duration: estimated_execution_duration_2,
+                }]);
+            let object_4_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_2,
+                    execution_start_time: execution_start_time_2,
+                    estimated_execution_duration: estimated_execution_duration_2,
+                }]);
+            let object_5_expected_congestion_info =
+                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                    gas_price: gas_price_3,
+                    execution_start_time: execution_start_time_3,
+                    estimated_execution_duration: estimated_execution_duration_3,
+                }]);
+            assert_eq!(
+                suggested_gas_price_calculator.congestion_info,
+                PerCommitCongestionInfo::from([
+                    (object_1, object_1_expected_congestion_info),
+                    (object_2, object_2_expected_congestion_info),
+                    (object_4, object_4_expected_congestion_info),
+                    (object_5, object_5_expected_congestion_info),
+                ]),
+            );
         } else {
             // We don't have max execution duration per commit, so there is no need
             // in updating the calculator's congestion info.
@@ -590,8 +505,11 @@ mod tests {
     //     if let SequencingResult::Schedule(start_time) = sequencing_result_1 {
     //         shared_object_congestion_tracker
     //             .bump_object_execution_slots(&certificate_1, start_time);
-    //         suggested_gas_price_calculator
-    //             .update_congestion_info(&certificate_1, estimated_execution_duration_1);
+    //         suggested_gas_price_calculator.update_congestion_info(
+    //             &certificate_1,
+    //             start_time,
+    //             estimated_execution_duration_1,
+    //         );
     //     } else {
     //         panic!("Certificate 1 must be scheduled");
     //     }
@@ -626,8 +544,11 @@ mod tests {
     //     if let SequencingResult::Schedule(start_time) = sequencing_result_2 {
     //         shared_object_congestion_tracker
     //             .bump_object_execution_slots(&certificate_2, start_time);
-    //         suggested_gas_price_calculator
-    //             .update_congestion_info(&certificate_2, estimated_execution_duration_2);
+    //         suggested_gas_price_calculator.update_congestion_info(
+    //             &certificate_2,
+    //             start_time,
+    //             estimated_execution_duration_2,
+    //         );
     //     } else {
     //         panic!("Certificate 2 must be scheduled");
     //     }
@@ -661,8 +582,11 @@ mod tests {
     //     if let SequencingResult::Schedule(start_time) = sequencing_result_3 {
     //         shared_object_congestion_tracker
     //             .bump_object_execution_slots(&certificate_3, start_time);
-    //         suggested_gas_price_calculator
-    //             .update_congestion_info(&certificate_3, estimated_execution_duration_3);
+    //         suggested_gas_price_calculator.update_congestion_info(
+    //             &certificate_3,
+    //             start_time,
+    //             estimated_execution_duration_3,
+    //         );
     //     } else {
     //         panic!("Certificate 3 must be scheduled");
     //     }
@@ -695,8 +619,11 @@ mod tests {
     //     if let SequencingResult::Schedule(start_time) = sequencing_result_4 {
     //         shared_object_congestion_tracker
     //             .bump_object_execution_slots(&certificate_4, start_time);
-    //         suggested_gas_price_calculator
-    //             .update_congestion_info(&certificate_4, estimated_execution_duration_4);
+    //         suggested_gas_price_calculator.update_congestion_info(
+    //             &certificate_4,
+    //             start_time,
+    //             estimated_execution_duration_4,
+    //         );
     //     } else {
     //         panic!("Certificate 4 must be scheduled");
     //     }
@@ -734,8 +661,11 @@ mod tests {
     //         if let SequencingResult::Schedule(start_time) = sequencing_result_5 {
     //             shared_object_congestion_tracker
     //                 .bump_object_execution_slots(&certificate_5, start_time);
-    //             suggested_gas_price_calculator
-    //                 .update_congestion_info(&certificate_5, estimated_execution_duration_5);
+    //             suggested_gas_price_calculator.update_congestion_info(
+    //                 &certificate_5,
+    //                 start_time,
+    //                 estimated_execution_duration_5,
+    //             );
     //         } else {
     //             panic!("Certificate 5 must be scheduled in the new sequencer");
     //         }
@@ -797,7 +727,6 @@ mod tests {
     //         panic!("Certificate 6 must be deferred");
     //     }
     //
-    //     // FIX: this example needs a fix in the calculator
     //     // Construct a certificate that touches the following shared objects:
     //     // - `object_1` by mutable reference,
     //     // - `object_2` by mutable reference,
@@ -811,7 +740,7 @@ mod tests {
     //         (object_4, true),
     //         (object_5, true),
     //     ];
-    //     let gas_budget_7 = 1_005_000;
+    //     let gas_budget_7 = 1_010_001;
     //     let gas_price_7 = 1_005;
     //     let certificate_7 = build_transaction(&objects_7, gas_budget_7, gas_price_7);
     //     let estimated_execution_duration_7 =
@@ -844,7 +773,7 @@ mod tests {
     //                 congested_objects,
     //                 objects_7.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
     //             );
-    //             assert_eq!(suggested_gas_price, /* TODO */ gas_price_5 + 1);
+    //             assert_eq!(suggested_gas_price, gas_price_3 + 1);
     //         } else {
     //             // ^ this corresponds the old sequencer's logic
     //             assert_eq!(congested_objects, vec![object_5]);
@@ -875,7 +804,7 @@ mod tests {
         let max_execution_duration_per_commit = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalTxCount => 3,
-            PerObjectCongestionControlMode::TotalGasBudget => 4_000_000,
+            PerObjectCongestionControlMode::TotalGasBudget => 40,
         };
 
         let mut shared_object_congestion_tracker =
@@ -896,7 +825,7 @@ mod tests {
         // - `object_1` by mutable reference,
         // - `object_2` by immutable reference.
         let objects_1 = vec![(object_1, true), (object_2, false)];
-        let gas_budget_1 = 1_010_000;
+        let gas_budget_1 = 11;
         let gas_price_1 = 1_100;
         let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
         let estimated_execution_duration_1 =
@@ -911,15 +840,15 @@ mod tests {
             commit_round,
         );
         // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          |          |
-        // |----------|----------|
-        // |          |          |
-        // |----------|----------|
-        // | cert. 1  |          |
-        // |----------------------
+        // |----------------------------------
+        // |    object_1    |    object_2    |
+        // |----------------|----------------|
+        // |                |                |
+        // |----------------|----------------|
+        // |                |                |
+        // |----------------|----------------|
+        // | cert. 1 (1100) |                |
+        // |----------------------------------
         if let SequencingResult::Schedule(start_time) = sequencing_result_1 {
             shared_object_congestion_tracker
                 .bump_object_execution_slots(&certificate_1, start_time);
@@ -936,8 +865,8 @@ mod tests {
         // - `object_1` by immutable reference,
         // - `object_2` by mutable reference.
         let objects_2 = vec![(object_1, false), (object_2, true)];
-        let gas_budget_2 = 1_010_000;
-        let gas_price_2 = 1_008;
+        let gas_budget_2 = 11;
+        let gas_price_2 = 1_009;
         let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
         let estimated_execution_duration_2 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_2);
@@ -951,15 +880,15 @@ mod tests {
             commit_round,
         );
         // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          |          |
-        // |----------|----------|
-        // |          | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  |          |
-        // |----------------------
+        // |----------------------------------
+        // |    object_1    |    object_2    |
+        // |----------------|----------------|
+        // |                |                |
+        // |----------------|----------------|
+        // |                | cert. 2 (1009) |
+        // |----------------|----------------|
+        // | cert. 1 (1100) |                |
+        // |----------------------------------
         if let SequencingResult::Schedule(start_time) = sequencing_result_2 {
             shared_object_congestion_tracker
                 .bump_object_execution_slots(&certificate_2, start_time);
@@ -976,8 +905,8 @@ mod tests {
         // - `object_1` by immutable reference,
         // - `object_2` by mutable reference.
         let objects_3 = vec![(object_1, false), (object_2, true)];
-        let gas_budget_3 = 1_010_000;
-        let gas_price_3 = 1_006;
+        let gas_budget_3 = 11;
+        let gas_price_3 = 1_008;
         let certificate_3 = build_transaction(&objects_3, gas_budget_3, gas_price_3);
         let estimated_execution_duration_3 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_3);
@@ -991,15 +920,15 @@ mod tests {
             commit_round,
         );
         // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          | cert. 3  |
-        // |----------|----------|
-        // |          | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  |          |
-        // |----------------------
+        // |----------------------------------
+        // |    object_1    |    object_2    |
+        // |----------------|----------------|
+        // |                | cert. 3 (1008) |
+        // |----------------|----------------|
+        // |                | cert. 2 (1009) |
+        // |----------------|----------------|
+        // | cert. 1 (1100) |                |
+        // |----------------------------------
         if let SequencingResult::Schedule(start_time) = sequencing_result_3 {
             shared_object_congestion_tracker
                 .bump_object_execution_slots(&certificate_3, start_time);
@@ -1015,8 +944,8 @@ mod tests {
         // Construct a certificate that touches the following shared objects:
         // - `object_2` by mutable reference.
         let objects_4 = vec![(object_2, true)];
-        let gas_budget_4 = 1_010_000;
-        let gas_price_4 = 1_002;
+        let gas_budget_4 = 11;
+        let gas_price_4 = 1_007;
         let certificate_4 = build_transaction(&objects_4, gas_budget_4, gas_price_4);
         let estimated_execution_duration_4 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_4);
@@ -1031,15 +960,15 @@ mod tests {
         );
         // If `min_free_execution_slot_assigned = true`, shared object transactions
         // allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          | cert. 3  |
-        // |----------|----------|
-        // |          | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  | cert. 4  |
-        // |----------------------
+        // |----------------------------------
+        // |    object_1    |    object_2    |
+        // |----------------|----------------|
+        // |                | cert. 3 (1008) |
+        // |----------------|----------------|
+        // |                | cert. 2 (1009) |
+        // |----------------|----------------|
+        // | cert. 1 (1100) | cert. 4 (1007) |
+        // |----------------------------------
         // If `min_free_execution_slot_assigned = false`, this certificate must be
         // deferred.
         if min_free_execution_slot_assigned {
@@ -1061,7 +990,7 @@ mod tests {
                 assert_eq!(congested_objects, vec![object_2]);
                 let suggested_gas_price = suggested_gas_price_calculator
                     .calculate_suggested_gas_price(&certificate_4, estimated_execution_duration_4);
-                assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
+                assert_eq!(suggested_gas_price, gas_price_3 + 1);
             } else {
                 panic!("Certificate 4 must be deferred in the old sequencer");
             }
@@ -1071,8 +1000,8 @@ mod tests {
         // - `object_1` by mutable reference,
         // - `object_2` by mutable reference.
         let objects_5 = vec![(object_1, true), (object_2, true)];
-        let gas_budget_5 = 1_010_000;
-        let gas_price_5 = 1_000;
+        let gas_budget_5 = 11;
+        let gas_price_5 = 1_002;
         let certificate_5 = build_transaction(&objects_5, gas_budget_5, gas_price_5);
         let estimated_execution_duration_5 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_5);
@@ -1086,15 +1015,15 @@ mod tests {
             commit_round,
         );
         // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          | cert. 3  |
-        // |----------|----------|
-        // |          | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  | cert. 4  |
-        // |----------------------
+        // |----------------------------------
+        // |    object_1    |    object_2    |
+        // |----------------|----------------|
+        // |                | cert. 3 (1008) |
+        // |----------------|----------------|
+        // |                | cert. 2 (1009) |
+        // |----------------|----------------|
+        // | cert. 1 (1100) | cert. 4 (1007) |
+        // |----------------------------------
         // That is, this certificate must be deferred in both new and old sequencers.
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_5 {
             let suggested_gas_price = suggested_gas_price_calculator
@@ -1106,25 +1035,21 @@ mod tests {
                     congested_objects,
                     objects_5.into_iter().map(|(id, _)| id).collect::<Vec<_>>()
                 );
-                assert_eq!(
-                    suggested_gas_price,
-                    // FIX: suggested gas price must be gas_price_3 + 1!
-                    gas_price_3 + 1,
-                );
+                assert_eq!(suggested_gas_price, gas_price_3 + 1);
             } else {
                 // ^ this corresponds the old sequencer's logic
                 assert_eq!(congested_objects, vec![object_2]);
-                assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
+                assert_eq!(suggested_gas_price, gas_price_3 + 1);
             }
         } else {
             panic!("Certificate 5 must be deferred");
         }
 
         // Construct a certificate that touches the following shared objects:
-        // - `object_1` by mutable reference.
-        let objects_6 = vec![(object_1, true)];
-        let gas_budget_6 = 1_010_000;
-        let gas_price_6 = 1_000;
+        // - `object_2` by mutable reference.
+        let objects_6 = vec![(object_2, true)];
+        let gas_budget_6 = 12;
+        let gas_price_6 = 1_002;
         let certificate_6 = build_transaction(&objects_6, gas_budget_6, gas_price_6);
         let estimated_execution_duration_6 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_6);
@@ -1143,27 +1068,44 @@ mod tests {
         // |----------|----------|
         // |          | cert. 3  |
         // |----------|----------|
-        // | cert. 6  | cert. 2  |
+        // |          | cert. 2  |
         // |----------|----------|
         // | cert. 1  | cert. 4  |
         // |----------------------
-        if let SequencingResult::Schedule(start_time) = sequencing_result_6 {
-            shared_object_congestion_tracker
-                .bump_object_execution_slots(&certificate_6, start_time);
-            suggested_gas_price_calculator.update_congestion_info(
-                &certificate_6,
-                start_time,
-                estimated_execution_duration_6,
-            );
+        // That is, this certificate must be deferred in both new and old sequencers.
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_6 {
+            let suggested_gas_price = suggested_gas_price_calculator
+                .calculate_suggested_gas_price(&certificate_6, estimated_execution_duration_6);
+
+            if min_free_execution_slot_assigned {
+                // ^ this corresponds the new sequencer's logic
+                assert_eq!(
+                    congested_objects,
+                    objects_6.into_iter().map(|(id, _)| id).collect::<Vec<_>>()
+                );
+                match mode {
+                    PerObjectCongestionControlMode::None => unreachable!(),
+                    PerObjectCongestionControlMode::TotalTxCount => {
+                        assert_eq!(suggested_gas_price, gas_price_4 + 1);
+                    }
+                    PerObjectCongestionControlMode::TotalGasBudget => {
+                        assert_eq!(suggested_gas_price, gas_price_3 + 1);
+                    }
+                }
+            } else {
+                // ^ this corresponds the old sequencer's logic
+                assert_eq!(congested_objects, vec![object_2]);
+                assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
+            }
         } else {
-            panic!("Certificate 6 must be scheduled");
+            panic!("Certificate 6 must be deferred");
         }
 
         // Construct a certificate that touches the following shared objects:
         // - `object_1` by mutable reference.
         let objects_7 = vec![(object_1, true)];
-        let gas_budget_7 = 1_010_000;
-        let gas_price_7 = 1_000;
+        let gas_budget_7 = 11;
+        let gas_price_7 = 1_002;
         let certificate_7 = build_transaction(&objects_7, gas_budget_7, gas_price_7);
         let estimated_execution_duration_7 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_7);
@@ -1180,9 +1122,9 @@ mod tests {
         // |----------------------
         // | object 1 | object 2 |
         // |----------|----------|
-        // | cert. 7  | cert. 3  |
+        // |          | cert. 3  |
         // |----------|----------|
-        // | cert. 6  | cert. 2  |
+        // | cert. 7  | cert. 2  |
         // |----------|----------|
         // | cert. 1  | cert. 4  |
         // |----------------------
@@ -1196,6 +1138,45 @@ mod tests {
             );
         } else {
             panic!("Certificate 7 must be scheduled");
+        }
+
+        // Construct a certificate that touches the following shared objects:
+        // - `object_1` by mutable reference.
+        let objects_8 = vec![(object_1, true)];
+        let gas_budget_8 = 11;
+        let gas_price_8 = 1_001;
+        let certificate_8 = build_transaction(&objects_8, gas_budget_8, gas_price_8);
+        let estimated_execution_duration_8 =
+            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_8);
+        // Try sequencing this certificate
+        let shared_input_objects_8: Vec<_> = certificate_8.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_8);
+        let sequencing_result_8 = shared_object_congestion_tracker.try_schedule(
+            &certificate_8,
+            max_execution_duration_per_commit,
+            &previously_deferred_tx_digests,
+            commit_round,
+        );
+        // Shared object transactions allocations should look as follows:
+        // |----------------------
+        // | object 1 | object 2 |
+        // |----------|----------|
+        // | cert. 8  | cert. 3  |
+        // |----------|----------|
+        // | cert. 7  | cert. 2  |
+        // |----------|----------|
+        // | cert. 1  | cert. 4  |
+        // |----------------------
+        if let SequencingResult::Schedule(start_time) = sequencing_result_8 {
+            shared_object_congestion_tracker
+                .bump_object_execution_slots(&certificate_8, start_time);
+            suggested_gas_price_calculator.update_congestion_info(
+                &certificate_8,
+                start_time,
+                estimated_execution_duration_8,
+            );
+        } else {
+            panic!("Certificate 8 must be scheduled");
         }
     }
 }
