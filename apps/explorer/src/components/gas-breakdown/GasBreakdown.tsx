@@ -6,7 +6,6 @@ import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
 import { CoinFormat, type TransactionSummaryType, useFormatCoin } from '@iota/core';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 import { Fragment } from 'react';
-import { onCopySuccess } from '~/lib/utils';
 
 interface GasProps {
     amount?: bigint | number | string;
@@ -51,11 +50,7 @@ function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
         <div className="flex max-h-20 min-h-[20px] flex-wrap items-center gap-x-4 gap-y-2 overflow-y-auto">
             {objectIds.map((objectId, index) => (
                 <div key={index} className="flex items-center gap-x-1.5">
-                    <ObjectLink
-                        objectId={objectId}
-                        copyText={objectId}
-                        onCopySuccess={onCopySuccess}
-                    />
+                    <ObjectLink objectId={objectId} copyText={objectId} />
                 </div>
             ))}
         </div>
@@ -161,7 +156,8 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                                         Paid by
                                     </span>
-                                    <AddressLink label={undefined} address={owner} />
+
+                                    <AddressLink address={owner} copyText={owner} />
                                 </div>
                             )}
 

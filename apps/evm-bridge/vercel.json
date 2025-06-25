@@ -1,0 +1,3 @@
+{
+    "buildCommand": "pnpm turbo --filter iota-evm-bridge build"
+}
