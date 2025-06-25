@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 import type { InferInput } from 'valibot';
 import { parse } from 'valibot';
 
@@ -111,7 +111,7 @@ export const Commands = {
             $kind: 'Publish',
             Publish: {
                 modules: modules.map((module) =>
-                    typeof module === 'string' ? module : toB64(new Uint8Array(module)),
+                    typeof module === 'string' ? module : toBase64(new Uint8Array(module)),
                 ),
                 dependencies: dependencies.map((dep) => normalizeIotaObjectId(dep)),
             },
@@ -132,7 +132,7 @@ export const Commands = {
             $kind: 'Upgrade',
             Upgrade: {
                 modules: modules.map((module) =>
-                    typeof module === 'string' ? module : toB64(new Uint8Array(module)),
+                    typeof module === 'string' ? module : toBase64(new Uint8Array(module)),
                 ),
                 dependencies: dependencies.map((dep) => normalizeIotaObjectId(dep)),
                 package: packageId,

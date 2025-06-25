@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex } from '@noble/hashes/utils';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -57,12 +57,12 @@ describe('Publickey', () => {
     });
 
     it('`toBase64()` should return a valid base-64 representation', async () => {
-        expect(pk2.toBase64()).toEqual(toB64(pk2.toRawBytes()));
+        expect(pk2.toBase64()).toEqual(toBase64(pk2.toRawBytes()));
         expect(pk2.toBase64()).toEqual('Ah0VIwfGtysO0EGLDnDNgOf1KVuNhvVyLT9SE/vSOU82');
     });
 
     it('`toIotaPublicKey()` should return a valid iota representation', async () => {
-        expect(pk2.toIotaPublicKey()).toEqual(toB64(pk2.toIotaBytesForAddress()));
+        expect(pk2.toIotaPublicKey()).toEqual(toBase64(pk2.toIotaBytesForAddress()));
         expect(pk2.toIotaPublicKey()).toEqual('AQIdFSMHxrcrDtBBiw5wzYDn9SlbjYb1ci0/UhP70jlPNg==');
     });
 
