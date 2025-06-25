@@ -1,4 +1,3 @@
-// Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -74,8 +73,8 @@ export class KioskClient {
 
     /**
      * Fetches the kiosk contents.
-     * @param kioskId The ID of the kiosk to fetch.
-     * @param options Optioal
+     * @param id The ID of the kiosk to fetch.
+     * @param options Optional to control the fetch behavior.
      * @returns
      */
     async getKiosk({
