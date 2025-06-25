@@ -18,11 +18,66 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
-    reader::CheckpointReader,
+    reader::{
+        v1::CheckpointReader as CheckpointReaderV1,
+        v2::{CheckpointReader as CheckpointReaderV2, CheckpointReaderConfig},
+    },
     worker_pool::{WorkerPool, WorkerPoolStatus},
 };
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
+
+enum CheckpointReader {
+    V1 {
+        checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
+        gc_sender: mpsc::Sender<CheckpointSequenceNumber>,
+        exit_sender: oneshot::Sender<()>,
+        handle: JoinHandle<IngestionResult<()>>,
+    },
+    V2(CheckpointReaderV2),
+}
+
+impl CheckpointReader {
+    async fn get_checkpoint(&mut self) -> Option<Arc<CheckpointData>> {
+        match self {
+            Self::V1 {
+                checkpoint_recv, ..
+            } => checkpoint_recv.recv().await,
+            Self::V2(reader) => reader.checkpoint().await,
+        }
+    }
+
+    async fn send_gc_signal(
+        &mut self,
+        seq_number: CheckpointSequenceNumber,
+    ) -> IngestionResult<()> {
+        match self {
+            Self::V1 { gc_sender, .. } => gc_sender.send(seq_number).await.map_err(|_| {
+                IngestionError::Channel(
+                    "unable to send GC operation to checkpoint reader, receiver half closed".into(),
+                )
+            }),
+            Self::V2(reader) => reader.send_gc_signal(seq_number).await,
+        }
+    }
+
+    async fn shutdown(self) -> IngestionResult<()> {
+        match self {
+            Self::V1 {
+                exit_sender,
+                handle,
+                ..
+            } => {
+                _ = exit_sender.send(());
+                handle.await.map_err(|err| IngestionError::Shutdown {
+                    component: "Checkpoint Reader".into(),
+                    msg: err.to_string(),
+                })?
+            }
+            Self::V2(reader) => reader.shutdown().await,
+        }
+    }
+}
 
 /// The Executor of the main ingestion pipeline process.
 ///
@@ -163,9 +218,9 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         remote_store_options: Vec<(String, String)>,
         reader_options: ReaderOptions,
     ) -> IngestionResult<ExecutorProgress> {
-        let mut reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let (checkpoint_reader, mut checkpoint_recv, gc_sender, exit_sender) =
-            CheckpointReader::initialize(
+        let reader_checkpoint_number = self.progress_store.min_watermark()?;
+        let (checkpoint_reader, checkpoint_recv, gc_sender, exit_sender) =
+            CheckpointReaderV1::initialize(
                 path,
                 reader_checkpoint_number,
                 remote_store_url,
@@ -173,8 +228,49 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 reader_options,
             );
 
-        let checkpoint_reader_handle = spawn_monitored_task!(checkpoint_reader.run());
+        let handle = spawn_monitored_task!(checkpoint_reader.run());
 
+        self.run_executor_loop(
+            reader_checkpoint_number,
+            CheckpointReader::V1 {
+                checkpoint_recv,
+                gc_sender,
+                exit_sender,
+                handle,
+            },
+        )
+        .await
+    }
+
+    /// Alternative main executor loop. Uses the new iteration of the
+    /// `CheckpointReader` supporting syncing checkppints from hybrid historical
+    /// store.
+    ///
+    /// # Error
+    ///
+    /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
+    /// registered.
+    pub async fn run_with_config(
+        mut self,
+        config: CheckpointReaderConfig,
+    ) -> IngestionResult<ExecutorProgress> {
+        let reader_checkpoint_number = self.progress_store.min_watermark()?;
+
+        let checkpoint_reader = CheckpointReaderV2::new(reader_checkpoint_number, config).await?;
+
+        self.run_executor_loop(
+            reader_checkpoint_number,
+            CheckpointReader::V2(checkpoint_reader),
+        )
+        .await
+    }
+
+    /// Common execution logic
+    async fn run_executor_loop(
+        &mut self,
+        mut reader_checkpoint_number: u64,
+        mut checkpoint_reader: CheckpointReader,
+    ) -> IngestionResult<ExecutorProgress> {
         let worker_pools = std::mem::take(&mut self.pools)
             .into_iter()
             .map(|pool| spawn_monitored_task!(pool))
@@ -187,79 +283,49 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
                         WorkerPoolStatus::Running((task_name, watermark)) => {
-                            self.progress_store.save(task_name.clone(), watermark).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
+                            self.progress_store.save(task_name.clone(), watermark).await
+                                .map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
-                                gc_sender.send(seq_number).await.map_err(|_| {
-                                    IngestionError::Channel(
-                                        "unable to send GC operation to checkpoint reader, receiver half closed"
-                                            .to_owned(),
-                                    )
-                                })?;
+                                checkpoint_reader.send_gc_signal(seq_number).await?;
                                 reader_checkpoint_number = seq_number;
                             }
-                            self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(watermark as i64);
+                            self.metrics.data_ingestion_checkpoint
+                                .with_label_values(&[&task_name])
+                                .set(watermark as i64);
                         }
                         WorkerPoolStatus::Shutdown(worker_pool_name) => {
-                            // Track worker pools that have initiated shutdown.
                             worker_pools_shutdown_signals.push(worker_pool_name);
                         }
                     }
                 }
-                // Only process new checkpoints while system is running (token not cancelled).
-                // The guard prevents accepting new work during shutdown while allowing existing work to complete for other branches.
-                Some(checkpoint) = checkpoint_recv.recv(), if !self.token.is_cancelled() => {
+                Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() => {
                     for sender in &self.pool_senders {
                         sender.send(checkpoint.clone()).await.map_err(|_| {
                             IngestionError::Channel(
-                                "unable to send new checkpoint to worker pool, receiver half closed"
-                                    .to_owned(),
+                                "unable to send new checkpoint to worker pool, receiver half closed".to_owned(),
                             )
                         })?;
                     }
                 }
             }
 
-            // Once all workers pools have signaled completion, start the graceful shutdown
-            // process.
             if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
-                break components_graceful_shutdown(
-                    worker_pools,
-                    exit_sender,
-                    checkpoint_reader_handle,
-                )
-                .await?;
+                // Shutdown worker pools
+                for worker_pool in worker_pools {
+                    worker_pool.await.map_err(|err| IngestionError::Shutdown {
+                        component: "Worker Pool".into(),
+                        msg: err.to_string(),
+                    })?;
+                }
+                // Shutdown checkpoint reader
+                checkpoint_reader.shutdown().await?;
+                break;
             }
         }
 
         Ok(self.progress_store.stats())
     }
-}
-
-/// Start the graceful shutdown of remaining components.
-///
-/// - Awaits all worker pool handles.
-/// - Send shutdown signal to checkpoint reader actor.
-/// - Await checkpoint reader handle.
-async fn components_graceful_shutdown(
-    worker_pools: Vec<JoinHandle<()>>,
-    exit_sender: oneshot::Sender<()>,
-    checkpoint_reader_handle: JoinHandle<IngestionResult<()>>,
-) -> IngestionResult<()> {
-    for worker_pool in worker_pools {
-        worker_pool.await.map_err(|err| IngestionError::Shutdown {
-            component: "Worker Pool".into(),
-            msg: err.to_string(),
-        })?;
-    }
-    _ = exit_sender.send(());
-    checkpoint_reader_handle
-        .await
-        .map_err(|err| IngestionError::Shutdown {
-            component: "Checkpoint Reader".into(),
-            msg: err.to_string(),
-        })??;
-    Ok(())
 }
 
 /// Sets up a single workflow for data ingestion.
