@@ -1,5 +1,5 @@
 ---
-'@iota/apps-ui-kit': major
+'@iota/apps-ui-kit': minor
 ---
 
 support multi-theme
