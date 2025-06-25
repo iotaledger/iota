@@ -17,7 +17,6 @@ bcs.workspace = true
 clap.workspace = true
 comfy-table.workspace = true
 duration-str = "0.5.0"
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 hdrhistogram.workspace = true
 indicatif.workspace = true

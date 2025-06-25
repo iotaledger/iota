@@ -5539,7 +5539,6 @@ dependencies = [
  "clap",
  "comfy-table",
  "duration-str",
- "fastcrypto-zkp",
  "futures",
  "hdrhistogram",
  "indicatif",
@@ -6658,7 +6657,6 @@ dependencies = [
  "colored",
  "datatest-stable",
  "futures",
- "git-version",
  "insta",
  "insta-cmd",
  "iota-macros",
@@ -6671,7 +6669,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-source-map",
  "move-cli",
- "move-compiler",
  "move-disassembler",
  "move-ir-types",
  "move-package",
@@ -7685,7 +7682,6 @@ dependencies = [
  "iota-macros",
  "iota-protocol-config",
  "iota-types",
- "once_cell",
  "tracing",
 ]
 
