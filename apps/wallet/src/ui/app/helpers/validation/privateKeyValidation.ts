@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB58 } from '@iota/bcs';
+import { fromBase58 } from '@iota/bcs';
 import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota-sdk/cryptography/keypair';
 import { hexToBytes } from '@noble/hashes/utils';
 import { z } from 'zod';
@@ -21,7 +21,7 @@ export const privateKeyValidation = z
             } catch (_) {
                 try {
                     // Try decoding base58
-                    privateKeyBytes = fromB58(privateKey);
+                    privateKeyBytes = fromBase58(privateKey);
                 } catch (_) {
                     context.addIssue({
                         code: 'custom',

@@ -4,7 +4,7 @@
 
 import { parseSerializedSignature, PublicKey, SignatureScheme } from '@iota/iota-sdk/cryptography';
 import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -48,7 +48,7 @@ function Signature({ signature, index }: { signature: SignaturePubkeyPair; index
         { label: 'Signature Public Key', value: pubkey },
         { label: 'IOTA Format Public Key ( flag | pk )', value: pubkey_base64_iota_format },
         { label: 'IOTA Address', value: iotaAddress },
-        { label: 'Signature', value: toB64(signature.signature) },
+        { label: 'Signature', value: toBase64(signature.signature) },
     ];
 
     return (

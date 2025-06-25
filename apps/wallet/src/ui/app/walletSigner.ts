@@ -11,7 +11,7 @@ import {
 } from '@iota/iota-sdk/client';
 import { messageWithIntent } from '@iota/iota-sdk/cryptography';
 import { isTransaction, type Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64, toB64 } from '@iota/iota-sdk/utils';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 
 export interface SignedTransaction {
     bytes: string;
@@ -43,7 +43,7 @@ export abstract class WalletSigner {
         );
 
         return {
-            bytes: toB64(input.message),
+            bytes: toBase64(input.message),
             signature,
         };
     }
@@ -62,7 +62,7 @@ export abstract class WalletSigner {
         }
 
         if (typeof transaction === 'string') {
-            return fromB64(transaction);
+            return fromBase64(transaction);
         }
 
         if (transaction instanceof Uint8Array) {
@@ -78,7 +78,7 @@ export abstract class WalletSigner {
         const signature = await this.signData(messageWithIntent('TransactionData', bytes));
 
         return {
-            bytes: toB64(bytes),
+            bytes: toBase64(bytes),
             signature,
         };
     }

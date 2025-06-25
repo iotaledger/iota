@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 import type { SerializedBcs } from '@iota/bcs';
 
 import { normalizeIotaAddress } from '../utils/iota-types.js';
@@ -13,7 +13,7 @@ function Pure(data: Uint8Array | SerializedBcs<any>): Extract<CallArg, { Pure: u
     return {
         $kind: 'Pure',
         Pure: {
-            bytes: data instanceof Uint8Array ? toB64(data) : data.toBase64(),
+            bytes: data instanceof Uint8Array ? toBase64(data) : data.toBase64(),
         },
     };
 }
