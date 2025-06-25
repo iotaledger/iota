@@ -123,10 +123,10 @@
 .cardLink {
   display: flex;
   justify-content: flex-start;
-  border-top: solid 1px var(--iota-line);
-  border-bottom: solid 1px var(--iota-line);
+  border-top: solid 1px rgb(199, 195, 195,0.319);
+  border-bottom: solid 1px rgba(200, 197, 197, 0.319);
   padding: 0.5rem 0;
-  color: rgb(97, 154, 239);
+  color: rgb(97, 99, 103);
   position: relative;
 }
 
@@ -159,7 +159,7 @@
   height: 100%;
   justify-content: center;
   align-items: center;
-  color: rgb(97, 154, 239);
+  color: rgb(65, 66, 68);
 }
 
 .buttons {
@@ -343,6 +343,7 @@
   height: 100%;
   justify-content: center;
   align-items: center;
+  color: white;
 }
 
 .buttons {

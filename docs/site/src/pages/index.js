@@ -24,7 +24,7 @@ export default function Home() {
             backgroundRepeat: "no-repeat",
           }}
         >
-          {title && <h4 className="h4 text-white">{title}</h4>}
+          {title && <h4 className="h4 text-white font-extrabold">{title}</h4>}
           <div className={styles.cardLinksContainer}>{children}</div>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function Home() {
               >
                 <path
                   d="M6.01312 0.5L5.05102 1.45391L8.39164 4.80332L0 4.80332L0 6.19668L8.39164 6.19668L5.05102 9.54073L6.01312 10.5L11 5.5L6.01312 0.5Z"
-                  fill="#4DA2FF"
+                  className="fill-black dark:fill-iota-blue"
                 />
               </svg>
             </Link>
@@ -209,7 +209,7 @@ export default function Home() {
               >
                 <path
                   d="M17.3337 3.99902V13.3324H25.3337L14.667 27.999V18.6657H6.66699L17.3337 3.99902Z"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -227,21 +227,21 @@ export default function Home() {
               >
                 <path
                   d="M12.5664 12H15.5996"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M12.5664 17.333H22.5171"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M12.5664 22.667H22.5171"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -252,18 +252,18 @@ export default function Home() {
                   width="20.6312"
                   height="24.6722"
                   rx="2"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                 />
                 <path
                   d="M8.60445 17.6113L3.21655 17.6113C3.09911 17.6113 3.00391 17.7065 3.00391 17.824V25.4746C3.00391 27.0627 4.29131 28.3501 5.87941 28.3501V28.3501C7.46751 28.3501 8.75492 27.0627 8.75492 25.4746V23.1274"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                 />
                 <path
                   d="M6.20703 28.3496H13.3685"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                 />
@@ -284,28 +284,28 @@ export default function Home() {
               >
                 <path
                   d="M16 20.0007H7.33333C6.44928 20.0007 5.60143 19.6495 4.97631 19.0243C4.35119 18.3992 4 17.5514 4 16.6673C4 15.7833 4.35119 14.9354 4.97631 14.3103C5.60143 13.6852 6.44928 13.334 7.33333 13.334H8"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M20.0002 16V24.6667C20.0002 25.5507 19.649 26.3986 19.0239 27.0237C18.3987 27.6488 17.5509 28 16.6668 28C15.7828 28 14.9349 27.6488 14.3098 27.0237C13.6847 26.3986 13.3335 25.5507 13.3335 24.6667V24"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M16 12H24.6667C25.5507 12 26.3986 12.3512 27.0237 12.9763C27.6488 13.6014 28 14.4493 28 15.3333C28 16.2174 27.6488 17.0652 27.0237 17.6904C26.3986 18.3155 25.5507 18.6667 24.6667 18.6667H24"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M12 16V7.33333C12 6.44928 12.3512 5.60143 12.9763 4.97631C13.6014 4.35119 14.4493 4 15.3333 4C16.2174 4 17.0652 4.35119 17.6904 4.97631C18.3155 5.60143 18.6667 6.44928 18.6667 7.33333V8"
-                  stroke="#C0DEFF"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -328,8 +328,9 @@ export default function Home() {
                   width="9.42373"
                   height="9.42373"
                   rx="2"
-                  stroke="#C0DEFF"
+                  // className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                 />
                 <rect
                   x="16.4422"
@@ -338,8 +339,9 @@ export default function Home() {
                   height="9.42373"
                   rx="2"
                   transform="rotate(-30 16.4422 8.47931)"
-                  stroke="#C0DEFF"
+                  // className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                 />
                 <rect
                   x="4.21191"
@@ -347,8 +349,9 @@ export default function Home() {
                   width="9.42373"
                   height="9.42373"
                   rx="2"
-                  stroke="#C0DEFF"
+                  // className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                 />
                 <rect
                   x="18.166"
@@ -356,8 +359,9 @@ export default function Home() {
                   width="9.42373"
                   height="9.42373"
                   rx="2"
-                  stroke="#C0DEFF"
+                  // className="stroke-black dark:stroke-[#C0DEFF]"
                   strokeWidth="2"
+                  className="stroke-black dark:stroke-[#C0DEFF]"
                 />
               </svg>
 
