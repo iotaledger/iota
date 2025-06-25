@@ -25,6 +25,7 @@ public use fun uid_to_address as UID.to_address;
 
 /// Allows calling `.to_bytes` on a `UID` to get a `vector<u8>`.
 public use fun uid_to_bytes as UID.to_bytes;
+use iota::deterministic_object_id;
 
 /// The hardcoded ID for the singleton IOTA System State Object.
 const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
@@ -174,6 +175,14 @@ public fun new(ctx: &mut TxContext): UID {
     UID {
         id: ID { bytes: ctx.fresh_object_address() },
     }
+}
+
+/// Create a new object with a precomputed objectId.
+/// Using a fixed 123 to avoid collisions
+public fun new_precomputed(iota_address: address, salt: vector<u8>): UID {
+    let id = deterministic_object_id::precomputed_object_id(iota_address, &salt);
+    record_new_uid(id);
+    UID { id: ID { bytes: id } }
 }
 
 /// Delete the object and it's `UID`. This is the only way to eliminate a `UID`.

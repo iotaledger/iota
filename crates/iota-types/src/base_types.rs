@@ -1311,6 +1311,24 @@ impl ObjectID {
         ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
     }
 
+    /// Create an ObjectID deterministically
+    pub fn derive_id_with_salt(
+        flag: u64,
+        iota_address: IotaAddress,
+        salt: &[u8],
+    ) -> Result<ObjectID, ObjectIDParseError> {
+        let mut hasher = DefaultHash::default();
+        hasher.update([flag as u8]);
+        hasher.update(iota_address);
+        hasher.update(salt);
+        let hash = hasher.finalize();
+
+        // truncate into an ObjectID.
+        // OK to access slice because digest should never be shorter than
+        // ObjectID::LENGTH.
+        ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH])
+    }
+
     /// Increment the ObjectID by usize IDs, assuming the ObjectID hex is a
     /// number represented as an array of bytes
     pub fn advance(&self, step: usize) -> Result<ObjectID, anyhow::Error> {

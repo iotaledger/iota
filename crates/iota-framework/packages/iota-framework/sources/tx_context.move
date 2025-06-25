@@ -4,6 +4,8 @@
 
 module iota::tx_context;
 
+use iota::deterministic_object_id;
+
 #[test_only]
 /// Number of bytes in an tx hash (which will be the transaction digest)
 const TX_HASH_LENGTH: u64 = 32;
@@ -62,6 +64,13 @@ public fun fresh_object_address(ctx: &mut TxContext): address {
     let ids_created = ctx.ids_created;
     let id = derive_id(*&ctx.tx_hash, ids_created);
     ctx.ids_created = ids_created + 1;
+    id
+}
+
+public fun fresh_object_address_deterministically(ctx: &mut TxContext): address {
+    let ids_created = ctx.ids_created;  // Direct field access works here!
+    let id = deterministic_object_id::precomputed_object_id(ctx.sender, &ctx.tx_hash);
+    ctx.ids_created = ids_created + 1;  // Direct field modification works here!
     id
 }
 

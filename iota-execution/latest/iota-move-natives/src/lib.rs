@@ -64,16 +64,15 @@ use self::{
         TransferFreezeObjectCostParams, TransferInternalCostParams, TransferShareObjectCostParams,
     },
     tx_context::TxContextDeriveIdCostParams,
+    deterministic_object_id::DeterministicObjecIdDeriveIdWithSaltCostParams,
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
-use crate::crypto::{
-    group_ops,
-    group_ops::GroupOpsCostParams,
+use crate::{crypto::{
+    group_ops::{self, GroupOpsCostParams},
     poseidon::PoseidonBN254CostParams,
-    zklogin,
-    zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
-};
+    zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+}};
 
 mod address;
 mod config;
@@ -89,6 +88,7 @@ mod transfer;
 mod tx_context;
 mod types;
 mod validator;
+mod deterministic_object_id;
 
 #[derive(Tid)]
 pub struct NativesCostTable {
@@ -122,6 +122,8 @@ pub struct NativesCostTable {
     pub transfer_freeze_object_cost_params: TransferFreezeObjectCostParams,
     pub transfer_share_object_cost_params: TransferShareObjectCostParams,
 
+    // Deterministic Object ID
+    pub deterministic_object_id_derive_id_with_salt_cost_params: DeterministicObjecIdDeriveIdWithSaltCostParams,
     // TxContext
     pub tx_context_derive_id_cost_params: TxContextDeriveIdCostParams,
 
@@ -344,6 +346,11 @@ impl NativesCostTable {
             transfer_share_object_cost_params: TransferShareObjectCostParams {
                 transfer_share_object_cost_base: protocol_config
                     .transfer_share_object_cost_base()
+                    .into(),
+            },
+            deterministic_object_id_derive_id_with_salt_cost_params: DeterministicObjecIdDeriveIdWithSaltCostParams{
+                deterministic_object_id_derive_id_with_salt_cost_base: protocol_config
+                    .transfer_freeze_object_cost_base()
                     .into(),
             },
             tx_context_derive_id_cost_params: TxContextDeriveIdCostParams {
@@ -1020,6 +1027,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "tx_context",
             "derive_id",
             make_native!(tx_context::derive_id),
+        ),
+        (
+            "deterministic_object_id",
+            "derive_id_with_salt",
+            make_native!(deterministic_object_id::derive_id_with_salt),
         ),
         (
             "types",
