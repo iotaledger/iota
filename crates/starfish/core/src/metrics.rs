@@ -130,7 +130,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
-    pub(crate) invalid_header_in_a_bundle: IntCounterVec,
+    pub(crate) invalid_headers_in_a_bundle: IntCounterVec,
+    pub(crate) valid_headers_in_a_bundle: IntCounterVec,
+    #[allow(dead_code)]
+    pub(crate) received_unique_headers_from_a_bundle: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -381,10 +384,22 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            invalid_header_in_a_bundle: register_int_counter_vec_with_registry!(
-                "invalid_header_in_a_bundle",
-                "Number of invalid block headers in block bundles per peer authority",
+            invalid_headers_in_a_bundle: register_int_counter_vec_with_registry!(
+                "invalid_headers_in_a_bundle",
+                "Number of invalid block headers received from block bundles per peer authority",
                 &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            valid_headers_in_a_bundle: register_int_counter_vec_with_registry!(
+                "valid_headers_in_a_bundle",
+                "Number of valid block headers received from block bundles per peer authority",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            received_unique_headers_from_a_bundle: register_int_counter_vec_with_registry!(
+                "received_unique_headers_from_a_bundle",
+                "Number of unique block headers received from block bundles per sender peer authority",
+                &["authority", "source"],
                 registry,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(

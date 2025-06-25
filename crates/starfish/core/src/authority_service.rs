@@ -420,7 +420,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_header_in_a_bundle
+                    .invalid_headers_in_a_bundle
                     .with_label_values(&[
                         peer_hostname.as_str(),
                         "handle_subscribed_block_bundle",
@@ -439,7 +439,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_header_in_a_bundle
+                    .invalid_headers_in_a_bundle
                     .with_label_values(&[
                         peer_hostname.as_str(),
                         "handle_subscribed_block_bundle",
@@ -455,6 +455,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             let verified_block_header =
                 VerifiedBlockHeader::new_verified(signed_block_header, serialized_header);
             additional_block_headers.push(verified_block_header);
+            self.context
+                .metrics
+                .node_metrics
+                .valid_headers_in_a_bundle
+                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+                .inc();
         }
 
         // 5. Observe headers and the block for the commit votes. When local commit is
@@ -465,6 +471,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         self.commit_vote_monitor.observe_block(&verified_block);
 
         // TODO:: add filtering for already processed blocks/headers
+        // TODO:: add metric for filtered blocks/headers
 
         // 6. Reject blocks when local commit index is lagging too far from quorum
         //    commit
@@ -513,6 +520,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //    them
         // Normally, there should be no missing ancestors, as the headers are sent in
         // order of increasing rounds.
+
+        // TODO::Uncomment when the filter for headers is implemented, and already
+        // processed headers are removed from additional_block_headers. Before that it
+        // is incorrect
+        // self.context
+        // .metrics
+        // .node_metrics
+        // .received_unique_headers_from_a_bundle
+        // .with_label_values(&[
+        // peer_hostname.as_str(),
+        // "handle_subscribed_block_bundle",
+        // ])
+        // .inc_by(additional_block_headers.len() as u64);
 
         let mut missing_ancestors = self
             .core_dispatcher
