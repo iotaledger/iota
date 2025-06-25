@@ -1432,8 +1432,9 @@ impl IndexerReader {
                 .await;
         } else {
             let main_where_clause = match filter {
-                EventFilter::Package(package_id) => {
-                    format!("package = '\\x{}'::bytea", package_id.to_hex())
+                EventFilter::All([]) => {
+                    // No filter
+                    "TRUE".to_string()
                 }
                 EventFilter::MoveModule { package, module } => {
                     format!(
@@ -1458,12 +1459,7 @@ impl IndexerReader {
                     // Processed above
                     unreachable!()
                 }
-                EventFilter::MoveEventField { .. }
-                | EventFilter::All(_)
-                | EventFilter::Any(_)
-                | EventFilter::And(_, _)
-                | EventFilter::Or(_, _)
-                | EventFilter::TimeRange { .. } => {
+                EventFilter::TimeRange { .. } | EventFilter::Any(_) => {
                     return Err(IndexerError::NotSupported(
                         "This type of EventFilter is not supported.".into(),
                     ));

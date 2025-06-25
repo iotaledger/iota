@@ -209,22 +209,7 @@ async fn query_events_unsupported_filters() {
 
     let client = cluster.rpc_client();
 
-    let unsupported_filters = vec![
-        EventFilter::Any(vec![]),
-        EventFilter::And(
-            Box::new(EventFilter::Any(vec![])),
-            Box::new(EventFilter::Any(vec![])),
-        ),
-        EventFilter::Or(
-            Box::new(EventFilter::Any(vec![])),
-            Box::new(EventFilter::Any(vec![])),
-        ),
-        EventFilter::MoveEventField {
-            path: String::default(),
-            value: true.into(),
-        },
-        EventFilter::Package(ObjectID::random()),
-    ];
+    let unsupported_filters = vec![EventFilter::Any(vec![])];
 
     for event_filter in unsupported_filters {
         let result = client.query_events(event_filter, None, None, None).await;
@@ -232,7 +217,7 @@ async fn query_events_unsupported_filters() {
         let err = result.unwrap_err();
         let msg = err.to_string();
 
-        assert!(msg.contains("This query type is not supported by the full node"));
+        assert!(msg.contains("not supported by the full node"));
     }
 }
 

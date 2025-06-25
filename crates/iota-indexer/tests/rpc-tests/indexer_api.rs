@@ -120,24 +120,12 @@ fn query_events_unsupported_events() {
         let ten_minutes_ago = now_millis - (10 * 60 * 1000); // 600 seconds = 10 minutes
 
         let unsupported_filters = vec![
-            EventFilter::All(vec![]),
             EventFilter::Any(vec![]),
-            EventFilter::And(
-                Box::new(EventFilter::Any(vec![])),
-                Box::new(EventFilter::Any(vec![])),
-            ),
-            EventFilter::Or(
-                Box::new(EventFilter::Any(vec![])),
-                Box::new(EventFilter::Any(vec![])),
-            ),
+
             EventFilter::TimeRange {
                 start_time: ten_minutes_ago as u64,
                 end_time: now_millis as u64,
-            },
-            EventFilter::MoveEventField {
-                path: String::default(),
-                value: serde_json::Value::Bool(true),
-            },
+            }
         ];
 
         for event_filter in unsupported_filters {
@@ -168,7 +156,6 @@ fn query_events_supported_events() {
         let supported_filters = vec![
             EventFilter::Sender(IotaAddress::ZERO),
             EventFilter::Transaction(TransactionDigest::ZERO),
-            EventFilter::Package(ObjectID::ZERO),
             EventFilter::MoveEventModule {
                 package: ObjectID::ZERO,
                 module: "x".parse().unwrap(),
@@ -178,6 +165,7 @@ fn query_events_supported_events() {
                 package: ObjectID::ZERO,
                 module: "x".parse().unwrap(),
             },
+            EventFilter::All([]),
         ];
 
         for event_filter in supported_filters {

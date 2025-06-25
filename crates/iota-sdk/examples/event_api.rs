@@ -29,7 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let descending = true;
     let query_events = client
         .event_api()
-        .query_events(EventFilter::All(vec![]), None, 5, descending) // query first 5 events in descending order
+        .query_events(EventFilter::All([]), None, 5, descending) // query first 5 events in descending order
         .await?;
     println!(" *** Query events *** ");
     println!("{:?}", query_events);
@@ -41,10 +41,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     println!("WS version {:?}", ws.api_version());
 
-    let mut subscribe = ws
-        .event_api()
-        .subscribe_event(EventFilter::All(vec![]))
-        .await?;
+    let mut subscribe = ws.event_api().subscribe_event(EventFilter::All([])).await?;
 
     loop {
         println!("{:?}", subscribe.next().await);

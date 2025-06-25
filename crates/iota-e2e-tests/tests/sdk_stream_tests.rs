@@ -56,7 +56,7 @@ use test_cluster::TestClusterBuilder;
 //     let client = IotaClientBuilder::default().build(rpc_url).await?;
 //     let events = client
 //         .event_api()
-//         .get_events_stream(EventFilter::All(vec![]), None, true)
+//         .get_events_stream(EventFilter::All([]), None, true)
 //         .collect::<Vec<_>>()
 //         .await;
 
@@ -75,7 +75,7 @@ use test_cluster::TestClusterBuilder;
 
 //     let events = client
 //         .event_api()
-//         .get_events_stream(EventFilter::All(vec![]), None, true)
+//         .get_events_stream(EventFilter::All([]), None, true)
 //         .collect::<Vec<_>>()
 //         .await;
 //     assert_eq!(starting_event_count + 1, events.len());

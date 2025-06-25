@@ -131,8 +131,8 @@ async fn main() -> Result<(), anyhow::Error> {
 </TabItem>
 <TabItem value="graphql" label="GraphQL">
 
-You can use GraphQL to query events instead of JSON RPC. The following example queries are in the 
-[`iota-graphql-rpc` crate](https://github.com/iotaledger/iota/tree/develop/crates/iota-graphql-rpc/examples/event_connection) in the IOTA repo. 
+You can use GraphQL to query events instead of JSON RPC. The following example queries are in the
+[`iota-graphql-rpc` crate](https://github.com/iotaledger/iota/tree/develop/crates/iota-graphql-rpc/examples/event_connection) in the IOTA repo.
 
 #### Event Connection
 
@@ -181,7 +181,7 @@ async fn main() -> Result<()> {
         .ws_url("wss://api.testnet.iota.cafe:443")
         .build("https://api.testnet.iota.cafe:443")
         .await.unwrap();
-    let mut subscribe_all = iota.event_api().subscribe_event(EventFilter::All(vec![])).await?;
+    let mut subscribe_all = iota.event_api().subscribe_event(EventFilter::All([])).await?;
     loop {
         println!("{:?}", subscribe_all.next().await);
     }
@@ -258,7 +258,7 @@ subscribeEvent {
 
 ## Monitoring Events
 
-Firing events is not very useful in a vacuum. You also need the ability to respond to those events. 
+Firing events is not very useful in a vacuum. You also need the ability to respond to those events.
 There are two methods from which to choose when you need to monitor on-chain events:
 - Incorporate a [custom indexer](../advanced/custom-indexer.mdx) to take advantage of IOTA's micro-data ingestion framework.
 - Poll the IOTA network on a schedule to query events.
@@ -276,7 +276,7 @@ The IOTA TypeScript SDK enables developers to interact with the IOTA Layer 1 blo
 
 ### Querying Events with `queryEvents`
 
-The `queryEvents` method allows you to retrieve specific events based on filters such as emitting package, module, or sender. 
+The `queryEvents` method allows you to retrieve specific events based on filters such as emitting package, module, or sender.
 
 While events provide high-level data on interactions, such as user actions, contract calls, or state changes, the `queryEvents` method allows you to retrieve these events from the blockchain. You can filter these events by various criteria, such as the emitting package, module, or sender address. This is particularly useful for tracking smart contract execution, monitoring state changes, or auditing blockchain interactions.
 
@@ -340,7 +340,7 @@ async function queryTransactionBlocks() {
       },
       limit: 3,
     });
-    
+
     console.log('Transaction Blocks:\n', JSON.stringify(blocks, null, 2));
   } catch (error) {
     console.error('Error querying transaction blocks:', error);
