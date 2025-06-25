@@ -168,12 +168,19 @@ async fn scan_block_headers(
     // Write block headers
     store
         .write(
-            WriteBatch::default().block_headers(
-                written_blocks
-                    .iter()
-                    .map(|b| b.verified_block_header.clone())
-                    .collect(),
-            ),
+            WriteBatch::default()
+                .block_headers(
+                    written_blocks
+                        .iter()
+                        .map(|b| b.verified_block_header.clone())
+                        .collect(),
+                )
+                .transactions(
+                    written_blocks
+                        .iter()
+                        .map(|b| b.verified_transactions.clone())
+                        .collect(),
+                ),
         )
         .unwrap();
 
@@ -207,12 +214,19 @@ async fn scan_block_headers(
     // Write additional block headers
     store
         .write(
-            WriteBatch::default().block_headers(
-                additional_blocks
-                    .iter()
-                    .map(|b| b.verified_block_header.clone())
-                    .collect(),
-            ),
+            WriteBatch::default()
+                .block_headers(
+                    additional_blocks
+                        .iter()
+                        .map(|b| b.verified_block_header.clone())
+                        .collect(),
+                )
+                .transactions(
+                    additional_blocks
+                        .iter()
+                        .map(|b| b.verified_transactions.clone())
+                        .collect(),
+                ),
         )
         .unwrap();
     {

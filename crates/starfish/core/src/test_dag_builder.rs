@@ -9,14 +9,15 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitRef, CommittedSubDag,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        TestBlockHeader, VerifiedBlock, VerifiedBlockHeader, genesis_block_headers,
+        TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
@@ -431,6 +432,7 @@ pub struct LayerBuilder<'a> {
 
     // Accumulated blocks to write to dag state
     block_headers: Vec<VerifiedBlockHeader>,
+    transactions: Vec<VerifiedTransactions>,
 }
 
 #[expect(unused)]
@@ -460,6 +462,7 @@ impl<'a> LayerBuilder<'a> {
             // TODO: add more variations of transaction acknowledgment links
             ancestors,
             block_headers: vec![],
+            transactions: vec![],
         }
     }
 
@@ -605,9 +608,11 @@ impl<'a> LayerBuilder<'a> {
             !self.block_headers.is_empty(),
             "Called to persist layers although no blocks have been created. Make sure you have called build before."
         );
-        dag_state
-            .write()
-            .accept_block_headers(self.block_headers.clone());
+        let mut dag_state = dag_state.write();
+        dag_state.accept_block_headers(self.block_headers.clone());
+        for transactions in self.transactions.clone() {
+            dag_state.add_transactions(transactions, true);
+        }
     }
 
     // Layer round is minimally and randomly connected with ancestors.
@@ -747,6 +752,8 @@ impl<'a> LayerBuilder<'a> {
         transaction_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
     ) {
         let mut references = Vec::new();
+        let mut rng = StdRng::from_entropy();
+
         for (authority, ancestors) in connections {
             if self.should_skip_block(round, authority) {
                 continue;
@@ -756,7 +763,18 @@ impl<'a> LayerBuilder<'a> {
             for num_block in 0..num_blocks {
                 let author = authority.value() as u32;
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlockHeader::new_for_test(
+
+                // Create random transactions and their commitment.
+                let mut tx_bytes = [0u8; 32];
+                rng.fill(&mut tx_bytes[..]);
+                let transactions = vec![Transaction::new(tx_bytes.to_vec())];
+                let serialized_transactions = Transaction::serialize(&transactions).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                )
+                .unwrap();
+
+                let block_header = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author)
                         .set_ancestors(ancestors.clone())
                         .set_acknowledgments(
@@ -766,13 +784,23 @@ impl<'a> LayerBuilder<'a> {
                                 .unwrap_or_default(),
                         )
                         .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
+                        .set_commitment(commitment)
                         .build(),
                 );
-                references.push(block.reference());
+
+                let verified_transactions = VerifiedTransactions::new(
+                    transactions,
+                    block_header.reference(),
+                    commitment,
+                    serialized_transactions,
+                );
+
+                references.push(block_header.reference());
                 self.dag_builder
                     .block_headers
-                    .insert(block.reference(), block.clone());
-                self.block_headers.push(block);
+                    .insert(block_header.reference(), block_header.clone());
+                self.block_headers.push(block_header.clone());
+                self.transactions.push(verified_transactions);
             }
         }
         self.ancestors = references;

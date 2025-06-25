@@ -150,7 +150,9 @@ impl CommitObserver {
             let commit_index_to_recover_acks =
                 last_commit_index.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
 
-            recovery_lower_bound = recovery_lower_bound.min(commit_index_to_recover_acks);
+            recovery_lower_bound = recovery_lower_bound
+                .min(commit_index_to_recover_acks)
+                .max(1);
             assert!(last_commit_index >= last_processed_commit_index);
             if last_commit_index == last_processed_commit_index {
                 debug!(
@@ -176,11 +178,13 @@ impl CommitObserver {
         // Recover transaction acknowledgment tracker in the linearizer using all the
         // commits and resend all the committed sub-dags to the consensus output channel
         // for all the commits above the last processed index.
-        let mut last_recovered_commit_index = last_processed_commit_index;
+        let mut next_commit_index_to_recover = recovery_lower_bound;
+        let mut last_sent_commit_index = last_processed_commit_index;
         let num_recovery_commits = recovery_commits.len();
         for (index, commit) in recovery_commits.into_iter().enumerate() {
-            // Commit index must be continuous.
-            assert_eq!(commit.index(), last_recovered_commit_index + 1);
+            let commit_index = commit.index();
+            // Commit index must be continuous during recovert.
+            assert_eq!(commit_index, next_commit_index_to_recover);
 
             // On recovery leader schedule will be updated with the current scores
             // and the scores will be passed along with the last commit sent to
@@ -195,7 +199,7 @@ impl CommitObserver {
                 vec![]
             };
 
-            info!("Processing commit {} during recovery", commit.index());
+            info!("Processing commit {} during recovery", commit_index);
 
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
@@ -220,6 +224,8 @@ impl CommitObserver {
             // Only submit unprocessed commits to IOTA
             for solid_sub_dag in solid_sub_dags {
                 if solid_sub_dag.commit_ref.index > last_processed_commit_index {
+                    // Commit index must be continuous during recovert.
+                    assert_eq!(commit_index, last_sent_commit_index + 1);
                     info!(
                         "Sending solid commit {} during recovery",
                         solid_sub_dag.commit_ref.index
@@ -230,10 +236,12 @@ impl CommitObserver {
                             e
                         )
                     });
+
+                    last_sent_commit_index += 1;
                 }
             }
 
-            last_recovered_commit_index += 1;
+            next_commit_index_to_recover += 1;
         }
 
         info!(

@@ -28,9 +28,6 @@ use crate::{
 };
 
 /// Persistent storage with RocksDB.
-// TODO: Store block_headers and separately transaction data (not blocks). When
-// trying to read a block, assemble a full block by reading from two column
-// families.
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
