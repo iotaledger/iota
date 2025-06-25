@@ -894,6 +894,11 @@ impl TestBlockHeader {
         self
     }
 
+    pub fn set_commitment(mut self, commitment: TransactionsCommitment) -> Self {
+        self.block_header.transactions_commitment = commitment;
+        self
+    }
+
     pub fn build(self) -> BlockHeader {
         BlockHeader::V1(self.block_header)
     }

@@ -438,12 +438,13 @@ mod tests {
         for (i, (authority, references)) in connections.into_iter().enumerate() {
             assert_eq!(authority, AuthorityIndex::new_for_test(i as u32));
             assert_eq!(references, dag_builder.last_ancestors);
-            assert_eq!(
+            assert!(
                 transactions_acknowledgments
                     .get(&authority)
                     .cloned()
-                    .unwrap_or_default(),
-                dag_builder.last_ancestors
+                    .unwrap_or_default()
+                    .is_empty(),
+                "Transactions should not be acknowledged in Round 1"
             );
         }
     }
@@ -479,13 +480,10 @@ mod tests {
             expected_references[i].sort();
             assert_eq!(references, expected_references[i]);
 
-            let mut transactions_acks = transactions_acknowledgments
-                .get(&authority)
-                .cloned()
-                .unwrap_or_default();
-            transactions_acks.sort();
-
-            assert_eq!(transactions_acks, expected_references[i]);
+            assert!(
+                transactions_acknowledgments.is_empty(),
+                "Transactions should not be acknowledged in Round 1"
+            );
         }
     }
 

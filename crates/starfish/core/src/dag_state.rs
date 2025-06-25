@@ -976,6 +976,54 @@ impl DagState {
         blocks.first().cloned().unwrap()
     }
 
+    /// Checks whether the required transactions are in cache, if exist, or
+    /// otherwise will check in store. The method is not caching back the
+    /// results, so its expensive if keep asking for cache missing transactions.
+    pub(crate) fn contains_transactions(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
+        let mut exist = vec![false; block_refs.len()];
+        let mut missing = Vec::new();
+
+        for (index, block_ref) in block_refs.into_iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Allow the caller to handle the invalid genesis ancestor error.
+                if self.genesis.contains_key(&block_ref) {
+                    exist[index] = true;
+                }
+                continue;
+            }
+            if self.recent_transactions.contains_key(&block_ref) {
+                exist[index] = true;
+            } else {
+                missing.push((index, block_ref));
+            }
+        }
+
+        if missing.is_empty() {
+            return exist;
+        }
+
+        let missing_refs = missing
+            .iter()
+            .map(|(_, block_ref)| *block_ref)
+            .collect::<Vec<_>>();
+        let store_results = self
+            .store
+            .contains_transactions(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["contains_transactions"])
+            .inc();
+
+        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+            exist[index] = result;
+        }
+
+        exist
+    }
+
     pub(crate) fn threshold_clock_round(&self) -> Round {
         self.threshold_clock.get_round()
     }
@@ -2485,5 +2533,74 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_contains_transactions() {
+        /// Only keep elements up to 2 rounds before the last committed round
+        const CACHED_ROUNDS: Round = 2;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u32 = 4;
+        let mut blocks = Vec::new();
+
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block =
+                    VerifiedBlock::new_for_test(TestBlockHeader::new(round, author).build());
+                blocks.push(block);
+            }
+        }
+
+        // Now write in store the transactions from first 4 rounds and the rest to the
+        // dag state
+        blocks.clone().into_iter().for_each(|block| {
+            if block.round() <= 4 {
+                store
+                    .write(
+                        WriteBatch::default()
+                            .transactions(vec![block.verified_transactions.clone()]),
+                    )
+                    .unwrap();
+            } else {
+                dag_state.add_transactions(block.verified_transactions.clone(), false);
+            }
+        });
+
+        // Now when trying to query whether we have all the transactions, we should
+        // successfully retrieve a positive answer where the transactions of first 4
+        // round should be found in store and the rest in DagState.
+        let mut block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state.contains_transactions(block_refs.clone());
+
+        // Ensure everything is found
+        let mut expected = vec![true; (num_rounds * num_authorities) as usize];
+        assert_eq!(result, expected);
+
+        // Now try to ask also for one block ref that is neither in cache nor in store
+        block_refs.insert(
+            3,
+            BlockRef::new(
+                11,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::default(),
+            ),
+        );
+        let result = dag_state.contains_transactions(block_refs);
+
+        // Ensure everything is found except the one we just added
+        expected.insert(3, false);
+        assert_eq!(result, expected);
     }
 }
