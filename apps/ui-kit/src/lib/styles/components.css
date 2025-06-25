@@ -108,8 +108,8 @@
         color: var(--key-value-hover-text-color);
     }
 
-    .key-tooltip-text-color {
-        color: var(--key-tooltip-text-color);
+    .key-value-key-text-color {
+        color: var(--key-value-key-text-color);
     }
 
     /* CHECKBOX */
@@ -212,7 +212,7 @@
 
     .button-segment-underline-selected {
         @apply before:bottom-[-0.8px] enabled:before:left-2 enabled:before:w-[calc(100%-16px)];
-        @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)];
+        @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)] names:before:rounded-full;
     }
 
     /* LOADING INDICATOR */
@@ -657,5 +657,14 @@
     /* TABLE */
     .table-text-color {
         color: var(--table-text-color);
+    }
+
+    /* DIALOG */
+    .dialog-outline {
+        outline: var(--dialog-outline);
+    }
+
+    .dialog-overlay-bg {
+        background-color: var(--dialog-overlay-bg);
     }
 }
