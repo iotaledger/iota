@@ -140,9 +140,9 @@ pub(crate) struct NodeMetrics {
     pub(crate) network_excluded_ancestors_count_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) semantically_invalid_blocks: IntCounterVec,
-    pub(crate) syntactically_invalid_blocks: IntCounterVec,
-    pub(crate) equivocating_rounds_by_authority: IntCounterVec,
-    pub(crate) missing_proposals_by_authority: IntCounterVec,
+    pub(crate) _syntactically_invalid_blocks: IntCounterVec,
+    pub(crate) _equivocating_rounds_by_authority: IntCounterVec,
+    pub(crate) _missing_proposals_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -445,19 +445,19 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
              ).unwrap(),
-             syntactically_invalid_blocks: register_int_counter_vec_with_registry!(
+            _syntactically_invalid_blocks: register_int_counter_vec_with_registry!(
                 "syntactically_invalid_blocks",
                 "Number of syntactically invalid blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            equivocating_rounds_by_authority: register_int_counter_vec_with_registry!(
+            _equivocating_rounds_by_authority: register_int_counter_vec_with_registry!(
                 "equivocating_rounds_by_authority",
                 "Registers the number of rounds when the authority sent an equivocating block.",
                 &["authority"],
                 registry,
             ).unwrap(),
-            missing_proposals_by_authority: register_int_counter_vec_with_registry!(
+            _missing_proposals_by_authority: register_int_counter_vec_with_registry!(
                 "missing_proposals_by_authority",
                 "Registers the number of blocks that an authority failed to send.",
                 &["authority"],
@@ -831,15 +831,15 @@ pub(crate) struct ValidatorScoreMetrics {
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of syntactically
     // invalid blocks sent by the validator that were already handled in the epoch.
-    pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    pub(crate) _syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of blocks that the
     // validator failed to propose.
-    pub(crate) missing_proposals_by_authority: Arc<Vec<AtomicU64>>,
+    pub(crate) _missing_proposals_by_authority: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of rounds
     // they sent equivocating blocks.
-    pub(crate) equivocating_rounds: Arc<Vec<AtomicU64>>,
+    pub(crate) _equivocating_rounds: Arc<Vec<AtomicU64>>,
 }
 
 impl ValidatorScoreMetrics {
@@ -858,13 +858,537 @@ impl ValidatorScoreMetrics {
 
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
-            syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
-            missing_proposals_by_authority: Arc::new(missing_proposals_by_authority_inner),
-            equivocating_rounds: Arc::new(equivocating_rounds_inner),
+            _syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
+            _missing_proposals_by_authority: Arc::new(missing_proposals_by_authority_inner),
+            _equivocating_rounds: Arc::new(equivocating_rounds_inner),
         }
     }
 
     pub(crate) fn update_semantically_invalid_blocks(&self, validator: AuthorityIndex) {
         self.semantically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::BTreeSet,
+        sync::{Arc, atomic::Ordering},
+        time::Duration,
+    };
+
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use consensus_config::{AuthorityIndex, NetworkKeyPair, ProtocolKeyPair};
+    use parking_lot::{Mutex, RwLock};
+    use strum::IntoEnumIterator;
+    use strum_macros::{Display, EnumIter};
+    use tokio::sync::broadcast;
+
+    use crate::{
+        Round, Transaction, TransactionVerifier, ValidationError,
+        authority_service::AuthorityService,
+        block::{BlockDigest, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
+        block_verifier::SignedBlockVerifier,
+        commit::{CertifiedCommits, CommitRange},
+        commit_vote_monitor::CommitVoteMonitor,
+        context::Context,
+        core_thread::{CoreError, CoreThreadDispatcher},
+        dag_state::DagState,
+        error::ConsensusResult,
+        metrics::ValidatorScoreMetrics,
+        network::{BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkService},
+        round_prober::QuorumRound,
+        storage::mem_store::MemStore,
+        synchronizer::Synchronizer,
+    };
+    #[derive(Clone)]
+    struct TestParameters<'a> {
+        round: u32,
+        committee_size: usize,
+        keypairs: Vec<&'a ProtocolKeyPair>,
+    }
+
+    fn generate_default_ancestors(round: u32, author: u32, committee_size: usize) -> Vec<BlockRef> {
+        let mut ancestors = (0..committee_size)
+            .map(|i| {
+                BlockRef::new(
+                    round - 1,
+                    AuthorityIndex::new_for_test(i as u32),
+                    BlockDigest::MIN,
+                )
+            })
+            .collect::<Vec<_>>();
+        let own_ancestor = ancestors.remove(author as usize);
+        ancestors.insert(0, own_ancestor);
+        ancestors
+    }
+    struct TxnSizeVerifier {}
+
+    impl TransactionVerifier for TxnSizeVerifier {
+        // Fails verification if any transaction is < 4 bytes.
+        fn verify_batch(&self, transactions: &[&[u8]]) -> Result<(), ValidationError> {
+            for txn in transactions {
+                if txn.len() < 4 {
+                    return Err(ValidationError::InvalidTransaction(format!(
+                        "Length {} is too short!",
+                        txn.len()
+                    )));
+                }
+            }
+            Ok(())
+        }
+    }
+    pub(crate) struct FakeCoreThreadDispatcher {
+        blocks: Mutex<Vec<VerifiedBlock>>,
+    }
+
+    impl FakeCoreThreadDispatcher {
+        fn new() -> Self {
+            Self {
+                blocks: Mutex::new(vec![]),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl CoreThreadDispatcher for FakeCoreThreadDispatcher {
+        async fn add_blocks(
+            &self,
+            blocks: Vec<VerifiedBlock>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            let block_refs = blocks.iter().map(|b| b.reference()).collect();
+            self.blocks.lock().extend(blocks);
+            Ok(block_refs)
+        }
+
+        async fn check_block_refs(
+            &self,
+            _block_refs: Vec<BlockRef>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            Ok(BTreeSet::new())
+        }
+
+        async fn add_certified_commits(
+            &self,
+            _commits: CertifiedCommits,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            Ok(Default::default())
+        }
+
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+            todo!()
+        }
+
+        fn set_propagation_delay_and_quorum_rounds(
+            &self,
+            _delay: Round,
+            _received_quorum_rounds: Vec<QuorumRound>,
+            _accepted_quorum_rounds: Vec<QuorumRound>,
+        ) -> Result<(), CoreError> {
+            todo!()
+        }
+
+        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
+            todo!()
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
+            todo!()
+        }
+    }
+
+    pub(crate) fn new_authority_service_for_tests(
+        committee_size: usize,
+    ) -> (
+        Vec<(NetworkKeyPair, ProtocolKeyPair)>,
+        Arc<Context>,
+        Arc<FakeCoreThreadDispatcher>,
+        Arc<AuthorityService<FakeCoreThreadDispatcher>>,
+    ) {
+        let (context, keys) = Context::new_for_test(committee_size);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher::new());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+        ));
+        (keys, context, core_dispatcher, authority_service)
+    }
+
+    #[derive(Default)]
+    struct FakeNetworkClient {}
+
+    #[async_trait]
+    impl NetworkClient for FakeNetworkClient {
+        const SUPPORT_STREAMING: bool = false;
+
+        async fn send_block(
+            &self,
+            _peer: AuthorityIndex,
+            _block: &VerifiedBlock,
+            _timeout: Duration,
+        ) -> ConsensusResult<()> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn subscribe_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_latest_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _authorities: Vec<AuthorityIndex>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+            unimplemented!("Unimplemented")
+        }
+    }
+
+    #[derive(PartialEq, EnumIter, Display, Clone)]
+    enum SemanticallyInvalidBlocks {
+        WrongEpoch,
+        BlockAtGenesisRound,
+        InvalidAncestorRound,
+        ParentsNotReachingQuorum,
+        TooManyAncestors,
+        WithoutOwnAncestor,
+        WithOwnAncestorInWrongPosition,
+        WithAncestorsFromSameAuthority,
+        WithInvalidTransaction,
+        TooManyTransactions,
+        WithTransactionTooLarge,
+        WithTooManyTransactionBytes,
+        WrongKey,
+        NoSignature,
+    }
+
+    impl SemanticallyInvalidBlocks {
+        fn new(self, parameters: TestParameters, author: u32) -> ExtendedSerializedBlock {
+            let round = parameters.round;
+            let committee_size = parameters.committee_size;
+            let keypair = parameters.keypairs[author as usize];
+            assert!(
+                round != 0 || self == SemanticallyInvalidBlocks::BlockAtGenesisRound,
+                "round = 0 should be only used for BlockWithCorrectSignatureForTests::BlockAtGenesisRound"
+            );
+
+            let ancestors: Vec<BlockRef> = match self {
+                SemanticallyInvalidBlocks::InvalidAncestorRound => {
+                    let mut modified_ancestors =
+                        generate_default_ancestors(round, author, committee_size);
+                    let last_author = modified_ancestors.pop().unwrap().author;
+                    let new_ancestor = BlockRef::new(round + 1, last_author, BlockDigest::MIN);
+                    modified_ancestors.push(new_ancestor);
+                    modified_ancestors
+                }
+                SemanticallyInvalidBlocks::ParentsNotReachingQuorum => {
+                    let mut modified_ancestors =
+                        generate_default_ancestors(round - 1, author, committee_size);
+                    modified_ancestors[0] = BlockRef::new(
+                        round - 1,
+                        AuthorityIndex::new_for_test(author),
+                        BlockDigest::MIN,
+                    );
+                    modified_ancestors
+                }
+                SemanticallyInvalidBlocks::TooManyAncestors => {
+                    let mut modified_ancestors =
+                        generate_default_ancestors(round, author, committee_size);
+                    let last_author = modified_ancestors.last().unwrap().author;
+                    modified_ancestors.push(BlockRef::new(
+                        round - 1,
+                        last_author,
+                        BlockDigest::MIN,
+                    ));
+                    modified_ancestors
+                }
+                SemanticallyInvalidBlocks::WithoutOwnAncestor => {
+                    let mut modified_ancestors =
+                        generate_default_ancestors(round, author, committee_size);
+                    modified_ancestors.remove(0);
+                    modified_ancestors
+                }
+                SemanticallyInvalidBlocks::WithOwnAncestorInWrongPosition => {
+                    let mut modified_ancestors =
+                        generate_default_ancestors(round, author, committee_size);
+                    let own_ancestor = modified_ancestors.remove(0);
+                    modified_ancestors.insert(modified_ancestors.len(), own_ancestor);
+                    modified_ancestors
+                }
+                SemanticallyInvalidBlocks::WithAncestorsFromSameAuthority => {
+                    let mut default_ancestors =
+                        generate_default_ancestors(round, author, committee_size);
+                    default_ancestors.push(default_ancestors.last().unwrap().clone());
+                    default_ancestors
+                }
+                _ => generate_default_ancestors(round, author, committee_size),
+            };
+
+            let block = TestBlock::new(round, author).set_ancestors(ancestors);
+
+            let test_block = match self {
+                SemanticallyInvalidBlocks::WrongEpoch => block.set_epoch(1),
+                SemanticallyInvalidBlocks::BlockAtGenesisRound => block.set_round(0),
+                SemanticallyInvalidBlocks::WithInvalidTransaction => {
+                    block.set_transactions(vec![Transaction::new(vec![1; 2])])
+                }
+                SemanticallyInvalidBlocks::TooManyTransactions => block
+                    .set_transactions((0..1000).map(|_| Transaction::new(vec![4; 8])).collect()),
+                SemanticallyInvalidBlocks::WithTransactionTooLarge => {
+                    block.set_transactions(vec![Transaction::new(vec![4; 257 * 1024])])
+                }
+                SemanticallyInvalidBlocks::WithTooManyTransactionBytes => block.set_transactions(
+                    (0..100)
+                        .map(|_| Transaction::new(vec![4; 8 * 1024]))
+                        .collect(),
+                ),
+                _ => block,
+            };
+            let signed_block = match self {
+                SemanticallyInvalidBlocks::WrongKey => {
+                    let wrong_keypair = match author {
+                        0 => parameters.keypairs[1],
+                        _ => parameters.keypairs[0],
+                    };
+                    SignedBlock::new(test_block.build(), wrong_keypair).unwrap()
+                }
+                SemanticallyInvalidBlocks::NoSignature => {
+                    let mut sig_block = SignedBlock::new(test_block.build(), keypair).unwrap();
+                    sig_block.clear_signature();
+                    sig_block
+                }
+                _ => SignedBlock::new(test_block.build(), keypair).unwrap(),
+            };
+
+            let serialized: Bytes = bcs::to_bytes(&signed_block)
+                .expect("Serialization should not fail")
+                .into();
+            let verified_block = VerifiedBlock::new_verified(signed_block, serialized);
+            let serialized = ExtendedSerializedBlock {
+                block: verified_block.serialized().clone(),
+                excluded_ancestors: vec![],
+            };
+            serialized
+        }
+    }
+
+    #[derive(PartialEq, EnumIter, Display, Clone)]
+    enum _SyntacticallyInvalidBlocks {
+        SyntacticallyInvalidBlocks,
+        InvalidAuthorityIndex,
+    }
+
+    enum ValidBlocks {
+        Valid,
+    }
+    impl ValidBlocks {
+        fn new(self, parameters: TestParameters, author: u32) -> ExtendedSerializedBlock {
+            let round = parameters.round;
+            let committee_size = parameters.committee_size;
+            let keypair = parameters.keypairs[author as usize];
+            assert!(
+                round != 0,
+                "round = 0 should be only used for SemanticallyInvalidBlocks::BlockAtGenesisRound"
+            );
+            let ancestors = generate_default_ancestors(round, author, committee_size);
+            let block = TestBlock::new(round, author).set_ancestors(ancestors);
+            let signed_block = SignedBlock::new(block.build(), keypair).unwrap();
+            let serialized: Bytes = bcs::to_bytes(&signed_block)
+                .expect("Serialization should not fail")
+                .into();
+            let verified_block = VerifiedBlock::new_verified(signed_block, serialized);
+            let serialized = ExtendedSerializedBlock {
+                block: verified_block.serialized().clone(),
+                excluded_ancestors: vec![],
+            };
+            serialized
+        }
+    }
+    impl ValidatorScoreMetrics {
+        fn get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
+            self.semantically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
+        }
+
+        fn _get_syntactically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
+            self._syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
+        }
+        fn _get_missing_block_proposals(&self, validator: AuthorityIndex) -> u64 {
+            self._missing_proposals_by_authority[validator.value()].load(Ordering::Relaxed)
+        }
+        fn _get_equivocating_rounds(&self, validator: AuthorityIndex) -> u64 {
+            self._equivocating_rounds[validator.value()].load(Ordering::Relaxed)
+        }
+    }
+
+    fn assigned_peer(index: usize, committee_size: usize) -> usize {
+        index % committee_size
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_metrics_handle_send_block() {
+        // Initialize context and authority service given a committee_size
+        let committee_size = 4;
+        let (keys, context, _, authority_service) = new_authority_service_for_tests(committee_size);
+
+        // Set current round and build TestParameters
+        let round = 9;
+        let parameters = TestParameters {
+            round,
+            committee_size,
+            keypairs: keys.iter().map(|(_, y)| y).collect(),
+        };
+
+        // Initial check: ensure that the metrics for semantically invalid blocks are
+        // all zero
+        let semantically_invalid_blocks_state = (0..committee_size)
+            .map(|i| {
+                context
+                    .scoring_metrics
+                    .get_semantically_invalid_blocks(AuthorityIndex::new_for_test(i as u32))
+            })
+            .collect::<Vec<u64>>();
+        assert!(semantically_invalid_blocks_state.iter().all(|&x| x == 0));
+
+        // Generates a single valid block from each authority
+        let blocks = (0..committee_size)
+            .map(|i| ValidBlocks::Valid.new(parameters.clone(), i as u32))
+            .collect::<Vec<_>>();
+
+        let mut tasks = Vec::new();
+        for (index, block) in blocks.into_iter().enumerate() {
+            let service = authority_service.clone();
+            tasks.push(tokio::spawn(async move {
+                service
+                    .handle_send_block(AuthorityIndex::new_for_test(index as u32), block)
+                    .await
+                    .unwrap();
+            }));
+        }
+
+        // Initial check: ensure that the metrics for semantically invalid blocks are
+        // still all zero
+        let semantically_invalid_blocks_state = (0..committee_size)
+            .map(|i| {
+                context
+                    .scoring_metrics
+                    .get_semantically_invalid_blocks(AuthorityIndex::new_for_test(i as u32))
+            })
+            .collect::<Vec<u64>>();
+
+        let mut outputs = Vec::with_capacity(tasks.len());
+        for task in tasks {
+            outputs.push(task.await.unwrap());
+        }
+        assert!(semantically_invalid_blocks_state.iter().all(|&x| x == 0));
+
+        // Generates one of each type of semantically invalid blocks. Assigns each of
+        // those blocks to a peer. Authors and peers are the same.
+        let semantically_invalid_blocks = SemanticallyInvalidBlocks::iter()
+            .enumerate()
+            .map(|(index, block_type)| {
+                (
+                    block_type.clone().new(
+                        parameters.clone(),
+                        assigned_peer(index, committee_size) as u32,
+                    ),
+                    assigned_peer(index, committee_size),
+                    block_type.to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Sends each semantically invalid block to the authority service and check
+        // metrics between blocks
+        let mut block_count = vec![0 as u64; committee_size];
+        for (block, peer, block_type) in semantically_invalid_blocks.into_iter() {
+            let service = authority_service.clone();
+            let handle = tokio::spawn(async move {
+                let _ = service
+                    .handle_send_block(AuthorityIndex::new_for_test(peer as u32), block)
+                    .await;
+            });
+            let _ = handle.await;
+            block_count[peer] += 1;
+            // Check that the metrics for semantically invalid blocks were updated
+            let semantically_invalid_blocks_state = (0..committee_size)
+                .map(|i| {
+                    context
+                        .scoring_metrics
+                        .get_semantically_invalid_blocks(AuthorityIndex::new_for_test(i as u32))
+                })
+                .collect::<Vec<u64>>();
+
+            assert_eq!(
+                semantically_invalid_blocks_state, block_count,
+                "Test failed for block type {}",
+                block_type
+            );
+        }
     }
 }
