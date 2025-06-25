@@ -6,7 +6,7 @@ tonic::include_proto!("iota.grpc");
 use iota_types::grpc::{CertifiedCheckpointSummary, CheckpointData};
 use tonic::transport::Channel;
 
-use crate::{BcsConvertible, checkpoint::checkpoint_service_client::CheckpointServiceClient};
+use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
 
 /// Enum representing the content of a checkpoint, either full data or summary.
 pub enum CheckpointContent {
@@ -64,12 +64,14 @@ impl GrpcNodeClient {
             .ok_or("Missing BCS data in checkpoint")?;
 
         if checkpoint.is_full {
-            let checkpoint_data = CheckpointData::from_bcs(&bcs_data.data)?
+            let checkpoint_data = bcs_data
+                .deserialize_into::<CheckpointData>()?
                 .into_v1()
                 .ok_or("Unsupported checkpoint data version")?;
             Ok(CheckpointContent::Data(checkpoint_data))
         } else {
-            let checkpoint_summary = CertifiedCheckpointSummary::from_bcs(&bcs_data.data)?
+            let checkpoint_summary = bcs_data
+                .deserialize_into::<CertifiedCheckpointSummary>()?
                 .into_v1()
                 .ok_or("Unsupported checkpoint summary version")?;
             Ok(CheckpointContent::Summary(checkpoint_summary))

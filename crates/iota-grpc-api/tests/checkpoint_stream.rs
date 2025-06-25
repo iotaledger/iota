@@ -9,7 +9,7 @@ use std::{
 };
 
 use iota_grpc_api::{
-    BcsConvertible, CheckpointGrpcService,
+    CheckpointGrpcService,
     checkpoint::{CheckpointStreamRequest, checkpoint_service_server::CheckpointService},
 };
 use iota_types::{
