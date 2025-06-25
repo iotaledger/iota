@@ -8,9 +8,8 @@ use iota_json_rpc_api::{IndexerApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
     IotaObjectResponseQuery, IotaTransactionBlockData, IotaTransactionBlockKind,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
-    TransactionFilterV2,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, IotaTransactionKind,
+    ObjectsPage, TransactionFilterV2,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
