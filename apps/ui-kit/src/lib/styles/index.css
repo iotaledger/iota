@@ -450,7 +450,7 @@
     --input-border-hover-color: theme('colors.iota-neutral.60');
     --input-border-error-color: theme('colors.iota-error.80');
     --input-border-focus-color: theme('colors.iota-primary.80');
-    --input-caret-color: theme('colors.iota-primary.30');
+    --input-caret-color: theme('colors.iota-primary.80');
     --input-icon-color: theme('colors.iota-neutral.92');
     --input-copy-icon-color: theme('colors.iota-neutral.40');
     --input-visibility-bar-color: rgba(23, 29, 38, 0.6); /* neutral.10 with 60% opacity */
@@ -702,7 +702,7 @@
     --input-border-hover-color: theme('colors.names-neutral.60');
     --input-border-error-color: theme('colors.names-error.80');
     --input-border-focus-color: theme('colors.names-primary.80');
-    --input-caret-color: theme('colors.iota-primary.30');
+    --input-caret-color: theme('colors.names-primary.80');
     --input-icon-color: theme('colors.names-neutral.92');
     --input-copy-icon-color: theme('colors.names-neutral.40');
     --input-visibility-bar-color: rgba(24, 27, 49, 0.6); /* neutral.10 with 60% opacity */
