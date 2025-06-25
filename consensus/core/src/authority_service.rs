@@ -29,7 +29,6 @@ use crate::{
     storage::Store,
     synchronizer::SynchronizerHandle,
 };
-
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 /// Authority's network service implementation, agnostic to the actual
@@ -121,6 +120,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 ])
                 .inc();
             info!("Invalid block from {}: {}", peer, e);
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[
+                    peer_hostname.as_str(),
+                    "handle_send_block",
+                    e.clone().name(),
+                ])
+                .inc();
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(peer);
             return Err(e);
         }
         let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block.block);
