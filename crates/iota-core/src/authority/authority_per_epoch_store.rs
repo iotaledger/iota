@@ -3559,8 +3559,11 @@ impl AuthorityPerEpochStore {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
 
-                            suggested_gas_price_calculator
-                                .update_congestion_info(&certificate, estimated_execution_duration);
+                            suggested_gas_price_calculator.update_congestion_info(
+                                &certificate,
+                                start_time,
+                                estimated_execution_duration,
+                            );
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {
