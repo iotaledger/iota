@@ -82,7 +82,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     /// Informs the core whether consumer of produced blocks exists.
     /// This is only used by core to decide if it should propose new blocks.
     /// It is not a guarantee that produced blocks will be accepted by peers.
-    fn set_subscriber_exists(&self, exists: bool) -> Result<(), CoreError>;
+    fn set_quorum_subscribers_exists(&self, exists: bool) -> Result<(), CoreError>;
 
     /// Sets the estimated delay to propagate a block to a quorum of peers, in
     /// number of rounds, and the received & accepted quorum rounds for all
@@ -117,7 +117,7 @@ impl CoreThreadHandle {
 struct CoreThread {
     core: Core,
     receiver: Receiver<CoreThreadCommand>,
-    rx_subscriber_exists: watch::Receiver<bool>,
+    rx_quorum_subscribers_exists: watch::Receiver<bool>,
     rx_propagation_delay_and_quorum_rounds: watch::Receiver<PropagationDelayAndQuorumRounds>,
     rx_last_known_proposed_round: watch::Receiver<Round>,
     context: Arc<Context>,
@@ -167,11 +167,11 @@ impl CoreThread {
                     self.core.set_last_known_proposed_round(round);
                     self.core.new_block(round + 1, true)?;
                 }
-                _ = self.rx_subscriber_exists.changed() => {
+                _ = self.rx_quorum_subscribers_exists.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_subscriber_exists");
                     let should_propose_before = self.core.should_propose();
-                    let exists = *self.rx_subscriber_exists.borrow();
-                    self.core.set_subscriber_exists(exists);
+                    let exists = *self.rx_quorum_subscribers_exists.borrow();
+                    self.core.set_quorum_subscribers_exists(exists);
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
@@ -204,7 +204,7 @@ impl CoreThread {
 pub(crate) struct ChannelCoreThreadDispatcher {
     context: Arc<Context>,
     sender: WeakSender<CoreThreadCommand>,
-    tx_subscriber_exists: Arc<watch::Sender<bool>>,
+    tx_quorum_subscribers_exists: Arc<watch::Sender<bool>>,
     tx_propagation_delay_and_quorum_rounds: Arc<watch::Sender<PropagationDelayAndQuorumRounds>>,
     tx_last_known_proposed_round: Arc<watch::Sender<Round>>,
     highest_received_rounds: Arc<Vec<AtomicU32>>,
@@ -233,7 +233,7 @@ impl ChannelCoreThreadDispatcher {
         };
         let (sender, receiver) =
             channel("consensus_core_commands", CORE_THREAD_COMMANDS_CHANNEL_SIZE);
-        let (tx_subscriber_exists, mut rx_subscriber_exists) = watch::channel(false);
+        let (tx_quorum_subscribers_exists, mut rx_quorum_subscriber_exists) = watch::channel(false);
         let (tx_propagation_delay_and_quorum_rounds, mut rx_propagation_delay_and_quorum_rounds) =
             watch::channel(PropagationDelayAndQuorumRounds {
                 delay: 0,
@@ -241,13 +241,13 @@ impl ChannelCoreThreadDispatcher {
                 accepted_quorum_rounds: vec![(0, 0); context.committee.size()],
             });
         let (tx_last_known_proposed_round, mut rx_last_known_proposed_round) = watch::channel(0);
-        rx_subscriber_exists.mark_unchanged();
+        rx_quorum_subscriber_exists.mark_unchanged();
         rx_propagation_delay_and_quorum_rounds.mark_unchanged();
         rx_last_known_proposed_round.mark_unchanged();
         let core_thread = CoreThread {
             core,
             receiver,
-            rx_subscriber_exists,
+            rx_quorum_subscribers_exists: rx_quorum_subscriber_exists,
             rx_propagation_delay_and_quorum_rounds,
             rx_last_known_proposed_round,
             context: context.clone(),
@@ -270,7 +270,7 @@ impl ChannelCoreThreadDispatcher {
         let dispatcher = ChannelCoreThreadDispatcher {
             context,
             sender: sender.downgrade(),
-            tx_subscriber_exists: Arc::new(tx_subscriber_exists),
+            tx_quorum_subscribers_exists: Arc::new(tx_quorum_subscribers_exists),
             tx_propagation_delay_and_quorum_rounds: Arc::new(
                 tx_propagation_delay_and_quorum_rounds,
             ),
@@ -359,8 +359,8 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    fn set_subscriber_exists(&self, exists: bool) -> Result<(), CoreError> {
-        self.tx_subscriber_exists
+    fn set_quorum_subscribers_exists(&self, exists: bool) -> Result<(), CoreError> {
+        self.tx_quorum_subscribers_exists
             .send(exists)
             .map_err(|e| Shutdown(e.to_string()))
     }
@@ -481,7 +481,7 @@ pub(crate) mod tests {
             Ok(result)
         }
 
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
 
