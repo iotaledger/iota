@@ -46,7 +46,7 @@ pub trait IndexerApi {
 
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
-    #[method(name = "queryTransactionBlocks", version <= "1.2.3")]
+    #[method(name = "queryTransactionBlocks", version <= "1.2.10")]
     async fn query_transaction_blocks(
         &self,
         /// the transaction query criteria.
