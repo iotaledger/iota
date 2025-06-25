@@ -202,8 +202,8 @@ opt-level = 1
 overflow-checks = true
 
 [profile.dev-nodebug]
-inherits = "simulator"
 debug = 0
+inherits = "simulator"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
