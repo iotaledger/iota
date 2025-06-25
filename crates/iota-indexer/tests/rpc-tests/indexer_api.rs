@@ -8,8 +8,9 @@ use iota_json_rpc_api::{IndexerApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
     IotaObjectResponseQuery, IotaTransactionBlockData, IotaTransactionBlockKind,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, IotaTransactionKind,
-    ObjectsPage, TransactionFilterV2,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
+    TransactionFilterV2,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -356,19 +357,19 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
         assert_eq!(7, objects.len());
 
         // filter transactions by address
-        let query = IotaTransactionBlockResponseQueryV2 {
+        let query = IotaTransactionBlockResponseQuery {
             options: Some(IotaTransactionBlockResponseOptions {
                 show_input: true,
                 show_effects: true,
                 show_events: true,
                 ..Default::default()
             }),
-            filter: Some(TransactionFilterV2::FromAddress(address)),
+            filter: Some(TransactionFilter::FromAddress(address)),
         };
 
         let first_page = iota_client
             .read_api()
-            .query_transaction_blocks_v2(query.clone(), None, Some(3), true)
+            .query_transaction_blocks(query.clone(), None, Some(3), true)
             .await
             .unwrap();
         assert_eq!(3, first_page.data.len());
@@ -380,7 +381,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
         // Read the next page for the last transaction
         let next_page = iota_client
             .read_api()
-            .query_transaction_blocks_v2(query, first_page.next_cursor, None, true)
+            .query_transaction_blocks(query, first_page.next_cursor, None, true)
             .await
             .unwrap();
 

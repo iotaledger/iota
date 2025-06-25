@@ -9,7 +9,7 @@ use iota_json_rpc_api::IndexerApiClient;
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
     IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, TransactionFilterV2,
+    IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter,
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
@@ -312,19 +312,19 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     }
 
     // test get_recent_transactions with smaller range with address filter
-    let query = IotaTransactionBlockResponseQueryV2 {
+    let query = IotaTransactionBlockResponseQuery {
         options: Some(IotaTransactionBlockResponseOptions {
             show_input: true,
             show_effects: true,
             show_events: true,
             ..Default::default()
         }),
-        filter: Some(TransactionFilterV2::FromAddress(cluster.get_address_0())),
+        filter: Some(TransactionFilter::FromAddress(cluster.get_address_0())),
     };
 
     let tx = client
         .read_api()
-        .query_transaction_blocks_v2(query.clone(), None, Some(3), true)
+        .query_transaction_blocks(query.clone(), None, Some(3), true)
         .await
         .unwrap();
     assert_eq!(3, tx.data.len());
@@ -336,7 +336,7 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     // Read the next page for the last transaction
     let next_page = client
         .read_api()
-        .query_transaction_blocks_v2(query, tx.next_cursor, None, true)
+        .query_transaction_blocks(query, tx.next_cursor, None, true)
         .await
         .unwrap();
 
@@ -345,8 +345,8 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     // test get all transactions paged without address filter
     let first_page = client
         .read_api()
-        .query_transaction_blocks_v2(
-            IotaTransactionBlockResponseQueryV2::default(),
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::default(),
             None,
             Some(5),
             false,
@@ -358,8 +358,8 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
 
     let second_page = client
         .read_api()
-        .query_transaction_blocks_v2(
-            IotaTransactionBlockResponseQueryV2::default(),
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::default(),
             first_page.next_cursor,
             None,
             false,
@@ -374,8 +374,8 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     // test get 10 transactions paged
     let latest = client
         .read_api()
-        .query_transaction_blocks_v2(
-            IotaTransactionBlockResponseQueryV2::default(),
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::default(),
             None,
             Some(10),
             false,
@@ -390,8 +390,8 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     // test get from address txs in ascending order
     let address_txs_asc = client
         .read_api()
-        .query_transaction_blocks_v2(
-            IotaTransactionBlockResponseQueryV2::new_with_filter(TransactionFilterV2::FromAddress(
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::new_with_filter(TransactionFilter::FromAddress(
                 cluster.get_address_0(),
             )),
             None,
@@ -405,8 +405,8 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     // test get from address txs in descending order
     let address_txs_desc = client
         .read_api()
-        .query_transaction_blocks_v2(
-            IotaTransactionBlockResponseQueryV2::new_with_filter(TransactionFilterV2::FromAddress(
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::new_with_filter(TransactionFilter::FromAddress(
                 cluster.get_address_0(),
             )),
             None,
@@ -425,8 +425,8 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
     // test get_recent_transactions
     let tx = client
         .read_api()
-        .query_transaction_blocks_v2(
-            IotaTransactionBlockResponseQueryV2::default(),
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::default(),
             None,
             Some(20),
             true,
@@ -529,15 +529,15 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .unwrap();
     // match with None function, the DB should have 2 records, but both points to
     // the same tx
-    let filter = TransactionFilterV2::MoveFunction {
+    let filter = TransactionFilter::MoveFunction {
         package: package_id,
         module: Some("pay".to_string()),
         function: None,
     };
-    let move_call_query = IotaTransactionBlockResponseQueryV2::new_with_filter(filter);
+    let move_call_query = IotaTransactionBlockResponseQuery::new_with_filter(filter);
     let tx = client
         .read_api()
-        .query_transaction_blocks_v2(move_call_query, None, Some(20), true)
+        .query_transaction_blocks(move_call_query, None, Some(20), true)
         .await
         .unwrap();
     // verify that only 1 tx is returned and no
