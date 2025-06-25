@@ -30,13 +30,13 @@
 :root.light {
     /* COLORS */
     --warning-surface: theme('colors.iota-warning.90');
-    --on-warning: theme('colors.iota-warning.10');
+    --on-warning: theme('colors.iota-warning.20');
     --error-surface: theme('colors.iota-error.90');
-    --on-error: theme('colors.iota-warning.20');
+    --on-error: theme('colors.iota-error.20');
     --success-surface: theme('colors.iota-tertiary.90');
     --on-success: theme('colors.iota-tertiary.20');
     --default-surface: theme('colors.iota-primary.90');
-    --on-default: theme('colors.iota-neutral.10');
+    --on-default: theme('colors.iota-primary.20');
 
     /* ---------------- ATOMS ---------------- */
 
@@ -57,12 +57,17 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.iota-neutral.80');
     --button-bg-color-secondary: theme('colors.iota-neutral.90');
     --button-bg-color-error: theme('colors.iota-error.90');
     --button-border-color-outline: theme('colors.iota-neutral.50');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.10');
     --button-text-color-error: theme('colors.iota-error.20');
+
+    /* BUTTON PILL */
+    --button-pill-border-color: theme('colors.iota-neutral.70');
+    --button-pill-text-color: theme('colors.iota-neutral.40');
 
     /* HEADER */
     --header-bg-color: theme('colors.iota-neutral.100');
@@ -194,15 +199,16 @@
 
     /* INPUT */
     --input-text-color: theme('colors.iota-neutral.10');
-    --input-placeholder-color: theme('colors.iota-neutral.40 / 0.4');
+    --input-placeholder-color: rgba(84, 94, 110, 0.4); /* neutral.40 with 40% opacity */
     --input-label-color: theme('colors.iota-neutral.40');
     --input-border-color: theme('colors.iota-neutral.80');
     --input-border-hover-color: theme('colors.iota-neutral.50');
     --input-border-error-color: theme('colors.iota-error.30');
     --input-border-focus-color: theme('colors.iota-primary.30');
+    --input-caret-color: theme('colors.iota-primary.30');
     --input-icon-color: theme('colors.iota-neutral.10');
     --input-copy-icon-color: theme('colors.iota-neutral.60');
-    --input-visibility-bar-color: rgba(28, 28, 28, 0.6); /* neutral.92 with 60% opacity */
+    --input-visibility-bar-color: rgba(227, 234, 246, 0.6); /* neutral.92 with 60% opacity */
 
     /* NAVBAR ITEM */
     --navbar-item-icon-color: theme('colors.iota-neutral.40');
@@ -268,14 +274,14 @@
 
 :root.dark {
     /* COLORS */
-    --warning-surface: theme('colors.iota-warning.20');
+    --warning-surface: theme('colors.iota-warning.10');
     --on-warning: theme('colors.iota-warning.90');
     --error-surface: theme('colors.iota-error.10');
     --on-error: theme('colors.iota-error.90');
     --success-surface: theme('colors.iota-tertiary.10');
     --on-success: theme('colors.iota-tertiary.90');
     --default-surface: theme('colors.iota-primary.10');
-    --on-default: theme('colors.iota-neutral.92');
+    --on-default: theme('colors.iota-neutral.90');
 
     /* ---------------- ATOMS ---------------- */
 
@@ -296,12 +302,17 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.iota-neutral.30');
     --button-bg-color-secondary: theme('colors.iota-neutral.20');
     --button-bg-color-error: theme('colors.iota-error.20');
     --button-border-color-outline: theme('colors.iota-neutral.60');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
     --button-text-color-error: theme('colors.iota-error.90');
+
+    /* BUTTON PILL */
+    --button-pill-border-color: theme('colors.iota-neutral.40');
+    --button-pill-text-color: theme('colors.iota-neutral.60');
 
     /* HEADER */
     --header-bg-color: theme('colors.iota-neutral.6');
@@ -320,7 +331,7 @@
     --checkbox-border-color-default: theme('colors.iota-neutral.20');
     --checkbox-border-color-checked: theme('colors.iota-primary.30');
     --checkbox-border-color-disabled: theme('colors.iota-neutral.30');
-    --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.40');
+    --checkbox-border-color-disabled-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.40');
     --checkbox-text-color: theme('colors.iota-neutral.60');
@@ -433,15 +444,16 @@
 
     /* INPUT */
     --input-text-color: theme('colors.iota-neutral.92');
-    --input-placeholder-color: theme('colors.iota-neutral.60 / 0.4');
+    --input-placeholder-color: rgba(136, 146, 161, 0.4); /* neutral.60 with 40% opacity */
     --input-label-color: theme('colors.iota-neutral.60');
     --input-border-color: theme('colors.iota-neutral.20');
     --input-border-hover-color: theme('colors.iota-neutral.60');
     --input-border-error-color: theme('colors.iota-error.80');
     --input-border-focus-color: theme('colors.iota-primary.80');
+    --input-caret-color: theme('colors.iota-primary.30');
     --input-icon-color: theme('colors.iota-neutral.92');
     --input-copy-icon-color: theme('colors.iota-neutral.40');
-    --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
+    --input-visibility-bar-color: rgba(23, 29, 38, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
     --navbar-item-icon-color: theme('colors.iota-neutral.60');
@@ -525,7 +537,7 @@
     --success-surface: theme('colors.names-tertiary.20');
     --on-success: theme('colors.names-tertiary.90');
     --default-surface: theme('colors.names-primary.20');
-    --on-default: theme('colors.names-neutral.92');
+    --on-default: theme('colors.names-neutral.90');
 
     /* ---------------- ATOMS ---------------- */
 
@@ -546,12 +558,17 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.names-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.names-neutral.30');
     --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
     --button-border-color-outline: theme('colors.names-neutral.60');
     --button-text-color-primary: theme('colors.names-primary.100');
     --button-text-color-neutral: theme('colors.names-neutral.92');
     --button-text-color-error: theme('colors.names-error.90');
+
+    /* BUTTON PILL */
+    --button-pill-border-color: theme('colors.names-neutral.40');
+    --button-pill-text-color: theme('colors.names-neutral.60');
 
     /* HEADER */
     --header-bg-color: theme('colors.names-neutral.6');
@@ -679,15 +696,16 @@
 
     /* INPUT */
     --input-text-color: theme('colors.names-neutral.92');
-    --input-placeholder-color: theme('colors.names-neutral.70 / 0.4');
-    --input-label-color: theme('colors.names-neutral.70');
+    --input-placeholder-color: rgba(136, 146, 161, 0.4); /* neutral.60 with 40% opacity */
+    --input-label-color: theme('colors.names-neutral.60');
     --input-border-color: theme('colors.names-neutral.20');
     --input-border-hover-color: theme('colors.names-neutral.60');
     --input-border-error-color: theme('colors.names-error.80');
     --input-border-focus-color: theme('colors.names-primary.80');
+    --input-caret-color: theme('colors.iota-primary.30');
     --input-icon-color: theme('colors.names-neutral.92');
     --input-copy-icon-color: theme('colors.names-neutral.40');
-    --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
+    --input-visibility-bar-color: rgba(24, 27, 49, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
     --navbar-item-icon-color: theme('colors.names-neutral.70');
