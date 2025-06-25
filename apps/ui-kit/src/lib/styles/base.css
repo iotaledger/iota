@@ -44,12 +44,12 @@
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
         @apply appearance-none !bg-transparent !bg-none;
-        @apply !text-iota-neutral-92 dark:!text-iota-neutral-10;
+        @apply !text-iota-neutral-92 names:!text-names-neutral-10 dark:!text-iota-neutral-10;
         transition: background-color 5000s ease-in-out 0s;
         -webkit-text-fill-color: theme('colors.iota-neutral.92') !important;
     }
 
-    :root:not(.dark) {
+    :root:not(.dark):not(.names) {
         input:-webkit-autofill,
         input:-webkit-autofill:enabled,
         input:-webkit-autofill:hover,
@@ -71,18 +71,27 @@
         }
     }
 }
-
 @supports selector(::-webkit-scrollbar) {
     *::-webkit-scrollbar {
-        @apply w-3.5;
+        width: 0.875rem;
     }
 
     *::-webkit-scrollbar-track {
-        @apply rounded-xl bg-transparent;
+        border-radius: 0.75rem;
+        background-color: transparent;
     }
 
     *::-webkit-scrollbar-thumb {
-        @apply shadow-[inset_0_0_10px_10px] shadow-iota-neutral-80 names:shadow-iota-neutral-30 dark:shadow-iota-neutral-30;
-        @apply rounded-xl border-4 border-solid border-transparent;
+        box-shadow: inset 0 0 10px 10px #cad4e2;
+        border-radius: 0.75rem;
+        border: 4px solid transparent;
+    }
+
+    .dark *::-webkit-scrollbar-thumb {
+        box-shadow: inset 0 0 10px 10px #3c4656;
+    }
+
+    .names *::-webkit-scrollbar-thumb {
+        box-shadow: inset 0 0 10px 10px #3c4656;
     }
 }

@@ -12,7 +12,7 @@ export function ButtonPill({
 }: Omit<ButtonVariantProps, 'className'>) {
     return (
         <button
-            className="border-neutral-70 text-neutral-40 dark:border-neutral-40 dark:text-neutral-60 flex items-center justify-center rounded-xl border px-sm text-body-md disabled:opacity-40"
+            className="button-pill-border-color button-pill-text-color flex items-center justify-center rounded-xl border px-sm text-body-md disabled:opacity-40"
             type={htmlType}
             tabIndex={tabIndex}
             {...buttonProps}

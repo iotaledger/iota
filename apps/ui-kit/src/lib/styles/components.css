@@ -52,6 +52,10 @@
         background-color: var(--button-bg-color-primary);
     }
 
+    .button-bg-color-disabled-primary {
+        background-color: var(--button-bg-color-disabled-primary);
+    }
+
     .button-bg-color-secondary {
         background-color: var(--button-bg-color-secondary);
     }
@@ -79,6 +83,16 @@
 
     .button-text-color-primary {
         color: var(--button-text-color-primary);
+    }
+
+    /* BUTTON PILL */
+
+    .button-pill-text-color {
+        color: var(--button-pill-text-color);
+    }
+
+    .button-pill-border-color {
+        border-color: var(--button-pill-border-color);
     }
 
     /* HEADER */
@@ -130,11 +144,11 @@
         border-color: var(--checkbox-border-color-checked);
     }
 
-    .checkbox-border-disabled {
+    .checkbox-border-color-disabled {
         border-color: var(--checkbox-border-color-disabled);
     }
 
-    .checkbox-border-disabled-checked {
+    .checkbox-border-color-disabled-checked {
         border-color: var(--checkbox-border-color-disabled-checked);
     }
 
@@ -142,7 +156,7 @@
         background-color: var(--checkbox-bg-color-checked);
     }
 
-    .checkbox-bg-disabled-checked {
+    .checkbox-bg-color-disabled-checked {
         background-color: var(--checkbox-bg-color-disabled-checked);
     }
 
@@ -203,7 +217,7 @@
     }
 
     .button-segment-underline-hover {
-        @apply hover:before:left-2 hover:before:w-[calc(100%-16px)];
+        @apply hover:before:bottom-[-0.8px] hover:before:left-2 hover:before:w-[calc(100%-16px)];
     }
 
     .button-segment-underline-hover-color {
@@ -213,6 +227,11 @@
     .button-segment-underline-selected {
         @apply before:bottom-[-0.8px] enabled:before:left-2 enabled:before:w-[calc(100%-16px)];
         @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)] names:before:rounded-full;
+    }
+
+    .button-segment-underline-selected:disabled::before {
+        content: none;
+        display: none;
     }
 
     /* LOADING INDICATOR */
@@ -463,18 +482,16 @@
         color: var(--input-text-color);
     }
 
-    .input-placeholder-color {
-        &::placeholder {
-            color: var(--input-placeholder-color);
-        }
+    .input-caret-color {
+        caret-color: var(--input-caret-color);
+    }
+
+    .input-placeholder-color::placeholder {
+        color: var(--input-placeholder-color);
     }
 
     .input-icon-color {
         color: var(--input-icon-color);
-    }
-
-    .input-caret-color {
-        caret-color: var(--input-caret-color);
     }
 
     .input-border-color {
