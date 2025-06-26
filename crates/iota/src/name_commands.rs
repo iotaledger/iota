@@ -32,6 +32,7 @@ use iota_types::{
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::Field,
+    error::IotaObjectResponseError,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -574,6 +575,11 @@ impl NameCommand {
                 opts,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!(
+                        "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
+                    );
+                }
                 let new_address =
                     get_identity_address(new_address.map(KeyIdentity::Address), context)?;
                 if entry
@@ -714,6 +720,9 @@ impl NameCommand {
                 verbose,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!("cannot unset target address for leaf subdomain");
+                }
                 if entry.name_record.target_address.is_none() {
                     bail!("target address is already unset");
                 }
@@ -862,12 +871,10 @@ impl AuctionCommand {
                 mut opts,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
-                let auction_house =
-                    get_object_from_bcs::<AuctionHouse>(&iota_client, auction_house_id).await?;
+                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
 
                 let auction = auction_house.get_auction(&domain, &iota_client).await?;
+
                 let min_price = auction.current_bid.value() + MIN_OVERBID;
                 let amount = amount.unwrap_or(min_price);
                 ensure!(
@@ -882,7 +889,7 @@ impl AuctionCommand {
                     "--assign coins".to_string(),
                     format!(
                         "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house_id,
+                        auction_house.id,
                         domain.to_string(),
                     ),
                 ];
@@ -895,10 +902,7 @@ impl AuctionCommand {
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionBid {
-                        auction: get_auction_house(&iota_client, &graphql_client)
-                            .await?
-                            .get_auction(&domain, &iota_client)
-                            .await?,
+                        auction: auction_house.get_auction(&domain, &iota_client).await?,
                         digest: res.digest,
                     })
                 })
@@ -910,14 +914,17 @@ impl AuctionCommand {
                 mut opts,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
+                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
+
+                // Checking if the auction does not exist or has been already claimed
+                let _ = auction_house.get_auction(&domain, &iota_client).await?;
 
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
                     format!(
-                        "--move-call {auction_package_address}::auction::claim @{auction_house_id} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
+                        "--move-call {auction_package_address}::auction::claim @{} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_house.id
                     ),
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
@@ -953,8 +960,7 @@ impl AuctionCommand {
                 mut opts,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
+                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
 
                 let min_price = fetch_pricing_config(&iota_client)
                     .await?
@@ -974,7 +980,7 @@ impl AuctionCommand {
                     "--assign coins".to_string(),
                     format!(
                         "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house_id,
+                        auction_house.id,
                         iota_names_config.object_id,
                         domain.to_string(),
                     ),
@@ -988,10 +994,7 @@ impl AuctionCommand {
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionStart {
-                        auction: get_auction_house(&iota_client, &graphql_client)
-                            .await?
-                            .get_auction(&domain, &iota_client)
-                            .await?,
+                        auction: auction_house.get_auction(&domain, &iota_client).await?,
                         digest: res.digest,
                     })
                 })
@@ -1888,7 +1891,10 @@ async fn get_proxy_nft_by_name(
     })
 }
 
-async fn get_registry_entry(domain: &Domain, client: &IotaClient) -> anyhow::Result<RegistryEntry> {
+async fn get_registry_entry(
+    domain: &Domain,
+    client: &IotaClient,
+) -> Result<RegistryEntry, RpcError> {
     let iota_names_config = get_iota_names_config(client).await?;
     let object_id = iota_names_config.record_field_id(domain);
 
@@ -2226,7 +2232,16 @@ impl AuctionHouse {
             &domain_bytes,
         )?;
 
-        let auction_entry = get_object_from_bcs::<AuctionEntry>(client, object_id).await?;
+        let auction_entry = match get_object_from_bcs::<AuctionEntry>(client, object_id).await {
+            Ok(auction_entry) => auction_entry,
+            Err(RpcError::IotaObjectResponse(IotaObjectResponseError::NotExists { .. })) => {
+                bail!("auction for \"{domain}\" does not exist")
+            }
+            Err(RpcError::IotaObjectResponse(IotaObjectResponseError::Deleted { .. })) => {
+                bail!("auction for \"{domain}\" has already been claimed")
+            }
+            e => bail!("{e:?}"),
+        };
 
         Ok(auction_entry.node.value)
     }
@@ -2235,9 +2250,10 @@ impl AuctionHouse {
 async fn get_auction_house(
     iota_client: &IotaClient,
     graphql_client: &SimpleClient,
-) -> anyhow::Result<AuctionHouse> {
+) -> Result<AuctionHouse, RpcError> {
     let auction_package_address = get_auction_package_address(iota_client).await?;
     let auction_house_id = get_auction_house_id(auction_package_address, graphql_client).await?;
+
     get_object_from_bcs::<AuctionHouse>(iota_client, auction_house_id).await
 }
 
@@ -2314,21 +2330,29 @@ async fn get_auction_house_id(
     Ok(object_id)
 }
 
+#[derive(thiserror::Error, Debug)]
+enum RpcError {
+    #[error("{0}")]
+    Any(#[from] anyhow::Error),
+    #[error("{0}")]
+    IotaObjectResponse(IotaObjectResponseError),
+}
+
 async fn get_object_from_bcs<T: DeserializeOwned>(
     client: &IotaClient,
     object_id: ObjectID,
-) -> anyhow::Result<T> {
+) -> Result<T, RpcError> {
     let object_response = client
         .read_api()
         .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?;
-    ensure!(
-        object_response.error.is_none(),
-        "{:?}",
-        object_response.error
-    );
+        .await
+        .map_err(|e| RpcError::Any(e.into()))?;
 
-    deserialize_move_object_from_bcs::<T>(object_response)
+    if let Some(error) = object_response.error {
+        return Err(RpcError::IotaObjectResponse(error));
+    }
+
+    Ok(deserialize_move_object_from_bcs::<T>(object_response)?)
 }
 
 fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
