@@ -126,7 +126,7 @@ snarkjs groth16 prove circuit_0001.zkey witness.wtns proof.json public.json
 
 ### Verification in IOTA
 
-The API in IOTA for verifying a proof expects a special processed verification key, where only a subset of the values are used. Ideally, computation for this prepared verification key happens only once per circuit. You can perform this processing using the `iota::groth16::prepare_verifying_key` method of the IOTA Move API with a serialization of the `params.vk` value used previously. Remember that you should not use this in the production environment, as you should grab a safer entropy resource i.e., from a ceremony.
+The API in IOTA for verifying a proof expects a special processed verification key, where only a subset of the values are used. Ideally, computation for this prepared verification key happens only once per circuit. You can perform this processing using the `iota::groth16::prepare_verifying_key` method of the IOTA Move API with a serialization of the `params.vk` value used previously. Remember that you should not use this in a production environment, as you should grab a safer entropy resource i.e., from a ceremony.
 
 The output of the `prepare_verifying_key` function is a vector with four byte arrays, which corresponds to the `vk_gamma_abc_g1_bytes`, `alpha_g1_beta_g2_bytes`, `gamma_g2_neg_pc_bytes`, `delta_g2_neg_pc_bytes`.
 
