@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import {
+    capitalize,
+    CoinFormat,
+    resolveNFTMedia,
+    useFormatCoin,
+    useNFTMediaHeaders,
+} from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
@@ -13,43 +19,32 @@ import {
     parseStructTag,
 } from '@iota/iota-sdk/utils';
 import { SortByDefault } from '@iota/apps-ui-icons';
-import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { type PropsWithChildren, type ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
-import { useResolveVideo } from '~/hooks/useResolveVideo';
-import {
-    extractName,
-    genFileTypeMsg,
-    onCopySuccess,
-    parseImageURL,
-    parseObjectType,
-    trimStdLibPrefix,
-} from '~/lib/utils';
+import { extractName, onCopySuccess, parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 
 interface HeroVideoImageProps {
     title: string;
     subtitle: string;
     src: string;
-    video?: string | null;
 }
 
-function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): JSX.Element {
+function HeroVideoImage({ title, subtitle, src }: HeroVideoImageProps): JSX.Element {
     const [open, setOpen] = useState(false);
 
     return (
         <div className="group relative h-full">
             <ObjectVideoImage
-                imgFit="contain"
-                aspect="square"
+                objectFit="contain"
                 title={title}
                 subtitle={subtitle}
                 src={src}
-                video={video}
                 variant="fill"
                 open={open}
                 setOpen={setOpen}
                 rounded="xl"
+                disableVideoControls
             />
             <Link
                 href={src}
@@ -89,9 +84,11 @@ function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Object ID"
-            value={<ObjectLink objectId={objectId}>{formatAddress(objectId)}</ObjectLink>}
-            copyText={objectId}
-            onCopySuccess={onCopySuccess}
+            value={
+                <div className="flex flex-col gap-xs">
+                    <ObjectLink objectId={objectId} copyText={objectId} />
+                </div>
+            }
         />
     );
 }
@@ -161,55 +158,43 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     );
 }
 
+function getOwnerDisplay(objOwner: ObjectOwner): 'Shared' | 'Immutable' | string {
+    if (objOwner === 'Immutable') {
+        return 'Immutable';
+    } else if ('Shared' in objOwner) {
+        return 'Shared';
+    }
+    return 'ObjectOwner' in objOwner ? objOwner.ObjectOwner : objOwner.AddressOwner;
+}
+
 interface OwnerCardProps {
     objOwner: ObjectOwner;
 }
 
 function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
-    function getOwner(objOwner: ObjectOwner): string {
-        if (objOwner === 'Immutable') {
-            return 'Immutable';
-        } else if ('Shared' in objOwner) {
-            return 'Shared';
-        }
-        return 'ObjectOwner' in objOwner
-            ? formatAddress(objOwner.ObjectOwner)
-            : formatAddress(objOwner.AddressOwner);
-    }
-
-    let copyValue: string | undefined;
-
-    if (typeof objOwner === 'string') {
-        copyValue = objOwner;
-    } else if ('AddressOwner' in objOwner) {
-        copyValue = objOwner.AddressOwner;
-    } else if ('ObjectOwner' in objOwner) {
-        copyValue = objOwner.ObjectOwner;
-    } else if ('Shared' in objOwner) {
-        copyValue = objOwner.Shared.initial_shared_version;
-    }
     return (
         <DisplayStats
             label="Owner"
-            value={<OwnerLink objOwner={objOwner}>{getOwner(objOwner)}</OwnerLink>}
-            copyText={copyValue}
-            onCopySuccess={onCopySuccess}
+            value={
+                <div className="flex flex-col gap-xs">
+                    <OwnerDisplay objOwner={objOwner} />
+                </div>
+            }
         />
     );
 }
 
-function OwnerLink({
-    children,
-    objOwner,
-}: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
+function OwnerDisplay({ objOwner }: { objOwner: ObjectOwner }): ReactNode {
+    const owner = getOwnerDisplay(objOwner);
     if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
         if ('ObjectOwner' in objOwner) {
-            return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
+            return <ObjectLink objectId={objOwner.ObjectOwner} copyText={objOwner.ObjectOwner} />;
         } else {
-            return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
+            return <AddressLink address={objOwner.AddressOwner} copyText={objOwner.AddressOwner} />;
         }
     }
-    return null;
+
+    return <span className="text-neutral-10 dark:text-neutral-92">{owner}</span>;
 }
 
 interface StorageRebateCardProps {
@@ -236,14 +221,10 @@ interface ObjectViewProps {
 }
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
-    const video = useResolveVideo(data);
     const display = data.data?.display?.data;
-    const imgUrl = parseImageURL(display);
-
-    const { data: imageData } = useQuery({
-        queryKey: ['image-file-type', imgUrl],
-        queryFn: ({ signal }) => genFileTypeMsg(imgUrl, signal!),
-    });
+    const src = display?.image_url || '';
+    const { data: nftMediaHeaders } = useNFTMediaHeaders(src);
+    const { type: nftFileType } = resolveNFTMedia(src, nftMediaHeaders);
 
     const name = extractName(display);
     const objectType = parseObjectType(data);
@@ -253,12 +234,11 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = video ? 'Video' : (imageData ?? '');
+    const heroImageSubtitle = `1 ${capitalize(nftFileType)} File`;
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
-        src: imgUrl,
-        video: video,
+        src,
     };
 
     return (
@@ -266,11 +246,11 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             <div
                 className={clsx(
                     'address-grid-container-top',
-                    !imgUrl && 'no-image',
+                    !src && 'no-image',
                     (!name || !display) && 'no-description',
                 )}
             >
-                {imgUrl !== '' && (
+                {src && (
                     <div style={{ gridArea: 'heroImage' }}>
                         <HeroVideoImage {...heroImageProps} />
                     </div>

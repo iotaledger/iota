@@ -30,7 +30,6 @@ export * from './useInitialPageView';
 export * from './usePinnedCoinTypes';
 export * from './useRecoveryDataMutation';
 export * from './useResetPasswordMutation';
-export * from './useResolveVideo';
 export * from './useRestrictedGuard';
 export * from './useSigner';
 export * from './useStorageMigrationStatus';

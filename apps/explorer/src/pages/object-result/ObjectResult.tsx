@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetObjectOrPastObject } from '@iota/core';
+import { AddressAlias, useCopyToClipboard, useGetObjectOrPastObject } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
 import { PageHeader } from '~/components/ui';
@@ -11,12 +11,14 @@ import { translate, type DataType } from './ObjectResultType';
 import { PkgView, TokenView } from './views';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
+import { onCopySuccess } from '~/lib';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
 export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID);
+    const copyToClipboard = useCopyToClipboard(onCopySuccess);
 
     if (isPending) {
         return (
@@ -43,7 +45,16 @@ export function ObjectResult(): JSX.Element {
                         <div className="flex flex-col gap-y-2xl">
                             <PageHeader
                                 type="Object"
-                                title={resp?.id ?? ''}
+                                title={
+                                    <div className="flex flex-col gap-xs">
+                                        <AddressAlias
+                                            address={resp?.id || ''}
+                                            formatUnknownAddress={false}
+                                            onCopy={() => copyToClipboard(resp?.id || '')}
+                                        />
+                                    </div>
+                                }
+                                showCopyButton={false}
                                 error={
                                     data?.isViewingPastVersion
                                         ? 'This object was deleted. You are viewing a past version of this object.'
@@ -63,7 +74,21 @@ export function ObjectResult(): JSX.Element {
                         />
                     ) : (
                         <>
-                            {isPackage && <PageHeader type="Package" title={resp.id} />}
+                            {isPackage && (
+                                <PageHeader
+                                    type="Package"
+                                    showCopyButton={false}
+                                    title={
+                                        <div className="flex flex-col gap-xs">
+                                            <AddressAlias
+                                                address={resp.id}
+                                                onCopy={() => copyToClipboard(resp.id)}
+                                                formatUnknownAddress={false}
+                                            />
+                                        </div>
+                                    }
+                                />
+                            )}
                             <ErrorBoundary>
                                 {isPackage ? <PkgView data={resp} /> : <TokenView data={data} />}
                             </ErrorBoundary>

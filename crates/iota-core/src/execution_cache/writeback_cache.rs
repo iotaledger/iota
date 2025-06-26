@@ -60,7 +60,6 @@ use iota_macros::fail_point_async;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::{Bridge, get_bridge},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -1538,10 +1537,6 @@ impl ObjectCacheRead for WritebackCache {
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
-    }
-
-    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
-        get_bridge(self)
     }
 
     fn get_marker_value(

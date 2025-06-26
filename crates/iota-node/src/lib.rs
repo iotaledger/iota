@@ -76,9 +76,9 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_json_rpc::{
-    JsonRpcServerBuilder, bridge_api::BridgeReadApi, coin_api::CoinReadApi,
-    governance_api::GovernanceReadApi, indexer_api::IndexerApi, move_utils::MoveUtils,
-    read_api::ReadApi, transaction_builder_api::TransactionBuilderApi,
+    JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
+    indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
+    transaction_builder_api::TransactionBuilderApi,
     transaction_execution_api::TransactionExecutionApi,
 };
 use iota_json_rpc_api::JsonRpcMetrics;
@@ -2198,7 +2198,6 @@ pub async fn build_http_server(
             server.register_module(TransactionBuilderApi::new(state.clone()))?;
         }
         server.register_module(GovernanceReadApi::new(state.clone(), metrics.clone()))?;
-        server.register_module(BridgeReadApi::new(state.clone(), metrics.clone()))?;
 
         if let Some(transaction_orchestrator) = transaction_orchestrator {
             server.register_module(TransactionExecutionApi::new(

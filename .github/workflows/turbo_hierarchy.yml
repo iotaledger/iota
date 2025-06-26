@@ -22,9 +22,11 @@ jobs:
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
       isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
+      isIscSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/isc-sdk')) }}
       isAppsBackend: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'apps-backend')) }}
       isWalletDashboard: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'wallet-dashboard')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
+      isEvmBridge: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-evm-bridge')) }}
       isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -92,6 +94,9 @@ jobs:
       - name: Build
         run: pnpm turbo build
       - name: Test
+        env:
+          VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+          VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
         # @iota/ledgerjs-hw-app-iota is tested separately
         run: pnpm turbo test --filter '!@iota/ledgerjs-hw-app-iota'
       # Pack wallet extension and upload it as an artifact for easy developer use:
@@ -122,6 +127,11 @@ jobs:
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
+      isEvmBridge: ${{ needs.diff.outputs.isEvmBridge == 'true' }}
+      isIscSDK: ${{ needs.diff.outputs.isIscSDK == 'true' }}
+    secrets:
+      EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+      EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
   ledgernano:
     if: (!cancelled() && !failure() && needs.diff.outputs.isLedgerjs == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
