@@ -675,11 +675,11 @@
     --card-body-subtitle-color: theme('colors.names-neutral.60');
 
     /* CHIP */
-    --chip-bg-selected-outline: theme('colors.names-primary.10');
+    --chip-bg-selected-outline: theme('colors.shader-primary-dark.16');
     --chip-bg-elevated: theme('colors.names-neutral.12');
     --chip-bg-brand: theme('colors.iota-primary.30');
-    --chip-border-default: theme('colors.names-neutral.40');
-    --chip-text-default: theme('colors.names-neutral.60');
+    --chip-border-default: theme('colors.names-neutral.20');
+    --chip-text-default: theme('colors.names-neutral.92');
     --chip-text-secondary: theme('colors.names-neutral.92');
     --chip-focus-ring: theme('colors.names-primary.80');
     --chip-border-color-brand: theme('colors.iota-primary.30');
