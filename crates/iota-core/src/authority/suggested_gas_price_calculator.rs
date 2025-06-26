@@ -153,10 +153,6 @@ impl SuggestedGasPriceCalculator {
                 such that a commit cannot accomodate a single certificate."
             );
 
-            // TODO: store suggested gas price per combination of objects
-            // instead of calculating it every time.
-            // let x: HashMap<BTreeSet<ObjectID>, u64> = HashMap::new();
-
             let possible_start_times = self.find_possible_start_times(
                 certificate,
                 estimated_execution_duration,
