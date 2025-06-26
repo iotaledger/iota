@@ -38,7 +38,7 @@ export function SupplyIncreaseVestingStakingDialog({
                             subtitle="Get an overview of your vested tokens and manage them"
                             size={BannerSize.Small}
                         >
-                            <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-primary-30 dark:text-primary-80">
+                            <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                 <Link
                                     to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/vesting"
                                     target="_blank"
@@ -52,10 +52,10 @@ export function SupplyIncreaseVestingStakingDialog({
                         </Banner>
                         <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
                             <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
-                                <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                     Step-by-step
                                 </span>
-                                <ol className="list-decimal space-y-xs pl-md text-body-sm text-neutral-40 dark:text-neutral-60">
+                                <ol className="list-decimal space-y-xs pl-md text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                     <li>Connect your wallet to the IOTA Wallet Dashboard</li>
                                     <li>Open the Vesting tab from the sidebar</li>
                                     <li>Click See All to open the full vesting schedule</li>

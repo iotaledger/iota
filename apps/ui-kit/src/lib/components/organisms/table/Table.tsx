@@ -149,7 +149,7 @@ export function Table({
                     {supportingLabel || pageSizeSelector ? (
                         <div className="flex flex-row items-center gap-x-sm">
                             {supportingLabel && (
-                                <span className=" text-label-md text-neutral-40 dark:text-neutral-60">
+                                <span className="table-text-color text-label-md">
                                     {supportingLabel}
                                 </span>
                             )}
@@ -182,7 +182,7 @@ export function TableRow({
     );
 }
 
-const TEXT_COLOR_CLASS = 'text-neutral-40 dark:text-neutral-60';
+const TEXT_COLOR_CLASS = 'table-text-color';
 const TEXT_SIZE_CLASS = 'text-body-md';
 
 export function TableBody({ children }: PropsWithChildren): JSX.Element {

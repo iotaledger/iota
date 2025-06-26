@@ -71,7 +71,7 @@ export const Default: Story = {
                     isVisibilityToggleEnabled
                     {...storyProps}
                 />
-                <div className="flex w-full justify-end">
+                <div className="flex w-full justify-end pt-2">
                     <Button onClick={() => onSubmit()} text="Submit" />
                 </div>
             </div>

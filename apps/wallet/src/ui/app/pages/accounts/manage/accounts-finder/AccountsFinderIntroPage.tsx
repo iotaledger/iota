@@ -54,23 +54,23 @@ export function AccountsFinderIntroPage() {
             <div className="flex h-full flex-col items-center justify-between">
                 <img src={imgSrc} alt="Balance Finder Intro" />
                 <div className="flex h-full flex-col items-center justify-between">
-                    <div className="flex flex-col gap-y-md p-md text-center">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                    <div className="flex flex-col gap-y-sm p-md text-center">
+                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                             Wallet Setup
                         </span>
-                        <span className="text-headline-md text-neutral-10 dark:text-neutral-92">
+                        <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
                             Balance Finder
                         </span>
                         <div className="flex flex-col gap-y-xs text-start text-body-md">
-                            <span className=" text-neutral-40 dark:text-neutral-60">
-                                <span className="text-neutral-10 dark:text-neutral-92">
+                            <span className=" text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
                                     Run multiple searches{' '}
                                 </span>
                                 to ensure all assets are located. Some funds and addresses may not
                                 appear immediately.
                             </span>
-                            <span className=" text-neutral-40 dark:text-neutral-60">
-                                <span className="text-neutral-10 dark:text-neutral-92">
+                            <span className=" text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
                                     Missing funds{' '}
                                 </span>
                                 may be due to unmigrated tokens or locked vested funds.

@@ -4,15 +4,15 @@
 import { DisplayStatsType, DisplayStatsSize } from './displayStats.enums';
 
 export const BACKGROUND_CLASSES: Record<DisplayStatsType, string> = {
-    [DisplayStatsType.Default]: 'bg-neutral-96 dark:bg-neutral-10',
-    [DisplayStatsType.Highlight]: 'bg-primary-30 dark:bg-primary-80',
-    [DisplayStatsType.Secondary]: 'bg-secondary-90 dark:bg-secondary-10',
+    [DisplayStatsType.Default]: 'display-stats-bg-default',
+    [DisplayStatsType.Highlight]: 'display-stats-bg-highlight',
+    [DisplayStatsType.Secondary]: 'display-stats-bg-secondary',
 };
 
 export const TEXT_CLASSES: Record<DisplayStatsType, string> = {
-    [DisplayStatsType.Default]: 'text-neutral-10 dark:text-neutral-92',
-    [DisplayStatsType.Highlight]: 'text-neutral-100 dark:text-primary-10',
-    [DisplayStatsType.Secondary]: 'text-neutral-10 dark:text-neutral-92',
+    [DisplayStatsType.Default]: 'display-stats-text-default',
+    [DisplayStatsType.Highlight]: 'display-stats-text-highlight',
+    [DisplayStatsType.Secondary]: 'display-stats-text-secondary',
 };
 
 export const SIZE_CLASSES: Record<DisplayStatsSize, string> = {

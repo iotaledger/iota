@@ -17,7 +17,7 @@ export function OverviewHint({ onClick, icon, title }: OverviewHintProps) {
             onClick={onClick}
         >
             <IconComponent className="h-5 w-5 text-warning-10 dark:text-warning-90" />
-            <span className="text-label-sm text-neutral-10 dark:text-neutral-92">{title}</span>
+            <span className="text-label-sm text-iota-neutral-10 dark:text-iota-neutral-92">{title}</span>
         </div>
     );
 }

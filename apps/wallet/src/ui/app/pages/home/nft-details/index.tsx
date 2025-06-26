@@ -77,11 +77,11 @@ export function NFTDetailsPage() {
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
-                                            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                                            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                                                 {nftDisplayData?.name}
                                             </span>
                                             {nftDisplayData?.description ? (
-                                                <span className="text-body-md text-neutral-60">
+                                                <span className="text-body-md text-iota-neutral-60">
                                                     {nftDisplayData?.description}
                                                 </span>
                                             ) : null}
