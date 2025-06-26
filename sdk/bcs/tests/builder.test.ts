@@ -179,6 +179,10 @@ describe('bcs', () => {
         testType('bytes', bcs.bytes(4), new Uint8Array([1, 2, 3, 4]), '01020304');
     });
 
+    describe('byteVector', () => {
+        testType('byteVector', bcs.byteVector(), new Uint8Array([1, 2, 3]), '03010203');
+    });
+
     describe('tuples', () => {
         testType('tuple(u8, u8)', bcs.tuple([bcs.u8(), bcs.u8()]), [1, 2], '0102');
         testType(
