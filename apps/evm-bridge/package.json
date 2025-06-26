@@ -1,0 +1,59 @@
+{
+    "name": "iota-evm-bridge",
+    "version": "0.1.0",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,jsx,ts,tsx}\"",
+        "eslint:fix": "pnpm eslint:check --fix",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=.prettierignore .",
+        "lint": "pnpm eslint:check && pnpm prettier:check",
+        "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
+        "test:prepare:L1": "pnpm -w wallet build",
+        "test:prepare:L2": "vite-node scripts/downloadWallet.js",
+        "test:prepare": "pnpm test:prepare:L1 && pnpm test:prepare:L2",
+        "playwright": "playwright",
+        "test:e2e": "playwright test"
+    },
+    "dependencies": {
+        "@hookform/resolvers": "^3.9.0",
+        "@iota/apps-ui-icons": "workspace:*",
+        "@iota/apps-ui-kit": "workspace:*",
+        "@iota/bcs": "workspace:*",
+        "@iota/dapp-kit": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
+        "@iota/isc-sdk": "workspace:*",
+        "@rainbow-me/rainbowkit": "^2.2.3",
+        "@tanstack/react-query": "^5.50.1",
+        "autoprefixer": "^10.4.19",
+        "bignumber.js": "^9.1.1",
+        "clsx": "^2.1.1",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-hook-form": "^7.45.2",
+        "react-hot-toast": "^2.4.1",
+        "viem": "^2.23.3",
+        "wagmi": "^2.14.11",
+        "zod": "^3.21.4",
+        "zustand": "^4.4.1"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.46.1",
+        "@types/node": "^20.14.10",
+        "@types/react": "^18.3.3",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react-swc": "^3.3.2",
+        "dotenv": "^16.4.5",
+        "ethers": "^6.13.5",
+        "tailwindcss": "^3.3.3",
+        "typescript": "^5.5.3",
+        "vite": "^5.4.12",
+        "vite-node": "^3.0.8"
+    },
+    "lint-staged": {
+        "src/**/*.{ts,js,mjs,tsx}": "eslint --fix",
+        "src/**/*.{ts,js,mjs,tsx,scss,css}": "prettier --write"
+    }
+}

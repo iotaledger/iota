@@ -8,7 +8,6 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { Info, Loader } from '@iota/apps-ui-icons';
 import { type ReactNode } from 'react';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
-import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 
 interface SmallThumbnailsViewProps {
@@ -24,7 +23,7 @@ interface OwnObjectContainerProps {
 
 function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
-        <div className="rounded-xl p-xs hover:bg-neutral-92 dark:hover:bg-neutral-12">
+        <div className="rounded-xl p-xs hover:bg-iota-neutral-92 dark:hover:bg-iota-neutral-12">
             <ObjectLink display="block" objectId={id} label={children} />
         </div>
     );
@@ -43,7 +42,6 @@ function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
 }
 
 function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
-    const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
     const name = displayMeta?.name ?? displayMeta?.description ?? '--';
@@ -53,22 +51,24 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     return (
         <div className="flex items-center gap-md">
             <ObjectVideoImage
-                fadeIn
                 disablePreview
                 title={name}
                 subtitle={type}
                 src={src}
-                video={video}
                 variant="xs"
+                disableVideoControls
+                disableAutoPlay
             />
             <div className="flex min-w-0 flex-col flex-nowrap gap-xxs">
-                <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>
-                <div className="flex flex-row items-center gap-xs text-label-md text-neutral-10 dark:text-neutral-92">
-                    <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
+                <span className="text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {name}
+                </span>
+                <div className="flex flex-row items-center gap-xs text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                    <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                         {formatAddress(id!)}
                     </span>
                     <Tooltip text={type} position={TooltipPosition.Bottom}>
-                        <Info className="text-neutral-60 dark:text-neutral-40" />
+                        <Info className="text-iota-neutral-60 dark:text-iota-neutral-40" />
                     </Tooltip>
                 </div>
             </div>

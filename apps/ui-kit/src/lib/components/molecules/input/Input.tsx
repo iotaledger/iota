@@ -115,9 +115,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
                 onClick={focusOnInput}
                 ref={inputWrapperRef}
             >
-                {leadingIcon && (
-                    <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
-                )}
+                {leadingIcon && <span className="input-icon-color">{leadingIcon}</span>}
                 <InputElement
                     {...inputProps}
                     inputRef={forwardRef}
@@ -223,7 +221,7 @@ function InputTrailingElement({
     if (showClearInput) {
         return (
             <ButtonUnstyled
-                className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                className="input-icon-color [&_svg]:h-5 [&_svg]:w-5"
                 onClick={onClearInput}
                 tabIndex={-1}
             >
@@ -234,7 +232,7 @@ function InputTrailingElement({
         return (
             <ButtonUnstyled
                 onClick={onToggleButtonClick}
-                className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                className="input-icon-color [&_svg]:h-5 [&_svg]:w-5"
                 tabIndex={-1}
             >
                 {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}

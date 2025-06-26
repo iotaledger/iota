@@ -415,7 +415,7 @@ pub enum IotaClientCommands {
         #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
         /// ID of the upgrade capability for the package being upgraded.
-        #[arg(long)]
+        #[arg(long, short = 'c')]
         upgrade_capability: ObjectID,
         /// Package build options
         #[command(flatten)]

@@ -66,7 +66,11 @@ export function MyCoins(): React.JSX.Element {
                 coinType={coin.coinType}
                 balance={BigInt(coin.totalBalance)}
                 onClick={() => openSendTokenDialog(coin)}
-                icon={isRecognized ? <RecognizedBadge className="h-4 w-4 text-primary-40" /> : null}
+                icon={
+                    isRecognized ? (
+                        <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />
+                    ) : null
+                }
             />
         );
     };
