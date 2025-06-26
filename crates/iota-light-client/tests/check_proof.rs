@@ -27,8 +27,7 @@ use iota_types::{
 const FIXTURES_DIR: &str = "tests/fixtures";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
-    // TODO: switch to mainnet config once endpoints available
-    let mut config = Config::devnet();
+    let mut config = Config::mainnet();
     config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
 
     let checkpoint_list =

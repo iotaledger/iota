@@ -17,6 +17,8 @@ use tokio::fs::create_dir_all;
 use tracing::info;
 
 const FIXTURES_DIR: &str = "tests/fixtures";
+// Determines which end-of-epoch checkpoints will be downloaded when running
+// this binary. You should only ever add epochs to this list, but not remove.
 const SELECTED_EPOCHS: &[usize] = &[0, 1];
 
 #[tokio::main]
@@ -31,8 +33,7 @@ pub async fn main() -> Result<()> {
         create_dir_all(path.clone()).await?;
     }
 
-    // TODO: switch to mainnet config once endpoints available
-    let mut config = Config::devnet();
+    let mut config = Config::mainnet();
     config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
     config.validate().expect("invalid config");
 
