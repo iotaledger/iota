@@ -196,7 +196,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_small_committee_reconfig() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(1, 5_000 /* , 0 */).await;
+        let test_cluster = build_test_cluster(1, 5_000, 0).await;
         test_simulated_load(test_cluster, 120).await;
     }
 
