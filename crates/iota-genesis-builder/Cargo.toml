@@ -28,13 +28,11 @@ rand_pcg = "0.3"
 rand_seeder = "0.3"
 regex.workspace = true
 reqwest.workspace = true
-schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
-thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = "0.3"
@@ -49,7 +47,11 @@ iota-genesis-common.workspace = true
 iota-move-build.workspace = true
 iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
-iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
+iota-sdk = { version = "1.1", default-features = false, features = [
+    "irc_27",
+    "irc_30",
+    "std",
+] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
