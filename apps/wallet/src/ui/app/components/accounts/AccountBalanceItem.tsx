@@ -140,7 +140,7 @@ export function AccountBalanceItem({
             defaultOpen
             hideArrow
             render={({ isOpen }) => (
-                <div className="relative flex min-h-[52px] w-full items-center justify-between gap-1 py-2 pl-1 pr-sm text-neutral-10 dark:text-neutral-92">
+                <div className="relative flex min-h-[52px] w-full items-center justify-between gap-1 py-2 pl-1 pr-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                     <div className="flex items-center gap-xxs">
                         <TriangleDown
                             className={clsx(
@@ -152,7 +152,7 @@ export function AccountBalanceItem({
                         />
                         <div className="flex flex-col items-start gap-xxs">
                             <div className="text-title-md">Wallet {Number(accountIndex) + 1}</div>
-                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                 {accounts.length} {accounts.length > 1 ? 'addresses' : 'address'}
                             </span>
                         </div>
@@ -172,7 +172,7 @@ export function AccountBalanceItem({
                 </div>
             )}
         >
-            <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
+            <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                 {accounts.map(({ address, id }) => (
                     <AddressItem key={id} address={address} />
                 ))}

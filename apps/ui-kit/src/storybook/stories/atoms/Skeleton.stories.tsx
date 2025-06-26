@@ -17,7 +17,7 @@ export const SkeletonCard: Story = {
     render: () => (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>
-                <div className="h-10 w-10 animate-pulse bg-neutral-90 dark:bg-neutral-12" />
+                <div className="h-10 w-10 animate-pulse bg-iota-neutral-90 names:bg-names-neutral-12 dark:bg-iota-neutral-12" />
                 <Skeleton widthClass="w-10" heightClass="h-10" isRounded={false} />
             </CardImage>
             <div className="flex flex-col gap-y-xs">

@@ -33,7 +33,9 @@ export function AddressAlias({
         <>
             {alias && (
                 <div
-                    className={cx('flex items-center gap-xs text-neutral-40 dark:text-neutral-60')}
+                    className={cx(
+                        'flex items-center gap-xs text-iota-neutral-40 dark:text-iota-neutral-60',
+                    )}
                 >
                     <IotaLogoMark className="h-full aspect-square" />
                     {renderAlias?.(alias) ?? alias}
@@ -45,7 +47,7 @@ export function AddressAlias({
 
                 {onCopy && (
                     <ButtonUnstyled onClick={onCopy}>
-                        <Copy className="h-full aspect-square hover:text-opacity-80 transition-colors cursor-pointer text-neutral-60 dark:text-neutral-40" />
+                        <Copy className="h-full aspect-square hover:text-opacity-80 transition-colors cursor-pointer text-iota-neutral-60 dark:text-iota-neutral-40" />
                     </ButtonUnstyled>
                 )}
             </div>

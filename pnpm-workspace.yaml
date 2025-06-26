@@ -14,6 +14,7 @@ packages:
   - "!sdk/typescript/keypairs/ed25519"
   - "!sdk/typescript/keypairs/secp256k1"
   - "!sdk/typescript/keypairs/secp256r1"
+  - "!sdk/typescript/keypairs/passkey"
   - "!sdk/typescript/multisig"
   - "!sdk/typescript/scripts"
   - "!sdk/typescript/transactions"
