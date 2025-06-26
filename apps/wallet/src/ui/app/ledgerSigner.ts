@@ -4,16 +4,17 @@
 
 import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import { type IotaClient } from '@iota/iota-sdk/client';
-import { toSerializedSignature, type SignatureScheme } from '@iota/iota-sdk/cryptography';
-import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
+import { type Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
+import { LedgerSigner as SignersLedgerSigner } from '@iota/signers/ledger';
+import { type Transaction } from '@iota/iota-sdk/transactions';
 
-import { WalletSigner } from './walletSigner';
+import { type SignedMessage, type SignedTransaction, WalletSigner } from './walletSigner';
 
 export class LedgerSigner extends WalletSigner {
     #iotaLedgerClient: IotaLedgerClient | null;
+    #signer: SignersLedgerSigner | null = null;
     readonly #connectToLedger: () => Promise<IotaLedgerClient>;
     readonly #derivationPath: string;
-    readonly #signatureScheme: SignatureScheme = 'ED25519';
 
     constructor(
         connectToLedger: () => Promise<IotaLedgerClient>,
@@ -35,28 +36,45 @@ export class LedgerSigner extends WalletSigner {
         return this.#iotaLedgerClient;
     }
 
+    async #initializeSigner() {
+        if (!this.#signer) {
+            const ledgerClient = await this.#initializeIotaLedgerClient();
+            this.#signer = await SignersLedgerSigner.fromDerivationPath(
+                this.#derivationPath,
+                ledgerClient,
+                this.client,
+            );
+        }
+        return this.#signer;
+    }
+
     async getAddress(): Promise<string> {
-        const ledgerClient = await this.#initializeIotaLedgerClient();
-        const publicKeyResult = await ledgerClient.getPublicKey(this.#derivationPath);
-        const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-        return publicKey.toIotaAddress();
+        const signer = await this.#initializeSigner();
+        return signer.toIotaAddress();
     }
 
     async getPublicKey(): Promise<Ed25519PublicKey> {
-        const ledgerClient = await this.#initializeIotaLedgerClient();
-        const { publicKey } = await ledgerClient.getPublicKey(this.#derivationPath);
-        return new Ed25519PublicKey(publicKey);
+        const signer = await this.#initializeSigner();
+        return signer.getPublicKey();
     }
 
-    async signData(data: Uint8Array): Promise<string> {
-        const ledgerClient = await this.#initializeIotaLedgerClient();
-        const { signature } = await ledgerClient.signTransaction(this.#derivationPath, data);
-        const publicKey = await this.getPublicKey();
-        return toSerializedSignature({
-            signature,
-            signatureScheme: this.#signatureScheme,
-            publicKey,
-        });
+    async signData(_data: Uint8Array): Promise<string> {
+        throw new Error('signData is not implemented in LedgerSigner');
+    }
+
+    async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
+        const signer = await this.#initializeSigner();
+        const signature = await signer.signPersonalMessage(input.message);
+        return signature as SignedMessage;
+    }
+
+    async signTransaction(input: {
+        transaction: Uint8Array | Transaction;
+    }): Promise<SignedTransaction> {
+        const signer = await this.#initializeSigner();
+        const bytes = await this.prepareTransaction(input.transaction);
+        const signature = await signer.signTransaction(bytes);
+        return signature as SignedTransaction;
     }
 
     connect(client: IotaClient) {
