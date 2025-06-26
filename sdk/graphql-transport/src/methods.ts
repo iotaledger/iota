@@ -1073,7 +1073,7 @@ export const RPC_METHODS: {
         };
     },
     async getDynamicFieldObjectV2(transport, inputs) {
-        return await RPC_METHODS.getDynamicFieldObject!(transport, inputs)
+        return await RPC_METHODS.getDynamicFieldObject!(transport, inputs);
     },
     async getDynamicFieldObject(transport, [parentId, name]) {
         const nameLayout = await transport.graphqlQuery(
