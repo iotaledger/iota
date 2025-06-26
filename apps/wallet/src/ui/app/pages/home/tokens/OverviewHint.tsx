@@ -16,7 +16,7 @@ export function OverviewHint({ onClick, icon, title }: OverviewHintProps) {
             className="state-layer bg-iota-warning-90 dark:bg-iota-warning-20 relative flex w-full cursor-pointer items-center gap-3 rounded-xl border border-transparent p-xs px-sm py-xs"
             onClick={onClick}
         >
-            <IconComponent className="h-5 w-5 text-warning-10 dark:text-warning-90" />
+            <IconComponent className="h-5 w-5 text-iota-warning-10 dark:text-iota-warning-90" />
             <span className="text-label-sm text-iota-neutral-10 dark:text-iota-neutral-92">{title}</span>
         </div>
     );
