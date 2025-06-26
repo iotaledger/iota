@@ -12,12 +12,14 @@ use std::{
 
 use anyhow::Result;
 use async_trait::async_trait;
+use fastcrypto::traits::KeyPair;
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use iota_metrics::spawn_monitored_task;
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
 };
+use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::*,
@@ -145,6 +147,11 @@ impl AuthorityServer {
         self,
         address: Multiaddr,
     ) -> Result<AuthorityServerHandle, io::Error> {
+        let tls_config = iota_tls::create_rustls_server_config(
+            self.state.config.network_key_pair().copy().private(),
+            IOTA_TLS_SERVER_NAME.to_string(),
+            iota_tls::AllowAll,
+        );
         let mut server = iota_network_stack::config::Config::new()
             .server_builder()
             .add_service(ValidatorServer::new(ValidatorService::new_for_tests(
@@ -152,7 +159,7 @@ impl AuthorityServer {
                 self.consensus_adapter,
                 self.metrics,
             )))
-            .bind(&address)
+            .bind(&address, Some(tls_config))
             .await
             .unwrap();
         let local_addr = server.local_addr().to_owned();

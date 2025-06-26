@@ -92,7 +92,7 @@ use iota_metrics::{
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
-use iota_network_stack::server::ServerBuilder;
+use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
@@ -1509,8 +1509,13 @@ impl IotaNode {
 
         server_builder = server_builder.add_service(ValidatorServer::new(validator_service));
 
+        let tls_config = iota_tls::create_rustls_server_config(
+            config.network_key_pair().copy().private(),
+            IOTA_TLS_SERVER_NAME.to_string(),
+            iota_tls::AllowAll,
+        );
         let mut server = server_builder
-            .bind(config.network_address())
+            .bind(config.network_address(), Some(tls_config))
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         let cancel_handle = server

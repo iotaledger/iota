@@ -222,6 +222,7 @@ anyhow = "1.0.71"
 arc-swap = { version = "1.5.1", features = ["serde"] }
 async-graphql = "7.0.17"
 async-recursion = "1.0.4"
+async-stream = "0.3.6"
 async-trait = "0.1.61"
 aws-config = "1.5.6"
 aws-sdk-dynamodb = "1.42"
