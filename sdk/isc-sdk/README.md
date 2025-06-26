@@ -73,8 +73,6 @@ await client.signAndExecuteTransaction({
 });
 
 console.log('Sent!');
-
 ```
 
 You can find more examples in the [examples/] folder.
-
