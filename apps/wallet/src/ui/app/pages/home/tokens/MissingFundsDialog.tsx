@@ -29,10 +29,10 @@ export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
                             <div className="flex h-[100px] w-full justify-between ">
                                 <div className="flex w-full flex-col justify-between p-md">
                                     <div className="flex flex-col items-start gap-xxs text-start">
-                                        <span className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-sm">
+                                        <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                             Any questions?
                                         </span>
-                                        <span className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-sm">
+                                        <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                             We're here to help.
                                         </span>
                                     </div>
@@ -40,7 +40,7 @@ export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
                                         to={DISCORD_SUPPORT_LINK}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="text-iota-primary-30 dark:text-iota-primary-80 flex items-center gap-x-xxs underline"
+                                        className="flex items-center gap-x-xxs text-iota-primary-30 underline dark:text-iota-primary-80"
                                     >
                                         <span className="shrink-0">Discord</span>
                                         <ArrowTopRight />
@@ -51,16 +51,16 @@ export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
                         </Panel>
                         <Panel bgColor="bg-iota-warning-90 dark:bg-iota-warning-20">
                             <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
-                                <span className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-sm">
+                                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                     Missing funds?
                                 </span>
-                                <span className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-sm">
+                                <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                     Some addresses are tagged to indicate that their balances may be
                                     inaccurate, often due to conditions like vesting or pending
                                     migration that require user action. These funds are still in
                                     your possession, even if not reflected in the balance.
                                 </span>
-                                <div className="text-iota-primary-30 dark:text-iota-primary-80 flex w-full flex-wrap justify-start gap-xs text-body-sm">
+                                <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                     <Link
                                         to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/migration"
                                         target="_blank"

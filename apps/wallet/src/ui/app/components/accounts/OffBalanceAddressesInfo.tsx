@@ -23,11 +23,11 @@ export function OffBalanceAddressesInfo({
         <>
             <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
                 <div className="flex flex-col gap-xs p-md">
-                    <span className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-sm">
+                    <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                         Off-Balance Addresses
                     </span>
 
-                    <p className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-sm">
+                    <p className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                         Tagged addresses may show inaccurate balances due to vesting or migration
                         that require user action.
                     </p>

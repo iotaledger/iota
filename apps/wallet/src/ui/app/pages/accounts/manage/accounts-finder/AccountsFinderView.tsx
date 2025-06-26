@@ -204,7 +204,7 @@ export function AccountsFinderView(): JSX.Element {
                             onOpenVestingInfo={() => setDialogVestingOpen(true)}
                             onOpenMigrationInfo={() => setDialogMigrationOpen(true)}
                         />
-                        <span className="text-iota-neutral-10 dark:text-iota-neutral-92 my-sm text-center text-title-md">
+                        <span className="my-sm text-center text-title-md text-iota-neutral-10 dark:text-iota-neutral-92">
                             Found Addresses
                         </span>
                     </>
