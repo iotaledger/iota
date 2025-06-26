@@ -21,9 +21,8 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics,
-    TransactionFilter,
+    IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
+    NetworkMetrics, ParticipationMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -41,7 +40,6 @@ use iota_types::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    is_system_package,
     messages_checkpoint::CheckpointDigest,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
@@ -595,41 +593,6 @@ impl IndexerReader {
             .collect()
     }
 
-    fn get_transaction_effects_with_digest(
-        &self,
-        digest: TransactionDigest,
-    ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
-            transactions::table
-                .filter(
-                    transactions::tx_sequence_number
-                        .nullable()
-                        .eq(tx_digests::table
-                            .select(tx_digests::tx_sequence_number)
-                            // we filter the tx_digests table because it is indexed by digest,
-                            // transactions table is not
-                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
-                            .single_value()),
-                )
-                .first::<StoredTransaction>(conn)
-        })?;
-
-        stored_txn.try_into_iota_transaction_effects()
-    }
-
-    fn get_transaction_effects_with_sequence_number(
-        &self,
-        sequence_number: i64,
-    ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
-            transactions::table
-                .filter(transactions::tx_sequence_number.eq(sequence_number))
-                .first::<StoredTransaction>(conn)
-        })?;
-
-        stored_txn.try_into_iota_transaction_effects()
-    }
-
     fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
@@ -843,33 +806,6 @@ impl IndexerReader {
             .try_into()?;
             Ok(Some(object))
         })
-    }
-
-    fn filter_object_id_with_type(
-        &self,
-        object_ids: Vec<ObjectID>,
-        object_type: String,
-    ) -> Result<Vec<ObjectID>, IndexerError> {
-        let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
-        let filtered_ids = run_query!(&self.pool, |conn| {
-            objects::dsl::objects
-                .filter(objects::object_id.eq_any(object_ids))
-                .filter(objects::object_type.eq(object_type))
-                .select(objects::object_id)
-                .load::<Vec<u8>>(conn)
-        })?;
-
-        filtered_ids
-            .into_iter()
-            .map(|id| {
-                ObjectID::from_bytes(id.clone()).map_err(|_e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "Can't convert {:?} to ObjectID",
-                        id,
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
     }
 
     pub async fn multi_get_objects_in_blocking_task(
@@ -2042,10 +1978,13 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let package_id = coin_struct.address.into();
-        let treasury_cap_type = TreasuryCap::type_(coin_struct.clone())
-            .to_canonical_string(/* with_prefix */ true);
-        let cache_key = format!("{}{}", package_id, treasury_cap_type);
+        let package_id: ObjectID = coin_struct.address.into();
+        let treasury_cap_type = TreasuryCap::type_(coin_struct.clone());
+        let cache_key = format!(
+            "{}{}",
+            package_id,
+            treasury_cap_type.to_canonical_string(/* with_prefix */ true)
+        );
 
         let mut cache = self
             .package_obj_type_cache
@@ -2053,20 +1992,16 @@ impl IndexerReader {
             .inspect_err(|e| tracing::error!("package_obj_type_cache poisoned: {:?}", e))
             .map_err(|_| IndexerError::Generic("failed to acquire cache lock".into()))?;
 
-        let maybe_id = if let Some(&id) = cache.cache_get(&cache_key) {
-            id
-        } else {
-            let fetched = get_single_obj_id_from_package_publish(
-                self,
-                package_id,
-                treasury_cap_type.clone(),
-            )?;
-            cache.cache_set(cache_key.clone(), fetched);
-            fetched
+        let maybe_obj = match cache.cache_get(&cache_key) {
+            Some(Some(id)) => self.get_object(id, None).ok().flatten(),
+            _ => {
+                let fetched = self.get_singleton_object(treasury_cap_type)?;
+                cache.cache_set(cache_key.clone(), fetched.as_ref().map(|o| o.id()));
+                fetched
+            }
         };
 
-        Ok(maybe_id
-            .and_then(|id| self.get_object(&id, None).ok().flatten())
+        Ok(maybe_obj
             .and_then(|obj| TreasuryCap::try_from(obj).ok())
             .map(|tc| tc.total_supply))
     }
@@ -2146,47 +2081,5 @@ impl iota_types::storage::ObjectStore for IndexerReader {
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, Some(version))
             .map_err(iota_types::storage::error::Error::custom)
-    }
-}
-
-fn get_single_obj_id_from_package_publish(
-    reader: &IndexerReader,
-    package_id: ObjectID,
-    obj_type: String,
-) -> Result<Option<ObjectID>, IndexerError> {
-    let publish_txn_effects_opt = if is_system_package(package_id) {
-        Some(reader.get_transaction_effects_with_sequence_number(0))
-    } else {
-        reader.get_object(&package_id, None)?.map(|o| {
-            let publish_txn_digest = o.previous_transaction;
-            reader.get_transaction_effects_with_digest(publish_txn_digest)
-        })
-    };
-    if let Some(publish_txn_effects) = publish_txn_effects_opt {
-        let created_objs = publish_txn_effects?
-            .created()
-            .iter()
-            .map(|o| o.object_id())
-            .collect::<Vec<_>>();
-        let obj_ids_with_type =
-            reader.filter_object_id_with_type(created_objs, obj_type.clone())?;
-        if obj_ids_with_type.len() == 1 {
-            Ok(Some(obj_ids_with_type[0]))
-        } else if obj_ids_with_type.is_empty() {
-            // The package exists but no such object is created in that transaction. Or
-            // maybe it is wrapped and we don't know yet.
-            Ok(None)
-        } else {
-            // We expect there to be only one object of this type created by the package but
-            // more than one is found.
-            tracing::error!(
-                "There are more than one objects found for type {}",
-                obj_type
-            );
-            Ok(None)
-        }
-    } else {
-        // The coin package does not exist.
-        Ok(None)
     }
 }
