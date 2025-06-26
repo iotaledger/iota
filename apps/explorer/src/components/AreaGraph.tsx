@@ -29,7 +29,7 @@ function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Elemen
             x={x}
             y={y}
             textAnchor="middle"
-            className="fill-current text-label-lg text-neutral-60 dark:text-neutral-40"
+            className="fill-current text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40"
         >
             {formattedValue}
         </text>
@@ -154,7 +154,7 @@ export function AreaGraph<D>({
                     <linearGradient id={lineGradientID}>
                         <stop
                             stopColor="currentColor"
-                            className="text-primary-30 dark:text-primary-80"
+                            className="text-iota-primary-30 dark:text-iota-primary-80"
                         />
                     </linearGradient>
                 </defs>

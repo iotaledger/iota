@@ -151,7 +151,7 @@ export function ImportRecoveryPhraseForm({
                     })}
                 </div>
             </div>
-            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm dark:bg-neutral-6">
+            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-iota-neutral-100 pt-sm dark:bg-iota-neutral-6">
                 {errorMessage && recoveryPhrase.every((word) => word.length > 0) ? (
                     <InfoBox
                         type={InfoBoxType.Error}

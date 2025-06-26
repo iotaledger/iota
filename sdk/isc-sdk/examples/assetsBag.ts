@@ -4,12 +4,12 @@ import {
     getHname,
     IscTransaction,
     L2_FROM_L1_GAS_BUDGET,
-} from '../src/index';
+} from '../src/index.js';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { IotaClient } from '@iota/iota-sdk/client';
-import { CONFIG } from './config';
+import { CONFIG } from './config.js';
 
 const { L1 } = CONFIG;
 

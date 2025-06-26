@@ -162,7 +162,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                         <>
                             <div className="relative overflow-y-auto p-sm--rs pt-0">
                                 {filterValue === CoinFilter.Unrecognized && (
-                                    <div className="sticky top-0 z-[1] bg-neutral-100 p-sm dark:bg-neutral-10">
+                                    <div className="sticky top-0 z-[1] bg-iota-neutral-100 p-sm dark:bg-iota-neutral-10">
                                         <InfoBox
                                             icon={<Warning />}
                                             supportingText="These coins have not been recognized by the IOTA Foundation."
@@ -188,7 +188,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         onFirst={() => setCurrentSlice(1)}
                                     />
                                     <div className="flex items-center gap-3">
-                                        <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                             Showing {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
                                                 ? displayedBalances.length
@@ -228,7 +228,7 @@ export function NoObjectsOwnedMessage({
 }: NoObjectsOwnedMessageProps): React.JSX.Element {
     return (
         <div className="md:h-coinsAndAssetsContainer flex h-full items-center justify-center">
-            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+            <span className="flex flex-row items-center gap-x-xs text-iota-neutral-40 dark:text-iota-neutral-60">
                 No {objectType} Owned
             </span>
         </div>

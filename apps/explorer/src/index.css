@@ -13,11 +13,11 @@ body,
 }
 
 :root {
-    @apply bg-neutral-98;
+    @apply bg-iota-neutral-98;
 }
 
 :root.dark {
-    @apply bg-neutral-4;
+    @apply bg-iota-neutral-4;
 }
 
 @layer base {

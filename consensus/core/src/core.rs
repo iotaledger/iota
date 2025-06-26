@@ -66,11 +66,11 @@ pub(crate) struct Core {
     /// dependencies when processing new blocks and accept them or suspend
     /// if we are missing their causal history
     block_manager: BlockManager,
-    /// Whether there are subscribers waiting for new blocks proposed by this
-    /// authority. Core stops proposing new blocks when there is no
-    /// subscriber, because new proposed blocks will likely contain only
-    /// stale info when they propagate to peers.
-    subscriber_exists: bool,
+    /// Whether there is a quorum of 2f+1 subscribers waiting for new blocks
+    /// proposed by this authority. Core stops proposing new blocks when
+    /// there is not enough subscribers, because new proposed blocks will
+    /// not be sufficiently propagated to the network.
+    quorum_subscribers_exists: bool,
     /// Estimated delay by round for propagating blocks to a quorum.
     /// Because of the nature of TCP and block streaming, propagation delay is
     /// expected to be 0 in most cases, even when the actual latency of
@@ -192,7 +192,7 @@ impl Core {
             leader_schedule,
             transaction_consumer,
             block_manager,
-            subscriber_exists,
+            quorum_subscribers_exists: subscriber_exists,
             propagation_delay: 0,
             committer,
             commit_observer,
@@ -944,11 +944,10 @@ impl Core {
         self.block_manager.missing_blocks()
     }
 
-    /// Sets if there is consumer available to consume blocks produced by the
-    /// core.
-    pub(crate) fn set_subscriber_exists(&mut self, exists: bool) {
-        info!("Block subscriber exists: {exists}");
-        self.subscriber_exists = exists;
+    /// Sets if there is 2f+1 subscriptions to the block stream.
+    pub(crate) fn set_quorum_subscribers_exists(&mut self, exists: bool) {
+        info!("A quorum of block subscribers exists: {exists}");
+        self.quorum_subscribers_exists = exists;
     }
 
     /// Sets the delay by round for propagating blocks to a quorum and the
@@ -1003,10 +1002,10 @@ impl Core {
         let clock_round = self.dag_state.read().threshold_clock_round();
         let core_skipped_proposals = &self.context.metrics.node_metrics.core_skipped_proposals;
 
-        if !self.subscriber_exists {
-            debug!("Skip proposing for round {clock_round}, no subscriber exists.");
+        if !self.quorum_subscribers_exists {
+            debug!("Skip proposing for round {clock_round}, don't have a quorum of subscribers.");
             core_skipped_proposals
-                .with_label_values(&["no_subscriber"])
+                .with_label_values(&["no_quorum_subscriber"])
                 .inc();
             return false;
         }
@@ -3093,7 +3092,7 @@ mod test {
         assert!(core.try_propose(true).unwrap().is_none());
 
         // Let Core know subscriber exists.
-        core.set_subscriber_exists(true);
+        core.set_quorum_subscribers_exists(true);
 
         // Proposing now would succeed.
         assert!(core.try_propose(true).unwrap().is_some());
@@ -3158,7 +3157,7 @@ mod test {
         core.set_propagation_delay_and_quorum_rounds(1000, vec![], vec![]);
 
         // Make propagation delay the only reason for not proposing.
-        core.set_subscriber_exists(true);
+        core.set_quorum_subscribers_exists(true);
 
         // There is no proposal even with forced proposing.
         assert!(core.try_propose(true).unwrap().is_none());

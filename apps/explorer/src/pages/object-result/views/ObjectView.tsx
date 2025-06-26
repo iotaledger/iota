@@ -194,7 +194,7 @@ function OwnerDisplay({ objOwner }: { objOwner: ObjectOwner }): ReactNode {
         }
     }
 
-    return <span className="text-neutral-10 dark:text-neutral-92">{owner}</span>;
+    return <span className="text-iota-neutral-10 dark:text-iota-neutral-92">{owner}</span>;
 }
 
 interface StorageRebateCardProps {
