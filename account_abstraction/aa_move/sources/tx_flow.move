@@ -3,7 +3,7 @@
 
 module account_abstraction::tx_flow;
 
-use account_abstraction::account_abstraction::SmartAccount;
+use account_abstraction::smart_account::SmartAccount;
 use iota::dynamic_object_field as dof;
 use iota::ed25519;
 use iota::hex::decode;

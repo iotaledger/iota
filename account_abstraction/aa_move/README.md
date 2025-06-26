@@ -62,7 +62,7 @@ Use the IOTA faucet to fund the generated multisig address:
 3. Initialize the Smart Account
 Invoke the smart account initialization function:
     ```bash
-     /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function init_multisig_smart_account --args $MULTISIG_ADDR
+     /Users/pk/iota client call --package $PACKAGE_ID --module smart_account --function init_multisig_smart_account --args $MULTISIG_ADDR
     ```
     Export the resulting required values as:
     ```bash
@@ -79,13 +79,13 @@ Deposit a coin object into the smart account’s balance:
 5. Receive Coins for the Smart Account
 Receive a coin object into the smart account’s balance(**Sponsorship also required**):
     ```bash
-      /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function receive_deposit --args $AA $SOME_COIN_OBJ 
+      /Users/pk/iota client call --package $PACKAGE_ID --module smart_account --function receive_deposit --args $AA $SOME_COIN_OBJ 
     ```
 
 6. Construct a Withdraw Transaction
 Create a serialized unsigned transaction to withdraw tokens from the smart account (served with Alice’s gas object):
     ```bash
-    /Users/pk/iota client ptb --move-call $PACKAGE_ID::account_abstraction::withdraw @$AA @$OWNER_CAP 9999999 --assign withdraw_coin \
+    /Users/pk/iota client ptb --move-call $PACKAGE_ID::smart_account::withdraw @$AA @$OWNER_CAP 9999999 --assign withdraw_coin \
     --move-call 0x2::transfer::public_transfer $SOME_COIN_OBJ @$RECIPIENT_ADDR
     ```
     Export the transaction bytes:

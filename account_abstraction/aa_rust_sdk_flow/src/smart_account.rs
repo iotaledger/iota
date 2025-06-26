@@ -28,7 +28,7 @@ use crate::{
     utils::{GAS_BUDGET, THRESHOLD, compile_package, get_coin},
 };
 
-const AA_MODULE_NAME: &str = "account_abstraction";
+const SMART_ACC_MODULE_NAME: &str = "smart_account";
 
 /// Publishes the Move Account Abstraction (AA) package on-chain using a
 /// multisig account.
@@ -105,7 +105,7 @@ pub async fn init_smart_account(
     let args = vec![ptb_builder.pure(multisig_addr)?];
     ptb_builder.command(Command::move_call(
         package_id,
-        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new(SMART_ACC_MODULE_NAME)?,
         Identifier::new("init_multisig_smart_account")?,
         vec![],
         args,
@@ -241,7 +241,7 @@ pub async fn make_deposit_to_smart_account(
     ];
     ptb_builder.command(Command::move_call(
         package_id,
-        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new(SMART_ACC_MODULE_NAME)?,
         Identifier::new("receive_deposit")?,
         vec![],
         arguments,
@@ -330,7 +330,7 @@ pub async fn prepare_withdraw_tx_data(
     ];
     let coin = ptb_builder.programmable_move_call(
         package_id,
-        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new(SMART_ACC_MODULE_NAME)?,
         Identifier::new("withdraw")?,
         vec![],
         arguments,
@@ -398,7 +398,7 @@ pub async fn delete_smart_account(
 
     let coin = ptb_builder.programmable_move_call(
         package_id,
-        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new(SMART_ACC_MODULE_NAME)?,
         Identifier::new("delete_multisig_smart_account")?,
         vec![],
         arguments,

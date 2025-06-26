@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module account_abstraction::account_abstraction;
+module account_abstraction::smart_account;
 
 use iota::balance::{Self, Balance};
 use iota::coin::{Self, Coin};
