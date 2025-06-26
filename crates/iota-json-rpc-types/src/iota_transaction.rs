@@ -1096,6 +1096,7 @@ pub struct DryRunTransactionBlockResponse {
     pub object_changes: Vec<ObjectChange>,
     pub balance_changes: Vec<BalanceChange>,
     pub input: IotaTransactionBlockData,
+    pub suggested_gas_price: Option<u64>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]

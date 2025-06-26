@@ -136,6 +136,7 @@ use self::{
 pub use crate::checkpoints::checkpoint_executor::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
 };
+use crate::congestion_tracker::CongestionTracker;
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, CertTxGuard},
@@ -808,6 +809,8 @@ pub struct AuthorityState {
     pub overload_info: AuthorityOverloadInfo,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
+
+    pub(crate) congestion_tracker: Arc<CongestionTracker>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -1812,6 +1815,18 @@ impl AuthorityState {
         let module_cache =
             TemporaryModuleResolver::new(&inner_temp_store, epoch_store.module_cache().clone());
 
+        let tx_clone = transaction.clone();
+        let tracker_clone = self.congestion_tracker.clone();
+
+        let suggested_gas_price = tokio::task::spawn(async move {
+            tracker_clone
+                .get_suggested_gas_price_with_ogd(tx_clone)
+                .await
+        })
+        .await
+        .ok()
+        .flatten();
+
         let mut layout_resolver =
             epoch_store
                 .executor()
@@ -1848,23 +1863,30 @@ impl AuthorityState {
             })
             .collect();
 
+        let events = IotaTransactionBlockEvents::try_from(
+            inner_temp_store.events.clone(),
+            tx_digest,
+            None,
+            layout_resolver.as_mut(),
+        )?;
+
         Ok((
             DryRunTransactionBlockResponse {
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
-                    .map_err(|e| IotaError::TransactionSerialization {
-                        error: format!(
-                            "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                        ),
-                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
-                effects: effects.clone().try_into()?,
-                events: IotaTransactionBlockEvents::try_from(
-                    inner_temp_store.events.clone(),
+                input: IotaTransactionBlockData::try_from(
+                    transaction.clone(),
+                    &module_cache,
                     tx_digest,
-                    None,
-                    layout_resolver.as_mut(),
-                )?,
+                )
+                .map_err(|e| IotaError::TransactionSerialization {
+                    error: format!(
+                        "Failed to convert transaction to IotaTransactionBlockData: {e}",
+                    ),
+                })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
+                effects: effects.clone().try_into()?,
+                events,
                 object_changes,
                 balance_changes,
+                suggested_gas_price,
             },
             written_with_kind,
             effects,
@@ -2873,6 +2895,7 @@ impl AuthorityState {
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
+            congestion_tracker: Arc::new(CongestionTracker::new()),
         });
 
         // Start a task to execute ready certificates.
