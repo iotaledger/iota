@@ -43,7 +43,7 @@ ark-groth16 = "0.5.0"
 ark-serialize = "0.5.0"
 ark-snark = "0.5.1"
 hex = "0.4.3"
-rand = "0.8.5"
+ark-std = "0.5.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
@@ -82,8 +82,8 @@ use ark_circom::CircomConfig;
 use ark_groth16::{Groth16, prepare_verifying_key};
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use ark_std::rand::rngs::StdRng;
+use ark_std::rand::SeedableRng;
 
 #[tokio::main]
 async fn main() {
