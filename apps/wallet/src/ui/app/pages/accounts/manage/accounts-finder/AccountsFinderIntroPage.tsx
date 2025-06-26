@@ -3,38 +3,56 @@
 
 import { useNavigate } from 'react-router-dom';
 import { Overlay } from '_components';
-import { useActiveAccount } from '_hooks';
+import { useActiveAccount, useAppSelector } from '_hooks';
 import { getKey } from '_helpers';
 import { Theme, useTheme } from '@iota/core';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
-import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.svg';
-import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.svg';
+import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.png';
+import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.png';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import { useEffect, useState } from 'react';
 
 export function AccountsFinderIntroPage() {
     const { theme } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
+    const [skipSeconds, setSkipSeconds] = useState(5);
+    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
 
+    const skipActionAllowed = skipSeconds > 0;
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
     const accountSourceId = activeAccount && getKey(activeAccount);
+    const imgSrc = theme === Theme.Dark ? BalanceFinderIntroDarkImage : BalanceFinderIntroImage;
 
     const ledgerPath = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
     const accountPath = isLedgerAccount
         ? ledgerPath
         : `/accounts/manage/accounts-finder/${accountSourceId}`;
 
+    useEffect(() => {
+        if (!skipActionAllowed) return;
+
+        const id = setInterval(() => {
+            setSkipSeconds((s) => s - 1);
+        }, 1_000);
+
+        return () => clearInterval(id);
+    }, [skipActionAllowed]);
+
+    function navigateToAccountFinder() {
+        if (isAppPopup) {
+            const currentBaseUrl = window.location.href.split('#')[0];
+            window.open(`${currentBaseUrl}#${accountPath}`, '_blank', 'noopener noreferrer');
+        } else {
+            navigate(accountPath);
+        }
+    }
+
     return (
         <Overlay showModal>
             <div className="flex h-full flex-col items-center justify-between">
-                <div>
-                    {theme === Theme.Dark ? (
-                        <BalanceFinderIntroDarkImage />
-                    ) : (
-                        <BalanceFinderIntroImage />
-                    )}
-                </div>
+                <img src={imgSrc} alt="Balance Finder Intro" />
                 <div className="flex h-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-y-sm p-md text-center">
                         <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
@@ -43,22 +61,35 @@ export function AccountsFinderIntroPage() {
                         <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
                             Balance Finder
                         </span>
-                        <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
-                            Easily find and import all your accounts with balances, in one place.
-                        </span>
+                        <div className="flex flex-col gap-y-xs text-start text-body-md">
+                            <span className=" text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
+                                    Run multiple searches{' '}
+                                </span>
+                                to ensure all assets are located. Some funds and addresses may not
+                                appear immediately.
+                            </span>
+                            <span className=" text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
+                                    Missing funds{' '}
+                                </span>
+                                may be due to unmigrated tokens or locked vested funds.
+                            </span>
+                        </div>
                     </div>
                     <div className="flex w-full flex-row gap-x-xs">
                         <Button
                             type={ButtonType.Secondary}
-                            text="Skip"
+                            text={skipActionAllowed ? `Skip (${skipSeconds}s)` : 'Skip'}
                             onClick={() => navigate('/')}
                             fullWidth
+                            disabled={skipActionAllowed}
                         />
                         <Button
                             type={ButtonType.Primary}
-                            text="Start"
+                            text="Find your assets"
                             fullWidth
-                            onClick={() => navigate(accountPath)}
+                            onClick={navigateToAccountFinder}
                         />
                     </div>
                 </div>
