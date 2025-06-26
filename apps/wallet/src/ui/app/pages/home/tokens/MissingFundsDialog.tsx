@@ -25,14 +25,14 @@ export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
                 <Header title="More Info" onClose={() => setOpen(false)} titleCentered />
                 <DialogBody>
                     <div className="flex flex-col gap-sm text-center">
-                        <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+                        <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
                             <div className="flex h-[100px] w-full justify-between ">
                                 <div className="flex w-full flex-col justify-between p-md">
                                     <div className="flex flex-col items-start gap-xxs text-start">
-                                        <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                                        <span className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-sm">
                                             Any questions?
                                         </span>
-                                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        <span className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-sm">
                                             We're here to help.
                                         </span>
                                     </div>
@@ -40,7 +40,7 @@ export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
                                         to={DISCORD_SUPPORT_LINK}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex items-center gap-x-xxs text-primary-30 underline dark:text-primary-80"
+                                        className="text-iota-primary-30 dark:text-iota-primary-80 flex items-center gap-x-xxs underline"
                                     >
                                         <span className="shrink-0">Discord</span>
                                         <ArrowTopRight />
@@ -49,18 +49,18 @@ export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
                                 <img src={imgSrc} alt="Need help?" className="h-full" />
                             </div>
                         </Panel>
-                        <Panel bgColor="bg-warning-90 dark:bg-warning-20">
+                        <Panel bgColor="bg-iota-warning-90 dark:bg-iota-warning-20">
                             <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
-                                <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                                <span className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-sm">
                                     Missing funds?
                                 </span>
-                                <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                <span className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-sm">
                                     Some addresses are tagged to indicate that their balances may be
                                     inaccurate, often due to conditions like vesting or pending
                                     migration that require user action. These funds are still in
                                     your possession, even if not reflected in the balance.
                                 </span>
-                                <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-primary-30 dark:text-primary-80">
+                                <div className="text-iota-primary-30 dark:text-iota-primary-80 flex w-full flex-wrap justify-start gap-xs text-body-sm">
                                     <Link
                                         to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/migration"
                                         target="_blank"

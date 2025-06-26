@@ -47,7 +47,7 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                                 </Link>
                             </div>
                         </Banner>
-                        <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+                        <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
                             <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
                                 <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
                                     Step-by-step

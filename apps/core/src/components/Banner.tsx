@@ -23,7 +23,7 @@ export function Banner({
     size = BannerSize.Default,
 }: React.PropsWithChildren<BannerProps>): React.ReactElement {
     return (
-        <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+        <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
             <div className="flex h-full w-full justify-between ">
                 <div
                     className={clsx(
@@ -36,7 +36,7 @@ export function Banner({
                     <div className="flex flex-col gap-xxs items-start text-start">
                         <span
                             className={clsx(
-                                'text-neutral-10 dark:text-neutral-92',
+                                'text-iota-neutral-10 dark:text-iota-neutral-92',
                                 size === BannerSize.Small ? 'text-title-sm' : 'text-headline-sm',
                             )}
                         >
@@ -44,7 +44,7 @@ export function Banner({
                         </span>
                         <span
                             className={clsx(
-                                'text-neutral-40 dark:text-neutral-60',
+                                'text-iota-neutral-40 dark:text-iota-neutral-60',
                                 size === BannerSize.Small ? 'text-body-sm' : 'text-body-md',
                             )}
                         >

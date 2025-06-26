@@ -21,13 +21,13 @@ export function OffBalanceAddressesInfo({
     const [dialogMissingAddressesOpen, setDialogMissingAddressesOpen] = useState(false);
     return (
         <>
-            <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+            <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
                 <div className="flex flex-col gap-xs p-md">
-                    <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                    <span className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-sm">
                         Off-Balance Addresses
                     </span>
 
-                    <p className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                    <p className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-sm">
                         Tagged addresses may show inaccurate balances due to vesting or migration
                         that require user action.
                     </p>
