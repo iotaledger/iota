@@ -89,21 +89,22 @@ export default class Iota {
     /**
      * Sign a transaction with the key at a BIP32 path.
      *
-     * @param txn - The transaction; this can be any of a node Buffer, Uint8Array, or a hexadecimal string, encoding the form of the transaction appropriate for hashing and signing.
-     * @param path - the path to use when signing the transaction.
+     * @param txn - The transaction bytes to sign.
+     * @param path - The path to use when signing the transaction.
      */
     async signTransaction(
         path: string,
-        txn: string | Buffer | Uint8Array,
+        txn: Uint8Array,
     ): Promise<SignTransactionResult> {
         const cla = 0x00;
         const ins = 0x03;
         const p1 = 0;
         const p2 = 0;
-        // Transaction payload is the byte length as uint32le followed by the bytes
-        // Type guard not actually required but TypeScript can't tell that.
+
         if (this.#verbose) this.#log(txn);
-        const rawTxn = typeof txn == 'string' ? Buffer.from(txn, 'hex') : Buffer.from(txn);
+
+        // Transaction payload is the byte length as uint32le followed by the bytes
+        const rawTxn = Buffer.from(txn);
         const hashSize = Buffer.alloc(4);
         hashSize.writeUInt32LE(rawTxn.length, 0);
         // Bip32key payload same as getPublicKey
