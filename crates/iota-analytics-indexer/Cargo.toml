@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-arrow = "55.2"
 arrow-array = "53.1"
 async-trait.workspace = true
 axum.workspace = true
