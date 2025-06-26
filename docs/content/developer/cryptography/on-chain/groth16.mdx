@@ -99,7 +99,7 @@ async fn main() {
 
     // WARNING: The code below is just for debugging, and should instead use a verification key generated from a trusted setup.
     // See for example https://docs.circom.io/getting-started/proving-circuits/#powers-of-tau.
-    let mut rng = StdRng = SeedableRng::from_seed([0; 32]);
+    let mut rng = SeedableRng::from_seed([0; 32]);
     let params =
         Groth16::<Bn254>::generate_random_parameters_with_reduction(circom, &mut rng).unwrap();
 
