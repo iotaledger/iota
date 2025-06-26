@@ -5,8 +5,7 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
-    BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     move_package::MovePackage,
@@ -137,16 +136,6 @@ impl BuiltInFramework {
                 "IotaSystem",
                 "iota-system",
                 [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                BRIDGE_PACKAGE_ID,
-                "Bridge",
-                "bridge",
-                [
-                    MOVE_STDLIB_PACKAGE_ID,
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    IOTA_SYSTEM_PACKAGE_ID
-                ]
             ),
             (
                 STARDUST_PACKAGE_ID,

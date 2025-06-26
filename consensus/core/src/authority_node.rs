@@ -215,8 +215,11 @@ where
 
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
+        // Sync last known own block is enabled when:
+        // 1. This is the first boot of the authority node (e.g. disable if the
+        //    validator was active in the previous epoch) and
+        // 2. The timeout for syncing last known own block is not set to zero.
         let sync_last_known_own_block = boot_counter == 0
-            && dag_state.read().highest_accepted_round() == 0
             && !context
                 .parameters
                 .sync_last_known_own_block_timeout

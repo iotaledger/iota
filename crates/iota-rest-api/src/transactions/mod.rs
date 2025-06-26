@@ -3,18 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod execution;
+pub use execution::{
+    EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters, SimulateTransaction,
+    SimulateTransactionQueryParameters, TransactionExecutionResponse,
+    TransactionSimulationResponse,
+};
 
+mod resolve;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-pub use execution::{
-    EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters,
-    TransactionExecutionResponse,
-};
 use iota_sdk2::types::{
     CheckpointSequenceNumber, Transaction, TransactionDigest, TransactionEffects,
     TransactionEvents, UserSignature,
+};
+pub use resolve::{
+    ResolveTransaction, ResolveTransactionQueryParameters, ResolveTransactionResponse,
 };
 use tap::Pipe;
 

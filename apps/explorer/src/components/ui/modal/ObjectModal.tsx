@@ -3,16 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Modal, type ModalProps } from './Modal';
-import { Image } from '../image/Image';
 import { Close } from '@iota/apps-ui-icons';
+import { resolveNFTMedia, useNFTMediaHeaders } from '@iota/core';
+import { LoadingIndicator, MediaFallback, AssetMediaRenderer } from '@iota/apps-ui-kit';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     title: string;
     subtitle: string;
     alt: string;
     src: string;
-    video?: string | null;
-    moderate?: boolean;
 }
 
 export function ObjectModal({
@@ -22,18 +21,23 @@ export function ObjectModal({
     title,
     subtitle,
     src,
-    video,
-    // NOTE: Leave false only if ObjectModal is paired with an Image component
-    moderate = false,
 }: ObjectModalProps): JSX.Element {
+    const { data: nftMediaHeaders, isLoading } = useNFTMediaHeaders(src);
+    const { type, shouldAutoPlayVideo, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
+
     return (
         <Modal open={open} onClose={onClose}>
-            <div className="flex flex-col gap-5">
-                {video ? (
-                    <video controls className="h-full w-full" src={video} />
+            <div className="flex h-full w-full flex-col gap-5">
+                {isLoading ? (
+                    <LoadingIndicator />
+                ) : !isMediaSupported ? (
+                    <MediaFallback />
                 ) : (
-                    // Moderation is disabled inside the modal so if a user clicks to open an unblurred image the experience is consistent
-                    <Image alt={alt} src={src} rounded="none" moderate={moderate} />
+                    <AssetMediaRenderer
+                        assetType={type}
+                        src={src}
+                        isAutoPlayEnabled={shouldAutoPlayVideo}
+                    />
                 )}
                 <div className="flex flex-col gap-3">
                     <span className="text-headline-md text-neutral-100">{title}</span>

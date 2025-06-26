@@ -349,6 +349,7 @@ function run_cargo_nextest() {
         local filter_set="${1:-}"                        # filter set for tests (first parameter)
         local config_path="${2:-'.config/nextest.toml'}" # config path for tests (second parameter)
         local manifest_path="${3:-}"                     # manifest path for tests (third parameter)
+        local feature_set="${4:-}"                       # feature set for tests (fourth parameter)
 
         # if config path is not empty, set it to --config-file flag
         if [[ -n "$config_path" ]]; then
@@ -360,6 +361,14 @@ function run_cargo_nextest() {
             manifest_path="--manifest-path $manifest_path"
         fi
 
+        # if feature set is not empty, set it to --features flag.
+        # --all-features is used otherwise.
+        if [[ -n "$feature_set" ]]; then
+            feature_set="--features $feature_set"
+        else
+            feature_set="--all-features"
+        fi
+
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
@@ -367,7 +376,7 @@ function run_cargo_nextest() {
         
         local filter_set=$(finalize_filter_set "$filter_set")
         
-        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features $filter_set --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci $feature_set $filter_set --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -465,9 +474,7 @@ function filter_and_run_tests() {
 
         # first run tests for external crates (they are not part of the workspace)
         if [ "$test_type" == $TEST_TYPE_NEXTEST ]; then
-            run_cargo_nextest "$combined_set_external" ".config/nextest_external.toml" "external-crates/move/Cargo.toml"
-        elif [ "$test_type" == $TEST_TYPE_SIMTEST ]; then
-            run_cargo_simtest "$combined_set_external" "external-crates/move/Cargo.toml"
+            run_cargo_nextest "$combined_set_external" ".config/nextest_external.toml" "external-crates/move/Cargo.toml" "tracing"
         fi
     fi
 

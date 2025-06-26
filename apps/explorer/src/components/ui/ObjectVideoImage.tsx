@@ -2,14 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Play } from '@iota/apps-ui-icons';
+import { NFTMediaRenderer } from '@iota/core';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 
-import { Image, ObjectModal, type ImageProps } from '~/components/ui';
+import { ObjectModal } from '~/components/ui';
 
-const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
+const imageStyles = cva(['flex-shrink-0'], {
     variants: {
+        objectFit: {
+            cover: 'object-cover',
+            contain: 'object-contain',
+            fill: 'object-fill',
+            none: 'object-none',
+        },
         variant: {
             xxs: 'h-8 w-8',
             xs: 'h-12 w-12',
@@ -21,6 +27,15 @@ const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
         disablePreview: {
             true: '',
             false: 'cursor-pointer',
+        },
+        rounded: {
+            full: 'rounded-full',
+            '2xl': 'rounded-2xl',
+            lg: 'rounded-lg',
+            xl: 'rounded-xl',
+            md: 'rounded-md',
+            sm: 'rounded-sm',
+            none: 'rounded-none',
         },
     },
     defaultVariants: {
@@ -36,27 +51,23 @@ interface ObjectVideoImageProps extends ImageStylesProps {
     src: string;
     open?: boolean;
     setOpen?: (open: boolean) => void;
-    video?: string | null;
-    rounded?: ImageProps['rounded'];
-    disablePreview?: boolean;
-    fadeIn?: boolean;
-    imgFit?: ImageProps['fit'];
-    aspect?: ImageProps['aspect'];
+    rounded?: ImageStylesProps['rounded'];
+    disableVideoControls?: boolean;
+    disableAutoPlay?: boolean;
 }
 
 export function ObjectVideoImage({
+    objectFit = 'cover',
     title,
     subtitle,
     src,
-    video,
     variant,
     open,
     setOpen,
     disablePreview,
-    fadeIn,
-    imgFit,
-    aspect,
     rounded = 'md',
+    disableVideoControls,
+    disableAutoPlay = false,
 }: ObjectVideoImageProps): JSX.Element {
     const close = () => {
         if (disablePreview) {
@@ -84,25 +95,24 @@ export function ObjectVideoImage({
                 onClose={close}
                 title={title}
                 subtitle={subtitle}
-                src={src}
-                video={video}
+                src={src || ''}
                 alt={title}
             />
-            <div className={imageStyles({ variant, disablePreview })}>
-                <Image
-                    aspect={aspect}
-                    rounded={rounded}
-                    onClick={openPreview}
-                    alt={title}
-                    src={src}
-                    fadeIn={fadeIn}
-                    fit={imgFit}
-                />
-                {video && (
-                    <div className="pointer-events-none absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full opacity-80">
-                        <Play className={clsx(variant === 'large' ? 'h-8 w-8' : 'h-5 w-5')} />
-                    </div>
+            <div
+                className={clsx(
+                    'bg-neutral-96 dark:bg-neutral-10',
+                    imageStyles({ variant, disablePreview, rounded }),
+                    rounded && 'overflow-hidden',
                 )}
+                onClick={openPreview}
+            >
+                <NFTMediaRenderer
+                    src={src}
+                    alt={title}
+                    disableVideoControls={disableVideoControls}
+                    disableAutoPlay={disableAutoPlay}
+                    objectFit={imageStyles({ objectFit })}
+                />
             </div>
         </>
     );
