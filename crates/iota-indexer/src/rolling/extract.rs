@@ -12,16 +12,18 @@ use iota_types::{
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct Extractor<'chk>(&'chk CheckpointData);
+pub(crate) struct Extractor<'chk> {
+    checkpoint: &'chk CheckpointData,
+}
 
 impl<'chk> Extractor<'chk> {
-    pub fn new(data: &'chk CheckpointData) -> Self {
-        Self(data)
+    pub fn new(checkpoint: &'chk CheckpointData) -> Self {
+        Self { checkpoint }
     }
 
     pub(crate) fn iter_live_objects(&'chk self) -> impl Iterator<Item = &'chk Object> + 'chk {
         let mut latest_live_objects = BTreeMap::new();
-        for tx in self.0.transactions.iter() {
+        for tx in self.checkpoint.transactions.iter() {
             for obj in tx.output_objects.iter() {
                 latest_live_objects.insert(obj.id(), obj);
             }
@@ -36,7 +38,7 @@ impl<'chk> Extractor<'chk> {
         &'chk self,
     ) -> impl Iterator<Item = (ObjectRef, TransactionDigest)> + 'chk {
         let mut eventually_removed_object_refs = BTreeMap::new();
-        for tx in self.0.transactions.iter() {
+        for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
             for obj_ref in tx.removed_object_refs_post_version() {
                 eventually_removed_object_refs.insert(obj_ref.0, (obj_ref, *digest));
