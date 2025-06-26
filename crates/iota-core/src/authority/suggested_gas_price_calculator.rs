@@ -7,6 +7,7 @@ use iota_types::{
 use rayon::iter::{
     IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator,
 };
+use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
 
@@ -51,10 +52,25 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// deferred/cancelled shared-object transactions, using congestion
 /// info from a single consensus commit.
 pub(crate) struct SuggestedGasPriceCalculator {
+    /// Per-commit congestion info
     congestion_info: PerCommitCongestionInfo,
+
+    /// Maximum execution duration per shared object per commit.
     max_execution_duration_per_commit: Option<ExecutionTime>,
+
+    /// Flag indicating where the minimum free execution slot to schedule
+    /// execution of a transaction is assigned in the shared object congestion
+    /// tracker (sequencer). If `false`, this corresponds to the old Sui's
+    /// canonical sequencer logic.
     min_free_execution_slot_assigned: bool,
+
+    /// The reference gas price, which will be suggested if
+    /// `max_execution_duration_per_commit` is set to `None`.
     reference_gas_price: u64,
+
+    /// Maximum gas price that can be set in transactions. This is
+    /// used to prevent suggesting feedback gas price larger than
+    /// this maximum value set in the protocol config.
     max_gas_price: u64,
 }
 
@@ -77,7 +93,10 @@ impl SuggestedGasPriceCalculator {
     }
 
     /// Update per-commit congestion info for a single certificate. This should
-    /// only be called for scheduled certificates that contain shared object(s).
+    /// only be called for scheduled certificates that contain shared object(s);
+    /// otherwise, the calculator might wrongly calculate suggested gas price.
+    /// The `execution_start_time` and `estimated_execution_duration` parameters
+    /// are the outcomes of the shared object congestion tracker (sequencer).
     pub fn update_congestion_info(
         &mut self,
         certificate: &VerifiedExecutableTransaction,
@@ -113,9 +132,11 @@ impl SuggestedGasPriceCalculator {
             });
     }
 
-    /// Calculate a suggested gas price using single-commit congestion data.
-    /// This should only be called for certificates deferred/cancelled due
-    /// to shared object congestion.
+    /// Calculate a suggested gas price for a deferred/cancelled `certificate`
+    /// using the single-commit congestion info held by the calculator. This
+    /// should only be called for certificates deferred/cancelled due to
+    /// shared object congestion; otherwise, there is a risk of panic.
+    #[instrument(level = "trace", skip_all)]
     pub fn calculate_suggested_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
@@ -127,86 +148,36 @@ impl SuggestedGasPriceCalculator {
                 "This certificate alone has estimated execution duration of \
                 {estimated_execution_duration}, which is larger than the maximum execution \
                 duration per commit {max_execution_duration_per_commit}, so the certificate \
-                cannot be scheduled regardless of suggested gas price."
+                cannot be scheduled regardless of suggested gas price. It is likely that \
+                {max_execution_duration_per_commit} was set too low in the protocol config, \
+                such that a commit cannot accomodate a single certificate."
             );
 
             // TODO: store suggested gas price per combination of objects
             // instead of calculating it every time.
             // let x: HashMap<BTreeSet<ObjectID>, u64> = HashMap::new();
 
-            let passing_gas_price = if self.min_free_execution_slot_assigned {
-                // ^ This branch corresponds to the new sequencer's logic.
+            let possible_start_times = self.find_possible_start_times(
+                certificate,
+                estimated_execution_duration,
+                max_execution_duration_per_commit,
+            );
 
-                // Find all possible execution start times for certificate's shared objects
-                let mut possible_start_times = BTreeSet::from([ExecutionTime::MIN]);
-                possible_start_times.par_extend(
-                    certificate
-                        .shared_input_objects()
-                        .par_bridge()
-                        .filter_map(|object| {
-                            self.congestion_info
-                                .get(&object.id)
-                                .map(|per_object_congestion_info| {
-                                    per_object_congestion_info.par_iter().flat_map(|tx| {
-                                        [
-                                            tx.estimated_execution_duration,
-                                            tx.execution_start_time
-                                                + tx.estimated_execution_duration,
-                                        ]
-                                    })
-                                })
-                        })
-                        .flatten(),
-                );
+            let passing_gas_price = if self.min_free_execution_slot_assigned {
+                // ^ This corresponds to the new sequencer's logic.
 
                 possible_start_times
                     .into_par_iter()
-                    .filter_map(|start_time| {
-                        let end_time = start_time + estimated_execution_duration;
-                        if end_time <= max_execution_duration_per_commit {
-                            Some(
-                        certificate
-                            .shared_input_objects()
-                            .par_bridge()
-                            .filter_map(|object| {
-                                self.congestion_info.get(&object.id).map(
-                                    |per_object_congestion_info| {
-                                        per_object_congestion_info
-                                            .par_iter()
-                                            .filter_map(|tx| {
-                                                if (tx.execution_start_time >= start_time
-                                                    && tx.execution_start_time < end_time)
-                                                    || (tx.execution_start_time
-                                                        + tx.estimated_execution_duration
-                                                        > start_time
-                                                        && tx.execution_start_time
-                                                            + tx.estimated_execution_duration
-                                                            <= end_time)
-                                                {
-                                                    Some(tx.gas_price)
-                                                } else {
-                                                    None
-                                                }
-                                            })
-                                            .max()
-                                    },
-                                )
-                            })
-                            .max()
-                            .flatten()
-                            .unwrap_or_else(|| {
-                                panic!(
-                                    "At least one of the shared input objects should have appeared \
-                                    in between execution start time of {start_time} and execution \
-                                    end time of {end_time}, otherwise this deferred \
-                                    certificate would be scheduled by the sequencer."
-                                );
-                            }),
-                    )
-                        } else {
-                            None
-                        }
+                    .map(|start_time| {
+                        self.find_passing_gas_price_at_start_time(
+                            certificate,
+                            start_time,
+                            estimated_execution_duration,
+                        )
                     })
+                    // Take the minimum across possible start times, since the new sequencer
+                    // might schedule a certificate with lower gas prices at lower execution
+                    // start times.
                     .min()
                     .unwrap_or_else(|| {
                         panic!(
@@ -218,10 +189,17 @@ impl SuggestedGasPriceCalculator {
                         );
                     })
             } else {
-                // ^ If `min_free_execution_slot_assigned` is false (which realizes
-                // the old Sui's canonical sequencer logic), suggested gas price
-                // calculations are different and easier.
-                todo!()
+                // ^ This corresponds to the old Sui's canonical sequencer logic.
+
+                let start_time = *possible_start_times
+                    .last()
+                    .expect("There must be at least one possible start time, which is always 0.");
+
+                self.find_passing_gas_price_at_start_time(
+                    certificate,
+                    start_time,
+                    estimated_execution_duration,
+                )
             };
 
             // Suggested gas price equals passing_gas_price + 1. We add 1 to make this
@@ -233,8 +211,96 @@ impl SuggestedGasPriceCalculator {
             suggested_gas_price.min(self.max_gas_price)
         } else {
             // ^ If we don't have a max execution duration, suggest the reference gas price.
+
             self.reference_gas_price
         }
+    }
+
+    /// Find execution start times at which this deferred/cancelled certificate
+    /// could be scheduled with its estimated execution duration.
+    fn find_possible_start_times(
+        &self,
+        certificate: &VerifiedExecutableTransaction,
+        estimated_execution_duration: ExecutionTime,
+        max_execution_duration_per_commit: ExecutionTime,
+    ) -> BTreeSet<ExecutionTime> {
+        let max_possible_start_time =
+            max_execution_duration_per_commit - estimated_execution_duration;
+
+        let mut possible_start_times = BTreeSet::from([ExecutionTime::MIN]);
+        possible_start_times.par_extend(
+            certificate
+                .shared_input_objects()
+                .par_bridge()
+                .filter_map(|object| {
+                    self.congestion_info
+                        .get(&object.id)
+                        .map(|per_object_congestion_info| {
+                            per_object_congestion_info.par_iter().flat_map(|tx| {
+                                let end_time =
+                                    tx.execution_start_time + tx.estimated_execution_duration;
+
+                                if end_time <= max_possible_start_time {
+                                    vec![tx.execution_start_time, end_time]
+                                } else if tx.execution_start_time <= max_possible_start_time {
+                                    vec![tx.execution_start_time]
+                                } else {
+                                    vec![]
+                                }
+                            })
+                        })
+                })
+                .flatten(),
+        );
+
+        possible_start_times
+    }
+
+    /// Find the gas price for which a deferred/scheduled certificate would be
+    /// scheduled at execution `start_time` if that gas price was payed.
+    fn find_passing_gas_price_at_start_time(
+        &self,
+        certificate: &VerifiedExecutableTransaction,
+        start_time: ExecutionTime,
+        estimated_execution_duration: ExecutionTime,
+    ) -> u64 {
+        let end_time = start_time + estimated_execution_duration;
+
+        certificate
+            .shared_input_objects()
+            .par_bridge()
+            .filter_map(|object| {
+                self.congestion_info
+                    .get(&object.id)
+                    .map(|per_object_congestion_info| {
+                        per_object_congestion_info
+                            .par_iter()
+                            .filter_map(|tx| {
+                                if (tx.execution_start_time >= start_time
+                                    && tx.execution_start_time < end_time)
+                                    || (tx.execution_start_time + tx.estimated_execution_duration
+                                        > start_time
+                                        && tx.execution_start_time
+                                            + tx.estimated_execution_duration
+                                            <= end_time)
+                                {
+                                    Some(tx.gas_price)
+                                } else {
+                                    None
+                                }
+                            })
+                            .max()
+                    })
+            })
+            .max()
+            .flatten()
+            .unwrap_or_else(|| {
+                panic!(
+                    "At least one of the shared input objects should have appeared in between \
+                    execution start time of {start_time} and execution end time of {end_time}; \
+                    otherwise, this deferred certificate would be scheduled by the sequencer."
+                );
+            })
     }
 }
 
@@ -243,7 +309,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-    use iota_types::base_types::ObjectID;
+    use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
     use rstest::rstest;
 
     use super::SuggestedGasPriceCalculator;
@@ -258,6 +324,50 @@ mod tests {
     };
 
     const REFERENCE_GAS_PRICE: u64 = 1_000;
+
+    #[derive(Copy, Clone)]
+    struct TxGasData {
+        global_ordering_index: usize,
+        gas_price: u64,
+        gas_budget: u64,
+    }
+
+    fn build_and_try_sequencing_certificate(
+        input_shared_objects: &[(ObjectID, bool)],
+        gas_price: u64,
+        gas_budget: u64,
+        max_execution_duration_per_commit: ExecutionTime,
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+    ) -> (VerifiedExecutableTransaction, SequencingResult) {
+        let certificate = build_transaction(input_shared_objects, gas_budget, gas_price);
+        let shared_input_objects: Vec<_> = certificate.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
+
+        let sequencing_result = shared_object_congestion_tracker.try_schedule(
+            &certificate,
+            max_execution_duration_per_commit,
+            // The next two inputs are not important for testing.
+            &HashMap::new(),
+            0,
+        );
+
+        (certificate, sequencing_result)
+    }
+
+    fn update_data_for_scheduled_certificate(
+        certificate: &VerifiedExecutableTransaction,
+        execution_start_time: ExecutionTime,
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
+    ) {
+        shared_object_congestion_tracker
+            .bump_object_execution_slots(certificate, execution_start_time);
+        suggested_gas_price_calculator.update_congestion_info(
+            certificate,
+            execution_start_time,
+            shared_object_congestion_tracker.get_estimated_execution_duration(certificate),
+        );
+    }
 
     #[rstest]
     fn update_congestion_info_test(
@@ -434,358 +544,8 @@ mod tests {
         }
     }
 
-    // #[rstest]
-    // fn calculate_suggested_gas_price_test(
-    //     #[values(
-    //         PerObjectCongestionControlMode::TotalTxCount,
-    //         PerObjectCongestionControlMode::TotalGasBudget
-    //     )]
-    //     mode: PerObjectCongestionControlMode,
-    //     #[values(false, true)] min_free_execution_slot_assigned: bool,
-    // ) {
-    //     // Commit round and previously deferred transaction digests are not important in
-    //     // this test.
-    //     let commit_round = 0;
-    //     let previously_deferred_tx_digests = HashMap::new();
-    //
-    //     // Allow only two transactions per shared object per commit. In the
-    //     // `TotalGasBudget` mode, gas budget of transactions will be set
-    //     // accordingly.
-    //     let max_execution_duration_per_commit = match mode {
-    //         PerObjectCongestionControlMode::None => unreachable!(),
-    //         PerObjectCongestionControlMode::TotalTxCount => 2,
-    //         PerObjectCongestionControlMode::TotalGasBudget => 3_000_000,
-    //     };
-    //
-    //     let mut shared_object_congestion_tracker =
-    //         SharedObjectCongestionTracker::new(mode, min_free_execution_slot_assigned);
-    //
-    //     let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
-    //     let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
-    //         Some(max_execution_duration_per_commit),
-    //         min_free_execution_slot_assigned,
-    //         REFERENCE_GAS_PRICE,
-    //         max_gas_price,
-    //     );
-    //
-    //     let object_1 = ObjectID::random();
-    //     let object_2 = ObjectID::random();
-    //     let object_3 = ObjectID::random();
-    //     let object_4 = ObjectID::random();
-    //     let object_5 = ObjectID::random();
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_1` by mutable reference,
-    //     // - `object_2` by immutable reference.
-    //     let objects_1 = vec![(object_1, true), (object_2, false)];
-    //     let gas_budget_1 = 1_010_000;
-    //     // Set this certificate's gas price to the max gas price to test whether the
-    //     // calculator does not suggest anything larger than the max gas price.
-    //     let gas_price_1 = max_gas_price;
-    //     let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
-    //     let estimated_execution_duration_1 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_1);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_1: Vec<_> = certificate_1.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_1);
-    //     let sequencing_result_1 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_1,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // Shared object transactions allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          |          |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  |          |          |          |          |
-    //     // |------------------------------------------------------|
-    //     if let SequencingResult::Schedule(start_time) = sequencing_result_1 {
-    //         shared_object_congestion_tracker
-    //             .bump_object_execution_slots(&certificate_1, start_time);
-    //         suggested_gas_price_calculator.update_congestion_info(
-    //             &certificate_1,
-    //             start_time,
-    //             estimated_execution_duration_1,
-    //         );
-    //     } else {
-    //         panic!("Certificate 1 must be scheduled");
-    //     }
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_2` by mutable reference,
-    //     // - `object_3` by immutable reference,
-    //     // - `object_4` by mutable reference.
-    //     let objects_2 = vec![(object_2, true), (object_3, false), (object_4, true)];
-    //     let gas_budget_2 = 1_009_000;
-    //     let gas_price_2 = 1_009;
-    //     let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
-    //     let estimated_execution_duration_2 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_2);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_2: Vec<_> = certificate_2.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_2);
-    //     let sequencing_result_2 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_2,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // Shared object transactions allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          |          |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  | cert. 2  |          | cert. 2  |          |
-    //     // |------------------------------------------------------|
-    //     if let SequencingResult::Schedule(start_time) = sequencing_result_2 {
-    //         shared_object_congestion_tracker
-    //             .bump_object_execution_slots(&certificate_2, start_time);
-    //         suggested_gas_price_calculator.update_congestion_info(
-    //             &certificate_2,
-    //             start_time,
-    //             estimated_execution_duration_2,
-    //         );
-    //     } else {
-    //         panic!("Certificate 2 must be scheduled");
-    //     }
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_4` by immutable reference,
-    //     // - `object_5` by mutable reference.
-    //     let objects_3 = vec![(object_4, false), (object_5, true)];
-    //     let gas_budget_3 = 1_008_000;
-    //     let gas_price_3 = 1_008;
-    //     let certificate_3 = build_transaction(&objects_3, gas_budget_3, gas_price_3);
-    //     let estimated_execution_duration_3 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_3);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_3: Vec<_> = certificate_3.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_3);
-    //     let sequencing_result_3 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_3,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // Shared object transactions allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          | cert. 3  |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  | cert. 2  |          | cert. 2  |          |
-    //     // |------------------------------------------------------|
-    //     if let SequencingResult::Schedule(start_time) = sequencing_result_3 {
-    //         shared_object_congestion_tracker
-    //             .bump_object_execution_slots(&certificate_3, start_time);
-    //         suggested_gas_price_calculator.update_congestion_info(
-    //             &certificate_3,
-    //             start_time,
-    //             estimated_execution_duration_3,
-    //         );
-    //     } else {
-    //         panic!("Certificate 3 must be scheduled");
-    //     }
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_3` by mutable reference.
-    //     let objects_4 = vec![(object_3, true)];
-    //     let gas_budget_4 = 1_007_000;
-    //     let gas_price_4 = 1_007;
-    //     let certificate_4 = build_transaction(&objects_4, gas_budget_4, gas_price_4);
-    //     let estimated_execution_duration_4 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_4);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_4: Vec<_> = certificate_4.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_4);
-    //     let sequencing_result_4 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_4,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // Shared object transactions allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          | cert. 3  |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  | cert. 2  | cert. 4  | cert. 2  |          |
-    //     // |------------------------------------------------------|
-    //     if let SequencingResult::Schedule(start_time) = sequencing_result_4 {
-    //         shared_object_congestion_tracker
-    //             .bump_object_execution_slots(&certificate_4, start_time);
-    //         suggested_gas_price_calculator.update_congestion_info(
-    //             &certificate_4,
-    //             start_time,
-    //             estimated_execution_duration_4,
-    //         );
-    //     } else {
-    //         panic!("Certificate 4 must be scheduled");
-    //     }
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_5` by mutable reference.
-    //     let objects_5 = vec![(object_5, true)];
-    //     let gas_budget_5 = 1_006_000;
-    //     let gas_price_5 = 1_006;
-    //     let certificate_5 = build_transaction(&objects_5, gas_budget_5, gas_price_5);
-    //     let estimated_execution_duration_5 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_5);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_5: Vec<_> = certificate_5.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_5);
-    //     let sequencing_result_5 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_5,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // If `min_free_execution_slot_assigned = true`, shared object transactions
-    //     // allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          | cert. 3  |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  | cert. 2  | cert. 4  | cert. 2  | cert. 5  |
-    //     // |------------------------------------------------------|
-    //     // If `min_free_execution_slot_assigned = false`, this certificate must be
-    //     // deferred.
-    //     if min_free_execution_slot_assigned {
-    //         // ^ this corresponds the new sequencer's logic
-    //         if let SequencingResult::Schedule(start_time) = sequencing_result_5 {
-    //             shared_object_congestion_tracker
-    //                 .bump_object_execution_slots(&certificate_5, start_time);
-    //             suggested_gas_price_calculator.update_congestion_info(
-    //                 &certificate_5,
-    //                 start_time,
-    //                 estimated_execution_duration_5,
-    //             );
-    //         } else {
-    //             panic!("Certificate 5 must be scheduled in the new sequencer");
-    //         }
-    //     } else {
-    //         // ^ this corresponds the old sequencer's logic
-    //         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_5 {
-    //             assert_eq!(congested_objects, vec![object_5]);
-    //             let suggested_gas_price = suggested_gas_price_calculator
-    //                 .calculate_suggested_gas_price(&certificate_5, estimated_execution_duration_5);
-    //             assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
-    //         } else {
-    //             panic!("Certificate 5 must be deferred in the old sequencer");
-    //         }
-    //     }
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_5` by mutable reference.
-    //     let objects_6 = vec![(object_5, true)];
-    //     let gas_budget_6 = 1_005_000;
-    //     let gas_price_6 = 1_005;
-    //     let certificate_6 = build_transaction(&objects_6, gas_budget_6, gas_price_6);
-    //     let estimated_execution_duration_6 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_6);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_6: Vec<_> = certificate_6.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_6);
-    //     let sequencing_result_6 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_6,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // Shared object transactions allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          | cert. 3  |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  | cert. 2  | cert. 4  | cert. 2  | cert. 5  |
-    //     // |------------------------------------------------------|
-    //     // That is, this certificate must be deferred for both
-    //     // `min_free_execution_slot_assigned` being `true` and `false`.
-    //     if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_6 {
-    //         let suggested_gas_price = suggested_gas_price_calculator
-    //             .calculate_suggested_gas_price(&certificate_6, estimated_execution_duration_6);
-    //         if min_free_execution_slot_assigned {
-    //             // ^ this corresponds the new sequencer's logic
-    //             assert_eq!(
-    //                 congested_objects,
-    //                 objects_6.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
-    //             );
-    //             assert_eq!(suggested_gas_price, gas_price_5 + 1);
-    //         } else {
-    //             // ^ this corresponds the old sequencer's logic
-    //             assert_eq!(congested_objects, vec![object_5]);
-    //             assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
-    //         }
-    //     } else {
-    //         panic!("Certificate 6 must be deferred");
-    //     }
-    //
-    //     // Construct a certificate that touches the following shared objects:
-    //     // - `object_1` by mutable reference,
-    //     // - `object_2` by mutable reference,
-    //     // - `object_3` by mutable reference,
-    //     // - `object_4` by mutable reference,
-    //     // - `object_5` by mutable reference.
-    //     let objects_7 = vec![
-    //         (object_1, true),
-    //         (object_2, true),
-    //         (object_3, true),
-    //         (object_4, true),
-    //         (object_5, true),
-    //     ];
-    //     let gas_budget_7 = 1_010_001;
-    //     let gas_price_7 = 1_005;
-    //     let certificate_7 = build_transaction(&objects_7, gas_budget_7, gas_price_7);
-    //     let estimated_execution_duration_7 =
-    //         shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_7);
-    //     // Try sequencing this certificate
-    //     let shared_input_objects_7: Vec<_> = certificate_7.shared_input_objects().collect();
-    //     shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_7);
-    //     let sequencing_result_7 = shared_object_congestion_tracker.try_schedule(
-    //         &certificate_7,
-    //         max_execution_duration_per_commit,
-    //         &previously_deferred_tx_digests,
-    //         commit_round,
-    //     );
-    //     // Shared object transactions allocations should look as follows:
-    //     // |------------------------------------------------------|
-    //     // | object 1 | object 2 | object 3 | object 4 | object 5 |
-    //     // |----------|----------|----------|----------|----------|
-    //     // |          |          |          |          | cert. 3  |
-    //     // |----------|----------|----------|----------|----------|
-    //     // | cert. 1  | cert. 2  | cert. 4  | cert. 2  | cert. 5  |
-    //     // |------------------------------------------------------|
-    //     // That is, this certificate must be deferred for both
-    //     // `min_free_execution_slot_assigned` being `true` and `false`.
-    //     if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_7 {
-    //         let suggested_gas_price = suggested_gas_price_calculator
-    //             .calculate_suggested_gas_price(&certificate_7, estimated_execution_duration_7);
-    //         if min_free_execution_slot_assigned {
-    //             // ^ this corresponds the new sequencer's logic
-    //             assert_eq!(
-    //                 congested_objects,
-    //                 objects_7.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
-    //             );
-    //             assert_eq!(suggested_gas_price, gas_price_3 + 1);
-    //         } else {
-    //             // ^ this corresponds the old sequencer's logic
-    //             assert_eq!(congested_objects, vec![object_5]);
-    //             assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
-    //         }
-    //     } else {
-    //         panic!("Certificate 7 must be deferred");
-    //     }
-    // }
-
     #[rstest]
-    fn temp_test(
+    fn calculate_suggested_gas_price_test(
         #[values(
             PerObjectCongestionControlMode::TotalTxCount,
             PerObjectCongestionControlMode::TotalGasBudget
@@ -793,24 +553,20 @@ mod tests {
         mode: PerObjectCongestionControlMode,
         #[values(false, true)] min_free_execution_slot_assigned: bool,
     ) {
-        // Commit round and previously deferred transaction digests are not important in
-        // this test.
-        let commit_round = 0;
-        let previously_deferred_tx_digests = HashMap::new();
-
         // Allow only two transactions per shared object per commit. In the
         // `TotalGasBudget` mode, gas budget of transactions will be set
         // accordingly.
         let max_execution_duration_per_commit = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalTxCount => 3,
-            PerObjectCongestionControlMode::TotalGasBudget => 40,
+            PerObjectCongestionControlMode::TotalGasBudget => 40_000_000,
         };
+
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
 
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new(mode, min_free_execution_slot_assigned);
 
-        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             Some(max_execution_duration_per_commit),
             min_free_execution_slot_assigned,
@@ -821,362 +577,705 @@ mod tests {
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_1` by mutable reference,
-        // - `object_2` by immutable reference.
-        let objects_1 = vec![(object_1, true), (object_2, false)];
-        let gas_budget_1 = 11;
-        let gas_price_1 = 1_100;
-        let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
-        let estimated_execution_duration_1 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_1);
-        // Try sequencing this certificate
-        let shared_input_objects_1: Vec<_> = certificate_1.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_1);
-        let sequencing_result_1 = shared_object_congestion_tracker.try_schedule(
-            &certificate_1,
+        // Gas prices (sorted in descending order) and gas budget to build transactions
+        let txs_gas_data = [
+            (max_gas_price, 12_000_000),
+            (9_000, 10_000_000),
+            (8_000, 13_000_000),
+            (7_000, 11_000_000),
+            (7_000, 11_000_000),
+            (7_000, 14_000_000),
+            (7_000, 28_000_000),
+            (7_000, 28_000_001),
+            (6_000, 13_000_000),
+            (5_000, 15_000_000),
+            (5_000, 10_000_000),
+            (5_000, 20_000_000),
+            (5_000, 30_000_000),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (gas_price, gas_budget))| TxGasData {
+            global_ordering_index: index,
+            gas_price,
+            gas_budget,
+        })
+        .collect::<Vec<_>>();
+
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, true), (object_2, false)];
+        let tx_gas_data = *txs_gas_data.first().unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------------------
-        // |    object_1    |    object_2    |
-        // |----------------|----------------|
-        // |                |                |
-        // |----------------|----------------|
-        // |                |                |
-        // |----------------|----------------|
-        // | cert. 1 (1100) |                |
-        // |----------------------------------
-        if let SequencingResult::Schedule(start_time) = sequencing_result_1 {
-            shared_object_congestion_tracker
-                .bump_object_execution_slots(&certificate_1, start_time);
-            suggested_gas_price_calculator.update_congestion_info(
-                &certificate_1,
-                start_time,
-                estimated_execution_duration_1,
+        // Allocations of mutably accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         |                         |
+        // |-------------------------|-------------------------|
+        // |                         |                         |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) |                         |
+        // |----------------------------------------------------
+        if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
+            update_data_for_scheduled_certificate(
+                &certificate,
+                execution_start_time,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
             );
         } else {
-            panic!("Certificate 1 must be scheduled");
+            panic!(
+                "Certificate {} must be scheduled",
+                tx_gas_data.global_ordering_index
+            );
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_1` by immutable reference,
-        // - `object_2` by mutable reference.
-        let objects_2 = vec![(object_1, false), (object_2, true)];
-        let gas_budget_2 = 11;
-        let gas_price_2 = 1_009;
-        let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
-        let estimated_execution_duration_2 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_2);
-        // Try sequencing this certificate
-        let shared_input_objects_2: Vec<_> = certificate_2.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_2);
-        let sequencing_result_2 = shared_object_congestion_tracker.try_schedule(
-            &certificate_2,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, false), (object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(1).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------------------
-        // |    object_1    |    object_2    |
-        // |----------------|----------------|
-        // |                |                |
-        // |----------------|----------------|
-        // |                | cert. 2 (1009) |
-        // |----------------|----------------|
-        // | cert. 1 (1100) |                |
-        // |----------------------------------
-        if let SequencingResult::Schedule(start_time) = sequencing_result_2 {
-            shared_object_congestion_tracker
-                .bump_object_execution_slots(&certificate_2, start_time);
-            suggested_gas_price_calculator.update_congestion_info(
-                &certificate_2,
-                start_time,
-                estimated_execution_duration_2,
+        // Allocations of mutably accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         |                         |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) |                         |
+        // |----------------------------------------------------
+        if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
+            update_data_for_scheduled_certificate(
+                &certificate,
+                execution_start_time,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
             );
         } else {
-            panic!("Certificate 2 must be scheduled");
+            panic!(
+                "Certificate {} must be scheduled",
+                tx_gas_data.global_ordering_index
+            );
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_1` by immutable reference,
-        // - `object_2` by mutable reference.
-        let objects_3 = vec![(object_1, false), (object_2, true)];
-        let gas_budget_3 = 11;
-        let gas_price_3 = 1_008;
-        let certificate_3 = build_transaction(&objects_3, gas_budget_3, gas_price_3);
-        let estimated_execution_duration_3 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_3);
-        // Try sequencing this certificate
-        let shared_input_objects_3: Vec<_> = certificate_3.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_3);
-        let sequencing_result_3 = shared_object_congestion_tracker.try_schedule(
-            &certificate_3,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, false), (object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(2).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------------------
-        // |    object_1    |    object_2    |
-        // |----------------|----------------|
-        // |                | cert. 3 (1008) |
-        // |----------------|----------------|
-        // |                | cert. 2 (1009) |
-        // |----------------|----------------|
-        // | cert. 1 (1100) |                |
-        // |----------------------------------
-        if let SequencingResult::Schedule(start_time) = sequencing_result_3 {
-            shared_object_congestion_tracker
-                .bump_object_execution_slots(&certificate_3, start_time);
-            suggested_gas_price_calculator.update_congestion_info(
-                &certificate_3,
-                start_time,
-                estimated_execution_duration_3,
+        // Allocations of mutably accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) |                         |
+        // |----------------------------------------------------
+        if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
+            update_data_for_scheduled_certificate(
+                &certificate,
+                execution_start_time,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
             );
         } else {
-            panic!("Certificate 3 must be scheduled");
+            panic!(
+                "Certificate {} must be scheduled",
+                tx_gas_data.global_ordering_index
+            );
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_2` by mutable reference.
-        let objects_4 = vec![(object_2, true)];
-        let gas_budget_4 = 11;
-        let gas_price_4 = 1_007;
-        let certificate_4 = build_transaction(&objects_4, gas_budget_4, gas_price_4);
-        let estimated_execution_duration_4 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_4);
-        // Try sequencing this certificate
-        let shared_input_objects_4: Vec<_> = certificate_4.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_4);
-        let sequencing_result_4 = shared_object_congestion_tracker.try_schedule(
-            &certificate_4,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(3).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // If `min_free_execution_slot_assigned = true`, shared object transactions
-        // allocations should look as follows:
-        // |----------------------------------
-        // |    object_1    |    object_2    |
-        // |----------------|----------------|
-        // |                | cert. 3 (1008) |
-        // |----------------|----------------|
-        // |                | cert. 2 (1009) |
-        // |----------------|----------------|
-        // | cert. 1 (1100) | cert. 4 (1007) |
-        // |----------------------------------
-        // If `min_free_execution_slot_assigned = false`, this certificate must be
-        // deferred.
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        // If `min_free_execution_slot_assigned = false` (old sequencer), this
+        // certificate must be deferred.
         if min_free_execution_slot_assigned {
-            // ^ this corresponds the new sequencer's logic
-            if let SequencingResult::Schedule(start_time) = sequencing_result_4 {
-                shared_object_congestion_tracker
-                    .bump_object_execution_slots(&certificate_4, start_time);
-                suggested_gas_price_calculator.update_congestion_info(
-                    &certificate_4,
-                    start_time,
-                    estimated_execution_duration_4,
+            // ^ This corresponds the new sequencer's logic
+            if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
+                update_data_for_scheduled_certificate(
+                    &certificate,
+                    execution_start_time,
+                    &mut shared_object_congestion_tracker,
+                    &mut suggested_gas_price_calculator,
                 );
             } else {
-                panic!("Certificate 4 must be scheduled in the new sequencer");
+                panic!(
+                    "Certificate {} must be scheduled in the new sequencer",
+                    tx_gas_data.global_ordering_index
+                );
             }
         } else {
-            // ^ this corresponds the old sequencer's logic
-            if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_4 {
+            // ^ This corresponds the old sequencer's logic
+            if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
                 assert_eq!(congested_objects, vec![object_2]);
                 let suggested_gas_price = suggested_gas_price_calculator
-                    .calculate_suggested_gas_price(&certificate_4, estimated_execution_duration_4);
-                assert_eq!(suggested_gas_price, gas_price_3 + 1);
+                    .calculate_suggested_gas_price(
+                        &certificate,
+                        shared_object_congestion_tracker
+                            .get_estimated_execution_duration(&certificate),
+                    );
+                assert_eq!(
+                    suggested_gas_price,
+                    txs_gas_data.get(2).unwrap().gas_price + 1
+                );
             } else {
-                panic!("Certificate 4 must be deferred in the old sequencer");
+                panic!(
+                    "Certificate {} must be deferred in the old sequencer",
+                    tx_gas_data.global_ordering_index
+                );
             }
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_1` by mutable reference,
-        // - `object_2` by mutable reference.
-        let objects_5 = vec![(object_1, true), (object_2, true)];
-        let gas_budget_5 = 11;
-        let gas_price_5 = 1_002;
-        let certificate_5 = build_transaction(&objects_5, gas_budget_5, gas_price_5);
-        let estimated_execution_duration_5 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_5);
-        // Try sequencing this certificate
-        let shared_input_objects_5: Vec<_> = certificate_5.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_5);
-        let sequencing_result_5 = shared_object_congestion_tracker.try_schedule(
-            &certificate_5,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_2, false)];
+        let tx_gas_data = *txs_gas_data.get(4).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------------------
-        // |    object_1    |    object_2    |
-        // |----------------|----------------|
-        // |                | cert. 3 (1008) |
-        // |----------------|----------------|
-        // |                | cert. 2 (1009) |
-        // |----------------|----------------|
-        // | cert. 1 (1100) | cert. 4 (1007) |
-        // |----------------------------------
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
         // That is, this certificate must be deferred in both new and old sequencers.
-        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_5 {
-            let suggested_gas_price = suggested_gas_price_calculator
-                .calculate_suggested_gas_price(&certificate_5, estimated_execution_duration_5);
-
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
             if min_free_execution_slot_assigned {
                 // ^ this corresponds the new sequencer's logic
                 assert_eq!(
                     congested_objects,
-                    objects_5.into_iter().map(|(id, _)| id).collect::<Vec<_>>()
+                    input_shared_objects
+                        .into_iter()
+                        .map(|(id, _)| id)
+                        .collect::<Vec<_>>()
                 );
-                assert_eq!(suggested_gas_price, gas_price_3 + 1);
+                assert_eq!(
+                    suggested_gas_price,
+                    txs_gas_data.get(3).unwrap().gas_price + 1
+                );
             } else {
                 // ^ this corresponds the old sequencer's logic
                 assert_eq!(congested_objects, vec![object_2]);
-                assert_eq!(suggested_gas_price, gas_price_3 + 1);
+                assert_eq!(
+                    suggested_gas_price,
+                    txs_gas_data.get(2).unwrap().gas_price + 1
+                );
             }
         } else {
-            panic!("Certificate 5 must be deferred");
+            panic!(
+                "Certificate {} must be deferred",
+                tx_gas_data.global_ordering_index
+            );
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_2` by mutable reference.
-        let objects_6 = vec![(object_2, true)];
-        let gas_budget_6 = 12;
-        let gas_price_6 = 1_002;
-        let certificate_6 = build_transaction(&objects_6, gas_budget_6, gas_price_6);
-        let estimated_execution_duration_6 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_6);
-        // Try sequencing this certificate
-        let shared_input_objects_6: Vec<_> = certificate_6.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_6);
-        let sequencing_result_6 = shared_object_congestion_tracker.try_schedule(
-            &certificate_6,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(5).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          | cert. 3  |
-        // |----------|----------|
-        // |          | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  | cert. 4  |
-        // |----------------------
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
         // That is, this certificate must be deferred in both new and old sequencers.
-        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_6 {
-            let suggested_gas_price = suggested_gas_price_calculator
-                .calculate_suggested_gas_price(&certificate_6, estimated_execution_duration_6);
-
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
             if min_free_execution_slot_assigned {
                 // ^ this corresponds the new sequencer's logic
                 assert_eq!(
                     congested_objects,
-                    objects_6.into_iter().map(|(id, _)| id).collect::<Vec<_>>()
+                    input_shared_objects
+                        .into_iter()
+                        .map(|(id, _)| id)
+                        .collect::<Vec<_>>()
                 );
+
                 match mode {
                     PerObjectCongestionControlMode::None => unreachable!(),
                     PerObjectCongestionControlMode::TotalTxCount => {
-                        assert_eq!(suggested_gas_price, gas_price_4 + 1);
+                        assert_eq!(
+                            suggested_gas_price,
+                            txs_gas_data.get(3).unwrap().gas_price + 1
+                        );
                     }
                     PerObjectCongestionControlMode::TotalGasBudget => {
-                        assert_eq!(suggested_gas_price, gas_price_3 + 1);
+                        assert_eq!(
+                            suggested_gas_price,
+                            txs_gas_data.get(2).unwrap().gas_price + 1
+                        );
                     }
                 }
             } else {
                 // ^ this corresponds the old sequencer's logic
                 assert_eq!(congested_objects, vec![object_2]);
-                assert_eq!(suggested_gas_price, REFERENCE_GAS_PRICE);
+                assert_eq!(
+                    suggested_gas_price,
+                    txs_gas_data.get(2).unwrap().gas_price + 1
+                );
             }
         } else {
-            panic!("Certificate 6 must be deferred");
+            panic!(
+                "Certificate {} must be deferred",
+                tx_gas_data.global_ordering_index
+            );
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_1` by mutable reference.
-        let objects_7 = vec![(object_1, true)];
-        let gas_budget_7 = 11;
-        let gas_price_7 = 1_002;
-        let certificate_7 = build_transaction(&objects_7, gas_budget_7, gas_price_7);
-        let estimated_execution_duration_7 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_7);
-        // Try sequencing this certificate
-        let shared_input_objects_7: Vec<_> = certificate_7.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_7);
-        let sequencing_result_7 = shared_object_congestion_tracker.try_schedule(
-            &certificate_7,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, true), (object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(6).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // |          | cert. 3  |
-        // |----------|----------|
-        // | cert. 7  | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  | cert. 4  |
-        // |----------------------
-        if let SequencingResult::Schedule(start_time) = sequencing_result_7 {
-            shared_object_congestion_tracker
-                .bump_object_execution_slots(&certificate_7, start_time);
-            suggested_gas_price_calculator.update_congestion_info(
-                &certificate_7,
-                start_time,
-                estimated_execution_duration_7,
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        // That is, this certificate must be deferred in both new and old sequencers.
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
+
+            if min_free_execution_slot_assigned {
+                // ^ this corresponds the new sequencer's logic
+                assert_eq!(
+                    congested_objects,
+                    input_shared_objects
+                        .into_iter()
+                        .map(|(id, _)| id)
+                        .collect::<Vec<_>>()
+                );
+            } else {
+                // ^ this corresponds the old sequencer's logic
+                assert_eq!(congested_objects, vec![object_2]);
+            }
+
+            match mode {
+                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::TotalTxCount => {
+                    assert_eq!(
+                        suggested_gas_price,
+                        txs_gas_data.get(2).unwrap().gas_price + 1
+                    );
+                }
+                PerObjectCongestionControlMode::TotalGasBudget => {
+                    assert_eq!(
+                        suggested_gas_price,
+                        txs_gas_data.get(1).unwrap().gas_price + 1
+                    );
+                }
+            }
         } else {
-            panic!("Certificate 7 must be scheduled");
+            panic!(
+                "Certificate {} must be deferred",
+                tx_gas_data.global_ordering_index
+            );
         }
 
-        // Construct a certificate that touches the following shared objects:
-        // - `object_1` by mutable reference.
-        let objects_8 = vec![(object_1, true)];
-        let gas_budget_8 = 11;
-        let gas_price_8 = 1_001;
-        let certificate_8 = build_transaction(&objects_8, gas_budget_8, gas_price_8);
-        let estimated_execution_duration_8 =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_8);
-        // Try sequencing this certificate
-        let shared_input_objects_8: Vec<_> = certificate_8.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_8);
-        let sequencing_result_8 = shared_object_congestion_tracker.try_schedule(
-            &certificate_8,
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, true), (object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(7).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
             max_execution_duration_per_commit,
-            &previously_deferred_tx_digests,
-            commit_round,
+            &mut shared_object_congestion_tracker,
         );
-        // Shared object transactions allocations should look as follows:
-        // |----------------------
-        // | object 1 | object 2 |
-        // |----------|----------|
-        // | cert. 8  | cert. 3  |
-        // |----------|----------|
-        // | cert. 7  | cert. 2  |
-        // |----------|----------|
-        // | cert. 1  | cert. 4  |
-        // |----------------------
-        if let SequencingResult::Schedule(start_time) = sequencing_result_8 {
-            shared_object_congestion_tracker
-                .bump_object_execution_slots(&certificate_8, start_time);
-            suggested_gas_price_calculator.update_congestion_info(
-                &certificate_8,
-                start_time,
-                estimated_execution_duration_8,
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // |                         | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        // That is, this certificate must be deferred in both new and old sequencers.
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
+
+            if min_free_execution_slot_assigned {
+                // ^ this corresponds the new sequencer's logic
+                assert_eq!(
+                    congested_objects,
+                    input_shared_objects
+                        .into_iter()
+                        .map(|(id, _)| id)
+                        .collect::<Vec<_>>()
+                );
+            } else {
+                // ^ this corresponds the old sequencer's logic
+                match mode {
+                    PerObjectCongestionControlMode::None => unreachable!(),
+                    PerObjectCongestionControlMode::TotalTxCount => {
+                        assert_eq!(congested_objects, vec![object_2]);
+                    }
+                    PerObjectCongestionControlMode::TotalGasBudget => {
+                        assert_eq!(
+                            congested_objects,
+                            input_shared_objects
+                                .into_iter()
+                                .map(|(id, _)| id)
+                                .collect::<Vec<_>>()
+                        );
+                    }
+                }
+            }
+
+            match mode {
+                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::TotalTxCount => {
+                    assert_eq!(
+                        suggested_gas_price,
+                        txs_gas_data.get(2).unwrap().gas_price + 1
+                    );
+                }
+                PerObjectCongestionControlMode::TotalGasBudget => {
+                    assert_eq!(suggested_gas_price, max_gas_price);
+                }
+            }
+        } else {
+            panic!("Certificate 8 must be deferred");
+        }
+
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, true)];
+        let tx_gas_data = *txs_gas_data.get(8).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
+            max_execution_duration_per_commit,
+            &mut shared_object_congestion_tracker,
+        );
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // |                         | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // | cert. 8 (g=6000, d=13M) | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
+            update_data_for_scheduled_certificate(
+                &certificate,
+                execution_start_time,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
             );
         } else {
-            panic!("Certificate 8 must be scheduled");
+            panic!(
+                "Certificate {} must be scheduled",
+                tx_gas_data.global_ordering_index
+            );
+        }
+
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, true)];
+        let tx_gas_data = *txs_gas_data.get(9).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
+            max_execution_duration_per_commit,
+            &mut shared_object_congestion_tracker,
+        );
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // | cert. 9 (g=5000, d=15M) | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // | cert. 8 (g=6000, d=13M) | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
+            update_data_for_scheduled_certificate(
+                &certificate,
+                execution_start_time,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            );
+        } else {
+            panic!(
+                "Certificate {} must be scheduled",
+                tx_gas_data.global_ordering_index
+            );
+        }
+
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, false), (object_2, false)];
+        let tx_gas_data = *txs_gas_data.get(10).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
+            max_execution_duration_per_commit,
+            &mut shared_object_congestion_tracker,
+        );
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // | cert. 9 (g=5000, d=15M) | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // | cert. 8 (g=6000, d=13M) | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        // That is, this certificate must be deferred in both new and old sequencers.
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            assert_eq!(
+                congested_objects,
+                input_shared_objects
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect::<Vec<_>>()
+            );
+
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
+
+            assert_eq!(
+                suggested_gas_price,
+                txs_gas_data.get(2).unwrap().gas_price + 1
+            );
+        } else {
+            panic!(
+                "Certificate {} must be deferred",
+                tx_gas_data.global_ordering_index
+            );
+        }
+
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, true), (object_2, false)];
+        let tx_gas_data = *txs_gas_data.get(11).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
+            max_execution_duration_per_commit,
+            &mut shared_object_congestion_tracker,
+        );
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // | cert. 9 (g=5000, d=15M) | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // | cert. 8 (g=6000, d=13M) | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        // That is, this certificate must be deferred in both new and old sequencers.
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            assert_eq!(
+                congested_objects,
+                input_shared_objects
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect::<Vec<_>>()
+            );
+
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
+
+            match mode {
+                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::TotalTxCount => {
+                    assert_eq!(
+                        suggested_gas_price,
+                        txs_gas_data.get(2).unwrap().gas_price + 1
+                    );
+                }
+                PerObjectCongestionControlMode::TotalGasBudget => {
+                    assert_eq!(
+                        suggested_gas_price,
+                        txs_gas_data.get(1).unwrap().gas_price + 1
+                    );
+                }
+            }
+        } else {
+            panic!(
+                "Certificate {} must be deferred",
+                tx_gas_data.global_ordering_index
+            );
+        }
+
+        // Construct a certificate with some shared objects (note mutability),
+        // and try scheduling it.
+        let input_shared_objects = vec![(object_1, false), (object_2, true)];
+        let tx_gas_data = *txs_gas_data.get(12).unwrap();
+        let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
+            &input_shared_objects,
+            tx_gas_data.gas_price,
+            tx_gas_data.gas_budget,
+            max_execution_duration_per_commit,
+            &mut shared_object_congestion_tracker,
+        );
+        // If `min_free_execution_slot_assigned = true`, allocations of mutably
+        // accessed shared objects should look as follows:
+        // |----------------------------------------------------
+        // |        object_1         |        object_2         |
+        // |_________________________|_________________________|
+        // |-------------------------|-------------------------|
+        // | cert. 9 (g=5000, d=15M) | cert. 2 (g=8000, d=13M) |
+        // |-------------------------|-------------------------|
+        // | cert. 8 (g=6000, d=13M) | cert. 1 (g=9000, d=10M) |
+        // |-------------------------|-------------------------|
+        // | cert. 0 (g=100K, d=12M) | cert. 3 (g=7000, d=11M) |
+        // |----------------------------------------------------
+        // That is, this certificate must be deferred in both new and old sequencers.
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+            assert_eq!(
+                congested_objects,
+                input_shared_objects
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect::<Vec<_>>()
+            );
+
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
+
+            match mode {
+                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::TotalTxCount => {
+                    assert_eq!(
+                        suggested_gas_price,
+                        txs_gas_data.get(2).unwrap().gas_price + 1
+                    );
+                }
+                PerObjectCongestionControlMode::TotalGasBudget => {
+                    assert_eq!(suggested_gas_price, max_gas_price);
+                }
+            }
+        } else {
+            panic!(
+                "Certificate {} must be deferred",
+                tx_gas_data.global_ordering_index
+            );
         }
     }
 }
