@@ -20,7 +20,7 @@ export function Banner({
     disabled,
 }: BannerProps) {
     return (
-        <Panel bgColor="bg-iota-neutral-90 dark:bg-iota-secondary-10">
+        <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
             <div className="flex h-full w-full justify-between ">
                 <div className="flex h-full min-h-[200px] w-full flex-col justify-between p-lg">
                     <div className="flex flex-col gap-xxs">
