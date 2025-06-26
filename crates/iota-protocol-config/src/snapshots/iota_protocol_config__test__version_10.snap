@@ -23,9 +23,9 @@ feature_flags:
   variant_nodes: true
   consensus_round_prober_probe_accepted_rounds: true
   consensus_zstd_compression: true
-  congested_objects_gas_price_feedback_mechanism: true
   congestion_control_min_free_execution_slot: true
   accept_passkey_in_multisig: true
+  congested_objects_gas_price_feedback_mechanism: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
