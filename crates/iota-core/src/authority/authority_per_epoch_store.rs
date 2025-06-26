@@ -1920,18 +1920,6 @@ impl AuthorityPerEpochStore {
             .is_empty()
     }
 
-    /// Check whether certificate was processed by consensus.
-    /// For shared lock certificates, if this function returns true means shared
-    /// locks for this certificate are set
-    pub fn is_tx_cert_consensus_message_processed(
-        &self,
-        certificate: &CertifiedTransaction,
-    ) -> IotaResult<bool> {
-        self.is_consensus_message_processed(&SequencedConsensusTransactionKey::External(
-            ConsensusTransactionKey::Certificate(*certificate.digest()),
-        ))
-    }
-
     /// Check whether any certificates were processed by consensus.
     /// This handles multiple certificates at once.
     pub fn is_any_tx_certs_consensus_message_processed<'a>(

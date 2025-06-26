@@ -49,40 +49,29 @@ impl IotaTxValidator {
         }
     }
 
-    fn validate_transactions(
-        &self,
-        txs: Vec<ConsensusTransactionKind>,
-    ) -> Result<(), eyre::Report> {
+    fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
-        for tx in txs.into_iter() {
+        for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
-                    cert_batch.push(*certificate);
-
-                    // if !certificate.contains_shared_object() {
-                    //     // new_unchecked safety: we do not use the certs in
-                    // this list until all     // have had
-                    // their signatures verified.
-                    //     owned_tx_certs.
-                    // push(VerifiedCertificate::new_unchecked(*certificate));
-                    // }
+                    cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
-                    ckpt_messages.push(signature.clone());
-                    ckpt_batch.push(signature.summary);
+                    ckpt_messages.push(signature.as_ref());
+                    ckpt_batch.push(&signature.summary);
                 }
                 ConsensusTransactionKind::RandomnessDkgMessage(_, bytes) => {
                     if bytes.len() > dkg_v1::DKG_MESSAGES_MAX_SIZE {
                         warn!("batch verification error: DKG Message too large");
-                        return Err(IotaError::InvalidDkgMessageSize.into());
+                        return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
                 ConsensusTransactionKind::RandomnessDkgConfirmation(_, bytes) => {
                     if bytes.len() > dkg_v1::DKG_MESSAGES_MAX_SIZE {
                         warn!("batch verification error: DKG Confirmation too large");
-                        return Err(IotaError::InvalidDkgMessageSize.into());
+                        return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
 
@@ -99,14 +88,13 @@ impl IotaTxValidator {
         self.epoch_store
             .signature_verifier
             .verify_certs_and_checkpoints(cert_batch, ckpt_batch)
-            .tap_err(|e| warn!("batch verification error: {}", e))
-            .wrap_err("Malformed batch (failed to verify)")?;
+            .tap_err(|e| warn!("batch verification error: {}", e))?;
 
         // All checkpoint sigs have been verified, forward them to the checkpoint
         // service
         for ckpt in ckpt_messages {
             self.checkpoint_service
-                .notify_checkpoint_signature(&self.epoch_store, &ckpt)?;
+                .notify_checkpoint_signature(&self.epoch_store, ckpt)?;
         }
 
         self.metrics
