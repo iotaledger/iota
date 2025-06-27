@@ -268,7 +268,10 @@ impl Core {
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
-    ) -> ConsensusResult<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)> {
+    ) -> ConsensusResult<(
+        BTreeSet<BlockRef>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
             .context
@@ -307,7 +310,7 @@ impl Core {
 
             new_missing_committed_txns
         } else {
-            BTreeSet::new()
+            BTreeMap::new()
         };
 
         if !missing_block_refs.is_empty() {
@@ -327,7 +330,10 @@ impl Core {
     pub(crate) fn add_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
-    ) -> ConsensusResult<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)> {
+    ) -> ConsensusResult<(
+        BTreeSet<BlockRef>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::add_block_header");
         let _s = self
             .context
@@ -366,7 +372,7 @@ impl Core {
 
             new_missing_committed_txns
         } else {
-            BTreeSet::new()
+            BTreeMap::new()
         };
 
         if !missing_block_refs.is_empty() {
@@ -410,7 +416,10 @@ impl Core {
     pub(crate) fn add_certified_commits(
         &mut self,
         certified_commits: CertifiedCommits,
-    ) -> ConsensusResult<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)> {
+    ) -> ConsensusResult<(
+        BTreeSet<BlockRef>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::add_certified_commits");
         let block_headers = certified_commits
             .commits()
@@ -448,13 +457,16 @@ impl Core {
 
     /// Creating a new block for the dictated round. This is used when a leader
     /// timeout occurs, either when the min timeout expires or max. When
-    /// `force = true` , then any checks like previous round
+    /// `force = true`, then any checks like previous round
     /// leader existence will get skipped.
     pub(crate) fn new_block(
         &mut self,
         round: Round,
         force: bool,
-    ) -> ConsensusResult<(Option<VerifiedBlock>, BTreeSet<BlockRef>)> {
+    ) -> ConsensusResult<(
+        Option<VerifiedBlock>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
             self.context
@@ -468,7 +480,7 @@ impl Core {
             self.try_signal_new_round();
             return result;
         }
-        Ok((None, BTreeSet::new()))
+        Ok((None, BTreeMap::new()))
     }
 
     // Attempts to create a new block, persist and propose it to all peers.
@@ -477,9 +489,12 @@ impl Core {
     fn try_propose(
         &mut self,
         force: bool,
-    ) -> ConsensusResult<(Option<VerifiedBlock>, BTreeSet<BlockRef>)> {
+    ) -> ConsensusResult<(
+        Option<VerifiedBlock>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         if !self.should_propose() {
-            return Ok((None, BTreeSet::new()));
+            return Ok((None, BTreeMap::new()));
         }
         if let Some(verified_block) = self.try_new_block(force) {
             self.signals.new_block(verified_block.clone())?;
@@ -490,7 +505,7 @@ impl Core {
             let (_, missing_committed_txns) = self.try_commit()?;
             return Ok((Some(verified_block), missing_committed_txns));
         }
-        Ok((None, BTreeSet::new()))
+        Ok((None, BTreeMap::new()))
     }
 
     /// Attempts to propose a new block for the next round. If a block has
@@ -720,7 +735,12 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
-    fn try_commit(&mut self) -> ConsensusResult<(Vec<PendingSubDag>, BTreeSet<BlockRef>)> {
+    fn try_commit(
+        &mut self,
+    ) -> ConsensusResult<(
+        Vec<PendingSubDag>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _s = self
             .context
             .metrics
@@ -730,7 +750,7 @@ impl Core {
             .start_timer();
 
         let mut committed_sub_dags = Vec::new();
-        let mut all_missing_committed_txns = BTreeSet::new();
+        let mut all_missing_committed_txns = BTreeMap::new();
         // TODO: Add optimization to abort early without quorum for a round.
         loop {
             // LeaderSchedule has a limit to how many sequenced leaders can be committed
@@ -813,6 +833,7 @@ impl Core {
             let (subdags, missing_transactions_refs) =
                 self.commit_observer.handle_commit(sequenced_leaders)?;
 
+            // TODO: Should we check for duplicates here?
             all_missing_committed_txns.extend(missing_transactions_refs);
 
             // Both pending and solid sub DAGs should be added to scoring subdags.
@@ -843,20 +864,14 @@ impl Core {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
     }
-
-    pub(crate) fn get_missing_transaction_data(&mut self) -> BTreeSet<BlockRef> {
+    pub(crate) fn get_missing_transaction_data(
+        &self,
+    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
 
-        // Get all block refs that have been accepted but don't have transactions
-        let dag_state = self.dag_state.read();
-        let missing_transactions = dag_state
-            .get_uncommitted_blocks_at_round(dag_state.highest_accepted_round())
-            .iter()
-            .map(|block| block.reference())
-            .filter(|block_ref| !dag_state.contains_transactions(vec![*block_ref])[0])
-            .collect::<BTreeSet<_>>();
-
-        missing_transactions
+        // Use CommitObserver to get missing transaction data with authority
+        // acknowledgments
+        self.commit_observer.get_missing_transaction_data()
     }
 
     /// Sets if there is 2f+1 subscriptions to the block stream.

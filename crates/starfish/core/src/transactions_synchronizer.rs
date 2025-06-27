@@ -18,6 +18,7 @@ use iota_metrics::{
 };
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
+use rand::seq::IteratorRandom;
 #[cfg(not(test))]
 use rand::{prelude::SliceRandom, rngs::ThreadRng};
 use serde::{Deserialize, Serialize};
@@ -54,8 +55,8 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// requests can finish on hosts with good network using the timeouts above.
 const MAX_TRANSACTIONS_PER_FETCH: usize = 32;
 
-// TODO: this should be calculated based on the number of authorities and should
-// be at least 2/3 of all authorities by stake
+/// TODO: this should be calculated based on the number of authorities and
+///  should be at least 2/3 of all authorities by stake
 const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 2;
 
 struct TransactionsGuard {
@@ -178,7 +179,7 @@ impl InflightTransactionsMap {
 
 enum Command {
     FetchTransactions {
-        missing_block_refs: BTreeSet<BlockRef>,
+        missing_block_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         result: oneshot::Sender<Result<(), ConsensusError>>,
     },
     KickOffScheduler,
@@ -195,7 +196,7 @@ impl TransactionsSynchronizerHandle {
     /// authority.
     pub(crate) async fn fetch_transactions(
         &self,
-        missing_block_refs: BTreeSet<BlockRef>,
+        missing_block_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     ) -> ConsensusResult<()> {
         let (sender, receiver) = oneshot::channel();
         self.commands_sender
@@ -318,41 +319,84 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
 
         tokio::pin!(scheduler_timeout);
+        let mut rng = rand::thread_rng();
 
         loop {
             tokio::select! {
                 Some(command) = self.commands_receiver.recv() => {
                     match command {
                         Command::FetchTransactions{ missing_block_refs, result } => {
-                            // Keep only the max allowed transactions to request. It is ok to reduce here as the scheduler
-                            // task will take care of syncing whatever is leftover.
-                            let missing_block_refs = missing_block_refs
-                                .into_iter()
-                                .take(MAX_TRANSACTIONS_PER_FETCH)
-                                .collect();
-                            // TODO: How does the inflight map work if transactions will be only reported as missing once?
-                            // TODO: get authorities who acknowledged the transactions and fetch from them
-                            let transactions_guard = self.inflight_transactions_map.lock_transactions(missing_block_refs, peer_index);
-                            let Some(transactions_guard) = transactions_guard else {
-                                result.send(Ok(())).ok();
-                                continue;
-                            };
+                            // // Keep only the max allowed transactions to request. It is ok to reduce here as the scheduler
+                            // // task will take care of syncing whatever is leftover.
+                            // let missing_block_refs = missing_block_refs
+                            //     .into_iter()
+                            //     .take(MAX_TRANSACTIONS_PER_FETCH)
+                            //     .collect::<BTreeMap<_, _>>();
 
-                            // We don't block if the corresponding peer task is saturated - but we rather drop the request. That's ok as the periodic
-                            // synchronization task will handle any still missing transactions in the next run.
-                            let r = self
-                                .fetch_transaction_senders
-                                .get(&peer_index)
-                                .expect("Fatal error, sender should be present")
-                                .try_send(transactions_guard)
-                                .map_err(|err| {
-                                    match err {
-                                        TrySendError::Full(_) => ConsensusError::TransactionsSynchronizerSaturated(peer_index),
-                                        TrySendError::Closed(_) => ConsensusError::Shutdown
+                            // Reorganize by authority - map from authority to the blocks they acknowledged
+                            let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<BlockRef>> = BTreeMap::new();
+                            for (block_ref, authorities) in &missing_block_refs {
+                                for authority in authorities {
+                                    blocks_by_authority
+                                        .entry(*authority)
+                                        .or_default()
+                                        .insert(*block_ref);
+                                }
+                            }
+
+                            let mut success = false;
+                            for (peer_index, authority_block_refs) in blocks_by_authority {
+                                if peer_index == self.context.own_index {
+                                    continue;
+                                }
+                                // Keep only the max allowed transactions to request. It is ok to
+                                // reduce here as the scheduler
+                                // task will take care of syncing whatever is leftover.
+                                // We randomize the selected transactions to avoid asking different
+                                // nodes for exactly the same transactions.
+                                // Once sharding is implemented, we will need to always ask multiple
+                                // authorities for their shards of the same transactions, so probably
+                                // the randomization step will not be necessary.
+                                let authority_block_refs = authority_block_refs
+                                    .into_iter()
+                                    .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)
+                                    .into_iter()
+                                    .collect::<BTreeSet<_>>();
+
+
+                                // Transaction locking guarantees that we are not fetching the same
+                                // transactions from too many authorities.
+                                let transactions_guard = self.inflight_transactions_map.lock_transactions(authority_block_refs, peer_index);
+                                let Some(transactions_guard) = transactions_guard else {
+                                    // TODO: if there are more missing transactions that we can
+                                    //  fetch from the authority then we could use them instead of
+                                    //  not fetching from the authority at all.
+                                    continue;
+                                };
+
+                                match self
+                                    .fetch_transaction_senders
+                                    .get(&peer_index)
+                                    .expect("Fatal error, sender should be present")
+                                    .try_send(transactions_guard)
+                                {
+                                    Ok(_) => {
+                                        success = true;
+                                    },
+                                    Err(TrySendError::Full(_)) => {
+                                        warn!("Failed to send transactions to fetch from authority \
+                                            {peer_index}, the channel is full. This can happen if the transactions \
+                                            synchronizer is overloaded or the authority is not responding in time.");
+                                        continue;
+                                    },
+                                    Err(TrySendError::Closed(_)) => {
+                                        result.send(Err(ConsensusError::Shutdown)).ok();
+                                        return;
                                     }
-                                });
+                                }
+                            }
 
-                            result.send(r).ok();
+                                result.send(Ok(())).ok();
                         }
                         Command::KickOffScheduler => {
                             // Reset the scheduler timeout timer to run immediately if not already running.
@@ -476,7 +520,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let transactions = Handle::current()
             .spawn_blocking({
                 move || {
-                    // TODO: fix this
+                    // TODO: fix this, verify that the transactions are valid to correctly create
+                    // the verified transactions
                     serialized_transactions
                         .into_iter()
                         .map(|serialized| {
@@ -496,7 +541,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .with_label_values(&[peer_hostname.as_str(), sync_method])
             .inc_by(transactions.len() as u64);
         for transactions in &transactions {
-            let block_hostname = &context.committee.authority(transactions.author()).hostname;
+            let block_hostname = &context
+                .committee
+                .authority(transactions.block_ref().author)
+                .hostname;
             metrics
                 .transaction_synchronizer_fetched_transactions_by_authority
                 .with_label_values(&[block_hostname.as_str(), sync_method])
@@ -504,11 +552,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         }
 
         debug!(
-            "Synced {} missing blocks from peer {peer_index} {peer_hostname}: {}",
+            "Synced {} missing transactions from peer {peer_index} {peer_hostname}: {}",
             transactions.len(),
             transactions
                 .iter()
-                .map(|b| b.reference().to_string())
+                .map(|b| b.block_ref().to_string())
                 .join(", "),
         );
 
@@ -657,7 +705,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         context: Arc<Context>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
         network_client: Arc<C>,
-        missing_transactions: BTreeSet<BlockRef>,
+        missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     ) -> Vec<(TransactionsGuard, Vec<Bytes>, AuthorityIndex)> {
         const MAX_PEERS: usize = 3;
 
@@ -669,7 +717,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         let mut missing_transactions_per_authority = vec![0; context.committee.size()];
         for block in &missing_transactions {
-            missing_transactions_per_authority[block.author] += 1;
+            missing_transactions_per_authority[block.0.author] += 1;
         }
         for (missing, (_, authority)) in missing_transactions_per_authority
             .into_iter()
@@ -711,7 +759,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .next()
                 .expect("Possible misconfiguration as a peer should be found");
             let peer_hostname = &context.committee.authority(authority).hostname;
-            let block_refs = transactions.iter().cloned().collect::<BTreeSet<_>>();
+            let block_refs = transactions
+                .iter()
+                .cloned()
+                .map(|(block_ref, _acknowledging_authorities)| block_ref)
+                .collect::<BTreeSet<BlockRef>>();
             // lock the blocks to be fetched. If no lock can be acquired for any of the
             // blocks then don't bother
             if let Some(transactions_guard) =
@@ -761,7 +813,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         Err(_) => {
                             // try again if there is any peer left
                             if let Some(next_peer) = authorities.next() {
-                                // do best effort to lock guards. If we can't lock then don't bother at this run.
+                                // Do best effort to lock guards. If we can't lock then don't bother at this run.
                                 if let Some(blocks_guard) = inflight_transactions_map.swap_locks(transactions_guard, next_peer) {
                                     info!(
                                         "Retrying syncing {} missing blocks from peer {}: {}",

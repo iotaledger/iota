@@ -39,31 +39,44 @@ enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
     AddBlocks(
         Vec<VerifiedBlock>,
-        oneshot::Sender<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)>,
+        oneshot::Sender<(
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        )>,
     ),
     /// Add block headers to be processed and accepted
     AddBlockHeaders(
         Vec<VerifiedBlockHeader>,
-        oneshot::Sender<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)>,
+        oneshot::Sender<(
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        )>,
     ),
     /// Add committed sub dag blocks for processing and acceptance.
     AddCertifiedCommits(
         CertifiedCommits,
-        oneshot::Sender<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)>,
+        oneshot::Sender<(
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        )>,
     ),
     /// Called when the min round has passed or the leader timeout occurred and
     /// a block should be produced. When the command is called with `force =
     /// true`, then the block will be created for `round` skipping
     /// any checks (ex leader existence of previous round). More information can
     /// be found on the `Core` component.
-    NewBlock(Round, oneshot::Sender<BTreeSet<BlockRef>>, bool),
+    NewBlock(
+        Round,
+        oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        bool,
+    ),
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
     AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
-    GetMissingTransactionData(oneshot::Sender<BTreeSet<BlockRef>>),
+    GetMissingTransactionData(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
 
 #[derive(Error, Debug)]
@@ -79,26 +92,50 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
-    ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError>;
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    >;
 
     async fn add_block_headers(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
-    ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError>;
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    >;
 
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
     ) -> Result<(), CoreError>;
 
-    async fn get_missing_transaction_data(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn get_missing_transaction_data(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn add_certified_commits(
         &self,
         commits: CertifiedCommits,
-    ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError>;
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    >;
 
-    async fn new_block(&self, round: Round, force: bool) -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn new_block(
+        &self,
+        round: Round,
+        force: bool,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_blocks(
         &self,
@@ -299,7 +336,13 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
-    ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError> {
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    > {
         for block in &blocks {
             self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
         }
@@ -312,7 +355,13 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_block_headers(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
-    ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError> {
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    > {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddBlockHeaders(block_headers, sender))
             .await;
@@ -329,7 +378,9 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn get_missing_transaction_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+    async fn get_missing_transaction_data(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::GetMissingTransactionData(sender))
             .await;
@@ -339,7 +390,13 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_certified_commits(
         &self,
         commits: CertifiedCommits,
-    ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError> {
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    > {
         for commit in commits.commits() {
             for block in commit.blocks() {
                 self.highest_received_rounds[block.author()]
@@ -352,7 +409,11 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
-    async fn new_block(&self, round: Round, force: bool) -> Result<BTreeSet<BlockRef>, CoreError> {
+    async fn new_block(
+        &self,
+        round: Round,
+        force: bool,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::NewBlock(round, sender, force))
             .await;

@@ -64,6 +64,10 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
         self.stake
     }
 
+    pub(crate) fn votes(&self) -> BTreeSet<AuthorityIndex> {
+        self.votes.clone()
+    }
+
     pub(crate) fn reached_threshold(&self, committee: &Committee) -> bool {
         T::is_threshold(committee, self.stake)
     }

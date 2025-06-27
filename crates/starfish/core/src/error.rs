@@ -125,9 +125,6 @@ pub(crate) enum ConsensusError {
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
 
-    #[error("Transactions synchronizer for fetching transactions directly from {0} is saturated")]
-    TransactionsSynchronizerSaturated(AuthorityIndex),
-
     #[error("Block {block_ref:?} rejected: {reason}")]
     BlockRejected { block_ref: BlockRef, reason: String },
 

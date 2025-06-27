@@ -2,10 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use iota_metrics::monitored_mpsc::UnboundedSender;
 use parking_lot::RwLock;
+use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
 use tracing::{debug, info};
 
@@ -88,7 +93,10 @@ impl CommitObserver {
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
-    ) -> ConsensusResult<(Vec<PendingSubDag>, Vec<BlockRef>)> {
+    ) -> ConsensusResult<(
+        Vec<PendingSubDag>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _s = self
             .context
             .metrics
@@ -106,6 +114,10 @@ impl CommitObserver {
             self.commit_solidifier.try_commit(&pending_sub_dags);
 
         tracing::trace!("Missing committed data {missing_transactions:#?}");
+
+        let missing_transactions = self
+            .commit_interpreter
+            .get_transaction_ack_authors(missing_transactions);
 
         let mut sent_sub_dags = Vec::with_capacity(solid_sub_dags.len());
         for solid_sub_dag in solid_sub_dags.into_iter() {
@@ -252,6 +264,16 @@ impl CommitObserver {
             "Commit observer recovery completed, took {:?}",
             now.elapsed()
         );
+    }
+
+    /// Get all missing transactions from pending subdags along with authorities
+    /// who acknowledged them
+    pub(crate) fn get_missing_transaction_data(
+        &self,
+    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        let missing_refs = self.commit_solidifier.get_missing_transaction_data();
+        self.commit_interpreter
+            .get_transaction_ack_authors(missing_refs.into_iter().collect())
     }
 
     fn report_metrics(&self, committed: &[PendingSubDag]) {
