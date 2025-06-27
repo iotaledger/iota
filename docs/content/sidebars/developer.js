@@ -84,58 +84,6 @@ const developer = [
             },
             {
                 type: 'category',
-                label: 'Move Overview',
-                items: [
-                    'developer/iota-101/move-overview/move-overview',
-                    'developer/iota-101/move-overview/strings',
-                    'developer/iota-101/move-overview/collections',
-                    'developer/iota-101/move-overview/init',
-                    'developer/iota-101/move-overview/visibility',
-                    'developer/iota-101/move-overview/entry-functions',
-                    'developer/iota-101/using-events',
-                    'developer/iota-101/access-time',
-                    {
-                        type: 'category',
-                        label: 'Structs and Abilities',
-                        items: [
-                            'developer/iota-101/move-overview/structs-and-abilities/struct',
-                            'developer/iota-101/move-overview/structs-and-abilities/copy',
-                            'developer/iota-101/move-overview/structs-and-abilities/drop',
-                            'developer/iota-101/move-overview/structs-and-abilities/key',
-                            'developer/iota-101/move-overview/structs-and-abilities/store',
-                        ],
-                    },
-                    'developer/iota-101/move-overview/one-time-witness',
-                    {
-                        type: 'category',
-                        label: 'Package Upgrades',
-                        items: [
-                            'developer/iota-101/move-overview/package-upgrades/introduction',
-                            'developer/iota-101/move-overview/package-upgrades/upgrade',
-                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
-                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
-                        ],
-                    },
-                    'developer/iota-101/move-overview/ownership-scope',
-                    'developer/iota-101/move-overview/references',
-                    'developer/iota-101/move-overview/generics',
-                    {
-                        type: 'category',
-                        label: 'Patterns',
-                        items: [
-                            'developer/iota-101/move-overview/patterns/patterns',
-                            'developer/iota-101/move-overview/patterns/capabilities',
-                            'developer/iota-101/move-overview/patterns/witness',
-                            'developer/iota-101/move-overview/patterns/transferable-witness',
-                            'developer/iota-101/move-overview/patterns/hot-potato',
-                            'developer/iota-101/move-overview/patterns/id-pointer',
-                        ],
-                    },
-                    'developer/iota-101/move-overview/conventions',
-                ],
-            },
-            {
-                type: 'category',
                 label: 'Cryptography',
                 link: {
                     type: 'doc',

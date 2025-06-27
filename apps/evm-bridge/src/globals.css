@@ -5,13 +5,13 @@
 @tailwind utilities;
 
 :root.dark {
-    @apply bg-neutral-4;
+    @apply bg-iota-neutral-4;
 }
 
 :root.light {
-    @apply bg-neutral-98;
+    @apply bg-iota-neutral-98;
 }
 
 a {
-    @apply text-primary-30 dark:text-primary-80;
+    @apply text-iota-primary-30 dark:text-iota-primary-80;
 }

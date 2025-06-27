@@ -40,11 +40,11 @@ export function ObjectModal({
                     />
                 )}
                 <div className="flex flex-col gap-3">
-                    <span className="text-headline-md text-neutral-100">{title}</span>
-                    <span className="text-label-lg text-neutral-90">{subtitle}</span>
+                    <span className="text-headline-md text-iota-neutral-100">{title}</span>
+                    <span className="text-label-lg text-iota-neutral-90">{subtitle}</span>
                 </div>
             </div>
-            <div className="absolute -right-12 top-0 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full  bg-shader-inverted-dark-16 p-xs text-neutral-100 outline-none hover:text-neutral-92">
+            <div className="absolute -right-12 top-0 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full  bg-shader-inverted-dark-16 p-xs text-iota-neutral-100 outline-none hover:text-iota-neutral-92">
                 <Close onClick={onClose} className="h-5 w-5" aria-label="Close" />
             </div>
         </Modal>
