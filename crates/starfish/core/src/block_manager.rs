@@ -615,6 +615,7 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
+        Transaction,
         block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
         block_manager::BlockManager,
         block_verifier::{BlockVerifier, NoopBlockVerifier},
@@ -836,6 +837,13 @@ mod tests {
 
     impl BlockVerifier for TestBlockVerifier {
         fn verify(&self, _block: &SignedBlockHeader) -> ConsensusResult<()> {
+            Ok(())
+        }
+
+        fn check_and_verify_transactions(
+            &self,
+            _transactions: &[Transaction],
+        ) -> ConsensusResult<()> {
             Ok(())
         }
 

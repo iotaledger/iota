@@ -150,6 +150,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let transactions: Vec<Transaction> =
             bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;
+        self.block_verifier
+            .check_and_verify_transactions(&transactions)?;
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
@@ -342,6 +344,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let transactions: Vec<Transaction> =
             bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;
+
+        self.block_verifier
+            .check_and_verify_transactions(&transactions)?;
+
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
