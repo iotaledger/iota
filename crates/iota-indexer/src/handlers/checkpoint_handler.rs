@@ -33,8 +33,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
-        CheckpointDataToCommitV2, EpochToCommit, TransactionObjectChangesToCommit,
-        committer::start_tx_checkpoint_commit_task_v2,
+        EpochToCommit, TransactionObjectChangesToCommit,
         tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
@@ -42,6 +41,10 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
+    },
+    rolling::{
+        persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
+        transform::CheckpointObjectChanges,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -73,7 +76,7 @@ pub async fn new_handlers(
         );
 
     let metrics_clone = metrics.clone();
-    spawn_monitored_task!(start_tx_checkpoint_commit_task_v2(
+    spawn_monitored_task!(start_tx_checkpoint_commit_task(
         state,
         metrics_clone,
         indexed_checkpoint_receiver,
@@ -85,7 +88,7 @@ pub async fn new_handlers(
 
 pub struct CheckpointHandler {
     metrics: IndexerMetrics,
-    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
+    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
 
 #[async_trait]
@@ -141,7 +144,7 @@ impl Worker for CheckpointHandler {
 impl CheckpointHandler {
     fn new(
         metrics: IndexerMetrics,
-        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
+        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     ) -> Self {
         Self {
             metrics,
@@ -239,7 +242,7 @@ impl CheckpointHandler {
         data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
-    ) -> Result<CheckpointDataToCommitV2, IndexerError> {
+    ) -> Result<CheckpointDataToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
@@ -247,8 +250,7 @@ impl CheckpointHandler {
         let epoch = Self::index_epoch(data).await?;
 
         // Index Objects
-        let object_changes: TransactionObjectChangesToCommit =
-            Self::index_objects(data, &metrics).await?;
+        let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data).await?;
         let object_versions = Self::derive_object_versions(&object_history_changes);
@@ -298,7 +300,7 @@ impl CheckpointHandler {
             checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
         );
 
-        Ok(CheckpointDataToCommitV2 {
+        Ok(CheckpointDataToCommit {
             checkpoint,
             transactions: db_transactions,
             events: db_events,
@@ -681,6 +683,14 @@ impl CheckpointHandler {
             db_event_indices,
             db_displays,
         ))
+    }
+
+    pub(crate) async fn index_checkpoint_objects(
+        data: &CheckpointData,
+        metrics: &IndexerMetrics,
+    ) -> Result<CheckpointObjectChanges, IndexerError> {
+        let _timer = metrics.indexing_objects_latency.start_timer();
+        data.try_into()
     }
 
     pub(crate) async fn index_objects(
