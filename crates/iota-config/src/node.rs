@@ -1006,7 +1006,9 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: Some(GenesisLocation::InPlace { genesis }),
+            location: Some(GenesisLocation::InPlace {
+                genesis: Box::new(genesis),
+            }),
             genesis: Default::default(),
         }
     }
@@ -1044,7 +1046,7 @@ impl Genesis {
 #[serde(untagged)]
 enum GenesisLocation {
     InPlace {
-        genesis: genesis::Genesis,
+        genesis: Box<genesis::Genesis>,
     },
     File {
         #[serde(rename = "genesis-file-location")]

@@ -39,8 +39,8 @@ pub(crate) struct DynamicField {
 
 #[derive(Union)]
 pub(crate) enum DynamicFieldValue {
-    MoveObject(MoveObject), // DynamicObject
-    MoveValue(MoveValue),   // DynamicField
+    MoveObject(Box<MoveObject>), // DynamicObject
+    MoveValue(MoveValue),        // DynamicField
 }
 
 #[derive(InputObject)] // used as input object
@@ -131,7 +131,7 @@ impl DynamicField {
             .await
             .extend()?;
 
-            Ok(obj.map(DynamicFieldValue::MoveObject))
+            Ok(obj.map(|obj| DynamicFieldValue::MoveObject(Box::new(obj))))
         } else {
             Ok(Some(DynamicFieldValue::MoveValue(MoveValue::new(
                 value_layout.into(),

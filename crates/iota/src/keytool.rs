@@ -66,6 +66,7 @@ use crate::{
 };
 
 #[derive(Subcommand)]
+#[expect(clippy::large_enum_variant)]
 pub enum KeyToolCommand {
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").

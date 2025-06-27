@@ -360,7 +360,6 @@ where
                     Ok(unfinished_quorum_driver_task.await)
                 }
             };
-            #[expect(clippy::let_and_return)]
             res
         })
     }
