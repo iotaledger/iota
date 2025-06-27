@@ -84,7 +84,7 @@ export function Chip({
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
-                'border transition-all duration-500 ease-in-out disabled:opacity-40',
+                'group border transition-all duration-500 ease-in-out disabled:opacity-40',
                 ROUNDED_CLASS,
                 isOutlineSelected
                     ? BG_SELECTED_OUTLINE[ChipType.Outline]
@@ -105,19 +105,23 @@ export function Chip({
                         ? TEXT_COLOR_SELECTED_OUTLINE[ChipType.Outline]
                         : TEXT_COLOR[type],
                     outlineStyle,
-                    !disabled && STATE_LAYER_CLASSES,
                     selectedOverlayBg,
+                    !disabled && STATE_LAYER_CLASSES,
                 )}
             >
                 {avatar ?? leadingElement}
                 <span className="text-body-md">{label}</span>
                 {trailingElement}
                 {showClose && (
-                    <ButtonUnstyled
-                        onClick={onClose}
-                        className="cursor-pointer [&_svg]:h-4 [&_svg]:w-4"
-                    >
-                        <Close />
+                    <ButtonUnstyled onClick={onClose} className="cursor-pointer">
+                        <Close
+                            className={cx(
+                                'h-4 w-4 transition-all duration-500 ease-in-out',
+                                selected
+                                    ? 'opacity-100'
+                                    : 'opacity-40 group-hover:opacity-100 group-focus:opacity-100 group-active:opacity-100',
+                            )}
+                        />
                     </ButtonUnstyled>
                 )}
             </span>

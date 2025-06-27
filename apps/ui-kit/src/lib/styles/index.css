@@ -185,6 +185,7 @@
     --chip-border-color-brand: theme('colors.iota-primary.30');
     --chip-text-brand: theme('colors.iota-primary.100');
     --chip-bg-selected-overlay: theme('colors.shader-primary-light.16');
+    --chip-close-icon-opacity: 100;
 
     --chip-outline-color: theme('colors.shader-primary-light.16');
     --chip-outline-color-hover: theme('colors.shader-primary-light.8');
@@ -443,6 +444,7 @@
     --chip-border-color-brand: theme('colors.iota-primary.30');
     --chip-text-brand: theme('colors.iota-primary.100');
     --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+    --chip-close-icon-opacity: 100;
 
     --chip-outline-color: theme('colors.shader-primary-dark.16');
     --chip-outline-color-hover: theme('colors.shader-primary-dark.8');
@@ -710,6 +712,7 @@
     --chip-border-color-brand: theme('colors.iota-primary.30');
     --chip-text-brand: theme('colors.iota-primary.100');
     --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+    --chip-close-icon-opacity: 0.4;
 
     --chip-outline-color: theme('colors.shader-primary-dark.16');
     --chip-outline-color-hover: theme('colors.shader-primary-dark.8');

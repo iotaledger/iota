@@ -479,6 +479,12 @@
         background-color: var(--chip-bg-color-focus);
     }
 
+    .chip-close-icon {
+        & svg {
+            opacity: var(--chip-close-icon-opacity);
+        }
+    }
+
     /* DISPLAY STATS */
     .display-stats-bg-default {
         background-color: var(--display-stats-bg-default);
