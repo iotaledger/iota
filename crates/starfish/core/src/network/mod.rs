@@ -69,6 +69,8 @@ pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBun
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Subscribes to blocks from a peer after last_received round.
+    // TODO:: remove when block bundles logic is finalized
+    #[allow(dead_code)]
     async fn subscribe_blocks(
         &self,
         peer: AuthorityIndex,
@@ -142,6 +144,8 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the block sent from the peer via subscription stream. Peer value
     /// can be trusted to be a valid authority index. But serialized_block
     /// must be verified before its contents are trusted.
+    // TODO:: remove when block bundles logic is finalized
+    #[cfg(test)]
     async fn handle_subscribed_block(
         &self,
         peer: AuthorityIndex,
@@ -151,8 +155,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the block and headers sent from the peer via subscription
     /// stream. Peer value can be trusted to be a valid authority index. But
     /// serialized_block must be verified before its contents are trusted.
-    #[allow(dead_code)]
-    async fn handle_subscribed_block_bundles(
+    async fn handle_subscribed_block_bundle(
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
@@ -353,6 +356,14 @@ impl TryFrom<SerializedBlockAndHeaders> for SerializedBlockBundle {
         Ok(Self {
             serialized_block_bundle: Bytes::from(bytes),
         })
+    }
+}
+
+impl TryFrom<SerializedBlockBundle> for SerializedBlockAndHeaders {
+    type Error = ConsensusError;
+    fn try_from(bundle: SerializedBlockBundle) -> ConsensusResult<Self> {
+        bcs::from_bytes(&bundle.serialized_block_bundle)
+            .map_err(ConsensusError::DeserializationFailure)
     }
 }
 

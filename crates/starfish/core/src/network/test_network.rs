@@ -57,7 +57,7 @@ impl NetworkService for Mutex<TestService> {
         Ok(())
     }
 
-    async fn handle_subscribed_block_bundles(
+    async fn handle_subscribed_block_bundle(
         &self,
         _peer: AuthorityIndex,
         _serialized_block_bundle: SerializedBlockBundle,
