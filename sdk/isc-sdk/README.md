@@ -29,14 +29,14 @@ import { IotaClient } from '@iota/iota-sdk/client';
 const RPC_URL = 'https://api.testnet.iota.cafe';
 const FAUCET_URL = 'https://faucet.testnet.iota.cafe';
 const DESTINATION_EVM_ADDRESS = '...';
-const L1_CONFIG =  {
-    "networkName": "testnet",
-    "rpcUrl": "https://api.testnet.iota.cafe",
-    "faucetUrl": "https://faucet.testnet.iota.cafe",
-    "chainId": "0x2f11f5ea9d3c093c9cc2e329cf92e05aa00ac052ada96c4c14a2f6869a7cbcaf",
-    "packageId": "0x1e6e060b87f55acc0a7632acab9cf5712ff01643f8577c9a6f99ebd1010e3f4c",
-    "accountsContract": "0x3c4b5e02",
-    "accountsTransferAllowanceTo": "0x23f4e3a1"
+const L1_CONFIG = {
+    networkName: 'testnet',
+    rpcUrl: 'https://api.testnet.iota.cafe',
+    faucetUrl: 'https://faucet.testnet.iota.cafe',
+    chainId: '0x2f11f5ea9d3c093c9cc2e329cf92e05aa00ac052ada96c4c14a2f6869a7cbcaf',
+    packageId: '0x1e6e060b87f55acc0a7632acab9cf5712ff01643f8577c9a6f99ebd1010e3f4c',
+    accountsContract: '0x3c4b5e02',
+    accountsTransferAllowanceTo: '0x23f4e3a1',
 };
 
 const client = new IotaClient({
