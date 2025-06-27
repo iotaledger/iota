@@ -24,6 +24,8 @@ import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/c
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
 import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
 import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
+import { CoinSelector, Feature, useGetAllBalances, useSortedCoinsByCategories } from '@iota/core';
+import { useFeatureValue } from '@growthbook/growthbook-react';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -44,22 +46,23 @@ export function DepositForm({
     const isLayer1WalletConnected = !!layer1Account?.address;
     const isLayer2WalletConnected = layer2Account.isConnected;
 
-    const toggleBridgeDirection = useBridgeStore((state) => state.toggleBridgeDirection);
-    const isFromLayer1 = useBridgeStore((state) => state.isFromLayer1);
+    const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
 
+    const { data: coinsBalance } = useGetAllBalances(layer1Account?.address);
+
+    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalance || [], knownEvmCoins);
+    const sortedCoinsBalance = [...recognized, ...pinned];
     const {
         formattedAvailableBalance: formattedAvailableBalanceL1,
         isLoading: isLoadingBalanceL1,
+        symbol,
     } = useAvailableBalanceL1();
+
+    // L2 Balance
     const {
         formattedAvailableBalance: formattedAvailableBalanceL2,
         isLoading: isLoadingBalanceL2,
     } = useAvailableBalanceL2();
-
-    const formattedAvailableBalance = isFromLayer1
-        ? formattedAvailableBalanceL1
-        : formattedAvailableBalanceL2;
-    const isLoadingBalance = isFromLayer1 ? isLoadingBalanceL1 : isLoadingBalanceL2;
 
     const formMethods = useFormContext<DepositFormData>();
 
@@ -74,7 +77,12 @@ export function DepositForm({
     } = formMethods;
     const values = watch();
 
-    const { depositAmount, receivingAddress } = values;
+    const { depositAmount, receivingAddress, isFromLayer1, coinType: selectedCoinType } = values;
+
+    const formattedAvailableBalance = isFromLayer1
+        ? formattedAvailableBalanceL1
+        : formattedAvailableBalanceL2;
+    const isLoadingBalance = isFromLayer1 ? isLoadingBalanceL1 : isLoadingBalanceL2;
 
     const isPayingAllBalance = new BigNumber(depositAmount).isEqualTo(
         new BigNumber(formattedAvailableBalance),
@@ -127,7 +135,7 @@ export function DepositForm({
 
     const caption =
         formattedAvailableBalance && !isLoadingBalance
-            ? `${formattedAvailableBalance} IOTA Available`
+            ? `${formattedAvailableBalance} ${symbol} Available`
             : '--';
     const {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -137,97 +145,115 @@ export function DepositForm({
         ...registerDepositAmount
     } = register(BridgeFormInputName.DepositAmount);
     return (
-        <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
-            <Input
-                label="Amount"
-                type={InputType.NumericFormat}
-                prefix={isPayingAllBalance ? '~ ' : undefined}
-                value={depositAmount}
-                errorMessage={depositAmountErrorMessage}
-                {...registerDepositAmount}
-                data-testid="bridge-amount"
-                onValueChange={(values) => {
-                    setValue(BridgeFormInputName.DepositAmount, values.value, {
-                        shouldValidate: true,
-                        shouldTouch: true,
-                    });
-                }}
-                caption={caption}
-                maxLength={MAX_DEPOSIT_INPUT_LENGTH}
-                trailingElement={
-                    <ButtonPill onClick={handleMaxAmountClick} disabled={isMaxButtonDisabled}>
-                        Max
-                    </ButtonPill>
-                }
-            />
-            <div className="relative flex flex-col gap-y-md--rs">
-                {fromAddress ? (
-                    <Input
-                        type={InputType.Text}
-                        label={FROM_LABEL}
-                        name="senderAddress"
-                        value={fromAddress}
-                        key={fromAddress}
-                        readOnly
-                    />
-                ) : (
-                    <WalletConnectInput label={FROM_LABEL} isLayer1={isFromLayer1} />
-                )}
+        <>
+            <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
+                <CoinSelector
+                    activeCoinType={selectedCoinType}
+                    coins={sortedCoinsBalance}
+                    onClick={(coinType) => {
+                        setValue(BridgeFormInputName.DepositAmount, '', {
+                            shouldValidate: true,
+                            shouldTouch: true,
+                        });
+                        setValue(BridgeFormInputName.CoinType, coinType, {
+                            shouldValidate: true,
+                            shouldTouch: true,
+                        });
+                    }}
+                />
+                <Input
+                    label="Amount"
+                    type={InputType.NumericFormat}
+                    prefix={isPayingAllBalance ? '~ ' : undefined}
+                    value={depositAmount}
+                    errorMessage={depositAmountErrorMessage}
+                    {...registerDepositAmount}
+                    data-testid="bridge-amount"
+                    onValueChange={(values) => {
+                        setValue(BridgeFormInputName.DepositAmount, values.value, {
+                            shouldValidate: true,
+                            shouldTouch: true,
+                        });
+                    }}
+                    caption={caption}
+                    maxLength={MAX_DEPOSIT_INPUT_LENGTH}
+                    trailingElement={
+                        <ButtonPill onClick={handleMaxAmountClick} disabled={isMaxButtonDisabled}>
+                            Max
+                        </ButtonPill>
+                    }
+                />
+                <div className="relative flex flex-col gap-y-md--rs">
+                    {fromAddress ? (
+                        <Input
+                            type={InputType.Text}
+                            label={FROM_LABEL}
+                            name="senderAddress"
+                            value={fromAddress}
+                            key={fromAddress}
+                            readOnly
+                        />
+                    ) : (
+                        <WalletConnectInput label={FROM_LABEL} isLayer1={isFromLayer1} />
+                    )}
 
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1]">
-                    <Button
-                        type={ButtonType.Primary}
-                        icon={<SwapAccount className="rotate-90 -scale-x-100" />}
-                        onClick={toggleBridgeDirection}
-                        testId="toggle-bridge-direction"
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1]">
+                        <Button
+                            type={ButtonType.Primary}
+                            icon={<SwapAccount className="rotate-90 -scale-x-100" />}
+                            onClick={() =>
+                                setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1)
+                            }
+                            testId="toggle-bridge-direction"
+                        />
+                    </div>
+
+                    <DestinationInput
+                        type={InputType.Text}
+                        errorMessage={receivingAddressErrorMessage}
+                        {...register(BridgeFormInputName.ReceivingAddress)}
+                        data-testid="receive-address"
                     />
                 </div>
 
-                <DestinationInput
-                    type={InputType.Text}
-                    errorMessage={receivingAddressErrorMessage}
-                    {...register(BridgeFormInputName.ReceivingAddress)}
-                    data-testid="receive-address"
-                />
-            </div>
-
-            <div className="flex flex-col p-md">
-                {isFromLayer1 && (
+                <div className="flex flex-col p-md">
+                    {isFromLayer1 && (
+                        <KeyValueInfo
+                            fullwidth
+                            keyText="Est. IOTA Gas Fees"
+                            supportingLabel="IOTA"
+                            value={gasEstimation ?? PLACEHOLDER_VALUE_DISPLAY}
+                        />
+                    )}
                     <KeyValueInfo
                         fullwidth
-                        keyText="Est. IOTA Gas Fees"
+                        keyText="Est. IOTA EVM Gas fees"
                         supportingLabel="IOTA"
-                        value={gasEstimation ?? PLACEHOLDER_VALUE_DISPLAY}
+                        value={gasEstimationEVM ?? PLACEHOLDER_VALUE_DISPLAY}
                     />
-                )}
-                <KeyValueInfo
-                    fullwidth
-                    keyText="Est. IOTA EVM Gas fees"
-                    supportingLabel="IOTA"
-                    value={gasEstimationEVM ?? PLACEHOLDER_VALUE_DISPLAY}
-                />
-            </div>
+                </div>
 
-            <Button
-                text="Bridge Assets"
-                htmlType={ButtonHtmlType.Submit}
-                disabled={
-                    (isFromLayer1 && !isLayer1WalletConnected) ||
-                    (!isFromLayer1 && !isLayer2WalletConnected) ||
-                    !isValid ||
-                    !!Object.values(values).some((value) => value === '') ||
-                    isTransactionLoading ||
-                    isGasEstimationLoading ||
-                    isLoadingBalance
-                }
-                icon={
-                    depositAmount && isTransactionLoading ? (
-                        <Loader className="animate-spin" />
-                    ) : undefined
-                }
-                iconAfterText
-            />
-        </form>
+                <Button
+                    text="Bridge Assets"
+                    htmlType={ButtonHtmlType.Submit}
+                    disabled={
+                        (isFromLayer1 && !isLayer1WalletConnected) ||
+                        (!isFromLayer1 && !isLayer2WalletConnected) ||
+                        !isValid ||
+                        !!Object.values(values).some((value) => value === '') ||
+                        isTransactionLoading ||
+                        isGasEstimationLoading ||
+                        isLoadingBalance
+                    }
+                    icon={
+                        depositAmount && isTransactionLoading ? (
+                            <Loader className="animate-spin" />
+                        ) : undefined
+                    }
+                    iconAfterText
+                />
+            </form>
+        </>
     );
 }
 
@@ -236,11 +262,13 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
     { ...props },
     ref,
 ) {
-    const { setValue } = useFormContext<DepositFormData>();
+    const { setValue, watch } = useFormContext<DepositFormData>();
+    const values = watch();
+
+    const { isFromLayer1 } = values;
     const layer1Account = useCurrentAccount();
     const layer2Account = useAccount();
 
-    const isFromLayer1 = useBridgeStore((state) => state.isFromLayer1);
     const toggleIsDepositAddressManualInput = useBridgeStore(
         (state) => state.toggleIsDepositAddressManualInput,
     );

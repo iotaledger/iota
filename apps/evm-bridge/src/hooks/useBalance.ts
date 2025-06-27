@@ -7,7 +7,6 @@ const DEFAULT_STALE_TIME = 5000;
 export function useBalance(
     address: string,
     options: {
-        coinType?: string;
         refetchInterval?: number | false;
         staleTime?: number;
     } = {},

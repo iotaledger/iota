@@ -5,28 +5,52 @@ import { useMemo } from 'react';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { createBridgeFormSchema } from '../../lib/schema/bridgeForm.schema';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useBridgeStore } from '../../lib/stores';
 import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
-import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
+import {
+    Feature,
+    useCoinMetadata,
+    useGetAllBalances,
+    useSortedCoinsByCategories,
+} from '@iota/core';
+import { useFeatureValue } from '@growthbook/growthbook-react';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { useAllCoinsMetadata } from '../../hooks/useAllCoinsMetadata';
+import { BridgeFormInputName } from '../../lib/enums';
 
 export function Bridge() {
-    const isFromLayer1 = useBridgeStore((state) => state.isFromLayer1);
+    const layer1Account = useCurrentAccount();
+
+    const { data: coinsBalance } = useGetAllBalances(layer1Account?.address);
+    const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
+
+    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalance || [], knownEvmCoins);
+    const sortedCoinsBalance = [...recognized, ...pinned];
+    console.log('sortedCoinsBalance:', sortedCoinsBalance);
+    const { metadata: allCoinsMetadata } = useAllCoinsMetadata(sortedCoinsBalance);
+    console.log('allCoinsMetadata:', allCoinsMetadata);
     const { availableBalance: availableBalanceL1 } = useAvailableBalanceL1();
-    const { availableBalance: availableBalanceL2 } = useAvailableBalanceL2();
+    // const { availableBalance: availableBalanceL2 } = useAvailableBalanceL2();
+    const { data: coinMetadata } = useCoinMetadata();
 
-    const availableBalance = isFromLayer1 ? availableBalanceL1 : availableBalanceL2;
+    const availableBalance = availableBalanceL1;
+    const decimals = coinMetadata?.decimals ?? IOTA_DECIMALS;
 
+    // todo send coins from L1 and also from L2, send coin metadatas from L1 and L2
     const formSchema = useMemo(
-        () => createBridgeFormSchema(availableBalance, IOTA_DECIMALS, isFromLayer1),
-        [availableBalance, isFromLayer1],
+        () => createBridgeFormSchema(availableBalance, decimals),
+        [availableBalance],
     );
 
     const formMethods = useForm({
         mode: 'all',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolver: zodResolver(formSchema as any),
+        defaultValues: {
+            [BridgeFormInputName.IsFromLayer1]: true,
+        },
     });
-
+    const isFromLayer1 = formMethods.watch('isFromLayer1');
+    console.log('isFromLayer1:', isFromLayer1);
     return (
         <FormProvider {...formMethods}>
             <div className="relative h-full">

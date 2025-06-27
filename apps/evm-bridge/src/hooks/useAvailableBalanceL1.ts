@@ -1,49 +1,63 @@
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useBalance as useBalanceL1 } from './useBalance';
-import { formatIOTAFromNanos, parseAmount } from '../lib/utils';
-import { useBuildL1DepositTransaction } from './useBuildL1DepositTransaction';
-import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
-import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
-
-const GENERIC_EVM_ADDRESS = '0x1111111111111111111111111111111111111111';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useAvailableIotaBalanceL1 } from './useAvailableIotaBalanceL1';
+import { CoinFormat, useFormatCoin } from '@iota/core';
+import { useMemo } from 'react';
 
 export function useAvailableBalanceL1(): {
     availableBalance: bigint;
     isLoading: boolean;
     formattedAvailableBalance: string;
+    symbol: string;
 } {
     const layer1Account = useCurrentAccount();
+    const selectedCoinType = IOTA_TYPE_ARG;
+    // Fetch Layer 1 balance
+    const {
+        availableBalance: availableIotaBalance,
+        formattedAvailableBalance: formattedIota,
+        isLoading: isLoadingIota,
+    } = useAvailableIotaBalanceL1();
 
-    const { data: layer1BalanceData, isLoading: isLoadingL1 } = useBalanceL1(
+    // Fetch Layer 1 balance for the selected coin type
+    const { data: selectedCoinData, isLoading: isLoadingCoin } = useBalanceL1(
         layer1Account?.address as `0x${string}`,
+        undefined,
+        selectedCoinType,
     );
 
-    const layer1TotalBalance = layer1BalanceData?.totalBalance
-        ? BigInt(layer1BalanceData?.totalBalance)
+    const cionBalance = selectedCoinData?.totalBalance
+        ? BigInt(selectedCoinData?.totalBalance)
         : 0n;
 
-    // Estimate gas costs for Layer 1 transactions
-    const { data: maxAmountDataL1, isLoading: isLoadingL1Transaction } =
-        useBuildL1DepositTransaction({
-            receivingAddress: GENERIC_EVM_ADDRESS,
-            amount: layer1TotalBalance - L1_BASE_GAS_BUDGET,
-        });
+    const [formattedCoin, symbol] = useFormatCoin({
+        balance: cionBalance,
+        coinType: selectedCoinType,
+        format: CoinFormat.FULL,
+    });
 
-    const gasEstimationIOTA = BigInt(maxAmountDataL1?.gasSummary?.budget || 0);
+    const isIotaCoinType = selectedCoinType === IOTA_TYPE_ARG;
 
-    // Check if the available amount is larger than the minimum send amount
-    const isLayer1BalanceLargerThanMinimumSendAmount =
-        layer1TotalBalance > (parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS) ?? 0n);
+    // Compute final values
+    const result = useMemo(
+        () => ({
+            availableBalance: isIotaCoinType ? availableIotaBalance : cionBalance,
+            isLoading: isIotaCoinType ? isLoadingIota : isLoadingCoin,
+            formattedAvailableBalance: `${isIotaCoinType ? formattedIota : formattedCoin}`,
+            symbol: symbol,
+        }),
+        [
+            isIotaCoinType,
+            availableIotaBalance,
+            cionBalance,
+            isLoadingIota,
+            isLoadingCoin,
+            formattedIota,
+            formattedCoin,
+            symbol,
+        ],
+    );
 
-    // Calculate the Layer 1 available balance, subtracting gas costs if the amount is valid
-    const availableBalance = isLayer1BalanceLargerThanMinimumSendAmount
-        ? layer1TotalBalance - gasEstimationIOTA - L2_FROM_L1_GAS_BUDGET
-        : layer1TotalBalance;
-
-    return {
-        availableBalance,
-        isLoading: isLoadingL1 || isLoadingL1Transaction,
-        formattedAvailableBalance: formatIOTAFromNanos(availableBalance),
-    };
+    return result;
 }
