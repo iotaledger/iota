@@ -27,8 +27,8 @@ use serde_json::Value;
 
 use crate::common::{
     ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, get_indexer_db_url,
-    indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, rpc_call_error_msg_matches,
-    start_test_cluster_with_read_write_indexer,
+    indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
+    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
 };
 
 /// Utility function to convert hex strings in JSON values to byte arrays.
@@ -1665,18 +1665,21 @@ fn try_get_object_before_version() {
                 sender,
             )
             .await;
-        let object_to_send = cluster
+        let (object_id, object_version, _) = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
+        // we need the object to be indexed before we can
+        // create a transaction that uses it as an input
+        indexer_wait_for_object(client, object_id, object_version).await;
 
         let tx_bytes = client
             .transfer_object(
                 sender,
-                object_to_send.0,
+                object_id,
                 Some(gas_ref.0),
                 100_000_000.into(),
                 receiver,
