@@ -12,7 +12,7 @@
 @import 'tailwindcss/utilities';
 @import './utilities.css';
 
-:root.light,
+:root,
 :root.dark {
     /* FONTS */
     --font-family-heading: theme('fontFamily.alliance-no2');
@@ -27,7 +27,8 @@
     --headline-md-font-weight: 500;
     --headline-sm-font-weight: 500;
 }
-:root.light {
+
+:root {
     /* COLORS */
     --warning-surface: theme('colors.iota-warning.90');
     --on-warning: theme('colors.iota-warning.20');
