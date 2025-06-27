@@ -543,7 +543,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 8. Add block to dag, add its missing ancestors to the set
         // TODO:: consider possible optimization:
         // first try to accept the block. If it fails, try to find missing ancestors
-        // among additional headers and add only them.
+        // among additional headers and from block_round-1 add only them. From the
+        // rounds < block_round-1 add all headers
         missing_ancestors.extend(
             self.core_dispatcher
                 .add_blocks(vec![verified_block])
