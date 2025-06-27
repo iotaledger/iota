@@ -147,7 +147,6 @@ pub(crate) enum ConsensusError {
     #[error("Insufficient stake from parents: {parent_stakes} < {quorum}")]
     InsufficientParentStakes { parent_stakes: Stake, quorum: Stake },
 
-    #[expect(dead_code)]
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String), // TODO: To be used for transaction validation errors in tests
 
