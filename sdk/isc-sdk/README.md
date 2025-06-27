@@ -1,6 +1,7 @@
 # isc-sdk
 
-Use the `isc-sdk` to construct IOTA transactions that call [ISC smart contracts](https://docs.iota.org/iota-evm/references/magic-contract/ISC).
+Use the `isc-sdk` to construct IOTA transactions that call
+[ISC smart contracts](https://docs.iota.org/iota-evm/references/magic-contract/ISC).
 
 ### Installation
 
@@ -25,9 +26,9 @@ import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { IotaClient } from '@iota/iota-sdk/client';
 
-const RPC_URL = "https://api.devnet.iota.cafe";
-const FAUCET_URL = "https://faucet.devnet.iota.cafe";
-const DESTINATION_EVM_ADDRESS = "...";
+const RPC_URL = 'https://api.devnet.iota.cafe';
+const FAUCET_URL = 'https://faucet.devnet.iota.cafe';
+const DESTINATION_EVM_ADDRESS = '...';
 
 const client = new IotaClient({
     url: RPC_URL,
