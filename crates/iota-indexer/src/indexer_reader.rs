@@ -35,6 +35,7 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
+    error::IotaError,
     event::EventID,
     iota_system_state::{
         IotaSystemStateTrait,
@@ -1978,31 +1979,9 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let package_id: ObjectID = coin_struct.address.into();
-        let treasury_cap_type = TreasuryCap::type_(coin_struct.clone());
-        let cache_key = format!(
-            "{}{}",
-            package_id,
-            treasury_cap_type.to_canonical_string(/* with_prefix */ true)
-        );
-
-        let mut cache = self
-            .package_obj_type_cache
-            .lock()
-            .inspect_err(|e| tracing::error!("package_obj_type_cache poisoned: {:?}", e))
-            .map_err(|_| IndexerError::Generic("failed to acquire cache lock".into()))?;
-
-        let maybe_obj = match cache.cache_get(&cache_key) {
-            Some(Some(id)) => self.get_object(id, None).ok().flatten(),
-            _ => {
-                let fetched = self.get_singleton_object(treasury_cap_type)?;
-                cache.cache_set(cache_key.clone(), fetched.as_ref().map(|o| o.id()));
-                fetched
-            }
-        };
-
-        Ok(maybe_obj
-            .and_then(|obj| TreasuryCap::try_from(obj).ok())
+        let tag = TreasuryCap::type_(coin_struct.clone());
+        Ok(self
+            .get_package_object_as::<TreasuryCap>(tag)?
             .map(|tc| tc.total_supply))
     }
 
@@ -2010,9 +1989,39 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
+        let tag = CoinManager::type_(coin_struct.clone());
         Ok(self
-            .get_coin_manager_obj(coin_struct.clone())?
+            .get_package_object_as::<CoinManager>(tag)?
             .map(|mgr| mgr.treasury_cap.total_supply))
+    }
+
+    fn get_package_object_as<T>(&self, tag: StructTag) -> Result<Option<T>, IndexerError>
+    where
+        T: TryFrom<Object, Error = IotaError>,
+    {
+        let package_id: ObjectID = tag.address.into();
+        let cache_key = format!(
+            "{}{}",
+            package_id,
+            tag.to_canonical_string(/* with_prefix */ true)
+        );
+
+        let mut cache = self
+            .package_obj_type_cache
+            .lock()
+            .inspect_err(|e| tracing::error!("cache poisoned: {:?}", e))
+            .map_err(|_| IndexerError::Generic("failed to lock cache".into()))?;
+
+        let maybe_obj = match cache.cache_get(&cache_key) {
+            Some(Some(id)) => self.get_object(id, None).ok().flatten(),
+            _ => {
+                let fetched = self.get_singleton_object(tag.clone())?;
+                cache.cache_set(cache_key.clone(), fetched.as_ref().map(|o| o.id()));
+                fetched
+            }
+        };
+
+        Ok(maybe_obj.map(T::try_from).transpose()?)
     }
 
     pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
