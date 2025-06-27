@@ -7,7 +7,7 @@ use std::str::FromStr;
 use async_graphql::{connection::Connection, *};
 use iota_indexer::models::objects::StoredHistoryObject;
 use iota_names::{
-    IotaNamesNft, config::IotaNamesConfig, domain::Domain as NativeDomain, error::IotaNamesError,
+    IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeDomain,
     registry::NameRecord,
 };
 use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
@@ -52,7 +52,7 @@ pub(crate) struct IotaNames;
 pub(crate) struct Domain(NativeDomain);
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
-#[graphql(remote = "iota_names::domain::DomainFormat")]
+#[graphql(remote = "iota_names::name::NameFormat")]
 pub enum DomainFormat {
     At,
     Dot,
@@ -489,7 +489,7 @@ impl IotaNames {
         // domain's `NameRecord`. If the domain is a subdomain, there will be a
         // second element for the parent's `NameRecord`.
         let mut object_ids = vec![IotaAddress::from(config.record_field_id(&domain.0))];
-        if domain.0.is_subdomain() {
+        if domain.0.is_subname() {
             let parent = domain.0.parent().ok_or(Error::Internal(
                 "Subdomain does not have a parent domain".to_string(),
             ))?;
