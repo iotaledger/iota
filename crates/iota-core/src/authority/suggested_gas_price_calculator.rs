@@ -153,7 +153,7 @@ impl SuggestedGasPriceCalculator {
                 duration per commit {max_execution_duration_per_commit}, so the certificate \
                 cannot be scheduled regardless of suggested gas price. It is likely that \
                 {max_execution_duration_per_commit} was set too low in the protocol config, \
-                such that a commit cannot accomodate a single certificate."
+                such that a commit cannot accommodate a single certificate."
             );
 
             let possible_start_times = self.find_possible_start_times(
@@ -256,7 +256,7 @@ impl SuggestedGasPriceCalculator {
     }
 
     /// Find the gas price for which a deferred/scheduled certificate would be
-    /// scheduled at execution `start_time` if that gas price was payed.
+    /// scheduled at execution `start_time` if that gas price was paid.
     fn find_passing_gas_price_at_start_time(
         &self,
         certificate: &VerifiedExecutableTransaction,
