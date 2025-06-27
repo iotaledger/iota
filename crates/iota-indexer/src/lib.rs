@@ -41,6 +41,7 @@ pub mod metrics;
 pub mod models;
 mod optimistic_indexing;
 pub mod processors;
+pub(crate) mod rolling;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;

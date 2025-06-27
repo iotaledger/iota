@@ -4,7 +4,9 @@ use std::{path::Path, str::FromStr};
 
 use fastcrypto::encoding::Base64;
 use iota_json::{call_args, type_args};
-use iota_json_rpc_api::{ReadApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json_rpc_api::{
+    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
@@ -13,19 +15,24 @@ use iota_json_rpc_types::{
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionKind,
+    transaction::{CallArg, TransactionKind},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
+use move_core_types::{identifier::IdentStr, language_storage::StructTag};
 
-use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object};
+use crate::{
+    coin_api::execute_move_call,
+    common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object},
+};
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
 
@@ -325,25 +332,13 @@ fn test_execute_transactions_with_shared_objects() {
 
         indexer_wait_for_object(client, gas.0, gas.1).await;
 
-        let res = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
 
-        let package_id = res
-            .object_changes
-            .as_ref()
-            .unwrap()
-            .iter()
-            .filter_map(|o| match o {
-                ObjectChange::Published { package_id, .. } => Some(package_id),
-                _ => None,
-            })
-            .exactly_one()
-            .unwrap();
-
-        let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, package_id)
+        let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
             .await
             .unwrap();
 
-        let res_1 = increment_counter(sender, &sender_kp, client, package_id, &counter_obj)
+        let res_1 = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj)
             .await
             .unwrap();
         assert_eq!(res_1.status_ok(), Some(true));
@@ -351,6 +346,136 @@ fn test_execute_transactions_with_shared_objects() {
         // TODO: extend with subsequent call to the same object once race
         // conditions are fixed
     });
+}
+
+#[test]
+fn test_repeatedly_update_display() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        let consecutive_updates = 150;
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
+        let display_obj_id = ObjectID::from_hex_literal(
+            res.events.unwrap().data[0].parsed_json.as_object().unwrap()["id"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+
+        let (_, bear_id) = create_new_bear(sender, &sender_kp, client, &package_id, "bear name")
+            .await
+            .unwrap();
+
+        let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
+            address: (*package_id),
+            name: IdentStr::new("DemoBear").unwrap().into(),
+            module: IdentStr::new("demo_bear").unwrap().into(),
+            type_params: Vec::new(),
+        }));
+
+        for n in 0..consecutive_updates {
+            let new_bear_description = format!("Bear description {n}");
+
+            let res = update_display_object(
+                sender,
+                &sender_kp,
+                client,
+                &display_obj_id,
+                bear_type_tag.clone(),
+                "description",
+                &new_bear_description,
+            )
+            .await
+            .unwrap();
+            assert_eq!(res.status_ok(), Some(true));
+
+            let res = bump_display_object_version(
+                sender,
+                &sender_kp,
+                client,
+                &display_obj_id,
+                bear_type_tag.clone(),
+            )
+            .await
+            .unwrap();
+            assert_eq!(res.status_ok(), Some(true));
+
+            let res = client
+                .get_object(bear_id, Some(IotaObjectDataOptions::new().with_display()))
+                .await
+                .unwrap();
+
+            let actual_description =
+                res.data.unwrap().display.unwrap().data.unwrap()["description"].clone();
+
+            assert_eq!(actual_description, new_bear_description);
+        }
+    });
+}
+
+async fn update_display_object(
+    address: IotaAddress,
+    address_kp: &AccountKeyPair,
+    client: &HttpClient,
+    display_object_id: &ObjectID,
+    display_obj_type_tag: TypeTag,
+    name_to_update: &str,
+    new_value: &str,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    execute_move_call(
+        client,
+        address,
+        address_kp,
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        "display".to_string(),
+        "edit".to_string(),
+        type_args![display_obj_type_tag].unwrap(),
+        call_args!(
+            display_object_id,
+            name_to_update.to_string(),
+            new_value.to_string()
+        )
+        .unwrap(),
+    )
+    .await
+}
+
+async fn bump_display_object_version(
+    address: IotaAddress,
+    address_kp: &AccountKeyPair,
+    client: &HttpClient,
+    display_object_id: &ObjectID,
+    display_obj_type_tag: TypeTag,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    execute_move_call(
+        client,
+        address,
+        address_kp,
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        "display".to_string(),
+        "update_version".to_string(),
+        type_args![display_obj_type_tag].unwrap(),
+        call_args!(display_object_id).unwrap(),
+    )
+    .await
 }
 
 async fn create_counter_object(
@@ -435,12 +560,85 @@ async fn increment_counter(
     Ok(res)
 }
 
+async fn create_new_bear(
+    address: IotaAddress,
+    address_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+    name: &str,
+) -> Result<(IotaTransactionBlockResponse, ObjectID), anyhow::Error> {
+    let module = "demo_bear".to_string();
+    let function = "new".to_string();
+
+    let gas = client
+        .get_all_coins(address, None, None)
+        .await
+        .unwrap()
+        .data[0]
+        .object_ref();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let name_arg = builder.input(CallArg::Pure(bcs::to_bytes(name).unwrap()))?;
+        let bear = builder.programmable_move_call(
+            *package_id,
+            Identifier::from_str(&module)?,
+            Identifier::from_str(&function)?,
+            vec![],
+            vec![name_arg],
+        );
+        builder.transfer_arg(address, bear);
+        builder.finish()
+    };
+
+    let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+    let tx_data = tx_builder.programmable(pt).build();
+    let signed_transaction = to_sender_signed_transaction(tx_data, address_kp);
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+
+    let bear_id = res
+        .effects
+        .as_ref()
+        .unwrap()
+        .created()
+        .iter()
+        .exactly_one()
+        .unwrap()
+        .object_id();
+
+    Ok((res, bear_id))
+}
+
 async fn deploy_basics_pkg(
     address: IotaAddress,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-) -> IotaTransactionBlockResponse {
+) -> (IotaTransactionBlockResponse, ObjectID) {
     deploy_package(address, address_kp, client, "../../examples/move/basics").await
+}
+
+async fn deploy_bear_pkg(
+    address: IotaAddress,
+    address_kp: &AccountKeyPair,
+    client: &HttpClient,
+) -> (IotaTransactionBlockResponse, ObjectID) {
+    deploy_package(
+        address,
+        address_kp,
+        client,
+        "../../examples/trading/contracts/demo",
+    )
+    .await
 }
 
 async fn deploy_package(
@@ -448,7 +646,7 @@ async fn deploy_package(
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     pkg_path: &str,
-) -> IotaTransactionBlockResponse {
+) -> (IotaTransactionBlockResponse, ObjectID) {
     let compiled_package = BuildConfig::new_for_testing()
         .build(Path::new(pkg_path))
         .unwrap();
@@ -470,7 +668,7 @@ async fn deploy_package(
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), address_kp);
 
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    client
+    let res = client
         .execute_transaction_block(
             tx_bytes,
             signatures,
@@ -478,5 +676,19 @@ async fn deploy_package(
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
+        .unwrap();
+
+    let package_id = *res
+        .object_changes
+        .as_ref()
         .unwrap()
+        .iter()
+        .filter_map(|o| match o {
+            ObjectChange::Published { package_id, .. } => Some(package_id),
+            _ => None,
+        })
+        .exactly_one()
+        .unwrap();
+
+    (res, package_id)
 }

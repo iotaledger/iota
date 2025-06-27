@@ -9,9 +9,8 @@ use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
-use super::{CheckpointDataToCommitV2, EpochToCommit};
+use super::{CheckpointDataToCommit, CheckpointDataToCommitV2, EpochToCommit};
 use crate::{
-    handlers::CheckpointDataToCommit,
     metrics::IndexerMetrics,
     models::transactions::TxGlobalOrder,
     store::{IndexerStore, IndexerStoreExt},
@@ -71,6 +70,7 @@ where
     Ok(())
 }
 
+#[expect(unused)]
 pub(crate) async fn start_tx_checkpoint_commit_task_v2<S>(
     state: S,
     metrics: IndexerMetrics,

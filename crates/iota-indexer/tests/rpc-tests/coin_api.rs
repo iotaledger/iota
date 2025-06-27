@@ -3,6 +3,7 @@
 
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
+use fastcrypto::traits::Signer;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
@@ -20,7 +21,7 @@ use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -765,10 +766,10 @@ async fn create_trusted_coins(
     Ok((coin_name, imm_coin_name))
 }
 
-async fn execute_move_call(
+pub async fn execute_move_call(
     client: &HttpClient,
     address: IotaAddress,
-    account_keypair: &IotaKeyPair,
+    account_keypair: &dyn Signer<Signature>,
     package_object_id: ObjectID,
     module: String,
     function: String,

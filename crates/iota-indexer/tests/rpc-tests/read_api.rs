@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{fs::File, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 use hex::FromHex;
 use iota_indexer::{
@@ -256,6 +256,12 @@ fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockRespon
             "indexer multi transaction blocks assertion failed"
         );
     });
+}
+
+async fn wait_for_objects_history() {
+    // Objects history is not filled by optimistic indexing, this method waits a few
+    // seconds so that checkpoint indexing has a chance to kick in
+    tokio::time::sleep(Duration::from_secs(3)).await
 }
 
 #[test]
@@ -1323,7 +1329,7 @@ fn try_get_past_object_version_found() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let result = client
             .try_get_past_object(gas_ref.0, gas_ref.1, None)
@@ -1365,7 +1371,7 @@ fn try_get_past_object_version_not_found() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let missing_version = gas_ref.1.one_before().expect("Version should be > 0");
 
@@ -1404,7 +1410,7 @@ fn try_get_past_object_version_too_high() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let latest_version = gas_ref.1;
         let asked_version = latest_version.next();
@@ -1442,16 +1448,14 @@ fn try_get_past_object_object_deleted() {
         let context = &cluster.wallet;
         let (package_id, _, _) = publish_nfts_package(context).await;
 
-        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
-
-        indexer_wait_for_transaction(tx_digest, store, client).await;
+        let (sender, nft_object_id, _) = create_nft(context, package_id).await;
 
         // Retrieve the latest object reference (which includes version) for deletion.
         let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
 
         // Delete the NFT
-        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
-        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
+        delete_nft(context, sender, package_id, nft_object_ref).await;
+        wait_for_objects_history().await;
 
         let deleted_version = nft_object_ref.1.next();
 
@@ -1575,8 +1579,7 @@ fn try_multi_get_past_objects() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref_1.0, gas_ref_1.1).await;
-        indexer_wait_for_object(client, gas_ref_2.0, gas_ref_2.1).await;
+        wait_for_objects_history().await;
 
         let requests = vec![
             IotaGetPastObjectRequest {
@@ -1665,21 +1668,21 @@ fn try_get_object_before_version() {
                 sender,
             )
             .await;
-        let object_to_send = cluster
+        let (object_id, object_version, _) = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
-
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
-        indexer_wait_for_object(client, object_to_send.0, object_to_send.1).await;
+        // we need the object to be indexed before we can
+        // create a transaction that uses it as an input
+        indexer_wait_for_object(client, object_id, object_version).await;
 
         let tx_bytes = client
             .transfer_object(
                 sender,
-                object_to_send.0,
+                object_id,
                 Some(gas_ref.0),
                 100_000_000.into(),
                 receiver,
@@ -1687,6 +1690,7 @@ fn try_get_object_before_version() {
             .await
             .expect("Transfer should succeed");
         execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        wait_for_objects_history().await;
 
         let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
 
