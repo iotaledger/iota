@@ -195,15 +195,9 @@ impl DagState {
 
         scoring_subdag.add_subdags(std::mem::take(&mut unscored_committed_subdags));
 
-        // Assume that the last commit that was generated was consumed by the consensus
-        // handler, i.e. all transactions were available and sent to the consensus
-        // handler.
+        // Set it to None. Later the commit observer might update this value during recovery process.
+        // It is needed mostly for eviction of transactions.
         let mut last_solid_leader_round: Option<Round> = None;
-        if let Some(last_commit) = last_commit.as_ref() {
-            // If we have a last commit, we can set the last solid leader round to the
-            // round of the last commit.
-            last_solid_leader_round = Some(last_commit.round());
-        }
 
         let mut state = Self {
             context,
