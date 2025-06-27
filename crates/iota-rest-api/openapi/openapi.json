@@ -2408,44 +2408,6 @@
                 "format": "u64"
               }
             }
-          },
-          {
-            "type": "object",
-            "required": [
-              "chain_id",
-              "kind"
-            ],
-            "properties": {
-              "chain_id": {
-                "$ref": "#/components/schemas/CheckpointDigest"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "bridge_state_create"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "bridge_object_version",
-              "kind"
-            ],
-            "properties": {
-              "bridge_object_version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "bridge_committee_init"
-                ]
-              }
-            }
           }
         ]
       },

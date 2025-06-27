@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { ChipState } from './chip.enums';
+import { ChipSize, ChipState } from './chip.enums';
 import {
     BORDER_CLASSES,
     BACKGROUND_CLASSES,
@@ -51,6 +51,10 @@ interface ChipProps {
      * The button is disabled or not.
      */
     disabled?: boolean;
+    /**
+     * The size of the chip.
+     */
+    size?: ChipSize;
 }
 
 export function Chip({
@@ -63,6 +67,7 @@ export function Chip({
     leadingElement,
     trailingElement,
     disabled,
+    size = ChipSize.Default,
 }: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
@@ -89,7 +94,9 @@ export function Chip({
                 )}
             >
                 {avatar ?? leadingElement}
-                <span className="text-body-md">{label}</span>
+                <span className={cx(size === ChipSize.Small ? 'text-label-md' : 'text-body-md')}>
+                    {label}
+                </span>
                 {trailingElement}
                 {showClose && (
                     <ButtonUnstyled

@@ -60,7 +60,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
             balance={BigInt(amount)}
             icon={
                 unRecognizedToken ? undefined : (
-                    <RecognizedBadge className="h-4 w-4 text-primary-40" />
+                    <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />
                 )
             }
             format={CoinFormat.FULL}
