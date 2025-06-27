@@ -129,7 +129,7 @@ export default function Home() {
             >
               IOTA dApp Kit
             </Link>
-            <Link className={styles.cardLink} to="/references/iota-api">
+            <Link className={styles.cardLink} to="/developer/references/iota-api">
               IOTA API
             </Link>
             <Link

@@ -14,8 +14,8 @@ cd tmp || exit
 curl -sL "https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota/${main_network}.tar.gz" | tar xzv
 
 # Copy framework docs
-mkdir -p "../../content/references/framework/"
-cp -Rv docs/generated-docs/framework/* "../../content/references/framework/"
+mkdir -p "../../content/developer/references/framework/"
+cp -Rv docs/generated-docs/framework/* "../../content/developer/references/framework/"
 
 # Fix Sidebar for new route
 sed -i -e "s/generated-docs\/ts-sdk/developer\/ts-sdk\/api/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs
@@ -32,8 +32,8 @@ for network in $networks; do
     curl -sL "https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota/${network}.tar.gz" | tar xzv
 
     # Copy framework docs
-    mkdir -p "../../content/references/framework/${network}/"
-    cp -Rv docs/generated-docs/framework/* "../../content/references/framework/${network}/"
+    mkdir -p "../../content/developer/references/framework/${network}/"
+    cp -Rv docs/generated-docs/framework/* "../../content/developer/references/framework/${network}/"
 
     # Fix Sidebar for new route
     sed -i -e "s/generated-docs\/ts-sdk/developer\/ts-sdk\/api\/${network}/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs

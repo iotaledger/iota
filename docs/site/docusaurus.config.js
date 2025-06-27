@@ -317,11 +317,11 @@ const config = {
             to: "operator",
             className: 'navbar-icon-operator',
           },
-          {
-            label: "References",
-            to: "references",
-            className: 'navbar-icon-references',
-          },
+          // {
+          //   label: "References",
+          //   to: "references",
+          //   className: 'navbar-icon-references',
+          // },
           {
             label: "Users",
             to: "users/wallets",

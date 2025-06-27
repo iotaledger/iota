@@ -20,12 +20,12 @@ The Stardust ledger state, and hence the assets and tokens in the network, are r
 Transactions consume previously unspent outputs, essentially removing them from the ledger, and create new outputs, thus updating the ledger state.
 
 With the introduction of the object-based Move ledger in IOTA Rebased, transactions no longer consume and create outputs
-but [`Move Objects`](../iota-101/objects/object-model.mdx) instead.
+but [`Move Objects`](../iota-101/objects/object-model.mdx) instead.x
 A Move transaction names `input objects` that it intends to operate on (consume),
 and executing the transaction produces the set of new objects to be written into the ledger, while the `input objects` are removed.
 
 The two models are conceptually very similar, but the underlying data structures are different, as Move objects can
-take any shape and form, as opposed to the rigid format of UTXOs. The IOTA Foundation developed a [Move package that emulates the Stardust output models](../../references/framework/stardust/) in the Move language with all the previous Stardust functionality supported.
+take any shape and form, as opposed to the rigid format of UTXOs. The IOTA Foundation developed a [Move package that emulates the Stardust output models](../references/framework/stardust/address_unlock_condition.mdx) in the Move language with all the previous Stardust functionality supported.
 
 **The IOTA Rebased network will be started with a ledger state where all previous outputs, and all tokens and assets held
 by them, are automatically converted into Move objects, coins, and balances.**

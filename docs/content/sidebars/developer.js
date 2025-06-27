@@ -5,6 +5,24 @@
 const tsSDK = require('./ts-sdk');
 const iotaEvm = require('./iota-evm');
 
+import bridgeCategoryLink from '../developer/references/framework/bridge/_category_.json';
+import frameworkCategoryLink from '../developer/references/framework/iota/_category_.json';
+import systemCategoryLink from '../developer/references/framework/iota_system/_category_.json';
+import stdlibCategoryLink from '../developer/references/framework/std/_category_.json';
+import stardustCategoryLink from '../developer/references/framework/stardust/_category_.json';
+
+import testnetBridgeCategoryLink from '../developer/references/framework/testnet/bridge/_category_.json';
+import testnetFrameworkCategoryLink from '../developer/references/framework/testnet/iota/_category_.json';
+import testnetSystemCategoryLink from '../developer/references/framework/testnet/iota_system/_category_.json';
+import testnetStdlibCategoryLink from '../developer/references/framework/testnet/std/_category_.json';
+import testnetStardustCategoryLink from '../developer/references/framework/testnet/stardust/_category_.json';
+
+import devnetBridgeCategoryLink from '../developer/references/framework/devnet/bridge/_category_.json';
+import devnetFrameworkCategoryLink from '../developer/references/framework/devnet/iota/_category_.json';
+import devnetSystemCategoryLink from '../developer/references/framework/devnet/iota_system/_category_.json';
+import devnetStdlibCategoryLink from '../developer/references/framework/devnet/std/_category_.json';
+import devnetStardustCategoryLink from '../developer/references/framework/devnet/stardust/_category_.json';
+
 const developer = [
     'developer/developer',
     'developer/network-overview',
@@ -338,8 +356,13 @@ const developer = [
     },
     {
         type: 'category',
-        label: "References",
+        label: 'References',
         items: [
+            {
+                type: 'doc',
+                id: 'developer/references/references',
+                label: 'Overview',
+            },
             {
                 type: 'category',
                 label: 'SDKs & CLI',
@@ -349,16 +372,16 @@ const developer = [
                         label: 'IOTA CLI',
                         link: {
                             type: 'doc',
-                            id: 'references/cli',
+                            id: 'developer/references/cli',
                         },
                         items: [
-                            'references/cli/client',
-                            'references/cli/ptb',
-                            'references/cli/keytool',
-                            'references/cli/move',
-                            'references/cli/validator',
-                            'references/cli/ceremony',
-                            'references/cli/cheatsheet',
+                            'developer/references/cli/client',
+                            'developer/references/cli/ptb',
+                            'developer/references/cli/keytool',
+                            'developer/references/cli/move',
+                            'developer/references/cli/validator',
+                            'developer/references/cli/ceremony',
+                            'developer/references/cli/cheatsheet',
                         ],
                     },
                     {
@@ -366,66 +389,189 @@ const developer = [
                         label: 'SDKs',
                         items: [
                             tsSDK,
-                            'references/rust-sdk',
-                            ],
-                    },
-                    
-                ],
-            },
-            {
-                type: 'category',
-                label: 'Standards',
-                link: {
-                    type: 'generated-index',
-                    title: 'IOTA Standards Overview',
-                    description:
-                        'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
-                    slug: 'developer/standards',
-                },
-                items: [
-                    'developer/standards/coin',
-                    'developer/standards/coin-manager',
-                    {
-                        type: 'category',
-                        label: 'Closed-Loop Token',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/standards/closed-loop-token',
-                        },
-                        items: [
-                            'developer/standards/closed-loop-token/action-request',
-                            'developer/standards/closed-loop-token/token-policy',
-                            'developer/standards/closed-loop-token/spending',
-                            'developer/standards/closed-loop-token/rules',
-                            'developer/standards/closed-loop-token/coin-token-comparison',
-                            'developer/standards/closed-loop-token/tutorial',
+                            'developer/references/rust-sdk',
                         ],
                     },
-                    'developer/standards/kiosk',
-                    'developer/standards/kiosk-apps',
-                    'developer/standards/display',
-                    'developer/standards/wallet-standard',
                 ],
             },
             {
                 type: 'category',
-                label: 'Advanced Topics',
+                label: 'IOTA RPC',
                 link: {
                     type: 'doc',
-                    id: 'developer/advanced',
+                    id: 'developer/references/iota-api',
                 },
                 items: [
-                    'developer/advanced/introducing-move-2024',
-                    'developer/advanced/iota-repository',
-                    'developer/advanced/custom-indexer',
-                    'developer/advanced/onchain-randomness',
-                    'developer/advanced/asset-tokenization',
-                    'developer/advanced/create-review-rating-dao-with-multisig',
+                    {
+                        type: 'category',
+                        label: 'GraphQL',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/references/iota-graphql',
+                        },
+                        items: [
+                            {
+                                type: 'autogenerated',
+                                dirName: 'developer/references/iota-api/iota-graphql/reference',
+                            },
+                        ],
+                    },
+                    {
+                        type: 'link',
+                        label: 'JSON-RPC',
+                        href: '/iota-api-ref',
+                        description: 'IOTA JSON-RPC API Reference',
+                    },
+                    'developer/references/iota-api/rpc-best-practices',
                 ],
             },
-            'developer/dev-cheat-sheet',
-        ]
+            {
+                type: 'category',
+                label: 'Move',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/iota-move',
+                },
+                items: [
+                    {
+                        type: 'category',
+                        label: 'Framework Mainnet',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/references/framework',
+                        },
+                        items: [
+                            { type: 'category', label: 'Bridge', link: bridgeCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/bridge' }] },
+                            { type: 'category', label: 'IOTA Framework', link: frameworkCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/iota' }] },
+                            { type: 'category', label: 'IOTA System', link: systemCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/iota_system' }] },
+                            { type: 'category', label: 'Move Stdlib', link: stdlibCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/std' }] },
+                            { type: 'category', label: 'Stardust', link: stardustCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/stardust' }] },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Framework Testnet',
+                        items: [
+                            { type: 'category', label: 'Bridge', link: testnetBridgeCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/bridge' }] },
+                            { type: 'category', label: 'IOTA Framework', link: testnetFrameworkCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/iota' }] },
+                            { type: 'category', label: 'IOTA System', link: testnetSystemCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/iota_system' }] },
+                            { type: 'category', label: 'Move Stdlib', link: testnetStdlibCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/std' }] },
+                            { type: 'category', label: 'Stardust', link: testnetStardustCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/stardust' }] },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Framework Devnet',
+                        items: [
+                            { type: 'category', label: 'Bridge', link: devnetBridgeCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/bridge' }] },
+                            { type: 'category', label: 'IOTA Framework', link: devnetFrameworkCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/iota' }] },
+                            { type: 'category', label: 'IOTA System', link: devnetSystemCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/iota_system' }] },
+                            { type: 'category', label: 'Move Stdlib', link: devnetStdlibCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/std' }] },
+                            { type: 'category', label: 'Stardust', link: devnetStardustCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/stardust' }] },
+                        ],
+                    },
+                    'developer/references/move/move-toml',
+                    'developer/references/move/move-lock',
+                    'developer/references/move/abilities',
+                    'developer/references/move/generics',
+                    {
+                        type: 'link',
+                        label: 'Move Language (GitHub)',
+                        href: 'https://github.com/move-language/move/blob/main/language/documentation/book/src/introduction.md',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/execution-architecture/execution-layer',
+                },
+                items: [
+                    'developer/references/execution-architecture/iota-execution',
+                    'developer/references/execution-architecture/adapter',
+                    'developer/references/execution-architecture/natives',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'IOTA Identity',
+                items: [{ type: 'autogenerated', dirName: 'developer/references/iota-identity' }],
+            },
+            'developer/references/research-papers',
+            'developer/references/iota-glossary',
+            {
+                type: 'category',
+                label: 'Contribute',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/contribute/contribution-process',
+                },
+                items: [
+                    'developer/references/contribute/contribution-process',
+                    'developer/references/contribute/code-of-conduct',
+                    'developer/references/contribute/contribute-to-iota-repos',
+                    'developer/references/contribute/style-guide',
+                    'developer/references/contribute/add-a-quiz',
+                    'developer/references/contribute/import-code-docs',
+                ],
+            },
+        ],
     },
+    {
+        type: 'category',
+        label: 'Standards',
+        link: {
+            type: 'generated-index',
+            title: 'IOTA Standards Overview',
+            description:
+                'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
+            slug: 'developer/standards',
+        },
+        items: [
+            'developer/standards/coin',
+            'developer/standards/coin-manager',
+            {
+                type: 'category',
+                label: 'Closed-Loop Token',
+                link: {
+                    type: 'doc',
+                    id: 'developer/standards/closed-loop-token',
+                },
+                items: [
+                    'developer/standards/closed-loop-token/action-request',
+                    'developer/standards/closed-loop-token/token-policy',
+                    'developer/standards/closed-loop-token/spending',
+                    'developer/standards/closed-loop-token/rules',
+                    'developer/standards/closed-loop-token/coin-token-comparison',
+                    'developer/standards/closed-loop-token/tutorial',
+                ],
+            },
+            'developer/standards/kiosk',
+            'developer/standards/kiosk-apps',
+            'developer/standards/display',
+            'developer/standards/wallet-standard',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Advanced Topics',
+        link: {
+            type: 'doc',
+            id: 'developer/advanced',
+        },
+        items: [
+            'developer/advanced/introducing-move-2024',
+            'developer/advanced/iota-repository',
+            'developer/advanced/custom-indexer',
+            'developer/advanced/onchain-randomness',
+            'developer/advanced/asset-tokenization',
+            'developer/advanced/create-review-rating-dao-with-multisig',
+        ],
+    },
+    'developer/exchange-integration',
+    'developer/dev-cheat-sheet',
     {
         type: 'category',
         label: 'Challenges',
@@ -605,10 +751,10 @@ const developer = [
                 type: 'category',
                 label: 'Specifications',
                 items: [
-                    'references/iota-identity/overview',
-                    'references/iota-identity/iota-did-method-spec',
-                    'references/iota-identity/revocation-bitmap-2022',
-                    'references/iota-identity/revocation-timeframe-2024',
+                    'developer/references/iota-identity/overview',
+                    'developer/references/iota-identity/iota-did-method-spec',
+                    'developer/references/iota-identity/revocation-bitmap-2022',
+                    'developer/references/iota-identity/revocation-timeframe-2024',
                 ],
             },
         ],

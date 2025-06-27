@@ -59,7 +59,7 @@ An attacker could call this function with a gas budget that is sufficient for th
 
 :::warning
 
-The [`Random`](../../references/framework/iota/random) API does not automatically prevent this kind of attack, and you must be aware of this subtlety when designing your contracts.
+The [`Random`](../../developer/references/framework/iota/random) API does not automatically prevent this kind of attack, and you must be aware of this subtlety when designing your contracts.
 
 :::
 
@@ -85,7 +85,7 @@ However, in the cases where it can be problematic, you can consider one of the f
   You can find an [example implementation](https://github.com/iotaledger/iota/blob/develop/examples/move/random/random_nft/sources/example.move#L121-L147) in the IOTA Repository.
 - Write the function so that the happy flow consumes more gas than the unhappy one.
   - Keep in mind that external functions or native ones can change in the future, potentially resulting in different costs compared to the time you conducted your tests.
-  - [profile-transaction](../../references/cli/client.mdx#profile-a-transaction) can be used to profile the costs of a transaction.
+  - [profile-transaction](../../developer/references/cli/client.mdx#profile-a-transaction) can be used to profile the costs of a transaction.
 
 ## Use (non-public) `entry` Functions
 

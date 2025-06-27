@@ -6,7 +6,7 @@ teams:
   - iotaledger/dev-tools
 ---
 
-import AddressPrefix from "../../_snippets/address-prefix.mdx";
+import AddressPrefix from "../../../_snippets/address-prefix.mdx";
 
 The `client ptb` command allows you to specify the transactions for execution in a programmable transaction block (PTB) directly from your CLI or through bash scripts.
 
@@ -57,7 +57,7 @@ Options:
 
 The main philosophy behind the CLI PTB support is to enable a user to build and execute a PTB from the command line. Bash scripts can be used to construct and execute the PTB just as you would do from the command line, providing great flexibility when it comes to automating different tasks.
 
-Besides using existing [traditional PTB](../../developer/iota-101/transactions/ptb/programmable-transaction-blocks) related concepts, we introduce a few new and important concepts for this command. 
+Besides using existing [traditional PTB](../../iota-101/transactions/ptb/programmable-transaction-blocks) related concepts, we introduce a few new and important concepts for this command. 
 
 :::warning
 
@@ -177,7 +177,7 @@ To call a specific function from a specific package, you can use the following c
 
 ### Publish
 
-Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx). Here is an example on how to publish a Move project (from within its folder, that's why the path is ".") on chain using the `iota client ptb` command. It makes a call to the [`iota::tx_context::sender`](../framework/iota/tx_context.mdx#function-sender) to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
+Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../iota-101/move-overview/package-upgrades/introduction.mdx). Here is an example on how to publish a Move project (from within its folder, that's why the path is ".") on chain using the `iota client ptb` command. It makes a call to the [`iota::tx_context::sender`](../framework/iota/tx_context.mdx#function-sender) to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
 
 ```bash
 iota client ptb \
@@ -195,7 +195,7 @@ iota client ptb \
 
 :::tip 
 
-Before [upgrading a package](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx), you need to add `published-at = "<PACKAGE_ID>"` (with the 0x... package ID) to its [`Move.toml`](../../developer/getting-started/create-a-package.mdx#movetoml) in the `[package]` section.
+Before [upgrading a package](../../iota-101/move-overview/package-upgrades/introduction.mdx), you need to add `published-at = "<PACKAGE_ID>"` (with the 0x... package ID) to its [`Move.toml`](../../getting-started/create-a-package.mdx#movetoml) in the `[package]` section.
 
 :::
 

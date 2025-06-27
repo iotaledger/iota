@@ -16,7 +16,7 @@ The online IDE is available for [Devnet](https://graphql.devnet.iota.cafe) and [
 - Both [devnet](https://graphql.devnet.iota.cafe) and [testnet](https://graphql.testnet.iota.cafe) services are rate-limited to keep network throughput optimized.
 :::
 
-For more details about some concepts used in the examples below, please see the [GraphQL concepts](../graphql-rpc.mdx) page, and consult the [reference](../../references/iota-graphql.mdx) for full documentation on the supported schema.
+For more details about some concepts used in the examples below, please see the [GraphQL concepts](../graphql-rpc.mdx) page, and consult the [reference](../../developer/references/iota-graphql.mdx) for full documentation on the supported schema.
 
 ## Discovering the schema
 
@@ -244,7 +244,7 @@ fragment MoveValueFields on MoveValue {
 
 ## Fetching all dynamic fields on an object
 
-This query can be used to paginate over the dynamic fields of an object. This works even when the object in question is [wrapped](../iota-101/objects/object-ownership/wrapped.mdx), by using the <a href="/references/iota-api/iota-graphql/reference/queries/owner" data-noBrokenLinkCheck='true'>owner</a> query, so can be used for iterating over the elements of on-chain data structures, like [Tables and Bags](../iota-101/objects/dynamic-fields/tables-bags.mdx).
+This query can be used to paginate over the dynamic fields of an object. This works even when the object in question is [wrapped](../iota-101/objects/object-ownership/wrapped.mdx), by using the <a href="/developer/references/iota-api/iota-graphql/reference/queries/owner" data-noBrokenLinkCheck='true'>owner</a> query, so can be used for iterating over the elements of on-chain data structures, like [Tables and Bags](../iota-101/objects/dynamic-fields/tables-bags.mdx).
 
 :::info
 This example uses [fragments](../graphql-rpc.mdx#fragments) and [variables](../graphql-rpc.mdx#variables).
@@ -330,7 +330,7 @@ This example uses GraphQL [variables](../graphql-rpc.mdx#variables) and [paginat
 
 ## Executing a transaction
 
-Transaction execution takes in two arguments, `txBytes` and `signatures`. `txBytes` is the serialized unsigned transaction data, which can be generated when using the IOTA CLI's `client call` [command](../../references/cli/client.mdx), to call a Move function by passing the `--serialize-unsigned-transaction` flag. The `signatures` can be generated using IOTA CLI's [keytool](../../references/cli/keytool.mdx) command `iota keytool sign`. More information on IOTA CLI can be found [here](../../references/cli).
+Transaction execution takes in two arguments, `txBytes` and `signatures`. `txBytes` is the serialized unsigned transaction data, which can be generated when using the IOTA CLI's `client call` [command](../../developer/references/cli/client.mdx), to call a Move function by passing the `--serialize-unsigned-transaction` flag. The `signatures` can be generated using IOTA CLI's [keytool](../../developer/references/cli/keytool.mdx) command `iota keytool sign`. More information on IOTA CLI can be found [here](../../developer/references/cli).
 
 ```graphql
 mutation ($tx: String!, $sigs: [String!]!) {
@@ -373,4 +373,4 @@ Examples in the repository are designed to work with the version of GraphQL buil
 
 - [GraphQL migration](../advanced/graphql-migration.mdx): Migrating to GraphQL guides you through migrating IOTA RPC projects from JSON-RPC to GraphQL.
 - [GraphQL concepts](../graphql-rpc.mdx): GraphQL for IOTA RPC examines the elements of GraphQL that you should know to get the most from the service.  
-- [GraphQL reference](../../references/iota-graphql.mdx): Auto-generated GraphQL reference for IOTA RPC.
+- [GraphQL reference](../../developer/references/iota-graphql.mdx): Auto-generated GraphQL reference for IOTA RPC.

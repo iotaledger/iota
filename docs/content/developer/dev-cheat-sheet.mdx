@@ -46,6 +46,6 @@ Quick reference on best practices for IOTA Network developers.
 
 | **Topic** | **Description** |
 |-|-|
-|**Concurrent Transactions**| Avoid signing concurrent transactions involving the same owned object. Use independent objects or wait for one transaction to finish to prevent client [equivocation](/references/iota-glossary.mdx#equivocation), which can lock the objects until the epoch ends. |
+|**Concurrent Transactions**| Avoid signing concurrent transactions involving the same owned object. Use independent objects or wait for one transaction to finish to prevent client [equivocation](./references/iota-glossary.mdx#equivocation), which can lock the objects until the epoch ends. |
 |**CLI transaction**| Use the `--serialize-output` flag with any iota client command (e.g., `publish`, `call`) to generate a base64 transaction for signing. |
 |**Transaction Signing**| IOTA supports several signature schemes for transaction signing, including native multisig.|
