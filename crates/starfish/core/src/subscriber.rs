@@ -143,8 +143,8 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
-            let mut blocks = match network_client
-                .subscribe_blocks(peer, last_received, MAX_RETRY_INTERVAL)
+            let mut block_bundles = match network_client
+                .subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL)
                 .await
             {
                 Ok(blocks) => {
@@ -184,8 +184,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .set(1);
 
             'stream: loop {
-                match blocks.next().await {
+                match block_bundles.next().await {
                     Some(block) => {
+                        // TODO:: make new metric for bundle, rename, or leave it as it is?
                         context
                             .metrics
                             .node_metrics
@@ -193,7 +194,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block(peer, block.clone())
+                            .handle_subscribed_block_bundle(peer, block.clone())
                             .await;
                         if let Err(e) = result {
                             match e {
