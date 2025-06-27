@@ -38,6 +38,7 @@ pub mod metrics;
 pub mod models;
 pub mod processors;
 pub mod schema;
+pub mod sql_backfill;
 pub mod store;
 pub mod system_package_task;
 pub mod test_utils;

@@ -14,6 +14,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
+    sql_backfill::SqlBackfiller,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use tokio_util::sync::CancellationToken;
@@ -106,6 +107,16 @@ async fn main() -> Result<(), IndexerError> {
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
         Command::HelpDeprecated => unreachable!("This case is handled earlier"),
+        Command::SqlBackFill {
+            sql,
+            checkpoint_column_name,
+            first_checkpoint,
+            last_checkpoint,
+        } => {
+            let backfiller = SqlBackfiller::new(connection_pool, sql, checkpoint_column_name);
+
+            backfiller.run(first_checkpoint, last_checkpoint).await?;
+        }
     }
 
     Ok(())

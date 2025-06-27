@@ -181,6 +181,23 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
+    /// Backfill DB tables for checkpoint range [\first_checkpoint,
+    /// \last_checkpoint]. by running a SQL query provided in \sql.
+    /// The tool will automatically slice it into smaller checkpoint ranges and
+    /// for each range [start, end], it augments the \sql query with:
+    ///   "WHERE {checkpoint_column_name} BETWEEN {start} AND {end}"
+    /// to avoid running out of memory.
+    /// Example:
+    ///  ./iota-indexer --database-url <...> sql-back-fill
+    ///   "INSERT INTO full_objects_history (object_id, object_version,
+    /// serialized_object) SELECT object_id, object_version, serialized_object
+    /// FROM objects_history"   "checkpoint_sequence_number" 0 100000
+    SqlBackFill {
+        sql: String,
+        checkpoint_column_name: String,
+        first_checkpoint: u64,
+        last_checkpoint: u64,
+    },
 }
 
 #[derive(Args, Default, Debug, Clone)]
