@@ -168,7 +168,7 @@ async fn commit_checkpoints(
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
             state.persist_tx_indices(tx_indices_batch),
-            state.persist_tx_global_order(tx_global_order_batch),
+            state.persist_tx_global_order(tx_global_order_batch.clone()),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
             state.persist_displays(display_updates_batch),
@@ -192,6 +192,14 @@ async fn commit_checkpoints(
             .collect::<IndexerResult<Vec<_>>>()
             .expect("Persisting data into DB should not fail.");
     }
+
+    state
+        .update_tx_global_order_as_indexed(tx_global_order_batch)
+        .await
+        .inspect_err(|e| {
+            error!("failed to update tx global order as indexed with error: {e}");
+        })
+        .expect("updating tx global order as indexed should not fail.");
 
     let is_epoch_end = epoch.is_some();
 

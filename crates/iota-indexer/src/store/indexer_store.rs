@@ -147,4 +147,9 @@ pub(crate) trait IndexerStoreExt: IndexerStore {
         &self,
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError>;
+
+    async fn update_tx_global_order_as_indexed(
+        &self,
+        tx_order: Vec<TxGlobalOrder>,
+    ) -> Result<(), IndexerError>;
 }
