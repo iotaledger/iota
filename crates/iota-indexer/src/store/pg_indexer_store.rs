@@ -3,20 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use core::result::Result::Ok;
-use std::{
-    any::Any as StdAny,
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::{any::Any as StdAny, collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
     dsl::{max, min},
+    sql_types::{Array, BigInt, Bytea, Nullable, SmallInt, Text},
     upsert::excluded,
 };
 use downcast::Any;
-use futures::future::Either;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
@@ -40,12 +36,21 @@ use crate::{
         event_indices::OptimisticEventIndices,
         events::{OptimisticEvent, StoredEvent},
         obj_indices::StoredObjectVersion,
-        objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
+        objects::{
+            StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot,
+            StoredObjects,
+        },
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::{OptimisticTxIndices, TxIndexV2Split},
     },
-    on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
+    on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
+    read_only_blocking,
+    rolling::transform::{
+        CheckpointObjectChanges, LiveObject, RemovedObject,
+        retain_latest_objects_from_checkpoint_batch,
+    },
+    run_query_async,
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
@@ -61,6 +66,7 @@ use crate::{
         tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
         tx_senders, tx_wrapped_or_deleted_objects,
     },
+    spawn_read_only_blocking,
     store::{IndexerStore, IndexerStoreExt},
     transactional_blocking_with_retry,
     types::{
@@ -302,7 +308,7 @@ impl PgIndexerStore {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                on_conflict_do_update!(
+                on_conflict_do_update_with_condition!(
                     display::table,
                     display_updates.values().collect::<Vec<_>>(),
                     display::object_type,
@@ -311,6 +317,7 @@ impl PgIndexerStore {
                         display::version.eq(excluded(display::version)),
                         display::bcs.eq(excluded(display::bcs)),
                     ),
+                    excluded(display::version).gt(display::version),
                     conn
                 );
                 Ok::<(), IndexerError>(())
@@ -319,6 +326,164 @@ impl PgIndexerStore {
         )?;
 
         Ok(())
+    }
+
+    fn persist_changed_objects(&self, objects: Vec<LiveObject>) -> Result<(), IndexerError> {
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_objects_chunks
+            .start_timer();
+        let len = objects.len();
+        let raw_query = r#"
+            INSERT INTO objects (
+                object_id,
+                object_version,
+                object_digest,
+                owner_type,
+                owner_id,
+                object_type,
+                object_type_package,
+                object_type_module,
+                object_type_name,
+                serialized_object,
+                coin_type,
+                coin_balance,
+                df_kind
+            )
+            SELECT
+                u.object_id,
+                u.object_version,
+                u.object_digest,
+                u.owner_type,
+                u.owner_id,
+                u.object_type,
+                u.object_type_package,
+                u.object_type_module,
+                u.object_type_name,
+                u.serialized_object,
+                u.coin_type,
+                u.coin_balance,
+                u.df_kind
+            FROM UNNEST(
+                $1::BYTEA[],
+                $2::BIGINT[],
+                $3::BYTEA[],
+                $4::SMALLINT[],
+                $5::BYTEA[],
+                $6::TEXT[],
+                $7::BYTEA[],
+                $8::TEXT[],
+                $9::TEXT[],
+                $10::BYTEA[],
+                $11::TEXT[],
+                $12::BIGINT[],
+                $13::SMALLINT[],
+                $14::BYTEA[]
+            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest)
+            LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
+            WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
+            ON CONFLICT (object_id) DO UPDATE
+            SET
+                object_version = EXCLUDED.object_version,
+                object_digest = EXCLUDED.object_digest,
+                owner_type = EXCLUDED.owner_type,
+                owner_id = EXCLUDED.owner_id,
+                object_type = EXCLUDED.object_type,
+                object_type_package = EXCLUDED.object_type_package,
+                object_type_module = EXCLUDED.object_type_module,
+                object_type_name = EXCLUDED.object_type_name,
+                serialized_object = EXCLUDED.serialized_object,
+                coin_type = EXCLUDED.coin_type,
+                coin_balance = EXCLUDED.coin_balance,
+                df_kind = EXCLUDED.df_kind
+        "#;
+        let (objects, tx_digests): (StoredObjects, Vec<_>) = objects
+            .into_iter()
+            .map(LiveObject::split)
+            .map(|(indexed_object, tx_digest)| {
+                (
+                    StoredObject::from(indexed_object),
+                    tx_digest.into_inner().to_vec(),
+                )
+            })
+            .unzip();
+        let query = diesel::sql_query(raw_query)
+            .bind::<Array<Bytea>, _>(objects.object_ids)
+            .bind::<Array<BigInt>, _>(objects.object_versions)
+            .bind::<Array<Bytea>, _>(objects.object_digests)
+            .bind::<Array<SmallInt>, _>(objects.owner_types)
+            .bind::<Array<Nullable<Bytea>>, _>(objects.owner_ids)
+            .bind::<Array<Nullable<Text>>, _>(objects.object_types)
+            .bind::<Array<Nullable<Bytea>>, _>(objects.object_type_packages)
+            .bind::<Array<Nullable<Text>>, _>(objects.object_type_modules)
+            .bind::<Array<Nullable<Text>>, _>(objects.object_type_names)
+            .bind::<Array<Bytea>, _>(objects.serialized_objects)
+            .bind::<Array<Nullable<Text>>, _>(objects.coin_types)
+            .bind::<Array<Nullable<BigInt>>, _>(objects.coin_balances)
+            .bind::<Array<Nullable<SmallInt>>, _>(objects.df_kinds)
+            .bind::<Array<Bytea>, _>(tx_digests);
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                query.clone().execute(conn)?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            let elapsed = guard.stop_and_record();
+            info!(elapsed, "Persisted {len} chunked objects");
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist object mutations with error: {e}");
+        })
+    }
+
+    fn persist_removed_objects(&self, objects: Vec<RemovedObject>) -> Result<(), IndexerError> {
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_objects_chunks
+            .start_timer();
+        let len = objects.len();
+        let raw_query = r#"
+            DELETE FROM objects
+            WHERE object_id IN (
+                SELECT u.object_id
+                FROM UNNEST(
+                    $1::BYTEA[],
+                    $2::BYTEA[]
+                ) AS u(object_id, tx_digest)
+                LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
+                WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
+            )
+        "#;
+        let (object_ids, tx_digests): (Vec<_>, Vec<_>) = objects
+            .into_iter()
+            .map(|removed_object| {
+                (
+                    removed_object.object_id().to_vec(),
+                    removed_object.transaction_digest.into_inner().to_vec(),
+                )
+            })
+            .unzip();
+        let query = diesel::sql_query(raw_query)
+            .bind::<Array<Bytea>, _>(object_ids)
+            .bind::<Array<Bytea>, _>(tx_digests);
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                query.clone().execute(conn)?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            let elapsed = guard.stop_and_record();
+            info!(elapsed, "Deleted {len} chunked objects");
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist object deletions with error: {e}");
+        })
     }
 
     fn persist_object_mutation_chunk(
@@ -357,7 +522,7 @@ impl PgIndexerStore {
         )
         .tap_ok(|_| {
             let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted {} chunked objects", len);
+            info!(elapsed, "Deleted {} chunked objects", len);
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist object mutations with error: {}", e);
@@ -1722,6 +1887,26 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
+    async fn get_transactions_with_global_order(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<Vec<u8>>, IndexerError> {
+        let digests = digests.to_vec();
+
+        let pool = self.blocking_cp.clone();
+        let indexing_status = run_query_async!(&pool, move |conn| {
+            tx_global_order::table
+                .select(TxGlobalOrder::as_select())
+                .filter(tx_global_order::tx_digest.eq_any(&digests))
+                .load::<TxGlobalOrder>(conn)
+        })
+        .context("Failed reading tx indexing status from PostgresDB")?
+        .into_iter()
+        .map(|tgo| tgo.tx_digest)
+        .collect();
+        Ok(indexing_status)
+    }
+
     async fn persist_tx_global_order(
         &self,
         tx_order: Vec<TxGlobalOrder>,
@@ -2242,7 +2427,6 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 }
-
 #[async_trait]
 impl IndexerStoreExt for PgIndexerStore {
     async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError> {
@@ -2278,6 +2462,75 @@ impl IndexerStoreExt for PgIndexerStore {
         info!(elapsed, "Persisted {} tx_indices chunks", len);
         Ok(())
     }
+
+    async fn persist_checkpoint_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_objects
+            .start_timer();
+        let CheckpointObjectChanges {
+            changed_objects: mutations,
+            deleted_objects: deletions,
+        } = retain_latest_objects_from_checkpoint_batch(objects);
+        let mutation_len = mutations.len();
+        let deletion_len = deletions.len();
+
+        let mutation_chunks = chunk!(mutations, self.config.parallel_objects_chunk_size);
+        let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
+        let mutation_futures = mutation_chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
+        futures::future::try_join_all(mutation_futures)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to join persist_object_mutation_chunk futures: {}",
+                    e
+                );
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all object mutation chunks: {:?}",
+                    e
+                ))
+            })?;
+        let deletion_futures = deletion_chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
+        futures::future::try_join_all(deletion_futures)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to join persist_object_deletion_chunk futures: {}",
+                    e
+                );
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all object deletion chunks: {:?}",
+                    e
+                ))
+            })?;
+
+        let elapsed = guard.stop_and_record();
+        info!(
+            elapsed,
+            "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
+        );
+        Ok(())
+    }
 }
 
 fn make_objects_history_to_commit(
@@ -2305,69 +2558,58 @@ fn make_objects_history_to_commit(
 fn retain_latest_indexed_objects(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {
-    // Only the last deleted / mutated object will be in the map,
-    // b/c tx_object_changes are in order and versions always increment,
-    let (mutations, deletions) = tx_object_changes
-        .into_iter()
-        .flat_map(|change| {
-            change
-                .changed_objects
-                .into_iter()
-                .map(Either::Left)
-                .chain(
-                    change
-                        .deleted_objects
-                        .into_iter()
-                        .map(Either::Right),
-                )
-        })
-        .fold(
-            (HashMap::<ObjectID, IndexedObject>::new(), HashMap::<ObjectID, IndexedDeletedObject>::new()),
-            |(mut mutations, mut deletions), either_change| {
-                match either_change {
-                    // Remove mutation / deletion with a following deletion / mutation,
-                    // b/c following deletion / mutation always has a higher version.
-                    // Technically, assertions below are not required, double check just in case.
-                    Either::Left(mutation) => {
-                        let id = mutation.object.id();
-                        let mutation_version = mutation.object.version();
-                        if let Some(existing) = deletions.remove(&id) {
-                            assert!(
-                                existing.object_version < mutation_version.value(),
-                                "Mutation version ({mutation_version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
-                                existing.object_version
-                            );
-                        }
-                        if let Some(existing) = mutations.insert(id, mutation) {
-                            assert!(
-                                existing.object.version() < mutation_version,
-                                "Mutation version ({mutation_version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
-                                existing.object.version()
-                            );
-                        }
-                    }
-                    Either::Right(deletion) => {
-                        let id = deletion.object_id;
-                        let deletion_version = deletion.object_version;
-                        if let Some(existing) = mutations.remove(&id) {
-                            assert!(
-                                existing.object.version().value() < deletion_version,
-                                "Deletion version ({deletion_version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
-                                existing.object.version(),
-                            );
-                        }
-                        if let Some(existing) = deletions.insert(id, deletion) {
-                            assert!(
-                                existing.object_version < deletion_version,
-                                "Deletion version ({deletion_version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
-                                existing.object_version
-                            );
-                        }
-                    }
-                }
-                (mutations, deletions)
-            },
-        );
+    use std::collections::HashMap;
+
+    let mut mutations = HashMap::<ObjectID, IndexedObject>::new();
+    let mut deletions = HashMap::<ObjectID, IndexedDeletedObject>::new();
+
+    for change in tx_object_changes {
+        // Remove mutation / deletion with a following deletion / mutation,
+        // as we expect that following deletion / mutation has a higher version.
+        // Technically, assertions below are not required, double check just in case.
+        for mutation in change.changed_objects {
+            let id = mutation.object.id();
+            let version = mutation.object.version();
+
+            if let Some(existing) = deletions.remove(&id) {
+                assert!(
+                    existing.object_version < version.value(),
+                    "Mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    existing.object_version
+                );
+            }
+
+            if let Some(existing) = mutations.insert(id, mutation) {
+                assert!(
+                    existing.object.version() < version,
+                    "Mutation version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    existing.object.version()
+                );
+            }
+        }
+        // Handle deleted objects
+        for deletion in change.deleted_objects {
+            let id = deletion.object_id;
+            let version = deletion.object_version;
+
+            if let Some(existing) = mutations.remove(&id) {
+                assert!(
+                    existing.object.version().value() < version,
+                    "Deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    existing.object.version(),
+                );
+            }
+
+            if let Some(existing) = deletions.insert(id, deletion) {
+                assert!(
+                    existing.object_version < version,
+                    "Deletion version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    existing.object_version
+                );
+            }
+        }
+    }
+
     (
         mutations.into_values().collect(),
         deletions.into_values().collect(),
