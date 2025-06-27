@@ -3129,6 +3129,17 @@ impl AuthorityPerEpochStore {
             self.protocol_config().max_gas_price(),
         );
 
+        fail_point_arg!(
+            "initial_suggested_gas_price_calculator",
+            |calculator: SuggestedGasPriceCalculator| {
+                info!(
+                    "Initialize suggested_gas_price_calculator to  {:?}",
+                    calculator
+                );
+                suggested_gas_price_calculator = calculator;
+            }
+        );
+
         let mut randomness_state_updated = false;
         for tx in transactions {
             let key = tx.0.transaction.key();

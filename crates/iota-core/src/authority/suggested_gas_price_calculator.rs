@@ -54,6 +54,7 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// `SuggestedGasPriceCalculator` calculates suggested gas prices for
 /// deferred/cancelled shared-object transactions, using congestion
 /// info from a single consensus commit.
+#[derive(Debug)]
 pub(crate) struct SuggestedGasPriceCalculator {
     /// Per-commit congestion info
     congestion_info: PerCommitCongestionInfo,
@@ -79,7 +80,7 @@ pub(crate) struct SuggestedGasPriceCalculator {
 
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
-    /// object congestion data for a given consensus commit round.
+    /// object congestion data.
     pub fn new(
         max_execution_duration_per_commit: Option<ExecutionTime>,
         min_free_execution_slot_assigned: bool,
@@ -300,6 +301,96 @@ impl SuggestedGasPriceCalculator {
                     otherwise, this deferred certificate would be scheduled by the sequencer."
                 );
             })
+    }
+}
+
+#[cfg(test)]
+pub mod suggested_gas_price_calculator_test_utils {
+    use iota_protocol_config::PerObjectCongestionControlMode;
+    use iota_types::base_types::ObjectID;
+
+    use super::SuggestedGasPriceCalculator;
+    use crate::authority::shared_object_congestion_tracker::{
+        ExecutionTime, SharedObjectCongestionTracker,
+        shared_object_test_utils::{
+            build_transaction, initialize_tracker_and_compute_tx_start_time,
+        },
+    };
+
+    pub(crate) fn new_suggested_gas_price_calculator_with_initial_values_for_test(
+        init_values: &[(ObjectID, ExecutionTime, u64)],
+        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        max_execution_duration_per_commit: Option<ExecutionTime>,
+        min_free_execution_slot_assigned: bool,
+        reference_gas_price: u64,
+        max_gas_price: u64,
+    ) -> SuggestedGasPriceCalculator {
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            max_execution_duration_per_commit,
+            min_free_execution_slot_assigned,
+            reference_gas_price,
+            max_gas_price,
+        );
+
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
+            per_object_congestion_control_mode,
+            min_free_execution_slot_assigned,
+        );
+
+        for (object_id, duration, gas_price) in init_values {
+            match per_object_congestion_control_mode {
+                PerObjectCongestionControlMode::None => {}
+                PerObjectCongestionControlMode::TotalGasBudget => {
+                    let certificate =
+                        build_transaction(&[(*object_id, true)], *duration, *gas_price);
+
+                    let execution_start_time = initialize_tracker_and_compute_tx_start_time(
+                        &mut shared_object_congestion_tracker,
+                        &certificate.shared_input_objects().collect::<Vec<_>>(),
+                        *duration,
+                    )
+                    .expect(
+                        "initial value should be fit within the available range of slots \
+                            in the tracker",
+                    );
+
+                    shared_object_congestion_tracker
+                        .bump_object_execution_slots(&certificate, execution_start_time);
+
+                    suggested_gas_price_calculator.update_congestion_info(
+                        &certificate,
+                        execution_start_time,
+                        *duration,
+                    );
+                }
+                PerObjectCongestionControlMode::TotalTxCount => {
+                    for _ in 0..*duration {
+                        let certificate = build_transaction(&[(*object_id, true)], 1, *gas_price);
+
+                        let execution_start_time = initialize_tracker_and_compute_tx_start_time(
+                            &mut shared_object_congestion_tracker,
+                            &certificate.shared_input_objects().collect::<Vec<_>>(),
+                            *duration,
+                        )
+                        .expect(
+                            "initial value should be fit within the available range of slots \
+                            in the tracker",
+                        );
+
+                        shared_object_congestion_tracker
+                            .bump_object_execution_slots(&certificate, execution_start_time);
+
+                        suggested_gas_price_calculator.update_congestion_info(
+                            &certificate,
+                            execution_start_time,
+                            1,
+                        );
+                    }
+                }
+            }
+        }
+
+        suggested_gas_price_calculator
     }
 }
 
