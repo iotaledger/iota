@@ -276,7 +276,7 @@ mod ingestion_tests {
             stored_global_order.global_sequence_number,
             stored_tx_digest.tx_sequence_number
         );
-        let expected_optimistic_sequence_number = 0;
+        let expected_optimistic_sequence_number = -1;
         assert_eq!(
             stored_global_order.optimistic_sequence_number,
             Some(expected_optimistic_sequence_number)

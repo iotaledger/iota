@@ -44,7 +44,10 @@ use crate::{
             StoredObjects,
         },
         packages::StoredPackage,
-        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
+        transactions::{
+            CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
+            TxGlobalOrder,
+        },
         tx_indices::OptimisticTxIndices,
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
@@ -839,7 +842,7 @@ impl PgIndexerStore {
 
     fn persist_tx_global_order_chunk(
         &self,
-        tx_order: Vec<TxGlobalOrder>,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -875,9 +878,9 @@ impl PgIndexerStore {
     /// Namely, checkpointed transactions (i.e. with `optimistic_sequence_number
     /// == 0`) are updated to `optimistic_sequence_number == -1` to indicate
     /// that they have been persisted in the database.
-    fn update_tx_global_order_chunk_as_indexed(
+    fn update_status_for_checkpoint_transactions_chunk(
         &self,
-        tx_order: Vec<TxGlobalOrder>,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -892,8 +895,8 @@ impl PgIndexerStore {
                     tx_global_order::table,
                     tx_order.clone(),
                     tx_global_order::tx_digest,
-                    tx_global_order::optimistic_sequence_number.eq(-1),
-                    tx_global_order::optimistic_sequence_number.eq(0),
+                    tx_global_order::optimistic_sequence_number.eq(IndexStatus::Completed),
+                    tx_global_order::optimistic_sequence_number.eq(IndexStatus::Started),
                     conn
                 );
                 Ok::<(), IndexerError>(())
@@ -2089,39 +2092,6 @@ impl IndexerStore for PgIndexerStore {
         Ok(indexing_status)
     }
 
-    async fn persist_tx_global_order(
-        &self,
-        tx_order: Vec<TxGlobalOrder>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_insertion_order
-            .start_timer();
-        let len = tx_order.len();
-
-        let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
-        let futures = chunks
-            .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_tx_global_order_chunk(c)));
-
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to join persist_tx_insertion_order_chunk futures: {e}",);
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all txs insertion order chunks: {e:?}",
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {len} txs insertion orders");
-        Ok(())
-    }
-
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError> {
         if events.is_empty() {
             return Ok(());
@@ -2692,9 +2662,9 @@ impl IndexerStoreExt for PgIndexerStore {
         Ok(())
     }
 
-    async fn update_tx_global_order_as_indexed(
+    async fn update_status_for_checkpoint_transactions(
         &self,
-        tx_order: Vec<TxGlobalOrder>,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -2704,7 +2674,9 @@ impl IndexerStoreExt for PgIndexerStore {
 
         let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
         let futures = chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| this.update_tx_global_order_chunk_as_indexed(c))
+            self.spawn_blocking_task(move |this| {
+                this.update_status_for_checkpoint_transactions_chunk(c)
+            })
         });
 
         futures::future::try_join_all(futures)
@@ -2725,6 +2697,39 @@ impl IndexerStoreExt for PgIndexerStore {
             elapsed,
             "Updated index status for {len} txs insertion orders"
         );
+        Ok(())
+    }
+
+    async fn persist_tx_global_order(
+        &self,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
+    ) -> Result<(), IndexerError> {
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_tx_insertion_order
+            .start_timer();
+        let len = tx_order.len();
+
+        let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
+        let futures = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_tx_global_order_chunk(c)));
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_tx_insertion_order_chunk futures: {e}",);
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all txs insertion order chunks: {e:?}",
+                ))
+            })?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {len} txs insertion orders");
         Ok(())
     }
 }
