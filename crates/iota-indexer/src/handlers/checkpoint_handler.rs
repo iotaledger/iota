@@ -33,8 +33,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
-        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-        committer::start_tx_checkpoint_commit_task,
+        EpochToCommit, TransactionObjectChangesToCommit,
         tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
@@ -42,6 +41,10 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
+    },
+    rolling::{
+        persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
+        transform::CheckpointObjectChanges,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -246,8 +249,7 @@ impl CheckpointHandler {
         let epoch = Self::index_epoch(data).await?;
 
         // Index Objects
-        let object_changes: TransactionObjectChangesToCommit =
-            Self::index_objects(data, &metrics).await?;
+        let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data).await?;
         let object_versions = Self::derive_object_versions(&object_history_changes);
@@ -522,6 +524,14 @@ impl CheckpointHandler {
             db_event_indices,
             db_displays,
         ))
+    }
+
+    pub(crate) async fn index_checkpoint_objects(
+        data: &CheckpointData,
+        metrics: &IndexerMetrics,
+    ) -> Result<CheckpointObjectChanges, IndexerError> {
+        let _timer = metrics.indexing_objects_latency.start_timer();
+        data.try_into()
     }
 
     pub(crate) async fn index_objects(
