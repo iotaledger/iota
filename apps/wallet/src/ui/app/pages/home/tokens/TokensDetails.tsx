@@ -255,18 +255,18 @@ export function TokenDetails() {
                                     ) : null}
                                     {hasSupplyIncreaseVestingObjects || needsMigration ? (
                                         <div className="flex w-full flex-row gap-x-xs">
-                                            {hasSupplyIncreaseVestingObjects ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogVestingOpen(true)}
-                                                    title="Vested Staking"
-                                                    icon={Vesting}
-                                                />
-                                            ) : null}
                                             {needsMigration ? (
                                                 <OverviewHint
                                                     onClick={() => setDialogMigrationOpen(true)}
                                                     title="Migration"
                                                     icon={Migration}
+                                                />
+                                            ) : null}
+                                            {hasSupplyIncreaseVestingObjects ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogVestingOpen(true)}
+                                                    title="Vesting"
+                                                    icon={Vesting}
                                                 />
                                             ) : null}
                                         </div>

@@ -19,4 +19,5 @@ export * from './toaster';
 export * from './ClipboardPasteSafetyWrapper';
 export * from './VirtualList';
 export * from './NoData';
+export * from './Banner';
 export * from './address-alias';
