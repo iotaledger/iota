@@ -45,7 +45,7 @@ pub async fn propose_tx_to_smart_account(
 ) -> Result<ObjectRef> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
 
-    let withdraw_tx_bytes = bcs::to_bytes(&withdraw_tx_data).unwrap();
+    let withdraw_tx_bytes = bcs::to_bytes(&withdraw_tx_data)?;
     let arguments = vec![
         ptb_builder.obj(ObjectArg::SharedObject {
             id: smart_account_object.0,
@@ -131,8 +131,6 @@ pub async fn sign_proposed_tx(
         .into();
     let pub_key = keystore.get_key(&addr)?.public();
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
-    let module = Identifier::new(TX_MODULE_NAME)?;
-    let function = Identifier::new("sign_proposed_tx")?;
 
     let pure_signature = extract_pure_signature(&signature);
 
@@ -148,8 +146,8 @@ pub async fn sign_proposed_tx(
     ];
     ptb_builder.command(Command::move_call(
         package_id,
-        module,
-        function,
+        Identifier::new(TX_MODULE_NAME)?,
+        Identifier::new("sign_proposed_tx")?,
         vec![],
         arguments,
     ));

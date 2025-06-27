@@ -1,6 +1,6 @@
 
 > [!WARNING]
-> TThe IOTA CLI currently does not support transaction sponsorship.
+> The IOTA CLI currently does not support transaction sponsorship.
   Additionally, it would require significant effort to handle encoding and decoding of signatures, public keys, and transaction bytes. 
   So, the following steps outline the general flow to provide an overview of the process.
   For full-fledged flow, please use an [SDK example](../aa_rust_sdk_flow/)
@@ -161,7 +161,7 @@ Create a final multisignature:
     export TX_MULTISIG
     ```
 
-11. Execute the Final Transaction(**Actually, this step doesn’t work in the CLI, because— as mentioned above— the CLI doesn’t support sponsorship logic. However, we need it here since ALICE is the sponsor and initiator of this transaction.**)
+11. Execute the Final Transaction(**Actually, this step doesn’t work in the CLI, because — as mentioned above — the CLI doesn’t support sponsorship logic. However, we need it here since ALICE is the sponsor and initiator of this transaction.**)
 Expected call:
     ```bash
     /Users/pk/iota client execute-signed-tx --tx-bytes $SIGNED_TX --signatures $TX_MULTISIG $ALICE_SIG
