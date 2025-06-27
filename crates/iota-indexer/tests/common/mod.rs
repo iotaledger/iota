@@ -17,7 +17,7 @@ use iota_indexer::{
     indexer::Indexer,
     metrics::IndexerMetrics,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, db_url, create_pg_store, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
