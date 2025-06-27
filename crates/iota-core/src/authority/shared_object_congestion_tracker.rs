@@ -703,7 +703,20 @@ pub mod shared_object_test_utils {
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     let transaction =
                         build_transaction(&[(*object_id, true)], *duration, TEST_ONLY_GAS_PRICE);
-                    let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), *duration).expect("initial value should be fit within the available range of slots in the tracker");
+                    let start_time = initialize_tracker_and_compute_tx_start_time(
+                        &mut shared_object_congestion_tracker,
+                        &transaction
+                            .data()
+                            .inner()
+                            .intent_message()
+                            .value
+                            .shared_input_objects(),
+                        *duration,
+                    )
+                    .expect(
+                        "initial value should be fit within the available range of slots \
+                                in the tracker",
+                    );
                     shared_object_congestion_tracker
                         .bump_object_execution_slots(&transaction, start_time);
                 }
@@ -711,7 +724,20 @@ pub mod shared_object_test_utils {
                     for _ in 0..*duration {
                         let transaction =
                             build_transaction(&[(*object_id, true)], 1, TEST_ONLY_GAS_PRICE);
-                        let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), 1).expect("initial value should be fit within the available range of slots in the tracker");
+                        let start_time = initialize_tracker_and_compute_tx_start_time(
+                            &mut shared_object_congestion_tracker,
+                            &transaction
+                                .data()
+                                .inner()
+                                .intent_message()
+                                .value
+                                .shared_input_objects(),
+                            1,
+                        )
+                        .expect(
+                            "initial value should be fit within the available range of \
+                                    slots in the tracker",
+                        );
                         shared_object_congestion_tracker
                             .bump_object_execution_slots(&transaction, start_time);
                     }
