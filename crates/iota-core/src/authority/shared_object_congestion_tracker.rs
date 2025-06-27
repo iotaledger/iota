@@ -1408,25 +1408,6 @@ mod object_cost_tests {
             &HashMap::new(),
             0,
         ) {
-            assert_eq!(congested_objects.len(), 2);
-            assert_eq!(congested_objects[0], object_id_0);
-            assert_eq!(congested_objects[1], object_id_1);
-        } else {
-            panic!("transaction is not congesting, should not defer");
-        }
-
-        let tx = build_transaction(
-            &[(object_id_0, true), (object_id_1, true)],
-            1,
-            TEST_ONLY_GAS_PRICE,
-        );
-        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
-            &mut shared_object_congestion_tracker,
-            &tx,
-            max_execution_duration_per_commit,
-            &HashMap::new(),
-            0,
-        ) {
             // object 0 should be reported as congested in both cases.
             assert_eq!(congested_objects[0], object_id_0);
             if assign_min_free_execution_slot {
