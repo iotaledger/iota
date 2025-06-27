@@ -26,9 +26,18 @@ import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { IotaClient } from '@iota/iota-sdk/client';
 
-const RPC_URL = 'https://api.devnet.iota.cafe';
-const FAUCET_URL = 'https://faucet.devnet.iota.cafe';
+const RPC_URL = 'https://api.testnet.iota.cafe';
+const FAUCET_URL = 'https://faucet.testnet.iota.cafe';
 const DESTINATION_EVM_ADDRESS = '...';
+const L1_CONFIG =  {
+    "networkName": "testnet",
+    "rpcUrl": "https://api.testnet.iota.cafe",
+    "faucetUrl": "https://faucet.testnet.iota.cafe",
+    "chainId": "0x2f11f5ea9d3c093c9cc2e329cf92e05aa00ac052ada96c4c14a2f6869a7cbcaf",
+    "packageId": "0x1e6e060b87f55acc0a7632acab9cf5712ff01643f8577c9a6f99ebd1010e3f4c",
+    "accountsContract": "0x3c4b5e02",
+    "accountsTransferAllowanceTo": "0x23f4e3a1"
+};
 
 const client = new IotaClient({
     url: RPC_URL,
@@ -51,7 +60,7 @@ const amountToSend = BigInt(1 * 1_000_000_000);
 // We also need to place a little more in the bag to cover the L2 gas
 const amountToPlace = amountToSend + L2_FROM_L1_GAS_BUDGET;
 
-const iscTx = new IscTransaction(L1);
+const iscTx = new IscTransaction(L1_CONFIG);
 
 const bag = iscTx.newBag();
 const coin = iscTx.coinFromAmount({ amount: amountToPlace });
