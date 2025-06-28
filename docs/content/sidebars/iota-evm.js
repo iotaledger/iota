@@ -1,4 +1,4 @@
-// const apiDocs = require("../developer/iota-evm/references/openapi/sidebar");
+const apiDocs = require("../developer/iota-evm/references/openapi/sidebar");
 
 const iotaEvm = [
     'developer/iota-evm/iota-evm',
@@ -479,11 +479,11 @@ const iotaEvm = [
                     },
                 ],
             },
-            // {
-            //     type: 'category',
-            //     label: 'WASP API',
-            //     items: apiDocs,
-            // },
+            {
+                type: 'category',
+                label: 'WASP API',
+                items: apiDocs,
+            },
         ],
     },
 ];
