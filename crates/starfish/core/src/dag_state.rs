@@ -85,14 +85,13 @@ pub(crate) struct DagState {
     // Last wall time when commit round advanced. Does not persist across restarts.
     last_commit_round_advancement_time: Option<std::time::Instant>,
 
-    // Round of the last committed leader which created a consumed commit. Does not persist across
-    // restarts and after recovery, it is assumed that latest commit was consumed by the consensus
-    // handler. All transactions below this round minus MAX_TRANSACTIONS_ACK_DEPTH minus
-    // MAX_LINEARIZER_DEPTH are evicted from memory.
-    last_solid_leader_round: Option<Round>,
+    // Round of the last committed leader which created a commit with available transactions. Does
+    // not persist across restarts and after recovery. All transactions below this round minus
+    // MAX_TRANSACTIONS_ACK_DEPTH minus MAX_LINEARIZER_DEPTH are evicted from memory.
+    last_available_commit_leader_round: Option<Round>,
 
     // Rounds for latest blocks traversed by linearizer per authority.
-    last_traversed_rounds: Vec<Round>,
+    last_committed_rounds: Vec<Round>,
 
     /// The committed subdags that have been scored but scores have not been
     /// used for leader schedule yet.
@@ -195,10 +194,6 @@ impl DagState {
 
         scoring_subdag.add_subdags(std::mem::take(&mut unscored_committed_subdags));
 
-        // Set it to None. Later the commit observer might update this value during recovery process.
-        // It is needed mostly for eviction of transactions.
-        let mut last_solid_leader_round: Option<Round> = None;
-
         let mut state = Self {
             context,
             genesis,
@@ -209,8 +204,9 @@ impl DagState {
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
             last_commit_round_advancement_time: None,
-            last_traversed_rounds: last_committed_rounds.clone(),
-            last_solid_leader_round,
+            last_committed_rounds: last_committed_rounds.clone(),
+            last_available_commit_leader_round: None, /* Later the commit observer might update
+                                                       * this value during recovery process. */
             pending_commit_votes: VecDeque::new(),
             transactions_to_write: vec![],
             block_headers_to_write: vec![],
@@ -324,9 +320,12 @@ impl DagState {
         self.transactions_to_write.push(transactions);
     }
 
-    pub fn update_last_solid_leader_round(&mut self, round: Round) {
-        info!("Last solid leader round is {}", round);
-        self.last_solid_leader_round = Some(round);
+    pub fn update_last_available_commit_leader_round(&mut self, round: Round) {
+        info!(
+            "Last commit with available transactions has leader at round {}",
+            round
+        );
+        self.last_available_commit_leader_round = Some(round);
     }
 
     /// Updates internal metadata for a block.
@@ -1099,13 +1098,13 @@ impl DagState {
         }
 
         for block_ref in commit.blocks().iter() {
-            self.last_traversed_rounds[block_ref.author] = max(
-                self.last_traversed_rounds[block_ref.author],
+            self.last_committed_rounds[block_ref.author] = max(
+                self.last_committed_rounds[block_ref.author],
                 block_ref.round,
             );
         }
 
-        for (i, round) in self.last_traversed_rounds.iter().enumerate() {
+        for (i, round) in self.last_committed_rounds.iter().enumerate() {
             let index = self.context.committee.to_authority_index(i).unwrap();
             let hostname = &self.context.committee.authority(index).hostname;
             self.context
@@ -1127,7 +1126,7 @@ impl DagState {
         assert!(self.scoring_subdag.is_empty());
 
         let commit_info = CommitInfo {
-            committed_rounds: self.last_traversed_rounds.clone(),
+            committed_rounds: self.last_committed_rounds.clone(),
             reputation_scores,
         };
         let last_commit = self
@@ -1242,7 +1241,7 @@ impl DagState {
     /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
     /// MAX_LINEARIZER_DEPTH"
     pub(crate) fn evict_transactions(&mut self) {
-        let last_solid_leader_round = self.last_solid_leader_round;
+        let last_solid_leader_round = self.last_available_commit_leader_round;
         if let Some(round) = last_solid_leader_round {
             let min_round: Round =
                 round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
@@ -1371,7 +1370,7 @@ impl DagState {
 
     /// Last committed round per authority.
     pub(crate) fn last_committed_rounds(&self) -> Vec<Round> {
-        self.last_traversed_rounds.clone()
+        self.last_committed_rounds.clone()
     }
 
     /// After each flush, DagState becomes persisted in storage and it expected
@@ -1520,7 +1519,7 @@ impl DagState {
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
-        let commit_round = self.last_traversed_rounds[authority_index];
+        let commit_round = self.last_committed_rounds[authority_index];
         Self::eviction_round(commit_round, self.cached_rounds)
     }
 

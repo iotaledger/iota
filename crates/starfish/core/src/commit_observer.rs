@@ -162,7 +162,7 @@ impl CommitObserver {
             }
         };
 
-        // Retrieve all the commits from the recover lower bound until the end..
+        // Retrieve all the commits from the recover lower bound until the end.
         let recovery_commits = self
             .store
             .scan_commits((recovery_lower_bound..=CommitIndex::MAX).into())

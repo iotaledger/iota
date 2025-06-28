@@ -43,7 +43,7 @@ impl DataManager {
     /// # Returns
     /// A new `DataManager` instance.
     pub(crate) fn new(dag_state: Arc<RwLock<DagState>>) -> Self {
-        // last_committed_index is set during recovery process before the first usage of
+        // last_committed_index is set non-trivially during recovery process before the first usage of
         // try_commit method.
         let last_committed_index = 0;
         Self {
@@ -112,12 +112,14 @@ impl DataManager {
         // Update dag state with the round of the leader in the last committed subdag
         // This will allow to evict transactions from the DAG state
         if !committed.is_empty() {
-            self.dag_state.write().update_last_solid_leader_round(
-                committed
-                    .last()
-                    .expect("We should expect at least one committed subdag")
-                    .leader_round(),
-            );
+            self.dag_state
+                .write()
+                .update_last_available_commit_leader_round(
+                    committed
+                        .last()
+                        .expect("We should expect at least one committed subdag")
+                        .leader_round(),
+                );
         }
 
         // Update last_committed_index
