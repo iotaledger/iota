@@ -987,7 +987,7 @@ mod tests {
             Ok(Default::default())
         }
 
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
 
