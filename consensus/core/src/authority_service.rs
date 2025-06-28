@@ -86,9 +86,27 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
         // TODO: dedup block verifications, here and with fetched blocks.
-        let signed_block: SignedBlock =
-            bcs::from_bytes(&serialized_block.block).map_err(ConsensusError::MalformedBlock)?;
-
+        let signed_block: SignedBlock = match bcs::from_bytes(&serialized_block.block) {
+            Ok(block) => block,
+            error => {
+                // Update prometheus metric
+                self.context
+                    .metrics
+                    .node_metrics
+                    .syntactically_invalid_blocks
+                    .with_label_values(&[
+                        peer_hostname.clone(),
+                        "handle_send_block".to_string(),
+                        "MalformedBlock".to_string(),
+                    ])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_syntactically_invalid_blocks(peer);
+                error.map_err(ConsensusError::MalformedBlock)?
+            }
+        };
         // Reject blocks not produced by the peer.
         if peer != signed_block.author() {
             self.context

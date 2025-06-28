@@ -140,7 +140,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) network_excluded_ancestors_count_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) semantically_invalid_blocks: IntCounterVec,
-    pub(crate) _syntactically_invalid_blocks: IntCounterVec,
+    pub(crate) syntactically_invalid_blocks: IntCounterVec,
     pub(crate) _equivocating_rounds_by_authority: IntCounterVec,
     pub(crate) _missing_proposals_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
@@ -445,7 +445,7 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
              ).unwrap(),
-            _syntactically_invalid_blocks: register_int_counter_vec_with_registry!(
+            syntactically_invalid_blocks: register_int_counter_vec_with_registry!(
                 "syntactically_invalid_blocks",
                 "Number of syntactically invalid blocks per peer authority",
                 &["authority", "source", "error"],
@@ -831,7 +831,7 @@ pub(crate) struct ValidatorScoreMetrics {
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of syntactically
     // invalid blocks sent by the validator that were already handled in the epoch.
-    pub(crate) _syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of blocks that the
     // validator failed to propose.
@@ -858,7 +858,7 @@ impl ValidatorScoreMetrics {
 
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
-            _syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
+            syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
             _missing_proposals_by_authority: Arc::new(missing_proposals_by_authority_inner),
             _equivocating_rounds: Arc::new(equivocating_rounds_inner),
         }
@@ -866,6 +866,9 @@ impl ValidatorScoreMetrics {
 
     pub(crate) fn update_semantically_invalid_blocks(&self, validator: AuthorityIndex) {
         self.semantically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
+    }
+    pub(crate) fn update_syntactically_invalid_blocks(&self, validator: AuthorityIndex) {
+        self.syntactically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -1239,11 +1242,43 @@ mod tests {
     }
 
     #[derive(PartialEq, EnumIter, Display, Clone)]
-    enum _SyntacticallyInvalidBlocks {
-        SyntacticallyInvalidBlocks,
+    enum SyntacticallyInvalidBlocks {
+        MalformedBlocks,
         InvalidAuthorityIndex,
     }
 
+    impl SyntacticallyInvalidBlocks {
+        fn new(self, parameters: TestParameters, author: u32) -> ExtendedSerializedBlock {
+            if self == SyntacticallyInvalidBlocks::MalformedBlocks {
+                ExtendedSerializedBlock {
+                    block: Bytes::new(),
+                    excluded_ancestors: vec![],
+                }
+            } else {
+                let round = parameters.round;
+                let committee_size = parameters.committee_size;
+                let keypair = parameters.keypairs[author as usize];
+                assert!(
+                    round != 0,
+                    "round = 0 should be only used for SemanticallyInvalidBlocks::BlockAtGenesisRound"
+                );
+                let ancestors = generate_default_ancestors(round, author, committee_size);
+                let block = TestBlock::new(round, author)
+                    .set_ancestors(ancestors)
+                    .set_author(AuthorityIndex::new_for_test(committee_size as u32));
+                let signed_block = SignedBlock::new(block.build(), keypair).unwrap();
+                let serialized: Bytes = bcs::to_bytes(&signed_block)
+                    .expect("Serialization should not fail")
+                    .into();
+                let verified_block = VerifiedBlock::new_verified(signed_block, serialized);
+                let serialized = ExtendedSerializedBlock {
+                    block: verified_block.serialized().clone(),
+                    excluded_ancestors: vec![],
+                };
+                serialized
+            }
+        }
+    }
     enum ValidBlocks {
         Valid,
     }
@@ -1271,18 +1306,48 @@ mod tests {
         }
     }
     impl ValidatorScoreMetrics {
-        fn get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
+        fn _get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
             self.semantically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
+        }
+        fn _get_semantically_invalid_blocks_vec(&self) -> Vec<u64> {
+            self.semantically_invalid_blocks
+                .iter()
+                .map(|x| x.load(Ordering::Relaxed))
+                .collect()
         }
 
         fn _get_syntactically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
-            self._syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
+            self.syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
         }
         fn _get_missing_block_proposals(&self, validator: AuthorityIndex) -> u64 {
             self._missing_proposals_by_authority[validator.value()].load(Ordering::Relaxed)
         }
         fn _get_equivocating_rounds(&self, validator: AuthorityIndex) -> u64 {
             self._equivocating_rounds[validator.value()].load(Ordering::Relaxed)
+        }
+        fn assert_semantically_invalid_blocks_equals(&self, vector: &Vec<u64>) {
+            let semantically_invalid_blocks_state = self
+                .semantically_invalid_blocks
+                .iter()
+                .map(|x| x.load(Ordering::Relaxed))
+                .collect::<Vec<u64>>();
+            assert_eq!(
+                semantically_invalid_blocks_state, *vector,
+                "Semantically invalid blocks state does not match expected vector \n State:  {:?}\n Vector: {:?}",
+                semantically_invalid_blocks_state, vector
+            );
+        }
+        fn assert_syntactically_invalid_blocks_equals(&self, vector: &Vec<u64>) {
+            let syntactically_invalid_blocks_state = self
+                .syntactically_invalid_blocks
+                .iter()
+                .map(|x| x.load(Ordering::Relaxed))
+                .collect::<Vec<u64>>();
+            assert_eq!(
+                syntactically_invalid_blocks_state, *vector,
+                "Syntactically invalid blocks state does not match expected vector \n State:  {:?}\n Vector: {:?}",
+                syntactically_invalid_blocks_state, vector
+            );
         }
     }
 
@@ -1304,22 +1369,20 @@ mod tests {
             keypairs: keys.iter().map(|(_, y)| y).collect(),
         };
 
-        // Initial check: ensure that the metrics for semantically invalid blocks are
-        // all zero
-        let semantically_invalid_blocks_state = (0..committee_size)
-            .map(|i| {
-                context
-                    .scoring_metrics
-                    .get_semantically_invalid_blocks(AuthorityIndex::new_for_test(i as u32))
-            })
-            .collect::<Vec<u64>>();
-        assert!(semantically_invalid_blocks_state.iter().all(|&x| x == 0));
+        // Initial check: ensure that all metrics are zero
+        context
+            .scoring_metrics
+            .assert_semantically_invalid_blocks_equals(&vec![0; committee_size]);
+        context
+            .scoring_metrics
+            .assert_syntactically_invalid_blocks_equals(&vec![0; committee_size]);
 
         // Generates a single valid block from each authority
         let blocks = (0..committee_size)
             .map(|i| ValidBlocks::Valid.new(parameters.clone(), i as u32))
             .collect::<Vec<_>>();
 
+        // Handle blocks created in the previous step.
         let mut tasks = Vec::new();
         for (index, block) in blocks.into_iter().enumerate() {
             let service = authority_service.clone();
@@ -1331,21 +1394,18 @@ mod tests {
             }));
         }
 
-        // Initial check: ensure that the metrics for semantically invalid blocks are
-        // still all zero
-        let semantically_invalid_blocks_state = (0..committee_size)
-            .map(|i| {
-                context
-                    .scoring_metrics
-                    .get_semantically_invalid_blocks(AuthorityIndex::new_for_test(i as u32))
-            })
-            .collect::<Vec<u64>>();
-
         let mut outputs = Vec::with_capacity(tasks.len());
         for task in tasks {
             outputs.push(task.await.unwrap());
         }
-        assert!(semantically_invalid_blocks_state.iter().all(|&x| x == 0));
+
+        // Ensure that the metrics are still all zero
+        context
+            .scoring_metrics
+            .assert_semantically_invalid_blocks_equals(&vec![0; committee_size]);
+        context
+            .scoring_metrics
+            .assert_syntactically_invalid_blocks_equals(&vec![0; committee_size]);
 
         // Generates one of each type of semantically invalid blocks. Assigns each of
         // those blocks to a peer. Authors and peers are the same.
@@ -1365,8 +1425,8 @@ mod tests {
 
         // Sends each semantically invalid block to the authority service and check
         // metrics between blocks
-        let mut block_count = vec![0 as u64; committee_size];
-        for (block, peer, block_type) in semantically_invalid_blocks.into_iter() {
+        let mut semantic_block_count = vec![0 as u64; committee_size];
+        for (block, peer, _block_type) in semantically_invalid_blocks.into_iter() {
             let service = authority_service.clone();
             let handle = tokio::spawn(async move {
                 let _ = service
@@ -1374,21 +1434,40 @@ mod tests {
                     .await;
             });
             let _ = handle.await;
-            block_count[peer] += 1;
-            // Check that the metrics for semantically invalid blocks were updated
-            let semantically_invalid_blocks_state = (0..committee_size)
-                .map(|i| {
-                    context
-                        .scoring_metrics
-                        .get_semantically_invalid_blocks(AuthorityIndex::new_for_test(i as u32))
-                })
-                .collect::<Vec<u64>>();
+            semantic_block_count[peer] += 1;
+            // Check that only the metrics for semantically invalid blocks were updated
+            context
+                .scoring_metrics
+                .assert_semantically_invalid_blocks_equals(&semantic_block_count);
+            context
+                .scoring_metrics
+                .assert_syntactically_invalid_blocks_equals(&vec![0; committee_size]);
+        }
 
-            assert_eq!(
-                semantically_invalid_blocks_state, block_count,
-                "Test failed for block type {}",
-                block_type
-            );
+        // Generates a single syntactically invalid block from each authority
+        let syntactically_invalid_blocks = (0..committee_size)
+            .map(|i| SyntacticallyInvalidBlocks::MalformedBlocks.new(parameters.clone(), i as u32))
+            .collect::<Vec<_>>();
+
+        // Sends each syntactically invalid block to the authority service and check
+        // metrics between blocks
+        let mut syntactic_block_count = vec![0 as u64; committee_size];
+        for (peer, block) in syntactically_invalid_blocks.into_iter().enumerate() {
+            let service = authority_service.clone();
+            let handle = tokio::spawn(async move {
+                let _ = service
+                    .handle_send_block(AuthorityIndex::new_for_test(peer as u32), block)
+                    .await;
+            });
+            let _ = handle.await;
+            syntactic_block_count[peer] += 1;
+            // Check that only the metrics for syntactically invalid blocks were updated
+            context
+                .scoring_metrics
+                .assert_semantically_invalid_blocks_equals(&semantic_block_count);
+            context
+                .scoring_metrics
+                .assert_syntactically_invalid_blocks_equals(&syntactic_block_count);
         }
     }
 }
