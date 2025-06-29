@@ -153,7 +153,7 @@ const config = {
               to: '/developer/ts-sdk',
             },
             {
-              from: 'references/iota-identity',
+              from: '/references/iota-identity',
               to: '/developer/iota-identity/references',
             },
             {
