@@ -6455,6 +6455,7 @@ dependencies = [
  "test-cluster",
  "thiserror 1.0.64",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.12",
  "tracing",
  "url",

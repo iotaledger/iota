@@ -9,7 +9,7 @@ use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use url::Url;
 
-use crate::{db::ConnectionPoolConfig, sql_backfill::SqlBackfillerConfig};
+use crate::{backfill::BackfillTaskKind, db::ConnectionPoolConfig};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -165,6 +165,27 @@ impl Default for IngestionConfig {
     }
 }
 
+#[derive(Args, Debug, Clone)]
+pub struct BackfillConfig {
+    /// Maximum number of concurrent tasks to run.
+    #[arg(
+    long,
+    default_value_t = Self::DEFAULT_MAX_CONCURRENCY,
+    )]
+    pub max_concurrency: usize,
+    /// Number of checkpoints to backfill in a single SQL command.
+    #[arg(
+    long,
+    default_value_t = Self::DEFAULT_CHUNK_SIZE,
+    )]
+    pub chunk_size: usize,
+}
+
+impl BackfillConfig {
+    const DEFAULT_MAX_CONCURRENCY: usize = 10;
+    const DEFAULT_CHUNK_SIZE: usize = 1000;
+}
+
 #[derive(Subcommand, Clone, Debug)]
 pub enum Command {
     Indexer {
@@ -181,44 +202,23 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
-    /// Backfill DB tables for checkpoint range
-    /// [`first_checkpoint`..`last_checkpoint`] by repeatedly running the
-    /// user-supplied SQL in manageable chunks. For each sub-range
-    /// `[start,end]`, the tool will append:
-    /// ```sql
-    /// WHERE <checkpoint_col> BETWEEN start AND end
-    /// ```
-    /// and, if `--skip-existing` is set, also
-    /// ```sql
-    /// ON CONFLICT DO NOTHING
-    /// ```
-    /// to ensure only missing rows are inserted.
-    ///
-    /// Chunks are processed in parallel
-    /// (up to `max_concurrency`) to avoid long transactions or out-of-memory
-    /// errors.
-    ///
-    /// Example:
-    ///
-    /// ```bash
-    /// ./iota-indexer \
-    ///   --database-url postgres://postgres:postgrespw@localhost:5432/mydb \
-    ///   sql-backfill \
-    ///     --base-sql "INSERT INTO full_objects_history (object_id, object_version, serialized_object) SELECT object_id, object_version, serialized_object FROM objects_history" \
-    ///     --checkpoint-col checkpoint_sequence_number \
-    ///     --chunk-size 1000 \
-    ///     --max-concurrency 100 \
-    ///     --skip-existing \
-    ///     --first-checkpoint 1000 \
-    ///     --last-checkpoint 8000
-    /// ```
-    SqlBackfill {
+    /// Backfill DB tables for some ID range [\start, \end].
+    /// The tool will automatically slice it into smaller ranges and for each
+    /// range, it first makes a read query to the DB to get data needed for
+    /// backfil if needed, which then can be processed and written back to
+    /// the DB. To add a new backfill, add a new module and implement the
+    /// `BackfillTask` trait.
+    RunBackfill {
+        /// Start of the range to backfill, inclusive.
+        /// It can be a checkpoint number or an epoch or any other identifier
+        /// that can be used to slice the backfill range.
+        start: usize,
+        /// End of the range to backfill, inclusive.
+        end: usize,
+        #[clap(subcommand)]
+        runner_kind: BackfillTaskKind,
         #[clap(flatten)]
-        config: SqlBackfillerConfig,
-        #[clap(long)]
-        first_checkpoint: u64,
-        #[clap(long)]
-        last_checkpoint: u64,
+        backfill_config: BackfillConfig,
     },
 }
 

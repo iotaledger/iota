@@ -6,6 +6,7 @@ use std::env;
 
 use clap::{CommandFactory, FromArgMatches, Parser};
 use iota_indexer::{
+    backfill::backfill_runner::BackfillRunner,
     config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
     db::{
         get_pool_connection, new_connection_pool, reset_database,
@@ -14,7 +15,6 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
-    sql_backfill::SqlBackfiller,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use tokio_util::sync::CancellationToken;
@@ -107,13 +107,14 @@ async fn main() -> Result<(), IndexerError> {
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
         Command::HelpDeprecated => unreachable!("This case is handled earlier"),
-        Command::SqlBackfill {
-            config,
-            first_checkpoint,
-            last_checkpoint,
+        Command::RunBackfill {
+            start,
+            end,
+            runner_kind,
+            backfill_config,
         } => {
-            let backfiller = SqlBackfiller::new(connection_pool, config)?;
-            backfiller.run(first_checkpoint, last_checkpoint).await?;
+            let total_range = start..=end;
+            BackfillRunner::run(runner_kind, connection_pool, backfill_config, total_range).await?;
         }
     }
 
