@@ -107,14 +107,12 @@ async fn main() -> Result<(), IndexerError> {
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
         Command::HelpDeprecated => unreachable!("This case is handled earlier"),
-        Command::SqlBackFill {
-            sql,
-            checkpoint_column_name,
+        Command::SqlBackfill {
+            config,
             first_checkpoint,
             last_checkpoint,
         } => {
-            let backfiller = SqlBackfiller::new(connection_pool, sql, checkpoint_column_name);
-
+            let backfiller = SqlBackfiller::new(connection_pool, config)?;
             backfiller.run(first_checkpoint, last_checkpoint).await?;
         }
     }

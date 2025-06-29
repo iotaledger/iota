@@ -9,7 +9,7 @@ use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use url::Url;
 
-use crate::db::ConnectionPoolConfig;
+use crate::{db::ConnectionPoolConfig, sql_backfill::SqlBackfillerConfig};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -181,21 +181,43 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
-    /// Backfill DB tables for checkpoint range [\first_checkpoint,
-    /// \last_checkpoint]. by running a SQL query provided in \sql.
-    /// The tool will automatically slice it into smaller checkpoint ranges and
-    /// for each range [start, end], it augments the \sql query with:
-    ///   "WHERE {checkpoint_column_name} BETWEEN {start} AND {end}"
-    /// to avoid running out of memory.
+    /// Backfill DB tables for checkpoint range
+    /// [`first_checkpoint`..`last_checkpoint`] by repeatedly running the
+    /// user-supplied SQL in manageable chunks. For each sub-range
+    /// `[start,end]`, the tool will append:
+    /// ```sql
+    /// WHERE <checkpoint_col> BETWEEN start AND end
+    /// ```
+    /// and, if `--skip-existing` is set, also
+    /// ```sql
+    /// ON CONFLICT DO NOTHING
+    /// ```
+    /// to ensure only missing rows are inserted.
+    ///
+    /// Chunks are processed in parallel
+    /// (up to `max_concurrency`) to avoid long transactions or out-of-memory
+    /// errors.
+    ///
     /// Example:
-    ///  ./iota-indexer --database-url <...> sql-back-fill
-    ///   "INSERT INTO full_objects_history (object_id, object_version,
-    /// serialized_object) SELECT object_id, object_version, serialized_object
-    /// FROM objects_history"   "checkpoint_sequence_number" 0 100000
-    SqlBackFill {
-        sql: String,
-        checkpoint_column_name: String,
+    ///
+    /// ```bash
+    /// ./iota-indexer \
+    ///   --database-url postgres://postgres:postgrespw@localhost:5432/mydb \
+    ///   sql-backfill \
+    ///     --base-sql "INSERT INTO full_objects_history (object_id, object_version, serialized_object) SELECT object_id, object_version, serialized_object FROM objects_history" \
+    ///     --checkpoint-col checkpoint_sequence_number \
+    ///     --chunk-size 1000 \
+    ///     --max-concurrency 100 \
+    ///     --skip-existing \
+    ///     --first-checkpoint 1000 \
+    ///     --last-checkpoint 8000
+    /// ```
+    SqlBackfill {
+        #[clap(flatten)]
+        config: SqlBackfillerConfig,
+        #[clap(long)]
         first_checkpoint: u64,
+        #[clap(long)]
         last_checkpoint: u64,
     },
 }
