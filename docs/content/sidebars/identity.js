@@ -79,7 +79,7 @@ const identity = [
                     {
                         type: 'link',
                         label: 'Wasm',
-                        href: 'developer/references/iota-identity/wasm/api_ref',
+                        href: 'developer/iota-identity/references/wasm/api_ref',
                     },
                 ],
             },
@@ -87,10 +87,10 @@ const identity = [
                 type: 'category',
                 label: 'Specifications',
                 items: [
-                    'developer/references/iota-identity/overview',
-                    'developer/references/iota-identity/iota-did-method-spec',
-                    'developer/references/iota-identity/revocation-bitmap-2022',
-                    'developer/references/iota-identity/revocation-timeframe-2024',
+                    'developer/iota-identity/references/overview',
+                    'developer/iota-identity/references/iota-did-method-spec',
+                    'developer/iota-identity/references/revocation-bitmap-2022',
+                    'developer/iota-identity/references/revocation-timeframe-2024',
                 ],
             },
         ],
