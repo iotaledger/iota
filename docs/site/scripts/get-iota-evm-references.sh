@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # Create temporary directory to work in
-mkdir -p tmp
-cd tmp || exit
+mkdir tmp
+cd tmp
 
 # Download and copy iscmagic docs
 curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/wasp/2.0/iscmagic.tar.gz | tar xzv
@@ -15,5 +15,5 @@ curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/wasp/2.0
 cp -Rv docs/iscutils ../../content/developer/iota-evm/references/
 
 # Return to root and cleanup
-cd - || exit
+cd -
 rm -rf tmp
