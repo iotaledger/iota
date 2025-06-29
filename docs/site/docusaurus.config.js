@@ -152,6 +152,22 @@ const config = {
               from: '/references/ts-sdk',
               to: '/developer/ts-sdk',
             },
+            {
+              from: '/references',
+              to: '/developer/references',
+            },
+            {
+              from: '/iota-evm',
+              to: '/developer/iota-evm',
+            },
+            {
+              from: '/iota-identity',
+              to: '/developer/iota-identity',
+            },
+            {
+              from: '/ts-sdk',
+              to: '/developer/ts-sdk',
+            }
           ];
           let paths = [];
           for (const redirect of redirects) {
