@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -27,7 +27,7 @@ use crate::{
     network::{BlockStream, ExtendedSerializedBlock, NetworkService},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    synchronizer::SynchronizerHandle,
+    synchronizer::{MAX_ADDITIONAL_BLOCKS, SynchronizerHandle},
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -340,27 +340,25 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )))
     }
 
+    // Handles two types of requests:
+    // 1. Missing block for block sync:
+    //    - uses highest_accepted_rounds.
+    //    - at most max_blocks_per_sync blocks should be returned.
+    // 2. Committed block for commit sync:
+    //    - does not use highest_accepted_rounds.
+    //    - at most max_blocks_per_fetch blocks should be returned.
     async fn handle_fetch_blocks(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
     ) -> ConsensusResult<Vec<Bytes>> {
+        // This method is used for both commit sync and periodic/live synchronizer.
+        // For commit sync, we do not use highest_accepted_rounds and the fetch size is
+        // larger.
+        let commit_sync_handle = highest_accepted_rounds.is_empty();
+
         fail_point_async!("consensus-rpc-response");
-
-        const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
-            return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
-        }
-
-        if !highest_accepted_rounds.is_empty()
-            && highest_accepted_rounds.len() != self.context.committee.size()
-        {
-            return Err(ConsensusError::InvalidSizeOfHighestAcceptedRounds(
-                highest_accepted_rounds.len(),
-                self.context.committee.size(),
-            ));
-        }
 
         // Some quick validation of the requested block refs
         for block in &block_refs {
@@ -375,35 +373,131 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // For now ask dag state directly
-        let blocks = self.dag_state.read().get_blocks(&block_refs);
+        if !self.context.protocol_config.consensus_batched_block_sync() {
+            if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+                return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
+            }
 
-        // Now check if an ancestor's round is higher than the one that the peer has. If
-        // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
-        let mut ancestor_blocks = vec![];
-        if !highest_accepted_rounds.is_empty() {
-            let all_ancestors = blocks
-                .iter()
+            if !commit_sync_handle && highest_accepted_rounds.len() != self.context.committee.size()
+            {
+                return Err(ConsensusError::InvalidSizeOfHighestAcceptedRounds(
+                    highest_accepted_rounds.len(),
+                    self.context.committee.size(),
+                ));
+            }
+
+            // For now ask dag state directly
+            let blocks = self.dag_state.read().get_blocks(&block_refs);
+
+            // Now check if an ancestor's round is higher than the one that the peer has. If
+            // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
+            let mut ancestor_blocks = vec![];
+            if !commit_sync_handle {
+                let all_ancestors = blocks
+                    .iter()
+                    .flatten()
+                    .flat_map(|block| block.ancestors().to_vec())
+                    .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
+                    .take(MAX_ADDITIONAL_BLOCKS)
+                    .collect::<Vec<_>>();
+
+                if !all_ancestors.is_empty() {
+                    ancestor_blocks = self.dag_state.read().get_blocks(&all_ancestors);
+                }
+            }
+
+            // Return the serialised blocks & the ancestor blocks
+            let result = blocks
+                .into_iter()
+                .chain(ancestor_blocks)
                 .flatten()
-                .flat_map(|block| block.ancestors().to_vec())
-                .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
-                .take(MAX_ADDITIONAL_BLOCKS)
+                .map(|block| block.serialized().clone())
                 .collect::<Vec<_>>();
 
-            if !all_ancestors.is_empty() {
-                ancestor_blocks = self.dag_state.read().get_blocks(&all_ancestors);
-            }
+            return Ok(result);
         }
 
-        // Return the serialised blocks & the ancestor blocks
-        let result = blocks
+        // For commit sync, the fetch size is larger. For periodic/live synchronizer,
+        // the fetch size is smaller.else { Instead of rejecting the request, we
+        // truncate the size to allow an easy update of this parameter in the future.
+        if commit_sync_handle {
+            block_refs.truncate(self.context.parameters.max_blocks_per_fetch);
+        } else {
+            block_refs.truncate(self.context.parameters.max_blocks_per_sync);
+        }
+
+        // Get requested blocks from store.
+        let blocks = if commit_sync_handle {
+            // For commit sync, we respond with all blocks from the store
+            self.dag_state
+                .read()
+                .get_blocks(&block_refs)
+                .into_iter()
+                .flatten()
+                .collect()
+        } else {
+            // For periodic or live synchronizer, we respond with requested blocks from the
+            // store and with additional blocks from the cache
+            block_refs.sort();
+            block_refs.dedup();
+            let dag_state = self.dag_state.read();
+            let mut blocks = dag_state
+                .get_blocks(&block_refs)
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            // Get additional blocks for authorities with missing block, if they are
+            // available in cache. Compute the lowest missing round per
+            // requested authority.
+            let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
+            for block_ref in blocks.iter().map(|b| b.reference()) {
+                let entry = lowest_missing_rounds
+                    .entry(block_ref.author)
+                    .or_insert(block_ref.round);
+                *entry = (*entry).min(block_ref.round);
+            }
+
+            // Retrieve additional blocks per authority, from peer's highest accepted round
+            // + 1 to lowest missing round (exclusive) per requested authority. Start with
+            //   own blocks.
+            let own_index = self.context.own_index;
+
+            // Collect and sort so own_index comes first
+            let mut ordered_missing_rounds: Vec<_> = lowest_missing_rounds.into_iter().collect();
+            ordered_missing_rounds.sort_by_key(|(auth, _)| if *auth == own_index { 0 } else { 1 });
+
+            for (authority, lowest_missing_round) in ordered_missing_rounds {
+                let highest_accepted_round = highest_accepted_rounds[authority];
+                if highest_accepted_round >= lowest_missing_round {
+                    continue;
+                }
+
+                let missing_blocks = dag_state.get_cached_blocks_in_range(
+                    authority,
+                    highest_accepted_round + 1,
+                    lowest_missing_round,
+                    self.context
+                        .parameters
+                        .max_blocks_per_sync
+                        .saturating_sub(blocks.len()),
+                );
+                blocks.extend(missing_blocks);
+                if blocks.len() >= self.context.parameters.max_blocks_per_sync {
+                    blocks.truncate(self.context.parameters.max_blocks_per_sync);
+                    break;
+                }
+            }
+
+            blocks
+        };
+
+        // Return the serialized blocks
+        let bytes = blocks
             .into_iter()
-            .chain(ancestor_blocks)
-            .flatten()
             .map(|block| block.serialized().clone())
             .collect::<Vec<_>>();
-
-        Ok(result)
+        Ok(bytes)
     }
 
     async fn handle_fetch_commits(
