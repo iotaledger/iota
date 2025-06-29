@@ -2,19 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::{Duration, Instant};
+use std::{
+    collections::BTreeSet,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use clap::Args;
 use diesel::{prelude::*, sql_types::BigInt};
 use downcast::Any;
 use futures::stream::{self, StreamExt, TryStreamExt};
 use tap::TapFallible;
+use tokio::sync::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{db::ConnectionPool, errors::IndexerError, transactional_blocking_with_retry};
-
-const DEFAULT_CHUNK_SIZE: u64 = 10000;
-const DEFAULT_MAX_CONCURRENCY: usize = 100;
 const BACKFILL_RETRY_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Configuration for the SQL backfill operation.
@@ -31,11 +33,11 @@ pub struct SqlBackfillerConfig {
     pub checkpoint_col: String,
     /// Number of rows (by checkpoint value) to process per chunk.
     /// Default: `10000`.
-    #[clap(long, default_value_t = DEFAULT_CHUNK_SIZE, env = "SQL_BACKFILL_CHUNK_SIZE")]
+    #[clap(long, default_value_t = Self::DEFAULT_CHUNK_SIZE, env = "SQL_BACKFILL_CHUNK_SIZE")]
     pub chunk_size: u64,
     /// Maximum number of concurrent backfill tasks.
     /// Default: `100`.
-    #[clap(long, default_value_t = DEFAULT_MAX_CONCURRENCY, env = "SQL_BACKFILL_MAX_CONCURRENCY")]
+    #[clap(long, default_value_t = Self::DEFAULT_MAX_CONCURRENCY, env = "SQL_BACKFILL_MAX_CONCURRENCY")]
     pub max_concurrency: usize,
     /// Skip rows whose primary key already exists (i.e. append `ON CONFLICT DO
     /// NOTHING`).
@@ -45,6 +47,11 @@ pub struct SqlBackfillerConfig {
         help = "Append `ON CONFLICT DO NOTHING` to each chunked `INSERT`"
     )]
     pub skip_existing: bool,
+}
+
+impl SqlBackfillerConfig {
+    const DEFAULT_CHUNK_SIZE: u64 = 1000;
+    const DEFAULT_MAX_CONCURRENCY: usize = 10;
 }
 
 /// A backfiller that runs SQL queries in parallel to update a range of rows in
@@ -95,6 +102,8 @@ impl SqlBackfiller {
 
         let timer = Instant::now();
 
+        let in_progress = Arc::new(Mutex::new(BTreeSet::new()));
+
         let chunk_size = self.config.chunk_size;
         let ranges = (first..=last).step_by(chunk_size as usize).map(|start_id| {
             let end_id = std::cmp::min(start_id + chunk_size - 1, last);
@@ -102,7 +111,33 @@ impl SqlBackfiller {
         });
 
         stream::iter(ranges)
-            .map(|range| async move { self.backfill_range(range).await })
+            .map(|range| {
+                let in_progress = in_progress.clone();
+                async move {
+                    let (start, end) = range;
+
+                    // Mark this chunk as started
+                    {
+                        let mut guard = in_progress.lock().await;
+                        guard.insert(start);
+                    }
+
+                    let res = self.backfill_range((start, end)).await;
+
+                    // Remove this chunk from in-progress and get the current minimum
+                    let cur_min = {
+                        let mut guard = in_progress.lock().await;
+                        guard.remove(&start);
+                        guard.iter().next().cloned()
+                    };
+
+                    if let Some(checkpoint) = cur_min {
+                        info!("Minimum checkpoint still in progress {checkpoint}; if the process fails, restart from here");
+                    }
+
+                    res
+                }
+            })
             .buffer_unordered(self.config.max_concurrency)
             .try_for_each(|((start, end), rows)| async move {
                 info!(start, end, rows, "Completed backfill chunk");
