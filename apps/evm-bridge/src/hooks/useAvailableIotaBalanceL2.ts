@@ -5,7 +5,7 @@ import { formatEther } from 'viem';
 
 const GENERIC_IOTA_ADDRESS = '0x1111111111111111111111111111111111111111111111111111111111111111';
 
-export function useAvailableBalanceL2(): {
+export function useAvailableIotaBalanceL2(): {
     availableBalance: bigint;
     isLoading: boolean;
     formattedAvailableBalance: string;
@@ -19,7 +19,7 @@ export function useAvailableBalanceL2(): {
             refetchInterval: 2000, // Refetch Layer 2 balance every 2 seconds
         },
     });
-
+    console.log('Layer 2 balance data:', layer2BalanceData);
     const layer2TotalBalance = layer2BalanceData?.value || 0n;
 
     const { data: gasEstimationData, isPending: isGasEstimationLoading } = useGasEstimateL2({

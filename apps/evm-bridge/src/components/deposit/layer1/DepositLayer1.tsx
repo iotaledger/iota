@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { DepositForm } from '../DepositForm';
 import toast from 'react-hot-toast';
 
@@ -11,7 +11,6 @@ import { formatIOTAFromNanos, parseAmount } from '../../../lib/utils';
 import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
 import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
-import { useBalanceBaseTokenL2 } from '../../../hooks/useBalanceBaseTokenL2';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 
 export function DepositLayer1() {
@@ -20,10 +19,6 @@ export function DepositLayer1() {
         useSignAndExecuteTransaction();
     const { watch } = useFormContext<DepositFormData>();
     const { depositAmount, receivingAddress } = watch();
-
-    const address = useCurrentAccount()?.address as string;
-    const { data: l1BalanceInL2 } = useBalanceBaseTokenL2(address);
-    console.log('l1BalanceInL2:', l1BalanceInL2);
 
     const { data: transactionData, isPending: isBuildingTransaction } =
         useBuildL1DepositTransaction({
