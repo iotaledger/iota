@@ -46,7 +46,7 @@ impl FromStr for Name {
         }
 
         if labels[0] != IOTA_NAMES_TLN {
-            return Err(IotaNamesError::InvalidTld(labels[0].to_string()));
+            return Err(IotaNamesError::InvalidTln(labels[0].to_string()));
         }
 
         let labels = labels.into_iter().map(ToOwned::to_owned).collect();

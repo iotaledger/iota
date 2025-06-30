@@ -25,5 +25,5 @@ pub enum IotaNamesError {
     #[error("Malformed object for {0}")]
     MalformedObject(ObjectID),
     #[error("Invalid TLN {0}")]
-    InvalidTld(String),
+    InvalidTln(String),
 }
