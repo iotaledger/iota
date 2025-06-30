@@ -275,9 +275,7 @@ pub enum ExecutionCacheConfig {
 
 impl Default for ExecutionCacheConfig {
     fn default() -> Self {
-        ExecutionCacheConfig::WritebackCache {
-            max_cache_size: None,
-        }
+        ExecutionCacheConfig::PassthroughCache
     }
 }
 
