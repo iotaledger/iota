@@ -47,6 +47,7 @@ impl Display for KeyIdentity {
         let v = match self {
             KeyIdentity::Address(x) => x.to_string(),
             KeyIdentity::Alias(x) => x.to_string(),
+            #[cfg(feature = "iota-names")]
             KeyIdentity::Name(x) => x.to_string(),
         };
         write!(f, "{}", v)
