@@ -541,7 +541,7 @@ impl Query {
             .extend()
     }
 
-    /// Resolves an IOTA-Names `name` name to an address, if it has been
+    /// Resolves an IOTA-Names `name` to an address, if it has been
     /// bound.
     async fn resolve_iota_names_address(
         &self,

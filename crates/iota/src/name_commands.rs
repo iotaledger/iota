@@ -69,7 +69,7 @@ pub enum NameCommand {
     Availability { name: Name },
     /// Burn an expired IOTA-Names NFT
     Burn {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         // Whether to print detailed output.
         #[arg(long)]
@@ -79,7 +79,7 @@ pub enum NameCommand {
     },
     /// Get user data by its key
     GetUserData {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// A key representing data in the table. If not provided then all
         /// records will be returned.
@@ -91,7 +91,7 @@ pub enum NameCommand {
     Lookup { name: Name },
     /// Register a name
     Register {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
@@ -116,7 +116,7 @@ pub enum NameCommand {
     },
     /// Renew an existing name. Cost is the name price * years.
     Renew {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The number of years to renew the name. Must be within [1-5]
         /// interval.
@@ -151,7 +151,7 @@ pub enum NameCommand {
     },
     /// Set the target address for a name
     SetTargetAddress {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The address to which the name will point. Defaults to the current
         /// active address.
@@ -164,7 +164,7 @@ pub enum NameCommand {
     },
     /// Set arbitrary keyed user data
     SetUserData {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The key representing the data in the table
         key: String,
@@ -181,7 +181,7 @@ pub enum NameCommand {
     Subname(SubnameCommand),
     /// Transfer a registered name to another address via the owned NFT
     Transfer {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The address to which the name will be transferred
         address: IotaAddress,
@@ -201,7 +201,7 @@ pub enum NameCommand {
     },
     /// Unset the target address for a name
     UnsetTargetAddress {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         // Whether to print detailed output.
         #[arg(long)]
@@ -211,7 +211,7 @@ pub enum NameCommand {
     },
     /// Unset keyed user data
     UnsetUserData {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The key representing the data in the table
         key: String,
@@ -797,7 +797,7 @@ impl NameCommand {
 pub enum AuctionCommand {
     /// Place a new bid
     Bid {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The bid amount. Must be at least one IOTA more than the last highest
         /// bid. Defaults to the minimum possible bid.
@@ -815,7 +815,7 @@ pub enum AuctionCommand {
     },
     /// Claim the name if the auction winner is the sender
     Claim {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         // Whether to print detailed output.
         #[arg(long)]
@@ -827,7 +827,7 @@ pub enum AuctionCommand {
     Metadata { name: Name },
     /// Start an auction, if it's not started yet, and make the first bid
     Start {
-        /// The full name of the name. Ex. my-name.iota
+        /// The name. Ex. my-name.iota
         name: Name,
         /// The initial bid amount. Must be at least the minimum cost of the
         /// name. Defaults to the minimum.
@@ -1006,7 +1006,7 @@ pub enum SubnameCommand {
     /// Register a new leaf subname, which can only be managed by the parent's
     /// NFT
     RegisterLeaf {
-        /// The full name of the subname. Ex. my-subname.my-name.iota
+        /// The subname. Ex. my-subname.my-name.iota
         name: Name,
         /// The address to which the subname will point. Defaults to the
         /// active address.
@@ -1019,7 +1019,7 @@ pub enum SubnameCommand {
     },
     /// Register a new node subname, which will create an NFT for management
     RegisterNode {
-        /// The full name of the subname. Ex. my-subname.my-name.iota
+        /// The subname. Ex. my-subname.my-name.iota
         name: Name,
         /// Expiration timestamp in one of the following formats:
         ///  - YYYY-MM-DD HH:MM:SS +0000 (Ex. 2015-02-18 23:16:09 -0500)
@@ -1043,7 +1043,7 @@ pub enum SubnameCommand {
     },
     /// Update the metadata flags for a subname
     UpdateMetadata {
-        /// The full name of the subname. Ex. my-subname.my-name.iota
+        /// The subname. Ex. my-subname.my-name.iota
         name: Name,
         /// Whether to allow further subname creation.
         #[arg(long, short = 'c')]
@@ -1059,7 +1059,7 @@ pub enum SubnameCommand {
     },
     /// Extend the expiration of a subname
     ExtendExpiration {
-        /// The full name of the subname. Ex. my-subname.my-name.iota
+        /// The subname. Ex. my-subname.my-name.iota
         name: Name,
         /// The new expiration time, which must be after the current expiration
         /// time, in one of the following formats:

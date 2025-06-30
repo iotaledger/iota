@@ -498,9 +498,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             .get_latest_checkpoint_timestamp_ms()
             .map_err(Error::from)?;
 
-        // Handling SLD names & node subnames is the same (we handle them as `node`
-        // records). We check their expiration, and if not expired, return the
-        // target address.
+        // Handling second-level names & node subnames is the same (we handle them as
+        // `node` records). We check their expiration, and if not expired,
+        // return the target address.
         if !name_record.is_leaf_record() {
             return if !name_record.is_node_expired(current_timestamp_ms) {
                 Ok(Some(name_record.into()))
@@ -549,16 +549,16 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             .ok_or_else(|| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
             .value;
 
-        let name_name = name.to_string();
+        let name = name.to_string();
 
-        let resolved_record = self.iota_names_lookup(&name_name).await?;
+        let resolved_record = self.iota_names_lookup(&name).await?;
 
         // If looking up the name returns an empty result, we return an empty result.
         if resolved_record.is_none() {
             return Ok(None);
         }
 
-        Ok(Some(name_name))
+        Ok(Some(name))
     }
 
     #[instrument(skip(self))]

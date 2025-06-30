@@ -378,7 +378,7 @@ impl IotaNamesRegistration {
 }
 
 impl IotaNames {
-    /// Lookup the IOTA-Names NameRecord for the given `name` name. `config`
+    /// Lookup the IOTA-Names NameRecord for the given `name`. `config`
     /// specifies where to find the name registry, and its type.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
@@ -409,7 +409,7 @@ impl IotaNames {
             return Ok(None);
         };
 
-        // If name record is SLD, or Node subname, we can check the expiration and
+        // If name record is SLN, or Node subname, we can check the expiration and
         // return the record if not expired.
         if !name_record.is_leaf_record() {
             return if !name_record.is_node_expired(name_expiration.checkpoint_timestamp_ms) {
