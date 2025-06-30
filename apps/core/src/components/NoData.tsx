@@ -16,7 +16,7 @@ export function NoData({ message, displayImage }: NoDataProps) {
     return (
         <div className="flex h-full flex-col items-center justify-center gap-md text-center">
             {displayImage && (theme === Theme.Dark ? <NoDataDarkImage /> : <NoDataImage />)}
-            <span className="text-label-lg text-neutral-60">{message}</span>
+            <span className="text-label-lg text-iota-neutral-60">{message}</span>
         </div>
     );
 }

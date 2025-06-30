@@ -136,24 +136,24 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         '24px',
         {
             lineHeight: '120%',
+            fontWeight: 'var(--headline-sm-font-weight)',
             letterSpacing: '-0.2px',
-            fontWeight: 500,
         },
     ],
     'text-headline-md': [
         '28px',
         {
             lineHeight: '120%',
+            fontWeight: 'var(--headline-md-font-weight)',
             letterSpacing: '-0.4px',
-            fontWeight: 500,
         },
     ],
     'text-headline-lg': [
         '32px',
         {
             lineHeight: '120%',
+            fontWeight: 'var(--headline-lg-font-weight)',
             letterSpacing: '-0.4px',
-            fontWeight: 500,
         },
     ],
 };
@@ -162,22 +162,22 @@ export const TEXT_DISPLAY_CLASSES: TailwindCustomFonts = {
     'text-display-sm': [
         '36px',
         {
-            lineHeight: '120%',
-            fontWeight: 500,
+            lineHeight: 'var(--display-sm-line-height)',
+            fontWeight: 'var(--display-sm-font-weight)',
         },
     ],
     'text-display-md': [
         '48px',
         {
-            lineHeight: '120%',
-            fontWeight: 500,
+            lineHeight: 'var(--display-md-line-height)',
+            fontWeight: 'var(--display-md-font-weight)',
         },
     ],
     'text-display-lg': [
         '60px',
         {
-            lineHeight: '120%',
-            fontWeight: 500,
+            lineHeight: 'var(--display-lg-line-height)',
+            fontWeight: 'var(--display-lg-font-weight)',
         },
     ],
 };

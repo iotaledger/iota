@@ -441,7 +441,7 @@ mod test {
             unimplemented!()
         }
 
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             unimplemented!()
         }
 

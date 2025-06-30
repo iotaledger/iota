@@ -14,7 +14,9 @@ import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
+import { AddressAlias, useCopyToClipboard } from '@iota/core';
 import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
+import { onCopySuccess } from '~/lib';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
@@ -22,8 +24,23 @@ interface AddressResultPageHeaderProps {
     address: string;
 }
 
-function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): JSX.Element {
-    return <PageHeader type="Address" title={address} />;
+function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): React.JSX.Element {
+    const copyToClipboard = useCopyToClipboard(onCopySuccess);
+    return (
+        <PageHeader
+            type="Address"
+            title={
+                <div className="flex flex-col gap-xs">
+                    <AddressAlias
+                        address={address}
+                        formatUnknownAddress={false}
+                        onCopy={() => copyToClipboard(address)}
+                    />
+                </div>
+            }
+            showCopyButton={false}
+        />
+    );
 }
 
 function AddressResult({ address }: { address: string }): JSX.Element {
