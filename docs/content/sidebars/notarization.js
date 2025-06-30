@@ -64,16 +64,6 @@ const notarization = [
                     },
                 ],
             },
-            {
-                type: 'category',
-                label: 'Specifications',
-                items: [
-                    'references/iota-notarization/overview',
-                    'references/iota-notarization/iota-did-method-spec',
-                    'references/iota-notarization/revocation-bitmap-2022',
-                    'references/iota-notarization/revocation-timeframe-2024',
-                ],
-            },
         ],
     },
     'developer/iota-notarization/contribute',
