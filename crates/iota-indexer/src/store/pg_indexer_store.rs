@@ -872,7 +872,7 @@ impl PgIndexerStore {
         })
     }
 
-    /// We enfore index-status semantics for checkpointed transactions
+    /// We enforce index-status semantics for checkpointed transactions
     /// in `tx_global_order`.
     ///
     /// Namely, checkpointed transactions (i.e. with `optimistic_sequence_number
