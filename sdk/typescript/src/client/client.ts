@@ -436,7 +436,9 @@ export class IotaClient {
         const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',
             params: [
-                typeof transactionBlock === 'string' ? transactionBlock : toBase64(transactionBlock),
+                typeof transactionBlock === 'string'
+                    ? transactionBlock
+                    : toBase64(transactionBlock),
                 Array.isArray(signature) ? signature : [signature],
                 options,
             ],

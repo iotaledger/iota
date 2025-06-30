@@ -520,7 +520,9 @@ export function transactionDataFromV1(data: SerializedTransactionDataV1): Transa
                 case 'Publish': {
                     return {
                         Publish: {
-                            modules: transaction.modules.map((mod) => toBase64(Uint8Array.from(mod))),
+                            modules: transaction.modules.map((mod) =>
+                                toBase64(Uint8Array.from(mod)),
+                            ),
                             dependencies: transaction.dependencies,
                         },
                     };
@@ -548,7 +550,9 @@ export function transactionDataFromV1(data: SerializedTransactionDataV1): Transa
                 case 'Upgrade': {
                     return {
                         Upgrade: {
-                            modules: transaction.modules.map((mod) => toBase64(Uint8Array.from(mod))),
+                            modules: transaction.modules.map((mod) =>
+                                toBase64(Uint8Array.from(mod)),
+                            ),
                             dependencies: transaction.dependencies,
                             package: transaction.packageId,
                             ticket: parseV1TransactionArgument(transaction.ticket),
