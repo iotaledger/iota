@@ -23,8 +23,8 @@ import { BridgeFormInputName } from '../../lib/enums';
 import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/constants';
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
 import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
-import { useAvailableIotaBalanceL2 } from '../../hooks/useAvailableIotaBalanceL2';
 import { CoinSelector } from '../CoinSelector';
+import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -69,7 +69,7 @@ export function DepositForm({
     const {
         formattedAvailableBalance: formattedAvailableBalanceL2,
         isLoading: isLoadingBalanceL2,
-    } = useAvailableIotaBalanceL2(); // update to get avaliable blance L2
+    } = useAvailableBalanceL2(selectedCoinType);
 
     const formattedAvailableBalance = isFromLayer1
         ? formattedAvailableBalanceL1

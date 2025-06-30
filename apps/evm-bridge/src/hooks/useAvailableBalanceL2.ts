@@ -1,30 +1,31 @@
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { useBalance as useBalanceL1 } from './useBalance';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useAvailableIotaBalanceL1 } from './useAvailableIotaBalanceL1';
-import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useMemo } from 'react';
+import { useAvailableIotaBalanceL2 } from './useAvailableIotaBalanceL2';
+import { useGetAllBalancesL2 } from './useGetAllBalancesL2';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { CoinFormat, useFormatCoin } from '@iota/core';
 
-export function useAvailableBalanceL1(coinType: string = IOTA_TYPE_ARG): {
+export function useAvailableBalanceL2(coinType: string = IOTA_TYPE_ARG): {
     availableBalance: bigint;
     isLoading: boolean;
     formattedAvailableBalance: string;
     symbol: string;
 } {
-    const layer1Account = useCurrentAccount();
+    const address = useCurrentAccount()?.address as string;
     const selectedCoinType = coinType;
-    // Fetch Layer 1 balance
+    // Fetch Layer 2 balance
     const {
         availableBalance: availableIotaBalance,
         formattedAvailableBalance: formattedIota,
         isLoading: isLoadingIota,
-    } = useAvailableIotaBalanceL1();
+    } = useAvailableIotaBalanceL2();
 
-    // Fetch Layer 1 balance for the selected coin type
-    const { data: selectedCoinData, isLoading: isLoadingCoin } = useBalanceL1(
-        layer1Account?.address as `0x${string}`,
-        undefined,
-        selectedCoinType,
+    // Fetch Layer 2 balance for the selected coin type
+    const { data: l1AddressCoinsBalanceInL2, isLoading: isLoadingCoin } =
+        useGetAllBalancesL2(address);
+
+    const selectedCoinData = l1AddressCoinsBalanceInL2?.find(
+        (token) => token.coinType === selectedCoinType,
     );
 
     const selectedCoinBalance = selectedCoinData?.totalBalance
