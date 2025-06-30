@@ -611,7 +611,7 @@ impl<'a> LayerBuilder<'a> {
         let mut dag_state = dag_state.write();
         dag_state.accept_block_headers(self.block_headers.clone());
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions, true);
+            dag_state.add_transactions(transactions);
         }
     }
 

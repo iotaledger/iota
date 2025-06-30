@@ -259,7 +259,6 @@ impl Core {
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
-        live: bool,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -275,7 +274,7 @@ impl Core {
             .core_add_blocks_batch_size
             .observe(blocks.len() as f64);
         let (accepted_blocks_headers, missing_block_refs) =
-            self.block_manager.try_accept_blocks(blocks, live);
+            self.block_manager.try_accept_blocks(blocks);
 
         if !accepted_blocks_headers.is_empty() {
             debug!(
@@ -651,7 +650,7 @@ impl Core {
         // Accept the block into BlockManager and DagState.
         let (accepted_blocks, missing) = self
             .block_manager
-            .try_accept_blocks(vec![verified_block.clone()], true);
+            .try_accept_blocks(vec![verified_block.clone()]);
         assert_eq!(accepted_blocks.len(), 1);
         assert!(missing.is_empty());
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
@@ -1673,7 +1672,7 @@ mod test {
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
         // add blocks to trigger proposal.
-        _ = core.add_blocks(vec![verified_block], true);
+        _ = core.add_blocks(vec![verified_block]);
 
         assert_eq!(core.last_proposed_round(), 1);
         expected_ancestors.insert(core.last_proposed_block_header().reference());
@@ -1687,7 +1686,7 @@ mod test {
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
         // add blocks to trigger proposal.
-        _ = core.add_blocks(vec![block_3], true);
+        _ = core.add_blocks(vec![block_3]);
 
         assert_eq!(core.last_proposed_round(), 2);
 
