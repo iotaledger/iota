@@ -183,13 +183,13 @@ export type Address = IOwner & {
    */
   coins: CoinConnection;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * address.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this address. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this address, optionally `filter`-ed. */
@@ -268,7 +268,7 @@ export type AddressCoinsArgs = {
  * key).
  */
 export type AddressIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -776,13 +776,13 @@ export type Coin = IMoveObject & IObject & IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
@@ -891,7 +891,7 @@ export type CoinDynamicObjectFieldArgs = {
 
 /** Some 0x2::coin::Coin Move object. */
 export type CoinIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -1022,13 +1022,13 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
   dynamicObjectField?: Maybe<DynamicField>;
   iconUrl?: Maybe<Scalars['String']['output']>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Full, official name of the token. */
@@ -1143,7 +1143,7 @@ export type CoinMetadataDynamicObjectFieldArgs = {
 
 /** The metadata for a coin type. */
 export type CoinMetadataIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -1235,11 +1235,6 @@ export type DisplayEntry = {
   /** The template string for the key with placeholder values substituted. */
   value?: Maybe<Scalars['String']['output']>;
 };
-
-export enum DomainFormat {
-  At = 'AT',
-  Dot = 'DOT'
-}
 
 export type DryRunEffect = {
   __typename?: 'DryRunEffect';
@@ -1921,9 +1916,9 @@ export type IOwner = {
    * `type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
    */
   coins: CoinConnection;
-  /** The domain explicitly configured as the default domain pointing to this object or address. */
+  /** The name explicitly configured as the default name pointing to this object or address. */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
-  /** The IotaNamesRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated domain. */
+  /** The IotaNamesRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated name. */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this object or address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
@@ -1983,7 +1978,7 @@ export type IOwnerCoinsArgs = {
  * know which up-front.
  */
 export type IOwnerIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -2087,8 +2082,6 @@ export type IotaNamesRegistration = IMoveObject & IOwner & {
    * into these templates to generate a display string per template.
    */
   display?: Maybe<Array<DisplayEntry>>;
-  /** Domain name of the IotaNamesRegistration object */
-  domain: Scalars['String']['output'];
   /**
    * Access a dynamic field on an object using its name. Names are arbitrary
    * Move values whose type have `copy`, `drop`, and `store`, and are
@@ -2124,15 +2117,17 @@ export type IotaNamesRegistration = IMoveObject & IOwner & {
    */
   hasPublicTransfer: Scalars['Boolean']['output'];
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  /** Name of the IotaNamesRegistration object */
+  name: Scalars['String']['output'];
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -2232,7 +2227,7 @@ export type IotaNamesRegistrationDynamicObjectFieldArgs = {
 
 
 export type IotaNamesRegistrationIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -2748,13 +2743,13 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
@@ -2891,7 +2886,7 @@ export type MoveObjectDynamicObjectFieldArgs = {
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -3009,13 +3004,13 @@ export type MovePackage = IObject & IOwner & {
    */
   digest?: Maybe<Scalars['String']['output']>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this package. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    *
    * Note that objects owned by a package are inaccessible, because packages
    * are immutable and cannot be owned by an address.
@@ -3173,7 +3168,7 @@ export type MovePackageCoinsArgs = {
  * definitions, functions, and dependencies.
  */
 export type MovePackageIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -3469,6 +3464,11 @@ export type MutationExecuteTransactionBlockArgs = {
   txBytes: Scalars['String']['input'];
 };
 
+export enum NameFormat {
+  At = 'AT',
+  Dot = 'DOT'
+}
+
 /**
  * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
@@ -3537,13 +3537,13 @@ export type Object = IObject & IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * address.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this address. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
@@ -3690,7 +3690,7 @@ export type ObjectDynamicObjectFieldArgs = {
  * be accessed.
  */
 export type ObjectIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -3952,13 +3952,13 @@ export type Owner = IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object or address.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this object or address. These
-   * grant the owner the capability to manage the associated domain.
+   * grant the owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this object or address, optionally `filter`-ed. */
@@ -4054,7 +4054,7 @@ export type OwnerDynamicObjectFieldArgs = {
  * whether a given Owner is an Address or an Object).
  */
 export type OwnerIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -4408,7 +4408,7 @@ export type Query = {
    */
   protocolConfig: ProtocolConfigs;
   /**
-   * Resolves an IOTA-Names `domain` name to an address, if it has been
+   * Resolves an IOTA-Names `name` to an address, if it has been
    * bound.
    */
   resolveIotaNamesAddress?: Maybe<Address>;
@@ -4579,7 +4579,7 @@ export type QueryProtocolConfigArgs = {
 
 
 export type QueryResolveIotaNamesAddressArgs = {
-  domain: Scalars['String']['input'];
+  name: Scalars['String']['input'];
 };
 
 
@@ -4945,13 +4945,13 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
    */
   estimatedReward?: Maybe<Scalars['BigInt']['output']>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
    * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * owner the capability to manage the associated name.
    */
   iotaNamesRegistrations: IotaNamesRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
@@ -5068,7 +5068,7 @@ export type StakedIotaDynamicObjectFieldArgs = {
 
 /** Represents a `0x3::staking_pool::StakedIota` Move object on-chain. */
 export type StakedIotaIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -5974,7 +5974,7 @@ export type GetValidatorsApyQueryVariables = Exact<{ [key: string]: never; }>;
 export type GetValidatorsApyQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', apy?: number | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
 export type ResolveNameServiceAddressQueryVariables = Exact<{
-  domain: Scalars['String']['input'];
+  name: Scalars['String']['input'];
 }>;
 
 
@@ -5987,7 +5987,7 @@ export type ResolveNameServiceNamesQueryVariables = Exact<{
 }>;
 
 
-export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'IotaNamesRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'IotaNamesRegistration', domain: string }> } } | null };
+export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'IotaNamesRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'IotaNamesRegistration', name: string }> } } | null };
 
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
@@ -8157,8 +8157,8 @@ export const GetValidatorsApyDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<GetValidatorsApyQuery, GetValidatorsApyQueryVariables>;
 export const ResolveNameServiceAddressDocument = new TypedDocumentString(`
-    query resolveNameServiceAddress($domain: String!) {
-  resolveIotaNamesAddress(domain: $domain) {
+    query resolveNameServiceAddress($name: String!) {
+  resolveIotaNamesAddress(name: $name) {
     address
   }
 }
@@ -8172,7 +8172,7 @@ export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
         endCursor
       }
       nodes {
-        domain
+        name
       }
     }
   }
