@@ -177,7 +177,7 @@ impl PTB {
         let gas = program_metadata.gas_object_id.map(|x| x.value);
 
         let sender = match program_metadata.sender {
-            Some(sender) => sender.value,
+            Some(sender) => sender.value.into_inner().into(),
             // the sender is the gas object if gas is provided, otherwise the active address
             None => match gas {
                 Some(gas) => context
@@ -203,7 +203,7 @@ impl PTB {
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
                 display: self.display,
-                sender: program_metadata.sender.map(|x| x.value),
+                sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
             },
         };
 

@@ -4912,11 +4912,11 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
         display: HashSet::new(),
     };
     let ptb_res = ptb.execute(context).await?;
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::SerializedUnsignedTransaction(
-        tx_data,
-    )) = ptb_res
-    else {
+    let PTBCommandResult::CommandResult(res) = ptb_res else {
         unreachable!("Invalid result");
+    };
+    let IotaClientCommandResult::SerializedUnsignedTransaction(tx_data) = *res else {
+        panic!("unexpected PTB result");
     };
     assert_eq!(tx_data.sender(), multisig_address);
 

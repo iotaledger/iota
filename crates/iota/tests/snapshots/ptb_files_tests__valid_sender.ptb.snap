@@ -2,12 +2,12 @@
 source: crates/iota/tests/ptb_files_tests.rs
 expression: "results.join(\"\\n\")"
 ---
- === ERRORS AFTER PARSING INPUT COMMANDS === 
-  × Error when processing PTB
-   ╭─[3:10]
- 2 │ --assign sender @0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa
- 3 │ --sender sender 
-   ·          ───┬──
-   ·             ╰── Expected an address
-   ╰────
-  help: Addresses or object IDs require the character '@' in front
+ === PREVIEW === 
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ PTB Preview                                                                  │
+├─────────┬────────────────────────────────────────────────────────────────────┤
+│ command │ values                                                             │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ sender  │ 0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa │
+╰─────────┴────────────────────────────────────────────────────────────────────╯
+ === BUILT PTB ===

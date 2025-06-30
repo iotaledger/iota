@@ -4,10 +4,7 @@
 
 use std::iter::Peekable;
 
-use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID},
-};
+use iota_types::{Identifier, base_types::ObjectID};
 use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},
@@ -47,7 +44,7 @@ struct ProgramParsingState {
     dev_inspect_set: bool,
     gas_object_id: Option<Spanned<ObjectID>>,
     gas_budget: Option<Spanned<u64>>,
-    sender: Option<Spanned<IotaAddress>>,
+    sender: Option<Spanned<NumericalAddress>>,
 }
 
 impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
@@ -117,7 +114,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 L(T::Command, A::SERIALIZE_SIGNED) => flag!(serialize_signed_set),
                 L(T::Command, A::SENDER) => {
                     let sender = try_!(self.parse_address_literal());
-                    self.state.sender = Some(sender.map(|a| IotaAddress::from(a.into_inner())));
+                    self.state.sender = Some(sender);
                 }
                 L(T::Command, A::SUMMARY) => flag!(summary_set),
                 L(T::Command, A::JSON) => flag!(json_set),
