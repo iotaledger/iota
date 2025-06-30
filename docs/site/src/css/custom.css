@@ -688,3 +688,12 @@ h4 {
 .navbar__item.navbar-icon-users::before {
   content: "\f0c0"; 
 }
+
+#skcm-cookie-disclaimer__buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+#skcm-cookie-disclaimer{
+  border: var(--iota-gray-70) 1px solid;
+}
