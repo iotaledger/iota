@@ -9,6 +9,7 @@ import {
     BG_SELECTED_OUTLINE,
     BG_SELECTED_OVERLAY,
     BORDER_CLASSES,
+    CLOSE_ICON_INTERACTIVE,
     FOCUS_CLASSES,
     ROUNDED_CLASS,
     STATE_LAYER_CLASSES,
@@ -113,13 +114,14 @@ export function Chip({
                 <span className="text-body-md">{label}</span>
                 {trailingElement}
                 {showClose && (
-                    <ButtonUnstyled onClick={onClose} className="cursor-pointer">
+                    <ButtonUnstyled
+                        onClick={onClose}
+                        className={cx(disabled ? 'cursor-default' : 'cursor-pointer')}
+                    >
                         <Close
                             className={cx(
                                 'h-4 w-4 transition-all duration-500 ease-in-out',
-                                selected
-                                    ? 'opacity-100'
-                                    : 'opacity-40 group-hover:opacity-100 group-focus:opacity-100 group-active:opacity-100',
+                                disabled ? '' : selected ? 'opacity-100' : CLOSE_ICON_INTERACTIVE,
                             )}
                         />
                     </ButtonUnstyled>
