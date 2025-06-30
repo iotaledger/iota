@@ -48,39 +48,34 @@ const notarization = [
             'developer/iota-notarization/how-tos/access-read-only-methods',
         ],
     },
-    // {
-    //     type: 'category',
-    //     label: 'References',
-    //     collapsed: true,
-    //     items: [
-    //         {
-    //             type: 'category',
-    //             label: 'API',
-    //             items: [
-    //                 {
-    //                     type: 'link',
-    //                     label: 'Rust',
-    //                     href: 'https://iotaledger.github.io/notarization/notarization/index.html',
-    //                 },
-    //                 {
-    //                     type: 'link',
-    //                     label: 'Wasm',
-    //                     href: '/references/iota-notarization/wasm/api_ref',
-    //                 },
-    //             ],
-    //         },
-    //         {
-    //             type: 'category',
-    //             label: 'Specifications',
-    //             items: [
-    //                 'references/iota-notarization/overview',
-    //                 'references/iota-notarization/iota-did-method-spec',
-    //                 'references/iota-notarization/revocation-bitmap-2022',
-    //                 'references/iota-notarization/revocation-timeframe-2024',
-    //             ],
-    //         },
-    //     ],
-    // },
+    {
+        type: 'category',
+        label: 'References',
+        collapsed: true,
+        items: [
+            {
+                type: 'category',
+                label: 'API',
+                items: [
+                    {
+                        type: 'link',
+                        label: 'Rust',
+                        href: 'https://iotaledger.github.io/notarization/notarization/index.html',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Specifications',
+                items: [
+                    'references/iota-notarization/overview',
+                    'references/iota-notarization/iota-did-method-spec',
+                    'references/iota-notarization/revocation-bitmap-2022',
+                    'references/iota-notarization/revocation-timeframe-2024',
+                ],
+            },
+        ],
+    },
     'developer/iota-notarization/contribute',
 ];
 
