@@ -1203,6 +1203,7 @@ mod tests {
 
     #[derive(Default)]
     struct MockNetworkClient {
+        #[allow(dead_code)]
         fetch_blocks_requests: Mutex<BTreeMap<FetchRequestKey, FetchRequestBlocksResponse>>,
         fetch_block_headers_requests: Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
         fetch_latest_block_headers_requests:
