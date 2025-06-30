@@ -539,40 +539,6 @@ fn get_total_supply() {
 }
 
 #[test]
-#[ignore = "https://github.com/iotaledger/iota/issues/7507"]
-fn fullnode_get_total_supply_with_migrated_coin_manager_coins() {
-    let ApiTestSetup {
-        runtime,
-        client,
-        cluster,
-        store,
-    } = ApiTestSetup::get_or_init();
-    runtime.block_on(async move {
-        let (address, address_kp, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let (coin_name, immutable_metadata_coin_name) =
-            create_migrated_coin_manager_coins(cluster, client, store, *address, address_kp)
-                .await
-                .unwrap();
-
-        let (result_fullnode, result_indexer) =
-            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
-
-        assert!(result_fullnode.is_some());
-        assert_eq!(result_fullnode, result_indexer);
-
-        let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
-            cluster,
-            client,
-            immutable_metadata_coin_name.to_string(),
-        )
-        .await;
-
-        assert!(result_fullnode.is_some());
-        assert_eq!(result_fullnode, result_indexer);
-    });
-}
-
-#[test]
 fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
