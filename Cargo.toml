@@ -101,6 +101,7 @@ members = [
   "crates/iota-json-rpc-tests",
   "crates/iota-json-rpc-types",
   "crates/iota-keys",
+  "crates/iota-kvstore",
   "crates/iota-light-client",
   "crates/iota-macros",
   "crates/iota-mainnet-unlocks",
@@ -402,6 +403,7 @@ iota-json-rpc = { path = "crates/iota-json-rpc" }
 iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
 iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
 iota-keys = { path = "crates/iota-keys" }
+iota-kvstore = { path = "crates/iota-kvstore" }
 iota-macros = { path = "crates/iota-macros" }
 iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }
