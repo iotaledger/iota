@@ -86,7 +86,7 @@ pub enum NameCommand {
         key: Option<String>,
     },
     /// List the domains owned by the given address, or the active address
-    List { address: Option<IotaAddress> },
+    List { address: Option<KeyIdentity> },
     /// Lookup the address of a domain
     Lookup { domain: Domain },
     /// Register a domain
@@ -137,7 +137,7 @@ pub enum NameCommand {
     ReverseLookup {
         /// The address for which to look up its domain. Defaults to the active
         /// address.
-        address: Option<IotaAddress>,
+        address: Option<KeyIdentity>,
     },
     /// Set the reverse lookup of the domain to the transaction sender address
     SetReverseLookup {
@@ -155,7 +155,7 @@ pub enum NameCommand {
         domain: Domain,
         /// The address to which the domain will point. Defaults to the current
         /// active address.
-        new_address: Option<IotaAddress>,
+        new_address: Option<KeyIdentity>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -184,7 +184,7 @@ pub enum NameCommand {
         /// The full name of the domain. Ex. my-domain.iota
         domain: Domain,
         /// The address to which the domain will be transferred
-        address: IotaAddress,
+        address: KeyIdentity,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -323,6 +323,7 @@ impl NameCommand {
                 }
             }
             Self::List { address } => {
+                let address = get_identity_address(address, context).await?;
                 let mut nfts = get_owned_nfts::<IotaNamesRegistration>(address, context).await?;
                 let subdomain_nfts =
                     get_owned_nfts::<SubdomainRegistration>(address, context).await?;
@@ -518,8 +519,7 @@ impl NameCommand {
                 .await?
             }
             Self::ReverseLookup { address } => {
-                let address =
-                    get_identity_address(address.map(KeyIdentity::Address), context).await?;
+                let address = get_identity_address(address, context).await?;
                 let entry = get_reverse_registry_entry(address, &iota_client).await?;
 
                 NameCommandResult::ReverseLookup {
@@ -581,8 +581,7 @@ impl NameCommand {
                         "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
                     );
                 }
-                let new_address =
-                    get_identity_address(new_address.map(KeyIdentity::Address), context).await?;
+                let new_address = get_identity_address(new_address, context).await?;
                 if entry
                     .name_record
                     .target_address
@@ -664,6 +663,7 @@ impl NameCommand {
                 verbose,
                 opts,
             } => {
+                let address = get_identity_address(Some(address), &context).await?;
                 let nft = get_proxy_nft_by_name(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -1015,7 +1015,7 @@ pub enum SubdomainCommand {
         domain: Domain,
         /// The address to which the subdomain will point. Defaults to the
         /// active address.
-        target_address: Option<IotaAddress>,
+        target_address: Option<KeyIdentity>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -1103,13 +1103,7 @@ impl SubdomainCommand {
                 let package_id = parent.subdomain_package_id(&iota_client).await?;
                 let module_name = parent.subdomain_module_name();
 
-                let target_address = if let Some(target_address) = target_address {
-                    target_address
-                } else {
-                    context.active_address().map_err(|_| {
-                        anyhow::anyhow!("no active address or target-address specified")
-                    })?
-                };
+                let target_address = get_identity_address(target_address, context).await?;
 
                 let res = IotaClientCommands::Call {
                     package: package_id,
@@ -1797,12 +1791,11 @@ impl std::fmt::Debug for NameCommandResult {
 impl PrintableResult for NameCommandResult {}
 
 async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
-    address: Option<IotaAddress>,
+    address: IotaAddress,
     context: &mut WalletContext,
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let address = get_identity_address(address.map(KeyIdentity::Address), context).await?;
     let nft_type = T::type_(iota_names_config.package_address.into());
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
@@ -1871,8 +1864,9 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
     context: &mut WalletContext,
 ) -> anyhow::Result<T> {
     let domain = domain.to_string();
+    let address = get_identity_address(None, context).await?;
 
-    for nft in get_owned_nfts::<T>(None, context).await? {
+    for nft in get_owned_nfts::<T>(address, context).await? {
         if nft.domain_name() == domain {
             return Ok(nft);
         }
