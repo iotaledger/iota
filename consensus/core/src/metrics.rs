@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
+use std::{
+    collections::BTreeSet,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use consensus_config::AuthorityIndex;
@@ -15,7 +18,7 @@ use prometheus::{
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
-use crate::network::metrics::NetworkMetrics;
+use crate::{BlockRef, network::metrics::NetworkMetrics};
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -141,8 +144,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) semantically_invalid_blocks: IntCounterVec,
     pub(crate) syntactically_invalid_blocks: IntCounterVec,
-    pub(crate) _equivocating_rounds_by_authority: IntCounterVec,
-    pub(crate) _missing_proposals_by_authority: IntCounterVec,
+    pub(crate) equivocations_in_storage_by_authority: IntCounterVec,
+    pub(crate) missing_proposals_in_storage_by_authority: IntCounterVec,
+    pub(crate) equivocations_in_cache_by_authority: IntCounterVec,
+    pub(crate) missing_proposals_in_cache_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -451,15 +456,27 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            _equivocating_rounds_by_authority: register_int_counter_vec_with_registry!(
-                "equivocating_rounds_by_authority",
-                "Registers the number of rounds when the authority sent an equivocating block.",
+            equivocations_in_storage_by_authority: register_int_counter_vec_with_registry!(
+                "equivocations_in_storage_by_authority",
+                "Registers the number of equivocations per authority persisted in storage.",
                 &["authority"],
                 registry,
             ).unwrap(),
-            _missing_proposals_by_authority: register_int_counter_vec_with_registry!(
-                "missing_proposals_by_authority",
-                "Registers the number of blocks that an authority failed to send.",
+            missing_proposals_in_storage_by_authority: register_int_counter_vec_with_registry!(
+                "missing_proposals_in_storage_by_authority",
+                "Registers the number of blocks that should be on storage that an authority failed to send.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            equivocations_in_cache_by_authority: register_int_counter_vec_with_registry!(
+                "equivocations_in_cache_by_authority",
+                "Registers the number of equivocations per authority stored on cache.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            missing_proposals_in_cache_by_authority: register_int_counter_vec_with_registry!(
+                "missing_proposals_in_cache_by_authority",
+                "Registers the number of blocks on the cache that an authority failed to send.",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -833,13 +850,23 @@ pub(crate) struct ValidatorScoreMetrics {
     // invalid blocks sent by the validator that were already handled in the epoch.
     pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
-    // by AuthorityIndex. For each of those validators, we count the number of blocks that the
-    // validator failed to propose.
-    pub(crate) _missing_proposals_by_authority: Arc<Vec<AtomicU64>>,
+    // by AuthorityIndex. For each of those validators, we count the number of equivocations
+    // they that were already flushed to cache in the epoch.
+    pub(crate) equivocations_in_storage_by_authority: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
-    // by AuthorityIndex. For each of those validators, we count the number of rounds
-    // they sent equivocating blocks.
-    pub(crate) _equivocating_rounds: Arc<Vec<AtomicU64>>,
+    // by AuthorityIndex. For each of those validators, we count the number of equivocations
+    // in cache, below the threshold clock round.
+    pub(crate) equivocations_in_cache_by_authority: Arc<Vec<AtomicU64>>,
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of blocks that the
+    // validator failed to propose among the blocks that were already flushed to cache in the
+    // epoch.
+    pub(crate) missing_proposals_in_storage_by_authority: Arc<Vec<AtomicU64>>,
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of blocks that the
+    // validator failed to propose, or that the node did not receive yet, from the rounds stored in
+    // cache and below the threshold clock round.
+    pub(crate) missing_proposals_in_cache_by_authority: Arc<Vec<AtomicU64>>,
 }
 
 impl ValidatorScoreMetrics {
@@ -850,17 +877,36 @@ impl ValidatorScoreMetrics {
         let mut syntactically_invalid_blocks_inner = vec![];
         syntactically_invalid_blocks_inner.resize_with(committee_size, || AtomicU64::new(0));
 
-        let mut missing_proposals_by_authority_inner = vec![];
-        missing_proposals_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
+        let mut equivocations_in_storage_by_authority_inner = vec![];
+        equivocations_in_storage_by_authority_inner
+            .resize_with(committee_size, || AtomicU64::new(0));
 
-        let mut equivocating_rounds_inner = vec![];
-        equivocating_rounds_inner.resize_with(committee_size, || AtomicU64::new(0));
+        let mut equivocations_in_cache_by_authority_inner = vec![];
+        equivocations_in_cache_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
+
+        let mut missing_proposals_in_storage_by_authority_inner = vec![];
+        missing_proposals_in_storage_by_authority_inner
+            .resize_with(committee_size, || AtomicU64::new(0));
+
+        let mut missing_proposals_in_cache_by_authority_inner = vec![];
+        missing_proposals_in_cache_by_authority_inner
+            .resize_with(committee_size, || AtomicU64::new(0));
 
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
             syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
-            _missing_proposals_by_authority: Arc::new(missing_proposals_by_authority_inner),
-            _equivocating_rounds: Arc::new(equivocating_rounds_inner),
+            equivocations_in_storage_by_authority: Arc::new(
+                equivocations_in_storage_by_authority_inner,
+            ),
+            equivocations_in_cache_by_authority: Arc::new(
+                equivocations_in_cache_by_authority_inner,
+            ),
+            missing_proposals_in_storage_by_authority: Arc::new(
+                missing_proposals_in_storage_by_authority_inner,
+            ),
+            missing_proposals_in_cache_by_authority: Arc::new(
+                missing_proposals_in_cache_by_authority_inner,
+            ),
         }
     }
 
@@ -869,6 +915,45 @@ impl ValidatorScoreMetrics {
     }
     pub(crate) fn update_syntactically_invalid_blocks(&self, validator: AuthorityIndex) {
         self.syntactically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
+    }
+    pub(crate) fn update_scoring_metrics_after_cache_flush(
+        &self,
+        validator: AuthorityIndex,
+        cached_blocks: &BTreeSet<BlockRef>,
+        mut flushed_blocks: Vec<u32>,
+        threshold_clock_round: u32,
+        eviction_round: u32,
+    ) -> (u64, u64, u64, u64) {
+        let missing_blocks_flushed = flushed_blocks.extract_if(.., |x| x == &0).count() as u64;
+        let equivocations_flushed =
+            flushed_blocks.iter().sum::<u32>() as u64 - flushed_blocks.len() as u64;
+
+        self.equivocations_in_storage_by_authority[validator.value()]
+            .fetch_add(equivocations_flushed, Ordering::Relaxed);
+        self.missing_proposals_in_storage_by_authority[validator.value()]
+            .fetch_add(missing_blocks_flushed, Ordering::Relaxed);
+
+        let mut block_rounds = cached_blocks
+            .iter()
+            .map(|block| block.round)
+            .filter(|&round| round > eviction_round && round < threshold_clock_round)
+            .collect::<Vec<u32>>();
+        let total_block_count = block_rounds.len();
+        block_rounds.dedup();
+        let equivocations_in_cache = (total_block_count - block_rounds.len()) as u64;
+        let missing_blocks_in_cache =
+            (threshold_clock_round - eviction_round) as u64 - block_rounds.len() as u64;
+        self.equivocations_in_cache_by_authority[validator.value()]
+            .fetch_add(equivocations_in_cache, Ordering::Relaxed);
+        self.missing_proposals_in_cache_by_authority[validator.value()]
+            .fetch_add(missing_blocks_in_cache, Ordering::Relaxed);
+
+        (
+            missing_blocks_flushed,
+            equivocations_flushed,
+            missing_blocks_in_cache,
+            equivocations_in_cache,
+        )
     }
 }
 
@@ -1319,12 +1404,7 @@ mod tests {
         fn _get_syntactically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
             self.syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
         }
-        fn _get_missing_block_proposals(&self, validator: AuthorityIndex) -> u64 {
-            self._missing_proposals_by_authority[validator.value()].load(Ordering::Relaxed)
-        }
-        fn _get_equivocating_rounds(&self, validator: AuthorityIndex) -> u64 {
-            self._equivocating_rounds[validator.value()].load(Ordering::Relaxed)
-        }
+
         fn assert_semantically_invalid_blocks_equals(&self, vector: &Vec<u64>) {
             let semantically_invalid_blocks_state = self
                 .semantically_invalid_blocks

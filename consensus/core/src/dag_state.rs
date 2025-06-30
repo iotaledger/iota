@@ -1004,16 +1004,60 @@ impl DagState {
         // Clean up old cached data. After flushing, all cached blocks are guaranteed to
         // be persisted.
         for (authority_index, _) in self.context.committee.authorities() {
+            let last_evicted_round = self.evicted_rounds[authority_index];
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let mut evicted_blocks_per_round =
+                vec![0 as u32; (eviction_round - last_evicted_round) as usize];
             while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
-                if block_ref.round <= eviction_round {
+                let block_round = block_ref.round;
+                if block_round <= eviction_round {
                     self.recent_blocks.remove(block_ref);
                     self.recent_refs_by_authority[authority_index].pop_first();
+                    if block_round > last_evicted_round {
+                        evicted_blocks_per_round
+                            [(block_round - last_evicted_round - 1) as usize] += 1;
+                    }
                 } else {
                     break;
                 }
             }
             self.evicted_rounds[authority_index] = eviction_round;
+            let threshold_clock_round = self.threshold_clock.get_round();
+
+            let (
+                missing_blocks_flushed,
+                equivocations_flushed,
+                missing_blocks_in_cache,
+                equivocations_in_cache,
+            ) = self
+                .context
+                .scoring_metrics
+                .update_scoring_metrics_after_cache_flush(
+                    authority_index,
+                    &self.recent_refs_by_authority[authority_index],
+                    evicted_blocks_per_round,
+                    threshold_clock_round,
+                    eviction_round,
+                );
+
+            let hostname = &self.context.committee.authority(authority_index).hostname;
+            let metrics = &self.context.metrics.node_metrics;
+            metrics
+                .equivocations_in_storage_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(equivocations_flushed);
+            metrics
+                .missing_proposals_in_storage_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(missing_blocks_flushed);
+            metrics
+                .equivocations_in_cache_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(equivocations_in_cache);
+            metrics
+                .missing_proposals_in_cache_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(missing_blocks_in_cache);
         }
 
         let metrics = &self.context.metrics.node_metrics;
