@@ -16,7 +16,7 @@ import {
     TEXT_COLOR,
     TEXT_COLOR_SELECTED_OUTLINE,
 } from './chip.classes';
-import { ChipType } from './chip.enums';
+import { ChipSize, ChipType } from './chip.enums';
 
 interface ChipProps {
     /**
@@ -59,19 +59,24 @@ interface ChipProps {
      * The type of the Chip
      */
     type?: ChipType;
+    /**
+     * The size of the chip.
+     */
+    size?: ChipSize;
 }
 
 export function Chip({
     label,
     type = ChipType.Outline,
     selected,
-    disabled,
     showClose,
     onClose,
     onClick,
     avatar,
     leadingElement,
     trailingElement,
+    disabled,
+    size = ChipSize.Default,
 }: ChipProps) {
     const isOutlineSelected = type === ChipType.Outline && selected;
     const outlineStyle =
@@ -111,7 +116,9 @@ export function Chip({
                 )}
             >
                 {avatar ?? leadingElement}
-                <span className="text-body-md">{label}</span>
+                <span className={cx(size === ChipSize.Small ? 'text-label-md' : 'text-body-md')}>
+                    {label}
+                </span>
                 {trailingElement}
                 {showClose && (
                     <ButtonUnstyled

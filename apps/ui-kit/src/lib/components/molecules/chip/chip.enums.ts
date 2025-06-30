@@ -8,3 +8,8 @@ export enum ChipType {
     Brand = 'brand',
     Error = 'error',
 }
+
+export enum ChipSize {
+    Small = 'small',
+    Default = 'default',
+}
