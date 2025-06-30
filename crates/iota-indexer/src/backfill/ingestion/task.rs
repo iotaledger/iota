@@ -1,0 +1,197 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::{ops::RangeInclusive, sync::Arc};
+
+use dashmap::DashMap;
+use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use tokio::sync::Notify;
+use tokio_util::sync::CancellationToken;
+use tracing::error;
+
+use crate::{
+    backfill::{
+        ingestion::{IngestionBackfill, adapter::Adapter},
+        task::BackfillTask,
+    },
+    db::ConnectionPool,
+    errors::IndexerError,
+};
+
+pub struct IngestionBackfillTask<T: IngestionBackfill> {
+    ready_checkpoints: Arc<DashMap<CheckpointSequenceNumber, Vec<T::ProcessedType>>>,
+    notify: Arc<Notify>,
+    _cancel_token: CancellationToken,
+}
+
+impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
+    #[expect(dead_code)]
+    pub(crate) async fn new(
+        remote_store_url: String,
+        start_checkpoint: CheckpointSequenceNumber,
+    ) -> Result<Self, IndexerError> {
+        let ready_checkpoints = Arc::new(DashMap::new());
+        let notify = Arc::new(Notify::new());
+        let adapter: Adapter<T> = Adapter {
+            ready_checkpoints: ready_checkpoints.clone(),
+            notify: notify.clone(),
+        };
+        let reader_options = ReaderOptions {
+            batch_size: 200,
+            ..Default::default()
+        };
+        let (executor, _cancel_token) = setup_single_workflow(
+            adapter,
+            remote_store_url,
+            start_checkpoint,
+            200,
+            Some(reader_options),
+        )
+        .await?;
+
+        tokio::spawn(async move {
+            if let Err(join_err) = executor.await {
+                error!(?join_err, "Ingestion executor panicked or was cancelled");
+            }
+        });
+
+        Ok(Self {
+            ready_checkpoints,
+            notify,
+            _cancel_token,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl<T: IngestionBackfill> BackfillTask for IngestionBackfillTask<T> {
+    async fn backfill_range(
+        &self,
+        pool: ConnectionPool,
+        range: &RangeInclusive<usize>,
+    ) -> Result<(), IndexerError> {
+        let mut processed_data = vec![];
+        let mut start = *range.start();
+        let end = *range.end();
+        loop {
+            while start <= end {
+                if let Some((_, processed)) = self
+                    .ready_checkpoints
+                    .remove(&(start as CheckpointSequenceNumber))
+                {
+                    processed_data.extend(processed);
+                    start += 1;
+                } else {
+                    break;
+                }
+            }
+            if start <= end {
+                self.notify.notified().await;
+            } else {
+                break;
+            }
+        }
+        // TODO: Limit the size of each chunk.
+        // postgres has a parameter limit of 65535, meaning that row_count * col_count
+        // <= 65536.
+        T::commit_chunk(pool.clone(), processed_data).await
+    }
+}
+
+#[cfg(feature = "pg_integration")]
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use diesel::{QueryableByName, RunQueryDsl, sql_query, sql_types::BigInt};
+    use iota_types::{
+        full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+    };
+    use tokio::sync::Notify;
+    use tokio_util::sync::CancellationToken;
+
+    use super::*;
+    use crate::{db::get_pool_connection, test_utils::TestDatabase};
+
+    fn database_url(db_name: &str) -> String {
+        format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
+    }
+
+    #[derive(QueryableByName)]
+    struct RowCount {
+        #[diesel(sql_type = BigInt)]
+        cnt: i64,
+    }
+
+    struct BackfillDummyTable;
+    #[async_trait::async_trait]
+    impl IngestionBackfill for BackfillDummyTable {
+        type ProcessedType = usize;
+
+        fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType> {
+            vec![checkpoint.checkpoint_summary.sequence_number as usize]
+        }
+
+        async fn commit_chunk(
+            pool: ConnectionPool,
+            processed_data: Vec<Self::ProcessedType>,
+        ) -> Result<(), IndexerError> {
+            let mut conn = get_pool_connection(&pool)?;
+
+            sql_query("CREATE TABLE IF NOT EXISTS ingestion_items (id BIGINT PRIMARY KEY)")
+                .execute(&mut conn)?;
+
+            for id in processed_data {
+                sql_query("INSERT INTO ingestion_items (id) VALUES ($1) ON CONFLICT DO NOTHING")
+                    .bind::<BigInt, _>(id as i64)
+                    .execute(&mut conn)?;
+            }
+
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn ingestion_backfill_writes_to_db() {
+        telemetry_subscribers::init_for_testing();
+
+        let mut db = TestDatabase::new(database_url("ingestion_backfill_test"));
+        db.recreate();
+        db.reset_db();
+
+        {
+            let pool = db.to_connection_pool();
+
+            // Create an IngestionBackfillTask without remote workflow
+            let ready_checkpoints = Arc::new(DashMap::new());
+            let notify = Arc::new(Notify::new());
+            let cancel = CancellationToken::new();
+            let task = IngestionBackfillTask::<BackfillDummyTable> {
+                ready_checkpoints: ready_checkpoints.clone(),
+                notify: notify.clone(),
+                _cancel_token: cancel,
+            };
+
+            // Simulate ready checkpoints for backfill
+            for seq in 1..=5 {
+                ready_checkpoints.insert(seq as CheckpointSequenceNumber, vec![seq]);
+            }
+
+            // Perform backfill
+            task.backfill_range(pool.clone(), &(1..=5))
+                .await
+                .expect("backfill_range failed");
+
+            // Check if the data was written correctly
+            let mut conn = pool.get().unwrap();
+            let RowCount { cnt } = sql_query("SELECT COUNT(*) AS cnt FROM ingestion_items")
+                .get_result(&mut conn)
+                .unwrap();
+            assert_eq!(cnt, 5, "Should have 5 items in ingestion_items table");
+        }
+
+        db.drop_if_exists();
+    }
+}

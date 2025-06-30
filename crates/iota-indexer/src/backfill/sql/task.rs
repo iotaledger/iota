@@ -8,28 +8,28 @@ use async_trait::async_trait;
 use diesel::{RunQueryDsl, sql_types::BigInt};
 
 use crate::{
-    backfill::backfill_task::BackfillTask,
+    backfill::task::BackfillTask,
     db::{ConnectionPool, get_pool_connection},
     errors::IndexerError,
 };
 
 /// A backfiller that runs SQL queries in parallel to update a range of rows in
 /// a database table.
-pub struct SqlBackFill {
+pub(crate) struct SqlBackfillTask {
     sql: String,
     key_column: String,
 }
 
-impl SqlBackFill {
-    /// Creates a new `SqlBackFill` instance with the provided SQL query and key
-    /// column.
+impl SqlBackfillTask {
+    /// Creates a new `SqlBackfillTask` instance with the provided SQL query and
+    /// key column.
     pub fn new(sql: String, key_column: String) -> Self {
         Self { sql, key_column }
     }
 }
 
 #[async_trait]
-impl BackfillTask for SqlBackFill {
+impl BackfillTask for SqlBackfillTask {
     async fn backfill_range(
         &self,
         pool: ConnectionPool,
@@ -57,13 +57,14 @@ impl BackfillTask for SqlBackFill {
     }
 }
 
+#[cfg(feature = "pg_integration")]
 #[cfg(test)]
 mod tests {
     use diesel::{QueryableByName, sql_query};
 
     use super::*;
     use crate::{
-        backfill::{BackfillTaskKind, backfill_runner::BackfillRunner},
+        backfill::{BackfillTaskKind, runner::BackfillRunner},
         config::BackfillConfig,
         test_utils::TestDatabase,
     };
@@ -207,7 +208,7 @@ mod tests {
             // Rerun overlaps at ID 13, should fill IDs 14 and 15 only
             BackfillRunner::run(
                 BackfillTaskKind::Sql {
-                    sql: "INSERT INTO target_items (id, payload) SELECT id, payload FROM source_item asdasds"
+                    sql: "INSERT INTO target_items (id, payload) SELECT id, payload FROM source_items"
                         .into(),
                     key_column: "id".into(),
                 },

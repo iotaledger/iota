@@ -6,7 +6,7 @@ use std::env;
 
 use clap::{CommandFactory, FromArgMatches, Parser};
 use iota_indexer::{
-    backfill::backfill_runner::BackfillRunner,
+    backfill::runner::BackfillRunner,
     config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
     db::{
         get_pool_connection, new_connection_pool, reset_database,
