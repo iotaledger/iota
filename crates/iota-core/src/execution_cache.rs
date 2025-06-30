@@ -103,7 +103,7 @@ impl ExecutionCacheTraitPointers {
     }
 }
 
-static DISABLE_WRITEBACK_CACHE_ENV_VAR: &str = "DISABLE_WRITEBACK_CACHE";
+static ENABLE_WRITEBACK_CACHE_ENV_VAR: &str = "ENABLE_WRITEBACK_CACHE";
 
 #[derive(Debug)]
 pub enum ExecutionCacheConfigType {
@@ -129,7 +129,7 @@ pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheCo
         }
     }
 
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
+    if !std::env::var(ENABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
         || matches!(config, ExecutionCacheConfig::PassthroughCache)
     {
         ExecutionCacheConfigType::PassthroughCache
@@ -158,7 +158,7 @@ pub fn build_execution_cache_from_env(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
+    if !std::env::var(ENABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
         ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
         )
