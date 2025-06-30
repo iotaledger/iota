@@ -1053,11 +1053,11 @@ impl DagState {
             metrics
                 .equivocations_in_cache_by_authority
                 .with_label_values(&[hostname])
-                .inc_by(equivocations_in_cache);
+                .set(equivocations_in_cache as i64);
             metrics
                 .missing_proposals_in_cache_by_authority
                 .with_label_values(&[hostname])
-                .inc_by(missing_blocks_in_cache);
+                .set(missing_blocks_in_cache as i64);
         }
 
         let metrics = &self.context.metrics.node_metrics;

@@ -146,8 +146,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) syntactically_invalid_blocks: IntCounterVec,
     pub(crate) equivocations_in_storage_by_authority: IntCounterVec,
     pub(crate) missing_proposals_in_storage_by_authority: IntCounterVec,
-    pub(crate) equivocations_in_cache_by_authority: IntCounterVec,
-    pub(crate) missing_proposals_in_cache_by_authority: IntCounterVec,
+    pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
+    pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -468,13 +468,13 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            equivocations_in_cache_by_authority: register_int_counter_vec_with_registry!(
+            equivocations_in_cache_by_authority: register_int_gauge_vec_with_registry!(
                 "equivocations_in_cache_by_authority",
                 "Registers the number of equivocations per authority stored on cache.",
                 &["authority"],
                 registry,
             ).unwrap(),
-            missing_proposals_in_cache_by_authority: register_int_counter_vec_with_registry!(
+            missing_proposals_in_cache_by_authority: register_int_gauge_vec_with_registry!(
                 "missing_proposals_in_cache_by_authority",
                 "Registers the number of blocks on the cache that an authority failed to send.",
                 &["authority"],
@@ -944,9 +944,9 @@ impl ValidatorScoreMetrics {
         let missing_blocks_in_cache =
             (threshold_clock_round - eviction_round) as u64 - block_rounds.len() as u64;
         self.equivocations_in_cache_by_authority[validator.value()]
-            .fetch_add(equivocations_in_cache, Ordering::Relaxed);
+            .store(equivocations_in_cache, Ordering::Relaxed);
         self.missing_proposals_in_cache_by_authority[validator.value()]
-            .fetch_add(missing_blocks_in_cache, Ordering::Relaxed);
+            .store(missing_blocks_in_cache, Ordering::Relaxed);
 
         (
             missing_blocks_flushed,
