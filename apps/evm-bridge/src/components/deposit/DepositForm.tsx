@@ -62,19 +62,21 @@ export function DepositForm({
     const {
         formattedAvailableBalance: formattedAvailableBalanceL1,
         isLoading: isLoadingBalanceL1,
-        symbol,
+        symbol: symbolL1,
     } = useAvailableBalanceL1(selectedCoinType);
 
     // L2 Balance
     const {
         formattedAvailableBalance: formattedAvailableBalanceL2,
         isLoading: isLoadingBalanceL2,
+        symbol: symbolL2,
     } = useAvailableBalanceL2(selectedCoinType);
 
     const formattedAvailableBalance = isFromLayer1
         ? formattedAvailableBalanceL1
         : formattedAvailableBalanceL2;
     const isLoadingBalance = isFromLayer1 ? isLoadingBalanceL1 : isLoadingBalanceL2;
+    const symbol = isFromLayer1 ? symbolL1 : symbolL2;
 
     const isPayingAllBalance = new BigNumber(depositAmount).isEqualTo(
         new BigNumber(formattedAvailableBalance),
