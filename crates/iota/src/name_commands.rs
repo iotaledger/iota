@@ -554,9 +554,9 @@ impl NameCommand {
                     )
                     .await?
                     else {
-                        return Ok(NameCommandResult::CommandResult(
+                        return Ok(NameCommandResult::CommandResult(Box::new(
                             IotaClientCommandResult::TransactionBlock(res),
-                        ));
+                        )));
                     };
                     Ok(NameCommandResult::SetReverseLookup {
                         entry,
@@ -1308,7 +1308,7 @@ pub enum NameCommandResult {
         burned: IotaNamesRegistration,
         digest: TransactionDigest,
     },
-    CommandResult(IotaClientCommandResult),
+    CommandResult(Box<IotaClientCommandResult>),
     ExtendExpiration {
         record: NameRecord,
         nft: SubnameRegistration,
@@ -1992,7 +1992,7 @@ where
             }
             fun(res).await?
         } else {
-            NameCommandResult::CommandResult(res)
+            NameCommandResult::CommandResult(Box::new(res))
         },
     )
 }

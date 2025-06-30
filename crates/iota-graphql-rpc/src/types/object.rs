@@ -166,7 +166,7 @@ pub(crate) struct ObjectKey {
 pub(crate) enum ObjectOwner {
     Immutable(Immutable),
     Shared(Shared),
-    Parent(Parent),
+    Parent(Box<Parent>),
     Address(AddressOwner),
 }
 
@@ -643,7 +643,7 @@ impl ObjectImpl<'_> {
                 .ok()
                 .flatten();
 
-                Some(ObjectOwner::Parent(Parent { parent }))
+                Some(ObjectOwner::Parent(Box::new(Parent { parent })))
             }
             O::Shared {
                 initial_shared_version,
