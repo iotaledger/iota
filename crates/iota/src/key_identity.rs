@@ -30,8 +30,8 @@ impl From<IotaAddress> for KeyIdentity {
 impl FromStr for KeyIdentity {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("0x") {
-            Ok(KeyIdentity::Address(IotaAddress::from_str(s)?))
+        if let Ok(address) = s.parse() {
+            Ok(KeyIdentity::Address(address))
         } else {
             #[cfg(feature = "iota-names")]
             if let Ok(name) = s.parse() {
