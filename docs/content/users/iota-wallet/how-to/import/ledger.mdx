@@ -1,0 +1,140 @@
+---
+description: A guide on how to import accounts from a Ledger device into the IOTA Wallet, including installation and setup instructions.
+teams:
+   - iotaledger/tooling
+tags: [iota-wallet]
+pagination_prev: users/iota-wallet/how-to/import
+pagination_next: users/iota-wallet/how-to/import/balance-finder
+---
+import LedgerDevices from '../../../../_snippets/about-iota/ledger_devices.mdx';
+
+# Importing Wallet from Ledger Device
+
+This guide walks you through using IOTA Wallet with your Ledger device. By connecting your Ledger, you can add up to 10 accounts to IOTA Wallet and use them like any other account.
+The added benefit is that your private keys remain securely stored in your Ledger, a cold storage wallet, giving you full control over your assets.
+
+## Requirements
+
+Before connecting your Ledger device to IOTA Wallet, ensure the following:
+
+- Install the latest version of [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) from the Chrome Web Store.
+- Set up your Ledger device and update it to the latest firmware.
+- Install [Ledger Live](https://www.ledger.com/ledger-live) and confirm that your device can connect successfully.
+
+<LedgerDevices />
+
+## Install the IOTA App on Your Ledger Device
+
+To use IOTA Wallet with Ledger, install the IOTA app on your device through Ledger Live or manually.
+Ledger Live is preferred, but you need to install the app manually for deprecated devices like the Ledger Nano S.
+
+<Tabs queryString="install-method">
+<TabItem value="ledger-live" label="Ledger Live (preferred)">
+
+:::info Community Resources
+
+There is a [video](https://www.youtube.com/watch?v=2R19d8UMjR8) from the community that might help you with the installation and setup process.
+
+:::
+
+1. Unlock your Ledger device.
+2. Open Ledger Live and navigate to **My Ledger** in the left panel.
+3. Press both buttons on the device to approve the secure connection.
+4. In the App Catalog, search for **IOTA**.
+5. Click **Install** to download the IOTA app to your device.
+6. Your device will show the installation progress.
+
+</TabItem>
+<TabItem value="manual" label="Manually (for deprecated devices such as Ledger Nano S)" >
+
+:::warning
+
+The Ledger Nano S reached its end of life in June 2022 (https://shop.ledger.com/pages/ledger-os-and-device-apps-policy).
+To ensure continued security, compatibility, and performance, we strongly recommend upgrading to a newer device.
+Carry out the manual installation at your own risk.
+
+:::
+
+:::info Community Resources
+
+There is a Video and an install Tool from the community that might help you with the installation process.
+
+- [Video](https://www.youtube.com/watch?v=JNQIXzXZH7Y&pp=0gcJCY0JAYcqIYzv)
+- [Tool](https://github.com/Dr-Electron/ledger-nano-s-iota-installer)
+
+:::
+
+#### Requirements
+
+- [Python](https://www.python.org/downloads/)
+
+#### Install
+
+:::warning
+
+Make sure you have enough space left for an additional app on your device.
+
+:::
+
+1. Go to the latest release on https://github.com/iotaledger/ledger-app-iota/releases/tag/ledger-app-iota-v0.9.2.
+2. Download the archive matching your device, e.g. `nanos.tar.gz` for the Ledger Nano S.
+:::info Safari
+
+If you use Safari make sure to not directly click on the file you want to download. 
+Right click and choose `Download Linked File`. This makes sure Safari doesn't unpack the file to `nanos.tar` which is important for the next step.
+
+:::
+3. Verify that the checksum matches the one from the release:
+    - For Linux or MacOS, use `shasum -a 256 nanos.tar.gz`.
+    - For Windows, use `Get-Filehash -Algorithm SHA256 nanos.tar.gz`.
+4. Extract the archive `tar -xvzf nanos.tar.gz`.
+5. Move to the app folder `cd nanos`.
+6. Follow the steps on https://github.com/LedgerHQ/ledgerctl to install `ledgerctl`.
+7. If you don't already have your ledger device connected, connect and unlock it now.
+8. Install the app on your device `ledgerctl install -f app_nanos.json`.
+    If you get this error message: `ledgerwallet.client.CommException: Exception : Invalid status 5103 (Unknown reason)`, then it means that you do not have enough space left for the app.
+    Delete an existing app on your device and try the install command again. You can delete an app in Ledger Live or with `ledgerctl` by running `ledgerctl list` and then `ledgerctl delete <app_name>`.
+9. Accept `Allow unsafe manager` on your device.
+10. Follow the instructions on your device to uninstall the old app if needed.
+11. Accept `Perform installation` on your device.
+12. Enter your pin on your device.
+
+Launching the app will display "This app is not genuine" on your device. This is expected, as the app is not signed by Ledger.
+The displayed identifier should be `980ee07054776674583f423401e7fab5fed56557e6e24f219e43b546798db1f1`.
+
+</TabItem>
+</Tabs>
+
+## Import Accounts from Your Ledger Device
+
+To import accounts from your Ledger into IOTA Wallet:
+
+1. Unlock your Ledger device.
+2. Open the `IOTA` app on your Ledger and press both buttons to start it.
+3. Close Ledger Live if it is still running.
+4. Open [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) and enter your password.
+5. Go to `Accounts` by clicking on the address at the top of the `Home` section.
+
+![Accounts](/img/about-iota/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
+
+6. Click `Add Profile`.
+
+![Add Profile](/img/about-iota/iota-wallet/how-to/multi-account/click-add-profile.png)
+
+7. Select the `Ledger` button from the `Import from Ledger` section.
+
+![Import From Ledger](/img/about-iota/iota-wallet/how-to/ledger/import-from-ledger.png)
+
+8. On the `Connect Ledger Wallet` screen, click `Continue`.
+
+![Connect Ledger Wallet](/img/about-iota/iota-wallet/how-to/ledger/connect-ledger-wallet.png)
+
+9. Choose the wallets you want to import into IOTA Wallet, then click `Next`.
+
+![Select Wallets](/img/about-iota/iota-wallet/how-to/ledger/select-wallets.png)
+
+10. Enter your password and click `Verify`.
+
+![Verify Password](/img/about-iota/iota-wallet/how-to/ledger/verify-password.png)
+
+Your imported Ledger accounts will appear under the `Ledger` cluster on the `Manage Accounts` screen.

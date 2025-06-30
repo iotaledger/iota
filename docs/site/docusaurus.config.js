@@ -61,7 +61,7 @@ const config = {
         id:'mainnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -76,7 +76,7 @@ const config = {
         id:'testnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/testnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/testnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -91,7 +91,7 @@ const config = {
         id:'devnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -150,8 +150,28 @@ const config = {
           const redirects = [
             {
               from: '/references/ts-sdk',
-              to: '/ts-sdk',
+              to: '/developer/ts-sdk',
             },
+            {
+              from: '/references/iota-identity',
+              to: '/developer/iota-identity/references',
+            },
+            {
+              from: '/references',
+              to: '/developer/references',
+            },
+            {
+              from: '/iota-evm',
+              to: '/developer/iota-evm',
+            },
+            {
+              from: '/iota-identity',
+              to: '/developer/iota-identity',
+            },
+            {
+              from: '/ts-sdk',
+              to: '/developer/ts-sdk',
+            }
           ];
           let paths = [];
           for (const redirect of redirects) {
@@ -174,7 +194,7 @@ const config = {
             specPath:
               'https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml',
             outputDir: 
-              '../content/iota-evm/references/openapi',
+              '../content/developer/iota-evm/references/openapi',
             sidebarOptions: {
               groupPathsBy: 'tag',
             }
@@ -305,30 +325,22 @@ const config = {
           {
             label: "About IOTA",
             to: "about-iota",
+            className: 'navbar-icon-about',
           },
           {
             label: "Developers",
             to: "developer",
+            className: 'navbar-icon-developer',
           },
           {
-            label: "Node Operators",
+            label: "Operators",
             to: "operator",
+            className: 'navbar-icon-operator',
           },
           {
-            label: "References",
-            to: "references",
-          },
-          {
-            label: "TS SDK",
-            to: "ts-sdk/typescript/",
-          },
-          {
-            label: "IOTA Identity",
-            to: "iota-identity",
-          },
-          {
-            label: "IOTA EVM",
-            to: "iota-evm",
+            label: "Users",
+            to: "users/wallets",
+            className: 'navbar-icon-users',
           },
           {
             type: 'custom-WalletConnectButton',

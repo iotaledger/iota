@@ -113,9 +113,18 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())?;
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
+        // TODO: Enable TLS on this interface with below config, once support is rolled
+        // out to validators.
+        // ```
+        // let tls_config = iota_tls::create_rustls_client_config(
+        //     iota_types::crypto::NetworkPublicKey::from_bytes(&committee_member.network_pubkey_bytes)?,
+        //     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+        //     None,
+        // );
+        // ```
         let channel = net_config
-            .connect_lazy(&net_addr)
+            .connect_lazy(&net_addr, None)
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
