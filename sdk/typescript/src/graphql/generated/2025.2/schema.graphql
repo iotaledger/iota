@@ -976,11 +976,6 @@ type DisplayEntry {
 	error: String
 }
 
-enum NameFormat {
-	AT
-	DOT
-}
-
 type DryRunEffect {
 	"""
 	Changes made to arguments that were mutably borrowed by each command in
@@ -2923,6 +2918,11 @@ type Mutation {
 	`Query.transactionBlock`.
 	"""
 	executeTransactionBlock(txBytes: String!, signatures: [String!]!): ExecutionResult!
+}
+
+enum NameFormat {
+	AT
+	DOT
 }
 
 """
