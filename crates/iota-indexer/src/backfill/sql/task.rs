@@ -66,8 +66,8 @@ mod tests {
     use crate::{
         backfill::{
             BackfillTaskKind,
+            pg_test_utils::{RowCount, database_url},
             runner::BackfillRunner,
-            test_utils::{RowCount, database_url},
         },
         config::BackfillConfig,
         test_utils::TestDatabase,

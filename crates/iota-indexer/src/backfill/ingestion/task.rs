@@ -123,7 +123,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        backfill::test_utils::{RowCount, database_url},
+        backfill::pg_test_utils::{RowCount, database_url},
         db::get_pool_connection,
         test_utils::TestDatabase,
     };

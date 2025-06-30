@@ -63,8 +63,9 @@ pub(crate) async fn get_backfill_task(
     }
 }
 
+#[cfg(feature = "pg_integration")]
 #[cfg(test)]
-mod test_utils {
+mod pg_test_utils {
     use diesel::{QueryableByName, sql_types::BigInt};
 
     /// Returns the database URL for testing purposes.
