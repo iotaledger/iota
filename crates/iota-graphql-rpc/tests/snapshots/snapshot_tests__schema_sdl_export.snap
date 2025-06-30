@@ -3720,7 +3720,7 @@ type Query {
 	"""
 	protocolConfig(protocolVersion: UInt53): ProtocolConfigs!
 	"""
-	Resolves an IOTA-Names `name` name to an address, if it has been
+	Resolves an IOTA-Names `name` to an address, if it has been
 	bound.
 	"""
 	resolveIotaNamesAddress(name: String!): Address
