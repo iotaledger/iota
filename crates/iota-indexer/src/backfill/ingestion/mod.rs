@@ -11,12 +11,16 @@ use iota_types::full_checkpoint_content::CheckpointData;
 
 use crate::{db::ConnectionPool, errors::IndexerError};
 
+/// Processes checkpoints and commits processed data to the database.
 #[async_trait::async_trait]
-pub(crate) trait IngestionBackfill: Send + Sync {
+pub(crate) trait IngestionBackfillHandler: Send + Sync {
     type ProcessedType: Send + Sync;
 
+    /// Converts a `CheckpointData` into zero-or-more items (`ProcessedType`).
     fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType>;
-    async fn commit_chunk(
+
+    /// Stores a chunk of processed items.
+    async fn persist_chunk(
         pool: ConnectionPool,
         processed_data: Vec<Self::ProcessedType>,
     ) -> Result<(), IndexerError>;

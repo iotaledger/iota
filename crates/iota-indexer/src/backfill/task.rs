@@ -8,9 +8,10 @@ use async_trait::async_trait;
 
 use crate::{db::ConnectionPool, errors::IndexerError};
 
+/// Encapsulates the logic to process and persist data for a chunk of
+/// checkpoints.
 #[async_trait]
 pub(crate) trait BackfillTask: Send + Sync {
-    /// Backfill the database for a specific range.
     async fn backfill_range(
         &self,
         pool: ConnectionPool,

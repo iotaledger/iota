@@ -60,25 +60,18 @@ impl BackfillTask for SqlBackfillTask {
 #[cfg(feature = "pg_integration")]
 #[cfg(test)]
 mod tests {
-    use diesel::{QueryableByName, sql_query};
+    use diesel::sql_query;
 
     use super::*;
     use crate::{
-        backfill::{BackfillTaskKind, runner::BackfillRunner},
+        backfill::{
+            BackfillTaskKind,
+            runner::BackfillRunner,
+            test_utils::{RowCount, database_url},
+        },
         config::BackfillConfig,
         test_utils::TestDatabase,
     };
-
-    fn database_url(db_name: &str) -> String {
-        format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
-    }
-
-    /// Counts how many rows exist in the target table.
-    #[derive(QueryableByName, Debug)]
-    struct RowCount {
-        #[diesel(sql_type = BigInt)]
-        cnt: i64,
-    }
 
     fn setup_source_and_target(pool: &ConnectionPool) {
         let mut conn = pool.get().unwrap();

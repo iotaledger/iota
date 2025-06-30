@@ -13,20 +13,29 @@ use tracing::error;
 
 use crate::{
     backfill::{
-        ingestion::{IngestionBackfill, adapter::Adapter},
+        ingestion::{IngestionBackfillHandler, adapter::Adapter},
         task::BackfillTask,
     },
     db::ConnectionPool,
     errors::IndexerError,
 };
 
-pub struct IngestionBackfillTask<T: IngestionBackfill> {
+/// Orchestrates ingestion-driven backfill by buffering processed checkpoints
+/// and coordinating range-based commits.
+///
+/// `IngestionBackfillTask` spins up an ingestion workflow that continuously
+/// transforms checkpoints (via `Adapter<T>`), storing
+/// them in `ready_checkpoints`. Backfill operations can then drain these
+/// buffered records in order, pausing the backfill until the required
+/// checkpoint data arrives (via `notify`), and commit the chunks.
+pub struct IngestionBackfillTask<T: IngestionBackfillHandler> {
     ready_checkpoints: Arc<DashMap<CheckpointSequenceNumber, Vec<T::ProcessedType>>>,
     notify: Arc<Notify>,
     _cancel_token: CancellationToken,
 }
 
-impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
+impl<T: IngestionBackfillHandler + 'static> IngestionBackfillTask<T> {
+    // Creates and starts a new ingestion‐driven backfill task using processor `T`.
     #[expect(dead_code)]
     pub(crate) async fn new(
         remote_store_url: String,
@@ -66,7 +75,7 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: IngestionBackfill> BackfillTask for IngestionBackfillTask<T> {
+impl<T: IngestionBackfillHandler> BackfillTask for IngestionBackfillTask<T> {
     async fn backfill_range(
         &self,
         pool: ConnectionPool,
@@ -96,7 +105,7 @@ impl<T: IngestionBackfill> BackfillTask for IngestionBackfillTask<T> {
         // TODO: Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
         // <= 65536.
-        T::commit_chunk(pool.clone(), processed_data).await
+        T::persist_chunk(pool.clone(), processed_data).await
     }
 }
 
@@ -105,7 +114,7 @@ impl<T: IngestionBackfill> BackfillTask for IngestionBackfillTask<T> {
 mod tests {
     use std::sync::Arc;
 
-    use diesel::{QueryableByName, RunQueryDsl, sql_query, sql_types::BigInt};
+    use diesel::{RunQueryDsl, sql_query, sql_types::BigInt};
     use iota_types::{
         full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
     };
@@ -113,35 +122,26 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use super::*;
-    use crate::{db::get_pool_connection, test_utils::TestDatabase};
-
-    fn database_url(db_name: &str) -> String {
-        format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
-    }
-
-    #[derive(QueryableByName)]
-    struct RowCount {
-        #[diesel(sql_type = BigInt)]
-        cnt: i64,
-    }
+    use crate::{
+        backfill::test_utils::{RowCount, database_url},
+        db::get_pool_connection,
+        test_utils::TestDatabase,
+    };
 
     struct BackfillDummyTable;
     #[async_trait::async_trait]
-    impl IngestionBackfill for BackfillDummyTable {
+    impl IngestionBackfillHandler for BackfillDummyTable {
         type ProcessedType = usize;
 
         fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType> {
             vec![checkpoint.checkpoint_summary.sequence_number as usize]
         }
 
-        async fn commit_chunk(
+        async fn persist_chunk(
             pool: ConnectionPool,
             processed_data: Vec<Self::ProcessedType>,
         ) -> Result<(), IndexerError> {
             let mut conn = get_pool_connection(&pool)?;
-
-            sql_query("CREATE TABLE IF NOT EXISTS ingestion_items (id BIGINT PRIMARY KEY)")
-                .execute(&mut conn)?;
 
             for id in processed_data {
                 sql_query("INSERT INTO ingestion_items (id) VALUES ($1) ON CONFLICT DO NOTHING")
@@ -151,6 +151,21 @@ mod tests {
 
             Ok(())
         }
+    }
+
+    fn setup_target(pool: &ConnectionPool) {
+        let mut conn = get_pool_connection(pool).unwrap();
+
+        // Create ingestion_items table
+        sql_query(
+            r#"
+            CREATE TABLE IF NOT EXISTS ingestion_items (
+                id BIGINT PRIMARY KEY
+            )
+            "#,
+        )
+        .execute(&mut conn)
+        .unwrap();
     }
 
     #[tokio::test]
@@ -163,6 +178,7 @@ mod tests {
 
         {
             let pool = db.to_connection_pool();
+            setup_target(&pool);
 
             // Create an IngestionBackfillTask without remote workflow
             let ready_checkpoints = Arc::new(DashMap::new());

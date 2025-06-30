@@ -11,18 +11,23 @@ use iota_types::{
 };
 use tokio::sync::Notify;
 
-use crate::backfill::ingestion::IngestionBackfill;
+use crate::backfill::ingestion::IngestionBackfillHandler;
 
+/// Bridge between the ingestion engine and the backfill task.
 #[derive(Clone)]
-pub(crate) struct Adapter<T: IngestionBackfill> {
+pub(crate) struct Adapter<T: IngestionBackfillHandler> {
     pub(crate) ready_checkpoints: Arc<DashMap<CheckpointSequenceNumber, Vec<T::ProcessedType>>>,
     pub(crate) notify: Arc<Notify>,
 }
 
+/// The `Adapter` receives `CheckpointData` from the ingestion pipeline,
+/// uses `T::process_checkpoint` to transform it and stores the processed data
+/// in `ready_checkpoints`. It then signals any waiting backfill jobs via
+/// `notify`.
 #[async_trait::async_trait]
-impl<T: IngestionBackfill> Worker for Adapter<T> {
-    type Error = anyhow::Error;
+impl<T: IngestionBackfillHandler> Worker for Adapter<T> {
     type Message = ();
+    type Error = anyhow::Error;
 
     async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> anyhow::Result<()> {
         let processed = T::process_checkpoint(checkpoint.clone());

@@ -25,10 +25,15 @@ use crate::{
     errors::IndexerError,
 };
 
+/// Entry point for orchestrating backfills.
+///
+/// `BackfillRunner` selects the appropriate backfill implementation, splits the
+/// requested checkpoint range into manageable chunks, and dispatches them in
+/// parallel.
 pub struct BackfillRunner;
 
 impl BackfillRunner {
-    /// Runs the backfill task for the specified range.
+    /// Execute a backfill over `total_range` using the specified task kind.
     pub async fn run(
         runner_kind: BackfillTaskKind,
         pool: ConnectionPool,
