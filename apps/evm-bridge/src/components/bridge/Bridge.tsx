@@ -2,43 +2,51 @@ import { DepositLayer1, DepositLayer2 } from '..';
 import { Header } from '@iota/apps-ui-kit';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useMemo } from 'react';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { createBridgeFormSchema } from '../../lib/schema/bridgeForm.schema';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
-import {
-    Feature,
-    useCoinMetadata,
-    useGetAllBalances,
-    useSortedCoinsByCategories,
-} from '@iota/core';
+import { Feature, useGetAllBalances, useSortedCoinsByCategories } from '@iota/core';
 import { useFeatureValue } from '@growthbook/growthbook-react';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useAllCoinsMetadata } from '../../hooks/useAllCoinsMetadata';
 import { BridgeFormInputName } from '../../lib/enums';
+import { useAvailableIotaBalanceL1 } from '../../hooks/useAvailableIotaBalanceL1';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function Bridge() {
     const layer1Account = useCurrentAccount();
-
-    const { data: coinsBalance } = useGetAllBalances(layer1Account?.address);
     const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
 
-    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalance || [], knownEvmCoins);
-    const sortedCoinsBalance = [...recognized, ...pinned];
-    console.log('sortedCoinsBalance:', sortedCoinsBalance);
-    const { metadata: allCoinsMetadata } = useAllCoinsMetadata(sortedCoinsBalance);
-    console.log('allCoinsMetadata:', allCoinsMetadata);
-    const { availableBalance: availableBalanceL1 } = useAvailableBalanceL1();
-    // const { availableBalance: availableBalanceL2 } = useAvailableBalanceL2();
-    const { data: coinMetadata } = useCoinMetadata();
+    const { data: coinsBalanceL1 } = useGetAllBalances(layer1Account?.address);
+    console.log('coinsBalance:', coinsBalanceL1);
+    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalanceL1 || [], knownEvmCoins);
+    const sortedCoinsBalanceL1 = [...recognized, ...pinned];
 
-    const availableBalance = availableBalanceL1;
-    const decimals = coinMetadata?.decimals ?? IOTA_DECIMALS;
+    const { metadata: coinsMetadataL1 } = useAllCoinsMetadata(sortedCoinsBalanceL1);
+    const { availableBalance: availableIotaBalanceL1 } = useAvailableIotaBalanceL1();
 
-    // todo send coins from L1 and also from L2, send coin metadatas from L1 and L2
+    // adjust iota total Balance in sortedCoinsBalance to available balance
+    const updatedSortedCoinsBalanceL1 = sortedCoinsBalanceL1.map((coin) => {
+        if (coin.coinType === IOTA_TYPE_ARG) {
+            return {
+                ...coin,
+                totalBalance: availableIotaBalanceL1
+                    ? availableIotaBalanceL1.toString()
+                    : coin.totalBalance,
+            };
+        }
+        return coin;
+    });
+
+    // todo add all available balances from l1 and l2 to create from
     const formSchema = useMemo(
-        () => createBridgeFormSchema(availableBalance, decimals),
-        [availableBalance],
+        () =>
+            createBridgeFormSchema(
+                updatedSortedCoinsBalanceL1,
+                sortedCoinsBalanceL1, // change to coin balances L2
+                coinsMetadataL1,
+                coinsMetadataL1, // change to metadata L2
+            ),
+        [updatedSortedCoinsBalanceL1, sortedCoinsBalanceL1, coinsMetadataL1, coinsMetadataL1],
     );
 
     const formMethods = useForm({
@@ -50,7 +58,7 @@ export function Bridge() {
         },
     });
     const isFromLayer1 = formMethods.watch('isFromLayer1');
-    console.log('isFromLayer1:', isFromLayer1);
+
     return (
         <FormProvider {...formMethods}>
             <div className="relative h-full">

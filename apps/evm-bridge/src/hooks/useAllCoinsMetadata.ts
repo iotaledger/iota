@@ -74,8 +74,6 @@ export function useAllCoinsMetadata(coins: Array<{ coinType: string }>) {
                     if (coinMetadata) return coinMetadata;
 
                     return null;
-
-                    return null;
                 } catch (err) {
                     console.error('Failed to fetch coin metadata:', err);
                     throw err;

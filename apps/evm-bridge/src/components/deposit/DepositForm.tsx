@@ -45,25 +45,6 @@ export function DepositForm({
     const layer2Account = useAccount();
     const isLayer1WalletConnected = !!layer1Account?.address;
     const isLayer2WalletConnected = layer2Account.isConnected;
-
-    const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
-
-    const { data: coinsBalance } = useGetAllBalances(layer1Account?.address);
-
-    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalance || [], knownEvmCoins);
-    const sortedCoinsBalance = [...recognized, ...pinned];
-    const {
-        formattedAvailableBalance: formattedAvailableBalanceL1,
-        isLoading: isLoadingBalanceL1,
-        symbol,
-    } = useAvailableBalanceL1();
-
-    // L2 Balance
-    const {
-        formattedAvailableBalance: formattedAvailableBalanceL2,
-        isLoading: isLoadingBalanceL2,
-    } = useAvailableBalanceL2();
-
     const formMethods = useFormContext<DepositFormData>();
 
     const {
@@ -78,6 +59,25 @@ export function DepositForm({
     const values = watch();
 
     const { depositAmount, receivingAddress, isFromLayer1, coinType: selectedCoinType } = values;
+
+    const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
+
+    const { data: coinsBalance } = useGetAllBalances(layer1Account?.address);
+
+    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalance || [], knownEvmCoins);
+    const sortedCoinsBalance = [...recognized, ...pinned];
+
+    const {
+        formattedAvailableBalance: formattedAvailableBalanceL1,
+        isLoading: isLoadingBalanceL1,
+        symbol,
+    } = useAvailableBalanceL1(selectedCoinType);
+
+    // L2 Balance
+    const {
+        formattedAvailableBalance: formattedAvailableBalanceL2,
+        isLoading: isLoadingBalanceL2,
+    } = useAvailableBalanceL2();
 
     const formattedAvailableBalance = isFromLayer1
         ? formattedAvailableBalanceL1

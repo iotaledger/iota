@@ -5,14 +5,14 @@ import { useAvailableIotaBalanceL1 } from './useAvailableIotaBalanceL1';
 import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useMemo } from 'react';
 
-export function useAvailableBalanceL1(): {
+export function useAvailableBalanceL1(coinType: string = IOTA_TYPE_ARG): {
     availableBalance: bigint;
     isLoading: boolean;
     formattedAvailableBalance: string;
     symbol: string;
 } {
     const layer1Account = useCurrentAccount();
-    const selectedCoinType = IOTA_TYPE_ARG;
+    const selectedCoinType = coinType;
     // Fetch Layer 1 balance
     const {
         availableBalance: availableIotaBalance,

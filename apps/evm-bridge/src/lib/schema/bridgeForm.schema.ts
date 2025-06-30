@@ -5,56 +5,79 @@ import { isAddress, parseEther } from 'viem';
 import { IOTA_TYPE_ARG, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { MINIMUM_SEND_AMOUNT } from '../constants';
+import { CoinBalance, CoinMetadata } from '@iota/iota-sdk/client';
 
-export function createBridgeFormSchema(totalAccountBalance: bigint, coinDecimals: number) {
+export function createBridgeFormSchema(
+    coinBalancesL1: CoinBalance[],
+    coinBalancesL2: CoinBalance[],
+    coinsMetadataL1: Record<string, CoinMetadata | null>,
+    coinsMetadataL2: Record<string, CoinMetadata | null>,
+) {
     return z
         .object({
             [BridgeFormInputName.IsFromLayer1]: z.boolean().default(true),
             [BridgeFormInputName.CoinType]: z.string().default(IOTA_TYPE_ARG),
+            [BridgeFormInputName.ReceivingAddress]: z.string().trim(),
             [BridgeFormInputName.DepositAmount]: z
                 .string()
                 .trim()
                 .refine(
                     (value) => {
-                        return new BigNumber(value).isGreaterThanOrEqualTo(MINIMUM_SEND_AMOUNT);
+                        return new BigNumber(value).isGreaterThanOrEqualTo(0);
                     },
                     {
-                        message: 'Invalid amount',
+                        message: 'Please enter a valid amount greater than 0',
                     },
                 ),
-            // .refine(
-            //     (value) => {
-            //         const amount = isFromLayer1
-            //             ? parseAmount(value, coinDecimals)
-            //             : parseEther(value);
-            //         return amount ? amount <= totalAccountBalance : false;
-            //     },
-            //     {
-            //         message: 'Insufficient balance',
-            //     },
-            // ),
-            [BridgeFormInputName.ReceivingAddress]: z.string().trim(),
-            // .refine(
-            //     (address) => (isFromLayer1 ? isAddress(address) : isValidIotaAddress(address)),
-            //     {
-            //         message: 'Invalid address',
-            //     },
-            // ),
         })
         .required()
         .superRefine((data, ctx) => {
+            const value = data[BridgeFormInputName.DepositAmount];
             // Access isFromLayer1 from the form data
             const isFromLayer1 = data[BridgeFormInputName.IsFromLayer1];
+            // Selected coin type
+            const selectedCoinType = data[BridgeFormInputName.CoinType];
+            // Determine the coin metadata based on isFromLayer1 and selectedCoinType
+            const coinMetadata = isFromLayer1
+                ? coinsMetadataL1[selectedCoinType]
+                : coinsMetadataL2[selectedCoinType];
 
-            // Validate deposit amount using the form's isFromLayer1 value
-            const value = data[BridgeFormInputName.DepositAmount];
+            if (!coinMetadata) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'Invalid coin type',
+                    path: [BridgeFormInputName.CoinType],
+                });
+                return;
+            }
+            // Detrmine available balances based on isFromLayer1
+            const availableBalanceL1 =
+                coinBalancesL1.find((balance) => balance.coinType === selectedCoinType)
+                    ?.totalBalance || '0';
+
+            const availableBalanceL2 =
+                coinBalancesL2.find((balance) => balance.coinType === selectedCoinType)
+                    ?.totalBalance || '0';
+
             if (value) {
+                // Validate max amount using the form's isFromLayer1 value
+                const totalAccountBalance = isFromLayer1 ? availableBalanceL1 : availableBalanceL2;
+                const coinDecimals = coinMetadata.decimals;
                 const amount = isFromLayer1 ? parseAmount(value, coinDecimals) : parseEther(value);
 
-                if (!amount || amount > totalAccountBalance) {
+                if (!amount || amount > BigInt(totalAccountBalance)) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
-                        message: 'Insufficient balance',
+                        message: `Insufficient balance.`,
+                        path: [BridgeFormInputName.DepositAmount],
+                    });
+                }
+
+                // Validate minimum send amount for IOTA
+                if (selectedCoinType === IOTA_TYPE_ARG && Number(value) < MINIMUM_SEND_AMOUNT) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: `Minimum amount for IOTA is ${MINIMUM_SEND_AMOUNT}`,
                         path: [BridgeFormInputName.DepositAmount],
                     });
                 }
