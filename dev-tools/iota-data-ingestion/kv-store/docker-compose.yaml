@@ -2,7 +2,7 @@ services:
   kv-remote-store:
     image: iotaledger/iota-data-ingestion
     volumes:
-      - ./config.yaml:/iota/config.yaml:r
+      - ./config/bigtable_config.yaml:/iota/config.yaml:r
       - ./output:/iota/output
     command: >
       iota-data-ingestion
