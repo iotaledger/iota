@@ -77,7 +77,9 @@ export function mapGraphQLTransactionBlockToRpcTransactionBlock(
                   transaction:
                       transactionBlock.rawTransaction &&
                       mapTransactionBlockToInput(
-                          bcs.SenderSignedData.parse(fromBase64(transactionBlock.rawTransaction))[0],
+                          bcs.SenderSignedData.parse(
+                              fromBase64(transactionBlock.rawTransaction),
+                          )[0],
                       ),
               }
             : {}),
