@@ -105,6 +105,8 @@ use crate::{
 #[cfg(test)]
 mod profiler_tests;
 
+static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
 /// Only to be used within CLI
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
@@ -188,8 +190,9 @@ pub enum IotaClientCommands {
         /// using --serialize-unsigned-transaction.
         #[arg(long)]
         tx_bytes: String,
-        /// A list of Base64 encoded signatures `flag || signature || pubkey`.
-        #[arg(long)]
+        /// A list of Base64 encoded signatures `flag || signature || pubkey`,
+        /// separated by space.
+        #[arg(long, num_args(1..))]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -412,7 +415,7 @@ pub enum IotaClientCommands {
         #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
         /// ID of the upgrade capability for the package being upgraded.
-        #[arg(long)]
+        #[arg(long, short = 'c')]
         upgrade_capability: ObjectID,
         /// Package build options
         #[command(flatten)]
@@ -1594,15 +1597,13 @@ impl IotaClientCommands {
                 let mut addr = None;
 
                 if address.is_none() && env.is_none() {
-                    return Err(anyhow!(
-                        "No address, an alias, or env specified. Please specify one."
-                    ));
+                    bail!("No address, an alias, or env specified. Please specify one.");
                 }
 
                 if let Some(address) = address {
                     let address = get_identity_address(Some(address), context)?;
                     if !context.config().keystore().addresses().contains(&address) {
-                        return Err(anyhow!("Address {} not managed by wallet", address));
+                        bail!("Address {} not managed by wallet", address);
                     }
                     context.config_mut().set_active_address(address);
                     addr = Some(address.to_string());
@@ -1665,9 +1666,7 @@ impl IotaClientCommands {
                 faucet,
             } => {
                 if context.config().get_env(&alias).is_some() {
-                    return Err(anyhow!(
-                        "Environment config with name [{alias}] already exists."
-                    ));
+                    bail!("Environment config with name [{alias}] already exists.");
                 }
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
@@ -1731,7 +1730,7 @@ impl IotaClientCommands {
             }
             IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
                 PTBCommandResult::CommandResult(iota_client_command_result) => {
-                    iota_client_command_result
+                    *iota_client_command_result
                 }
                 res => {
                     let s = res.to_styled_str();
@@ -1869,9 +1868,7 @@ pub(crate) async fn upgrade_package(
         .await?;
 
     let Some(data) = resp.data else {
-        return Err(anyhow!(
-            "Could not find upgrade capability at {upgrade_capability}"
-        ));
+        bail!("Could not find upgrade capability at {upgrade_capability}");
     };
 
     let upgrade_cap: UpgradeCap = data
@@ -2682,7 +2679,8 @@ pub async fn request_tokens_from_faucet(
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)
-        .header("Content-Type", "application/json")
+        .header(http::header::CONTENT_TYPE, "application/json")
+        .header(http::header::USER_AGENT, USER_AGENT)
         .json(&json_body)
         .send()
         .await?;
@@ -3076,10 +3074,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 anyhow!("Effects from IotaTransactionBlockResult should not be empty")
             })?;
             if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(anyhow!(
-                    "Error executing transaction '{}': {error}",
-                    response.digest
-                ));
+                bail!("Error executing transaction '{}': {error}", response.digest);
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }

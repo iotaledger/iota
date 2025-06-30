@@ -1,5 +1,32 @@
 # @iota/apps-ui-kit
 
+## 0.7.0
+
+### Minor Changes
+
+-   9b4b517: support multi-theme
+-   6fcddb3: Make react a peer dependency
+
+### Patch Changes
+
+-   b83d356: add chip size prop
+-   01f03fb: Refactor components to improve reusability
+-   Updated dependencies [6fcddb3]
+    -   @iota/apps-ui-icons@0.4.0
+
+## 0.6.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
+### Patch Changes
+
+-   6e45a2a: Fix tooltip being cut by other boxes
+-   b80df15: show horizontal scroll in underlined segmented buttons
+-   Updated dependencies [7f0803f]
+    -   @iota/apps-ui-icons@0.3.1
+
 ## 0.5.1
 
 ### Patch Changes

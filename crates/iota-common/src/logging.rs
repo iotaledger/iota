@@ -16,8 +16,11 @@ macro_rules! debug_fatal {
         if cfg!(debug_assertions) {
             $crate::fatal!($($arg)*);
         } else {
-            // TODO: Export invariant metric for alerting
             tracing::error!(debug_fatal = true, $($arg)*);
+            let location = concat!(file!(), ':', line!());
+            if let Some(metrics) = iota_metrics::get_metrics() {
+                metrics.system_invariant_violations.with_label_values(&[location]).inc();
+            }
         }
     }};
 }

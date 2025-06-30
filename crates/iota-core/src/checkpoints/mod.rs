@@ -59,7 +59,7 @@ use tokio::{
     task::JoinSet,
     time::timeout,
 };
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
     rocks::{DBMap, MetricConf},
@@ -1859,14 +1859,14 @@ impl CheckpointAggregator {
             )?;
             for ((seq, index), data) in iter {
                 if seq != current.summary.sequence_number {
-                    debug!(
+                    trace!(
                         checkpoint_seq =? current.summary.sequence_number,
                         "Not enough checkpoint signatures",
                     );
                     // No more signatures (yet) for this checkpoint
                     return Ok(result);
                 }
-                debug!(
+                trace!(
                     checkpoint_seq = current.summary.sequence_number,
                     "Processing signature for checkpoint (digest: {:?}) from {:?}",
                     current.summary.digest(),
@@ -1880,6 +1880,11 @@ impl CheckpointAggregator {
                     )])
                     .inc();
                 if let Ok(auth_signature) = current.try_aggregate(data) {
+                    debug!(
+                        checkpoint_seq = current.summary.sequence_number,
+                        "Successfully aggregated signatures for checkpoint (digest: {:?})",
+                        current.summary.digest(),
+                    );
                     let summary = VerifiedCheckpoint::new_unchecked(
                         CertifiedCheckpointSummary::new_from_data_and_sig(
                             current.summary.clone(),
@@ -2210,7 +2215,7 @@ pub trait CheckpointServiceNotify {
 }
 
 enum CheckpointServiceState {
-    Unstarted((CheckpointBuilder, CheckpointAggregator)),
+    Unstarted(Box<(CheckpointBuilder, CheckpointAggregator)>),
     Started,
 }
 
@@ -2220,7 +2225,7 @@ impl CheckpointServiceState {
         std::mem::swap(self, &mut state);
 
         match state {
-            CheckpointServiceState::Unstarted((builder, aggregator)) => (builder, aggregator),
+            CheckpointServiceState::Unstarted(tup) => (tup.0, tup.1),
             CheckpointServiceState::Started => panic!("CheckpointServiceState is already started"),
         }
     }
@@ -2307,7 +2312,9 @@ impl CheckpointService {
             highest_currently_built_seq_tx,
             highest_previously_built_seq,
             metrics,
-            state: Mutex::new(CheckpointServiceState::Unstarted((builder, aggregator))),
+            state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
+                builder, aggregator,
+            )))),
         })
     }
 
@@ -2326,15 +2333,13 @@ impl CheckpointService {
         tasks.spawn(monitored_future!(builder.run()));
         tasks.spawn(monitored_future!(aggregator.run()));
 
-        loop {
-            if tokio::time::timeout(Duration::from_secs(10), self.wait_for_rebuilt_checkpoints())
-                .await
-                .is_ok()
-            {
-                break;
-            } else {
-                debug_fatal!("Still waiting for checkpoints to be rebuilt");
-            }
+        // If this times out, the validator may still start up. The worst that can
+        // happen is that we will crash later on (due to missing transactions).
+        if tokio::time::timeout(Duration::from_secs(10), self.wait_for_rebuilt_checkpoints())
+            .await
+            .is_err()
+        {
+            debug_fatal!("Timed out waiting for checkpoints to be rebuilt");
         }
 
         tasks
@@ -2389,7 +2394,7 @@ impl CheckpointServiceNotify for CheckpointService {
             .map(|x| *x.sequence_number())
         {
             if sequence <= highest_verified_checkpoint {
-                debug!(
+                trace!(
                     checkpoint_seq = sequence,
                     "Ignore checkpoint signature from {} - already certified", signer,
                 );
@@ -2399,7 +2404,7 @@ impl CheckpointServiceNotify for CheckpointService {
                 return Ok(());
             }
         }
-        debug!(
+        trace!(
             checkpoint_seq = sequence,
             "Received checkpoint signature, digest {} from {}",
             info.summary.digest(),

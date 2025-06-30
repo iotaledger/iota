@@ -5,3 +5,8 @@ export enum ChipState {
     Default = 'default',
     Selected = 'selected',
 }
+
+export enum ChipSize {
+    Small = 'small',
+    Default = 'default',
+}

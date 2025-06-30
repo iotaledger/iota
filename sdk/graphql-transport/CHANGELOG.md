@@ -1,5 +1,30 @@
 # @iota/graphql-transport
 
+## 0.7.0
+
+### Minor Changes
+
+-   c837b79: Removed support for iota-bridge
+
+### Patch Changes
+
+-   Updated dependencies [6051799]
+-   Updated dependencies [5db9797]
+-   Updated dependencies [c4c6d9a]
+-   Updated dependencies [c837b79]
+    -   @iota/iota-sdk@1.3.0
+
+## 0.6.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
+### Patch Changes
+
+-   Updated dependencies [53d5058]
+    -   @iota/iota-sdk@1.2.0
+
 ## 0.5.2
 
 ### Patch Changes

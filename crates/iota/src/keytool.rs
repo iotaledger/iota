@@ -12,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use aws_config::BehaviorVersion;
 use aws_sdk_kms::{
     Client as KmsClient,
@@ -66,6 +66,7 @@ use crate::{
 };
 
 #[derive(Subcommand)]
+#[expect(clippy::large_enum_variant)]
 pub enum KeyToolCommand {
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").
@@ -616,10 +617,10 @@ impl KeyToolCommand {
                         Ok(seed) => {
                             info!("Importing seed to keystore");
                             if seed.len() != 64 {
-                                return Err(anyhow!(
+                                bail!(
                                     "Invalid seed length: {}, only 64 byte seeds are supported",
                                     seed.len()
-                                ));
+                                );
                             }
                             keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
                         }
@@ -1114,8 +1115,8 @@ impl KeyToolCommand {
                * jwks.clone().into_iter().collect();             let env = match
                * network.as_str() {                 "devnet" | "localnet" =>
                * ZkLoginEnv::Test,                 "mainnet" | "testnet" =>
-               * ZkLoginEnv::Prod,                 _ => return Err(anyhow!("Invalid
-               * network")),             };
+               * ZkLoginEnv::Prod,                 _ => bail!("Invalid
+               * network"),             };
                *             let verify_params =
                *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2)); */
 
@@ -1159,7 +1160,7 @@ impl KeyToolCommand {
                *                     );
                *                     (serde_json::to_string(&data)?, res)
                *                 }
-               *                 _ => return Err(anyhow!("Invalid intent scope")),
+               *                 _ => bail!("Invalid intent scope"),
                *             };
                *             CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
                *                 data: Some(serialized),
@@ -1278,10 +1279,10 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
                 if decoded.len() != 32 {
-                    return Err(anyhow!(format!(
+                    bail!(
                         "Invalid private key length, expected 32 but got {}",
                         decoded.len()
-                    )));
+                    );
                 }
                 IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
             }
@@ -1289,7 +1290,7 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                 Ok(ikp) => ikp,
                 Err(_) => match Ed25519KeyPair::decode_base64(&value) {
                     Ok(kp) => IotaKeyPair::Ed25519(kp),
-                    Err(_) => return Err(anyhow!("Invalid private key encoding")),
+                    Err(_) => bail!("Invalid private key encoding"),
                 },
             },
         },

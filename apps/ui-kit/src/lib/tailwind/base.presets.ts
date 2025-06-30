@@ -2,20 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Config } from 'tailwindcss';
-import { IOTA_PRIMITIVES_COLOR_PALETTE, SHADER_COLOR_PALETTE } from '../constants/colors.constants';
 import {
-    CUSTOM_FONT_SIZES,
+    IOTA_PRIMITIVES_COLOR_PALETTE,
+    IOTA_NAMES_COLOR_PALETTE,
+    SHADER_COLOR_PALETTE,
+} from '../constants/colors.constants';
+import {
     BORDER_RADIUS,
+    CUSTOM_FONT_SIZES,
     CUSTOM_SPACING,
+    FONT_FAMILIES,
     OPACITY,
     generateVariableSpacing,
 } from './constants';
-import { firefoxPlugin } from './plugins';
+import { THEMED_CUSTOM_COLORS } from './constants/customColors.constants';
+import { firefoxPlugin, namesVariant } from './plugins';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
-    darkMode: 'class',
-    plugins: [firefoxPlugin],
+    darkMode: 'selector',
+    plugins: [firefoxPlugin, namesVariant],
     theme: {
         extend: {
             fontSize: {
@@ -38,12 +44,11 @@ export const BASE_CONFIG: Config = {
             },
             colors: {
                 ...IOTA_PRIMITIVES_COLOR_PALETTE,
+                ...IOTA_NAMES_COLOR_PALETTE,
                 ...SHADER_COLOR_PALETTE,
+                ...THEMED_CUSTOM_COLORS,
             },
-            fontFamily: {
-                'alliance-no2': ['AllianceNo2', 'sans-serif'],
-                inter: ['Inter', 'sans-serif'],
-            },
+            fontFamily: FONT_FAMILIES,
         },
     },
 };

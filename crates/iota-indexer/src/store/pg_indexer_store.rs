@@ -109,8 +109,6 @@ const PG_DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
 pub struct PgIndexerStoreConfig {
     pub parallel_chunk_size: usize,
     pub parallel_objects_chunk_size: usize,
-    #[expect(unused)]
-    pub epochs_to_keep: Option<u64>,
 }
 
 pub struct PgIndexerStore {
@@ -141,15 +139,11 @@ impl PgIndexerStore {
             .unwrap_or_else(|_e| PG_COMMIT_OBJECTS_PARALLEL_CHUNK_SIZE.to_string())
             .parse::<usize>()
             .unwrap();
-        let epochs_to_keep = std::env::var("EPOCHS_TO_KEEP")
-            .map(|s| s.parse::<u64>().ok())
-            .unwrap_or_else(|_e| None);
         let partition_manager = PgPartitionManager::new(blocking_cp.clone())
             .expect("Failed to initialize partition manager");
         let config = PgIndexerStoreConfig {
             parallel_chunk_size,
             parallel_objects_chunk_size,
-            epochs_to_keep,
         };
 
         Self {
@@ -1217,11 +1211,7 @@ impl PgIndexerStore {
                         vec![last_epoch],
                         epochs::epoch,
                         (
-                            // Note: Exclude epoch beginning info except system_state below.
-                            // This is to ensure that epoch beginning info columns are not
-                            // overridden with default values,
-                            // because these columns are default values in `last_epoch`.
-                            epochs::system_state.eq(excluded(epochs::system_state)),
+                            // Note: Update only what is not present in epoch beginning info.
                             epochs::epoch_total_transactions
                                 .eq(excluded(epochs::epoch_total_transactions)),
                             epochs::last_checkpoint_id.eq(excluded(epochs::last_checkpoint_id)),

@@ -78,6 +78,8 @@ pub struct NodeConfig {
     /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]
     pub enable_rest_api: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rest: Option<iota_rest_api::Config>,
 
     /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
@@ -260,14 +262,23 @@ pub struct NodeConfig {
     pub iota_names_config: Option<IotaNamesConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExecutionCacheConfig {
-    #[default]
     PassthroughCache,
     WritebackCache {
+        /// Maximum number of entries in each cache. (There are several
+        /// different caches). If None, the default of 10000 is used.
         max_cache_size: Option<usize>,
     },
+}
+
+impl Default for ExecutionCacheConfig {
+    fn default() -> Self {
+        ExecutionCacheConfig::WritebackCache {
+            max_cache_size: None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -725,7 +736,10 @@ pub struct AuthorityStorePruningConfig {
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
     /// compaction process
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default = "default_periodic_compaction_threshold_days",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub periodic_compaction_threshold_days: Option<usize>,
     /// number of epochs to keep the latest version of transactions and effects
     /// for
@@ -755,6 +769,10 @@ fn default_smoothing() -> bool {
     cfg!(not(test))
 }
 
+fn default_periodic_compaction_threshold_days() -> Option<usize> {
+    Some(1)
+}
+
 impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
@@ -772,6 +790,10 @@ impl Default for AuthorityStorePruningConfig {
 }
 
 impl AuthorityStorePruningConfig {
+    pub fn set_num_epochs_to_retain(&mut self, num_epochs_to_retain: u64) {
+        self.num_epochs_to_retain = num_epochs_to_retain;
+    }
+
     pub fn set_num_epochs_to_retain_for_checkpoints(&mut self, num_epochs_to_retain: Option<u64>) {
         self.num_epochs_to_retain_for_checkpoints = num_epochs_to_retain;
     }
@@ -943,7 +965,7 @@ fn default_max_transaction_manager_queue_length() -> usize {
 }
 
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
-    100
+    20
 }
 
 impl Default for AuthorityOverloadConfig {
@@ -982,7 +1004,9 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: Some(GenesisLocation::InPlace { genesis }),
+            location: Some(GenesisLocation::InPlace {
+                genesis: Box::new(genesis),
+            }),
             genesis: Default::default(),
         }
     }
@@ -1020,7 +1044,7 @@ impl Genesis {
 #[serde(untagged)]
 enum GenesisLocation {
     InPlace {
-        genesis: genesis::Genesis,
+        genesis: Box<genesis::Genesis>,
     },
     File {
         #[serde(rename = "genesis-file-location")]

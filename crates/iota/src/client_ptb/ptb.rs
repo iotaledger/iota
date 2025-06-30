@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use anyhow::{Error, anyhow, ensure};
+use anyhow::{Error, anyhow, bail, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
@@ -60,7 +60,7 @@ pub struct Summary {
 pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
-    CommandResult(IotaClientCommandResult),
+    CommandResult(Box<IotaClientCommandResult>),
     DevInspect(Box<DevInspectResults>),
     Json(serde_json::Value),
     Help { long: bool },
@@ -130,7 +130,7 @@ impl PTB {
                 for e in rendered.iter() {
                     eprintln!("{:?}", e);
                 }
-                anyhow::bail!("Could not build PTB due to previous error{suffix}");
+                bail!("Could not build PTB due to previous error{suffix}");
             }
             Ok(parsed) => parsed,
         };
@@ -168,7 +168,7 @@ impl PTB {
                 for e in rendered.iter() {
                     eprintln!("{:?}", e);
                 }
-                anyhow::bail!("Could not build PTB due to previous error{suffix}");
+                bail!("Could not build PTB due to previous error{suffix}");
             }
             Ok(x) => x,
         };
@@ -212,7 +212,7 @@ impl PTB {
             IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                return Ok(PTBCommandResult::CommandResult(res));
+                return Ok(PTBCommandResult::CommandResult(Box::new(res)));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
@@ -223,11 +223,11 @@ impl PTB {
 
         if let Some(effects) = transaction_response.effects.as_ref() {
             if effects.status().is_err() {
-                return Err(anyhow!(
+                bail!(
                     "PTB execution {}. Transaction digest is: {}",
                     Pretty(effects.status()),
                     effects.transaction_digest()
-                ));
+                );
             }
         }
 
@@ -259,9 +259,9 @@ impl PTB {
                 Ok(PTBCommandResult::Summary(summary))
             }
         } else {
-            Ok(PTBCommandResult::CommandResult(
+            Ok(PTBCommandResult::CommandResult(Box::new(
                 IotaClientCommandResult::TransactionBlock(transaction_response),
-            ))
+            )))
         }
     }
 

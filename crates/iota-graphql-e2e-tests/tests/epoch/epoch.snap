@@ -55,7 +55,7 @@ task 9, lines 32-33:
 //# advance-epoch
 Epoch advanced: 2
 
-task 10, lines 34-62:
+task 10, lines 34-73:
 //# run-graphql
 Response: {
   "data": {
@@ -93,7 +93,22 @@ Response: {
             "digest": "FdnPEGUzRm4MeHdXm9a5VQyzS1jSTEsAPsg3XMH7jb5N"
           }
         ]
-      }
+      },
+      "first_checkpoint": {
+        "nodes": [
+          {
+            "sequenceNumber": 5
+          }
+        ]
+      },
+      "last_checkpoint": {
+        "nodes": [
+          {
+            "sequenceNumber": 6
+          }
+        ]
+      },
+      "totalCheckpoints": 2
     }
   }
 }

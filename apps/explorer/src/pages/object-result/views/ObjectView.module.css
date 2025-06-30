@@ -10,7 +10,7 @@
     }
 
     .textdetails > tbody > tr > td:first-child {
-        @apply w-[220px]  pr-6 font-medium text-neutral-50;
+        @apply w-[220px]  pr-6 font-medium text-iota-neutral-50;
     }
 
     .textdetails > tbody > tr > td:nth-child(2) {
@@ -49,13 +49,13 @@ div.metadata > h2 {
 }
 
 div.metadata > p {
-    @apply text-[13px] leading-[12px] text-neutral-50;
+    @apply text-[13px] leading-[12px] text-iota-neutral-50;
 }
 
 .desktoppreviewmedia,
 .mobilepreviewmedia {
     @apply cursor-pointer bg-inherit p-0 text-[14px] font-semibold
-  leading-[13px] tracking-[-0.02em] text-neutral-50;
+  leading-[13px] tracking-[-0.02em] text-iota-neutral-50;
 }
 
 .desktoppreviewmedia {
@@ -99,7 +99,7 @@ table.properties {
 }
 
 td.objectid {
-    @apply text-neutral-40;
+    @apply text-iota-neutral-40;
 }
 
 .objecttypelink {

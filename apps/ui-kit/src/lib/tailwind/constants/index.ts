@@ -4,3 +4,4 @@
 export * from './scaling.constants';
 export * from './fontSizes.constants';
 export * from './variableSpacing.constants';
+export * from './fontFamily.constants';

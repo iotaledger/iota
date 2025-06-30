@@ -71,7 +71,6 @@ use tracing::{error, info};
 #[derive(Debug)]
 /// A wrapper on execution results to accommodate different types of
 /// responses from LocalValidatorAggregatorProxy and FullNodeProxy
-#[expect(clippy::large_enum_variant)]
 pub enum ExecutionEffects {
     CertifiedTransactionEffects(CertifiedTransactionEffects, TransactionEvents),
     IotaTransactionBlockEffects(IotaTransactionBlockEffects),
@@ -741,10 +740,9 @@ impl ValidatorProxy for FullNodeProxy {
                 .await
             {
                 Ok(resp) => {
-                    let effects = ExecutionEffects::IotaTransactionBlockEffects(
+                    return Ok(ExecutionEffects::IotaTransactionBlockEffects(
                         resp.effects.expect("effects field should not be None"),
-                    );
-                    return Ok(effects);
+                    ));
                 }
                 Err(err) => {
                     error!(

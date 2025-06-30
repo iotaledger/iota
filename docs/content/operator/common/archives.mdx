@@ -67,37 +67,16 @@ To enable your node to fallback to an archive in case of lag, add this to your `
     ```yaml
     state-archive-read-config:
       - object-store-config:
-          object-store: "S3"
-          # Use iota-testnet-archive for testnet 
-          # Use iota-mainnet-archive for mainnet
-          bucket: "iota-<testnet|mainnet>-archive"
-          aws-access-key-id: "<AWS-ACCESS-KEY-ID>"
-          aws-secret-access-key: "<AWS-SECRET-ACCESS-KEY>"
-          aws-region: "<AWS-REGION>"
-          object-store-connection-limit: 20
-        # How many objects to read ahead when catching up  
-        concurrency: 5
-        # Whether to prune local state based on latest checkpoint in archive.
-        # This should stay false for most use cases
-        use-for-pruning-watermark: false
-    ```
-  </TabItem>
-
-  <TabItem value="gcs" label="Google Cloud Storage">
-    ```yaml
-    state-archive-read-config:
-      - object-store-config:
-          object-store: "GCS"
-          # Use iota-mainnet-archive for mainnet
-          # Notice there is no archive bucket setup for testnet in GCS
-          bucket: "iota-<testnet|mainnet>-archive"
-          google-service-account: "</path/to/service/account/credentials>"
-          object-store-connection-limit: 20
-        # How many objects to read ahead when catching up  
-        concurrency: 5
-        # Whether to prune local state based on latest checkpoint in archive.
-        # This should stay false for most use cases
-        use-for-pruning-watermark: false
+        object-store: "S3"
+        aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
+        aws-virtual-hosted-style-request: true
+        object-store-connection-limit: 20
+        no-sign-request: true
+      # How many objects to read ahead when catching up  
+      concurrency: 5
+      # Whether to prune local state based on latest checkpoint in archive.
+      # This should stay false for most use cases
+      use-for-pruning-watermark: false
     ```
   </TabItem>
 </Tabs>

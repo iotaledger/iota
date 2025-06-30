@@ -51,14 +51,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable the new consensus commit rule for testnet.
 //            Enable min_free_execution_slot for the shared object congestion
 //            tracker in devnet.
-// Version 9: Enable smart ancestor selection for mainnet.
-//            Enable probing for accepted rounds in round prober for mainnet.
-//            Switch to distributed vote scoring in consensus in mainnet.
+// Version 9: Disable smart ancestor selection for the testnet.
 //            Enable zstd compression for consensus tonic network in mainnet.
-//            Enable consensus garbage collection for mainnet
-//            Enable the new consensus commit rule for mainnet.
-//            Increase the committee size to 80.
 //            Enable passkey auth in multisig for devnet.
+//            Remove the iota-bridge from the framework.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -169,10 +165,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    // Enable bridge protocol
-    #[serde(skip_serializing_if = "is_false")]
-    bridge: bool,
 
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
@@ -1048,6 +1040,7 @@ pub struct ProtocolConfig {
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
 
+    /// Deprecated because of bridge removal.
     /// Whether to try to form bridge committee
     // Note: this is not a feature flag because we want to distinguish between
     // `None` and `Some(false)`, as committee was already finalized on Testnet.
@@ -1111,18 +1104,6 @@ impl ProtocolConfig {
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
-    }
-
-    pub fn enable_bridge(&self) -> bool {
-        self.feature_flags.bridge
-    }
-
-    pub fn should_try_to_finalize_bridge_committee(&self) -> bool {
-        if !self.enable_bridge() {
-            return false;
-        }
-        // In the older protocol version, always try to finalize the committee.
-        self.bridge_should_try_to_finalize_committee.unwrap_or(true)
     }
 
     pub fn accept_zklogin_in_multisig(&self) -> bool {
@@ -1997,30 +1978,21 @@ impl ProtocolConfig {
                     }
                 }
                 9 => {
-                    // Enable round prober in consensus.
-                    cfg.feature_flags.consensus_round_prober = true;
-                    // Enable distributed vote scoring.
-                    cfg.feature_flags
-                        .consensus_distributed_vote_scoring_strategy = true;
-                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
-                    // Enable smart ancestor selection
-                    cfg.feature_flags.consensus_smart_ancestor_selection = true;
-                    // Enable probing for accepted rounds in round prober
-                    cfg.feature_flags
-                        .consensus_round_prober_probe_accepted_rounds = true;
+                    if chain != Chain::Mainnet {
+                        // Disable smart ancestor selection in the testnet and devnet.
+                        cfg.feature_flags.consensus_smart_ancestor_selection = false;
+                    }
+
                     // Enable zstd compression for consensus
                     cfg.feature_flags.consensus_zstd_compression = true;
-                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
-                    // blocks within a window of ~4 seconds
-                    // to be included before be considered garbage collected.
-                    cfg.consensus_gc_depth = Some(60);
-
-                    cfg.max_committee_members_count = Some(80);
 
                     // Enable passkey in multisig in devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.accept_passkey_in_multisig = true;
                     }
+
+                    // this flag is now deprecated because of the bridge removal.
+                    cfg.bridge_should_try_to_finalize_committee = None;
                 }
                 // Use this template when making changes:
                 //
@@ -2129,9 +2101,6 @@ impl ProtocolConfig {
     pub fn set_zklogin_max_epoch_upper_bound_delta_for_testing(&mut self, val: Option<u64>) {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta = val
     }
-    pub fn set_disable_bridge_for_testing(&mut self) {
-        self.feature_flags.bridge = false
-    }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
@@ -2166,6 +2135,10 @@ impl ProtocolConfig {
 
     pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_passkey_in_multisig = val;
+    }
+
+    pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_smart_ancestor_selection = val;
     }
 }
 
@@ -2315,6 +2288,17 @@ mod test {
 
         prot.set_attr_for_testing("max_arguments".to_string(), "456".to_string());
         assert_eq!(prot.max_arguments(), 456);
+    }
+
+    #[test]
+    #[should_panic(expected = "unsupported version")]
+    fn max_version_test() {
+        // When this does not panic, version higher than MAX_PROTOCOL_VERSION exists.
+        // To fix, bump MAX_PROTOCOL_VERSION or disable this check for the version.
+        let _ = ProtocolConfig::get_for_version_impl(
+            ProtocolVersion::new(MAX_PROTOCOL_VERSION + 1),
+            Chain::Unknown,
+        );
     }
 
     #[test]

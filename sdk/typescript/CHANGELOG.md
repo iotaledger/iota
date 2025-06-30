@@ -1,5 +1,23 @@
 # @iota/iota-sdk
 
+## 1.3.0
+
+### Minor Changes
+
+-   6051799: Add support for passkeys
+-   c837b79: Removed support for iota-bridge
+
+### Patch Changes
+
+-   5db9797: Add an util to trim addresses
+-   c4c6d9a: Export `getGraphQLUrl` correctly
+
+## 1.2.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
 ## 1.1.0
 
 ### Minor Changes
