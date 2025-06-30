@@ -20,17 +20,16 @@ const client = new IotaClient({
 });
 const evmRpcClient = new EvmRpcClient(L2.evmRpcUrl);
 
-// const MNEMONIC =
-//     'mom program scrap easily doctor seed slender secret mad flat foam hospital cherry seek river you obscure column blood reflect arch pencil cat burst';
+const MNEMONIC =
+    'mom program scrap easily doctor seed slender secret mad flat foam hospital cherry seek river you obscure column blood reflect arch pencil cat burst';
 
 // const TOKEN_COIN_TYPE =
 //     '0xe1e88f4962b3ea96cfad19aee42f666b04bbce4dc4327c3cd63f1b8ff16e13b2::tool_coin::TOOL_COIN';
 // const TOKEN_COIN_TYPE =
 //     '0x2ec9e750b79178d0c6f3aceca00f43990a9f30c0d26590a160a2af71d4b02916::mint_coin::MINT_COIN';
-const MNEMONIC =
-    'term success open decline spice raw emotion day settle flock flower ice spatial fabric spin truck sponsor glance census gather neither together left goat';
+
 const TOKEN_COIN_TYPE =
-    '0x929065320c756b8a4a841deeed013bd748ee45a28629c4aaafc56d8948ebb081::vusd::VUSD';
+    '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD';
 // 0x2::coin::Coin<0x929065320c756b8a4a841deeed013bd748ee45a28629c4aaafc56d8948ebb081::vusd::VUSD>
 // Wrap your code in an async function
 async function main() {
@@ -49,7 +48,7 @@ async function main() {
     // Amount to send (0.01 IOTAs)
     const amountToSend = BigInt(1 * 1_000_000_000); // 1 IOTA in nanos
     // Amount to send (1 Boxfish)
-    const tokenAmountToSend = BigInt(1_000);
+    const tokenAmountToSend = BigInt(1 * 1_000_000); // 1 VUSD in nanos (6 decimals)
     // We also need to place a little more in the bag to cover the L2 gas
     const amountToPlace = amountToSend + L2_FROM_L1_GAS_BUDGET;
 
@@ -69,7 +68,7 @@ async function main() {
         // tx.object('0xff467e47343ea4f4724c5ed62edfc2db94c70d74417a28d2c3257b6830e48d39'), // mint coin
         // tx.object('0xf7662ffd9cb079d8e75ab4805ba78fdb0e0fb78cf49aa0fa01ecb7ebdf15d04e'),
 
-        tx.object('0xa4e687d24a76c9ad58275d23f3938d785888719995548acf8cfebf598afa650b'),
+        tx.object('0x30535f52178e17e18e228709943e7e732f1f75445b3ba21eb98898fbb3f82587'),
         [tx.pure(bcs.U64.serialize(tokenAmountToSend))],
     );
     iscTx.placeCoinInBag({

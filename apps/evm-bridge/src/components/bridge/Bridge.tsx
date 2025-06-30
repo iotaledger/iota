@@ -29,7 +29,7 @@ export function Bridge() {
     const { metadata: coinsMetadataL1 } = useAllCoinsMetadata(sortedCoinsBalanceL1);
     const { availableBalance: availableIotaBalanceL1 } = useAvailableIotaBalanceL1();
 
-    // Fetch L1 balance for the base token (IOTA)
+    // Fetch L2 balance for L1 address
     const { data: l1AddressCoinsBalanceInL2 } = useGetAllBalancesL2(address);
     const { recognized: recognizedL2, pinned: pinnedL2 } = useSortedCoinsByCategories(
         l1AddressCoinsBalanceInL2 || [],
@@ -53,7 +53,7 @@ export function Bridge() {
         return coin;
     });
 
-    // adjust L@ iota total Balance in sortedCoinsBalanceL2 to available balance
+    // adjust L2 iota total Balance in sortedCoinsBalanceL2 to available balance
     const updatedSortedCoinsBalanceL2 = sortedCoinsBalanceL2.map((coin) => {
         if (coin.coinType === IOTA_TYPE_ARG) {
             return {

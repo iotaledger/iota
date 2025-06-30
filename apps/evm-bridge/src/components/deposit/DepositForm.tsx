@@ -24,8 +24,7 @@ import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/c
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
 import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
 import { useAvailableIotaBalanceL2 } from '../../hooks/useAvailableIotaBalanceL2';
-import { CoinSelector, Feature, useGetAllBalances, useSortedCoinsByCategories } from '@iota/core';
-import { useFeatureValue } from '@growthbook/growthbook-react';
+import { CoinSelector } from '../CoinSelector';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -60,13 +59,6 @@ export function DepositForm({
 
     const { depositAmount, receivingAddress, isFromLayer1, coinType: selectedCoinType } = values;
 
-    const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
-
-    const { data: coinsBalance } = useGetAllBalances(layer1Account?.address);
-
-    const { recognized, pinned } = useSortedCoinsByCategories(coinsBalance || [], knownEvmCoins);
-    const sortedCoinsBalance = [...recognized, ...pinned];
-
     const {
         formattedAvailableBalance: formattedAvailableBalanceL1,
         isLoading: isLoadingBalanceL1,
@@ -77,7 +69,7 @@ export function DepositForm({
     const {
         formattedAvailableBalance: formattedAvailableBalanceL2,
         isLoading: isLoadingBalanceL2,
-    } = useAvailableIotaBalanceL2();
+    } = useAvailableIotaBalanceL2(); // update to get avaliable blance L2
 
     const formattedAvailableBalance = isFromLayer1
         ? formattedAvailableBalanceL1
@@ -147,20 +139,7 @@ export function DepositForm({
     return (
         <>
             <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
-                <CoinSelector
-                    activeCoinType={selectedCoinType}
-                    coins={sortedCoinsBalance}
-                    onClick={(coinType) => {
-                        setValue(BridgeFormInputName.DepositAmount, '', {
-                            shouldValidate: true,
-                            shouldTouch: true,
-                        });
-                        setValue(BridgeFormInputName.CoinType, coinType, {
-                            shouldValidate: true,
-                            shouldTouch: true,
-                        });
-                    }}
-                />
+                <CoinSelector />
                 <Input
                     label="Amount"
                     type={InputType.NumericFormat}
