@@ -402,7 +402,7 @@ impl NameCommand {
                     let identity = (!identity.is_empty())
                         .then(|| identity.parse::<KeyIdentity>())
                         .transpose()?;
-                    let address = get_identity_address(identity, context)?;
+                    let address = get_identity_address(identity, context).await?;
                     if set_reverse_lookup && address != context.active_address()? {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
@@ -518,7 +518,8 @@ impl NameCommand {
                 .await?
             }
             Self::ReverseLookup { address } => {
-                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+                let address =
+                    get_identity_address(address.map(KeyIdentity::Address), context).await?;
                 let entry = get_reverse_registry_entry(address, &iota_client).await?;
 
                 NameCommandResult::ReverseLookup {
@@ -552,7 +553,7 @@ impl NameCommand {
 
                 handle_transaction_result(res, verbose, async |res| {
                     let Some(entry) = get_reverse_registry_entry(
-                        get_identity_address(None, context)?,
+                        get_identity_address(None, context).await?,
                         &iota_client,
                     )
                     .await?
@@ -581,7 +582,7 @@ impl NameCommand {
                     );
                 }
                 let new_address =
-                    get_identity_address(new_address.map(KeyIdentity::Address), context)?;
+                    get_identity_address(new_address.map(KeyIdentity::Address), context).await?;
                 if entry
                     .name_record
                     .target_address
@@ -692,7 +693,7 @@ impl NameCommand {
             }
             Self::UnsetReverseLookup { verbose, opts } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
-                let address = get_identity_address(None, context)?;
+                let address = get_identity_address(None, context).await?;
 
                 let res = IotaClientCommands::Call {
                     package: iota_names_config.package_address.into(),
@@ -1801,7 +1802,7 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+    let address = get_identity_address(address.map(KeyIdentity::Address), context).await?;
     let nft_type = T::type_(iota_names_config.package_address.into());
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
@@ -1891,7 +1892,7 @@ async fn get_proxy_nft_by_name(
     })
 }
 
-async fn get_registry_entry(
+pub async fn get_registry_entry(
     domain: &Domain,
     client: &IotaClient,
 ) -> Result<RegistryEntry, RpcError> {
@@ -2331,7 +2332,7 @@ async fn get_auction_house_id(
 }
 
 #[derive(thiserror::Error, Debug)]
-enum RpcError {
+pub enum RpcError {
     #[error("{0}")]
     Any(#[from] anyhow::Error),
     #[error("{0}")]

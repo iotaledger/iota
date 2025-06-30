@@ -20,6 +20,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
+use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -754,7 +755,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NoOutput
             }
             IotaClientCommands::RemoveAddress { address } => {
-                let address = get_identity_address(Some(address), context)?;
+                let address = get_identity_address(Some(address), context).await?;
 
                 if context.config().keystore().get_key(&address).is_ok() {
                     context.config_mut().keystore_mut().remove_key(&address)?;
@@ -853,7 +854,7 @@ impl IotaClientCommands {
                 coin_type,
                 with_coins,
             } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
 
                 let objects =
@@ -1317,7 +1318,7 @@ impl IotaClientCommands {
                 opts,
             } => {
                 let signer = context.get_object_owner(&object_id).await?;
-                let to = get_identity_address(Some(to), context)?;
+                let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
@@ -1350,11 +1351,10 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
-                let recipients = recipients
-                    .into_iter()
-                    .map(|x| get_identity_address(Some(x), context))
-                    .collect::<Result<Vec<IotaAddress>, anyhow::Error>>()
-                    .map_err(|e| anyhow!("{e}"))?;
+                let recipients = futures::stream::iter(recipients)
+                    .then(|x| async { get_identity_address(Some(x), context).await })
+                    .try_collect::<Vec<IotaAddress>>()
+                    .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
@@ -1397,11 +1397,10 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
-                let recipients = recipients
-                    .into_iter()
-                    .map(|x| get_identity_address(Some(x), context))
-                    .collect::<Result<Vec<IotaAddress>, anyhow::Error>>()
-                    .map_err(|e| anyhow!("{e}"))?;
+                let recipients = futures::stream::iter(recipients)
+                    .then(|x| async { get_identity_address(Some(x), context).await })
+                    .try_collect::<Vec<IotaAddress>>()
+                    .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
@@ -1428,7 +1427,7 @@ impl IotaClientCommands {
                     !input_coins.is_empty(),
                     "PayAllIota transaction requires a non-empty list of input coins"
                 );
-                let recipient = get_identity_address(Some(recipient), context)?;
+                let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client.transaction_builder().pay_all_iota_tx_kind(recipient);
@@ -1444,7 +1443,7 @@ impl IotaClientCommands {
                 .await?
             }
             IotaClientCommands::Objects { address } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
                 let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
                     client
@@ -1504,7 +1503,7 @@ impl IotaClientCommands {
                 })
             }
             IotaClientCommands::Gas { address } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let coins = context
                     .gas_objects(address)
                     .await?
@@ -1515,7 +1514,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::Gas(coins)
             }
             IotaClientCommands::Faucet { address, url } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let url = if let Some(url) = url {
                     url
                 } else {
@@ -1601,7 +1600,7 @@ impl IotaClientCommands {
                 }
 
                 if let Some(address) = address {
-                    let address = get_identity_address(Some(address), context)?;
+                    let address = get_identity_address(Some(address), context).await?;
                     if !context.config().keystore().addresses().contains(&address) {
                         bail!("Address {} not managed by wallet", address);
                     }
