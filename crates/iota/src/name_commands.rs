@@ -663,7 +663,7 @@ impl NameCommand {
                 verbose,
                 opts,
             } => {
-                let address = get_identity_address(Some(address), &context).await?;
+                let address = get_identity_address(Some(address), context).await?;
                 let nft = get_proxy_nft_by_name(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
