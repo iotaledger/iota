@@ -201,7 +201,14 @@ const config = {
           }
         }
       }
-    ]
+    ],
+    [
+      '@docusaurus/plugin-google-gtag',
+      {
+        trackingID: 'G-SEE2W8WK21',
+        anonymizeIP: true,
+      },
+    ],
   ],
   presets: [
     [
