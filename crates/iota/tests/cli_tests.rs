@@ -4768,14 +4768,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     --make-move-vec <u8> "[1]"
     "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Input]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
 
@@ -4786,14 +4788,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
         --make-move-vec <u8> "[1]"
         "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Events]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Events]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
     // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`

@@ -1730,7 +1730,7 @@ impl IotaClientCommands {
             }
             IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
                 PTBCommandResult::CommandResult(iota_client_command_result) => {
-                    iota_client_command_result
+                    *iota_client_command_result
                 }
                 res => {
                     let s = res.to_styled_str();
