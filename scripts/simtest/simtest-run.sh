@@ -30,11 +30,21 @@ if [ -z "$NUM_CPUS" ]; then
 fi
 
 # filter out some tests that give spurious failures.
-TEST_FILTER="(not (test(~batch_verification_tests)))"
+FINAL_TEST_FILTER="(not (test(~batch_verification_tests)))"
+
+# Combine with additional filter if provided
+if [ -n "$TEST_FILTER" ]; then
+  FINAL_TEST_FILTER="($FINAL_TEST_FILTER) and ($TEST_FILTER)"
+fi
 
 # we seed the rng with the current date
 DATE=$(date +%s)
-SEED="$DATE"
+
+MSIM_TEST_SEED=${MSIM_TEST_SEED}
+# if MSIM_TEST_SEED is not set, use the current date as a seed
+if [ -z "$MSIM_TEST_SEED" ]; then
+  MSIM_TEST_SEED="$DATE"
+fi
 
 LOG_DIR="${SIMTEST_LOGS_DIR}/${DATE}"
 LOG_FILE="$LOG_DIR/log"
@@ -50,11 +60,12 @@ echo "================================================"
 echo "Running e2e simtests with $TEST_NUM iterations"
 echo "================================================"
 date
+echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=${TEST_NUM}, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
 # This command runs many different tests, so it already uses all CPUs fairly efficiently, and
 # don't need to be done inside of the for loop below.
 # TODO: this logs directly to stdout since it is not being run in parallel. is that ok?
-MSIM_TEST_SEED="$SEED" \
+MSIM_TEST_SEED=${MSIM_TEST_SEED} \
 MSIM_TEST_NUM=${TEST_NUM} \
 MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
 scripts/simtest/cargo-simtest simtest \
@@ -64,7 +75,7 @@ scripts/simtest/cargo-simtest simtest \
   --package iota-archival \
   --package iota-e2e-tests \
   --profile simtestnightly \
-  -E "$TEST_FILTER" 2>&1 | tee "$LOG_FILE"
+  -E "$FINAL_TEST_FILTER" 2>&1 | tee "$LOG_FILE"
 
 echo ""
 echo "============================================="
@@ -72,22 +83,22 @@ echo "Running $NUM_CPUS stress simtests in parallel"
 echo "============================================="
 date
 
-for SUB_SEED in `seq 1 $NUM_CPUS`; do
-  SEED="$SUB_SEED$DATE"
-  LOG_FILE="$LOG_DIR/log-$SEED"
-  echo "Iteration $SUB_SEED using MSIM_TEST_SEED=$SEED, logging to $LOG_FILE"
+for CPU_NUMBER in `seq 1 $NUM_CPUS`; do
+  SUB_SEED="$CPU_NUMBER$DATE"
+  LOG_FILE="$LOG_DIR/log-$SUB_SEED"
+  echo "Iteration $CPU_NUMBER using MSIM_TEST_SEED=${SUB_SEED}, MSIM_TEST_NUM=1, SIM_STRESS_TEST_DURATION_SECS=300, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
   # --test-threads 1 is important: parallelism is achieved via the for loop
-  MSIM_TEST_SEED="$SEED" \
+  MSIM_TEST_SEED="$SUB_SEED" \
   MSIM_TEST_NUM=1 \
   MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
   SIM_STRESS_TEST_DURATION_SECS=300 \
   scripts/simtest/cargo-simtest simtest \
     --color always \
-    --package iota-benchmark \
     --test-threads 1 \
+    --package iota-benchmark \
     --profile simtestnightly \
-    > "$LOG_FILE" 2>&1 &
+    -E "$FINAL_TEST_FILTER" > "$LOG_FILE" 2>&1 &
 
 done
 
@@ -102,9 +113,9 @@ date
 
 # Check for determinism in stress simtests
 LOG_FILE="$LOG_DIR/determinism-log"
-echo "Using MSIM_TEST_SEED=$SEED, logging to $LOG_FILE"
+echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=1, MSIM_TEST_CHECK_DETERMINISM=1, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
-MSIM_TEST_SEED="$SEED" \
+MSIM_TEST_SEED=${MSIM_TEST_SEED} \
 MSIM_TEST_NUM=1 \
 MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
 MSIM_TEST_CHECK_DETERMINISM=1 \
@@ -113,7 +124,7 @@ scripts/simtest/cargo-simtest simtest \
   --test-threads "$NUM_CPUS" \
   --package iota-benchmark \
   --profile simtestnightly \
-  -E "$TEST_FILTER" 2>&1 | tee "$LOG_FILE"
+  -E "$FINAL_TEST_FILTER" 2>&1 | tee "$LOG_FILE"
 
 echo ""
 echo "============================================="
