@@ -72,6 +72,8 @@ iota-json-rpc-types:
   - "crates/iota-json-rpc-types/**"
 iota-keys:
   - "crates/iota-keys/**"
+iota-kvstore:
+  - "crates/iota-kvstore/**"
 iota-light-client:
   - "crates/iota-light-client/**"
 iota-macros:
