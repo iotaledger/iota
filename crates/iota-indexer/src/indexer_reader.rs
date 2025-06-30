@@ -64,7 +64,7 @@ use crate::{
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
         transactions::{
-            OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
+            IndexStatus, OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
@@ -628,6 +628,35 @@ impl IndexerReader {
         })?;
 
         stored_txn.try_into_iota_transaction_effects()
+    }
+
+    /// Count how many of the given transactions have been indexed.
+    ///
+    /// Any transaction with a non-zero optimistic sequence number
+    /// is considered as indexed.
+    fn count_indexed_transactions(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Result<i64, IndexerError> {
+        let digests = digests
+            .iter()
+            .map(|digest| digest.inner().to_vec())
+            .collect::<HashSet<_>>();
+        run_query!(&self.pool, |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq_any(&digests))
+                .filter(tx_global_order::optimistic_sequence_number.ne(IndexStatus::Started))
+                .count()
+                .get_result(conn)
+        })
+    }
+
+    pub(crate) async fn count_indexed_transactions_in_blocking_task(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> Result<i64, IndexerError> {
+        self.spawn_blocking(move |this| this.count_indexed_transactions(&digests))
+            .await
     }
 
     fn multi_get_transactions(

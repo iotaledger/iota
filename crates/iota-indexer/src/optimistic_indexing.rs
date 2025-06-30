@@ -9,7 +9,7 @@ use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResp
 use iota_rest_api::{ExecuteTransactionQueryParameters, client::TransactionExecutionResponse};
 use iota_types::{
     base_types::TransactionDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -70,6 +70,22 @@ impl OptimisticTransactionExecutor {
         }
     }
 
+    pub(crate) async fn wait_for_tx_dependencies(
+        &self,
+        effects: &TransactionEffects,
+    ) -> Result<(), IndexerError> {
+        let expected_dependencies = effects.dependencies();
+        let mut count = 0;
+        while count as usize != expected_dependencies.len() {
+            count = self
+                .indexer_reader
+                .count_indexed_transactions_in_blocking_task(expected_dependencies.to_vec())
+                .await
+                .map_err(|e| IndexerError::Generic(e.to_string()))?;
+        }
+        Ok(())
+    }
+
     pub(crate) async fn execute_and_index_transaction(
         &self,
         tx_bytes: Base64,
@@ -104,6 +120,7 @@ impl OptimisticTransactionExecutor {
             output_objects,
             ..
         } = response;
+        self.wait_for_tx_dependencies(&effects).await?;
         let tx_digest = *effects.transaction_digest();
 
         match (input_objects, output_objects) {
