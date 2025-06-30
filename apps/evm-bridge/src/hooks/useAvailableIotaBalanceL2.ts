@@ -19,7 +19,6 @@ export function useAvailableIotaBalanceL2(): {
             refetchInterval: 2000, // Refetch Layer 2 balance every 2 seconds
         },
     });
-    console.log('Layer 2 balance data:', layer2BalanceData);
     const layer2TotalBalance = layer2BalanceData?.value || 0n;
 
     const { data: gasEstimationData, isPending: isGasEstimationLoading } = useGasEstimateL2({
