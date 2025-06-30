@@ -5965,6 +5965,7 @@ dependencies = [
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
+ "iota-kvstore",
  "iota-metrics",
  "iota-rest-api",
  "iota-storage",
