@@ -8,7 +8,7 @@ on:
 jobs:
   e2e:
     uses: ./.github/workflows/_e2e.yml
-    secrets: 
+    secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
       EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
   check-sri-integrity-webassets:
