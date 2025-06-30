@@ -52,8 +52,10 @@ pub struct TxGlobalOrder {
     /// Monotonically increasing number that represents the order
     /// of execution of optimistic transactions.
     ///
-    /// To maintain these semantics the value should be `0` for
-    /// checkpointed transactions.
+    /// To maintain these semantics the value should be non-positive for
+    /// checkpointed transactions. More specifically we allow values
+    /// in the set `[0, -1]` to represent the index status of checkpointed
+    /// transactions. See also [`CheckpointTxGlobalOrder`].
     ///
     /// Optimistic transactions should set this value to `None`,
     /// so that it is auto-generated on the database.
@@ -71,16 +73,14 @@ impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
     }
 }
 
+/// Stored value for checkpointed transactions.
+///
+/// Differs from [`TxGlobalOrder`] in that it allows values
+/// for `optimistic_sequence_number` in the set `[0, -1]`
+/// that represent the index status.
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
 pub(crate) struct CheckpointTxGlobalOrder {
-    /// Number that represents the global ordering between optimistic and
-    /// checkpointed transactions.
-    ///
-    /// Optimistic transactions will share the same number as checkpointed
-    /// transactions. In this case, ties are resolved by the
-    /// `(global_sequence_number, optimistic_sequence_number)` pair that
-    /// guarantees deterministic ordering.
     pub(crate) global_sequence_number: i64,
     pub(crate) tx_digest: Vec<u8>,
     /// The index status of checkpointed transactions.

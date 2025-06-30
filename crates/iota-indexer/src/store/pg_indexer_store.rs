@@ -907,11 +907,11 @@ impl PgIndexerStore {
             let elapsed = guard.stop_and_record();
             info!(
                 elapsed,
-                "Persisted {} chunked txs insertion order", num_transactions
+                "Updated {} chunked values of `tx_global_order`", num_transactions
             );
         })
         .tap_err(|e| {
-            tracing::error!("Failed to persist txs insertion order with error: {e}");
+            tracing::error!("Failed to update `tx_global_order` with error: {e}");
         })
     }
 
@@ -2682,14 +2682,16 @@ impl IndexerStoreExt for PgIndexerStore {
         futures::future::try_join_all(futures)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to join update_tx_insertion_order_chunk futures: {e}",);
+                tracing::error!(
+                    "Failed to join update_status_for_checkpoint_transactions_chunk futures: {e}",
+                );
                 IndexerError::from(e)
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to update all txs insertion order chunks: {e:?}",
+                    "Failed to update all `tx_global_order` chunks: {e:?}",
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -2718,7 +2720,7 @@ impl IndexerStoreExt for PgIndexerStore {
         futures::future::try_join_all(futures)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to join persist_tx_insertion_order_chunk futures: {e}",);
+                tracing::error!("Failed to join persist_tx_global_order_chunk futures: {e}",);
                 IndexerError::from(e)
             })?
             .into_iter()
