@@ -171,18 +171,6 @@ const config = {
             {
               from: '/ts-sdk',
               to: '/developer/ts-sdk',
-            },
-            {
-              from: '/about-iota/wallets',
-              to: '/users/wallets',
-            },
-            {
-              from: '/about-iota/iota-wallet',
-              to: '/users/iota-wallet',
-            },
-            {
-              from: '/about-iota/wallet-dashboard',
-              to: '/users/iota-wallet-dashboard',
             }
           ];
           let paths = [];
@@ -320,10 +308,10 @@ const config = {
         defaultMode: "dark",
       },
       announcementBar: {
-        id: "integrate_your_exchange",
+        id: "iota-notarization",
         content:
-          '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
-        isCloseable: false,
+          'Discover <a target="_blank" rel="noopener noreferrer" href="/developer/iota-notarization">IOTA Notarization Alpha</a> a toolkit for creating and managing tamper-proof records.',
+        isCloseable: true,
         backgroundColor: "#0101ff",
         textColor: "#FFFFFF",
       },
