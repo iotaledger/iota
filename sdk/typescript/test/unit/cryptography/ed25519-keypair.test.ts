@@ -166,4 +166,24 @@ describe('ed25519-keypair', () => {
             true,
         );
     });
+
+    it('should recreate identical keypair from generated keypair secret key string', () => {
+        const originalKeypair = Ed25519Keypair.generate();
+        const secretKeyString = originalKeypair.getSecretKey();
+
+        const recreatedKeypair = Ed25519Keypair.fromSecretKey(secretKeyString);
+
+        expect(recreatedKeypair.getPublicKey().toIotaAddress()).toEqual(
+            originalKeypair.getPublicKey().toIotaAddress(),
+        );
+        expect(recreatedKeypair.getSecretKey()).toEqual(secretKeyString);
+    });
+
+    it('should throw error for invalid Bech32 secret key string', () => {
+        const invalidBech32 = 'invalid-bech32-string';
+
+        expect(() => {
+            Ed25519Keypair.fromSecretKey(invalidBech32);
+        }).toThrow();
+    });
 });
