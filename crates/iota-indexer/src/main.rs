@@ -7,7 +7,7 @@ use std::env;
 use clap::{CommandFactory, FromArgMatches, Parser};
 use iota_indexer::{
     backfill::runner::BackfillRunner,
-    config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
+    config::{CommandV2, IndexerConfigV2, deprecated::OldIndexerConfig},
     db::{
         get_pool_connection, new_connection_pool, reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
@@ -37,8 +37,8 @@ async fn main() -> Result<(), IndexerError> {
 
     let opts = match old_conf {
         Ok(old_conf) => old_conf.try_into()?,
-        Err(_) => IndexerConfig::from_arg_matches_mut(
-            &mut IndexerConfig::command().version(VERSION).get_matches(),
+        Err(_) => IndexerConfigV2::from_arg_matches_mut(
+            &mut IndexerConfigV2::command().version(VERSION).get_matches(),
         )
         .unwrap_or_else(|e| e.exit()),
     };
@@ -47,7 +47,7 @@ async fn main() -> Result<(), IndexerError> {
     iota_metrics::init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
 
-    if let Command::HelpDeprecated = opts.command {
+    if let CommandV2::HelpDeprecated = opts.command {
         OldIndexerConfig::command().print_help().map_err(|e| {
             IndexerError::Generic(format!("Failed printing deprecated CLI help: {e}"))
         })?;
@@ -65,7 +65,7 @@ async fn main() -> Result<(), IndexerError> {
     spawn_connection_pool_metric_collector(indexer_metrics.clone(), connection_pool.clone());
 
     match opts.command {
-        Command::Indexer {
+        CommandV2::Indexer {
             ingestion_config,
             snapshot_config,
             pruning_options,
@@ -93,7 +93,7 @@ async fn main() -> Result<(), IndexerError> {
             )
             .await?;
         }
-        Command::JsonRpcService(json_rpc_config) => {
+        CommandV2::JsonRpcService(json_rpc_config) => {
             {
                 // Run compatibility check
                 let mut pool_conn = get_pool_connection(&connection_pool)?;
@@ -102,12 +102,12 @@ async fn main() -> Result<(), IndexerError> {
 
             Indexer::start_reader(&json_rpc_config, &registry, connection_pool).await?;
         }
-        Command::AnalyticalWorker => {
+        CommandV2::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
-        Command::HelpDeprecated => unreachable!("This case is handled earlier"),
-        Command::RunBackfill {
+        CommandV2::HelpDeprecated => unreachable!("This case is handled earlier"),
+        CommandV2::RunBackfill {
             start,
             end,
             runner_kind,
@@ -115,6 +115,11 @@ async fn main() -> Result<(), IndexerError> {
         } => {
             let total_range = start..=end;
             BackfillRunner::run(runner_kind, connection_pool, backfill_config, total_range).await?;
+        }
+        _ => {
+            return Err(IndexerError::InvalidArgument(
+                "This command variant is not supported".into(),
+            ));
         }
     }
 
