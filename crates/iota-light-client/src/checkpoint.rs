@@ -237,7 +237,7 @@ pub async fn download_summaries_from_archive_store(
     let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
     archive_reader.sync_manifest_once().await?;
     archive_reader
-        .read_summaries_for_list_no_verify(store.clone(), checkpoints, counter)
+        .read_summaries_for_list_no_verify(store, checkpoints, counter)
         .await?;
 
     Ok(())
