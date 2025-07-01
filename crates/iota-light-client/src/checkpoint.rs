@@ -494,7 +494,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
 }
 
 impl ObjectStore for CheckpointSummaryFileStore<'_> {
-    fn get_object(
+    fn try_get_object(
         &self,
         _: &iota_types::base_types::ObjectID,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {

@@ -279,7 +279,7 @@ pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> 
     let obj = if let Some(version) = opt.version {
         perpetual_db.get_object_by_key(&opt.id, version.into())?
     } else {
-        perpetual_db.get_object(&opt.id)?
+        perpetual_db.try_get_object(&opt.id)?
     };
 
     if let Some(obj) = obj {

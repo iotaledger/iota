@@ -758,7 +758,7 @@ impl WritebackCache {
             CacheResult::Hit((_, object)) => Ok(Some(object)),
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => {
-                let obj = self.store.get_object(id)?;
+                let obj = self.store.try_get_object(id)?;
                 if let Some(obj) = &obj {
                     self.cache_latest_object_by_id(
                         id,
@@ -1218,7 +1218,7 @@ impl ObjectCacheRead for WritebackCache {
             .record_cache_request("package", "package_cache");
         if let Some(p) = self.packages.get(package_id) {
             if cfg!(debug_assertions) {
-                if let Some(store_package) = self.store.get_object(package_id).unwrap() {
+                if let Some(store_package) = self.store.try_get_object(package_id).unwrap() {
                     assert_eq!(
                         store_package.digest(),
                         p.object().digest(),

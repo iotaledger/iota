@@ -2528,7 +2528,7 @@ impl AuthorityState {
                         // only allow to use it for genesis.
                         // reference: https://github.com/iotaledger/iota/issues/7267
                         self.get_object_store()
-                            .get_object(&object_id)?
+                            .try_get_object(&object_id)?
                             .ok_or_else(|| UserInputError::ObjectNotFound {
                                 object_id,
                                 version: Some(o.version()),
@@ -3333,7 +3333,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub async fn get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
         self.get_object_store()
-            .get_object(object_id)
+            .try_get_object(object_id)
             .map_err(Into::into)
     }
 
@@ -5361,7 +5361,7 @@ impl NodeStateDump {
         // Record all system packages at this version
         let mut relevant_system_packages = Vec::new();
         for sys_package_id in BuiltInFramework::all_package_ids() {
-            if let Some(w) = object_store.get_object(&sys_package_id)? {
+            if let Some(w) = object_store.try_get_object(&sys_package_id)? {
                 relevant_system_packages.push(ObjDumpFormat::new(w))
             }
         }

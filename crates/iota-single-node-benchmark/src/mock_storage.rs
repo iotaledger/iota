@@ -109,7 +109,7 @@ impl InMemoryObjectStore {
 }
 
 impl ObjectStore for InMemoryObjectStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
@@ -122,7 +122,7 @@ impl ObjectStore for InMemoryObjectStore {
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(self.get_object(object_id).unwrap().and_then(|o| {
+        Ok(self.try_get_object(object_id).unwrap().and_then(|o| {
             if o.version() == version {
                 Some(o.clone())
             } else {
@@ -145,7 +145,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.get_object(child).unwrap().and_then(|o| {
+        Ok(self.try_get_object(child).unwrap().and_then(|o| {
             if o.version() <= child_version_upper_bound
                 && o.owner == Owner::ObjectOwner((*parent).into())
             {

@@ -745,7 +745,7 @@ pub trait TestingAPI: Send + Sync {
 macro_rules! implement_storage_traits {
     ($implementor: ident) => {
         impl ObjectStore for $implementor {
-            fn get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+            fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
                 ObjectCacheRead::get_object(self, object_id).map_err(StorageError::custom)
             }
 

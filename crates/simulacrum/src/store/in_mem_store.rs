@@ -310,7 +310,7 @@ impl ModuleResolver for InMemoryStore {
 }
 
 impl ObjectStore for InMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {

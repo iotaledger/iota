@@ -403,11 +403,11 @@ impl ReadStore for ValidatorWithFullnode {
 }
 
 impl ObjectStore for ValidatorWithFullnode {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        self.validator.get_object_store().get_object(object_id)
+        self.validator.get_object_store().try_get_object(object_id)
     }
 
     fn get_object_by_key(

@@ -267,11 +267,11 @@ impl ReadStore for RocksDbStore {
 }
 
 impl ObjectStore for RocksDbStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &iota_types::base_types::ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.cache_traits.object_store.get_object(object_id)
+        self.cache_traits.object_store.try_get_object(object_id)
     }
 
     fn get_object_by_key(
@@ -379,11 +379,11 @@ impl RestReadStore {
 }
 
 impl ObjectStore for RestReadStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &iota_types::base_types::ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.rocks.get_object(object_id)
+        self.rocks.try_get_object(object_id)
     }
 
     fn get_object_by_key(

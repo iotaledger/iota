@@ -334,14 +334,14 @@ impl UnsignedGenesis {
 
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
-            .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .try_get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
             .expect("read from genesis cannot fail")
             .is_some()
     }
 
     pub fn has_bridge_object(&self) -> bool {
         self.objects()
-            .get_object(&GENESIS_IOTA_BRIDGE_OBJECT_ID)
+            .try_get_object(&GENESIS_IOTA_BRIDGE_OBJECT_ID)
             .expect("read from genesis cannot fail")
             .is_some()
     }

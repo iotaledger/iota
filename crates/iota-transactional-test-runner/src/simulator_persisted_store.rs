@@ -501,7 +501,7 @@ impl ModuleResolver for PersistedStore {
 }
 
 impl ObjectStore for PersistedStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
@@ -518,7 +518,7 @@ impl ObjectStore for PersistedStore {
 }
 
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {

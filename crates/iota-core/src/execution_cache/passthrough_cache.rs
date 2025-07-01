@@ -101,7 +101,7 @@ impl ObjectCacheRead for PassthroughCache {
     }
 
     fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.store.get_object(id).map_err(Into::into)
+        self.store.try_get_object(id).map_err(Into::into)
     }
 
     fn get_object_by_key(

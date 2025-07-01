@@ -164,7 +164,7 @@ impl ReadStore for SharedInMemoryStore {
 }
 
 impl ObjectStore for SharedInMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
     ) -> Result<Option<crate::object::Object>> {
@@ -475,7 +475,7 @@ impl SingleCheckpointSharedInMemoryStore {
 }
 
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
     ) -> Result<Option<crate::object::Object>> {

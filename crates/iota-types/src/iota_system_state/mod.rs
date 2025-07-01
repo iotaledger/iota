@@ -235,7 +235,7 @@ pub fn get_iota_system_state_wrapper(
     object_store: &dyn ObjectStore,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
-        .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
+        .try_get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())

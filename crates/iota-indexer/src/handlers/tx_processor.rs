@@ -200,7 +200,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
 }
 
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {

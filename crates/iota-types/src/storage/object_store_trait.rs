@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub trait ObjectStore {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
 
     fn get_object_by_key(
         &self,
@@ -23,7 +23,7 @@ pub trait ObjectStore {
     fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
         object_ids
             .iter()
-            .map(|digest| self.get_object(digest))
+            .map(|digest| self.try_get_object(digest))
             .collect::<Result<Vec<_>, _>>()
     }
 
@@ -36,8 +36,8 @@ pub trait ObjectStore {
 }
 
 impl<T: ObjectStore + ?Sized> ObjectStore for &T {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
-        (*self).get_object(object_id)
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+        (*self).try_get_object(object_id)
     }
 
     fn get_object_by_key(
@@ -58,8 +58,8 @@ impl<T: ObjectStore + ?Sized> ObjectStore for &T {
 }
 
 impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
-        (**self).get_object(object_id)
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+        (**self).try_get_object(object_id)
     }
 
     fn get_object_by_key(
@@ -80,8 +80,8 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
 }
 
 impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
-        (**self).get_object(object_id)
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+        (**self).try_get_object(object_id)
     }
 
     fn get_object_by_key(
@@ -102,7 +102,7 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
 }
 
 impl ObjectStore for &[Object] {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.iter().find(|o| o.id() == *object_id).cloned())
     }
 
@@ -119,7 +119,7 @@ impl ObjectStore for &[Object] {
 }
 
 impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.get(object_id).map(|(_, obj, _)| obj).cloned())
     }
 
@@ -142,7 +142,7 @@ impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
 }
 
 impl ObjectStore for BTreeMap<ObjectID, Object> {
-    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.get(object_id).cloned())
     }
 

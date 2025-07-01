@@ -433,7 +433,7 @@ impl ValidatorKeypairProvider for CommitteeWithKeys<'_> {
 }
 
 impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {

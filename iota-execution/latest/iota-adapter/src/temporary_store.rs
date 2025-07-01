@@ -608,7 +608,7 @@ impl TemporaryStore<'_> {
                 // For example, the ID is for a wrapped table or bag.
                 *container_id
             } else {
-                let Some(old_obj) = self.store.get_object(&to_authenticate)? else {
+                let Some(old_obj) = self.store.try_get_object(&to_authenticate)? else {
                     panic!(
                         "
                         Failed to load object {to_authenticate:?}. \n\

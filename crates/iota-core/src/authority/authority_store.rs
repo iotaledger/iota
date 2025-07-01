@@ -642,7 +642,7 @@ impl AuthorityStore {
     pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, IotaError> {
         let mut result = Vec::new();
         for id in objects {
-            result.push(self.get_object(id)?);
+            result.push(self.try_get_object(id)?);
         }
         Ok(result)
     }
@@ -1853,11 +1853,11 @@ impl AccumulatorStore for AuthorityStore {
 
 impl ObjectStore for AuthorityStore {
     /// Read an object and return it, or Ok(None) if the object was not found.
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        self.perpetual_tables.as_ref().get_object(object_id)
+        self.perpetual_tables.as_ref().try_get_object(object_id)
     }
 
     fn get_object_by_key(
