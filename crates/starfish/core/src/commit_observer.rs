@@ -123,9 +123,9 @@ impl CommitObserver {
             );
             sent_sub_dags.push(solid_sub_dag);
         }
-
         self.report_metrics(&pending_sub_dags);
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
+
         Ok((pending_sub_dags, missing_transactions))
     }
 
@@ -162,7 +162,7 @@ impl CommitObserver {
             }
         };
 
-        // Retrieve all the commits from the recover lower bound until the end..
+        // Retrieve all the commits from the recover lower bound until the end.
         let recovery_commits = self
             .store
             .scan_commits((recovery_lower_bound..=CommitIndex::MAX).into())
@@ -181,11 +181,15 @@ impl CommitObserver {
         let mut next_commit_index_to_recover = recovery_lower_bound;
         let mut last_sent_commit_index = last_processed_commit_index;
         let num_recovery_commits = recovery_commits.len();
+
         for (index, commit) in recovery_commits.into_iter().enumerate() {
             let commit_index = commit.index();
             // Commit index must be continuous during recovert.
             assert_eq!(commit_index, next_commit_index_to_recover);
-
+            if index == 0 {
+                self.commit_solidifier
+                    .set_last_committed_index(commit_index.saturating_sub(1));
+            }
             // On recovery leader schedule will be updated with the current scores
             // and the scores will be passed along with the last commit sent to
             // iota so that the current scores are available for submission.
@@ -224,8 +228,8 @@ impl CommitObserver {
             // Only submit unprocessed commits to IOTA
             for solid_sub_dag in solid_sub_dags {
                 if solid_sub_dag.commit_ref.index > last_processed_commit_index {
-                    // Commit index must be continuous during recovert.
-                    assert_eq!(commit_index, last_sent_commit_index + 1);
+                    // Commit index must be continuous during recovery.
+                    assert_eq!(solid_sub_dag.commit_ref.index, last_sent_commit_index + 1);
                     info!(
                         "Sending solid commit {} during recovery",
                         solid_sub_dag.commit_ref.index
