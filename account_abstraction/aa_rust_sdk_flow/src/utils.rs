@@ -18,10 +18,13 @@ use iota_sdk::{
 ///
 /// This is passed to `TransactionData::new_programmable` to define
 /// how much gas the transaction is allowed to consume.
-pub const GAS_BUDGET: u64 = 10_000_000_0;
+pub const GAS_BUDGET: u64 = 100_000_000;
 
 /// Default threshold used for multi-signature initialization.
 pub const THRESHOLD: u16 = 2;
+
+/// Default weights used for multi-signature initialization.
+pub const WEIGHTS: &[u8] = &[1, 2];
 
 /// Selects the first available coin object for the given address.
 ///

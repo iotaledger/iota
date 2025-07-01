@@ -25,7 +25,7 @@ use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     sig_utils::build_multisig,
-    utils::{GAS_BUDGET, THRESHOLD, compile_package, get_coin},
+    utils::{GAS_BUDGET, THRESHOLD, WEIGHTS, compile_package, get_coin},
 };
 
 const SMART_ACC_MODULE_NAME: &str = "smart_account";
@@ -75,7 +75,7 @@ pub async fn publish_account_abstraction_package(
             .into(),
     ];
 
-    let multisig = build_multisig(keystore, &[alice_addr, bob_addr], &[1, 2], THRESHOLD, sigs)?;
+    let multisig = build_multisig(keystore, &[alice_addr, bob_addr], WEIGHTS, THRESHOLD, sigs)?;
 
     // Deployment of the Account Abstraction (AA) Package via Multisig:
     let transaction_response = iota_client
@@ -285,7 +285,7 @@ pub async fn make_deposit_to_smart_account(
     let multisig = build_multisig(
         keystore,
         &[depositor_addr, approver_addr],
-        &[1, 2],
+        WEIGHTS,
         THRESHOLD,
         sigs,
     )?;
@@ -435,7 +435,7 @@ pub async fn delete_smart_account(
     let multisig = build_multisig(
         keystore,
         &[approver_addr, initiator_addr],
-        &[1, 2],
+        WEIGHTS,
         THRESHOLD,
         sigs,
     )?;
