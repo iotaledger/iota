@@ -1999,7 +1999,7 @@ impl IndexerReader {
     where
         T: TryFrom<Object, Error = IotaError>,
     {
-        let cache_key = format!("{}", tag.to_canonical_string(/* with_prefix */ true));
+        let cache_key = tag.to_canonical_string(/* with_prefix */ true);
 
         let mut cache = self
             .package_obj_type_cache
