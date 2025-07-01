@@ -756,7 +756,7 @@
     --dialog-title-color: theme('colors.names-neutral.92');
     --dialog-body-color: theme('colors.names-neutral.70');
     --dialog-outline: 1px solid theme('colors.names-neutral.20');
-    --dialog-overlay-bg: theme('colors.names-neutral.0/0.72');
+    --dialog-overlay-bg: theme('colors.names-neutral.0/0.12');
 
     /* NAVBAR */
     --navbar-icon-color: theme('colors.names-neutral.92');
