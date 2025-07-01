@@ -26,6 +26,9 @@ pub const THRESHOLD: u16 = 2;
 /// Default weights used for multi-signature initialization.
 pub const WEIGHTS: &[u8] = &[1, 2];
 
+/// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
+pub const MAIN_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
+
 /// Selects the first available coin object for the given address.
 ///
 /// This is used to pay for gas or as an input to a transaction.

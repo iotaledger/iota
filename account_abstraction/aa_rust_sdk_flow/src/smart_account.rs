@@ -3,7 +3,7 @@
 
 use anyhow::{Ok, Result, anyhow};
 use fastcrypto::hash::HashFunction;
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
     rpc_types::{
@@ -41,12 +41,12 @@ const SMART_ACC_MODULE_NAME: &str = "smart_account";
 ///
 /// # Returns
 /// The transaction response that includes the published package.
-pub async fn publish_account_abstraction_package(
+pub async fn publish_account_abstraction_package<K: AccountKeystore>(
     iota_client: &IotaClient,
     alice_addr: IotaAddress,
     bob_addr: IotaAddress,
     multisig_addr: IotaAddress,
-    keystore: &FileBasedKeystore,
+    keystore: &K,
 ) -> Result<IotaTransactionBlockResponse> {
     // Build the Move package from source
     let compiled_package = compile_package("../aa_move")?;
@@ -94,12 +94,12 @@ pub async fn publish_account_abstraction_package(
 /// # Returns
 /// A response that includes the created objects, including SmartAccount and
 /// OwnerCap.
-pub async fn init_smart_account(
+pub async fn init_smart_account<K: AccountKeystore>(
     iota_client: &IotaClient,
     package_id: ObjectID,
     publisher_addr: IotaAddress,
     multisig_addr: IotaAddress,
-    keystore: &FileBasedKeystore,
+    keystore: &K,
 ) -> Result<IotaTransactionBlockResponse> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
     let args = vec![ptb_builder.pure(multisig_addr)?];
@@ -162,9 +162,9 @@ pub fn smart_account_data(
 
 /// Submits a deposit transaction into a SmartAccount.
 /// Receives the sent coin in place.
-pub async fn make_deposit_to_smart_account(
+pub async fn make_deposit_to_smart_account<K: AccountKeystore>(
     iota_client: &IotaClient,
-    keystore: &FileBasedKeystore,
+    keystore: &K,
     depositor_addr: IotaAddress,
     approver_addr: IotaAddress,
     multisig_addr: IotaAddress,
@@ -367,7 +367,7 @@ pub async fn prepare_withdraw_tx_data(
 /// Calls the `delete_multisig_smart_account` function to delete a SmartAccount
 /// and OwnerCap objects.
 /// It returns the remained balance as coin and transfer it to the initiator.
-pub async fn delete_smart_account(
+pub async fn delete_smart_account<K: AccountKeystore>(
     iota_client: &IotaClient,
     package_id: ObjectID,
     multisig_addr: IotaAddress,
@@ -375,7 +375,7 @@ pub async fn delete_smart_account(
     approver_addr: IotaAddress,
     smart_account_obj: ObjectRef,
     owner_cap_obj_id: ObjectID,
-    keystore: &FileBasedKeystore,
+    keystore: &K,
 ) -> Result<IotaTransactionBlockResponse> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
 

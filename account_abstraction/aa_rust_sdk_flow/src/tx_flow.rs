@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, Result, anyhow};
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
     rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange},
@@ -34,11 +34,11 @@ const TX_MODULE_NAME: &str = "tx_flow";
 ///
 /// # Returns
 /// The `ObjectRef` of the created `ProposedTx` Move object.
-pub async fn propose_tx_to_smart_account(
+pub async fn propose_tx_to_smart_account<K: AccountKeystore>(
     iota_client: &IotaClient,
     digest: Vec<u8>,
     withdraw_tx_data: &TransactionData,
-    keystore: &FileBasedKeystore,
+    keystore: &K,
     alice_addr: IotaAddress,
     package_id: ObjectID,
     smart_account_object: ObjectRef,
@@ -117,11 +117,11 @@ pub async fn propose_tx_to_smart_account(
 ///
 /// # Returns
 /// The response containing all transaction and object updates.
-pub async fn sign_proposed_tx(
+pub async fn sign_proposed_tx<K: AccountKeystore>(
     iota_client: &IotaClient,
     proposed_tx_id: ObjectID,
     withdraw_tx_data: &TransactionData,
-    keystore: &FileBasedKeystore,
+    keystore: &K,
     addr: IotaAddress,
     package_id: ObjectID,
     smart_account_object: ObjectRef,

@@ -1,11 +1,11 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::{Ok, Result};
 use bip32::DerivationPath;
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
@@ -27,7 +27,7 @@ use crate::{
         prepare_withdraw_tx_data, publish_account_abstraction_package, smart_account_data,
     },
     tx_flow::{propose_tx_to_smart_account, sign_proposed_tx},
-    utils::{THRESHOLD, WEIGHTS, check_recipient_balance, package_id},
+    utils::{MAIN_MNEMONIC, THRESHOLD, WEIGHTS, check_recipient_balance, package_id},
 };
 mod faucet;
 mod sig_utils;
@@ -36,46 +36,24 @@ mod smart_account;
 mod tx_flow;
 mod utils;
 
-/// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
-const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
-
-/// Creates a temporary keystore.
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read iota keystore
-    FileBasedKeystore::new(&keystore_path)
-}
-
-/// Deletes the temporary keystore.
-fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove files
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
     println!("Iota local network version: {}", iota_client.api_version());
 
-    // Setup the temporary file based keystore
-    let mut keystore = setup_keystore()?;
+    // Setup the temporary keystore
+    let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Setup actors addresses
     let alice_addr = keystore.import_from_mnemonic(
-        MAIN_ADDRESS_MNEMONIC,
+        MAIN_MNEMONIC,
         ED25519,
         Some(DerivationPath::from_str("m/44'/4218'/0'/0'/0'")?),
         None,
     )?;
     println!("Alice address: {alice_addr}");
     let bob_addr = keystore.import_from_mnemonic(
-        MAIN_ADDRESS_MNEMONIC,
+        MAIN_MNEMONIC,
         ED25519,
         Some(DerivationPath::from_str("m/44'/4218'/0'/0'/1'")?),
         None,
@@ -252,6 +230,5 @@ async fn main() -> Result<(), anyhow::Error> {
 
     print!("\n Delete Smart Contract Transaction: {delete_sm_tx_resp}");
 
-    // Finish and clean the temporary keystore file
-    clean_keystore()
+    Ok(())
 }
