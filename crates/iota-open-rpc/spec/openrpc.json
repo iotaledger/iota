@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.3.0-alpha"
+    "version": "1.4.0-alpha"
   },
   "methods": [
     {
@@ -1306,7 +1306,6 @@
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
-                "bridge": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,
@@ -8049,30 +8048,6 @@
               }
             },
             "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "BridgeStateCreate"
-            ],
-            "properties": {
-              "BridgeStateCreate": {
-                "$ref": "#/components/schemas/CheckpointDigest"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "BridgeCommitteeUpdate"
-            ],
-            "properties": {
-              "BridgeCommitteeUpdate": {
-                "$ref": "#/components/schemas/SequenceNumber"
-              }
-            },
-            "additionalProperties": false
           }
         ]
       },
@@ -8472,7 +8447,7 @@
             "minimum": 0.0
           },
           "nftId": {
-            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this domain.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
+            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this name.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
@@ -8480,7 +8455,7 @@
             ]
           },
           "targetAddress": {
-            "description": "The target address that this domain points to",
+            "description": "The target address that this name points to",
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"

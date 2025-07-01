@@ -190,8 +190,9 @@ pub enum IotaClientCommands {
         /// using --serialize-unsigned-transaction.
         #[arg(long)]
         tx_bytes: String,
-        /// A list of Base64 encoded signatures `flag || signature || pubkey`.
-        #[arg(long)]
+        /// A list of Base64 encoded signatures `flag || signature || pubkey`,
+        /// separated by space.
+        #[arg(long, num_args(1..))]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -414,7 +415,7 @@ pub enum IotaClientCommands {
         #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
         /// ID of the upgrade capability for the package being upgraded.
-        #[arg(long)]
+        #[arg(long, short = 'c')]
         upgrade_capability: ObjectID,
         /// Package build options
         #[command(flatten)]
@@ -1729,7 +1730,7 @@ impl IotaClientCommands {
             }
             IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
                 PTBCommandResult::CommandResult(iota_client_command_result) => {
-                    iota_client_command_result
+                    *iota_client_command_result
                 }
                 res => {
                     let s = res.to_styled_str();

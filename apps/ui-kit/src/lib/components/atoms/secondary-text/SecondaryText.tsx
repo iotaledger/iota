@@ -15,10 +15,11 @@ interface SecondaryTextProps {
 }
 
 export function SecondaryText({ children, hasErrorStyles }: SecondaryTextProps) {
-    const ERROR_STYLES = 'group-[.errored]:text-error-30 dark:group-[.errored]:text-error-80';
+    const ERROR_STYLES =
+        'group-[.errored]:w-full group-[.errored]:secondary-text-error-color group-[.errored]:bg-error-surface group-[.errored]:rounded-xl group-[.errored]:py-1 group-[.errored]:px-2';
     return (
         <p
-            className={cx('text-label-lg text-neutral-40  dark:text-neutral-60 ', {
+            className={cx('secondary-text-color text-label-lg', {
                 [ERROR_STYLES]: hasErrorStyles,
             })}
         >
