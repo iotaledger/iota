@@ -8447,7 +8447,7 @@
             "minimum": 0.0
           },
           "nftId": {
-            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this domain.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
+            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this name.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
@@ -8455,7 +8455,7 @@
             ]
           },
           "targetAddress": {
-            "description": "The target address that this domain points to",
+            "description": "The target address that this name points to",
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"

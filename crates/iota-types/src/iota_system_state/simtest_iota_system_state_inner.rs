@@ -177,6 +177,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
+                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
                         },
                     ),
                 )
@@ -294,6 +295,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
+                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
                         },
                     ),
                 )
@@ -440,6 +442,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
+                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
                         },
                     ),
                 )

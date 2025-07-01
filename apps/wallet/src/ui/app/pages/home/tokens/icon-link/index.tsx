@@ -26,7 +26,7 @@ function IconLinkComponent({ to, icon, disabled = false, text }: IconLinkProps) 
             <span
                 className={cl(
                     'text-body-sm',
-                    disabled ? 'opacity-60' : 'text-neutral-10 dark:text-neutral-92',
+                    disabled ? 'opacity-60' : 'text-iota-neutral-10 dark:text-iota-neutral-92',
                 )}
             >
                 {text}

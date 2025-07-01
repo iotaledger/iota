@@ -32,7 +32,7 @@ use crate::{
         coin::Coin,
         cursor::{BcsCursor, JsonCursor, Page, RawPaginated, ScanLimited, Target},
         iota_address::{IotaAddress, addr},
-        iota_names_registration::{DomainFormat, IotaNamesRegistration},
+        iota_names_registration::{IotaNamesRegistration, NameFormat},
         move_module::MoveModule,
         move_object::MoveObject,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
@@ -277,12 +277,12 @@ impl MovePackage {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this
+    /// The name explicitly configured as the default name pointing to this
     /// object.
     pub(crate) async fn iota_names_default_name(
         &self,
         ctx: &Context<'_>,
-        format: Option<DomainFormat>,
+        format: Option<NameFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_)
             .iota_names_default_name(ctx, format)
@@ -290,7 +290,7 @@ impl MovePackage {
     }
 
     /// The IotaNamesRegistration NFTs owned by this package. These grant the
-    /// owner the capability to manage the associated domain.
+    /// owner the capability to manage the associated name.
     ///
     /// Note that objects owned by a package are inaccessible, because packages
     /// are immutable and cannot be owned by an address.

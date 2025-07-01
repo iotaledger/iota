@@ -94,13 +94,13 @@ type Address implements IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	address.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this address. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	"""
@@ -590,13 +590,13 @@ type Coin implements IMoveObject & IObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this object. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
@@ -767,13 +767,13 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this object. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
@@ -978,11 +978,6 @@ type DisplayEntry {
 	An error string describing why the template could not be rendered.
 	"""
 	error: String
-}
-
-enum DomainFormat {
-	AT
-	DOT
 }
 
 type DryRunEffect {
@@ -1663,11 +1658,11 @@ interface IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this object or address.
+	The name explicitly configured as the default name pointing to this object or address.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
-	The IotaNamesRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated domain.
+	The IotaNamesRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 }
@@ -1723,13 +1718,13 @@ type IotaNamesRegistration implements IMoveObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this object. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
@@ -1843,9 +1838,9 @@ type IotaNamesRegistration implements IMoveObject & IOwner {
 	"""
 	dynamicFields(first: Int, after: String, last: Int, before: String): DynamicFieldConnection!
 	"""
-	Domain name of the IotaNamesRegistration object
+	Name of the IotaNamesRegistration object
 	"""
-	domain: String!
+	name: String!
 }
 
 type IotaNamesRegistrationConnection {
@@ -2327,13 +2322,13 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this object. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
@@ -2531,13 +2526,13 @@ type MovePackage implements IObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this package. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	
 	Note that objects owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
@@ -2929,6 +2924,11 @@ type Mutation {
 	executeTransactionBlock(txBytes: String!, signatures: [String!]!): ExecutionResult!
 }
 
+enum NameFormat {
+	AT
+	DOT
+}
+
 """
 An object in IOTA is a package (set of Move bytecode modules) or object
 (typed data structure with fields) with additional metadata detailing its
@@ -2962,13 +2962,13 @@ type Object implements IObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	address.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this address. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
@@ -3340,13 +3340,13 @@ type Owner implements IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object or address.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this object or address. These
-	grant the owner the capability to manage the associated domain.
+	grant the owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	asAddress: Address
@@ -3720,10 +3720,10 @@ type Query {
 	"""
 	protocolConfig(protocolVersion: UInt53): ProtocolConfigs!
 	"""
-	Resolves an IOTA-Names `domain` name to an address, if it has been
+	Resolves an IOTA-Names `name` to an address, if it has been
 	bound.
 	"""
-	resolveIotaNamesAddress(domain: String!): Address
+	resolveIotaNamesAddress(name: String!): Address
 	"""
 	The coin metadata associated with the given coin type.
 	"""
@@ -4082,13 +4082,13 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
-	The domain explicitly configured as the default domain pointing to this
+	The name explicitly configured as the default name pointing to this
 	object.
 	"""
-	iotaNamesDefaultName(format: DomainFormat): String
+	iotaNamesDefaultName(format: NameFormat): String
 	"""
 	The IotaNamesRegistration NFTs owned by this object. These grant the
-	owner the capability to manage the associated domain.
+	owner the capability to manage the associated name.
 	"""
 	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
