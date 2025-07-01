@@ -116,7 +116,7 @@ impl ObjectCacheRead for PassthroughCache {
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        Ok(self.store.multi_get_objects_by_key(object_keys)?)
+        Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
     }
 
     fn object_exists_by_key(

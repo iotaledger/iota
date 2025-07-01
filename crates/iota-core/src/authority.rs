@@ -3607,7 +3607,7 @@ impl AuthorityState {
 
         let objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&object_ids)?;
+            .try_multi_get_objects_by_key(&object_ids)?;
 
         for (o, id) in objects.into_iter().zip(object_ids) {
             let object = o.ok_or_else(|| {
@@ -3718,7 +3718,7 @@ impl AuthorityState {
 
         let input_objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&input_object_keys)?
+            .try_multi_get_objects_by_key(&input_object_keys)?
             .into_iter()
             .enumerate()
             .map(|(idx, maybe_object)| {
@@ -3746,7 +3746,7 @@ impl AuthorityState {
 
         let output_objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&output_object_keys)?
+            .try_multi_get_objects_by_key(&output_object_keys)?
             .into_iter()
             .enumerate()
             .map(|(idx, maybe_object)| {
