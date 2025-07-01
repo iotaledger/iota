@@ -12,17 +12,25 @@ use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClien
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package};
+use iota_test_transaction_builder::{
+    TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
+    publish_simple_warrior_package,
+};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, ObjectArg},
+    utils::to_sender_signed_transaction,
 };
+use move_core_types::identifier::Identifier;
 use serde_json::Value;
 
 use crate::common::{
@@ -1801,4 +1809,511 @@ fn get_chain_identifier_with_pruning_enabled() {
                 .is_err()
         )
     });
+}
+
+#[test]
+fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // 1) Set up wallet and fund it
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_object_id = gas.0;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        // 2) Publish the `Warrior` package
+        let (package_id, tx_digest) =
+            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // 3) Mint a `Sword`
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let strength = builder.pure(0u8).expect("valid pure");
+
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_sword")?,
+                vec![],
+                vec![strength],
+            );
+
+            builder.transfer_arg(address, sword);
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let sword_object_ref = res
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .map(|sword| sword.reference.clone())
+            .collect::<Vec<IotaObjectRef>>();
+
+        let sword_object_ref = sword_object_ref
+            .first()
+            .expect("expected at least one created object");
+
+        // 3) Wrap the `Sword` object
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let sword_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    sword_object_ref.to_object_ref(),
+                )))
+                .expect("valid pure");
+
+            let warrior = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_warrior")?,
+                vec![],
+                vec![],
+            );
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("equip")?,
+                vec![],
+                vec![warrior, sword_object_ref_arg],
+            );
+
+            builder.transfer_arg(address, warrior);
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let wrap_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(wrap_transaction_res.digest, store, client).await;
+
+        // 6) Test transaction filter for wrapped object
+        let wrapped_objects = wrap_transaction_res
+            .effects
+            .as_ref()
+            .unwrap()
+            .wrapped()
+            .iter()
+            .map(|wrapped| wrapped.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            wrapped_objects.len(),
+            1,
+            "expected exactly one wrapped object"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        wrapped_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected exactly one transaction for the wrap"
+        );
+
+        // 7) Unwrap then delete the `Sword`
+        let warrior_object_ref = wrap_transaction_res
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .map(|warrior| warrior.reference.clone())
+            .collect::<Vec<IotaObjectRef>>();
+
+        let warrior_object_ref = warrior_object_ref
+            .first()
+            .expect("expected at least one created object for warrior");
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref.to_object_ref(),
+                )))
+                .unwrap();
+
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("unequip")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("destroy_sword")?,
+                vec![],
+                vec![sword],
+            );
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let unwrap_then_delete_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(unwrap_then_delete_transaction_res.digest, store, client)
+            .await;
+
+        // 8) Test transaction filter for unwrapped and deleted object. It should return
+        //    two transactions:
+        // one for the performed `wrap` and one for more recent `unwrap then delete`.
+        let unwrapped_then_deleted_objects = unwrap_then_delete_transaction_res
+            .effects
+            .unwrap()
+            .unwrapped_then_deleted()
+            .iter()
+            .map(|sword| sword.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            unwrapped_then_deleted_objects.len(),
+            1,
+            "expected exactly one deleted object after unwrap"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        unwrapped_then_deleted_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            2,
+            "expected one transaction for the prior `wrap` and one for the `unwrap then delete`"
+        );
+
+        // Check if both transactions are present
+        let found_wrap = query_res
+            .data
+            .iter()
+            .any(|tx| tx.digest == wrap_transaction_res.digest);
+        let found_unwrap_delete = query_res
+            .data
+            .iter()
+            .any(|tx| tx.digest == unwrap_then_delete_transaction_res.digest);
+
+        assert!(found_wrap, "expected wrap transaction to be found");
+        assert!(
+            found_unwrap_delete,
+            "expected unwrap then delete transaction to be found"
+        );
+
+        // Delete the `Warrior` object
+        let warrior_object_ref = cluster
+            .get_latest_object_ref(&warrior_object_ref.object_id)
+            .await;
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref,
+                )))
+                .unwrap();
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("destroy_warrior")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let delete_warrior_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(delete_warrior_transaction_res.digest, store, client).await;
+
+        // 9) Test transaction filter for deleted `Warrior` object
+        let deleted_objects = delete_warrior_transaction_res
+            .effects
+            .unwrap()
+            .deleted()
+            .iter()
+            .map(|deleted| deleted.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            deleted_objects.len(),
+            1,
+            "expected exactly one deletion for the warrior"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        deleted_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected exactly one transaction for the warrior deletion"
+        );
+
+        // Check if the delete transaction is present
+        assert_eq!(
+            query_res.data.first().unwrap().digest,
+            delete_warrior_transaction_res.digest,
+            "expected delete transaction to be found"
+        );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // 1) Set up the wallet and fund it with gas
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_object_id = gas.0;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        // 2) Publish the `Warrior` package
+        let (package_id, tx_digest) =
+            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // 3) In a single PTB: create and wrap Sword
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            // Strength for the Sword
+            let strength = builder.pure(0u8).expect("valid pure");
+
+            // Create the Sword
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_sword")?,
+                vec![],
+                vec![strength],
+            );
+
+            // Create the Warrior
+            let warrior = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_warrior")?,
+                vec![],
+                vec![],
+            );
+
+            // Equip the Sword
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("equip")?,
+                vec![],
+                vec![warrior, sword],
+            );
+
+            // Transfer the Warrior to the sender
+            builder.transfer_arg(address, warrior);
+
+            builder.finish()
+        };
+
+        // 4) Send the transaction
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let create_and_wrap_tx_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(create_and_wrap_tx_res.digest, store, client).await;
+
+        // Find warrior object
+        let created_objects = create_and_wrap_tx_res.effects.as_ref().unwrap().created();
+        assert_eq!(
+            created_objects.len(),
+            1,
+            "expected exactly one created object"
+        );
+
+        let warrior_object_id = created_objects[0].reference.object_id;
+
+        // 5) Unwrap the Sword to find out it's object ID
+        let warrior_object_ref = cluster.get_latest_object_ref(&warrior_object_id).await;
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            // Reference to the Warrior object
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref,
+                )))
+                .expect("valid pure");
+
+            // Unwrap the Sword
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("unequip")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            // Transfer the Sword to the sender
+            builder.transfer_arg(address, sword);
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let unwrap_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(unwrap_transaction_res.digest, store, client).await;
+
+        // 6) Test transaction filter for create and wrap operation
+        let sword_object_ref = unwrap_transaction_res
+            .effects
+            .unwrap()
+            .unwrapped()
+            .iter()
+            .map(|sword| sword.reference.clone())
+            .collect::<Vec<IotaObjectRef>>();
+
+        assert_eq!(
+            sword_object_ref.len(),
+            1,
+            "expected exactly one unwrapped object"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        sword_object_ref[0].object_id,
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected exactly one transaction for the create and wrap operation"
+        );
+
+        // Check if the correct transaction is present
+        assert_eq!(
+            query_res.data.first().unwrap().digest,
+            create_and_wrap_tx_res.digest,
+            "expected create and wrap transaction to be found"
+        );
+
+        Ok(())
+    })
 }

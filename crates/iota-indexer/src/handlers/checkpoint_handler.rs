@@ -33,8 +33,8 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
-        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-        committer::start_tx_checkpoint_commit_task,
+        CheckpointDataToCommitV2, EpochToCommit, TransactionObjectChangesToCommit,
+        committer::start_tx_checkpoint_commit_task_v2,
         tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
@@ -46,7 +46,8 @@ use crate::{
     store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexExt,
+        TxIndexV2,
     },
 };
 
@@ -72,7 +73,7 @@ pub async fn new_handlers(
         );
 
     let metrics_clone = metrics.clone();
-    spawn_monitored_task!(start_tx_checkpoint_commit_task(
+    spawn_monitored_task!(start_tx_checkpoint_commit_task_v2(
         state,
         metrics_clone,
         indexed_checkpoint_receiver,
@@ -84,7 +85,7 @@ pub async fn new_handlers(
 
 pub struct CheckpointHandler {
     metrics: IndexerMetrics,
-    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
 }
 
 #[async_trait]
@@ -140,7 +141,7 @@ impl Worker for CheckpointHandler {
 impl CheckpointHandler {
     fn new(
         metrics: IndexerMetrics,
-        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
     ) -> Self {
         Self {
             metrics,
@@ -238,7 +239,7 @@ impl CheckpointHandler {
         data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
-    ) -> Result<CheckpointDataToCommit, IndexerError> {
+    ) -> Result<CheckpointDataToCommitV2, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
@@ -297,7 +298,7 @@ impl CheckpointHandler {
             checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
         );
 
-        Ok(CheckpointDataToCommit {
+        Ok(CheckpointDataToCommitV2 {
             checkpoint,
             transactions: db_transactions,
             events: db_events,
@@ -320,7 +321,7 @@ impl CheckpointHandler {
     ) -> IndexerResult<(
         Vec<IndexedTransaction>,
         Vec<IndexedEvent>,
-        Vec<TxIndex>,
+        Vec<TxIndexV2>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
     )> {
@@ -356,7 +357,7 @@ impl CheckpointHandler {
             }
 
             let (indexed_tx, tx_indices, indexed_events, events_indices, stored_displays) =
-                Self::index_transaction(
+                Self::index_transaction_v2(
                     tx,
                     tx_sequence_number,
                     *checkpoint_seq,
@@ -513,6 +514,164 @@ impl CheckpointHandler {
             recipients,
             move_calls,
             tx_kind: transaction_kind,
+        };
+
+        Ok((
+            db_txn,
+            db_tx_indices,
+            db_events,
+            db_event_indices,
+            db_displays,
+        ))
+    }
+
+    async fn index_transaction_v2(
+        tx: &CheckpointTransaction,
+        tx_sequence_number: u64,
+        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_timestamp_ms: u64,
+        metrics: &IndexerMetrics,
+    ) -> IndexerResult<(
+        IndexedTransaction,
+        TxIndexV2,
+        Vec<IndexedEvent>,
+        Vec<EventIndex>,
+        BTreeMap<String, StoredDisplay>,
+    )> {
+        let CheckpointTransaction {
+            transaction: sender_signed_data,
+            effects: fx,
+            events,
+            input_objects,
+            output_objects,
+        } = tx;
+
+        let tx_digest = sender_signed_data.digest();
+        let tx = sender_signed_data.transaction_data();
+        let events = events
+            .as_ref()
+            .map(|events| events.data.clone())
+            .unwrap_or_default();
+
+        let transaction_kind = IotaTransactionKind::from(tx.kind());
+
+        let db_events = events
+            .iter()
+            .enumerate()
+            .map(|(idx, event)| {
+                IndexedEvent::from_event(
+                    tx_sequence_number,
+                    idx as u64,
+                    checkpoint_seq,
+                    *tx_digest,
+                    event,
+                    checkpoint_timestamp_ms,
+                )
+            })
+            .collect();
+
+        let db_event_indices = events
+            .iter()
+            .enumerate()
+            .map(|(idx, event)| EventIndex::from_event(tx_sequence_number, idx as u64, event))
+            .collect();
+
+        let db_displays = events
+            .iter()
+            .flat_map(StoredDisplay::try_from_event)
+            .map(|display| (display.object_type.clone(), display))
+            .collect();
+
+        let objects = input_objects
+            .iter()
+            .chain(output_objects.iter())
+            .collect::<Vec<_>>();
+
+        let (balance_change, object_changes) = TxChangesProcessor::new(&objects, metrics.clone())
+            .get_changes(tx, fx, tx_digest)
+            .await?;
+
+        let db_txn = IndexedTransaction {
+            tx_sequence_number,
+            tx_digest: *tx_digest,
+            checkpoint_sequence_number: checkpoint_seq,
+            timestamp_ms: checkpoint_timestamp_ms,
+            sender_signed_data: sender_signed_data.data().clone(),
+            effects: fx.clone(),
+            object_changes,
+            balance_change,
+            events,
+            transaction_kind,
+            successful_tx_num: if fx.status().is_ok() {
+                tx.kind().tx_count() as u64
+            } else {
+                0
+            },
+        };
+
+        // Input Objects
+        let input_objects = tx
+            .input_objects()
+            .expect("committed txns have been validated")
+            .into_iter()
+            .map(|obj_kind| obj_kind.object_id())
+            .collect::<Vec<_>>();
+
+        // Changed Objects
+        let changed_objects = fx
+            .all_changed_objects()
+            .into_iter()
+            .map(|(object_ref, _owner, _write_kind)| object_ref.0)
+            .collect::<Vec<_>>();
+
+        // Wrapped or deleted objects
+        let wrapped_or_deleted_objects = fx
+            .all_tombstones()
+            .into_iter()
+            .chain(fx.created_then_wrapped_objects())
+            .map(|(object_id, _)| object_id)
+            .collect::<Vec<_>>();
+
+        // Payers
+        let payers = vec![tx.gas_owner()];
+
+        // Sender
+        let sender = tx.sender();
+
+        // Recipients
+        let recipients = fx
+            .all_changed_objects()
+            .into_iter()
+            .filter_map(|(_object_ref, owner, _write_kind)| match owner {
+                Owner::AddressOwner(address) => Some(address),
+                _ => None,
+            })
+            .unique()
+            .collect::<Vec<_>>();
+
+        // Move Calls
+        let move_calls = tx
+            .move_calls()
+            .iter()
+            .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
+            .collect();
+
+        let db_tx_indices = TxIndexV2 {
+            base: TxIndex {
+                tx_sequence_number,
+                transaction_digest: *tx_digest,
+                checkpoint_sequence_number: checkpoint_seq,
+                input_objects,
+                changed_objects,
+                sender,
+                payers,
+                recipients,
+                move_calls,
+                tx_kind: transaction_kind,
+            },
+            ext: TxIndexExt {
+                wrapped_or_deleted_objects,
+            },
         };
 
         Ok((
