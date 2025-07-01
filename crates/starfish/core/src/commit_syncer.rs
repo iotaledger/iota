@@ -31,7 +31,6 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -53,7 +52,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
-    block_header::{BlockHeaderAPI, SignedBlockHeader, VerifiedBlock},
+    block_header::{BlockHeaderAPI, SignedBlockHeader},
     block_verifier::BlockVerifier,
     commit::{
         CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
@@ -64,7 +63,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{NetworkClient, SerializedBlock, SerializedHeaderAndTransactions},
+    network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -263,7 +262,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     bytes
                         + c.blocks()
                             .iter()
-                            .map(|b| b.serialized().0.len() + b.serialized().1.len())
+                            .map(|b| b.serialized().len())
                             .sum::<usize>() as u64,
                 )
             });
@@ -273,10 +272,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .commit_sync_fetched_commits
             .inc_by(certified_commits.commits().len() as u64);
         metrics
-            .commit_sync_fetched_blocks
+            .commit_sync_fetched_block_headers
             .inc_by(total_blocks_fetched as u64);
         metrics
-            .commit_sync_total_fetched_blocks_size
+            .commit_sync_total_fetched_block_headers_size
             .inc_by(total_blocks_size_bytes);
 
         let (commit_start, commit_end) = (
@@ -321,7 +320,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             }
 
             debug!(
-                "Fetched certified blocks for commit range {:?}: {}",
+                "Fetched certified block headers for commit range {:?}: {}",
                 fetched_commit_range,
                 commits
                     .commits()
@@ -345,7 +344,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 Ok(missing) => {
                     if !missing.is_empty() {
                         warn!(
-                            "Fetched blocks have missing ancestors: {:?} for commit range {:?}",
+                            "Fetched block headers have missing ancestors: {:?} for commit range {:?}",
                             missing, fetched_commit_range
                         );
                     }
@@ -385,7 +384,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
     fn try_start_fetches(&mut self) {
         // Cap parallel fetches based on configured limit and committee size, to avoid
-        // overloading the network. Also when there are too many fetched blocks
+        // overloading the network. Also when there are too many fetched block headers
         // that cannot be sent to Core before an earlier fetch has not finished,
         // reduce parallelism so the earlier fetch can retry on a better host and
         // succeed.
@@ -427,9 +426,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .set(self.synced_commit_index as i64);
     }
 
-    // Retries fetching commits and blocks from available authorities, until a
-    // request succeeds where at least a prefix of the commit range is fetched.
-    // Returns the fetched commits and blocks referenced by the commits.
+    // Retries fetching commits and block headers from available authorities, until
+    // a request succeeds where at least a prefix of the commit range is
+    // fetched. Returns the fetched commits and block headers referenced by the
+    // commits.
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
@@ -472,10 +472,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
             // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
             timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
             let request_timeout = TIMEOUT * timeout_multiplier;
-            // Give enough overall timeout for fetching commits and blocks.
-            // - Timeout for fetching commits and commit certifying blocks.
-            // - Timeout for fetching blocks referenced by the commits.
-            // - Time spent on pipelining requests to fetch blocks.
+            // Give enough overall timeout for fetching commits and block headers.
+            // - Timeout for fetching commits and commit certifying block headers.
+            // - Timeout for fetching block headers referenced by the commits.
+            // - Time spent on pipelining requests to fetch block headers.
             // - Another headroom to allow fetch_once() to timeout gracefully if possible.
             let fetch_timeout = request_timeout * 4;
             // Try fetching from selected target authority.
@@ -552,16 +552,16 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .start_timer();
 
         // 1. Fetch commits in the commit range from the target authority.
-        let (serialized_commits, serialized_block_headers) = inner
+        let (serialized_commits, serialized_voting_block_headers) = inner
             .network_client
             .fetch_commits(target_authority, commit_range.clone(), timeout)
             .await?;
 
-        // 2. Verify the response contains blocks that can certify the last returned
-        //    commit,
+        // 2. Verify the response contains block headers that can certify the last
+        //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let (commits, vote_blocks) = Handle::current()
+        let (commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -569,14 +569,14 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         target_authority,
                         commit_range,
                         serialized_commits,
-                        serialized_block_headers,
+                        serialized_voting_block_headers,
                     )
                 }
             })
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // 3. Fetch blocks referenced by the commits, from the same authority.
+        // 3. Fetch block headers referenced by the commits, from the same authority.
         let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
         let num_chunks = block_refs
             .len()
@@ -592,70 +592,68 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     //    authority.
                     sleep(timeout * i as u32 / num_chunks).await;
                     // TODO: add some retries.
-                    let serialized_blocks = inner
+                    let serialized_block_headers = inner
                         .network_client
-                        .fetch_blocks(
+                        .fetch_block_headers(
                             target_authority,
                             request_block_refs.to_vec(),
                             vec![],
                             timeout,
                         )
                         .await?;
-                    // 5. Verify the same number of blocks are returned as requested.
-                    if request_block_refs.len() != serialized_blocks.len() {
-                        return Err(ConsensusError::UnexpectedNumberOfBlocksFetched {
+                    // 5. Verify the same number of block headers is returned as requested.
+                    if request_block_refs.len() != serialized_block_headers.len() {
+                        return Err(ConsensusError::UnexpectedNumberOfBlockHeadersFetched {
                             authority: target_authority,
                             requested: request_block_refs.len(),
-                            received_blocks: serialized_blocks.len(),
+                            received_block_headers: serialized_block_headers.len(),
                         });
                     }
-                    // 6. Verify returned blocks have valid formats.
-                    let verified_blocks = serialized_blocks
+                    // 6. Verify returned block headers have valid formats.
+                    let verified_block_headers = serialized_block_headers
                         .iter()
                         .cloned()
                         .zip(request_block_refs)
-                        .map(|(serialized_block, requested_block_ref)| {
-                            let block = VerifiedBlock::try_from(
-                                SerializedHeaderAndTransactions::try_from(SerializedBlock {
-                                    serialized_block,
-                                })?,
-                            )?;
+                        .map(|(serialized_block_header, requested_block_ref)| {
+                            // we don't verify the header, we only check the block reference below
+                            let block_header =
+                                VerifiedBlockHeader::new_from_bytes(serialized_block_header)?;
 
-                            // 7. Verify the returned blocks match the requested block refs.
-                            // If they do match, the returned blocks can be considered verified
-                            // as well.
-                            if *requested_block_ref != block.reference() {
+                            // 7. Verify the returned block headers match the requested block refs.
+                            // If they do match, the returned block headers can be considered
+                            // verified as well.
+                            if *requested_block_ref != block_header.reference() {
                                 return Err(ConsensusError::UnexpectedBlockForCommit {
                                     peer: target_authority,
                                     requested: *requested_block_ref,
-                                    received: block.reference(),
+                                    received: block_header.reference(),
                                 });
                             }
 
-                            Ok(block)
+                            Ok(block_header)
                         })
                         .collect::<ConsensusResult<Vec<_>>>()?;
 
-                    Ok(verified_blocks)
+                    Ok(verified_block_headers)
                 }
             })
             .collect();
 
-        let mut fetched_blocks = BTreeMap::new();
+        let mut fetched_block_headers = BTreeMap::new();
         while let Some(result) = requests.next().await {
-            for block in result? {
-                fetched_blocks.insert(block.reference(), block);
+            for block_header in result? {
+                fetched_block_headers.insert(block_header.reference(), block_header);
             }
         }
 
-        // 8. Make sure fetched block (and votes) timestamps are lower than current
-        //    time.
-        for block in vote_blocks
+        // 8. Make sure fetched block headers (and votes) timestamps are lower than
+        //    current time.
+        for block_header in voting_block_headers
             .iter()
-            .chain(fetched_blocks.values().map(Deref::deref))
+            .chain(fetched_block_headers.values())
         {
             let now_ms = inner.context.clock.timestamp_utc_ms();
-            let forward_drift = block.timestamp_ms().saturating_sub(now_ms);
+            let forward_drift = block_header.timestamp_ms().saturating_sub(now_ms);
             if forward_drift == 0 {
                 continue;
             };
@@ -670,28 +668,31 @@ impl<C: NetworkClient> CommitSyncer<C> {
             let forward_drift = Duration::from_millis(forward_drift);
             if forward_drift >= inner.context.parameters.max_forward_time_drift {
                 warn!(
-                    "Local clock is behind a quorum of peers: local ts {}, certified block ts {}",
+                    "Local clock is behind a quorum of peers: local ts {}, certified block header ts {}",
                     now_ms,
-                    block.timestamp_ms()
+                    block_header.timestamp_ms()
                 );
             }
             sleep(forward_drift).await;
         }
 
-        // 9. Now create the Certified commits by assigning the blocks to each commit
-        //    and retaining the commit votes history.
+        // 9. Now create the Certified commits by assigning the block headers to each
+        //    commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
         for commit in &commits {
-            let blocks = commit
+            let block_headers = commit
                 .blocks()
                 .iter()
                 .map(|block_ref| {
-                    fetched_blocks
+                    fetched_block_headers
                         .remove(block_ref)
                         .expect("Block should exist")
                 })
                 .collect::<Vec<_>>();
-            certified_commits.push(CertifiedCommit::new_certified(commit.clone(), blocks));
+            certified_commits.push(CertifiedCommit::new_certified(
+                commit.clone(),
+                block_headers,
+            ));
         }
 
         Ok(CertifiedCommits::new(certified_commits))
