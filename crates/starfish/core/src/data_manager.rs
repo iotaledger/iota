@@ -43,8 +43,8 @@ impl DataManager {
     /// # Returns
     /// A new `DataManager` instance.
     pub(crate) fn new(dag_state: Arc<RwLock<DagState>>) -> Self {
-        // last_committed_index is set non-trivially during recovery process before the first usage of
-        // try_commit method.
+        // last_committed_index is set non-trivially during recovery process before the
+        // first usage of try_commit method.
         let last_committed_index = 0;
         Self {
             dag_state,
