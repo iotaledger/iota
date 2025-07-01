@@ -204,6 +204,35 @@ impl Metrics {
             .with_label_values(&[hostname])
             .set(missing_blocks_in_cache as i64);
     }
+
+    pub(crate) fn update_semantically_invalid_blocks(
+        &self,
+        validator: AuthorityIndex,
+        hostname: &str,
+        source: &str,
+        error: &str,
+    ) {
+        self.scoring_metrics.semantically_invalid_blocks[validator.value()]
+            .fetch_add(1, Ordering::Relaxed);
+        self.node_metrics
+            .semantically_invalid_blocks
+            .with_label_values(&[hostname, source, error])
+            .inc();
+    }
+    pub(crate) fn update_syntactically_invalid_blocks(
+        &self,
+        validator: AuthorityIndex,
+        hostname: &str,
+        source: &str,
+        error: &str,
+    ) {
+        self.scoring_metrics.syntactically_invalid_blocks[validator.value()]
+            .fetch_add(1, Ordering::Relaxed);
+        self.node_metrics
+            .syntactically_invalid_blocks
+            .with_label_values(&[hostname, source, error])
+            .inc();
+    }
 }
 
 #[cfg(test)]
@@ -950,7 +979,6 @@ pub(crate) struct ValidatorScoreMetrics {
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of times that a
     // semantically invalid block signed by the validator was already verified in the epoch.
-    #[allow(dead_code)]
     pub(crate) semantically_invalid_blocks: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of syntactically
@@ -1015,13 +1043,6 @@ impl ValidatorScoreMetrics {
                 missing_proposals_in_cache_by_authority_inner,
             ),
         }
-    }
-
-    pub(crate) fn update_semantically_invalid_blocks(&self, validator: AuthorityIndex) {
-        self.semantically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
-    }
-    pub(crate) fn update_syntactically_invalid_blocks(&self, validator: AuthorityIndex) {
-        self.syntactically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
     }
 }
 

@@ -89,22 +89,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let signed_block: SignedBlock = match bcs::from_bytes(&serialized_block.block) {
             Ok(block) => block,
             error => {
-                // Update prometheus metric
-                self.context
-                    .metrics
-                    .node_metrics
-                    .syntactically_invalid_blocks
-                    .with_label_values(&[
-                        peer_hostname.clone(),
-                        "handle_send_block".to_string(),
-                        "MalformedBlock".to_string(),
-                    ])
-                    .inc();
-                // Update validator score
-                self.context
-                    .metrics
-                    .scoring_metrics
-                    .update_syntactically_invalid_blocks(peer);
+                // Update prometheus metric and validator score
+                self.context.metrics.update_syntactically_invalid_blocks(
+                    peer,
+                    peer_hostname,
+                    "handle_send_block",
+                    "MalformedBlock",
+                );
                 error.map_err(ConsensusError::MalformedBlock)?
             }
         };
@@ -139,20 +130,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 ])
                 .inc();
             info!("Invalid block from {}: {}", peer, e);
-            self.context
-                .metrics
-                .node_metrics
-                .semantically_invalid_blocks
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_send_block",
-                    e.clone().name(),
-                ])
-                .inc();
-            self.context
-                .metrics
-                .scoring_metrics
-                .update_semantically_invalid_blocks(peer);
+            // Update prometheus metric and validator score
+            self.context.metrics.update_semantically_invalid_blocks(
+                peer,
+                peer_hostname,
+                "handle_send_block",
+                e.name(),
+            );
             return Err(e);
         }
         let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block.block);
