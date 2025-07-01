@@ -28,6 +28,7 @@ use crate::{
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    linearizer::MAX_LINEARIZER_DEPTH,
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
@@ -53,12 +54,13 @@ pub(crate) struct DagState {
     // The genesis blocks
     genesis: BTreeMap<BlockRef, VerifiedBlock>,
 
-    // Contains recent block headers within CACHED_ROUNDS from the last committed round per
+    // Contains recent block headers within CACHED_ROUNDS from the last traversed round per
     // authority. Note: all uncommitted block headers are kept in memory.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
-    // Contains recent transactions within CACHED_ROUNDS from the last
-    // committed round per authority. Note: all uncommitted transactions are kept in memory.
+    // Contains recent transactions. It contains MAX_TRANSACTIONS_ACK_DEPTH+MAX_LINEARIZER_DEPTH
+    // from the round of the last consumed commit. Note: all transactions in blocks below that
+    // round are evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
 
     // Indexes recent block headers refs by their authorities.
@@ -68,10 +70,10 @@ pub(crate) struct DagState {
     // Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
-    // Keeps track of the highest round that has been evicted for each authority. Any blocks that
-    // are of round <= evict_round should be considered evicted, and if any exist we should not
-    // consider the causauly complete in the order they appear. The `evicted_rounds` size
-    // should be the same as the committee size.
+    // Keeps track of the highest round that has been evicted for each authority. Any block header
+    // that are of round <= evict_round should be considered evicted, and if any exist we
+    // should not consider the causally complete in the order they appear. The `evicted_rounds`
+    // size should be the same as the committee size.
     evicted_rounds: Vec<Round>,
 
     // Highest round of blocks accepted.
@@ -83,7 +85,12 @@ pub(crate) struct DagState {
     // Last wall time when commit round advanced. Does not persist across restarts.
     last_commit_round_advancement_time: Option<std::time::Instant>,
 
-    // Last committed rounds per authority.
+    // Round of the last committed leader which created a commit with available transactions. Does
+    // not persist across restarts and after recovery. All transactions below this round minus
+    // MAX_TRANSACTIONS_ACK_DEPTH minus MAX_LINEARIZER_DEPTH are evicted from memory.
+    last_available_commit_leader_round: Option<Round>,
+
+    // Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
     /// The committed subdags that have been scored but scores have not been
@@ -198,6 +205,8 @@ impl DagState {
             last_commit: last_commit.clone(),
             last_commit_round_advancement_time: None,
             last_committed_rounds: last_committed_rounds.clone(),
+            last_available_commit_leader_round: None, /* Later the commit observer might update
+                                                       * this value during recovery process. */
             pending_commit_votes: VecDeque::new(),
             transactions_to_write: vec![],
             block_headers_to_write: vec![],
@@ -309,6 +318,14 @@ impl DagState {
             self.add_pending_acknowledgment(block_ref);
         }
         self.transactions_to_write.push(transactions);
+    }
+
+    pub fn update_last_available_commit_leader_round(&mut self, round: Round) {
+        info!(
+            "Last commit with available transactions has leader at round {}",
+            round
+        );
+        self.last_available_commit_leader_round = Some(round);
     }
 
     /// Updates internal metadata for a block.
@@ -1220,6 +1237,25 @@ impl DagState {
         votes
     }
 
+    /// Function removes stalled transactions that are older than
+    /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
+    /// MAX_LINEARIZER_DEPTH"
+    pub(crate) fn evict_transactions(&mut self) {
+        let last_solid_leader_round = self.last_available_commit_leader_round;
+        if let Some(round) = last_solid_leader_round {
+            let min_round: Round =
+                round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
+
+            // Construct a dummy BlockRef with the minimum round to split on.
+            // All entries < dummy will be removed.
+            let lower_bound =
+                BlockRef::new(min_round + 1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
+
+            // Remove entries with round < min_round
+            self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+        }
+    }
+
     /// Function removes stalled pending acknowledgments that are older than
     /// "current clock round minus MAX_TRANSACTIONS_ACK_DEPTH"
     pub(crate) fn evict_pending_acknowledgments(&mut self) {
@@ -1410,7 +1446,6 @@ impl DagState {
             while let Some(block_ref) = recent_refs.first() {
                 if block_ref.round <= eviction_round {
                     self.recent_block_headers.remove(block_ref);
-                    self.recent_transactions.remove(block_ref);
                     recent_refs.pop_first();
                 } else {
                     break;
@@ -1419,6 +1454,9 @@ impl DagState {
 
             self.evicted_rounds[authority_index] = eviction_round;
         }
+
+        // Clean up old transactions depending on the last solid leader round.
+        self.evict_transactions();
 
         // Clean up old acknowledgments.
         self.evict_pending_acknowledgments();
