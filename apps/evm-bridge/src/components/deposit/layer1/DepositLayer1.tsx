@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { DepositForm } from '../DepositForm';
 import toast from 'react-hot-toast';
 
@@ -12,18 +12,34 @@ import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
 import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { useCoinMetadata, useGetAllCoins } from '@iota/core';
+import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 
 export function DepositLayer1() {
+    const address = useCurrentAccount()?.address as string;
     const client = useIotaClient();
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionLoading } =
         useSignAndExecuteTransaction();
     const { watch } = useFormContext<DepositFormData>();
-    const { depositAmount, receivingAddress } = watch();
+    const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
+
+    const { data: l1BalanceInL2 } = useGetAllBalancesL2(address);
+    console.log('l1BalanceInL2:', l1BalanceInL2);
+
+    // Get all coins of the type
+    const selectedCoinsQuery = useGetAllCoins(selectedCoinType, address);
+    const { data: selectedCoins = [] } = selectedCoinsQuery;
+
+    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
+
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS);
 
     const { data: transactionData, isPending: isBuildingTransaction } =
         useBuildL1DepositTransaction({
             receivingAddress,
-            amount: parseAmount(depositAmount, IOTA_DECIMALS) ?? BigInt(0),
+            amount: amount ?? BigInt(0),
+            coins: selectedCoins,
+            coinType: selectedCoinType,
             refetchInterval: 2000,
         });
     const gasSummary = transactionData?.gasSummary;

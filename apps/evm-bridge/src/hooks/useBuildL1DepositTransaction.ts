@@ -1,14 +1,7 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
-import { getGasSummary } from '../lib/utils';
-import {
-    AccountsContractMethod,
-    CoreContract,
-    getHname,
-    IscTransaction,
-    L2_FROM_L1_GAS_BUDGET,
-} from '@iota/isc-sdk';
+import { createL1DepositTransaction, getGasSummary } from '../lib/utils';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useNetworkVariables } from '../config';
 import { CoinStruct } from '@iota/iota-sdk/client';
@@ -28,10 +21,9 @@ export function useBuildL1DepositTransaction({
     coinType = IOTA_TYPE_ARG,
     refetchInterval,
 }: UseBuildL1DepositTransactionProps) {
-    const currentAccount = useCurrentAccount();
+    const senderAddress = useCurrentAccount()?.address as string;
     const client = useIotaClient();
     const variables = useNetworkVariables();
-    const senderAddress = currentAccount?.address as string;
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['l1-deposit-transaction', receivingAddress, amount.toString(), senderAddress],
@@ -39,58 +31,15 @@ export function useBuildL1DepositTransaction({
             if (!receivingAddress) {
                 throw Error('Invalid input: receivingAddress is missing');
             }
-            const iscTx = new IscTransaction(variables.chain);
-            const bag = iscTx.newBag();
 
-            const isIotaCoinType = coinType === IOTA_TYPE_ARG;
-            // If the coin type is IOTA, we need to add the L2 gas budget to the amount
-            const amountToPlace = isIotaCoinType
-                ? amount + L2_FROM_L1_GAS_BUDGET
-                : L2_FROM_L1_GAS_BUDGET;
-
-            // add iota coins to the bag
-            const coin = iscTx.coinFromAmount({ amount: amountToPlace });
-            iscTx.placeCoinInBag({ coin, bag });
-
-            // If the coin type is not IOTA, we need to add the coins to the bag
-            if (!isIotaCoinType) {
-                const totalCoinBalance = coins.reduce((acc, { balance }) => {
-                    return BigInt(acc) + BigInt(balance);
-                }, BigInt(0));
-                const isTransferAllObjects = totalCoinBalance === amount;
-
-                const tx = iscTx.transaction();
-
-                const [primaryCoin, ...mergeCoins] = coins.filter(
-                    (coin) => coin.coinType === coinType,
-                );
-                const primaryCoinInput = tx.object(primaryCoin.coinObjectId);
-
-                if (mergeCoins.length) {
-                    tx.mergeCoins(
-                        primaryCoinInput,
-                        mergeCoins.map((coin) => tx.object(coin.coinObjectId)),
-                    );
-                }
-                const coin = isTransferAllObjects
-                    ? primaryCoinInput
-                    : tx.splitCoins(primaryCoinInput, [amount]);
-
-                iscTx.placeCoinInBag({
-                    bag,
-                    coin,
-                    coinType,
-                });
-            }
-
-            iscTx.createAndSendToEvm({
-                bag,
-                transfers: [[IOTA_TYPE_ARG, amount]],
-                address: receivingAddress,
-                accountsContract: getHname(CoreContract.Accounts),
-                accountsFunction: getHname(AccountsContractMethod.TransferAllowanceTo),
+            const transaction = createL1DepositTransaction({
+                amount,
+                receivingAddress,
+                coins,
+                coinType,
+                chain: variables.chain,
             });
-            const transaction = iscTx.build();
+
             transaction.setSender(senderAddress);
             const txBytes = await transaction.build({ client });
             const txDryRun = await client.dryRunTransactionBlock({
