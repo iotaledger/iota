@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use iota_light_client::{
     checkpoint::{
         download_summaries_from_checkpoint_store, sync_checkpoint_list_to_latest_from_archive,
@@ -35,7 +35,7 @@ pub async fn main() -> Result<()> {
 
     let mut config = Config::mainnet();
     config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
-    config.validate().expect("invalid config");
+    config.validate()?;
 
     let mut checkpoint_list = sync_checkpoint_list_to_latest_from_archive(&config)
         .await
@@ -62,7 +62,7 @@ pub async fn main() -> Result<()> {
 pub async fn download_checkpoints_from_checkpoint_store(
     config: &Config,
     checkpoints: Vec<u64>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     info!("Downloading checkpoints from checkpoint store.");
 
     ensure!(
@@ -95,7 +95,7 @@ pub fn write_full_checkpoint(config: &Config, checkpoint: &CheckpointData) -> Re
         ))?,
         &checkpoint,
     )
-    .expect("error serializing to bcs");
+    .map_err(|_| anyhow!("error serializing to bcs"))?;
     Ok(())
 }
 
