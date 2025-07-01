@@ -2079,7 +2079,7 @@ impl ObjectStore for LocalExec {
 
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -2121,14 +2121,14 @@ impl ObjectStore for &mut LocalExec {
         (**self).try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
-        (**self).get_object_by_key(object_id, version)
+        (**self).try_get_object_by_key(object_id, version)
     }
 }
 

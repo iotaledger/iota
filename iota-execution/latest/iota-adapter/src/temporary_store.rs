@@ -786,7 +786,7 @@ impl TemporaryStore<'_> {
             })
         } else {
             // not in input objects, must be a dynamic field
-            let Ok(Some(obj)) = self.store.get_object_by_key(id, expected_version) else {
+            let Ok(Some(obj)) = self.store.try_get_object_by_key(id, expected_version) else {
                 invariant_violation!(
                     "Failed looking up dynamic field {id} in IOTA conservation checking"
                 );

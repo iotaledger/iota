@@ -277,7 +277,7 @@ pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> 
     let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
 
     let obj = if let Some(version) = opt.version {
-        perpetual_db.get_object_by_key(&opt.id, version.into())?
+        perpetual_db.try_get_object_by_key(&opt.id, version.into())?
     } else {
         perpetual_db.try_get_object(&opt.id)?
     };

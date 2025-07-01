@@ -14,7 +14,7 @@ use crate::{
 pub trait ObjectStore {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -30,7 +30,7 @@ pub trait ObjectStore {
     fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>> {
         object_keys
             .iter()
-            .map(|k| self.get_object_by_key(&k.0, k.1))
+            .map(|k| self.try_get_object_by_key(&k.0, k.1))
             .collect::<Result<Vec<_>, _>>()
     }
 }
@@ -40,12 +40,12 @@ impl<T: ObjectStore + ?Sized> ObjectStore for &T {
         (*self).try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
-        (*self).get_object_by_key(object_id, version)
+        (*self).try_get_object_by_key(object_id, version)
     }
 
     fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
@@ -62,12 +62,12 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
         (**self).try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
-        (**self).get_object_by_key(object_id, version)
+        (**self).try_get_object_by_key(object_id, version)
     }
 
     fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
@@ -84,12 +84,12 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
         (**self).try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
-        (**self).get_object_by_key(object_id, version)
+        (**self).try_get_object_by_key(object_id, version)
     }
 
     fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
@@ -106,7 +106,7 @@ impl ObjectStore for &[Object] {
         Ok(self.iter().find(|o| o.id() == *object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -123,7 +123,7 @@ impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
         Ok(self.get(object_id).map(|(_, obj, _)| obj).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -146,7 +146,7 @@ impl ObjectStore for BTreeMap<ObjectID, Object> {
         Ok(self.get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,

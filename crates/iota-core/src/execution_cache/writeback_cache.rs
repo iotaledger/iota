@@ -1279,7 +1279,7 @@ impl ObjectCacheRead for WritebackCache {
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => Ok(self
                 .record_db_get("object_by_version")
-                .get_object_by_key(object_id, version)?),
+                .try_get_object_by_key(object_id, version)?),
         }
     }
 

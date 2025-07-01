@@ -109,7 +109,7 @@ impl ObjectCacheRead for PassthroughCache {
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.store.get_object_by_key(object_id, version)?)
+        Ok(self.store.try_get_object_by_key(object_id, version)?)
     }
 
     fn multi_get_objects_by_key(

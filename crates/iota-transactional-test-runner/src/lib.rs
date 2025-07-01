@@ -410,14 +410,14 @@ impl ObjectStore for ValidatorWithFullnode {
         self.validator.get_object_store().try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator
             .get_object_store()
-            .get_object_by_key(object_id, version)
+            .try_get_object_by_key(object_id, version)
     }
 }
 

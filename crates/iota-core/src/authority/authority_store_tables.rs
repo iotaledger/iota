@@ -536,7 +536,7 @@ impl ObjectStore for AuthorityPerpetualTables {
         }
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,

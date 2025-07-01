@@ -440,12 +440,12 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
         Ok(store::SimulatorStore::get_object(&self.store, object_id))
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        self.store.get_object_by_key(object_id, version)
+        self.store.try_get_object_by_key(object_id, version)
     }
 }
 

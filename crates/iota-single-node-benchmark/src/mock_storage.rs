@@ -63,7 +63,7 @@ impl InMemoryObjectStore {
             let obj: Option<Object> = match kind {
                 InputObjectKind::MovePackage(id) => self.get_package_object(id)?.map(|o| o.into()),
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.0, objref.1)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
@@ -82,7 +82,7 @@ impl InMemoryObjectStore {
                         panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
                     });
 
-                    self.get_object_by_key(id, *version)?
+                    self.try_get_object_by_key(id, *version)?
                 }
             };
 
@@ -117,7 +117,7 @@ impl ObjectStore for InMemoryObjectStore {
         Ok(self.objects.read().unwrap().get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,

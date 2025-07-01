@@ -171,7 +171,7 @@ impl ObjectStore for SharedInMemoryStore {
         todo!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,
@@ -482,7 +482,7 @@ impl ObjectStore for SingleCheckpointSharedInMemoryStore {
         todo!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,

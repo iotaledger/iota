@@ -1240,7 +1240,7 @@ async fn test_access_old_object_pruned() {
                 assert!(
                     state
                         .database_for_testing()
-                        .get_object_by_key(&gas_object.0, gas_object.1)
+                        .try_get_object_by_key(&gas_object.0, gas_object.1)
                         .unwrap()
                         .is_none()
                 );

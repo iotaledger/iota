@@ -108,7 +108,7 @@ impl ObjectStore for InMemoryStorage {
         Ok(self.persistent.get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -132,7 +132,7 @@ impl ObjectStore for &mut InMemoryStorage {
         Ok(self.persistent.get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,

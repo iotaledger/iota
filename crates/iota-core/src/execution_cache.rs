@@ -749,7 +749,7 @@ macro_rules! implement_storage_traits {
                 ObjectCacheRead::get_object(self, object_id).map_err(StorageError::custom)
             }
 
-            fn get_object_by_key(
+            fn try_get_object_by_key(
                 &self,
                 object_id: &ObjectID,
                 version: iota_types::base_types::VersionNumber,

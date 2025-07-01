@@ -501,7 +501,7 @@ impl ObjectStore for CheckpointSummaryFileStore<'_> {
         unimplemented!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _: &iota_types::base_types::ObjectID,
         _: iota_types::base_types::VersionNumber,
