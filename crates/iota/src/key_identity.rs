@@ -67,11 +67,20 @@ pub async fn get_identity_address(
             #[cfg(feature = "iota-names")]
             KeyIdentity::Name(name) => {
                 let client = ctx.get_client().await?;
-                let entry = crate::name_commands::get_registry_entry(&name, &client).await?;
-                entry
-                    .name_record
-                    .target_address
-                    .ok_or_else(|| anyhow::anyhow!("no target address set for {name}"))
+                // Check alias first as it can override a name
+                if let Ok(alias) = ctx
+                    .config()
+                    .keystore()
+                    .get_address_by_alias(name.to_string())
+                {
+                    Ok(*alias)
+                } else {
+                    let entry = crate::name_commands::get_registry_entry(&name, &client).await?;
+                    entry
+                        .name_record
+                        .target_address
+                        .ok_or_else(|| anyhow::anyhow!("no target address set for {name}"))
+                }
             }
         }
     } else {
