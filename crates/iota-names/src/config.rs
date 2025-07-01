@@ -10,7 +10,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::Domain;
+use crate::Name;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -70,14 +70,14 @@ impl IotaNamesConfig {
         }
     }
 
-    pub fn record_field_id(&self, domain: &Domain) -> ObjectID {
-        let domain_type_tag = Domain::type_(self.package_address);
-        let domain_bytes = bcs::to_bytes(domain).unwrap();
+    pub fn record_field_id(&self, name: &Name) -> ObjectID {
+        let name_type_tag = Name::type_(self.package_address);
+        let name_bytes = bcs::to_bytes(name).unwrap();
 
         iota_types::dynamic_field::derive_dynamic_field_id(
             self.registry_id,
-            &TypeTag::Struct(Box::new(domain_type_tag)),
-            &domain_bytes,
+            &TypeTag::Struct(Box::new(name_type_tag)),
+            &name_bytes,
         )
         .unwrap()
     }

@@ -1,0 +1,45 @@
+---
+sidebar_label: Wasm
+description: Getting started with the IOTA Notarization WASM Library.
+tags:
+    - notarization
+    - wasm
+    - setup
+    - install
+    - getting-started
+---
+
+# Getting Started with Wasm
+
+## Minimum Requirements
+
+-   [Node.js](https://nodejs.org/en) (>= `v20`)
+
+## Install the Library
+
+If your project does not contain it already, install the peer dependency `@iota/iota-sdk` as well.
+
+```bash npm2yarn
+npm install @iota/iota-sdk
+```
+
+You can install the latest beta version of the library by running the following command:
+
+```bash npm2yarn
+npm install @iota/notarization-wasm@alpha
+```
+
+## Build the Library
+
+Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions for this in the [`notarization` repository](https://github.com/iotaledger/notarization/blob/v0.0.1-alpha/bindings/wasm/notarization_wasm#build).
+
+## Node.js Usage
+
+The following code creates a new IOTA Notarization suitable for publishing to a [locally running test network](./local-network-setup).
+
+```ts reference
+https://github.com/iotaledger/notarization/blob/v0.0.1-alpha/bindings/wasm/notarization_wasm/examples/src/0_basic/0_create_locked_notarization.ts
+```
+
+See [utils](https://github.com/iotaledger/notarization/blob/v0.0.1-alpha/bindings/wasm/notarization_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
+
