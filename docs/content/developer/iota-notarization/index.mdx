@@ -1,0 +1,78 @@
+---
+description: Discover how the IOTA Notarization framework provides a universal layer of trust and integrity for digital data.
+tags:
+ - reference
+ - notarization
+---
+# IOTA Notarization
+
+![IOTA Notarization](/img/banner/banner_notarization.svg)
+
+The IOTA Notarization provides a powerful suite of tools for creating verifiable, on-chain records of any digital data. It is designed to act as a universal layer of trust, ensuring the integrity and provenance of data for applications, organizations, and digital assets. By anchoring data to the IOTA ledger, Notarization transforms it into a permanent, tamper-proof asset that can be independently verified by anyone, at any time.
+
+## Introduction to Data Notarization
+
+In our digital world, proving that a piece of information existed at a specific time and has not been altered since is a fundamental challenge. Traditional systems often rely on centralized authorities, which can be single points of failure, expensive, and inefficient.
+
+Decentralized Notarization on a Distributed Ledger Technology (DLT) solves this by providing a trustless, immutable, and transparent platform for recording data. When a document, transaction, or event is notarized on the IOTA ledger, it gains a verifiable timestamp and a cryptographic seal, securing it against unauthorized changes and providing a robust audit trail.
+
+### Notarization for Legal and Compliance
+
+:::info TRUST
+IOTA Notarization allows organizations to create legally admissible, tamper-proof records for compliance and dispute resolution among many other use cases.
+:::
+
+In regulated industries, maintaining the integrity of records is not just good practice—it's a legal requirement. Organizations face significant challenges with data retention, auditability, and proving compliance. Data can be altered, logs can be lost, and demonstrating the historical state of a record can be nearly impossible.
+
+IOTA Notarization offers a direct solution. By creating an on-chain, timestamped record of contracts, financial statements, or compliance documents, organizations can build an unchangeable audit trail. This fundamentally shifts the burden of proof; instead of trusting an organization's internal database, auditors and regulators can rely on the mathematical certainty of the IOTA ledger. This reduces the risk of disputes, simplifies compliance with regulations like GDPR by proving data handling steps, and provides a cost-efficient method for long-term, secure data archiving.
+
+### Notarization for Products and Assets
+
+:::info TRACEABILITY
+IOTA Notarization enables full traceability, letting you follow an asset’s journey from creation to final destination—perfect for supply chains, collectibles, and more!
+:::
+
+For both physical goods and digital assets, their value is often tied to their history, authenticity, and integrity. Has this software been tampered with? Is this luxury good authentic? Was this component manufactured to specification? Answering these questions requires a trusted record of the asset's lifecycle.
+
+IOTA Notarization provides this by allowing manufacturers, creators, and owners to create an immutable log for any asset. This is the foundation of technologies like the Digital Product Passport (DPP), where every step from manufacturing to recycling is verifiably recorded. For digital assets, such as creative works or source code, notarization establishes a permanent proof of authorship and existence. This layer of trust prevents fraud, enhances value, and enables new business models based on the verifiable history of an asset.
+
+### One Framework. Two Powerful Methods.
+
+The IOTA Notarization framework is not a one-size-fits-all solution. It offers two powerful, distinct methods to cater to a wide range of use cases:
+-   **Locked Notarization**: For creating permanent, static records that can never be changed. Ideal for contracts, certificates, and legal evidence.
+-   **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant. Ideal for tracking asset status, managing registries, or versioning living documents.
+
+Together, these methods provide a comprehensive toolkit for building applications that require a robust foundation of digital trust.
+
+### Why IOTA for Notarization?
+
+IOTA stands apart as a scalable Distributed Ledger Technology (DLT), making it uniquely suitable for a universal notarization solution. Key features include:
+
+* **Cost-Effectiveness**: Creating Notarizations on IOTA involves a refundable storage deposit for the ledger space occupied. This deposit can be fully reclaimed when the record is no longer needed, making long-term storage highly affordable.
+* **High Availability**: Notarized data is stored on every node in the IOTA network, ensuring it is always available for verifiers around the globe.
+* **Security**: Write access to a Notarization object is exclusively controlled by the owner's private keys, preventing any unauthorized modifications.
+* **Integrity**: Updates and state transitions are secured by the same robust consensus mechanism that secures the entire IOTA network, guaranteeing the consistency and immutability of every record.
+
+## Key Actors in the Notarization Process
+
+The IOTA Notarization framework involves two primary actors that work together to ensure data integrity and verification:
+
+### Prover
+
+The **Prover** is responsible for creating and submitting notarization transactions that embed immutable data into the IOTA network.
+
+**Key Responsibilities:**
+- Generate cryptographic hashes of documents, media files, or any data requiring notarization
+- Submit transactions that store this data on the IOTA network, ensuring immutability
+- Maintain original documents off-chain while linking them to on-chain records through unique object IDs (for privacy-focused implementations)
+- Optionally store complete data on-chain using the notarization object as the official data repository
+
+### Verifier
+
+The **Verifier** confirms the integrity and immutability of data by validating information stored on the IOTA ledger.
+
+**Key Responsibilities:**
+- Request original documents and their associated object IDs from the Prover
+- Query the IOTA network through the Notarization Library to retrieve stored data using object IDs
+- Validate that data stored in the ledger matches the original document (for hash-based verification)
+- Verify the authenticity and integrity of on-chain stored data independently
