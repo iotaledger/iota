@@ -46,7 +46,31 @@ impl ScheduledTransactionCongestionInfo {
 }
 
 /// Holds shared object congestion info for a single shared object.
-type PerObjectCongestionInfo = Vec<ScheduledTransactionCongestionInfo>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PerObjectCongestionInfo {
+    /// Congestion info for scheduled transactions that touch this object.
+    txs_congestion_info: Vec<ScheduledTransactionCongestionInfo>,
+
+    /// Whether the order of start times for this object is descending
+    /// (like it always is for gas prices) or not.
+    ///
+    /// Transactions are processed in the descending order of gas price.
+    /// However, in the new sequencer, the order of start times for an
+    /// object might not necessary be descending. Therefore, transactions
+    /// will a lower gas price might be scheduled at earlier start times.
+    is_start_time_ordering_descending: bool,
+}
+
+impl PerObjectCongestionInfo {
+    /// Create a new `PerObjectCongestionInfo` from congestion info for
+    /// a single scheduled transaction.
+    pub fn new(tx_congestion_info: ScheduledTransactionCongestionInfo) -> Self {
+        Self {
+            txs_congestion_info: Vec::from([tx_congestion_info]),
+            is_start_time_ordering_descending: true,
+        }
+    }
+}
 
 /// Holds shared object congestion data for a single consensus commit round.
 type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
@@ -128,11 +152,31 @@ impl SuggestedGasPriceCalculator {
                 self.congestion_info
                     .entry(object.id)
                     .and_modify(|per_object_congestion_info| {
-                        per_object_congestion_info.push(scheduled_transaction_congestion_info);
+                        let last_execution_start_time = per_object_congestion_info
+                            .txs_congestion_info
+                            .last()
+                            .expect(
+                                "There must alrady be at least one entry of scheduled \
+                                    transaction congestion info for this object.",
+                            )
+                            .execution_start_time;
+
+                        if per_object_congestion_info.is_start_time_ordering_descending
+                            && execution_start_time < last_execution_start_time
+                        {
+                            // This means that a transaction with a lower gas price is
+                            // scheduled at a lower start time, and the order of execution
+                            // start times for this object is not descending anymore.
+                            per_object_congestion_info.is_start_time_ordering_descending = false;
+                        }
+
+                        per_object_congestion_info
+                            .txs_congestion_info
+                            .push(scheduled_transaction_congestion_info);
                     })
-                    .or_insert(PerObjectCongestionInfo::from([
+                    .or_insert(PerObjectCongestionInfo::new(
                         scheduled_transaction_congestion_info,
-                    ]));
+                    ));
             });
     }
 
@@ -236,18 +280,21 @@ impl SuggestedGasPriceCalculator {
                     self.congestion_info
                         .get(&object.id)
                         .map(|per_object_congestion_info| {
-                            per_object_congestion_info.par_iter().flat_map(|tx| {
-                                let end_time =
-                                    tx.execution_start_time + tx.estimated_execution_duration;
+                            per_object_congestion_info
+                                .txs_congestion_info
+                                .par_iter()
+                                .flat_map(|tx| {
+                                    let end_time =
+                                        tx.execution_start_time + tx.estimated_execution_duration;
 
-                                if end_time <= max_possible_start_time {
-                                    vec![tx.execution_start_time, end_time]
-                                } else if tx.execution_start_time <= max_possible_start_time {
-                                    vec![tx.execution_start_time]
-                                } else {
-                                    vec![]
-                                }
-                            })
+                                    if end_time <= max_possible_start_time {
+                                        vec![tx.execution_start_time, end_time]
+                                    } else if tx.execution_start_time <= max_possible_start_time {
+                                        vec![tx.execution_start_time]
+                                    } else {
+                                        vec![]
+                                    }
+                                })
                         })
                 })
                 .flatten(),
@@ -274,6 +321,7 @@ impl SuggestedGasPriceCalculator {
                     .get(&object.id)
                     .map(|per_object_congestion_info| {
                         per_object_congestion_info
+                            .txs_congestion_info
                             .par_iter()
                             .filter_map(|tx| {
                                 if (tx.execution_start_time >= start_time
@@ -501,11 +549,11 @@ mod tests {
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_2` should not appear because it is accessed immutably.
             let object_1_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_1,
                     execution_start_time: execution_start_time_1,
                     estimated_execution_duration: estimated_execution_duration_1,
-                }]);
+                });
             assert_eq!(
                 suggested_gas_price_calculator.congestion_info,
                 PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
@@ -539,23 +587,23 @@ mod tests {
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
             let object_1_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_1,
                     execution_start_time: execution_start_time_1,
                     estimated_execution_duration: estimated_execution_duration_1,
-                }]);
+                });
             let object_2_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_2,
                     execution_start_time: execution_start_time_2,
                     estimated_execution_duration: estimated_execution_duration_2,
-                }]);
+                });
             let object_4_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_2,
                     execution_start_time: execution_start_time_2,
                     estimated_execution_duration: estimated_execution_duration_2,
-                }]);
+                });
             assert_eq!(
                 suggested_gas_price_calculator.congestion_info,
                 PerCommitCongestionInfo::from([
@@ -592,29 +640,29 @@ mod tests {
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
             let object_1_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_1,
                     execution_start_time: execution_start_time_1,
                     estimated_execution_duration: estimated_execution_duration_1,
-                }]);
+                });
             let object_2_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_2,
                     execution_start_time: execution_start_time_2,
                     estimated_execution_duration: estimated_execution_duration_2,
-                }]);
+                });
             let object_4_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_2,
                     execution_start_time: execution_start_time_2,
                     estimated_execution_duration: estimated_execution_duration_2,
-                }]);
+                });
             let object_5_expected_congestion_info =
-                PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
                     gas_price: gas_price_3,
                     execution_start_time: execution_start_time_3,
                     estimated_execution_duration: estimated_execution_duration_3,
-                }]);
+                });
             assert_eq!(
                 suggested_gas_price_calculator.congestion_info,
                 PerCommitCongestionInfo::from([
