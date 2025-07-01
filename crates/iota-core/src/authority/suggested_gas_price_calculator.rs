@@ -207,13 +207,13 @@ impl SuggestedGasPriceCalculator {
                 max_execution_duration_per_commit,
             );
 
-            let passing_gas_price = if self.min_free_execution_slot_assigned {
+            let clearing_gas_price = if self.min_free_execution_slot_assigned {
                 // ^ This corresponds to the new sequencer's logic.
 
                 possible_start_times
                     .into_par_iter()
                     .map(|start_time| {
-                        self.find_passing_gas_price_at_start_time(
+                        self.find_clearing_gas_price_at_start_time(
                             certificate,
                             start_time,
                             estimated_execution_duration,
@@ -239,16 +239,16 @@ impl SuggestedGasPriceCalculator {
                     .last()
                     .expect("There must be at least one possible start time, which is always 0.");
 
-                self.find_passing_gas_price_at_start_time(
+                self.find_clearing_gas_price_at_start_time(
                     certificate,
                     start_time,
                     estimated_execution_duration,
                 )
             };
 
-            // Suggested gas price equals passing_gas_price + 1. We add 1 to make this
+            // Suggested gas price equals clearing_gas_price + 1. We add 1 to make this
             // transaction would be scheduled if the same commit structure was repeated.
-            let suggested_gas_price = passing_gas_price + 1;
+            let suggested_gas_price = clearing_gas_price + 1;
 
             // Make sure suggested gas price is not larger than the maximum possible gas
             // price.
@@ -305,7 +305,7 @@ impl SuggestedGasPriceCalculator {
 
     /// Find the gas price for which a deferred/scheduled certificate would be
     /// scheduled at execution `start_time` if that gas price was paid.
-    fn find_passing_gas_price_at_start_time(
+    fn find_clearing_gas_price_at_start_time(
         &self,
         certificate: &VerifiedExecutableTransaction,
         start_time: ExecutionTime,
