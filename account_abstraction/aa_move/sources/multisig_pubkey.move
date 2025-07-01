@@ -8,14 +8,15 @@ const EInputPublicKey: u64 = 1;
 
 const MAX_SIGNER_IN_MULTISIG: u64 = 10;
 
-/// Holds the raw bytes of the signed transaction with verified signatures
+/// Holds the raw bytes of a MultiSig Public Key, including the list public keys,
+/// their weights, and the threshold for signing.
 public struct MultiSigPublicKey has copy, drop, store {
     pks: vector<vector<u8>>,
     weights: vector<u8>,
     threshold: u16,
 }
 
-// Store raw transaction proposal
+/// Create a new MultiSigPublicKey with the given public keys, weights, and threshold.
 public fun new(pks: vector<vector<u8>>, weights: vector<u8>, threshold: u16): MultiSigPublicKey {
     assert!(
         pks.length() > 0 
@@ -42,10 +43,12 @@ public fun new(pks: vector<vector<u8>>, weights: vector<u8>, threshold: u16): Mu
     }
 }
 
+/// Check if the given public key is part of the MultiSigPublicKey.
 public fun contains(multisig: &MultiSigPublicKey, pk: &vector<u8>): bool {
     multisig.pks.contains(pk)
 }
 
+/// Check if the given public keys are part of the MultiSigPublicKey and if their total weight meets the threshold.
 public fun check_threshold(multisig: &MultiSigPublicKey, pks: &vector<vector<u8>>): bool {
     let mut total_weight = 0;
     pks.do_ref!(|pk| {
