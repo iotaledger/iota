@@ -79,10 +79,16 @@ export function Chip({
     size = ChipSize.Default,
 }: ChipProps) {
     const isOutlineSelected = type === ChipType.Outline && selected;
-    const outlineStyle =
-        !selected || (type === ChipType.Outline && selected)
-            ? 'outline-transparent'
-            : 'chip-outline-color';
+    const outlineStyle = selected
+        ? type === ChipType.Outline
+            ? 'outline-transparent names:outline-names-neutral-20'
+            : 'chip-outline-color'
+        : 'outline-transparent';
+
+    const focusOutlineStyle = cx(
+        'group-focus:chip-outline-color-active',
+        type === ChipType.Outline && 'names:group-focus:outline-transparent',
+    );
     const selectedOverlayBg =
         selected && !disabled && type !== ChipType.Outline ? BG_SELECTED_OVERLAY : '';
 
@@ -96,7 +102,6 @@ export function Chip({
                     ? BG_SELECTED_OUTLINE[ChipType.Outline]
                     : BACKGROUND_CLASSES[type],
                 selected ? 'border-transparent' : BORDER_CLASSES[type],
-                FOCUS_CLASSES,
             )}
             disabled={disabled}
         >
@@ -111,8 +116,10 @@ export function Chip({
                         ? TEXT_COLOR_SELECTED_OUTLINE[ChipType.Outline]
                         : TEXT_COLOR[type],
                     outlineStyle,
-                    selectedOverlayBg,
+                    !disabled && focusOutlineStyle,
                     !disabled && STATE_LAYER_CLASSES,
+                    FOCUS_CLASSES,
+                    selectedOverlayBg,
                 )}
             >
                 {avatar ?? leadingElement}

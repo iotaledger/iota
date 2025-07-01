@@ -16,7 +16,8 @@ export const BACKGROUND_CLASSES: Record<ChipType, string> = {
 export const STATE_LAYER_OUTLINE =
     'outline outline-1 hover:chip-outline-color-hover active:chip-outline-color-active';
 
-export const STATE_LAYER_BG_CLASSES = 'hover:chip-bg-color-hover active:chip-bg-color-active';
+export const STATE_LAYER_BG_CLASSES =
+    'hover:chip-bg-color-hover active:chip-bg-color-active group-focus:chip-bg-color-focus';
 
 export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
@@ -37,6 +38,7 @@ export const BORDER_CLASSES: Record<ChipType, string> = {
     [ChipType.Brand]: 'chip-border-color-brand',
     [ChipType.Error]: 'border-error-surface',
 };
+
 export const TEXT_COLOR: Record<ChipType, string> = {
     [ChipType.Outline]: 'chip-text-default',
     [ChipType.Elevated]: 'chip-text-secondary',
@@ -46,7 +48,7 @@ export const TEXT_COLOR: Record<ChipType, string> = {
 };
 
 export const FOCUS_CLASSES =
-    'focus-visible:shadow-[0_0_0_2px] focus-visible:chip-focus-ring focus-visible:outline-none focus:chip-bg-color-focus';
+    'focus-visible:shadow-[0_0_0_2px] focus-visible:chip-focus-ring focus-visible:outline-none';
 
 export const CLOSE_ICON_INTERACTIVE =
     'chip-close-icon-opacity group-hover:opacity-100 group-focus:opacity-100 group-active:opacity-100';
