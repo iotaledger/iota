@@ -83,3 +83,28 @@ path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
 development = ["simulacrum"]
+
+[[test]]
+name = "coin_api"
+path = "tests/rpc-tests-isolated/coin_api.rs"
+harness = true
+
+[[test]]
+name = "governance_api"
+path = "tests/rpc-tests-isolated/governance_api.rs"
+harness = true
+
+[[test]]
+name = "indexer_api"
+path = "tests/rpc-tests-isolated/indexer_api.rs"
+harness = true
+
+[[test]]
+name = "read_api"
+path = "tests/rpc-tests-isolated/read_api.rs"
+harness = true
+
+[[test]]
+name = "transaction_builder"
+path = "tests/rpc-tests-isolated/transaction_builder.rs"
+harness = true
