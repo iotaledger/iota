@@ -305,7 +305,7 @@ impl DagState {
             .inc();
     }
 
-    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions, live: bool) {
+    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions) {
         let block_ref = transactions.block_ref();
         self.recent_transactions
             .insert(block_ref, transactions.clone());
@@ -314,7 +314,7 @@ impl DagState {
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
 
-        if live && block_ref.round >= min_round {
+        if block_ref.round >= min_round {
             self.add_pending_acknowledgment(block_ref);
         }
         self.transactions_to_write.push(transactions);
@@ -2609,7 +2609,7 @@ mod test {
                     )
                     .unwrap();
             } else {
-                dag_state.add_transactions(block.verified_transactions.clone(), false);
+                dag_state.add_transactions(block.verified_transactions.clone());
             }
         });
 
