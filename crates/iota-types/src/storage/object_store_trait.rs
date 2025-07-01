@@ -20,7 +20,7 @@ pub trait ObjectStore {
         version: VersionNumber,
     ) -> Result<Option<Object>>;
 
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
         object_ids
             .iter()
             .map(|digest| self.try_get_object(digest))
@@ -48,8 +48,8 @@ impl<T: ObjectStore + ?Sized> ObjectStore for &T {
         (*self).try_get_object_by_key(object_id, version)
     }
 
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
-        (*self).multi_get_objects(object_ids)
+    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+        (*self).try_multi_get_objects(object_ids)
     }
 
     fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>> {
@@ -70,8 +70,8 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
         (**self).try_get_object_by_key(object_id, version)
     }
 
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
-        (**self).multi_get_objects(object_ids)
+    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+        (**self).try_multi_get_objects(object_ids)
     }
 
     fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>> {
@@ -92,8 +92,8 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
         (**self).try_get_object_by_key(object_id, version)
     }
 
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
-        (**self).multi_get_objects(object_ids)
+    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+        (**self).try_multi_get_objects(object_ids)
     }
 
     fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>> {
