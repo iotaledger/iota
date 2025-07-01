@@ -17,6 +17,8 @@ use serde::Serialize;
 pub enum KeyIdentity {
     Address(IotaAddress),
     Alias(String),
+    #[cfg(feature = "iota-names")]
+    Name(iota_names::name::Name),
 }
 
 impl From<IotaAddress> for KeyIdentity {
@@ -28,9 +30,13 @@ impl From<IotaAddress> for KeyIdentity {
 impl FromStr for KeyIdentity {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("0x") {
-            Ok(KeyIdentity::Address(IotaAddress::from_str(s)?))
+        if let Ok(address) = s.parse() {
+            Ok(KeyIdentity::Address(address))
         } else {
+            #[cfg(feature = "iota-names")]
+            if let Ok(name) = s.parse() {
+                return Ok(KeyIdentity::Name(name));
+            }
             Ok(KeyIdentity::Alias(s.to_string()))
         }
     }
@@ -41,6 +47,8 @@ impl Display for KeyIdentity {
         let v = match self {
             KeyIdentity::Address(x) => x.to_string(),
             KeyIdentity::Alias(x) => x.to_string(),
+            #[cfg(feature = "iota-names")]
+            KeyIdentity::Name(x) => x.to_string(),
         };
         write!(f, "{}", v)
     }
@@ -48,12 +56,33 @@ impl Display for KeyIdentity {
 
 /// Get the IotaAddress corresponding to this key identity.
 /// If no string is provided, then the current active address is returned.
-pub fn get_identity_address(
+pub async fn get_identity_address(
     input: Option<KeyIdentity>,
-    ctx: &mut WalletContext,
+    ctx: &WalletContext,
 ) -> Result<IotaAddress, Error> {
     if let Some(addr) = input {
-        get_identity_address_from_keystore(addr, ctx.config().keystore())
+        match addr {
+            KeyIdentity::Address(x) => Ok(x),
+            KeyIdentity::Alias(x) => Ok(*ctx.config().keystore().get_address_by_alias(x)?),
+            #[cfg(feature = "iota-names")]
+            KeyIdentity::Name(name) => {
+                let client = ctx.get_client().await?;
+                // Check alias first as it can override a name
+                if let Ok(alias) = ctx
+                    .config()
+                    .keystore()
+                    .get_address_by_alias(name.to_string())
+                {
+                    Ok(*alias)
+                } else {
+                    let entry = crate::name_commands::get_registry_entry(&name, &client).await?;
+                    entry
+                        .name_record
+                        .target_address
+                        .ok_or_else(|| anyhow::anyhow!("no target address set for {name}"))
+                }
+            }
+        }
     } else {
         Ok(ctx.active_address()?)
     }
@@ -66,6 +95,8 @@ pub fn get_identity_address_from_keystore(
     match input {
         KeyIdentity::Address(x) => Ok(x),
         KeyIdentity::Alias(x) => Ok(*keystore.get_address_by_alias(x)?),
+        #[cfg(feature = "iota-names")]
+        KeyIdentity::Name(_) => anyhow::bail!("cannot fetch an IOTA Name from the keystore"),
     }
 }
 
@@ -76,5 +107,7 @@ pub fn get_identity_alias_from_keystore(
     match input {
         KeyIdentity::Address(x) => Ok(keystore.get_alias_by_address(&x)?),
         KeyIdentity::Alias(x) => Ok(x),
+        #[cfg(feature = "iota-names")]
+        KeyIdentity::Name(x) => Ok(x.to_string()),
     }
 }
