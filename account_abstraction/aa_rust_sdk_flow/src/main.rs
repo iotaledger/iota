@@ -138,6 +138,10 @@ async fn main() -> Result<(), anyhow::Error> {
     // Submit a ProposedTx to the chain, to be later multisigned
     let proposed_tx_object = propose_tx_to_smart_account(
         &iota_client,
+        &[
+            keystore.get_key(&alice_addr)?.public().as_ref(),
+            keystore.get_key(&bob_addr)?.public().as_ref(),
+        ],
         withdraw_digest,
         &withdraw_tx_data,
         &keystore,
