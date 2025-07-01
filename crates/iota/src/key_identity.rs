@@ -18,7 +18,7 @@ pub enum KeyIdentity {
     Address(IotaAddress),
     Alias(String),
     #[cfg(feature = "iota-names")]
-    Name(iota_names::domain::Domain),
+    Name(iota_names::name::Name),
 }
 
 impl From<IotaAddress> for KeyIdentity {

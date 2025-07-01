@@ -9,26 +9,26 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     constants::{
-        IOTA_NAMES_MAX_DOMAIN_LENGTH, IOTA_NAMES_MAX_LABEL_LENGTH, IOTA_NAMES_MIN_LABEL_LENGTH,
-        IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, IOTA_NAMES_TLD,
+        IOTA_NAMES_MAX_LABEL_LENGTH, IOTA_NAMES_MAX_NAME_LENGTH, IOTA_NAMES_MIN_LABEL_LENGTH,
+        IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, IOTA_NAMES_TLN,
     },
     error::IotaNamesError,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
-pub struct Domain {
-    // Labels of the domain name, in reverse order
+pub struct Name {
+    // Labels of the name, in reverse order
     labels: Vec<String>,
 }
 
-impl FromStr for Domain {
+impl FromStr for Name {
     type Err = IotaNamesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() > IOTA_NAMES_MAX_DOMAIN_LENGTH {
-            return Err(IotaNamesError::DomainLengthExceeded(
+        if s.len() > IOTA_NAMES_MAX_NAME_LENGTH {
+            return Err(IotaNamesError::NameLengthExceeded(
                 s.len(),
-                IOTA_NAMES_MAX_DOMAIN_LENGTH,
+                IOTA_NAMES_MAX_NAME_LENGTH,
             ));
         }
 
@@ -40,63 +40,63 @@ impl FromStr for Domain {
             .map(validate_label)
             .collect::<Result<Vec<_>, Self::Err>>()?;
 
-        // A valid domain in our system has at least a TLD and an SLD (len == 2).
+        // A valid name in our system has at least a TLN and an SLN (len == 2).
         if labels.len() < 2 {
             return Err(IotaNamesError::NotEnoughLabels);
         }
 
-        if labels[0] != IOTA_NAMES_TLD {
-            return Err(IotaNamesError::InvalidTld(labels[0].to_string()));
+        if labels[0] != IOTA_NAMES_TLN {
+            return Err(IotaNamesError::InvalidTln(labels[0].to_string()));
         }
 
         let labels = labels.into_iter().map(ToOwned::to_owned).collect();
 
-        Ok(Domain { labels })
+        Ok(Name { labels })
     }
 }
 
-impl fmt::Display for Domain {
+impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // We use to_string() to check on-chain state and parse on-chain data
         // so we should always default to DOT format.
-        let output = self.format(DomainFormat::Dot);
+        let output = self.format(NameFormat::Dot);
         f.write_str(&output)?;
 
         Ok(())
     }
 }
 
-impl Domain {
+impl Name {
     pub fn type_(package_address: IotaAddress) -> StructTag {
-        const IOTA_NAMES_DOMAIN_MODULE: &IdentStr = ident_str!("domain");
-        const IOTA_NAMES_DOMAIN_STRUCT: &IdentStr = ident_str!("Domain");
+        const IOTA_NAMES_NAME_MODULE: &IdentStr = ident_str!("name");
+        const IOTA_NAMES_NAME_STRUCT: &IdentStr = ident_str!("Name");
 
         StructTag {
             address: package_address.into(),
-            module: IOTA_NAMES_DOMAIN_MODULE.to_owned(),
-            name: IOTA_NAMES_DOMAIN_STRUCT.to_owned(),
+            module: IOTA_NAMES_NAME_MODULE.to_owned(),
+            name: IOTA_NAMES_NAME_STRUCT.to_owned(),
             type_params: vec![],
         }
     }
 
-    /// Derive the parent domain for a given domain. Only subdomains have
-    /// parents; second-level domains return `None`.
+    /// Derive the parent name for a given name. Only subnames have
+    /// parents; second-level names return `None`.
     ///
     /// ```
     /// # use std::str::FromStr;
-    /// # use iota_names::domain::Domain;
+    /// # use iota_names::name::Name;
     /// assert_eq!(
-    ///     Domain::from_str("test.example.iota").unwrap().parent(),
-    ///     Some(Domain::from_str("example.iota").unwrap())
+    ///     Name::from_str("test.example.iota").unwrap().parent(),
+    ///     Some(Name::from_str("example.iota").unwrap())
     /// );
     /// assert_eq!(
-    ///     Domain::from_str("sub.test.example.iota").unwrap().parent(),
-    ///     Some(Domain::from_str("test.example.iota").unwrap())
+    ///     Name::from_str("sub.test.example.iota").unwrap().parent(),
+    ///     Some(Name::from_str("test.example.iota").unwrap())
     /// );
-    /// assert_eq!(Domain::from_str("example.iota").unwrap().parent(), None);
+    /// assert_eq!(Name::from_str("example.iota").unwrap().parent(), None);
     /// ```
     pub fn parent(&self) -> Option<Self> {
-        if self.is_subdomain() {
+        if self.is_subname() {
             Some(Self {
                 labels: self
                     .labels
@@ -110,25 +110,22 @@ impl Domain {
         }
     }
 
-    /// Returns whether this domain is a second-level domain (Ex. `test.iota`)
-    pub fn is_sld(&self) -> bool {
+    /// Returns whether this name is a second-level name (Ex. `test.iota`)
+    pub fn is_sln(&self) -> bool {
         self.num_labels() == 2
     }
 
-    /// Returns whether this domain is a subdomain (Ex. `sub.test.iota`)
-    pub fn is_subdomain(&self) -> bool {
+    /// Returns whether this name is a subname (Ex. `sub.test.iota`)
+    pub fn is_subname(&self) -> bool {
         self.num_labels() >= 3
     }
 
-    /// Returns the number of labels including TLD.
+    /// Returns the number of labels including TLN.
     ///
     /// ```
     /// # use std::str::FromStr;
-    /// # use iota_names::domain::Domain;
-    /// assert_eq!(
-    ///     Domain::from_str("test.example.iota").unwrap().num_labels(),
-    ///     3
-    /// )
+    /// # use iota_names::name::Name;
+    /// assert_eq!(Name::from_str("test.example.iota").unwrap().num_labels(), 3)
     /// ```
     pub fn num_labels(&self) -> usize {
         self.labels.len()
@@ -140,38 +137,38 @@ impl Domain {
     }
 
     /// Get all of the labels. NOTE: These are in reverse order starting with
-    /// the top-level domain and proceeding to subdomains.
+    /// the top-level name and proceeding to subnames.
     pub fn labels(&self) -> &[String] {
         &self.labels
     }
 
-    /// Formats a domain into a string based on the available output formats.
+    /// Formats a name into a string based on the available output formats.
     /// The default separator is `.`
-    pub fn format(&self, format: DomainFormat) -> String {
+    pub fn format(&self, format: NameFormat) -> String {
         let mut labels = self.labels.clone();
         let sep = &IOTA_NAMES_SEPARATOR_DOT.to_string();
         labels.reverse();
 
-        if format == DomainFormat::Dot {
-            // DOT format, all labels joined together with dots, including the TLD.
+        if format == NameFormat::Dot {
+            // DOT format, all labels joined together with dots, including the TLN.
             labels.join(sep)
         } else {
             // SAFETY: This is a safe operation because we only allow a
-            // domain's label vector size to be >= 2 (see `Domain::from_str`)
-            let _tld = labels.pop();
-            let sld = labels.pop().unwrap();
+            // name's label vector size to be >= 2 (see `Name::from_str`)
+            let _tln = labels.pop();
+            let sln = labels.pop().unwrap();
 
-            // AT format, labels minus SLD joined together with dots, then joined to SLD
-            // with @, no TLD.
-            format!("{}{IOTA_NAMES_SEPARATOR_AT}{sld}", labels.join(sep))
+            // AT format, labels minus SLN joined together with dots, then joined to SLN
+            // with @, no TLN.
+            format!("{}{IOTA_NAMES_SEPARATOR_AT}{sln}", labels.join(sep))
         }
     }
 }
 
-/// Two different view options for a domain.
+/// Two different view options for a name.
 /// `At` -> `test@example` | `Dot` -> `test.example.iota`
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum DomainFormat {
+pub enum NameFormat {
     At,
     Dot,
 }
@@ -201,7 +198,7 @@ fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNames
     }
 
     parts.push(after);
-    parts.push(IOTA_NAMES_TLD);
+    parts.push(IOTA_NAMES_TLN);
 
     Ok(parts.join(&separator.to_string()))
 }
@@ -244,7 +241,7 @@ mod tests {
 
     #[test]
     fn parent_extraction() {
-        let name = Domain::from_str("leaf.node.test.iota")
+        let name = Name::from_str("leaf.node.test.iota")
             .unwrap()
             .parent()
             .unwrap();
@@ -260,42 +257,42 @@ mod tests {
 
     #[test]
     fn name_service_outputs() {
-        assert_eq!("@test".parse::<Domain>().unwrap().to_string(), "test.iota");
+        assert_eq!("@test".parse::<Name>().unwrap().to_string(), "test.iota");
         assert_eq!(
-            "test.iota".parse::<Domain>().unwrap().to_string(),
+            "test.iota".parse::<Name>().unwrap().to_string(),
             "test.iota"
         );
         assert_eq!(
-            "test@sld".parse::<Domain>().unwrap().to_string(),
-            "test.sld.iota"
+            "test@sln".parse::<Name>().unwrap().to_string(),
+            "test.sln.iota"
         );
         assert_eq!(
-            "test.test@example".parse::<Domain>().unwrap().to_string(),
+            "test.test@example".parse::<Name>().unwrap().to_string(),
             "test.test.example.iota"
         );
         assert_eq!(
             "test.test-with-hyphen@example-hyphen"
-                .parse::<Domain>()
+                .parse::<Name>()
                 .unwrap()
                 .to_string(),
             "test.test-with-hyphen.example-hyphen.iota"
         );
         assert_eq!(
-            "iota@iota".parse::<Domain>().unwrap().to_string(),
+            "iota@iota".parse::<Name>().unwrap().to_string(),
             "iota.iota.iota"
         );
-        assert_eq!("@iota".parse::<Domain>().unwrap().to_string(), "iota.iota");
+        assert_eq!("@iota".parse::<Name>().unwrap().to_string(), "iota.iota");
         assert_eq!(
-            "test.test.iota".parse::<Domain>().unwrap().to_string(),
+            "test.test.iota".parse::<Name>().unwrap().to_string(),
             "test.test.iota"
         );
         assert_eq!(
-            "test.test.test.iota".parse::<Domain>().unwrap().to_string(),
+            "test.test.test.iota".parse::<Name>().unwrap().to_string(),
             "test.test.test.iota"
         );
         assert_eq!(
             "test.test-with-hyphen.test-with-hyphen.iota"
-                .parse::<Domain>()
+                .parse::<Name>()
                 .unwrap()
                 .to_string(),
             "test.test-with-hyphen.test-with-hyphen.iota"
@@ -304,38 +301,38 @@ mod tests {
 
     #[test]
     fn invalid_inputs() {
-        assert!(".".parse::<Domain>().is_err());
-        assert!("@".parse::<Domain>().is_err());
-        assert!("@inner.iota".parse::<Domain>().is_err());
-        assert!("test@".parse::<Domain>().is_err());
-        assert!("iota".parse::<Domain>().is_err());
-        assert!("test.test@example.iota".parse::<Domain>().is_err());
-        assert!("test@test@example".parse::<Domain>().is_err());
-        assert!("test.atoi".parse::<Domain>().is_err());
-        assert!("test.test@example-".parse::<Domain>().is_err());
-        assert!("test.test@-example".parse::<Domain>().is_err());
-        assert!("test.test-@example".parse::<Domain>().is_err());
-        assert!("test.-test@example".parse::<Domain>().is_err());
-        assert!("test.test-.iota".parse::<Domain>().is_err());
-        assert!("test.-test.iota".parse::<Domain>().is_err());
+        assert!(".".parse::<Name>().is_err());
+        assert!("@".parse::<Name>().is_err());
+        assert!("@inner.iota".parse::<Name>().is_err());
+        assert!("test@".parse::<Name>().is_err());
+        assert!("iota".parse::<Name>().is_err());
+        assert!("test.test@example.iota".parse::<Name>().is_err());
+        assert!("test@test@example".parse::<Name>().is_err());
+        assert!("test.atoi".parse::<Name>().is_err());
+        assert!("test.test@example-".parse::<Name>().is_err());
+        assert!("test.test@-example".parse::<Name>().is_err());
+        assert!("test.test-@example".parse::<Name>().is_err());
+        assert!("test.-test@example".parse::<Name>().is_err());
+        assert!("test.test-.iota".parse::<Name>().is_err());
+        assert!("test.-test.iota".parse::<Name>().is_err());
     }
 
     #[test]
     fn outputs() {
-        let mut domain = "test.iota".parse::<Domain>().unwrap();
-        assert!(domain.format(DomainFormat::Dot) == "test.iota");
-        assert!(domain.format(DomainFormat::At) == "@test");
+        let mut name = "test.iota".parse::<Name>().unwrap();
+        assert!(name.format(NameFormat::Dot) == "test.iota");
+        assert!(name.format(NameFormat::At) == "@test");
 
-        domain = "test.test.iota".parse::<Domain>().unwrap();
-        assert!(domain.format(DomainFormat::Dot) == "test.test.iota");
-        assert!(domain.format(DomainFormat::At) == "test@test");
+        name = "test.test.iota".parse::<Name>().unwrap();
+        assert!(name.format(NameFormat::Dot) == "test.test.iota");
+        assert!(name.format(NameFormat::At) == "test@test");
 
-        domain = "test.test.test.iota".parse::<Domain>().unwrap();
-        assert!(domain.format(DomainFormat::Dot) == "test.test.test.iota");
-        assert!(domain.format(DomainFormat::At) == "test.test@test");
+        name = "test.test.test.iota".parse::<Name>().unwrap();
+        assert!(name.format(NameFormat::Dot) == "test.test.test.iota");
+        assert!(name.format(NameFormat::At) == "test.test@test");
 
-        domain = "test.test.test.test.iota".parse::<Domain>().unwrap();
-        assert!(domain.format(DomainFormat::Dot) == "test.test.test.test.iota");
-        assert!(domain.format(DomainFormat::At) == "test.test.test@test");
+        name = "test.test.test.test.iota".parse::<Name>().unwrap();
+        assert!(name.format(NameFormat::Dot) == "test.test.test.test.iota");
+        assert!(name.format(NameFormat::At) == "test.test.test@test");
     }
 }
