@@ -1,4 +1,5 @@
 ---
+title: Access Read-Only Methods in Notarizations
 sidebar_label: Access Read-Only Methods
 description: Comprehensive guide to all read-only inspection methods for notarizations.
 teams:
@@ -36,14 +37,14 @@ You can use either a full client or a read-only client for inspection:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/utils/utils.rs#L27
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/util.ts#L27
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
 ```
 
 </TabItem>
@@ -59,7 +60,7 @@ Create both dynamic and locked notarizations for comprehensive testing:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L23-L33
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L22-L33
 ```
 
 </TabItem>
@@ -67,7 +68,7 @@ https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_o
 
 ```ts reference
 
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L20-L26
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L20-L26
 ```
 
 </TabItem>
@@ -85,17 +86,15 @@ Access the immutable description and updatable metadata:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L43-L52
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L41-L52
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-::: tip
-
-This example is not available yet.
-
-:::
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L34-L42
+```
 
 </TabItem>
 </Tabs>
@@ -110,14 +109,14 @@ Access the current state content and its metadata:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L55-L57
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L52-L57
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L33-L58
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L45-L47
 ```
 
 </TabItem>
@@ -135,14 +134,14 @@ Query when the notarization was created and last modified:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L60-L69
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L58-L69
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L50-L52
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L50-L59
 ```
 
 </TabItem>
@@ -160,14 +159,14 @@ Check the state version counter and notarization method:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L72-L81
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L70-L81
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L60-L70
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L60-L70
 ```
 
 </TabItem>
@@ -185,14 +184,14 @@ Verify transfer, update, and destruction permissions:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L83-L95
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L83-L95
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L73-L84
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L73-L84
 ```
 
 </TabItem>
@@ -208,14 +207,14 @@ Access detailed information about applied locks:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L169-L171
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L168-L171
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L87-L90
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L87-L90
 ```
 
 </TabItem>
@@ -233,14 +232,14 @@ For dynamic notarizations, demonstrate how version tracking works:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs#L111-L114
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L103-L128
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L92-L124
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L92-L124
 ```
 
 </TabItem>
@@ -290,14 +289,14 @@ https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarizatio
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/08_access_read_only_methods.rs
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts
 ```
 
 </TabItem>
