@@ -156,7 +156,7 @@ impl SuggestedGasPriceCalculator {
                             .txs_congestion_info
                             .last()
                             .expect(
-                                "There must alrady be at least one entry of scheduled \
+                                "There must already be at least one entry of scheduled \
                                     transaction congestion info for this object.",
                             )
                             .execution_start_time;
