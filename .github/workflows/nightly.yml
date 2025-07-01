@@ -69,7 +69,7 @@ jobs:
     uses: ./.github/workflows/_rust_examples.yml
 
   tests:
-    if: ${{ inputs.rustTestsOnly || (!inputs.rustTestsOnly && !inputs.simTestsOnly) }}
+    if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rust_tests.yml
     with:
       isRust: true
@@ -103,7 +103,7 @@ jobs:
     uses: ./.github/workflows/_rosetta.yml
 
   simtest:
-    if: ${{ inputs.simTestsOnly || (!inputs.rustTestsOnly && !inputs.simTestsOnly) }}
+    if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
     timeout-minutes: 600
     runs-on: [self-hosted-x64]
 
