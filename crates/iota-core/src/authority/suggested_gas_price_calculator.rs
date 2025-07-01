@@ -210,28 +210,55 @@ impl SuggestedGasPriceCalculator {
             let clearing_gas_price = if self.min_free_execution_slot_assigned {
                 // ^ This corresponds to the new sequencer's logic.
 
-                possible_start_times
-                    .into_par_iter()
-                    .map(|start_time| {
-                        self.find_clearing_gas_price_at_start_time(
-                            certificate,
-                            start_time,
-                            estimated_execution_duration,
-                        )
+                if certificate
+                    .shared_input_objects()
+                    .par_bridge()
+                    .filter_map(|object| {
+                        self.congestion_info
+                            .get(&object.id)
+                            .map(|per_object_congestion_info| {
+                                per_object_congestion_info.is_start_time_ordering_descending
+                            })
                     })
-                    // Take the minimum across possible start times, since the new sequencer
-                    // might schedule a certificate with lower gas prices at lower execution
-                    // start times.
-                    .min()
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "This certificate alone has estimated execution duration of \
+                    .all(|b| b)
+                {
+                    // ^ If `is_start_time_ordering_descending` is `true` for all input
+                    // shared objects, we will not find a lower gas price at lower execution
+                    // start times, so the clearing gas price is one for the last execution
+                    // start time at which the certificate would be scheduled by the sequencer.
+                    let start_time = *possible_start_times.last().expect(
+                        "There must be at least one possible start time, which is always 0.",
+                    );
+
+                    self.find_clearing_gas_price_at_start_time(
+                        certificate,
+                        start_time,
+                        estimated_execution_duration,
+                    )
+                } else {
+                    possible_start_times
+                        .into_par_iter()
+                        .map(|start_time| {
+                            self.find_clearing_gas_price_at_start_time(
+                                certificate,
+                                start_time,
+                                estimated_execution_duration,
+                            )
+                        })
+                        // Take the minimum across possible start times, since the new sequencer
+                        // might schedule a certificate with lower gas prices at lower execution
+                        // start times.
+                        .min()
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "This certificate alone has estimated execution duration of \
                             {estimated_execution_duration}, which is larger than the maximum \
                             execution duration per commit {max_execution_duration_per_commit}, \
                             so the certificate cannot be scheduled regardless of suggested gas \
                             price."
-                        );
-                    })
+                            );
+                        })
+                }
             } else {
                 // ^ This corresponds to the old Sui's canonical sequencer logic.
 
