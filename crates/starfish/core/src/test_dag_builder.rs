@@ -16,7 +16,7 @@ use crate::{
     CommitRef, CommittedSubDag,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlockHeader,
         VerifiedTransactions, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
@@ -259,12 +259,12 @@ impl DagBuilder {
             .map(|(sub_dag, commit)| {
                 // TODO: we need to request real blocks from sub_dag after we add the
                 // corresponding field and logic in sub_dag
-                let mut blocks = vec![];
+                let mut block_headers = vec![];
                 for block_header in sub_dag.blocks.iter() {
-                    blocks.push(VerifiedBlock::new_for_test((**block_header).clone()));
+                    block_headers.push(block_header.clone());
                 }
 
-                let certified_commit = CertifiedCommit::new_certified(commit, blocks);
+                let certified_commit = CertifiedCommit::new_certified(commit, block_headers);
                 (sub_dag, certified_commit)
             })
             .collect()
@@ -611,7 +611,7 @@ impl<'a> LayerBuilder<'a> {
         let mut dag_state = dag_state.write();
         dag_state.accept_block_headers(self.block_headers.clone());
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions, true);
+            dag_state.add_transactions(transactions);
         }
     }
 
