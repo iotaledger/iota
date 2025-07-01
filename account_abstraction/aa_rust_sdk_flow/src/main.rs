@@ -197,6 +197,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let multisig = build_multisig(&keystore, &[alice_addr, bob_addr], WEIGHTS, THRESHOLD, sigs)?;
 
+    // Store current recipient balance for later checks
+    let coin_recipient_current_balance = iota_client
+        .coin_read_api()
+        .get_balance(coin_recipient_addr, None)
+        .await?
+        .total_balance;
+
     // Execute the final withdrawal transaction using the both multisignature and
     // alice signature
     let withdraw_tx_response = iota_client
@@ -212,7 +219,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Verify recipient received expected amount
     assert!(
-        check_recipient_balance(&iota_client, coin_recipient_addr, withdraw_amount).await?,
+        check_recipient_balance(
+            &iota_client,
+            coin_recipient_addr,
+            coin_recipient_current_balance + withdraw_amount
+        )
+        .await?,
         "Recipient did not receive expected balance"
     );
 
@@ -233,6 +245,8 @@ async fn main() -> Result<(), anyhow::Error> {
     .await?;
 
     print!("\n Delete Smart Contract Transaction: {delete_sm_tx_resp}");
+
+    print!("\n Successfully executed the Account Abstraction flow!\n");
 
     Ok(())
 }
