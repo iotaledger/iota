@@ -806,6 +806,9 @@ pub struct ProtocolConfig {
     // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
     tx_context_derive_id_cost_base: Option<u64>,
 
+    //Deterministic Object Id
+    deterministic_object_id_derive_id_with_salt_cost_base: Option<u64>,
+
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
     types_is_one_time_witness_cost_base: Option<u64>,
@@ -1392,8 +1395,7 @@ impl ProtocolConfig {
         let mut cfg = Self {
             version,
 
-            feature_flags: Default::default(),
-
+            feature_flags: Default::default(), 
             max_tx_size_bytes: Some(128 * 1024),
             // We need this number to be at least 100x less than
             // `max_serialized_tx_effects_size_bytes`otherwise effects can be huge
@@ -1572,6 +1574,10 @@ impl ProtocolConfig {
             // address)`
             tx_context_derive_id_cost_base: Some(52),
 
+
+            // `deterministic_object_id` module
+            // Cost params for the Move native function `deterministic_object_id::derive_id_with_salt
+            deterministic_object_id_derive_id_with_salt_cost_base: Some(52),
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
             types_is_one_time_witness_cost_base: Some(52),

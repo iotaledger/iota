@@ -48,6 +48,9 @@ const IOTA_BRIDGE_ID: address = @0x9;
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
 
+/// u64 flag used to produce precomputed object IDs.
+const PRECOMPUTED_OBJECT_ID_FLAG: u64 = 123;
+
 /// An object ID. This is used to reference IOTA Objects.
 /// This is *not* guaranteed to be globally unique--anyone can create an `ID` from a `UID` or
 /// from an object, and ID's can be freely copied and dropped.
@@ -180,7 +183,7 @@ public fun new(ctx: &mut TxContext): UID {
 /// Create a new object with a precomputed objectId.
 /// Using a fixed 123 to avoid collisions
 public fun new_precomputed(iota_address: address, salt: vector<u8>): UID {
-    let id = deterministic_object_id::precomputed_object_id(iota_address, &salt);
+    let id = deterministic_object_id::derive_id_with_salt(PRECOMPUTED_OBJECT_ID_FLAG,iota_address, salt);
     record_new_uid(id);
     UID { id: ID { bytes: id } }
 }
