@@ -1,16 +1,17 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::{Ok, Result};
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use bip32::DerivationPath;
+use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
         base_types::IotaAddress,
-        multisig::{MultiSig, MultiSigPublicKey},
+        crypto::SignatureScheme::ED25519,
         quorum_driver_types::ExecuteTransactionRequestType,
         signature::GenericSignature,
         transaction::{Transaction, TransactionData},
@@ -19,14 +20,14 @@ use iota_sdk::{
 
 use crate::{
     faucet::request_tokens,
-    sig_utils::{build_multisig, restore_signagure_bytes_to_generic},
+    sig_utils::{build_multisig, build_multisig_pub_key, restore_signagure_bytes_to_generic},
     signed_tx::SignedTx,
     smart_account::{
         delete_smart_account, init_smart_account, make_deposit_to_smart_account,
         prepare_withdraw_tx_data, publish_account_abstraction_package, smart_account_data,
     },
     tx_flow::{propose_tx_to_smart_account, sign_proposed_tx},
-    utils::{THRESHOLD, check_recipient_balance, package_id},
+    utils::{MAIN_MNEMONIC, THRESHOLD, WEIGHTS, check_recipient_balance, package_id},
 };
 mod faucet;
 mod sig_utils;
@@ -38,17 +39,36 @@ mod utils;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
-
-    // Path to local keystore(use your own)
-    // For instance - /Users/user/.iota/iota_config/iota.keystore
-    let keystore = FileBasedKeystore::new(&PathBuf::from("***"))?;
     println!("Iota local network version: {}", iota_client.api_version());
 
-    // Hardcoded user and contract addresses (you have to pass your own addresses)
-    let multisig_addr = IotaAddress::from_str("***")?;
-    let alice_addr = IotaAddress::from_str("***")?;
-    let bob_addr = IotaAddress::from_str("***")?;
-    let coin_recipient_addr = IotaAddress::from_str("***")?;
+    // Setup the temporary keystore
+    let mut keystore = InMemKeystore::new_insecure_for_tests(0);
+
+    // Setup actors addresses
+    let alice_addr = keystore.import_from_mnemonic(
+        MAIN_MNEMONIC,
+        ED25519,
+        Some(DerivationPath::from_str("m/44'/4218'/0'/0'/0'")?),
+        None,
+    )?;
+    println!("Alice address: {alice_addr}");
+    let bob_addr = keystore.import_from_mnemonic(
+        MAIN_MNEMONIC,
+        ED25519,
+        Some(DerivationPath::from_str("m/44'/4218'/0'/0'/1'")?),
+        None,
+    )?;
+    println!("Bob address: {bob_addr}");
+
+    // Setup multisig address with Alice and Bob as signers
+    let multisig_addr =
+        (&build_multisig_pub_key(&keystore, &[alice_addr, bob_addr], WEIGHTS, THRESHOLD)?).into();
+    println!("Multisig address: {multisig_addr}");
+
+    // Hardcoded recipient address
+    let coin_recipient_addr = IotaAddress::from_str(
+        "0x7b4a34f6a011794f0ecbe5e5beb96102d3eef6122eb929b9f50a8d757bfbdd67",
+    )?;
 
     // Request faucet coins for all parties involved
     request_tokens(&iota_client, multisig_addr).await?;
@@ -171,7 +191,7 @@ async fn main() -> Result<(), anyhow::Error> {
         restore_signagure_bytes_to_generic(&keystore, bob_addr, &signed_tx.verified_signatures[1])?,
     ];
 
-    let multisig = build_multisig(&keystore, &[alice_addr, bob_addr], &[1, 2], THRESHOLD, sigs)?;
+    let multisig = build_multisig(&keystore, &[alice_addr, bob_addr], WEIGHTS, THRESHOLD, sigs)?;
 
     // Execute the final withdrawal transaction using the both multisignature and
     // alice signature

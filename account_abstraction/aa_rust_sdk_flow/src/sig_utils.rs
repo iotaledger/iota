@@ -6,7 +6,7 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::ToFromBytes,
 };
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::types::{
     base_types::IotaAddress,
     multisig::{MultiSig, MultiSigPublicKey},
@@ -27,8 +27,8 @@ use iota_sdk::types::{
 /// # Returns
 /// A `GenericSignature` with reconstructed flag + signature + public key
 /// format.
-pub fn restore_signagure_bytes_to_generic(
-    keystore: &FileBasedKeystore,
+pub fn restore_signagure_bytes_to_generic<K: AccountKeystore>(
+    keystore: &K,
     addr: IotaAddress,
     encoded_signature: &str,
 ) -> Result<GenericSignature> {
@@ -68,18 +68,35 @@ pub fn extract_pure_signature(signature: &GenericSignature) -> String {
 }
 
 /// Helper to construct a multisig from two signers (with weighted threshold).
-pub fn build_multisig(
-    keystore: &FileBasedKeystore,
+pub fn build_multisig<K: AccountKeystore>(
+    keystore: &K,
     signers: &[IotaAddress],
     weights: &[u8],
     threshold: u16,
     signatures: Vec<GenericSignature>,
 ) -> Result<GenericSignature> {
+    Ok(MultiSig::combine(
+        signatures,
+        build_multisig_pub_key(keystore, signers, weights, threshold)?,
+    )?
+    .into())
+}
+
+/// Helper to construct a multisig from two signers (with weighted threshold).
+pub fn build_multisig_pub_key<K: AccountKeystore>(
+    keystore: &K,
+    signers: &[IotaAddress],
+    weights: &[u8],
+    threshold: u16,
+) -> Result<MultiSigPublicKey> {
     let public_keys = signers
         .iter()
         .map(|addr| keystore.get_key(addr).map(|k| k.public()))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let multisig_key = MultiSigPublicKey::new(public_keys, weights.to_vec(), threshold)?;
-    Ok(MultiSig::combine(signatures, multisig_key)?.into())
+    Ok(MultiSigPublicKey::new(
+        public_keys,
+        weights.to_vec(),
+        threshold,
+    )?)
 }

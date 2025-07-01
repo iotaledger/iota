@@ -18,10 +18,16 @@ use iota_sdk::{
 ///
 /// This is passed to `TransactionData::new_programmable` to define
 /// how much gas the transaction is allowed to consume.
-pub const GAS_BUDGET: u64 = 10_000_000_0;
+pub const GAS_BUDGET: u64 = 100_000_000;
 
 /// Default threshold used for multi-signature initialization.
 pub const THRESHOLD: u16 = 2;
+
+/// Default weights used for multi-signature initialization.
+pub const WEIGHTS: &[u8] = &[1, 2];
+
+/// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
+pub const MAIN_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
 
 /// Selects the first available coin object for the given address.
 ///
