@@ -51,14 +51,14 @@ struct PerObjectCongestionInfo {
     /// Congestion info for scheduled transactions that touch this object.
     txs_congestion_info: Vec<ScheduledTransactionCongestionInfo>,
 
-    /// Whether the order of start times for this object is descending
+    /// Whether the order of start times for this object is ascending
     /// (like it always is for gas prices) or not.
     ///
     /// Transactions are processed in the descending order of gas price.
     /// However, in the new sequencer, the order of start times for an
-    /// object might not necessary be descending. Therefore, transactions
-    /// will a lower gas price might be scheduled at earlier start times.
-    is_start_time_ordering_descending: bool,
+    /// object might not necessary be ascending since transactions with
+    /// a lower gas price might be scheduled at earlier start times.
+    is_start_time_ordering_ascending: bool,
 }
 
 impl PerObjectCongestionInfo {
@@ -67,7 +67,7 @@ impl PerObjectCongestionInfo {
     pub fn new(tx_congestion_info: ScheduledTransactionCongestionInfo) -> Self {
         Self {
             txs_congestion_info: Vec::from([tx_congestion_info]),
-            is_start_time_ordering_descending: true,
+            is_start_time_ordering_ascending: true,
         }
     }
 }
@@ -161,13 +161,13 @@ impl SuggestedGasPriceCalculator {
                             )
                             .execution_start_time;
 
-                        if per_object_congestion_info.is_start_time_ordering_descending
+                        if per_object_congestion_info.is_start_time_ordering_ascending
                             && execution_start_time < last_execution_start_time
                         {
                             // This means that a transaction with a lower gas price is
                             // scheduled at a lower start time, and the order of execution
-                            // start times for this object is not descending anymore.
-                            per_object_congestion_info.is_start_time_ordering_descending = false;
+                            // start times for this object is not ascending anymore.
+                            per_object_congestion_info.is_start_time_ordering_ascending = false;
                         }
 
                         per_object_congestion_info
@@ -217,18 +217,18 @@ impl SuggestedGasPriceCalculator {
                         self.congestion_info
                             .get(&object.id)
                             .map(|per_object_congestion_info| {
-                                per_object_congestion_info.is_start_time_ordering_descending
+                                per_object_congestion_info.is_start_time_ordering_ascending
                             })
                     })
                     .all(|b| b)
                 {
-                    // ^ If `is_start_time_ordering_descending` is `true` for all input
+                    // ^ If `is_start_time_ordering_ascending` is `true` for all input
                     // shared objects, we will not find a lower gas price at lower execution
                     // start times, so the clearing gas price is one for the last execution
                     // start time at which the certificate would be scheduled by the sequencer.
-                    let start_time = *possible_start_times.last().expect(
-                        "There must be at least one possible start time, which is always 0.",
-                    );
+                    let start_time = *possible_start_times
+                        .last()
+                        .expect("There must be at least one possible start time.");
 
                     self.find_clearing_gas_price_at_start_time(
                         certificate,
@@ -264,7 +264,7 @@ impl SuggestedGasPriceCalculator {
 
                 let start_time = *possible_start_times
                     .last()
-                    .expect("There must be at least one possible start time, which is always 0.");
+                    .expect("There must be at least one possible start time.");
 
                 self.find_clearing_gas_price_at_start_time(
                     certificate,
@@ -298,7 +298,7 @@ impl SuggestedGasPriceCalculator {
         let max_possible_start_time =
             max_execution_duration_per_commit - estimated_execution_duration;
 
-        let mut possible_start_times = BTreeSet::from([ExecutionTime::MIN]);
+        let mut possible_start_times = BTreeSet::new();
         possible_start_times.par_extend(
             certificate
                 .shared_input_objects()
