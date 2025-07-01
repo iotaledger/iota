@@ -98,7 +98,7 @@ pub enum NameCommand {
         coin: Option<ObjectID>,
         /// The address or alias to which the name will point. If the flag is
         /// specified without a value, the current active address will be used.
-        #[arg(long, require_equals = true, default_missing_value = None, num_args = 0..=1)]
+        #[arg(long)]
         set_target_address: Option<Option<KeyIdentity>>,
         /// Set the reverse lookup for the name. This will fail if the
         /// `set-target-address` flag is provided with an address other than the
