@@ -4,8 +4,8 @@
 
 pub mod config;
 pub mod constants;
-pub mod domain;
 pub mod error;
+pub mod name;
 pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -16,31 +16,31 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use self::domain::Domain;
+use self::name::Name;
 
-/// An object to manage a second-level domain (SLD).
+/// An object to manage a second-level name (SLN).
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IotaNamesRegistration {
     id: ObjectID,
-    domain: Domain,
-    domain_name: String,
+    name: Name,
+    name_str: String,
     expiration_timestamp_ms: u64,
 }
 
-/// An object to manage a subdomain.
+/// An object to manage a subname.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SubdomainRegistration {
+pub struct SubnameRegistration {
     id: ObjectID,
     nft: IotaNamesRegistration,
 }
 
-impl SubdomainRegistration {
+impl SubnameRegistration {
     pub fn into_inner(self) -> IotaNamesRegistration {
         self.nft
     }
 }
 
-/// Unifying trait for [`IotaNamesRegistration`] and [`SubdomainRegistration`]
+/// Unifying trait for [`IotaNamesRegistration`] and [`SubnameRegistration`]
 pub trait IotaNamesNft {
     const MODULE: &IdentStr;
     const TYPE_NAME: &IdentStr;
@@ -54,9 +54,9 @@ pub trait IotaNamesNft {
         }
     }
 
-    fn domain(&self) -> &Domain;
+    fn name(&self) -> &Name;
 
-    fn domain_name(&self) -> &str;
+    fn name_str(&self) -> &str;
 
     fn expiration_timestamp_ms(&self) -> u64;
 
@@ -75,12 +75,12 @@ impl IotaNamesNft for IotaNamesRegistration {
     const MODULE: &IdentStr = ident_str!("iota_names_registration");
     const TYPE_NAME: &IdentStr = ident_str!("IotaNamesRegistration");
 
-    fn domain(&self) -> &Domain {
-        &self.domain
+    fn name(&self) -> &Name {
+        &self.name
     }
 
-    fn domain_name(&self) -> &str {
-        &self.domain_name
+    fn name_str(&self) -> &str {
+        &self.name_str
     }
 
     fn expiration_timestamp_ms(&self) -> u64 {
@@ -92,16 +92,16 @@ impl IotaNamesNft for IotaNamesRegistration {
     }
 }
 
-impl IotaNamesNft for SubdomainRegistration {
-    const MODULE: &IdentStr = ident_str!("subdomain_registration");
-    const TYPE_NAME: &IdentStr = ident_str!("SubdomainRegistration");
+impl IotaNamesNft for SubnameRegistration {
+    const MODULE: &IdentStr = ident_str!("subname_registration");
+    const TYPE_NAME: &IdentStr = ident_str!("SubnameRegistration");
 
-    fn domain(&self) -> &Domain {
-        self.nft.domain()
+    fn name(&self) -> &Name {
+        self.nft.name()
     }
 
-    fn domain_name(&self) -> &str {
-        self.nft.domain_name()
+    fn name_str(&self) -> &str {
+        self.nft.name_str()
     }
 
     fn expiration_timestamp_ms(&self) -> u64 {

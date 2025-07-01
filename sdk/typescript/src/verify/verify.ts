@@ -11,6 +11,7 @@ import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
 import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
+import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
 
 export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
@@ -91,6 +92,8 @@ export function publicKeyFromRawBytes(
             return new Secp256r1PublicKey(bytes);
         case 'MultiSig':
             return new MultiSigPublicKey(bytes);
+        case 'Passkey':
+            return new PasskeyPublicKey(bytes);
         default:
             throw new Error(`Unsupported signature scheme ${signatureScheme}`);
     }

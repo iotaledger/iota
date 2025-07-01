@@ -42,7 +42,7 @@ function FallBackAvatar({ str, rounded, size = ImageIconSize.Large }: FallBackAv
     return (
         <div
             className={cn(
-                'flex h-full w-full items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize text-neutral-10 dark:bg-neutral-12 dark:text-neutral-92',
+                'flex h-full w-full items-center justify-center bg-iota-neutral-96 bg-gradient-to-r capitalize text-iota-neutral-10 dark:bg-iota-neutral-12 dark:text-iota-neutral-92',
                 { 'rounded-full': rounded, 'rounded-lg': !rounded },
                 generateTextSize(size),
             )}

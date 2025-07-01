@@ -151,7 +151,7 @@ export function MenuList() {
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
                         <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-iota-neutral-10 dark:text-iota-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
                                     <span className="text-2xl">{item.icon}</span>
                                 </div>
                             </CardImage>
@@ -180,14 +180,14 @@ export function MenuList() {
                 <div className="flex flex-col gap-y-lg">
                     <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
-                        <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
+                        <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                             IOTA Wallet v{version}
                         </span>
                         <Link
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-label-sm text-primary-30 dark:text-primary-80"
+                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
                         >
                             Terms of Service
                         </Link>

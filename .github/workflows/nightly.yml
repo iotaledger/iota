@@ -15,6 +15,16 @@ on:
         type: string
         required: false
         default: "2"
+      test_seed:
+        description: "MSIM_TEST_SEED (test seed)"
+        type: string
+        required: false
+        default: ""
+      test_filter:
+        description: "Optional test filter"
+        type: string
+        required: false
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,6 +50,8 @@ env:
   RUSTUP_MAX_RETRIES: 10
   IOTA_REF: "${{ github.event.inputs.iota_ref || 'develop' }}"
   TEST_NUM: "${{ github.event.inputs.test_num || '2' }}"
+  MSIM_TEST_SEED: "${{ github.event.inputs.test_seed || '' }}"
+  TEST_FILTER: "${{ github.event.inputs.test_filter || '' }}"
 
 jobs:
   examples:

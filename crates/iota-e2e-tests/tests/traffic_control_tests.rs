@@ -23,7 +23,9 @@ use iota_network::default_iota_network_config;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
+    crypto::Ed25519IotaSignature,
     quorum_driver_types::ExecuteTransactionRequestType,
+    signature::GenericSignature,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig, Weight,
     },
@@ -234,7 +236,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
         .with_policy_config(Some(policy_config))
         .build();
     let committee = network_config.committee_with_network();
-    let _test_cluster = TestClusterBuilder::new()
+    let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
         .build()
         .await;
@@ -244,12 +246,13 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     );
     let (_, auth_client) = local_clients.first_key_value().unwrap();
 
-    // transaction signed using user wallet from a different chain/genesis,
-    // therefore we should fail with UserInputError
-    let other_cluster = TestClusterBuilder::new().build().await;
-
-    let mut txns = batch_make_transfer_transactions(&other_cluster.wallet, n as usize).await;
-    let tx = txns.swap_remove(0);
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, n as usize).await;
+    let mut tx = txns.swap_remove(0);
+    let signatures = tx.tx_signatures_mut_for_testing();
+    signatures.pop();
+    signatures.push(GenericSignature::Signature(
+        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    ));
 
     // it should take no more than 4 requests to be added to the blocklist
     for _ in 0..n {
@@ -260,7 +263,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
             }
         }
     }
-    panic!("Expected spam policy to trigger within {n} requests");
+    panic!("Expected error policy to trigger within {n} requests");
 }
 
 #[tokio::test]
@@ -417,7 +420,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
         .with_firewall_config(Some(firewall_config))
         .build();
     let committee = network_config.committee_with_network();
-    let _test_cluster = TestClusterBuilder::new()
+    let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
         .build()
         .await;
@@ -427,12 +430,13 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     );
     let (_, auth_client) = local_clients.first_key_value().unwrap();
 
-    // transaction signed using user wallet from a different chain/genesis,
-    // therefore we should fail with UserInputError
-    let other_cluster = TestClusterBuilder::new().build().await;
-
-    let mut txns = batch_make_transfer_transactions(&other_cluster.wallet, n as usize).await;
-    let tx = txns.swap_remove(0);
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, n as usize).await;
+    let mut tx = txns.swap_remove(0);
+    let signatures = tx.tx_signatures_mut_for_testing();
+    signatures.pop();
+    signatures.push(GenericSignature::Signature(
+        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    ));
 
     // start test firewall server
     let mut server = NodeFwTestServer::new();

@@ -142,7 +142,7 @@ function LedgerViewLoading() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
             <LoadingIndicator />
-            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Looking for Accounts...
             </span>
         </div>
@@ -152,8 +152,8 @@ function LedgerViewLoading() {
 function LedgerViewAllAccountsImported() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm [&_svg]:h-6 [&_svg]:w-6">
-            <CheckmarkFilled className="text-primary-30 dark:text-primary-80" />
-            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+            <CheckmarkFilled className="text-iota-primary-30 dark:text-iota-primary-80" />
+            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Imported all Ledger Accounts
             </span>
         </div>

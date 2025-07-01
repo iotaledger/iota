@@ -17,7 +17,7 @@ use count_min_sketch::CountMinSketch32;
 use iota_metrics::spawn_monitored_task;
 use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
 use parking_lot::RwLock;
-use tracing::info;
+use tracing::{info, trace};
 
 const HIGHEST_RATES_CAPACITY: usize = 20;
 
@@ -29,7 +29,11 @@ enum ClientType {
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
-struct SketchKey(IpAddr, ClientType);
+struct SketchKey {
+    salt: u64,
+    ip_addr: IpAddr,
+    client_type: ClientType,
+}
 
 struct HighestRates {
     direct: BinaryHeap<Reverse<(u64, IpAddr)>>,
@@ -162,11 +166,11 @@ impl TrafficSketch {
     }
 
     fn update_highest_rates(&mut self, key: &SketchKey, rate: f64) {
-        match key.1 {
+        match key.client_type {
             ClientType::Direct => {
                 Self::update_highest_rate(
                     &mut self.highest_rates.direct,
-                    key.0,
+                    key.ip_addr,
                     rate,
                     self.highest_rates.capacity,
                 );
@@ -174,7 +178,7 @@ impl TrafficSketch {
             ClientType::ThroughFullnode => {
                 Self::update_highest_rate(
                     &mut self.highest_rates.proxied,
-                    key.0,
+                    key.ip_addr,
                     rate,
                     self.highest_rates.capacity,
                 );
@@ -232,7 +236,7 @@ impl TrafficSketch {
 pub struct TrafficTally {
     pub direct: Option<IpAddr>,
     pub through_fullnode: Option<IpAddr>,
-    pub error_weight: Weight,
+    pub error_info: Option<(Weight, String)>,
     pub spam_weight: Weight,
     pub timestamp: SystemTime,
 }
@@ -241,13 +245,13 @@ impl TrafficTally {
     pub fn new(
         direct: Option<IpAddr>,
         through_fullnode: Option<IpAddr>,
-        error_weight: Weight,
+        error_info: Option<(Weight, String)>,
         spam_weight: Weight,
     ) -> Self {
         Self {
             direct,
             through_fullnode,
-            error_weight,
+            error_info,
             spam_weight,
             timestamp: SystemTime::now(),
         }
@@ -327,6 +331,12 @@ pub struct FreqThresholdPolicy {
     sketch: TrafficSketch,
     client_threshold: u64,
     proxied_client_threshold: u64,
+    /// Unique salt to be added to all keys in the sketch. This
+    /// ensures that false positives are not correlated across
+    /// all nodes at the same time. For IOTA validators for example,
+    /// this means that false positives should not prevent the network
+    /// from achieving quorum.
+    salt: u64,
 }
 
 impl FreqThresholdPolicy {
@@ -355,6 +365,7 @@ impl FreqThresholdPolicy {
             sketch,
             client_threshold,
             proxied_client_threshold,
+            salt: rand::random(),
         }
     }
 
@@ -368,9 +379,18 @@ impl FreqThresholdPolicy {
 
     pub fn handle_tally(&mut self, tally: TrafficTally) -> PolicyResponse {
         let block_client = if let Some(source) = tally.direct {
-            let key = SketchKey(source, ClientType::Direct);
+            let key = SketchKey {
+                salt: self.salt,
+                ip_addr: source,
+                client_type: ClientType::Direct,
+            };
             self.sketch.increment_count(&key);
-            if self.sketch.get_request_rate(&key) >= self.client_threshold as f64 {
+            let req_rate = self.sketch.get_request_rate(&key);
+            trace!(
+                "FreqThresholdPolicy handling tally -- req_rate: {:?}, client_threshold: {:?}, client: {:?}",
+                req_rate, self.client_threshold, source,
+            );
+            if req_rate >= self.client_threshold as f64 {
                 Some(source)
             } else {
                 None
@@ -379,7 +399,11 @@ impl FreqThresholdPolicy {
             None
         };
         let block_proxied_client = if let Some(source) = tally.through_fullnode {
-            let key = SketchKey(source, ClientType::ThroughFullnode);
+            let key = SketchKey {
+                salt: self.salt,
+                ip_addr: source,
+                client_type: ClientType::ThroughFullnode,
+            };
             self.sketch.increment_count(&key);
             if self.sketch.get_request_rate(&key) >= self.proxied_client_threshold as f64 {
                 Some(source)
@@ -527,21 +551,21 @@ mod tests {
         let alice = TrafficTally {
             direct: Some(IpAddr::V4(Ipv4Addr::new(8, 7, 6, 5))),
             through_fullnode: Some(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4))),
-            error_weight: Weight::zero(),
+            error_info: None,
             spam_weight: Weight::one(),
             timestamp: SystemTime::now(),
         };
         let bob = TrafficTally {
             direct: Some(IpAddr::V4(Ipv4Addr::new(8, 7, 6, 5))),
             through_fullnode: Some(IpAddr::V4(Ipv4Addr::new(4, 3, 2, 1))),
-            error_weight: Weight::zero(),
+            error_info: None,
             spam_weight: Weight::one(),
             timestamp: SystemTime::now(),
         };
         let charlie = TrafficTally {
             direct: Some(IpAddr::V4(Ipv4Addr::new(8, 7, 6, 5))),
             through_fullnode: Some(IpAddr::V4(Ipv4Addr::new(5, 6, 7, 8))),
-            error_weight: Weight::zero(),
+            error_info: None,
             spam_weight: Weight::one(),
             timestamp: SystemTime::now(),
         };
