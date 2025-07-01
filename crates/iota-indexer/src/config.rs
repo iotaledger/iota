@@ -202,7 +202,7 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
-    /// Backfill DB tables for some ID range [\start, \end].
+    /// Backfill DB tables for some ID range [start, end].
     /// The tool will automatically slice it into smaller ranges and for each
     /// range, it first makes a read query to the DB to get data needed for
     /// backfil if needed, which then can be processed and written back to
@@ -215,9 +215,9 @@ pub enum Command {
         start: usize,
         /// End of the range to backfill, inclusive.
         end: usize,
-        #[clap(subcommand)]
+        #[command(subcommand)]
         runner_kind: BackfillTaskKind,
-        #[clap(flatten)]
+        #[command(flatten)]
         backfill_config: BackfillConfig,
     },
 }
