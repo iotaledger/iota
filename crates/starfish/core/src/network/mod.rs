@@ -93,6 +93,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// `highest_accepted_rounds` length should be equal to the committee
     /// size. If `highest_accepted_rounds` is empty then it will be simply
     /// ignored.
+    #[expect(dead_code)]
     async fn fetch_blocks(
         &self,
         peer: AuthorityIndex,
