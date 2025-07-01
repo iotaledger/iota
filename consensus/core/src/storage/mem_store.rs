@@ -127,6 +127,18 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
+    fn scan_block_rounds_by_author(&self, author: AuthorityIndex) -> ConsensusResult<Vec<u32>> {
+        let inner = self.inner.read();
+        let mut block_rounds = vec![];
+        for &(_, round, _) in inner.digests_by_authorities.range((
+            Included((author, Round::MIN, BlockDigest::MIN)),
+            Included((author, Round::MAX, BlockDigest::MAX)),
+        )) {
+            block_rounds.push(round);
+        }
+        Ok(block_rounds)
+    }
+
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {
         let inner = self.inner.read();
         let found = inner

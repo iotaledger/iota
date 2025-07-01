@@ -213,6 +213,18 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
+    fn scan_block_rounds_by_author(&self, author: AuthorityIndex) -> ConsensusResult<Vec<u32>> {
+        let mut block_rounds = vec![];
+        for kv in self.digests_by_authorities.safe_range_iter((
+            Included((author, Round::MIN, BlockDigest::MIN)),
+            Included((author, Round::MAX, BlockDigest::MAX)),
+        )) {
+            let ((_, round, _), _) = kv?;
+            block_rounds.push(round);
+        }
+        Ok(block_rounds)
+    }
+
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
     // round `<=before_round` are returned. If not then the max value for round

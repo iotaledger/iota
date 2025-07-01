@@ -40,6 +40,11 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
+    // The method reads all blocks in storage for a certain authority and returns a
+    // vector with all the round numbers of those blocks. Used for restoring the
+    // scoring metrics in case of DagState initialization from storage
+    fn scan_block_rounds_by_author(&self, author: AuthorityIndex) -> ConsensusResult<Vec<u32>>;
+
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
     // round `<=before_round` are returned. If not then the max value for round

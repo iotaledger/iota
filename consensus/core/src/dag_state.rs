@@ -246,6 +246,49 @@ impl DagState {
             );
         }
 
+        let threshold_clock_round = state.threshold_clock_round();
+        for index in 0..num_authorities {
+            let authority_index = state.context.committee.to_authority_index(index).unwrap();
+            let eviction_round = state.evicted_rounds[index];
+            let stored_blocks_by_author = state
+                .store
+                .scan_block_rounds_by_author(authority_index)
+                .expect("Database error");
+            let (
+                missing_blocks_in_storage,
+                equivocations_in_storage,
+                missing_blocks_in_cache,
+                equivocations_in_cache,
+            ) = state
+                .context
+                .scoring_metrics
+                .update_scoring_metrics_when_loading_dag_from_storage(
+                    authority_index,
+                    stored_blocks_by_author,
+                    threshold_clock_round,
+                    eviction_round,
+                );
+
+            let hostname = &state.context.committee.authority(authority_index).hostname;
+            let metrics = &state.context.metrics.node_metrics;
+            metrics
+                .equivocations_in_storage_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(equivocations_in_storage);
+            metrics
+                .missing_proposals_in_storage_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(missing_blocks_in_storage);
+            metrics
+                .equivocations_in_cache_by_authority
+                .with_label_values(&[hostname])
+                .set(equivocations_in_cache as i64);
+            metrics
+                .missing_proposals_in_cache_by_authority
+                .with_label_values(&[hostname])
+                .set(missing_blocks_in_cache as i64);
+        }
+
         if state.gc_enabled() {
             if let Some(last_commit) = last_commit {
                 let mut index = last_commit.index();
@@ -696,6 +739,13 @@ impl DagState {
         blocks.into_iter().zip(equivocating_blocks).collect()
     }
 
+    /// Returns the evicted rounds vector. Used for testing of the scoring
+    /// metrics
+    #[cfg(test)]
+    pub(crate) fn get_evicted_rounds(&self) -> Vec<Round> {
+        self.evicted_rounds.clone()
+    }
+
     /// Checks whether a block exists in the slot. The method checks only
     /// against the cached data. If the user asks for a slot that is not
     /// within the cached data then a panic is thrown.
@@ -1022,7 +1072,7 @@ impl DagState {
                 }
             }
             self.evicted_rounds[authority_index] = eviction_round;
-            let threshold_clock_round = self.threshold_clock.get_round();
+            let threshold_clock_round = self.threshold_clock_round();
 
             let (
                 missing_blocks_flushed,

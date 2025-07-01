@@ -942,7 +942,7 @@ impl ValidatorScoreMetrics {
         block_rounds.dedup();
         let equivocations_in_cache = (total_block_count - block_rounds.len()) as u64;
         let missing_blocks_in_cache =
-            (threshold_clock_round - eviction_round) as u64 - block_rounds.len() as u64;
+            (threshold_clock_round - eviction_round - 1) as u64 - block_rounds.len() as u64;
         self.equivocations_in_cache_by_authority[validator.value()]
             .store(equivocations_in_cache, Ordering::Relaxed);
         self.missing_proposals_in_cache_by_authority[validator.value()]
@@ -955,14 +955,54 @@ impl ValidatorScoreMetrics {
             equivocations_in_cache,
         )
     }
+
+    pub(crate) fn update_scoring_metrics_when_loading_dag_from_storage(
+        &self,
+        validator: AuthorityIndex,
+        mut block_rounds: Vec<u32>,
+        threshold_clock_round: u32,
+        eviction_round: u32,
+    ) -> (u64, u64, u64, u64) {
+        let mut cached_blocks_by_author = block_rounds
+            .extract_if(.., |round| *round > eviction_round)
+            .collect::<Vec<u32>>();
+
+        let missing_blocks_in_storage = block_rounds.extract_if(.., |x| x == &0).count() as u64;
+        let equivocations_in_storage =
+            block_rounds.iter().sum::<u32>() as u64 - block_rounds.len() as u64;
+
+        self.equivocations_in_storage_by_authority[validator.value()]
+            .store(equivocations_in_storage, Ordering::Relaxed);
+        self.missing_proposals_in_storage_by_authority[validator.value()]
+            .store(missing_blocks_in_storage, Ordering::Relaxed);
+
+        cached_blocks_by_author.retain(|&round| round < threshold_clock_round);
+        let total_block_count = cached_blocks_by_author.len();
+        cached_blocks_by_author.dedup();
+        let equivocations_in_cache = (total_block_count - cached_blocks_by_author.len()) as u64;
+        let missing_blocks_in_cache = (threshold_clock_round - eviction_round - 1) as u64
+            - cached_blocks_by_author.len() as u64;
+        self.equivocations_in_cache_by_authority[validator.value()]
+            .store(equivocations_in_cache, Ordering::Relaxed);
+        self.missing_proposals_in_cache_by_authority[validator.value()]
+            .store(missing_blocks_in_cache, Ordering::Relaxed);
+
+        (
+            missing_blocks_in_storage,
+            equivocations_in_storage,
+            missing_blocks_in_cache,
+            equivocations_in_cache,
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::BTreeSet,
+        collections::{BTreeMap, BTreeSet},
         sync::{Arc, atomic::Ordering},
         time::Duration,
+        vec,
     };
 
     use async_trait::async_trait;
@@ -976,9 +1016,14 @@ mod tests {
     use crate::{
         Round, Transaction, TransactionVerifier, ValidationError,
         authority_service::AuthorityService,
-        block::{BlockDigest, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
+        block::{
+            BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, Slot,
+            TestBlock, VerifiedBlock,
+        },
         block_verifier::SignedBlockVerifier,
-        commit::{CertifiedCommits, CommitRange},
+        commit::{
+            CertifiedCommits, CommitAPI as _, CommitDigest, CommitIndex, CommitRange, TrustedCommit,
+        },
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core_thread::{CoreError, CoreThreadDispatcher},
@@ -987,7 +1032,7 @@ mod tests {
         metrics::ValidatorScoreMetrics,
         network::{BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkService},
         round_prober::QuorumRound,
-        storage::mem_store::MemStore,
+        storage::{Store, WriteBatch, mem_store::MemStore},
         synchronizer::Synchronizer,
     };
     #[derive(Clone)]
@@ -1198,6 +1243,16 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    enum MetricType {
+        SemanticallyInvalid,
+        SyntacticallyInvalid,
+        EquivocationsInStorage,
+        EquivocationsInCache,
+        MissingProposalsInStorage,
+        MissingProposalsInCache,
+    }
+
     #[derive(PartialEq, EnumIter, Display, Clone)]
     enum SemanticallyInvalidBlocks {
         WrongEpoch,
@@ -1391,42 +1446,43 @@ mod tests {
         }
     }
     impl ValidatorScoreMetrics {
-        fn _get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
-            self.semantically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
-        }
-        fn _get_semantically_invalid_blocks_vec(&self) -> Vec<u64> {
-            self.semantically_invalid_blocks
-                .iter()
-                .map(|x| x.load(Ordering::Relaxed))
-                .collect()
-        }
-
-        fn _get_syntactically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
-            self.syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
-        }
-
-        fn assert_semantically_invalid_blocks_equals(&self, vector: &Vec<u64>) {
-            let semantically_invalid_blocks_state = self
-                .semantically_invalid_blocks
-                .iter()
-                .map(|x| x.load(Ordering::Relaxed))
-                .collect::<Vec<u64>>();
+        fn assert_scoring_metric_equals(&self, metric_type: MetricType, vector: &Vec<u64>) {
+            let metric_state = match metric_type {
+                MetricType::SemanticallyInvalid => self
+                    .semantically_invalid_blocks
+                    .iter()
+                    .map(|x| x.load(Ordering::Relaxed))
+                    .collect::<Vec<u64>>(),
+                MetricType::SyntacticallyInvalid => self
+                    .syntactically_invalid_blocks
+                    .iter()
+                    .map(|x| x.load(Ordering::Relaxed))
+                    .collect::<Vec<u64>>(),
+                MetricType::EquivocationsInStorage => self
+                    .equivocations_in_storage_by_authority
+                    .iter()
+                    .map(|x| x.load(Ordering::Relaxed))
+                    .collect::<Vec<u64>>(),
+                MetricType::EquivocationsInCache => self
+                    .equivocations_in_cache_by_authority
+                    .iter()
+                    .map(|x| x.load(Ordering::Relaxed))
+                    .collect::<Vec<u64>>(),
+                MetricType::MissingProposalsInStorage => self
+                    .missing_proposals_in_storage_by_authority
+                    .iter()
+                    .map(|x| x.load(Ordering::Relaxed))
+                    .collect::<Vec<u64>>(),
+                MetricType::MissingProposalsInCache => self
+                    .missing_proposals_in_cache_by_authority
+                    .iter()
+                    .map(|x| x.load(Ordering::Relaxed))
+                    .collect::<Vec<u64>>(),
+            };
             assert_eq!(
-                semantically_invalid_blocks_state, *vector,
-                "Semantically invalid blocks state does not match expected vector \n State:  {:?}\n Vector: {:?}",
-                semantically_invalid_blocks_state, vector
-            );
-        }
-        fn assert_syntactically_invalid_blocks_equals(&self, vector: &Vec<u64>) {
-            let syntactically_invalid_blocks_state = self
-                .syntactically_invalid_blocks
-                .iter()
-                .map(|x| x.load(Ordering::Relaxed))
-                .collect::<Vec<u64>>();
-            assert_eq!(
-                syntactically_invalid_blocks_state, *vector,
-                "Syntactically invalid blocks state does not match expected vector \n State:  {:?}\n Vector: {:?}",
-                syntactically_invalid_blocks_state, vector
+                metric_state, *vector,
+                "{:?} state does not match expected vector",
+                metric_type
             );
         }
     }
@@ -1450,12 +1506,14 @@ mod tests {
         };
 
         // Initial check: ensure that all metrics are zero
-        context
-            .scoring_metrics
-            .assert_semantically_invalid_blocks_equals(&vec![0; committee_size]);
-        context
-            .scoring_metrics
-            .assert_syntactically_invalid_blocks_equals(&vec![0; committee_size]);
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::SemanticallyInvalid,
+            &vec![0; committee_size],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::SyntacticallyInvalid,
+            &vec![0; committee_size],
+        );
 
         // Generates a single valid block from each authority
         let blocks = (0..committee_size)
@@ -1480,12 +1538,14 @@ mod tests {
         }
 
         // Ensure that the metrics are still all zero
-        context
-            .scoring_metrics
-            .assert_semantically_invalid_blocks_equals(&vec![0; committee_size]);
-        context
-            .scoring_metrics
-            .assert_syntactically_invalid_blocks_equals(&vec![0; committee_size]);
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::SemanticallyInvalid,
+            &vec![0; committee_size],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::SyntacticallyInvalid,
+            &vec![0; committee_size],
+        );
 
         // Generates one of each type of semantically invalid blocks. Assigns each of
         // those blocks to a peer. Authors and peers are the same.
@@ -1516,12 +1576,14 @@ mod tests {
             let _ = handle.await;
             semantic_block_count[peer] += 1;
             // Check that only the metrics for semantically invalid blocks were updated
-            context
-                .scoring_metrics
-                .assert_semantically_invalid_blocks_equals(&semantic_block_count);
-            context
-                .scoring_metrics
-                .assert_syntactically_invalid_blocks_equals(&vec![0; committee_size]);
+            context.scoring_metrics.assert_scoring_metric_equals(
+                MetricType::SemanticallyInvalid,
+                &semantic_block_count,
+            );
+            context.scoring_metrics.assert_scoring_metric_equals(
+                MetricType::SyntacticallyInvalid,
+                &vec![0; committee_size],
+            );
         }
 
         // Generates a single syntactically invalid block from each authority
@@ -1542,12 +1604,700 @@ mod tests {
             let _ = handle.await;
             syntactic_block_count[peer] += 1;
             // Check that only the metrics for syntactically invalid blocks were updated
-            context
-                .scoring_metrics
-                .assert_semantically_invalid_blocks_equals(&semantic_block_count);
-            context
-                .scoring_metrics
-                .assert_syntactically_invalid_blocks_equals(&syntactic_block_count);
+            context.scoring_metrics.assert_scoring_metric_equals(
+                MetricType::SemanticallyInvalid,
+                &semantic_block_count,
+            );
+            context.scoring_metrics.assert_scoring_metric_equals(
+                MetricType::SyntacticallyInvalid,
+                &syntactic_block_count,
+            );
         }
+    }
+
+    use crate::test_dag_builder::DagBuilder;
+
+    #[tokio::test]
+    async fn test_metrics_flush_and_recovery_gc_enabled() {
+        telemetry_subscribers::init_for_testing();
+
+        const GC_DEPTH: u32 = 3;
+        const CACHED_ROUNDS: u32 = 4;
+
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(GC_DEPTH);
+        context
+            .protocol_config
+            .set_consensus_linearize_subdag_v2_for_testing(true);
+
+        let context = Arc::new(context);
+
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let num_rounds: u32 = 10;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=5).build();
+        dag_builder
+            .layers(6..=8)
+            .authorities(vec![AuthorityIndex::new_for_test(0)])
+            .skip_block()
+            .build();
+        dag_builder.layers(9..=num_rounds).build();
+
+        let mut commits = dag_builder
+            .get_sub_dag_and_commits(1..=num_rounds)
+            .into_iter()
+            .map(|(_subdag, commit)| commit)
+            .collect::<Vec<_>>();
+
+        // Add the blocks from first 8 rounds and first 7 commits to the dag state
+        // It's 7 commits because we missing the commit of round 8 where authority 0 is
+        // the leader, but produced no block
+        let temp_commits = commits.split_off(7);
+        dag_state.accept_blocks(dag_builder.blocks(1..=8));
+        for commit in commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Checks that metrics are still all zeroed
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::MissingProposalsInCache,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::MissingProposalsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInCache,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+
+        // Holds all the committed blocks from the commits that ended up being persisted
+        // (flushed). Any commits that not flushed will not be considered.
+        let mut all_committed_blocks = BTreeSet::<BlockRef>::new();
+        for commit in commits.iter() {
+            all_committed_blocks.extend(commit.blocks());
+        }
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Print
+        println!(
+            "Evicted rounds after flush: {:?}",
+            dag_state.get_evicted_rounds()
+        );
+        println!("clock after flush: {:?}", dag_state.threshold_clock_round());
+
+        // Check that metrics were updated correctly after flushing
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::MissingProposalsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context
+            .scoring_metrics
+            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![3, 0, 0, 0]);
+
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInCache,
+            &vec![0; num_authorities as usize],
+        );
+
+        // Add the rest of the blocks and commits to the dag state
+        dag_state.accept_blocks(dag_builder.blocks(9..=num_rounds));
+        for commit in temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Print
+        println!(
+            "Evicted rounds all commits: {:?}",
+            dag_state.get_evicted_rounds()
+        );
+        println!(
+            "clock after all commits: {:?}",
+            dag_state.threshold_clock_round()
+        );
+
+        // Check that metrics were still not updated
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::MissingProposalsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context
+            .scoring_metrics
+            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![3, 0, 0, 0]);
+
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInCache,
+            &vec![0; num_authorities as usize],
+        );
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Print
+        println!(
+            "Evicted rounds after 2nd flush: {:?}",
+            dag_state.get_evicted_rounds()
+        );
+        println!(
+            "clock after 2nd flush: {:?}",
+            dag_state.threshold_clock_round()
+        );
+
+        // Check that metrics were updated correctly after flushing
+        context
+            .scoring_metrics
+            .assert_scoring_metric_equals(MetricType::MissingProposalsInStorage, &vec![1, 0, 0, 0]);
+        context
+            .scoring_metrics
+            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![2, 0, 0, 0]);
+
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInCache,
+            &vec![0; num_authorities as usize],
+        );
+
+        // Destroy the dag state.
+        drop(dag_state);
+
+        // Metrics should remain the same
+
+        context
+            .scoring_metrics
+            .assert_scoring_metric_equals(MetricType::MissingProposalsInStorage, &vec![1, 0, 0, 0]);
+        context
+            .scoring_metrics
+            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![2, 0, 0, 0]);
+
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInStorage,
+            &vec![0; num_authorities as usize],
+        );
+        context.scoring_metrics.assert_scoring_metric_equals(
+            MetricType::EquivocationsInCache,
+            &vec![0; num_authorities as usize],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_blocks() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let own_index = AuthorityIndex::new_for_test(0);
+
+        // Populate test blocks for round 1 ~ 10, authorities 0 ~ 2.
+        let num_rounds: u32 = 10;
+        let non_existent_round: u32 = 100;
+        let num_authorities: u32 = 3;
+        let num_blocks_per_slot: usize = 3;
+        let mut blocks = BTreeMap::new();
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                // Create 3 blocks per slot, with different timestamps and digests.
+                let base_ts = round as BlockTimestampMs * 1000;
+                for timestamp in base_ts..base_ts + num_blocks_per_slot as u64 {
+                    let block = VerifiedBlock::new_for_test(
+                        TestBlock::new(round, author)
+                            .set_timestamp_ms(timestamp)
+                            .build(),
+                    );
+                    dag_state.accept_block(block.clone());
+                    blocks.insert(block.reference(), block);
+
+                    // Only write one block per slot for own index
+                    if AuthorityIndex::new_for_test(author) == own_index {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Check uncommitted blocks that exist.
+        for (r, block) in &blocks {
+            assert_eq!(&dag_state.get_block(r).unwrap(), block);
+        }
+
+        // Check uncommitted blocks that do not exist.
+        let last_ref = blocks.keys().last().unwrap();
+        assert!(
+            dag_state
+                .get_block(&BlockRef::new(
+                    last_ref.round,
+                    last_ref.author,
+                    BlockDigest::MIN
+                ))
+                .is_none()
+        );
+
+        // Check slots with uncommitted blocks.
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let slot = Slot::new(
+                    round,
+                    context
+                        .committee
+                        .to_authority_index(author as usize)
+                        .unwrap(),
+                );
+                let blocks = dag_state.get_uncommitted_blocks_at_slot(slot);
+
+                // We only write one block per slot for own index
+                if AuthorityIndex::new_for_test(author) == own_index {
+                    assert_eq!(blocks.len(), 1);
+                } else {
+                    assert_eq!(blocks.len(), num_blocks_per_slot);
+                }
+
+                for b in blocks {
+                    assert_eq!(b.round(), round);
+                    assert_eq!(
+                        b.author(),
+                        context
+                            .committee
+                            .to_authority_index(author as usize)
+                            .unwrap()
+                    );
+                }
+            }
+        }
+
+        // Check slots without uncommitted blocks.
+        let slot = Slot::new(non_existent_round, AuthorityIndex::ZERO);
+        assert!(dag_state.get_uncommitted_blocks_at_slot(slot).is_empty());
+
+        // Check rounds with uncommitted blocks.
+        for round in 1..=num_rounds {
+            let blocks = dag_state.get_uncommitted_blocks_at_round(round);
+            // Expect 3 blocks per authority except for own authority which should
+            // have 1 block.
+            assert_eq!(
+                blocks.len(),
+                (num_authorities - 1) as usize * num_blocks_per_slot + 1
+            );
+            for b in blocks {
+                assert_eq!(b.round(), round);
+            }
+        }
+
+        // Check rounds without uncommitted blocks.
+        assert!(
+            dag_state
+                .get_uncommitted_blocks_at_round(non_existent_round)
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_contains_blocks_in_cache_or_store() {
+        /// Only keep elements up to 2 rounds before the last committed round
+        const CACHED_ROUNDS: Round = 2;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u32 = 4;
+        let mut blocks = Vec::new();
+
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                blocks.push(block);
+            }
+        }
+
+        // Now write in store the blocks from first 4 rounds and the rest to the dag
+        // state
+        blocks.clone().into_iter().for_each(|block| {
+            if block.round() <= 4 {
+                store
+                    .write(WriteBatch::default().blocks(vec![block]))
+                    .unwrap();
+            } else {
+                dag_state.accept_blocks(vec![block]);
+            }
+        });
+
+        // Now when trying to query whether we have all the blocks, we should
+        // successfully retrieve a positive answer where the blocks of first 4
+        // round should be found in DagState and the rest in store.
+        let mut block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state.contains_blocks(block_refs.clone());
+
+        // Ensure everything is found
+        let mut expected = vec![true; (num_rounds * num_authorities) as usize];
+        assert_eq!(result, expected);
+
+        // Now try to ask also for one block ref that is neither in cache nor in store
+        block_refs.insert(
+            3,
+            BlockRef::new(11, AuthorityIndex::new_for_test(3), BlockDigest::default()),
+        );
+        let result = dag_state.contains_blocks(block_refs.clone());
+
+        // Then all should be found apart from the last one
+        expected.insert(3, false);
+        assert_eq!(result, expected.clone());
+    }
+
+    #[tokio::test]
+    async fn test_contains_cached_block_at_slot() {
+        /// Only keep elements up to 2 rounds before the last committed round
+        const CACHED_ROUNDS: Round = 2;
+
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let mut blocks = Vec::new();
+
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                blocks.push(block.clone());
+                dag_state.accept_block(block);
+            }
+        }
+
+        // Query for genesis round 0, genesis blocks should be returned
+        for (author, _) in context.committee.authorities() {
+            assert!(
+                dag_state.contains_cached_block_at_slot(Slot::new(GENESIS_ROUND, author)),
+                "Genesis should always be found"
+            );
+        }
+
+        // Now when trying to query whether we have all the blocks, we should
+        // successfully retrieve a positive answer where the blocks of first 4
+        // round should be found in DagState and the rest in store.
+        let mut block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+
+        for block_ref in block_refs.clone() {
+            let slot = block_ref.into();
+            let found = dag_state.contains_cached_block_at_slot(slot);
+            assert!(found, "A block should be found at slot {}", slot);
+        }
+
+        // Now try to ask also for one block ref that is not in cache
+        // Then all should be found apart from the last one
+        block_refs.insert(
+            3,
+            BlockRef::new(11, AuthorityIndex::new_for_test(3), BlockDigest::default()),
+        );
+        let mut expected = vec![true; (num_rounds * num_authorities) as usize];
+        expected.insert(3, false);
+
+        // Attempt to check the same for via the contains slot method
+        for block_ref in block_refs {
+            let slot = block_ref.into();
+            let found = dag_state.contains_cached_block_at_slot(slot);
+
+            assert_eq!(expected.remove(0), found);
+        }
+    }
+
+    #[tokio::test]
+    #[should_panic(
+        expected = "Attempted to check for slot [0]8 that is <= the last evicted round 8"
+    )]
+    async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
+        /// Only keep elements up to 2 rounds before the last committed round
+        const CACHED_ROUNDS: Round = 2;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(0);
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10 for authority 0
+        let mut blocks = Vec::new();
+        for round in 1..=10 {
+            let block = VerifiedBlock::new_for_test(TestBlock::new(round, 0).build());
+            blocks.push(block.clone());
+            dag_state.accept_block(block);
+        }
+
+        // Now add a commit to trigger an eviction
+        dag_state.add_commit(TrustedCommit::new_for_test(
+            1 as CommitIndex,
+            CommitDigest::MIN,
+            0,
+            blocks.last().unwrap().reference(),
+            blocks
+                .into_iter()
+                .map(|block| block.reference())
+                .collect::<Vec<_>>(),
+        ));
+
+        dag_state.flush();
+
+        // When trying to request for authority 0 at block slot 8 it should panic, as
+        // anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should
+        // be evicted
+        let _ =
+            dag_state.contains_cached_block_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
+    }
+
+    #[tokio::test]
+    async fn test_get_blocks_in_cache_or_store() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u32 = 4;
+        let mut blocks = Vec::new();
+
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                blocks.push(block);
+            }
+        }
+
+        // Now write in store the blocks from first 4 rounds and the rest to the dag
+        // state
+        blocks.clone().into_iter().for_each(|block| {
+            if block.round() <= 4 {
+                store
+                    .write(WriteBatch::default().blocks(vec![block]))
+                    .unwrap();
+            } else {
+                dag_state.accept_blocks(vec![block]);
+            }
+        });
+
+        // Now when trying to query whether we have all the blocks, we should
+        // successfully retrieve a positive answer where the blocks of first 4
+        // round should be found in DagState and the rest in store.
+        let mut block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state.get_blocks(&block_refs);
+
+        let mut expected = blocks
+            .into_iter()
+            .map(Some)
+            .collect::<Vec<Option<VerifiedBlock>>>();
+
+        // Ensure everything is found
+        assert_eq!(result, expected.clone());
+
+        // Now try to ask also for one block ref that is neither in cache nor in store
+        block_refs.insert(
+            3,
+            BlockRef::new(11, AuthorityIndex::new_for_test(3), BlockDigest::default()),
+        );
+        let result = dag_state.get_blocks(&block_refs);
+
+        // Then all should be found apart from the last one
+        expected.insert(3, None);
+        assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn test_flush_and_recovery() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (context, _) = Context::new_for_test(num_authorities as usize);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks and commits for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        let mut commits = vec![];
+        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            commits.push(commit);
+        }
+
+        // Add the blocks from first 5 rounds and first 5 commits to the dag state
+        let temp_commits = commits.split_off(5);
+        dag_state.accept_blocks(dag_builder.blocks(1..=5));
+        for commit in commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Add the rest of the blocks and commits to the dag state
+        dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
+        for commit in temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // All blocks should be found in DagState.
+        let all_blocks = dag_builder.blocks(6..=num_rounds);
+        let block_refs = all_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, all_blocks);
+
+        // Last commit index should be 10.
+        assert_eq!(dag_state.last_commit_index(), 10);
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            dag_builder.last_committed_rounds.clone()
+        );
+
+        // Destroy the dag state.
+        drop(dag_state);
+
+        // Recover the state from the store
+        let dag_state = DagState::new(context.clone(), store.clone());
+
+        // Blocks of first 5 rounds should be found in DagState.
+        let blocks = dag_builder.blocks(1..=5);
+        let block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, blocks);
+
+        // Blocks above round 5 should not be in DagState, because they are not flushed.
+        let missing_blocks = dag_builder.blocks(6..=num_rounds);
+        let block_refs = missing_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let retrieved_blocks = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert!(retrieved_blocks.is_empty());
+
+        // Last commit index should be 5.
+        assert_eq!(dag_state.last_commit_index(), 5);
+
+        // This is the last_commit_rounds of the first 5 commits that were flushed
+        let expected_last_committed_rounds = vec![4, 5, 4, 4];
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            expected_last_committed_rounds
+        );
+        // Unscored subdags will be recovered based on the flushed commits and no commit
+        // info
+        assert_eq!(dag_state.scoring_subdags_count(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_get_cached_blocks() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 5;
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create no blocks for authority 0
+        // Create one block (round 10) for authority 1
+        // Create two blocks (rounds 10,11) for authority 2
+        // Create three blocks (rounds 10,11,12) for authority 3
+        let mut all_blocks = Vec::new();
+        for author in 1..=3 {
+            for round in 10..(10 + author) {
+                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                all_blocks.push(block.clone());
+                dag_state.accept_block(block);
+            }
+        }
+
+        let cached_blocks =
+            dag_state.get_cached_blocks(context.committee.to_authority_index(0).unwrap(), 0);
+        assert!(cached_blocks.is_empty());
+
+        let cached_blocks =
+            dag_state.get_cached_blocks(context.committee.to_authority_index(1).unwrap(), 10);
+        assert_eq!(cached_blocks.len(), 1);
+        assert_eq!(cached_blocks[0].round(), 10);
+
+        let cached_blocks =
+            dag_state.get_cached_blocks(context.committee.to_authority_index(2).unwrap(), 10);
+        assert_eq!(cached_blocks.len(), 2);
+        assert_eq!(cached_blocks[0].round(), 10);
+        assert_eq!(cached_blocks[1].round(), 11);
+
+        let cached_blocks =
+            dag_state.get_cached_blocks(context.committee.to_authority_index(2).unwrap(), 11);
+        assert_eq!(cached_blocks.len(), 1);
+        assert_eq!(cached_blocks[0].round(), 11);
+
+        let cached_blocks =
+            dag_state.get_cached_blocks(context.committee.to_authority_index(3).unwrap(), 10);
+        assert_eq!(cached_blocks.len(), 3);
+        assert_eq!(cached_blocks[0].round(), 10);
+        assert_eq!(cached_blocks[1].round(), 11);
+        assert_eq!(cached_blocks[2].round(), 12);
+
+        let cached_blocks =
+            dag_state.get_cached_blocks(context.committee.to_authority_index(3).unwrap(), 12);
+        assert_eq!(cached_blocks.len(), 1);
+        assert_eq!(cached_blocks[0].round(), 12);
     }
 }
