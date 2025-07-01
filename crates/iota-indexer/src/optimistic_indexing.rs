@@ -38,6 +38,8 @@ use crate::{
     },
 };
 
+const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
+
 type TransactionDataToCommit = (
     OptimisticTransaction,
     OptimisticTxIndices,
@@ -75,15 +77,23 @@ impl OptimisticTransactionExecutor {
         effects: &TransactionEffects,
     ) -> Result<(), IndexerError> {
         let expected_dependencies = effects.dependencies();
-        let mut count = 0;
-        while count as usize != expected_dependencies.len() {
-            count = self
+        let backoff = backoff::ExponentialBackoff {
+            max_elapsed_time: Some(WAIT_FOR_DEPS_MAX_ELAPSED_TIME),
+            ..Default::default()
+        };
+
+        backoff::future::retry(backoff, async || {
+            let count = self
                 .indexer_reader
                 .count_indexed_transactions_in_blocking_task(expected_dependencies.to_vec())
-                .await
-                .map_err(|e| IndexerError::Generic(e.to_string()))?;
-        }
-        Ok(())
+                .await?;
+            if count as usize != expected_dependencies.len() {
+                return Err(IndexerError::TransactionDependenciesNotIndexed)?;
+            }
+            Ok(())
+        })
+        .await
+        .or(Err(IndexerError::TransactionDependenciesNotIndexed))
     }
 
     pub(crate) async fn execute_and_index_transaction(
@@ -120,11 +130,11 @@ impl OptimisticTransactionExecutor {
             output_objects,
             ..
         } = response;
-        self.wait_for_tx_dependencies(&effects).await?;
         let tx_digest = *effects.transaction_digest();
+        let tx_deps_indexed = self.wait_for_tx_dependencies(&effects).await;
 
-        match (input_objects, output_objects) {
-            (Some(input_objects), Some(output_objects))
+        match (input_objects, output_objects, tx_deps_indexed) {
+            (Some(input_objects), Some(output_objects), Ok(_))
                 if !input_objects.is_empty() && !output_objects.is_empty() =>
             {
                 let full_tx_data = CheckpointTransaction {
@@ -135,6 +145,11 @@ impl OptimisticTransactionExecutor {
                     output_objects,
                 };
                 self.index_transaction(&full_tx_data).await?;
+            }
+            (Some(_), Some(_), Err(_)) => {
+                tracing::warn!(
+                    "Transaction {tx_digest} dependencies not indexed, skipping optimistic indexing"
+                );
             }
             _ => {
                 tracing::warn!(
