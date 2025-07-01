@@ -16,6 +16,18 @@ The following is an example of a _Solo_ test. It deploys a new chain and invokes
 [`root`](../../references/core-contracts/root.md) and [`governance`](../../references/core-contracts/governance.md)
 [core contracts](../../references/core-contracts/overview.md).
 
+:::info L1 Network
+
+To run the tests a local IOTA network is required. That is what
+```go
+func TestMain(m *testing.M) {
+    l1starter.TestMain(m)
+}
+```
+is for. You will need to call it once before running any tests that use the Solo framework.
+
+:::
+
 ```go
 package solo_test
 
