@@ -16,7 +16,7 @@ use crate::{
     CommitRef, CommittedSubDag,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlockHeader,
         VerifiedTransactions, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
