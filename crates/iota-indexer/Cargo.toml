@@ -16,7 +16,12 @@ bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["env"] }
-diesel = { workspace = true, features = ["chrono", "r2d2", "serde_json", "postgres"] }
+diesel = { workspace = true, features = [
+    "chrono",
+    "r2d2",
+    "serde_json",
+    "postgres",
+] }
 diesel_migrations = "2.2.0"
 downcast = "0.11.0"
 fastcrypto = { workspace = true, features = ["copy_key"] }
@@ -24,8 +29,6 @@ futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
-rayon.workspace = true
-regex.workspace = true
 secrecy = "0.8.0"
 serde.workspace = true
 serde_with.workspace = true
@@ -51,11 +54,9 @@ iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
-iota-sdk.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 telemetry-subscribers.workspace = true
 
