@@ -26,7 +26,7 @@ use crate::{
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
-    metrics::{ValidatorScoreMetrics, initialise_metrics},
+    metrics::initialise_metrics,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
     storage::rocksdb_store::RocksDBStore,
@@ -185,8 +185,7 @@ where
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry),
-            ValidatorScoreMetrics::new(committee_size),
+            initialise_metrics(registry, committee_size),
             Arc::new(Clock::new()),
         ));
         let start_time = Instant::now();

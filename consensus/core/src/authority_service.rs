@@ -102,6 +102,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .inc();
                 // Update validator score
                 self.context
+                    .metrics
                     .scoring_metrics
                     .update_syntactically_invalid_blocks(peer);
                 error.map_err(ConsensusError::MalformedBlock)?
@@ -149,6 +150,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 ])
                 .inc();
             self.context
+                .metrics
                 .scoring_metrics
                 .update_semantically_invalid_blocks(peer);
             return Err(e);

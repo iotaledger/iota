@@ -250,43 +250,22 @@ impl DagState {
         for index in 0..num_authorities {
             let authority_index = state.context.committee.to_authority_index(index).unwrap();
             let eviction_round = state.evicted_rounds[index];
+            let hostname = &state.context.committee.authority(authority_index).hostname;
             let stored_blocks_by_author = state
                 .store
                 .scan_block_rounds_by_author(authority_index)
                 .expect("Database error");
-            let (
-                missing_blocks_in_storage,
-                equivocations_in_storage,
-                missing_blocks_in_cache,
-                equivocations_in_cache,
-            ) = state
+
+            state
                 .context
-                .scoring_metrics
+                .metrics
                 .update_scoring_metrics_when_loading_dag_from_storage(
                     authority_index,
+                    hostname,
                     stored_blocks_by_author,
                     threshold_clock_round,
                     eviction_round,
                 );
-
-            let hostname = &state.context.committee.authority(authority_index).hostname;
-            let metrics = &state.context.metrics.node_metrics;
-            metrics
-                .equivocations_in_storage_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(equivocations_in_storage);
-            metrics
-                .missing_proposals_in_storage_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(missing_blocks_in_storage);
-            metrics
-                .equivocations_in_cache_by_authority
-                .with_label_values(&[hostname])
-                .set(equivocations_in_cache as i64);
-            metrics
-                .missing_proposals_in_cache_by_authority
-                .with_label_values(&[hostname])
-                .set(missing_blocks_in_cache as i64);
         }
 
         if state.gc_enabled() {
@@ -1073,41 +1052,18 @@ impl DagState {
             }
             self.evicted_rounds[authority_index] = eviction_round;
             let threshold_clock_round = self.threshold_clock_round();
+            let hostname = &self.context.committee.authority(authority_index).hostname;
 
-            let (
-                missing_blocks_flushed,
-                equivocations_flushed,
-                missing_blocks_in_cache,
-                equivocations_in_cache,
-            ) = self
-                .context
-                .scoring_metrics
+            self.context
+                .metrics
                 .update_scoring_metrics_after_cache_flush(
                     authority_index,
+                    hostname,
                     &self.recent_refs_by_authority[authority_index],
                     evicted_blocks_per_round,
                     threshold_clock_round,
                     eviction_round,
                 );
-
-            let hostname = &self.context.committee.authority(authority_index).hostname;
-            let metrics = &self.context.metrics.node_metrics;
-            metrics
-                .equivocations_in_storage_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(equivocations_flushed);
-            metrics
-                .missing_proposals_in_storage_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(missing_blocks_flushed);
-            metrics
-                .equivocations_in_cache_by_authority
-                .with_label_values(&[hostname])
-                .set(equivocations_in_cache as i64);
-            metrics
-                .missing_proposals_in_cache_by_authority
-                .with_label_values(&[hostname])
-                .set(missing_blocks_in_cache as i64);
         }
 
         let metrics = &self.context.metrics.node_metrics;
