@@ -1,0 +1,160 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 18 tasks
+
+init:
+A: object(0,0), B: object(0,1), C: object(0,2)
+
+task 1, lines 6-29:
+//# publish
+created: object(1,0)
+mutated: object(0,3)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5981200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 31-34:
+//# programmable --sender A --inputs 1 @A
+//> P::M::new(Input(0));
+//> P::M::wrap(Result(0));
+//> TransferObjects([Result(1)], Input(1))
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, lines 36-38:
+//# programmable --sender A --inputs object(2,0) @A
+//> P::M::unwrap(Input(0));
+//> TransferObjects([Result(0)], Input(1))
+mutated: object(0,0)
+unwrapped: object(3,0)
+deleted: object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 4, lines 40-41:
+//# programmable --sender A --inputs object(3,0)
+//> P::M::destroy(Input(0))
+mutated: object(0,0)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+
+task 5, line 43:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 6, lines 45-50:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "CWku48h2X2jgJKj9a66zdpJ8eLDsmyJAYnL7AmPB2ZiH"
+        },
+        {
+          "digest": "4zAreZtMvNwXJJYxEotFJE8V1bSpr3KDCRC8kekwrNca"
+        }
+      ]
+    }
+  }
+}
+
+task 7, lines 52-54:
+//# programmable --sender B --inputs 1 @B
+//> P::M::new(Input(0));
+//> TransferObjects([Result(0)], Input(1))
+created: object(7,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 8, lines 56-58:
+//# programmable --sender B --inputs object(7,0) @B
+//> P::M::wrap(Input(0));
+//> TransferObjects([Result(0)], Input(1))
+created: object(8,0)
+mutated: object(0,1)
+wrapped: object(7,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+
+task 9, lines 60-62:
+//# programmable --sender B --inputs object(8,0)
+//> P::M::unwrap(Input(0));
+//> P::M::destroy(Result(0))
+mutated: object(0,1)
+deleted: object(8,0)
+unwrapped_then_deleted: object(7,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 10, line 64:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 11, lines 66-74:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "digest": "7u15vC7bQTwhkCfBVXHm19aBw1hehZNPm8y8c4zqXYD8"
+        },
+        {
+          "digest": "DM9sUPAxHbKb6NXwm4DauitRo8T8hH2q4VAq2SvyUzQc"
+        }
+      ]
+    }
+  }
+}
+
+task 12, lines 76-78:
+//# programmable --sender C --inputs 1 @C
+//> P::M::new(Input(0));
+//> TransferObjects([Result(0)], Input(1))
+created: object(12,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 13, lines 80-82:
+//# programmable --sender C --inputs object(12,0) @C
+//> P::M::wrap(Input(0));
+//> TransferObjects([Result(0)], Input(1))
+created: object(13,0)
+mutated: object(0,2)
+wrapped: object(12,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+
+task 14, lines 84-86:
+//# programmable --sender C --inputs object(13,0) @C
+//> P::M::unwrap(Input(0));
+//> TransferObjects([Result(0)], Input(1))
+mutated: object(0,2)
+unwrapped: object(12,0)
+deleted: object(13,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 15, lines 88-89:
+//# programmable --sender C --inputs object(12,0)
+//> P::M::destroy(Input(0))
+mutated: object(0,2)
+deleted: object(12,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+
+task 16, line 91:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 17, lines 93-101:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "digest": "AMjDYVwvHfNs4cmsu3EPQDSkFJiQV16R3cHw7rW1dTWg"
+        },
+        {
+          "digest": "Ggb76XA8a18rep9boo4nHepD4u6wbucfgv8auzHiWsk"
+        }
+      ]
+    }
+  }
+}

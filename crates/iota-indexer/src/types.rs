@@ -543,6 +543,20 @@ pub struct TxIndex {
     pub move_calls: Vec<(ObjectID, String, String)>,
 }
 
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub(crate) struct TxIndexExt {
+    /// Objects that were either wrapped immediately after being created,
+    /// deleted, or deleted immediately after being unwrapped.
+    pub(crate) wrapped_or_deleted_objects: Vec<ObjectID>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TxIndexV2 {
+    pub(crate) base: TxIndex,
+    pub(crate) ext: TxIndexExt,
+}
+
 // ObjectChange is not bcs deserializable, IndexedObjectChange is.
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

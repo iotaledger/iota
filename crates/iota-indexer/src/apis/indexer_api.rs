@@ -10,7 +10,8 @@ use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc,
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_names::{
     IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
@@ -230,6 +231,38 @@ impl IndexerApiServer for IndexerApi {
         let mut results = self
             .inner
             .query_transaction_blocks_in_blocking_task(
+                query.filter,
+                query.options.unwrap_or_default(),
+                cursor,
+                limit + 1,
+                descending_order.unwrap_or(false),
+            )
+            .await?;
+
+        let has_next_page = results.len() > limit;
+        results.truncate(limit);
+        let next_cursor = results.last().map(|o| o.digest);
+        Ok(Page {
+            data: results,
+            next_cursor,
+            has_next_page,
+        })
+    }
+
+    async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: Option<TransactionDigest>,
+        limit: Option<usize>,
+        descending_order: Option<bool>,
+    ) -> RpcResult<TransactionBlocksPage> {
+        let limit = cap_page_limit(limit);
+        if limit == 0 {
+            return Ok(TransactionBlocksPage::empty());
+        }
+        let mut results = self
+            .inner
+            .query_transaction_blocks_in_blocking_task_v2(
                 query.filter,
                 query.options.unwrap_or_default(),
                 cursor,
