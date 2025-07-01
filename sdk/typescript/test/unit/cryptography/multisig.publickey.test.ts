@@ -342,9 +342,9 @@ describe('Publickey', () => {
         );
         const digest = blake2b(intentMessage, { dkLen: 32 });
 
-        expect(async () => await multiSigPublicKey.verify(digest, sig1.signature)).rejects.toThrow(
-            new Error('Invalid signature scheme'),
-        );
+        await expect(
+            async () => await multiSigPublicKey.verify(digest, sig1.signature),
+        ).rejects.toThrow(new Error('Invalid signature scheme'));
     });
 
     it('`combinePartialSignatures()` should combine with different signatures into a single multisig correctly', async () => {
