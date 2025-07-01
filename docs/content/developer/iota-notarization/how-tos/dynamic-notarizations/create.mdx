@@ -1,4 +1,5 @@
 ---
+title: Create a Dynamic Notarization
 sidebar_label: Create a Dynamic Notarization
 description: Create a Dynamic Notarization and publish it to an IOTA network.
 teams:
@@ -31,14 +32,14 @@ you will need an address with actual IOTA funds to create a new Dynamic Notariza
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/utils/utils.rs#L27
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/util.ts#L27
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
 ```
 
 </TabItem>
@@ -54,14 +55,25 @@ The simplest form of a Dynamic Notarization can be created without any locks, ma
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/02_create_dynamic_notarization.rs#L20-L32
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L20-L32
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L22-L34
+```ts
+const { output: notarization } = await notarizationClient
+    .createDynamic()
+    // Control the type of State data by choosing one of the `with...State` functions below.
+    // Uncomment or comment the following lines to choose between string or byte State data.
+    //
+    // .withStringState("Live document content", "Version 1.0")
+    // .withBytesState(utf8Encode.encode("Live document content"), "Version 1.0")
+    .withBytesState(Uint8Array.from([14, 255, 0, 125, 64, 87, 11, 114, 108, 100]), "Version 1.0")
+    .withImmutableDescription("This can not be changed any more")
+    .withUpdatableMetadata("This can be updated")
+    .finish()
+    .buildAndExecute(notarizationClient);
 ```
 
 </TabItem>
@@ -77,14 +89,14 @@ You can also create a Dynamic Notarization with a transfer lock to prevent trans
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/02_create_dynamic_notarization.rs#L43-L53
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L43-L53
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L30
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L21-L34
 ```
 
 </TabItem>
@@ -100,14 +112,14 @@ To publish the Dynamic Notarization, you will need to call the `build_and_execut
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/02_create_dynamic_notarization.rs#L30-L32
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L29-L32
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L33-34
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L33-L34
 ```
 
 </TabItem>
@@ -136,14 +148,14 @@ Dynamic notarizations support optional transfer locks:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/examples/02_create_dynamic_notarization.rs
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1.0/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts
 ```
 
 </TabItem>
