@@ -29,7 +29,7 @@ type UseSignAndExecuteTransactionArgs = PartialBy<
     'account' | 'chain'
 > & {
     transaction: Transaction | string;
-    wait?: boolean
+    wait?: boolean;
 };
 
 type UseSignAndExecuteTransactionResult = IotaSignAndExecuteTransactionOutput;
@@ -159,10 +159,10 @@ export function useSignAndExecuteTransaction<
 
             reportTransactionEffects({ effects, account: signerAccount, chain });
 
-            if(signTransactionArgs.wait && 'digest' in result){
+            if (signTransactionArgs.wait && 'digest' in result) {
                 await client.waitForTransaction({
-                    digest: result.digest
-                })
+                    digest: result.digest,
+                });
             }
 
             return result as Result;
