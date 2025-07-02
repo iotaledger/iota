@@ -43,7 +43,7 @@ pub fn local_committee_and_keys(
 fn get_available_local_address() -> Multiaddr {
     let host = "127.0.0.1";
     let port = get_available_port(host);
-    format!("/ip4/{}/udp/{}", host, port).parse().unwrap()
+    format!("/ip4/{host}/udp/{port}").parse().unwrap()
 }
 
 /// Returns an ephemeral, available port. On unix systems, the port returned

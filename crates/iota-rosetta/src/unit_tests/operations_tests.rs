@@ -58,5 +58,5 @@ async fn test_iota_json() {
     let arg2 = CallArg::Pure(bcs::to_bytes(&30215u64).unwrap());
     let json1 = IotaCallArg::try_from(arg1, Some(&MoveTypeLayout::U64)).unwrap();
     let json2 = IotaCallArg::try_from(arg2, Some(&MoveTypeLayout::U64)).unwrap();
-    println!("{:?}, {:?}", json1, json2);
+    println!("{json1:?}, {json2:?}");
 }

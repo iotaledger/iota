@@ -43,8 +43,7 @@ module {name}::{name};
 // For Move coding conventions, see
 // https://docs.iota.org/developer/iota-101/move-overview/conventions
 
-"#,
-            name = name
+"#
         )?;
 
         create_dir_all(p.join(SourcePackageLayout::Tests.path()))?;
@@ -71,8 +70,7 @@ fun test_{name}() {{
 fun test_{name}_fail() {{
     abort ENotImplemented
 }}
-*/"#,
-            name = name
+*/"#
         )?;
 
         Ok(())

@@ -683,8 +683,7 @@ async fn start(
             ..
         } = PersistedConfig::read(&network_config_path).map_err(|err| {
             err.context(format!(
-                "Cannot open IOTA network config file at {:?}",
-                network_config_path
+                "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
         let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
@@ -731,7 +730,7 @@ async fn start(
     info!("Cluster started");
 
     // the indexer requires a fullnode url with protocol specified
-    let fullnode_url = format!("http://{}", fullnode_url);
+    let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
@@ -907,7 +906,7 @@ async fn genesis(
     // up (if --force/-f option was specified or report an
     // error
     let dir = iota_config_dir.read_dir().map_err(|err| {
-        anyhow!(err).context(format!("Cannot open IOTA config dir {:?}", iota_config_dir))
+        anyhow!(err).context(format!("Cannot open IOTA config dir {iota_config_dir:?}"))
     })?;
     let files = dir.collect::<Result<Vec<_>, _>>()?;
 
@@ -1168,13 +1167,11 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{:?}] with default (Testnet) Full node server and ed25519 key scheme.",
-                wallet_conf_path
+                "Creating config file [{wallet_conf_path:?}] with default (Testnet) Full node server and ed25519 key scheme."
             );
         } else {
             print!(
-                "Config file [{:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?",
-                wallet_conf_path
+                "Config file [{wallet_conf_path:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?"
             );
         }
         if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {

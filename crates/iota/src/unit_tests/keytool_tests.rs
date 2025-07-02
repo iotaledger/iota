@@ -99,7 +99,7 @@ async fn test_read_write_keystore_with_flag() {
     // create Secp256k1 keypair
     let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
     let addr_secp: IotaAddress = (&kp_secp.public()).into();
-    let fp_secp = dir.path().join(format!("{}.key", addr_secp));
+    let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
     // write Secp256k1 keypair to file
@@ -123,7 +123,7 @@ async fn test_read_write_keystore_with_flag() {
     // create Ed25519 keypair
     let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
     let addr_ed: IotaAddress = (&kp_ed.public()).into();
-    let fp_ed = dir.path().join(format!("{}.key", addr_ed));
+    let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
     // write Ed25519 keypair to file
