@@ -14,19 +14,22 @@ import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { useCoinMetadata, useGetAllCoins } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
+import { useAccount } from 'wagmi';
 
 export function DepositLayer1() {
-    const address = useCurrentAccount()?.address as string;
+    const addressL1 = useCurrentAccount()?.address as string;
+    const addressL2 = useAccount().address as `0x${string}`;
     const client = useIotaClient();
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionLoading } =
         useSignAndExecuteTransaction();
+
     const { watch } = useFormContext<DepositFormData>();
     const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
 
-    const { refetch: refetchL2Balance } = useGetAllBalancesL2(address);
+    const { refetch: refetchL2Balance } = useGetAllBalancesL2(addressL2);
 
     // Get all coins of the type
-    const selectedCoinsQuery = useGetAllCoins(selectedCoinType, address);
+    const selectedCoinsQuery = useGetAllCoins(selectedCoinType, addressL1);
     const { data: selectedCoins = [] } = selectedCoinsQuery;
 
     const { data: coinMetadata } = useCoinMetadata(selectedCoinType);

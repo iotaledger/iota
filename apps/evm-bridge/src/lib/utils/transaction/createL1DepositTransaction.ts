@@ -73,10 +73,9 @@ export function createL1DepositTransaction({
     if (!isIotaCoinType) {
         transfers.push([coinType, amount]);
     }
-    console.log('Creating L1 deposit transaction:', transfers);
     iscTx.createAndSendToEvm({
         bag,
-        transfers: transfers,
+        transfers,
         address: receivingAddress,
         accountsContract: getHname(CoreContract.Accounts),
         accountsFunction: getHname(AccountsContractMethod.TransferAllowanceTo),

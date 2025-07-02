@@ -17,17 +17,16 @@ import { formatEther } from 'viem';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
-import { useCurrentAccount } from '@iota/dapp-kit';
 
 export function DepositLayer2() {
     const queryClient = useQueryClient();
     const layer2Account = useAccount();
     const chainId = useChainId();
     const iscContractAddress = (layer2Account?.chain as L2Chain)?.iscContractAddress;
-    const address = useCurrentAccount()?.address as string;
 
-    const { refetch: refetchL2Balance } = useGetAllBalancesL2(address);
-
+    const { refetch: refetchL2Balance } = useGetAllBalancesL2(
+        layer2Account.address as `0x${string}`,
+    );
     const { watch } = useFormContext<DepositFormData>();
     const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
 

@@ -2,8 +2,8 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { useAvailableIotaBalanceL2 } from './useAvailableIotaBalanceL2';
 import { useGetAllBalancesL2 } from './useGetAllBalancesL2';
-import { useCurrentAccount } from '@iota/dapp-kit';
 import { CoinFormat, useFormatCoin } from '@iota/core';
+import { useAccount } from 'wagmi';
 
 export function useAvailableBalanceL2(coinType: string = IOTA_TYPE_ARG): {
     availableBalance: bigint;
@@ -11,7 +11,7 @@ export function useAvailableBalanceL2(coinType: string = IOTA_TYPE_ARG): {
     formattedAvailableBalance: string;
     symbol: string;
 } {
-    const address = useCurrentAccount()?.address as string;
+    const addressL2 = useAccount().address as `0x${string}`;
     const selectedCoinType = coinType;
     // Fetch Layer 2 balance
     const {
@@ -21,12 +21,9 @@ export function useAvailableBalanceL2(coinType: string = IOTA_TYPE_ARG): {
     } = useAvailableIotaBalanceL2();
 
     // Fetch Layer 2 balance for the selected coin type
-    const { data: l1AddressCoinsBalanceInL2, isLoading: isLoadingCoin } =
-        useGetAllBalancesL2(address);
+    const { data: coinBalancesL2, isLoading: isLoadingCoin } = useGetAllBalancesL2(addressL2);
 
-    const selectedCoinData = l1AddressCoinsBalanceInL2?.find(
-        (token) => token.coinType === selectedCoinType,
-    );
+    const selectedCoinData = coinBalancesL2?.find((token) => token.coinType === selectedCoinType);
 
     const selectedCoinBalance = selectedCoinData?.totalBalance
         ? BigInt(selectedCoinData?.totalBalance)

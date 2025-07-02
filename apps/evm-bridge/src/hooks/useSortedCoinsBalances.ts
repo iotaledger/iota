@@ -6,15 +6,17 @@ import { useAvailableIotaBalanceL1 } from './useAvailableIotaBalanceL1';
 import { useAvailableIotaBalanceL2 } from './useAvailableIotaBalanceL2';
 import { useGetAllBalancesL2 } from './useGetAllBalancesL2';
 import { CoinBalance } from '@iota/iota-sdk/client';
+import { useAccount } from 'wagmi';
 
 export const useSortedCoinsBalances = () => {
-    const address = useCurrentAccount()?.address as string;
+    const addressL1 = useCurrentAccount()?.address as string;
+    const addressL2 = useAccount().address as `0x${string}`;
 
     const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
 
     const { availableBalance: availableIotaBalanceL1 } = useAvailableIotaBalanceL1();
 
-    const { data: coinsBalanceL1 } = useGetAllBalances(address);
+    const { data: coinsBalanceL1 } = useGetAllBalances(addressL1);
     const { recognized: recognizedL1, pinned: pinnedL1 } = useSortedCoinsByCategories(
         coinsBalanceL1 || [],
         knownEvmCoins,
@@ -24,9 +26,9 @@ export const useSortedCoinsBalances = () => {
     // Fetch L2 balance for L1 address
     const { availableBalance: availableIotaBalanceL2 } = useAvailableIotaBalanceL2();
 
-    const { data: l1AddressCoinsBalanceInL2 } = useGetAllBalancesL2(address);
+    const { data: coinsBalancesL2 } = useGetAllBalancesL2(addressL2);
     const { recognized: recognizedL2, pinned: pinnedL2 } = useSortedCoinsByCategories(
-        l1AddressCoinsBalanceInL2 || [],
+        coinsBalancesL2 || [],
         knownEvmCoins,
     );
     const sortedCoinsBalanceL2 = [...recognizedL2, ...pinnedL2];
