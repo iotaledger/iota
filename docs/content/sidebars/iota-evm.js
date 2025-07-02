@@ -371,12 +371,12 @@ const iotaEvm = [
                         label: 'Run a Node',
                     },
                     {
-                        id: 'iota-evm/operator/how-tos/wasp-cli',
+                        id: 'developer/iota-evm/operator/how-tos/wasp-cli',
                         label: 'Configure wasp-cli',
                         type: 'doc',
                     },
                     {
-                        id: 'iota-evm/operator/how-tos/chain-management',
+                        id: 'developer/iota-evm/operator/how-tos/chain-management',
                         label: 'Manage a Chain',
                         type: 'doc',
                     },
