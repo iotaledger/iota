@@ -9,7 +9,7 @@
 use futures::StreamExt;
 use iota_sdk::{
     IotaClientBuilder,
-    rpc_types::{IotaTransactionBlockResponseQuery, TransactionFilter},
+    rpc_types::{IotaTransactionBlockResponseQueryV2, TransactionFilterV2},
 };
 
 #[tokio::main]
@@ -19,7 +19,12 @@ async fn main() -> Result<(), anyhow::Error> {
     // Get the latest 5 transaction blocks, so we can use a digest of it as cursor
     let transactions_block_page = client
         .read_api()
-        .query_transaction_blocks(IotaTransactionBlockResponseQuery::default(), None, 5, true)
+        .query_transaction_blocks_v2(
+            IotaTransactionBlockResponseQueryV2::default(),
+            None,
+            5,
+            true,
+        )
         .await?;
 
     // Get the last ~5 transaction blocks as stream (the tx for the digest in the
@@ -27,8 +32,8 @@ async fn main() -> Result<(), anyhow::Error> {
     // new tx(s), so that there are 5 or even more)
     let mut txs = client
         .read_api()
-        .get_transactions_stream(
-            IotaTransactionBlockResponseQuery::default(),
+        .get_transactions_stream_v2(
+            IotaTransactionBlockResponseQueryV2::default(),
             transactions_block_page.data.last().unwrap().digest,
             false,
         )
@@ -41,15 +46,15 @@ async fn main() -> Result<(), anyhow::Error> {
     // Get a tx stream with a TransactionFilter
     let mut txs = client
         .read_api()
-        .get_transactions_stream(
-            IotaTransactionBlockResponseQuery::new_with_filter(
-                TransactionFilter::MoveFunction {
+        .get_transactions_stream_v2(
+            IotaTransactionBlockResponseQueryV2::new_with_filter(
+                TransactionFilterV2::MoveFunction {
                     package: "0x3".parse()?,
                     module: Some("iota_system".into()),
                     function: Some("request_add_stake".into()),
                 },
                 // There are also options for filtering txs, for example by address:
-                // TransactionFilter::FromOrToAddress {
+                // TransactionFilterV2::FromOrToAddress {
                 //     addr: "0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215"
                 //         .parse()?,
                 // },

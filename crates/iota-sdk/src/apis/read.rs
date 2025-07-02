@@ -532,6 +532,22 @@ impl ReadApi {
             .await?)
     }
 
+    /// Get filtered transaction blocks information.
+    /// Results are paginated.
+    pub async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: impl Into<Option<TransactionDigest>>,
+        limit: impl Into<Option<usize>>,
+        descending_order: bool,
+    ) -> IotaRpcResult<TransactionBlocksPage> {
+        Ok(self
+            .api
+            .http
+            .query_transaction_blocks_v2(query, cursor.into(), limit.into(), Some(descending_order))
+            .await?)
+    }
+
     /// Get the first four bytes of the chain's genesis checkpoint digest in hex
     /// format.
     pub async fn get_chain_identifier(&self) -> IotaRpcResult<String> {
@@ -586,6 +602,41 @@ impl ReadApi {
                 } else if (cursor.is_none() && first) || cursor.is_some() {
                     let page = self
                         .query_transaction_blocks(
+                            query.clone(),
+                            cursor,
+                            Some(100),
+                            descending_order,
+                        )
+                        .await
+                        .ok()?;
+                    let mut data = page.data;
+                    data.reverse();
+                    data.pop()
+                        .map(|item| (item, (data, page.next_cursor, false, query)))
+                } else {
+                    None
+                }
+            },
+        )
+    }
+
+    /// Get a stream of transactions.
+    pub fn get_transactions_stream_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: impl Into<Option<TransactionDigest>>,
+        descending_order: bool,
+    ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
+        let cursor = cursor.into();
+
+        stream::unfold(
+            (vec![], cursor, true, query),
+            move |(mut data, cursor, first, query)| async move {
+                if let Some(item) = data.pop() {
+                    Some((item, (data, cursor, false, query)))
+                } else if (cursor.is_none() && first) || cursor.is_some() {
+                    let page = self
+                        .query_transaction_blocks_v2(
                             query.clone(),
                             cursor,
                             Some(100),
