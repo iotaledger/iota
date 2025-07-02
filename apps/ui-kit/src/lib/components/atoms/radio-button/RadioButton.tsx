@@ -33,7 +33,7 @@ function RadioButton({
 
     return (
         <label
-            className={cx('group flex flex-row gap-x-1 text-center', {
+            className={cx('flex flex-row gap-x-1 text-center has-[:disabled]:opacity-40', {
                 disabled: isDisabled,
                 'cursor-pointer': !isDisabled,
             })}
@@ -48,17 +48,13 @@ function RadioButton({
                     checked={isChecked}
                     onChange={onChange}
                     disabled={isDisabled}
-                    className={cx('peer appearance-none disabled:opacity-40')}
+                    className={cx('peer appearance-none')}
                 />
-                <span
-                    className="absolute
-                    text-neutral-40 peer-checked:text-primary-30 peer-disabled:opacity-40 peer-checked:peer-disabled:text-neutral-40 dark:text-neutral-60 dark:peer-checked:peer-disabled:text-neutral-40 [&_svg]:h-6 [&_svg]:w-6
-                "
-                >
+                <span className="radio-icon-color peer-checked:radio-icon-checked-color peer-checked:peer-disabled:radio-icon-checked-disabled-color absolute [&_svg]:h-6 [&_svg]:w-6">
                     <RadioIcon />
                 </span>
             </div>
-            <span className="inline-flex items-center justify-center text-label-lg text-neutral-40 group-[.disabled]:text-opacity-40 dark:text-neutral-60 group-[.disabled]:dark:text-opacity-40">
+            <span className="radio-label-color inline-flex items-center justify-center text-label-lg ">
                 {label}
             </span>
         </label>

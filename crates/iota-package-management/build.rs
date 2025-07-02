@@ -47,7 +47,7 @@ fn generate_system_packages_version_table() -> anyhow::Result<()> {
 
     writeln!(&mut file, "]")?;
 
-    println!("cargo::rerun-if-changed={}", manifest_path);
+    println!("cargo::rerun-if-changed={manifest_path}");
     println!("cargo::rerun-if-changed=build.rs");
     Ok(())
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export const IOTA_PRIMITIVES_COLOR_PALETTE = {
-    primary: {
+    'iota-primary': {
         '0': '#000000',
         '10': '#061244',
         '20': '#182b8a',
@@ -15,7 +15,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#d5e8ff',
         '100': '#ffffff',
     },
-    secondary: {
+    'iota-secondary': {
         '0': '#000000',
         '10': '#051631',
         '20': '#17345f',
@@ -28,7 +28,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#dde9f7',
         '100': '#ffffff',
     },
-    tertiary: {
+    'iota-tertiary': {
         '0': '#000000',
         '10': '#071f22',
         '20': '#18393b',
@@ -41,7 +41,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#c2f1f4',
         '100': '#ffffff',
     },
-    error: {
+    'iota-error': {
         '0': '#000000',
         '10': '#330009',
         '20': '#610012',
@@ -54,7 +54,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#ffd9e0',
         '100': '#ffffff',
     },
-    neutral: {
+    'iota-neutral': {
         '0': '#000000',
         '4': '#0a0f17',
         '6': '#0f141c',
@@ -73,11 +73,110 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '98': '#f8fafc',
         '100': '#ffffff',
     },
-    warning: {
-        '10': '#422C00',
-        '20': '#2D1E00',
+    'iota-warning': {
+        '0': '#000000',
+        '10': '#2D1E00',
+        '20': '#422C00',
+        '30': '#674500',
+        '40': '#8C5D00',
+        '50': '#A47518',
         '60': '#BE8F32',
+        '70': '#D9AA4D',
+        '80': '#F4C568',
         '90': '#FFE3AB',
+        '100': '#FFFFFF',
+    },
+};
+export const IOTA_NAMES_COLOR_PALETTE = {
+    'names-primary': {
+        '0': '#000000',
+        '10': '#061244',
+        '20': '#182b8a',
+        '30': '#3131ff',
+        '40': '#2563f5',
+        '50': '#3f80f0',
+        '60': '#5b9cfe',
+        '70': '#85b5fb',
+        '80': '#adceff',
+        '90': '#d5e8ff',
+        '100': '#ffffff',
+    },
+    'names-secondary': {
+        '0': '#000000',
+        '10': '#051631',
+        '20': '#17345f',
+        '30': '#2d4c7a',
+        '40': '#4b648a',
+        '50': '#637ca2',
+        '60': '#7e97bd',
+        '70': '#96b3d5',
+        '80': '#b6cde8',
+        '90': '#dde9f7',
+        '100': '#ffffff',
+    },
+    'names-tertiary': {
+        '0': '#000000',
+        '10': '#00231F',
+        '20': '#00453D',
+        '30': '#00685C',
+        '40': '#008C7C',
+        '50': '#00AF9B',
+        '60': '#00D7BE',
+        '70': '#17F3D9',
+        '80': '#54FFEB',
+        '90': '#A6FFF4',
+        '100': '#ffffff',
+    },
+    'names-error': {
+        '0': '#000000',
+        '10': '#3D001F',
+        '20': '#620432',
+        '30': '#A30251',
+        '40': '#C90E6A',
+        '50': '#DC2B82',
+        '60': '#E35A9E',
+        '70': '#EF84B9',
+        '80': '#FCADD4',
+        '90': '#FFD7EB',
+        '100': '#ffffff',
+    },
+    'names-neutral': {
+        '0': '#000000',
+        '4': '#0A0D23',
+        '6': '#0F1228',
+        '10': '#181B31',
+        '12': '#20233C',
+        '20': '#2B2E45',
+        '30': '#404359',
+        '40': '#585B71',
+        '50': '#71748B',
+        '60': '#8C8FA5',
+        '70': '#ACAFC5',
+        '80': '#CED1E7',
+        '90': '#DFE2F8',
+        '92': '#E5E8FE',
+        '96': '#F0F2FF',
+        '98': '#F8F9FF',
+        '100': '#ffffff',
+    },
+    'names-gradient': {
+        'stop-1': '#3131FF',
+        'stop-2': '#A139FF',
+        'stop-3': '#14F0D6',
+        'stop-4': '#20233C',
+    },
+    'names-warning': {
+        '0': '#000000',
+        '10': '#2D1E00',
+        '20': '#422C00',
+        '30': '#674500',
+        '40': '#8C5D00',
+        '50': '#A47518',
+        '60': '#BE8F32',
+        '70': '#D9AA4D',
+        '80': '#F4C568',
+        '90': '#FFE3AB',
+        '100': '#FFFFFF',
     },
 };
 

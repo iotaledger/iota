@@ -75,7 +75,7 @@ impl Debug for QuorumDriverTask {
         write!(writer, "has_tx_cert={} ", self.tx_cert.is_some())?;
         write!(writer, "retry_times={} ", self.retry_times)?;
         write!(writer, "next_retry_after={:?} ", self.next_retry_after)?;
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 

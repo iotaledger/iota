@@ -103,8 +103,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             .map(|digest| {
                 CheckpointDigest::try_from(digest.clone()).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
-                        "Failed to decode previous checkpoint digest: {:?} with err: {:?}",
-                        digest, e
+                        "Failed to decode previous checkpoint digest: {digest:?} with err: {e:?}"
                     ))
                 })
             })
@@ -122,8 +121,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
                         Some(tx_digest) => TransactionDigest::try_from(tx_digest.as_slice())
                             .map_err(|e| {
                                 IndexerError::PersistentStorageDataCorruption(format!(
-                                    "Failed to decode transaction digest: {:?} with err: {:?}",
-                                    tx_digest, e
+                                    "Failed to decode transaction digest: {tx_digest:?} with err: {e:?}"
                                 ))
                             }),
                     })
@@ -152,8 +150,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             .map(|data| {
                 bcs::from_bytes(data).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
-                        "Failed to decode end of epoch data: {:?} with err: {:?}",
-                        data, e
+                        "Failed to decode end of epoch data: {data:?} with err: {e:?}"
                     ))
                 })
             })

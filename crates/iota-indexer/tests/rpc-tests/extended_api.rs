@@ -302,7 +302,7 @@ fn get_network_metrics() {
 
         let network_metrics = client.get_network_metrics().await.unwrap();
 
-        println!("{:#?}", network_metrics);
+        println!("{network_metrics:#?}");
     });
 }
 
@@ -351,7 +351,7 @@ fn get_latest_address_metrics() {
 
         let address_metrics = client.get_latest_address_metrics().await.unwrap();
 
-        println!("{:#?}", address_metrics);
+        println!("{address_metrics:#?}");
     });
 }
 
@@ -370,7 +370,7 @@ fn get_checkpoint_address_metrics() {
 
         let address_metrics = client.get_checkpoint_address_metrics(0).await.unwrap();
 
-        println!("{:#?}", address_metrics);
+        println!("{address_metrics:#?}");
     });
 }
 
@@ -389,7 +389,7 @@ fn get_all_epoch_address_metrics() {
 
         let address_metrics = client.get_all_epoch_address_metrics(None).await.unwrap();
 
-        println!("{:#?}", address_metrics);
+        println!("{address_metrics:#?}");
     });
 }
 

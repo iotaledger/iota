@@ -186,7 +186,7 @@ impl BasicOutput {
     /// Create a `BasicOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize BasicOutput object: {:?}", err),
+            error: format!("Unable to deserialize BasicOutput object: {err:?}"),
         })
     }
 
@@ -238,7 +238,7 @@ impl TryFrom<&Object> for BasicOutput {
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not a BasicOutput: {:?}", object),
+            error: format!("Object type is not a BasicOutput: {object:?}"),
         })
     }
 }

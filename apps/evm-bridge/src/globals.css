@@ -1,0 +1,17 @@
+@import '@iota/apps-ui-kit/styles';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root.dark {
+    @apply bg-iota-neutral-4;
+}
+
+:root.light {
+    @apply bg-iota-neutral-98;
+}
+
+a {
+    @apply text-iota-primary-30 dark:text-iota-primary-80;
+}

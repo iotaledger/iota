@@ -167,6 +167,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                         NetworkMetadata {
                             network_address: validator.iota_net_address.clone(),
                             primary_address: validator.primary_address.clone(),
+                            network_public_key: Some(validator.network_pubkey.clone()),
                         },
                     ),
                 )

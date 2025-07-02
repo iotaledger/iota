@@ -419,20 +419,18 @@ impl NodeConfig {
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
         match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for protocol key",
-                other
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
+            }
         }
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for network key",
-                other
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
+            }
         }
     }
 
@@ -1004,7 +1002,9 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: Some(GenesisLocation::InPlace { genesis }),
+            location: Some(GenesisLocation::InPlace {
+                genesis: Box::new(genesis),
+            }),
             genesis: Default::default(),
         }
     }
@@ -1042,7 +1042,7 @@ impl Genesis {
 #[serde(untagged)]
 enum GenesisLocation {
     InPlace {
-        genesis: genesis::Genesis,
+        genesis: Box<genesis::Genesis>,
     },
     File {
         #[serde(rename = "genesis-file-location")]
@@ -1109,7 +1109,7 @@ impl KeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
-                            panic!("invalid keypair file at path {:?}: {e}", path)
+                            panic!("invalid keypair file at path {path:?}: {e}")
                         }),
                     )
                 }

@@ -21,7 +21,9 @@ use serde::{Deserialize, Serialize};
 
 use super::base_types::*;
 use crate::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKey, random_committee_key_pairs_of_size},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, random_committee_key_pairs_of_size,
+    },
     error::{IotaError, IotaResult},
     multiaddr::Multiaddr,
 };
@@ -369,6 +371,7 @@ pub trait CommitteeTrait<K: Ord> {
 pub struct NetworkMetadata {
     pub network_address: Multiaddr,
     pub primary_address: Multiaddr,
+    pub network_public_key: Option<NetworkPublicKey>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

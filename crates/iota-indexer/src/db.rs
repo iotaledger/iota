@@ -135,8 +135,7 @@ pub fn new_connection_pool(
 pub fn get_pool_connection(pool: &ConnectionPool) -> Result<PoolConnection, IndexerError> {
     pool.get().map_err(|e| {
         IndexerError::PgPoolConnection(format!(
-            "Failed to get connection from PG connection pool with error: {:?}",
-            e
+            "Failed to get connection from PG connection pool with error: {e:?}"
         ))
     })
 }
