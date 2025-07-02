@@ -2325,7 +2325,7 @@ impl AuthorityState {
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
             match self.get_owner_at_version(&id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={:?}, error processing object owner index, cannot find owner for object {:?} at version {:?}. Err: {:?}", tx_digest, id, old_version, e),
+                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}. Err: {e:?}"),
             ) {
                 Owner::AddressOwner(addr) => deleted_owners.push((addr, id)),
                 Owner::ObjectOwner(object_id) => {
@@ -2345,8 +2345,7 @@ impl AuthorityState {
             if let WriteKind::Mutate = kind {
                 let Some(old_version) = modified_at_version.get(id) else {
                     panic!(
-                        "tx_digest={:?}, error processing object owner index, cannot find modified at version for mutated object [{id}].",
-                        tx_digest
+                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
                     );
                 };
                 // When we process the index, the latest object hasn't been written yet so
@@ -2356,8 +2355,7 @@ impl AuthorityState {
                     .get_object_by_key(id, *old_version)?
                 else {
                     panic!(
-                        "tx_digest={:?}, error processing object owner index, cannot find owner for object {:?} at version {:?}",
-                        tx_digest, id, old_version
+                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}"
                     );
                 };
                 if old_object.owner != owner {
@@ -2378,7 +2376,7 @@ impl AuthorityState {
                     // TODO: We can remove the object fetching after we added ObjectType to
                     // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={:?}, error processing object owner index, written does not contain object {:?}", tx_digest, id)
+                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
                     );
                     assert_eq!(
                         new_object.version(),
@@ -2409,7 +2407,7 @@ impl AuthorityState {
                 }
                 Owner::ObjectOwner(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={:?}, error processing object owner index, written does not contain object {:?}", tx_digest, id)
+                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
                     );
                     assert_eq!(
                         new_object.version(),
@@ -2783,12 +2781,11 @@ impl AuthorityState {
         info!("supported versions are: {:?}", supported_protocol_versions);
         if !supported_protocol_versions.is_version_supported(current_version) {
             let msg = format!(
-                "Unsupported protocol version. The network is at {:?}, but this IotaNode only supports: {:?}. Shutting down.",
-                current_version, supported_protocol_versions,
+                "Unsupported protocol version. The network is at {current_version:?}, but this IotaNode only supports: {supported_protocol_versions:?}. Shutting down.",
             );
 
             error!("{}", msg);
-            eprintln!("{}", msg);
+            eprintln!("{msg}");
 
             #[cfg(not(msim))]
             std::process::exit(1);
@@ -3118,8 +3115,7 @@ impl AuthorityState {
                     .perform_index_db_checkpoints_at_epoch_end
                     .unwrap_or(false);
                 let current_epoch = cur_epoch_store.epoch();
-                let epoch_checkpoint_path =
-                    checkpoint_path.join(format!("epoch_{}", current_epoch));
+                let epoch_checkpoint_path = checkpoint_path.join(format!("epoch_{current_epoch}"));
                 self.checkpoint_all_dbs(
                     &epoch_checkpoint_path,
                     cur_epoch_store,
@@ -3243,8 +3239,7 @@ impl AuthorityState {
         if is_inconsistent {
             if panic {
                 panic!(
-                    "Inconsistent state detected: root state hash: {:?}, live object set hash: {:?}",
-                    root_state_hash, live_object_set_hash
+                    "Inconsistent state detected: root state hash: {root_state_hash:?}, live object set hash: {live_object_set_hash:?}"
                 );
             } else {
                 error!(

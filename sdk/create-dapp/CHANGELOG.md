@@ -1,5 +1,17 @@
 # @iota/create-dapp
 
+## 0.3.10
+
+### Patch Changes
+
+-   ecea738: Remove prePublish npm script from create-dapp
+-   Updated dependencies [f04033d]
+-   Updated dependencies [59342b2]
+-   Updated dependencies [ea2b889]
+-   Updated dependencies [ecea738]
+    -   @iota/iota-sdk@1.4.0
+    -   @iota/dapp-kit@0.5.0
+
 ## 0.3.9
 
 ### Patch Changes

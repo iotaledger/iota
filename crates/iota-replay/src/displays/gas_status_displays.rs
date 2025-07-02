@@ -42,7 +42,7 @@ fn per_object_storage_table(f: &mut Formatter, iota_gas_status: &GasStatusV1) ->
         1,
         TableStyle::modern().get_horizontal(),
     )]));
-    write!(f, "\n{}\n", table)
+    write!(f, "\n{table}\n")
 }
 
 fn display_info(f: &mut Formatter<'_>, iota_gas_status: &GasStatusV1) -> std::fmt::Result {
@@ -75,5 +75,5 @@ fn display_info(f: &mut Formatter<'_>, iota_gas_status: &GasStatusV1) -> std::fm
     let mut table = builder.build();
     table.with(TableStyle::rounded());
 
-    write!(f, "\n{}\n", table)
+    write!(f, "\n{table}\n")
 }

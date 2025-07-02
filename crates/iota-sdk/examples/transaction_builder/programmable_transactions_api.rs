@@ -76,7 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
     print!("Executing the transaction...");
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
     print!("done\n Transaction information: ");
-    println!("{:?}", transaction_response);
+    println!("{transaction_response:?}");
 
     let coins = client
         .coin_read_api()

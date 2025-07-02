@@ -1,0 +1,168 @@
+---
+title: Create a Dynamic Notarization
+sidebar_label: Create a Dynamic Notarization
+description: Create a Dynamic Notarization and publish it to an IOTA network.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - dynamic-notarization
+  - how-to
+---
+
+## Create a Dynamic Notarization
+
+This guide will walk you through the process of creating a Dynamic Notarization and publishing it to an IOTA network. Dynamic notarizations are mutable, allowing you to update their state and metadata after creation, and they can be transferred between addresses.
+
+### 1. Get Funds to cover the gas costs
+
+To create a Dynamic Notarization, you will need to have an IOTA network node running. You will also need an address with enough funds to cover the gas cost of the whole procedure.
+
+In test networks as well as local ones, you can use a faucet to request funds.
+
+:::tip
+
+If you want to use the main IOTA network,
+you will need an address with actual IOTA funds to create a new Dynamic Notarization.
+
+:::
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Simple Dynamic Notarization
+
+The simplest form of a Dynamic Notarization can be created without any locks, making it fully mutable and transferable.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L20-L32
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const { output: notarization } = await notarizationClient
+    .createDynamic()
+    // Control the type of State data by choosing one of the `with...State` functions below.
+    // Uncomment or comment the following lines to choose between string or byte State data.
+    //
+    // .withStringState("Live document content", "Version 1.0")
+    // .withBytesState(utf8Encode.encode("Live document content"), "Version 1.0")
+    .withBytesState(Uint8Array.from([14, 255, 0, 125, 64, 87, 11, 114, 108, 100]), "Version 1.0")
+    .withImmutableDescription("This can not be changed any more")
+    .withUpdatableMetadata("This can be updated")
+    .finish()
+    .buildAndExecute(notarizationClient);
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Create a Dynamic Notarization with Transfer Lock
+
+You can also create a Dynamic Notarization with a transfer lock to prevent transfers until a specified time.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L43-L53
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L21-L34
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Publish the Dynamic Notarization
+
+To publish the Dynamic Notarization, you will need to call the `build_and_execute` method.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L29-L32
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L33-L34
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### End Result
+
+The end result will be a `Dynamic Notarization` object that is published to the IOTA network. Unlike locked notarizations, dynamic notarizations can be:
+
+- **Updated**: State and metadata can be modified after creation
+- **Transferred**: Ownership can be transferred to other addresses (unless transfer-locked)
+- **Versioned**: Each state update increments the version counter
+
+## Transfer Lock Types
+
+Dynamic notarizations support optional transfer locks:
+
+- **None**: No transfer restrictions (default)
+- **UnlockAt(timestamp)**: Locked until specified timestamp
+- **UntilDestroyed**: Locked until notarization is destroyed
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup. 

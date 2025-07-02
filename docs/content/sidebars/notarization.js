@@ -1,0 +1,72 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+const notarization = [
+    'developer/iota-notarization/index',
+    {
+        type: 'category',
+        label: 'Getting Started',
+        collapsed: false,
+        items: [
+            'developer/iota-notarization/getting-started/rust',
+            'developer/iota-notarization/getting-started/wasm',
+            'developer/iota-notarization/getting-started/local-network-setup',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Explanations',
+        items: [
+            'developer/iota-notarization/explanations/about-notarization',
+            'developer/iota-notarization/explanations/dynamic-notarization',
+            'developer/iota-notarization/explanations/locked-notarization',
+            'developer/iota-notarization/explanations/notarization-comparison',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'How To',
+        items: [
+            {
+                type: 'category',
+                label: 'Dynamic Notarizations',
+                items: [
+                    'developer/iota-notarization/how-tos/dynamic-notarizations/create',
+                    'developer/iota-notarization/how-tos/dynamic-notarizations/update-state',
+                    'developer/iota-notarization/how-tos/dynamic-notarizations/update-metadata',
+                    'developer/iota-notarization/how-tos/dynamic-notarizations/transfer',
+                    'developer/iota-notarization/how-tos/dynamic-notarizations/destroy',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Locked Notarizations',
+                items: [
+                    'developer/iota-notarization/how-tos/locked-notarizations/create',
+                    'developer/iota-notarization/how-tos/locked-notarizations/destroy',
+                ],
+            },
+            'developer/iota-notarization/how-tos/access-read-only-methods',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'References',
+        collapsed: true,
+        items: [
+            {
+                type: 'category',
+                label: 'API',
+                items: [
+                    {
+                        type: 'link',
+                        label: 'Rust',
+                        href: 'https://iotaledger.github.io/notarization/notarization/index.html',
+                    },
+                ],
+            },
+        ],
+    },
+    'developer/iota-notarization/contribute',
+];
+
+module.exports = notarization;
