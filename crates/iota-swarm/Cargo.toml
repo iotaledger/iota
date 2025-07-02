@@ -29,6 +29,7 @@ iota-network-stack.workspace = true
 iota-node.workspace = true
 iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
+iota-tls.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 

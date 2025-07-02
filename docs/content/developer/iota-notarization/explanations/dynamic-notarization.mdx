@@ -1,0 +1,62 @@
+---
+title: Dynamic Notarization
+description: An explanation of the IOTA Dynamic Notarization method for evolving data.
+teams:
+  - iotaledger/identity
+tags:
+ - explanation
+ - notarization
+ - dynamic-notarization
+---
+
+# Dynamic Notarization
+
+**Dynamic Notarization** is the method within the IOTA Notarization suite designed for data that evolves over time. Unlike Locked Notarization, which prioritizes permanent immutability, the Dynamic method emphasizes on-chain data availability and continuous updates. This ensures that verifiers can always access the most recent version of the data directly from the IOTA network.
+
+This model is ideal for applications where continuous, real-time access to current data is critical. The system relies on the Prover's intrinsic motivation to keep the latest state accurate, rather than on enforced immutability.
+
+---
+## Core Characteristics
+
+While all Notarization objects share a common underlying structure, the `Dynamic` method configures it for maximum flexibility. Its key characteristics are:
+
+-   **Mutable State & High Availability**
+    The owner can update the object's `state` at any time. When an update occurs, the new state completely overwrites the previous one on-chain, ensuring that only the **Latest State** is visible. The `Latest State` is composed of the `Stored Data` and optional `State Metadata`, which can only be updated together in a single function call. This design choice guarantees high data availability for the most current information, as verifiers do not need to parse a history of changes to find the relevant record. This is the primary difference from [Locked Notarization](./locked-notarization.mdx), which is immutable.
+
+-   **Version Tracking & Verification**
+    Every time the state is updated, a `state_version_count` is automatically incremented. This, along with the `last_state_change_at` timestamp, forms the object's `Calculated Metadata`. This mechanism is crucial for verification and is unique to the Dynamic method. To prevent validating against stale data, a verifier must first confirm that the `State Version Count` they received from the Prover matches the current count on the network before comparing the data hashes.
+
+-   **Transferable Ownership & Timelocks**
+    Control over a Dynamic Notarization can be transferred to another party, allowing for changes in ownership or management responsibilities. This is in direct contrast to a [Locked Notarization](./locked-notarization.mdx), which is non-transferable. This capability can be optionally restricted by a **Transfer Timelock**, a time-locking period during which the Ledger Object cannot be transferred. This is useful for scenarios where control should be temporarily fixed, such as during an audit or a contractual waiting period.
+
+-   **Flexible Metadata Structure**
+    All Notarizations feature a three-tiered metadata system, which the Dynamic method utilizes for flexibility:
+    -   **Immutable Description**: An optional string set once at the time of creation to describe the object's purpose. It cannot be changed in any notarization method.
+    -   **State Metadata**: An optional string that is bundled with the `State` and can only be updated when the state itself is updated. It's useful for describing the specific version of the data (e.g., "Document Revision 2.1").
+    -   **Updatable Metadata**: An optional, arbitrary string that can be modified independently of the core `state` at any time. Updating this field provides additional useful information (like a status note or a reference URL) without affecting the `state_version_count`. In a [Locked Notarization](./locked-notarization.mdx), this field is write-once.
+
+-   **Refundable Storage Deposit**
+    Like any object on the IOTA ledger, a Dynamic Notarization requires a storage deposit to be stored on-chain. This deposit is fully refundable to the owner when the object is eventually deleted.
+
+---
+## The `DynamicNotarization` Object in Practice
+
+A Dynamic Notarization is not a separate Move object but rather an instance of the core `Notarization` object where the `method` field is set to `NotarizationMethod::Dynamic`.
+
+This configuration enforces specific invariants within the `ImmutableMetadata` struct to ensure it behaves correctly:
+-   The `update_lock` and `delete_lock` fields within its `LockMetadata` must be set to `TimeLock::None`.
+-   The only lock that is permitted is the `transfer_lock`. If no `transfer_lock` is needed, the entire `locking` field within `ImmutableMetadata` is set to `None`.
+
+---
+## Use Cases and Applications
+
+The properties of Dynamic Notarization make it particularly suitable for scenarios where the most current information is the single source of truth.
+
+-   **Public Registries and Revocation Lists**
+    For applications like managing an identity revocation list, only the most recent version of the list is relevant. Dynamic Notarization provides a stable `ObjectId` that always points to the current list, allowing applications to reliably check for revocations without needing to parse a history of changes.
+
+-   **Evolving Metadata for Digital Product Passports (DPPs)**
+    A physical asset or component may have metadata that changes over its lifecycle, such as its current status, custodian, or recent maintenance events. Dynamic Notarization allows the DPP to have a single, updatable on-chain record that always reflects the asset's latest information. For example, the `State` could be a JSON object `{"status": "in-transit", "custodian": "xyz-logistics"}` parsed as a `String`. When the item arrives at its destination, the owner updates the state to `{"status": "in-warehouse", "custodian": "abc-inc"}`. The `ObjectId` remains the same, always providing the current status to any interested party.
+
+-   **Living Documents and Version Control**
+    For documents that undergo multiple revisions, such as legal agreements, technical specifications, or policies, Dynamic Notarization can be used to always point to the latest approved version. Stakeholders can reference a single `ObjectId` to be certain they are viewing the current version of the document, with the `state_version_count` providing a clear indicator of how many official revisions have been logged on-chain.
