@@ -12,7 +12,7 @@ use std::{
 use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
-use fastcrypto_tbls::{dkg, nodes::PartyId};
+use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
@@ -631,7 +631,7 @@ pub struct AuthorityEpochTables {
 
     /// Records the final output of DKG after completion, including the public
     /// VSS key and any local private shares.
-    pub(crate) dkg_output: DBMap<u64, dkg::Output<PkG, EncG>>,
+    pub(crate) dkg_output: DBMap<u64, dkg_v1::Output<PkG, EncG>>,
 
     /// Holds the value of the next RandomnessRound to be generated.
     pub(crate) randomness_next_round: DBMap<u64, RandomnessRound>,
@@ -1918,18 +1918,6 @@ impl AuthorityPerEpochStore {
             .expect("deferred transactions should not be read past end of epoch")
             .deferred_transactions
             .is_empty()
-    }
-
-    /// Check whether certificate was processed by consensus.
-    /// For shared lock certificates, if this function returns true means shared
-    /// locks for this certificate are set
-    pub fn is_tx_cert_consensus_message_processed(
-        &self,
-        certificate: &CertifiedTransaction,
-    ) -> IotaResult<bool> {
-        self.is_consensus_message_processed(&SequencedConsensusTransactionKey::External(
-            ConsensusTransactionKey::Certificate(*certificate.digest()),
-        ))
     }
 
     /// Check whether any certificates were processed by consensus.
@@ -4025,7 +4013,7 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg::Output<PkG, EncG>>,
+    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
 
     // jwk state
     pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
@@ -4117,7 +4105,7 @@ impl ConsensusCommitOutput {
         self.dkg_used_message = Some(used_messages);
     }
 
-    pub fn set_dkg_output(&mut self, output: dkg::Output<PkG, EncG>) {
+    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
         self.dkg_output = Some(output);
     }
 

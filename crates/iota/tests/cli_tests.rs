@@ -3464,20 +3464,28 @@ async fn key_identity_test() {
     // by alias
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Alias(alias)), context).unwrap()
+        get_identity_address(Some(KeyIdentity::Alias(alias)), context)
+            .await
+            .unwrap()
     );
     // by address
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Address(address)), context).unwrap()
+        get_identity_address(Some(KeyIdentity::Address(address)), context)
+            .await
+            .unwrap()
     );
     // alias does not exist
-    assert!(get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context).is_err());
+    assert!(
+        get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context)
+            .await
+            .is_err()
+    );
 
     // get active address instead when no alias/address is given
     assert_eq!(
         context.active_address().unwrap(),
-        get_identity_address(None, context).unwrap()
+        get_identity_address(None, context).await.unwrap()
     );
 }
 
@@ -4768,14 +4776,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     --make-move-vec <u8> "[1]"
     "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Input]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
 
@@ -4786,14 +4796,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
         --make-move-vec <u8> "[1]"
         "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Events]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Events]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
     // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
