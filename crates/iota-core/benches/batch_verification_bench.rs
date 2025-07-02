@@ -130,7 +130,7 @@ fn batch_verification_bench(c: &mut Criterion) {
 
             group.throughput(Throughput::Elements(batch_size));
             group.bench_with_input(
-                BenchmarkId::from_parameter(format!("size={} errors={}", batch_size, num_errors)),
+                BenchmarkId::from_parameter(format!("size={batch_size} errors={num_errors}")),
                 &batch_size,
                 |b, batch_size| {
                     assert_eq!(certs.len() as u64, *batch_size);

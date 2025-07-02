@@ -146,8 +146,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
 
                 let error_list = new_errors.join(", ");
                 let error_msg = format!(
-                    "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.",
-                    error_list
+                    "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {error_list}."
                 );
 
                 RestError::new(StatusCode::BAD_REQUEST, error_msg)

@@ -762,8 +762,7 @@ async fn test_transaction(
         assert_eq!(
             IotaExecutionStatus::Success,
             *effects.status(),
-            "TX execution failed for {:#?}",
-            data
+            "TX execution failed for {data:#?}"
         );
     } else {
         assert!(matches!(
@@ -784,8 +783,7 @@ async fn test_transaction(
     }
     assert_eq!(
         actual_balance_change, balances_from_ops,
-        "balance check failed for tx: {}\neffect:{:#?}",
-        tx, effects
+        "balance check failed for tx: {tx}\neffect:{effects:#?}"
     );
     response
 }

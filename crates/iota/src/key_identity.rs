@@ -50,7 +50,7 @@ impl Display for KeyIdentity {
             #[cfg(feature = "iota-names")]
             KeyIdentity::Name(x) => x.to_string(),
         };
-        write!(f, "{}", v)
+        write!(f, "{v}")
     }
 }
 

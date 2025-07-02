@@ -89,10 +89,10 @@ impl ExecutionSandboxState {
         if self.transaction_info.effects != self.local_exec_effects {
             error!("Replay tool forked {}", self.transaction_info.tx_digest);
             let diff = self.diff_effects();
-            println!("{}", diff);
+            println!("{diff}");
             return Err(ReplayEngineError::EffectsForked {
                 digest: self.transaction_info.tx_digest,
-                diff: format!("\n{}", diff),
+                diff: format!("\n{diff}"),
                 on_chain: Box::new(self.transaction_info.effects.clone()),
                 local: Box::new(self.local_exec_effects.clone()),
             });
@@ -104,8 +104,8 @@ impl ExecutionSandboxState {
     pub fn diff_effects(&self) -> String {
         let eff1 = &self.transaction_info.effects;
         let eff2 = &self.local_exec_effects;
-        let on_chain_str = format!("{:#?}", eff1);
-        let local_chain_str = format!("{:#?}", eff2);
+        let on_chain_str = format!("{eff1:#?}");
+        let local_chain_str = format!("{eff2:#?}");
         let mut res = vec![];
 
         let diff = TextDiff::from_lines(&on_chain_str, &local_chain_str);
@@ -115,7 +115,7 @@ impl ExecutionSandboxState {
                 ChangeTag::Insert => "+++",
                 ChangeTag::Equal => "   ",
             };
-            res.push(format!("{}{}", sign, change));
+            res.push(format!("{sign}{change}"));
         }
 
         res.join("")
@@ -1401,8 +1401,7 @@ impl LocalExec {
                     .checkpoint
                     .unwrap_or_else(|| {
                         panic!(
-                            "Checkpoint for transaction {} not present. Could be due to pruning",
-                            epoch_change_tx
+                            "Checkpoint for transaction {epoch_change_tx} not present. Could be due to pruning"
                         )
                     }),
                 idx,
@@ -1421,8 +1420,7 @@ impl LocalExec {
             .checkpoint
             .unwrap_or_else(|| {
                 panic!(
-                    "Checkpoint for transaction {} not present. Could be due to pruning",
-                    next_epoch_change_tx
+                    "Checkpoint for transaction {next_epoch_change_tx} not present. Could be due to pruning"
                 )
             });
 

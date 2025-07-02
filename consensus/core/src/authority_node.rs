@@ -162,8 +162,7 @@ where
     ) -> Self {
         assert!(
             committee.is_valid_index(own_index),
-            "Invalid own index {}",
-            own_index
+            "Invalid own index {own_index}"
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
@@ -548,8 +547,7 @@ mod tests {
                     for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
                         assert!(
                             expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
+                            "Transaction not submitted or already seen: {txn:?}"
                         );
                     }
                 }
@@ -647,8 +645,7 @@ mod tests {
                     for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
                         assert!(
                             expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
+                            "Transaction not submitted or already seen: {txn:?}"
                         );
                     }
                 }

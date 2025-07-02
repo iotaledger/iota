@@ -80,7 +80,7 @@ impl StateSnapshotReaderV1 {
         download_concurrency: NonZeroUsize,
         multi_progress_bar: MultiProgress,
     ) -> Result<Self> {
-        let epoch_dir = format!("epoch_{}", epoch);
+        let epoch_dir = format!("epoch_{epoch}");
         let remote_object_store = if remote_store_config.no_sign_request {
             remote_store_config.make_http()?
         } else {
@@ -258,7 +258,7 @@ impl StateSnapshotReaderV1 {
                         .or_insert(hasher.finalize().digest);
                 }
                 checksum_progress_bar.inc(1);
-                checksum_progress_bar.set_message(format!("Bucket: {}, Part: {}", bucket, part));
+                checksum_progress_bar.set_message(format!("Bucket: {bucket}, Part: {part}"));
             }
         }
         checksum_progress_bar.finish_with_message("Checksumming complete");
@@ -309,8 +309,7 @@ impl StateSnapshotReaderV1 {
                     num_partitions as f64 / a_instant.elapsed().as_secs_f64();
                 cloned_accum_progress_bar.set_position(num_partitions);
                 cloned_accum_progress_bar.set_message(format!(
-                    "file partitions per sec: {}",
-                    total_partitions_per_sec
+                    "file partitions per sec: {total_partitions_per_sec}"
                 ));
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }

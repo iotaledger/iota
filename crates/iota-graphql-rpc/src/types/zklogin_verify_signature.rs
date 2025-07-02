@@ -182,5 +182,5 @@ pub(crate) async fn verify_zklogin_signature(
 
 /// Format the error message for failed JWK read.
 fn as_jwks_read_error(e: String) -> Error {
-    Error::Internal(format!("Failed to read JWK from system object 0x7: {}", e))
+    Error::Internal(format!("Failed to read JWK from system object 0x7: {e}"))
 }

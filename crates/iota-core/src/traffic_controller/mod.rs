@@ -95,7 +95,7 @@ impl TrafficController {
                     .into_iter()
                     .map(|ip_str| {
                         parse_ip(&ip_str).unwrap_or_else(|| {
-                            panic!("Failed to parse allowlist IP address: {:?}", ip_str)
+                            panic!("Failed to parse allowlist IP address: {ip_str:?}")
                         })
                     })
                     .collect();
@@ -688,9 +688,9 @@ impl TrafficSim {
                     "Running naive traffic simulation for {} seconds",
                     duration.as_secs()
                 );
-                println!("Policy: {:#?}", policy);
-                println!("Num clients: {}", num_clients);
-                println!("TPS per client: {}", per_client_tps);
+                println!("Policy: {policy:#?}");
+                println!("Num clients: {num_clients}");
+                println!("TPS per client: {per_client_tps}");
                 println!(
                     "Target total TPS: {}",
                     per_client_tps * num_clients as usize
@@ -828,7 +828,7 @@ impl TrafficSim {
         let avg_first_block_time = metrics
             .time_to_first_block
             .map(|ttf| ttf / num_clients as u32);
-        println!("Average time to first block: {:?}", avg_first_block_time);
+        println!("Average time to first block: {avg_first_block_time:?}");
         // This is the time it took for the first request to be blocked across all
         // clients, and is instead more useful for understanding false positives
         // in terms of rate and magnitude.
