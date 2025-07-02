@@ -3542,13 +3542,27 @@ impl AuthorityPerEpochStore {
                                 authority_metrics
                                     .consensus_handler_congested_transactions
                                     .inc();
+
+                                // FIX: roman: call suggested gas price calculator here
+                                let current_commit_suggested_gas_price = self.reference_gas_price();
+                                let suggested_gas_price =
+                                    previously_deferred_tx_digests
+                                        .get(certificate.digest())
+                                        .map_or_else(
+                                            || current_commit_suggested_gas_price,
+                                            |deferral_key_suggested_gas_price_pair| {
+                                                deferral_key_suggested_gas_price_pair.1.expect(
+                                                "Suggested gas price for previously deferred \
+                                                    deferred due to congestion must not be None",
+                                            ).min(current_commit_suggested_gas_price)
+                                            },
+                                        );
+
                                 if transaction_deferral_within_limit(
                                     &deferral_key,
                                     self.protocol_config()
                                         .max_deferral_rounds_for_congestion_control(),
                                 ) {
-                                    // FIX: roman: call suggested gas price calculator here
-                                    let suggested_gas_price = self.reference_gas_price();
                                     ConsensusCertificateResult::Deferred {
                                         deferral_key,
                                         suggested_gas_price_as_opt: Some(suggested_gas_price),
@@ -3565,6 +3579,7 @@ impl AuthorityPerEpochStore {
                                         certificate,
                                         CancelConsensusCertificateReason::CongestionOnObjects(
                                             congested_objects,
+                                            // FIX: roman: suggested_gas_price
                                         ),
                                     ))
                                 }
