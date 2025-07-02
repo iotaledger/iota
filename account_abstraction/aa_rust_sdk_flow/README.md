@@ -1,6 +1,6 @@
 # Account Abstraction Rust SDK Flow (IOTA)
 
-This project demonstrates a Account Abstraction (AA) lifecycle on the IOTA network using the Rust SDK and programmable Move smart contracts. 
+This project demonstrates the Account Abstraction (AA) lifecycle - specifically Smart Account creation, withdrawal, and deletion - on the IOTA network using the Rust SDK and programmable Move smart contracts.
 
 ### It showcases how to:
 1. Setup multi-signature accounts.
@@ -25,8 +25,8 @@ This project demonstrates a Account Abstraction (AA) lifecycle on the IOTA netwo
 ## Execution Flow
 
 1. Initialize IOTA Client and Keystore
-    Connect to a localnet.
-    Create in-memory key store and derive Alice and Bob accounts from mnemonic.
+    - Connect to a localnet.
+    - Create in-memory key store and derive Alice and Bob accounts from mnemonic.
 
 2. Build Multisig Address
     Use both public keys with custom WEIGHTS and THRESHOLD to derive a shared multisig address.
@@ -35,44 +35,44 @@ This project demonstrates a Account Abstraction (AA) lifecycle on the IOTA netwo
     Request initial tokens for Alice, Bob, and the multisig address.
 
 4. Publish AA Move Package
-    Compile and deploy Move smart contracts from `../aa_move` using the multisig address as payer.
-    Store returned package_id for later usage.
+    - Compile and deploy Move smart contracts from `../aa_move` using the multisig address as payer.
+    - Store returned package_id for later usage.
 
 5. Initialize SmartAccount
-    Call `init_multisig_smart_account` from the deployed Move package.
+    - Call `init_multisig_smart_account` from the deployed Move package.
     Creates and returns two Move objects:
-        - SmartAccount - shared object.
-        - OwnerCap - capability object used for privileged calls like withdraw or delete.
+    - SmartAccount - shared object.
+    - OwnerCap - capability object used for privileged calls like withdraw or delete.
 
 6. Deposit Funds to SmartAccount
-    Transfer a coin from Alice to the SmartAccount.
-    Then call `receive_deposit()` to complete the ownership transfer.
+    - Transfer a coin from Alice to the SmartAccount.
+    - Then call `receive_deposit()` to complete the ownership transfer.
 
 7. Prepare a Withdraw Transaction
-    Build a programmable withdrawal transaction to send tokens from the SmartAccount to an external recipient.
-    Package it as `TransactionData` and derive a `transaction digest`.
+    - Build a programmable withdrawal transaction to send tokens from the SmartAccount to an external recipient.
+    - Package it as `TransactionData` and derive a `transaction digest`.
 
 8. Propose Transaction On-Chain
     Submit a ProposedTx Move object to chain including:
-        - digest
-        - raw transaction bytes
-        - threshold
+    - digest
+    - raw transaction bytes
+    - threshold
 
 9. Sign Proposed Transaction
-    Each signer (Alice and Bob) registers their signature on-chain by calling `sign_proposed_tx()`.
-    After reaching the threshold, a SignedTx object is created automatically.
+    - Each signer (Alice and Bob) registers their signature on-chain by calling `sign_proposed_tx()`.
+    - After reaching the threshold, a SignedTx object is created automatically.
 
 10. Extract and Execute the SignedTx
     Download the SignedTx object, decode it to reconstruct:
-        - Original `TransactionData`
-        - Multisignature (combined from individual `GenericSignatures`)
-        - Execute the final transaction using `execute_transaction_block()` with the multisig + proposer's signature.
+    - Original `TransactionData`
+    - Multisignature (combined from individual `GenericSignatures`)
+    - Execute the final transaction using `execute_transaction_block()` with the multisig + proposer's signature.
 
 11. Check Result
-    Verify recipient address received the expected amount.
+    - Verify recipient address received the expected amount.
 
 12. Delete SmartAccount
-    Initiated by Bob, co-signed by Alice.
+    - Initiated by Bob, co-signed by Alice.
     Calls `delete_multisig_smart_account()` to:
-        - delete SmartAccount and OwnerCap
-        - reclaim coins to Bob's account
+    - delete SmartAccount and OwnerCap
+    - reclaim coins to Bob's account
