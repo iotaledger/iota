@@ -189,8 +189,14 @@ pub enum ConsensusCertificateResult {
         start_time: ExecutionTime,
     },
     /// The transaction should be re-processed at a future commit, specified by
-    /// the DeferralKey
-    Deferred(DeferralKey),
+    /// `deferral_key`. `suggested_gas_price` indicates a gas price that the
+    /// certificate would need to pay to be scheduled in a consensus commit.
+    /// For certificates deferred due to randomness not available, the
+    /// `suggested_gas_price` price field will be set to `None`.
+    Deferred {
+        deferral_key: DeferralKey,
+        suggested_gas_price: Option<u64>,
+    },
     /// A message was processed which updates randomness state.
     RandomnessConsensusMessage,
     /// Everything else, e.g. AuthorityCapabilities, CheckpointSignatures, etc.
@@ -3147,7 +3153,8 @@ impl AuthorityPerEpochStore {
                     notifications.push(key.clone());
                     sequenced_transactions.push((transaction, start_time));
                 }
-                ConsensusCertificateResult::Deferred(deferral_key) => {
+                // FIX: roman: use suggested gas price from Deferred variant
+                ConsensusCertificateResult::Deferred { deferral_key, .. } => {
                     // Note: record_consensus_message_processed() must be called for this
                     // cert even though we are not processing it now!
                     deferred_txns
@@ -3477,7 +3484,10 @@ impl AuthorityPerEpochStore {
                         let deferral_result = match deferral_reason {
                             DeferralReason::RandomnessNotReady => {
                                 // Always defer transaction due to randomness not ready.
-                                ConsensusCertificateResult::Deferred(deferral_key)
+                                ConsensusCertificateResult::Deferred {
+                                    deferral_key,
+                                    suggested_gas_price: None,
+                                }
                             }
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
                                 authority_metrics
@@ -3488,7 +3498,12 @@ impl AuthorityPerEpochStore {
                                     self.protocol_config()
                                         .max_deferral_rounds_for_congestion_control(),
                                 ) {
-                                    ConsensusCertificateResult::Deferred(deferral_key)
+                                    // FIX: roman: call suggested gas price calculator here
+                                    let suggested_gas_price = self.reference_gas_price();
+                                    ConsensusCertificateResult::Deferred {
+                                        deferral_key,
+                                        suggested_gas_price: Some(suggested_gas_price),
+                                    }
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
                                     debug!(
