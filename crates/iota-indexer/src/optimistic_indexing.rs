@@ -143,17 +143,16 @@ impl OptimisticTransactionExecutor {
             );
             return Ok(());
         }
-        if self.wait_for_tx_dependencies(&effects).await.is_err()
-            && !self
-                .deep_check_all_dependencies_are_indexed(&effects)
-                .await?
-        {
-            tracing::warn!(
-                "Transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
-            );
-            return Ok(());
-        }
-
+        tokio::select! {
+            Ok(_) = self.wait_for_tx_dependencies(&effects) => (),
+            Ok(_) = self.deep_check_all_dependencies_are_indexed(&effects) => (),
+            else => {
+                tracing::warn!(
+                    "Transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
+                );
+                return Ok(());
+            }
+        };
         let full_tx_data = CheckpointTransaction {
             transaction,
             effects,
