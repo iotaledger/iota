@@ -39,11 +39,8 @@ impl BackfillTask for SqlBackfillTask {
         let end = *range.end();
 
         let query = format!(
-            "{} WHERE {} BETWEEN {} AND {} ON CONFLICT DO NOTHING",
-            self.sql,
-            self.key_column,
-            *range.start(),
-            *range.end()
+            "{} WHERE {} BETWEEN $1 AND $2 ON CONFLICT DO NOTHING",
+            self.sql, self.key_column,
         );
 
         let mut conn = get_pool_connection(&pool)?;

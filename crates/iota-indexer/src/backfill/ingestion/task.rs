@@ -84,24 +84,21 @@ impl<T: IngestionBackfillHandler> BackfillTask for IngestionBackfillTask<T> {
         let mut processed_data = vec![];
         let mut start = *range.start();
         let end = *range.end();
-        loop {
-            while start <= end {
-                if let Some((_, processed)) = self
-                    .ready_checkpoints
-                    .remove(&(start as CheckpointSequenceNumber))
-                {
-                    processed_data.extend(processed);
-                    start += 1;
-                } else {
-                    break;
-                }
+
+        while start <= end {
+            while let Some((_, processed)) = self
+                .ready_checkpoints
+                .remove(&(start as CheckpointSequenceNumber))
+            {
+                processed_data.extend(processed);
+                start += 1;
             }
+
             if start <= end {
                 self.notify.notified().await;
-            } else {
-                break;
             }
         }
+
         // TODO: Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
         // <= 65536.
