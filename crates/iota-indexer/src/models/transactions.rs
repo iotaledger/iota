@@ -244,8 +244,11 @@ impl StoredTransaction {
             .then(|| self.try_into_iota_transaction_effects())
             .transpose()?;
 
-        let raw_transaction = if options
-            .show_raw_input { self.raw_transaction } else { Default::default() };
+        let raw_transaction = if options.show_raw_input {
+            self.raw_transaction
+        } else {
+            Default::default()
+        };
 
         let events = if options.show_events {
             let events = {
@@ -317,8 +320,11 @@ impl StoredTransaction {
             None
         };
 
-        let raw_effects = if options
-            .show_raw_effects { self.raw_effects } else { Default::default() };
+        let raw_effects = if options.show_raw_effects {
+            self.raw_effects
+        } else {
+            Default::default()
+        };
 
         Ok(IotaTransactionBlockResponse {
             digest: tx_digest,
