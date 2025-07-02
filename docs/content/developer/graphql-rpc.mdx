@@ -205,7 +205,7 @@ Fields that return a paginated response accept at least the following optional p
 
 They also return a type that conforms to the [GraphQL Cursor Connections Specification](https://relay.dev/graphql/connections.htm), meaning its name ends in `Connection`, and it contains at least the following fields:
 
-- `pageInfo`, of type <a href="/references/iota-api/iota-graphql/reference/objects/page-info" data-noBrokenLinkCheck='true'>PageInfo</a>, which indicates whether there are more pages before or after the page returned.
+- `pageInfo`, of type <a href="/developer/references/iota-api/iota-graphql/reference/objects/page-info" data-noBrokenLinkCheck='true'>PageInfo</a>, which indicates whether there are more pages before or after the page returned.
 - `nodes`, the content of the paginated response, as a list of the type being paginated (`TransactionBlock` in the previous example).
 - `edges`, similar to `nodes` but associating each node with its [cursor](#cursors).
 
@@ -288,4 +288,4 @@ In addition to rate limits, queries are also validated against a number of rules
 
 - [GraphQL quick-start](getting-started/graphql-rpc.mdx): Querying IOTA RPC with GraphQL gets you started using GraphQL to query the IOTA RPC for on-chain data.  
 - [GraphQL migration](advanced/graphql-migration.mdx): Migrating to GraphQL guides you through migrating IOTA RPC projects from JSON-RPC to GraphQL. 
-- [GraphQL reference](../references/iota-graphql.mdx): Auto-generated GraphQL reference for IOTA RPC.
+- [GraphQL reference](../developer/references/iota-graphql.mdx): Auto-generated GraphQL reference for IOTA RPC.

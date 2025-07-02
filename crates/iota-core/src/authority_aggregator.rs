@@ -740,6 +740,7 @@ where
 
             type RequestResult<S> = Result<Result<S, IotaError>, tokio::time::error::Elapsed>;
 
+            #[expect(clippy::large_enum_variant)]
             enum Event<S> {
                 StartNext,
                 Request(AuthorityName, RequestResult<S>),
