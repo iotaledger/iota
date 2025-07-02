@@ -249,11 +249,6 @@ pub async fn download_summaries_from_checkpoint_store(
 ) -> anyhow::Result<()> {
     info!("Downloading summaries from checkpoint store.");
 
-    ensure!(
-        config.archive_store_config.is_some(),
-        "missing archive store config"
-    );
-
     let checkpoint_store = CheckpointStore::new(config)?;
     for seq in checkpoints {
         info!("Downloading summary: {seq}.sum");
