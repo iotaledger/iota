@@ -43,7 +43,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
             let mut results = vec![];
             results.push(" === ERRORS AFTER PARSING INPUT COMMANDS === ".to_string());
             for e in rendered.iter() {
-                results.push(format!("{:?}", e));
+                results.push(format!("{e:?}"));
             }
             insta::assert_snapshot!(fname(), results.join("\n"));
             return Ok(());
@@ -71,7 +71,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
         let rendered = build_error_reports(&file_contents, warnings);
         results.push(" === WARNINGS === ".to_string());
         for warning in rendered.iter() {
-            results.push(format!("{:?}", warning));
+            results.push(format!("{warning:?}"));
         }
     }
 
@@ -81,7 +81,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
             results.push(format!("Input {}: {}", i, stable_call_arg_display(ca)));
         }
         for (i, c) in ptb.commands.iter().enumerate() {
-            results.push(format!("Command {}: {}", i, c));
+            results.push(format!("Command {i}: {c}"));
         }
     }
 
@@ -91,7 +91,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
 
         results.push(" === BUILDING PTB ERRORS === ".to_string());
         for e in rendered.iter() {
-            results.push(format!("{:?}", e));
+            results.push(format!("{e:?}"));
         }
     }
 
@@ -104,11 +104,11 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
 #[cfg(not(msim))]
 fn stable_call_arg_display(ca: &CallArg) -> String {
     match ca {
-        CallArg::Pure(v) => format!("Pure({:?})", v),
+        CallArg::Pure(v) => format!("Pure({v:?})"),
         CallArg::Object(oa) => match oa {
             ObjectArg::ImmOrOwnedObject(_) => "ImmutableOrOwnedObject".to_string(),
             ObjectArg::SharedObject { mutable, .. } => {
-                format!("SharedObject(mutable: {})", mutable)
+                format!("SharedObject(mutable: {mutable})")
             }
             ObjectArg::Receiving(_) => "Receiving".to_string(),
         },

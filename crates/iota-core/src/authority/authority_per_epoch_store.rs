@@ -698,7 +698,7 @@ impl AuthorityEpochTables {
     }
 
     pub fn path(epoch: EpochId, parent_path: &Path) -> PathBuf {
-        parent_path.join(format!("{}{}", EPOCH_DB_PREFIX, epoch))
+        parent_path.join(format!("{EPOCH_DB_PREFIX}{epoch}"))
     }
 
     fn load_reconfig_state(&self) -> IotaResult<ReconfigState> {
@@ -3972,15 +3972,13 @@ impl AuthorityPerEpochStore {
                 (Some((left, ())), Some((right, _))) => {
                     if left != right {
                         panic!(
-                            "Executed transactions and checkpointed transactions do not match: {:?} {:?}",
-                            left, right
+                            "Executed transactions and checkpointed transactions do not match: {left:?} {right:?}"
                         );
                     }
                 }
                 (None, None) => break,
                 (left, right) => panic!(
-                    "Executed transactions and checkpointed transactions do not match: {:?} {:?}",
-                    left, right
+                    "Executed transactions and checkpointed transactions do not match: {left:?} {right:?}"
                 ),
             }
         }

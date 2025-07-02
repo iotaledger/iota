@@ -434,7 +434,7 @@ pub struct AuthorityPublicKeyBytes(
 impl AuthorityPublicKeyBytes {
     fn fmt_impl(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let s = Hex::encode(self.0);
-        write!(f, "k#{}", s)?;
+        write!(f, "k#{s}")?;
         Ok(())
     }
 }
@@ -462,7 +462,7 @@ pub struct ConciseAuthorityPublicKeyBytesRef<'a>(&'a AuthorityPublicKeyBytes);
 impl Debug for ConciseAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let s = Hex::encode(self.0.0.get(0..4).ok_or(std::fmt::Error)?);
-        write!(f, "k#{}..", s)
+        write!(f, "k#{s}..")
     }
 }
 
@@ -479,7 +479,7 @@ pub struct ConciseAuthorityPublicKeyBytes(AuthorityPublicKeyBytes);
 impl Debug for ConciseAuthorityPublicKeyBytes {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let s = Hex::encode(self.0.0.get(0..4).ok_or(std::fmt::Error)?);
-        write!(f, "k#{}..", s)
+        write!(f, "k#{s}..")
     }
 }
 
@@ -1029,10 +1029,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
                 let address = IotaAddress::from(pk);
                 if author != address {
                     return Err(IotaError::IncorrectSigner {
-                        error: format!(
-                            "Incorrect signer, expected {:?}, got {:?}",
-                            author, address
-                        ),
+                        error: format!("Incorrect signer, expected {author:?}, got {address:?}"),
                     });
                 }
             }
@@ -1040,7 +1037,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
 
         pk.verify(&digest, sig)
             .map_err(|e| IotaError::InvalidSignature {
-                error: format!("Fail to verify user sig {}", e),
+                error: format!("Fail to verify user sig {e}"),
             })
     }
 }
@@ -1498,7 +1495,7 @@ where
     fn write(&self, writer: &mut W) {
         let name = serde_name::trace_name::<Self>().expect("Self must be a struct or an enum");
         // Note: This assumes that names never contain the separator `::`.
-        write!(writer, "{}::", name).expect("Hasher should not fail");
+        write!(writer, "{name}::").expect("Hasher should not fail");
         bcs::serialize_into(writer, &self).expect("Message serialization should not fail");
     }
 }
@@ -1519,7 +1516,7 @@ where
     fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error> {
         // Remove name tag before deserialization using BCS
         let name = serde_name::trace_name::<Self>().expect("Self should be a struct or an enum");
-        let name_byte_len = format!("{}::", name).bytes().len();
+        let name_byte_len = format!("{name}::").bytes().len();
         Ok(bcs::from_bytes(bytes.get(name_byte_len..).ok_or_else(
             || anyhow!("Failed to deserialize to {name}."),
         )?)?)
@@ -1633,7 +1630,7 @@ impl<'a> VerificationObligation<'a> {
             }
 
             IotaError::InvalidSignature {
-                error: format!("Failed to batch verify aggregated auth sig: {}", e),
+                error: format!("Failed to batch verify aggregated auth sig: {e}"),
             }
         })?;
         Ok(())

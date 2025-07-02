@@ -177,8 +177,7 @@ impl Payload for AdversarialTestPayload {
 
         debug_assert!(
             effects.is_ok(),
-            "Adversarial transactions should never abort: {:?}",
-            stat
+            "Adversarial transactions should never abort: {stat:?}"
         );
 
         self.state.update(effects);

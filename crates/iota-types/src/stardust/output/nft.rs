@@ -474,7 +474,7 @@ impl NftOutput {
     /// Create an `NftOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize NftOutput object: {:?}", err),
+            error: format!("Unable to deserialize NftOutput object: {err:?}"),
         })
     }
 
@@ -498,7 +498,7 @@ impl TryFrom<&Object> for NftOutput {
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not a NftOutput: {:?}", object),
+            error: format!("Object type is not a NftOutput: {object:?}"),
         })
     }
 }
