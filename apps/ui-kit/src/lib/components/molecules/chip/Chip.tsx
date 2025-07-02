@@ -96,7 +96,7 @@ export function Chip({
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
-                'group border transition-all duration-500 ease-in-out disabled:opacity-40',
+                'group border disabled:opacity-40',
                 ROUNDED_CLASS,
                 isOutlineSelected
                     ? BG_SELECTED_OUTLINE[ChipType.Outline]
@@ -128,17 +128,17 @@ export function Chip({
                 </span>
                 {trailingElement}
                 {showClose && (
-                    <ButtonUnstyled
+                    <div
                         onClick={onClose}
                         className={cx(disabled ? 'cursor-default' : 'cursor-pointer')}
                     >
                         <Close
                             className={cx(
-                                'h-4 w-4 transition-all duration-500 ease-in-out',
+                                'h-4 w-4 transition-opacity duration-150',
                                 disabled ? '' : selected ? 'opacity-100' : CLOSE_ICON_INTERACTIVE,
                             )}
                         />
-                    </ButtonUnstyled>
+                    </div>
                 )}
             </span>
         </ButtonUnstyled>
