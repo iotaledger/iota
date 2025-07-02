@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use rand::prelude::IteratorRandom;
+use rand::rngs::ThreadRng;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
     time::Duration,
 };
-
+use std::collections::HashSet;
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{StreamExt as _, stream::FuturesUnordered};
@@ -20,7 +22,7 @@ use iota_metrics::{
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom, rngs::ThreadRng, seq::IteratorRandom};
+use rand::{prelude::SliceRandom};
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -1021,15 +1023,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
-       
-        
-        
-        // the maximum number of peers which will be requested in periodic synchronizer
+
+
+
+        // The maximum number of peers which will be requested in periodic synchronizer
         const MAX_PEERS: usize = 4;
         // The maximum number of peers which are chosen totally random to fetch blocks from
         const MAX_RANDOM_PEERS: usize = 2;
 
-        // Step 1: Map authors to their missing blocks
+        // Step 1: Map authorities to missing blocks that they are aware of
         let mut authority_to_blocks: HashMap<AuthorityIndex, Vec<BlockRef>> = HashMap::new();
         for (missing_block_ref, authorities) in &missing_blocks {
             for author in authorities {
@@ -1040,99 +1042,61 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }
         }
 
-        // Step 2: Choose first the peer with the most known blocks, then one random peer from the rest
+        // Step 2: Choose at most two random peers from those who are aware of the missing blocks
 
         let mut rng = ThreadRng::default();
-
-        // 1. Find the peer with the most missing blocks
-      
-        let first_chosen = authority_to_blocks
+        // Randomly pick up to 2 authorities from those aware of missing blocks
+        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> = authority_to_blocks
             .iter()
-            .max_by_key(|(_, blocks)| blocks.len());
+            .choose_multiple(&mut rng, MAX_PEERS - MAX_RANDOM_PEERS)
+            .into_iter()
+            .map(|(&peer, blocks)| (peer, blocks.clone()))
+            .collect();
+        
+        // Step 3: Choose at most two random peers not known to be aware of the missing blocks
+        let already_chosen: HashSet<AuthorityIndex> =
+            chosen_peers_with_blocks.iter().map(|(peer, _)| *peer).collect();
 
-        let mut selected_peers = Vec::new();
+        let random_candidates: Vec<_> = context
+            .committee
+            .authorities()
+            .filter_map(|(peer_index, _)| {
+                (peer_index != context.own_index
+                    && !already_chosen.contains(&peer_index))
+                    .then_some(peer_index)
+            })
+            .collect();
 
-        if let Some((&most_known_peer, blocks)) = first_chosen {
-            selected_peers.push((most_known_peer, blocks));
+        let random_peers: Vec<AuthorityIndex> =
+            random_candidates.into_iter().choose_multiple(&mut rng, MAX_RANDOM_PEERS);
 
-            // 2. Randomly choose another peer from the remaining ones (excluding the first)
-            let mut remaining: Vec<_> = authority_to_blocks
+        let mut all_missing_blocks: Vec<BlockRef> = missing_blocks.keys().cloned().collect();
+        #[cfg(not(test))]
+        all_missing_blocks.shuffle(&mut rng);
+
+        for peer in random_peers {
+            let selected_blocks = all_missing_blocks
                 .iter()
-                .filter(|(&peer, _)| peer != most_known_peer)
-                .collect();
-
-            #[cfg(not(test))]
-            remaining.shuffle(&mut rng);
-
-            if let Some((&random_peer, random_blocks)) = remaining.first() {
-                selected_peers.push((random_peer, random_blocks));
-            }
+                .copied()
+                .take(MAX_BLOCKS_PER_FETCH)
+                .collect::<Vec<_>>();
+            chosen_peers_with_blocks.push((peer, selected_blocks));
         }
 
 
 
-        
         let mut request_futures = FuturesUnordered::new();
 
         let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
 
-            if let Some((&peer, blocks)) = first_chosen {
-                let block_refs = blocks
-                    .iter()
-                    .copied()
-                    .take(MAX_BLOCKS_PER_FETCH)
-                    .collect::<BTreeSet<_>>();
-                if let Some(guard) = inflight_blocks.lock_blocks(block_refs.clone(), peer) {
-                    let peer_hostname = &context.committee.authority(peer).hostname;
-                    info!(
-                        "Hot fetch of {} blocks from peer {} {} (blocks: [{}])",
-                        block_refs.len(),
-                        peer,
-                        peer_hostname,
-                        block_refs
-                            .iter()
-                            .map(|b| b.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                    // Record hot metrics
-                    let metrics = &context.metrics.node_metrics;
-                    metrics
-                        .synchronizer_requested_blocks_by_peer
-                        .with_label_values(&[peer_hostname.as_str(), "hot"])
-                        .inc_by(block_refs.len() as u64);
-                    for block_ref in &block_refs {
-                        let block_hostname =
-                            &context.committee.authority(block_ref.author).hostname;
-                        metrics
-                            .synchronizer_requested_blocks_by_authority
-                            .with_label_values(&[block_hostname.as_str(), "hot"])
-                            .inc();
-                    }
-                    request_futures.push(Self::fetch_blocks_request(
-                        network_client.clone(),
-                        peer,
-                        guard,
-                        highest_rounds.clone(),
-                        FETCH_REQUEST_TIMEOUT,
-                        1,
-                    ));
-                }
-            }
-        
 
         // Proceed with the usual fetching
+
+
         
 
-        // Attempt to fetch only up to a max of blocks
-        let missing_blocks = missing_blocks
-            .keys()
-            .take(MAX_PEERS * MAX_BLOCKS_PER_FETCH)
-            .cloned()
-            .collect::<Vec<_>>();
-
         let mut missing_blocks_per_authority = vec![0; context.committee.size()];
-        for block in &missing_blocks {
+        for block in &all_missing_blocks {
             missing_blocks_per_authority[block.author] += 1;
         }
         for (missing, (_, authority)) in missing_blocks_per_authority
@@ -1153,26 +1117,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .set(missing as i64);
         }
 
-        #[cfg_attr(test, expect(unused_mut))]
-        let mut peers = context
-            .committee
-            .authorities()
-            .filter_map(|(peer_index, _)| (peer_index != context.own_index).then_some(peer_index))
-            .collect::<Vec<_>>();
-
-        // In test, the order is not randomized
-        #[cfg(not(test))]
-        peers.shuffle(&mut ThreadRng::default());
-
-        let mut peers = peers.into_iter();
+      
 
         // Send the initial requests
-        for blocks in missing_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
-            let peer = peers
-                .next()
-                .expect("Possible misconfiguration as a peer should be found");
+        for (peer, blocks_to_request) in chosen_peers_with_blocks {
             let peer_hostname = &context.committee.authority(peer).hostname;
-            let block_refs = blocks.iter().cloned().collect::<BTreeSet<_>>();
+            let block_refs = blocks_to_request.iter().cloned().collect::<BTreeSet<_>>();
 
             // lock the blocks to be fetched. If no lock can be acquired for any of the
             // blocks then don't bother
@@ -1219,33 +1169,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                             }
                         },
                         Err(_) => {
-                            // try again if there is any peer left
-                            if let Some(next_peer) = peers.next() {
-                                // do best effort to lock guards. If we can't lock then don't bother at this run.
-                                if let Some(blocks_guard) = inflight_blocks.swap_locks(blocks_guard, next_peer) {
-                                    info!(
-                                        "Retrying syncing {} missing blocks from peer {}: {}",
-                                        blocks_guard.block_refs.len(),
-                                        peer_hostname,
-                                        blocks_guard.block_refs
-                                            .iter()
-                                            .map(|b| b.to_string())
-                                            .collect::<Vec<_>>()
-                                            .join(", ")
-                                    );
-                                    request_futures.push(Self::fetch_blocks_request(
-                                        network_client.clone(),
-                                        next_peer,
-                                        blocks_guard,
-                                        highest_rounds,
-                                        FETCH_REQUEST_TIMEOUT,
-                                        1,
-                                    ));
-                                } else {
-                                    debug!("Couldn't acquire locks to fetch blocks from peer {next_peer}.")
-                                }
-                            } else {
-                                debug!("No more peers left to fetch blocks");
+                            warn!("Failed to fetch blocks from peer {peer_index} {peer_hostname}, will retry");
+                            // If the request failed, we can release the blocks guard
+                            // and continue with the next request.
+                            drop(blocks_guard);
+                            // If we have no more requests, then break the loop
+                            if request_futures.is_empty() {
+                                break;
                             }
                         }
                     }
@@ -2207,7 +2137,7 @@ mod tests {
             inflight.clone(),
             network_client.clone(),
             missing_blocks,
-            dag_state.clone(), 
+            dag_state.clone(),
         )
             .await;
 
