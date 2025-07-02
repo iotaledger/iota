@@ -157,7 +157,7 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 /// Holds a verified sequenced consensus transaction that is deferred
 /// and optionally a suggested gas price for that transaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct DeferredTransaction {
+pub struct DeferredTransaction {
     /// Deferred verified sequenced consensus transaction.
     transaction: VerifiedSequencedConsensusTransaction,
 
@@ -171,7 +171,7 @@ impl DeferredTransaction {
     /// Construct a new `DeferredTransaction` instance from a deferred
     /// verified sequenced consensus transaction and optionally a suggested
     /// gas price for that transaction.
-    fn new(
+    pub fn new(
         transaction: VerifiedSequencedConsensusTransaction,
         suggested_gas_price_as_opt: Option<u64>,
     ) -> Self {
@@ -646,7 +646,7 @@ pub struct AuthorityEpochTables {
     active_jwks: DBMap<(u64, (JwkId, JWK)), ()>,
 
     /// Transactions that are being deferred until some future time
-    deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
+    deferred_transactions: DBMap<DeferralKey, Vec<DeferredTransaction>>,
 
     // Tables for recording state for RandomnessManager.
 
@@ -1702,7 +1702,7 @@ impl AuthorityPerEpochStore {
     fn load_deferred_transactions_for_randomness(
         &self,
         output: &mut ConsensusCommitOutput,
-    ) -> IotaResult<Vec<(DeferralKey, Vec<VerifiedSequencedConsensusTransaction>)>> {
+    ) -> IotaResult<Vec<(DeferralKey, Vec<DeferredTransaction>)>> {
         let (min, max) = DeferralKey::full_range_for_randomness();
         self.load_deferred_transactions(output, min, max)
     }
@@ -1720,18 +1720,24 @@ impl AuthorityPerEpochStore {
         );
         previously_deferred_tx_digests.extend(deferred_randomness_txs.iter().flat_map(
             |(deferral_key, txs)| {
-                txs.iter().map(|tx| match tx.0.transaction.key() {
-                    SequencedConsensusTransactionKey::External(
-                        ConsensusTransactionKey::Certificate(digest),
-                    ) => (digest, *deferral_key),
-                    _ => {
-                        panic!("deferred randomness transaction was not a user certificate: {tx:?}")
-                    }
-                })
+                txs.iter()
+                    .map(|tx| match tx.transaction.0.transaction.key() {
+                        SequencedConsensusTransactionKey::External(
+                            ConsensusTransactionKey::Certificate(digest),
+                        ) => (digest, *deferral_key),
+                        _ => {
+                            panic!(
+                                "deferred randomness transaction was not a user certificate: {tx:?}"
+                            )
+                        }
+                    })
             },
         ));
-        sequenced_randomness_transactions
-            .extend(deferred_randomness_txs.into_iter().flat_map(|(_, txs)| txs));
+        sequenced_randomness_transactions.extend(
+            deferred_randomness_txs
+                .into_iter()
+                .flat_map(|(_, txs)| txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>()),
+        );
         Ok(())
     }
 
@@ -1739,7 +1745,7 @@ impl AuthorityPerEpochStore {
         &self,
         output: &mut ConsensusCommitOutput,
         consensus_round: u64,
-    ) -> IotaResult<Vec<(DeferralKey, Vec<VerifiedSequencedConsensusTransaction>)>> {
+    ) -> IotaResult<Vec<(DeferralKey, Vec<DeferredTransaction>)>> {
         let (min, max) = DeferralKey::range_for_up_to_consensus_round(consensus_round);
         self.load_deferred_transactions(output, min, max)
     }
@@ -1750,7 +1756,7 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         min: DeferralKey,
         max: DeferralKey,
-    ) -> IotaResult<Vec<(DeferralKey, Vec<VerifiedSequencedConsensusTransaction>)>> {
+    ) -> IotaResult<Vec<(DeferralKey, Vec<DeferredTransaction>)>> {
         debug!("Query epoch store to load deferred txn {:?} {:?}", min, max);
         let mut keys = Vec::new();
         let mut txns = Vec::new();
@@ -1778,7 +1784,7 @@ impl AuthorityPerEpochStore {
             let mut seen = HashSet::new();
             for deferred_txn_batch in &txns {
                 for txn in &deferred_txn_batch.1 {
-                    assert!(seen.insert(txn.0.key()));
+                    assert!(seen.insert(txn.transaction.0.key()));
                 }
             }
         }
@@ -1790,7 +1796,7 @@ impl AuthorityPerEpochStore {
 
     pub fn get_all_deferred_transactions_for_test(
         &self,
-    ) -> IotaResult<Vec<(DeferralKey, Vec<VerifiedSequencedConsensusTransaction>)>> {
+    ) -> IotaResult<Vec<(DeferralKey, Vec<DeferredTransaction>)>> {
         Ok(self
             .tables()?
             .deferred_transactions
@@ -2639,7 +2645,7 @@ impl AuthorityPerEpochStore {
         let mut output = ConsensusCommitOutput::new();
 
         // Load transactions deferred from previous commits.
-        let deferred_txs: Vec<(DeferralKey, Vec<VerifiedSequencedConsensusTransaction>)> = self
+        let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
             .load_deferred_transactions_for_up_to_consensus_round(
                 &mut output,
                 consensus_commit_info.round,
@@ -2650,12 +2656,13 @@ impl AuthorityPerEpochStore {
             deferred_txs
                 .iter()
                 .flat_map(|(deferral_key, txs)| {
-                    txs.iter().map(|tx| match tx.0.transaction.key() {
-                        SequencedConsensusTransactionKey::External(
-                            ConsensusTransactionKey::Certificate(digest),
-                        ) => (digest, *deferral_key),
-                        _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
-                    })
+                    txs.iter()
+                        .map(|tx| match tx.transaction.0.transaction.key() {
+                            SequencedConsensusTransactionKey::External(
+                                ConsensusTransactionKey::Certificate(digest),
+                            ) => (digest, *deferral_key),
+                            _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
+                        })
                 })
                 .collect();
 
@@ -2727,10 +2734,10 @@ impl AuthorityPerEpochStore {
             .into_iter()
             .flat_map(|(_, txs)| txs.into_iter())
         {
-            if tx.0.is_user_tx_with_randomness() {
-                sequenced_randomness_transactions.push(tx);
+            if tx.transaction.0.is_user_tx_with_randomness() {
+                sequenced_randomness_transactions.push(tx.transaction);
             } else {
-                sequenced_transactions.push(tx);
+                sequenced_transactions.push(tx.transaction);
             }
         }
         sequenced_transactions.extend(current_commit_sequenced_consensus_transactions);
@@ -3118,8 +3125,7 @@ impl AuthorityPerEpochStore {
         let mut verified_certificates = VecDeque::with_capacity(transactions.len() + 1);
         let mut notifications = Vec::with_capacity(transactions.len());
 
-        let mut deferred_txns: BTreeMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>> =
-            BTreeMap::new();
+        let mut deferred_txns: BTreeMap<DeferralKey, Vec<DeferredTransaction>> = BTreeMap::new();
         let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> =
             BTreeMap::new();
 
@@ -3181,14 +3187,19 @@ impl AuthorityPerEpochStore {
                     notifications.push(key.clone());
                     sequenced_transactions.push((transaction, start_time));
                 }
-                // FIX: roman: use suggested gas price from Deferred variant
-                ConsensusCertificateResult::Deferred { deferral_key, .. } => {
+                ConsensusCertificateResult::Deferred {
+                    deferral_key,
+                    suggested_gas_price_as_opt,
+                } => {
                     // Note: record_consensus_message_processed() must be called for this
                     // cert even though we are not processing it now!
                     deferred_txns
                         .entry(deferral_key)
                         .or_default()
-                        .push(tx.clone());
+                        .push(DeferredTransaction::new(
+                            tx.clone(),
+                            suggested_gas_price_as_opt,
+                        ));
                     filter_roots = true;
                     if tx.0.transaction.is_executable_transaction() {
                         // Notify consensus adapter that the consensus handler has received the
@@ -4054,7 +4065,7 @@ pub(crate) struct ConsensusCommitOutput {
     // transaction scheduling state
     shared_object_versions: Option<(AssignedTxAndVersions, HashMap<ObjectID, SequenceNumber>)>,
 
-    deferred_txns: Vec<(DeferralKey, Vec<VerifiedSequencedConsensusTransaction>)>,
+    deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
     // deferred txns that have been loaded and can be removed
     deleted_deferred_txns: BTreeSet<DeferralKey>,
 
@@ -4121,11 +4132,7 @@ impl ConsensusCommitOutput {
         self.shared_object_versions = Some((versions, next_versions));
     }
 
-    fn defer_transactions(
-        &mut self,
-        key: DeferralKey,
-        transactions: Vec<VerifiedSequencedConsensusTransaction>,
-    ) {
+    fn defer_transactions(&mut self, key: DeferralKey, transactions: Vec<DeferredTransaction>) {
         self.deferred_txns.push((key, transactions));
     }
 
