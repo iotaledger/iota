@@ -78,7 +78,7 @@ impl OptimisticTransactionExecutor {
     /// Wait until all dependencies are indexed through the `tx_global_order`
     /// table.
     ///
-    /// It uses exponential backoff to retyro the check.
+    /// It uses exponential backoff to retry the check.
     ///
     /// This does not cover old transactions that do not have
     /// entries in `tx_global_order`.
