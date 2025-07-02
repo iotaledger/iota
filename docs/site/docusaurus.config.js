@@ -312,8 +312,8 @@ const config = {
         content:
           '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
         isCloseable: false,
-        backgroundColor: "#0101ff",
-        textColor: "#FFFFFF",
+        backgroundColor: "var(--ifm-color-primary-darkest)",
+        textColor: "var(--iota-white)",
       },
       navbar: {
         title: "",
@@ -377,7 +377,7 @@ const config = {
         // Optional medium-zoom options
         // see: https://www.npmjs.com/package/medium-zoom#options
         options: {
-          background: 'rgba(0, 0, 0, 0.6)',
+          background: "var(--iota-imagezoom-options)",
         },
       }
     }),

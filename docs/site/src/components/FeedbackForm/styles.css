@@ -1,5 +1,5 @@
 .feedback-container {
-  background-color: #0000001a;
+  background-color: var(--iota-feedback-container);
   padding-top: 0.25rem;
   padding-left: 2rem;
   padding-right: 2rem;
@@ -9,7 +9,7 @@
 }
 
 [data-theme="dark"] .feedback-container {
-  background-color: #1e1e1e;
+  background-color: var(--iota-feedback-container-dark);
 }
 
 .feedback-header-container{
@@ -32,15 +32,15 @@
   float: inline-end;
   text-align: center;
   font-size: 10px;
-  background-color: #ffffff1a;
-  color: #fff9;
+  background-color: var(--iota-black);
+  color: var(--iota-feedback-close);
   border-radius: 6px;
   border: none;
   cursor: pointer;
 }
 
 .feedback-close:hover{
-  color: white;
+  color: var(--iota-white);
 }
 
 .hiddenForm{
@@ -49,7 +49,7 @@
 }
 
 .red{
-  color: red;
+  color: var(--iota-red);
 }
 .form-group {
   display: flex;
@@ -61,7 +61,7 @@
 .input-field {
   padding: 10px;
   font-size: 16px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--iota-feedback-field);
   border-radius: 4px;
 }
 
@@ -69,14 +69,14 @@
   padding: 10px;
   font-size: 16px;
   height: 100px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--iota-feedback-field);
   border-radius: 4px;
   resize: vertical;
 }
 
 .submit-button {
-  background-color: #007bff;
-  color: white;
+  background-color: var(--ifm-color-primary-darker);
+  color: var(--iota-white);
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
@@ -84,7 +84,7 @@
 }
 
 .submit-button:hover {
-  background-color: #0056b3;
+  background-color: var( --ifm-color-primary-darkest);
 }
 
 [data-theme="light"] .divider {
@@ -92,7 +92,7 @@
 }
 
 .divider {
-  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: 1px solid var(--iota-cards-border-color);
   margin: 20px 0;
 }
 
