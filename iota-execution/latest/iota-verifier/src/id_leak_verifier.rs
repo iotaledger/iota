@@ -17,6 +17,7 @@ use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
     BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    account_registry::{ACCOUNT_REGISTRY_CREATE_FUNCTION_NAME, ACCOUNT_REGISTRY_MODULE_NAME},
     authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
     bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
@@ -90,7 +91,7 @@ const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
 const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
     RANDOMNESS_MODULE_NAME,
-    ident_str!("create"),
+    ident_str!("create"), // RANDOMNESS_STATE_CREATE_FUNCTION_NAME should be used instead
 );
 const IOTA_DENY_LIST_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
@@ -100,6 +101,12 @@ const IOTA_DENY_LIST_CREATE: FunctionIdent = (
 
 const IOTA_BRIDGE_CREATE: FunctionIdent =
     (&BRIDGE_ADDRESS, BRIDGE_MODULE_NAME, ident_str!("create"));
+
+const IOTA_ACCOUNT_REGISTRY_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    ACCOUNT_REGISTRY_MODULE_NAME,
+    ACCOUNT_REGISTRY_CREATE_FUNCTION_NAME,
+);
 const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
@@ -108,6 +115,7 @@ const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_RANDOMNESS_STATE_CREATE,
     IOTA_DENY_LIST_CREATE,
     IOTA_BRIDGE_CREATE,
+    IOTA_ACCOUNT_REGISTRY_CREATE,
 ];
 
 impl AbstractValue {

@@ -3,6 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota::deterministic_object_id;
+use iota::account_registry::{AccountRegistry};
+use iota::object::{new_uid_from_hash};
+
+/// u64 flag used to produce precomputed object IDs.
+const PRECOMPUTED_OBJECT_ID_FLAG: u64 = 123;
 
 /// Native function for deriving an ID deterministically via hash(flag, iota_address, salt)
 /// flag is a fixed byte that allows to avoid object id collisions
@@ -19,3 +24,10 @@ public fun dummy_address(): address {
     @0x0
 }
 
+/// Create a new object with a precomputed objectId.
+/// Using a fixed 123 to avoid collisions
+public fun new_precomputed(iota_address: address, salt: vector<u8>, account_registry: &mut AccountRegistry): UID {
+    let id = derive_id_with_salt(PRECOMPUTED_OBJECT_ID_FLAG,iota_address, salt);
+    account_registry.add(id.to_id());
+    new_uid_from_hash(id)
+}

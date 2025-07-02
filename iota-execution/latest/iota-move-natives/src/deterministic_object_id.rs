@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque};
+use std::collections::VecDeque;
 
-use iota_types::base_types::{ObjectID};
+use iota_types::base_types::ObjectID;
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -20,10 +20,10 @@ pub struct DeterministicObjecIdDeriveIdWithSaltCostParams {
     pub deterministic_object_id_derive_id_with_salt_cost_base: InternalGas,
 }
 
-
 /// ****************************************************************************
 /// ********************* native fun derive_id_with_salt
-/// Implementation of the Move native function `fun derive_id_with_salt(flag: u64, iota_address: address, salt: vector<u8>): address`
+/// Implementation of the Move native function `fun derive_id_with_salt(flag:
+/// u64, iota_address: address, salt: vector<u8>): address`
 /// gas cost: tx_context_derive_id_cost_base
 /// we operate on fixed size data structures
 /// ****************************************************************************
@@ -43,19 +43,18 @@ pub fn derive_id_with_salt(
         .clone();
     native_charge_gas_early_exit!(
         context,
-        deterministic_object_id_derive_id_with_salt_cost_params.deterministic_object_id_derive_id_with_salt_cost_base
+        deterministic_object_id_derive_id_with_salt_cost_params
+            .deterministic_object_id_derive_id_with_salt_cost_base
     );
 
     let salt = pop_arg!(args, Vec<u8>);
     let iota_address = pop_arg!(args, AccountAddress);
     let flag = pop_arg!(args, u64);
 
-    let address = AccountAddress::from(ObjectID::derive_id_with_salt(
-        flag,
-        iota_address.into(),
-        salt.as_slice()
-    ).unwrap());
-    
+    let address = AccountAddress::from(
+        ObjectID::derive_id_with_salt(flag, iota_address.into(), salt.as_slice()).unwrap(),
+    );
+
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
     obj_runtime.new_id(address.into())?;
 

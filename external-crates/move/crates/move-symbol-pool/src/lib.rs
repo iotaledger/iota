@@ -96,6 +96,7 @@ static_symbols!(
     "migration",
     "beta",
     "development",
+    "account_registry"
 );
 
 /// The global, unique cache of strings.

@@ -53,6 +53,7 @@ use self::{
         hmac::HmacHmacSha3256CostParams,
         poseidon,
     },
+    deterministic_object_id::DeterministicObjecIdDeriveIdWithSaltCostParams,
     dynamic_field::{
         DynamicFieldAddChildObjectCostParams, DynamicFieldBorrowChildObjectCostParams,
         DynamicFieldHasChildObjectCostParams, DynamicFieldHasChildObjectWithTyCostParams,
@@ -64,19 +65,19 @@ use self::{
         TransferFreezeObjectCostParams, TransferInternalCostParams, TransferShareObjectCostParams,
     },
     tx_context::TxContextDeriveIdCostParams,
-    deterministic_object_id::DeterministicObjecIdDeriveIdWithSaltCostParams,
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
-use crate::{crypto::{
+use crate::crypto::{
     group_ops::{self, GroupOpsCostParams},
     poseidon::PoseidonBN254CostParams,
     zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
-}};
+};
 
 mod address;
 mod config;
 mod crypto;
+mod deterministic_object_id;
 mod dynamic_field;
 mod event;
 mod object;
@@ -88,7 +89,6 @@ mod transfer;
 mod tx_context;
 mod types;
 mod validator;
-mod deterministic_object_id;
 
 #[derive(Tid)]
 pub struct NativesCostTable {
@@ -123,7 +123,8 @@ pub struct NativesCostTable {
     pub transfer_share_object_cost_params: TransferShareObjectCostParams,
 
     // Deterministic Object ID
-    pub deterministic_object_id_derive_id_with_salt_cost_params: DeterministicObjecIdDeriveIdWithSaltCostParams,
+    pub deterministic_object_id_derive_id_with_salt_cost_params:
+        DeterministicObjecIdDeriveIdWithSaltCostParams,
     // TxContext
     pub tx_context_derive_id_cost_params: TxContextDeriveIdCostParams,
 
@@ -348,11 +349,12 @@ impl NativesCostTable {
                     .transfer_share_object_cost_base()
                     .into(),
             },
-            deterministic_object_id_derive_id_with_salt_cost_params: DeterministicObjecIdDeriveIdWithSaltCostParams{
-                deterministic_object_id_derive_id_with_salt_cost_base: protocol_config
-                    .transfer_freeze_object_cost_base()
-                    .into(),
-            },
+            deterministic_object_id_derive_id_with_salt_cost_params:
+                DeterministicObjecIdDeriveIdWithSaltCostParams {
+                    deterministic_object_id_derive_id_with_salt_cost_base: protocol_config
+                        .transfer_freeze_object_cost_base()
+                        .into(),
+                },
             tx_context_derive_id_cost_params: TxContextDeriveIdCostParams {
                 tx_context_derive_id_cost_base: protocol_config
                     .tx_context_derive_id_cost_base()
