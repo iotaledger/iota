@@ -707,11 +707,6 @@ impl BlockManager {
         self.missing_blocks.keys().cloned().collect()
     }
 
-    /// Returns the count of suspended blocks.
-    pub(crate) fn suspended_blocks_count(&self) -> usize {
-        self.suspended_blocks.len()
-    }
-
     fn update_stats(&mut self, missing_blocks: u64) {
         let metrics = &self.context.metrics.node_metrics;
         metrics.missing_blocks_total.inc_by(missing_blocks);
