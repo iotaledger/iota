@@ -2975,6 +2975,16 @@ impl AuthorityState {
         &self.transaction_manager
     }
 
+    /// Adds transactions / certificates to transaction manager for ordered
+    /// execution.
+    pub fn enqueue_transactions_for_execution(
+        &self,
+        txns: Vec<VerifiedExecutableTransaction>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        self.transaction_manager.enqueue(txns, epoch_store)
+    }
+
     /// Adds certificates to transaction manager for ordered execution.
     pub fn enqueue_certificates_for_execution(
         &self,

@@ -1594,6 +1594,7 @@ impl IotaNode {
         );
 
         state.enqueue_with_expected_effects_digest(pending_consensus_certificates, epoch_store);
+        state.enqueue_transactions_for_execution(additional_certs, epoch_store);
 
         // If this times out, the validator will still almost certainly start up fine.
         // But, it is possible that it may temporarily "forget" about
