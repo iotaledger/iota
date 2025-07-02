@@ -2,6 +2,8 @@ import { useAccount, useBalance as useBalanceL2 } from 'wagmi';
 import { useGasEstimateL2 } from './useGasEstimateL2';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { formatEther } from 'viem';
+import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { parseAmount } from '@iota/core';
 
 const GENERIC_IOTA_ADDRESS = '0x1111111111111111111111111111111111111111111111111111111111111111';
 
@@ -16,14 +18,16 @@ export function useAvailableIotaBalanceL2(): {
     const { data: layer2BalanceData, isLoading: isLoadingL2 } = useBalanceL2({
         address: layer2Account?.address as `0x${string}`,
         query: {
-            refetchInterval: 2000, // Refetch Layer 2 balance every 2 seconds
+            refetchInterval: 2000,
         },
     });
+
     const layer2TotalBalance = layer2BalanceData?.value || 0n;
 
+    const amount = parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS);
     const { data: gasEstimationData, isPending: isGasEstimationLoading } = useGasEstimateL2({
         address: GENERIC_IOTA_ADDRESS,
-        amount: MINIMUM_SEND_AMOUNT.toString(),
+        amount: amount,
     });
 
     const gasEstimation = gasEstimationData ?? 0n;

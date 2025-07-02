@@ -63,7 +63,12 @@ export function createBridgeFormSchema(
                 // Validate max amount using the form's isFromLayer1 value
                 const totalAccountBalance = isFromLayer1 ? availableBalanceL1 : availableBalanceL2;
                 const coinDecimals = coinMetadata.decimals;
-                const amount = isFromLayer1 ? parseAmount(value, coinDecimals) : parseEther(value);
+
+                const amount = isFromLayer1
+                    ? parseAmount(value, coinDecimals)
+                    : selectedCoinType === IOTA_TYPE_ARG
+                      ? parseEther(value)
+                      : parseAmount(value, coinDecimals);
 
                 if (!amount || amount > BigInt(totalAccountBalance)) {
                     ctx.addIssue({

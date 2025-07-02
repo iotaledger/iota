@@ -5,7 +5,7 @@ import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract 
 import { useEffect } from 'react';
 import { DepositForm } from '../DepositForm';
 import toast from 'react-hot-toast';
-import { buildDepositL2Parameters } from '../../../lib/utils';
+import { buildDepositL2Parameters, parseAmount } from '../../../lib/utils';
 import { iscAbi, L2_USER_REJECTED_TX_ERROR_TEXT } from '../../../lib/constants';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFormContext } from 'react-hook-form';
@@ -14,6 +14,8 @@ import { L2Chain } from '../../../config';
 import { getBalanceQueryKey } from 'wagmi/query';
 import { useGasEstimateL2 } from '../../../hooks/useGasEstimateL2';
 import { formatEther } from 'viem';
+import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { useCoinMetadata } from '@iota/core';
 
 export function DepositLayer2() {
     const queryClient = useQueryClient();
@@ -22,9 +24,13 @@ export function DepositLayer2() {
     const iscContractAddress = (layer2Account?.chain as L2Chain)?.iscContractAddress;
 
     const { watch } = useFormContext<DepositFormData>();
-    const { depositAmount, receivingAddress } = watch();
+    const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
+
+    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS);
 
     const { data: hash, writeContractAsync, isSuccess, isError, error } = useWriteContract({});
+
     const {
         isSuccess: isTransactionSuccess,
         isError: isTransactionError,
@@ -35,7 +41,8 @@ export function DepositLayer2() {
 
     const { data: gasEstimationEVM, isPending: isGasEstimationLoading } = useGasEstimateL2({
         address: receivingAddress,
-        amount: depositAmount,
+        amount: amount || 0n,
+        coinType: selectedCoinType,
     });
 
     useEffect(() => {
@@ -85,12 +92,20 @@ export function DepositLayer2() {
             depositAmount,
             iscContractAddress,
             chainId,
+            selectedCoinType,
         ],
         async mutationFn() {
             if (!receivingAddress || !depositAmount || !iscContractAddress) {
                 throw Error('Transaction is missing');
             }
-            const params = buildDepositL2Parameters(receivingAddress, depositAmount);
+
+            const coinBalances = [
+                {
+                    coinType: selectedCoinType,
+                    amount: Number(amount),
+                },
+            ];
+            const params = buildDepositL2Parameters(receivingAddress, coinBalances);
             await writeContractAsync({
                 abi: iscAbi,
                 address: iscContractAddress,

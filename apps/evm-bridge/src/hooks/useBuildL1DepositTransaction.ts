@@ -9,7 +9,7 @@ import { CoinStruct } from '@iota/iota-sdk/client';
 interface UseBuildL1DepositTransactionProps {
     amount: bigint; // Amount in nanos
     receivingAddress: string;
-    coins: CoinStruct[];
+    coins?: CoinStruct[];
     coinType?: string;
     refetchInterval?: number;
 }

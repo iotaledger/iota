@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAllCoinsMetadata } from '../../hooks/useAllCoinsMetadata';
 import { BridgeFormInputName } from '../../lib/enums';
 import { useSortedCoinsBalances } from '../../hooks/useSortedCoinsBalances';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function Bridge() {
     const { sortedCoinsBalanceL1, sortedCoinsBalanceL2 } = useSortedCoinsBalances();
@@ -31,6 +32,7 @@ export function Bridge() {
         resolver: zodResolver(formSchema as any),
         defaultValues: {
             [BridgeFormInputName.IsFromLayer1]: true,
+            [BridgeFormInputName.CoinType]: IOTA_TYPE_ARG,
         },
     });
     const isFromLayer1 = formMethods.watch('isFromLayer1');
