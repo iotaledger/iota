@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::prelude::IteratorRandom;
+use rand::prelude::{IteratorRandom, StdRng};
 use rand::rngs::ThreadRng;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -23,6 +23,7 @@ use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
 use rand::{prelude::SliceRandom};
+use rand::SeedableRng;
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -1044,7 +1045,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         // Step 2: Choose at most two random peers from those who are aware of the missing blocks
 
-        let mut rng = ThreadRng::default();
+        let mut rng = StdRng::from_entropy();
         // Randomly pick up to 2 authorities from those aware of missing blocks
         let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> = authority_to_blocks
             .iter()
@@ -1052,7 +1053,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .into_iter()
             .map(|(&peer, blocks)| (peer, blocks.clone()))
             .collect();
-        
+
         // Step 3: Choose at most two random peers not known to be aware of the missing blocks
         let already_chosen: HashSet<AuthorityIndex> =
             chosen_peers_with_blocks.iter().map(|(peer, _)| *peer).collect();
@@ -1074,13 +1075,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         #[cfg(not(test))]
         all_missing_blocks.shuffle(&mut rng);
 
+        let mut block_chunks = all_missing_blocks.chunks(MAX_BLOCKS_PER_FETCH);
+
         for peer in random_peers {
-            let selected_blocks = all_missing_blocks
-                .iter()
-                .copied()
-                .take(MAX_BLOCKS_PER_FETCH)
-                .collect::<Vec<_>>();
-            chosen_peers_with_blocks.push((peer, selected_blocks));
+            if let Some(chunk) = block_chunks.next() {
+                chosen_peers_with_blocks.push((peer, chunk.to_vec()));
+            } else {
+                break; // Not enough blocks left
+            }
         }
 
 
@@ -1089,12 +1091,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
 
-
-        // Proceed with the usual fetching
-
-
-        
-
+        // Record the missing blocks per authority for metrics
         let mut missing_blocks_per_authority = vec![0; context.committee.size()];
         for block in &all_missing_blocks {
             missing_blocks_per_authority[block.author] += 1;
@@ -1117,9 +1114,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .set(missing as i64);
         }
 
-      
-
-        // Send the initial requests
+        // Send the requests
         for (peer, blocks_to_request) in chosen_peers_with_blocks {
             let peer_hostname = &context.committee.authority(peer).hostname;
             let block_refs = blocks_to_request.iter().cloned().collect::<BTreeSet<_>>();
@@ -1156,7 +1151,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         loop {
             tokio::select! {
-                Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() => {
+                Some((response, blocks_guard, _retries, peer_index, _highest_rounds)) = request_futures.next() => {
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_blocks) => {
