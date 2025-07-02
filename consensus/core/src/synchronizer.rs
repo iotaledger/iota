@@ -57,9 +57,6 @@ const MAX_BLOCKS_PER_FETCH: usize = 32;
 
 const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 2;
 
-/// Ratio of suspended to missing blocks above which we trigger hot-fetch.
-const HOT_FETCH_RATIO_THRESHOLD: f64 = 50.0;
-
 /// The number of rounds above the highest accepted round that still willing to
 /// fetch missing blocks via the periodic synchronizer. Any missing blocks of
 /// higher rounds are considered too far in the future to fetch. This property
@@ -954,8 +951,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     blocks_to_fetch.clone(),
                     network_client,
                     missing_blocks,
-                    dag_state,
-                    suspended_blocks_count,
+                    dag_state
                 )
                 .await;
                 context
@@ -1024,35 +1020,63 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         network_client: Arc<C>,
         missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
-        suspended_blocks_count: usize,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
+       
+        
+        
+        // the maximum number of peers which will be requested in periodic synchronizer
+        const MAX_PEERS: usize = 4;
+        // The maximum number of peers which are chosen totally random to fetch blocks from
+        const MAX_RANDOM_PEERS: usize = 2;
+
+        // Step 1: Map authors to their missing blocks
+        let mut authority_to_blocks: HashMap<AuthorityIndex, Vec<BlockRef>> = HashMap::new();
+        for (missing_block_ref, authorities) in &missing_blocks {
+            for author in authorities {
+                authority_to_blocks
+                    .entry(*author)
+                    .or_default()
+                    .push(*missing_block_ref);
+            }
+        }
+
+        // Step 2: Choose first the peer with the most known blocks, then one random peer from the rest
+
+        let mut rng = ThreadRng::default();
+
+        // 1. Find the peer with the most missing blocks
+      
+        let first_chosen = authority_to_blocks
+            .iter()
+            .max_by_key(|(_, blocks)| blocks.len());
+
+        let mut selected_peers = Vec::new();
+
+        if let Some((&most_known_peer, blocks)) = first_chosen {
+            selected_peers.push((most_known_peer, blocks));
+
+            // 2. Randomly choose another peer from the remaining ones (excluding the first)
+            let mut remaining: Vec<_> = authority_to_blocks
+                .iter()
+                .filter(|(&peer, _)| peer != most_known_peer)
+                .collect();
+
+            #[cfg(not(test))]
+            remaining.shuffle(&mut rng);
+
+            if let Some((&random_peer, random_blocks)) = remaining.first() {
+                selected_peers.push((random_peer, random_blocks));
+            }
+        }
+
+
+
+        
         let mut request_futures = FuturesUnordered::new();
 
         let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
 
-        // Hot-path: when the ratio of suspended to missing blocks exceeds
-        // HOT_FETCH_RATIO_THRESHOLD, proactively fetch a batch of missing
-        // blocks from the authors of blocks referencing them.
-        if suspended_blocks_count as f64 > HOT_FETCH_RATIO_THRESHOLD * missing_blocks.len() as f64 {
-            // Step 1: Map authors to their missing blocks
-            let mut authority_to_blocks: HashMap<AuthorityIndex, Vec<BlockRef>> = HashMap::new();
-            for (missing_block_ref, authorities) in &missing_blocks {
-                for author in authorities {
-                    authority_to_blocks
-                        .entry(*author)
-                        .or_default()
-                        .push(*missing_block_ref);
-                }
-            }
-            // Step 2: Choose one random authority from the map
-
-            #[cfg(not(test))]
-            let chosen = authority_to_blocks.iter().choose(&mut ThreadRng::default());
-
-            #[cfg(test)]
-            let chosen = authority_to_blocks.iter().min_by_key(|(peer, _)| *peer);
-
-            if let Some((&peer, blocks)) = chosen {
+            if let Some((&peer, blocks)) = first_chosen {
                 let block_refs = blocks
                     .iter()
                     .copied()
@@ -1095,10 +1119,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     ));
                 }
             }
-        }
+        
 
         // Proceed with the usual fetching
-        const MAX_PEERS: usize = 3;
+        
 
         // Attempt to fetch only up to a max of blocks
         let missing_blocks = missing_blocks
@@ -1999,7 +2023,6 @@ mod tests {
     #[derive(Default)]
     struct SyncMockDispatcher {
         missing_blocks: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-        suspended_blocks_count: Mutex<usize>,
         added_blocks: Mutex<Vec<VerifiedBlock>>,
     }
 
@@ -2007,11 +2030,10 @@ mod tests {
     impl CoreThreadDispatcher for SyncMockDispatcher {
         async fn get_missing_blocks(
             &self,
-        ) -> Result<(BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, usize), CoreError> {
-            Ok((
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            Ok(
                 self.missing_blocks.lock().await.clone(),
-                *self.suspended_blocks_count.lock().await,
-            ))
+            )
         }
         async fn add_blocks(
             &self,
@@ -2044,7 +2066,7 @@ mod tests {
             Ok(())
         }
 
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             Ok(())
         }
 
@@ -2127,7 +2149,6 @@ mod tests {
             network_client.clone(),
             missing_blocks,
             dag_state.clone(),
-            suspended_map.len(),
         )
             .await;
 
@@ -2186,7 +2207,7 @@ mod tests {
             inflight.clone(),
             network_client.clone(),
             missing_blocks,
-            dag_state.clone(), 10,
+            dag_state.clone(), 
         )
             .await;
 
@@ -2282,7 +2303,6 @@ mod tests {
             network_client.clone(),
             missing_blocks,
             dag_state.clone(),
-            suspended_count,
         )
             .await;
 
