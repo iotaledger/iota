@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { TypeSetItem } from './TypeSetItem';
 import { getFontSizeLabelFromClass } from '../helpers';
 import type { TailwindCustomFonts } from '@/lib/tailwind/constants';
@@ -18,7 +17,7 @@ export function TypeSet({ typeset, label }: TypeSetProps) {
             {textClasses.map(([fontClass, [_, fontConfig]], index) => {
                 const sizeText = getFontSizeLabelFromClass(fontClass);
                 return (
-                    <React.Fragment key={index}>
+                    <div key={index}>
                         <TypeSetItem
                             sampleText={label}
                             fontClass={fontClass}
@@ -26,7 +25,7 @@ export function TypeSet({ typeset, label }: TypeSetProps) {
                             {...fontConfig}
                         />
                         {index !== textClasses.length - 1 && <hr className="mb-sm mt-xxs" />}
-                    </React.Fragment>
+                    </div>
                 );
             })}
         </div>
