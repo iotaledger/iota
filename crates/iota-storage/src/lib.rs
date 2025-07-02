@@ -168,6 +168,7 @@ pub fn make_iterator<T: DeserializeOwned, R: Read + 'static>(
     }
 }
 
+#[expect(clippy::result_large_err)]
 pub fn verify_checkpoint_with_committee(
     committee: Arc<Committee>,
     current: &VerifiedCheckpoint,
@@ -227,6 +228,7 @@ pub fn verify_checkpoint_with_committee(
     Ok(VerifiedCheckpoint::new_unchecked(checkpoint))
 }
 
+#[expect(clippy::result_large_err)]
 pub fn verify_checkpoint<S>(
     current: &VerifiedCheckpoint,
     store: S,

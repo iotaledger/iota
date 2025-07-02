@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.4.0
+
+### Minor Changes
+
+-   6fcddb3: Make react a peer dependency
+
 ## 0.3.1
 
 ### Patch Changes

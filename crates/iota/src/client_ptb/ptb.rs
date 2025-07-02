@@ -60,7 +60,7 @@ pub struct Summary {
 pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
-    CommandResult(IotaClientCommandResult),
+    CommandResult(Box<IotaClientCommandResult>),
     DevInspect(Box<DevInspectResults>),
     Json(serde_json::Value),
     Help { long: bool },
@@ -212,7 +212,7 @@ impl PTB {
             IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                return Ok(PTBCommandResult::CommandResult(res));
+                return Ok(PTBCommandResult::CommandResult(Box::new(res)));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
@@ -259,9 +259,9 @@ impl PTB {
                 Ok(PTBCommandResult::Summary(summary))
             }
         } else {
-            Ok(PTBCommandResult::CommandResult(
+            Ok(PTBCommandResult::CommandResult(Box::new(
                 IotaClientCommandResult::TransactionBlock(transaction_response),
-            ))
+            )))
         }
     }
 

@@ -36,7 +36,7 @@ Quick reference on best practices for IOTA Network developers.
 
 | **Topic** | **Description** |
 |-|-|
-| **Optimal performance** | For optimal performance and data consistency, apps should use the wallet's [`signTransactionBlock`](../ts-sdk/dapp-kit/index.mdx) API to sign transactions and then submit them via [`execute_transactionBlock`](/iota-api-ref#iota_executetransactionblock) on the app's full node. This ensures immediate read-after-write consistency, as the app's full node reflects writes instantly, avoiding delays from checkpointing. |
+| **Optimal performance** | For optimal performance and data consistency, apps should use the wallet's [`signTransactionBlock`](../developer/ts-sdk/dapp-kit/index.mdx) API to sign transactions and then submit them via [`execute_transactionBlock`](/iota-api-ref#iota_executetransactionblock) on the app's full node. This ensures immediate read-after-write consistency, as the app's full node reflects writes instantly, avoiding delays from checkpointing. |
 | **Lower latency** | For lower latency, use [`executeTransactionBlock`](/iota-api-ref#iota_executetransactionblock) with `"showEffects": false` and `"showEvents": false` if your app only needs confirmation of a transaction without immediate access to its effects or events.|
 | **Local cache** | Apps should implement a local cache for frequently read data rather than over-fetching from the full node. |
 | **Transaction cache**| Whenever possible,use programmable transaction blocks to compose on-chain functionality instead of deploying new contracts, enabling batching and lowering gas fees. |
@@ -46,6 +46,6 @@ Quick reference on best practices for IOTA Network developers.
 
 | **Topic** | **Description** |
 |-|-|
-|**Concurrent Transactions**| Avoid signing concurrent transactions involving the same owned object. Use independent objects or wait for one transaction to finish to prevent client [equivocation](/references/iota-glossary.mdx#equivocation), which can lock the objects until the epoch ends. |
+|**Concurrent Transactions**| Avoid signing concurrent transactions involving the same owned object. Use independent objects or wait for one transaction to finish to prevent client [equivocation](./references/iota-glossary.mdx#equivocation), which can lock the objects until the epoch ends. |
 |**CLI transaction**| Use the `--serialize-output` flag with any iota client command (e.g., `publish`, `call`) to generate a base64 transaction for signing. |
 |**Transaction Signing**| IOTA supports several signature schemes for transaction signing, including native multisig.|

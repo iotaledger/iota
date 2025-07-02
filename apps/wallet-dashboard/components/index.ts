@@ -20,7 +20,6 @@ export * from './dialogs';
 export * from './ValidatorStakingData';
 export * from './tiles';
 export * from './migration';
-export * from './Banner';
 export * from './StakeRewardsPanel';
 export * from './MigrationOverview';
 export * from './SupplyIncreaseVestingOverview';

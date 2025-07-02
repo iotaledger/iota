@@ -1310,20 +1310,6 @@ impl PgIndexerStore {
         )
     }
 
-    fn prune_epochs_table(&self, epoch: u64) -> Result<(), IndexerError> {
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                diesel::delete(epochs::table.filter(epochs::epoch.eq(epoch as i64)))
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context("Failed to prune epochs table")?;
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-    }
-
     fn prune_event_indices_table(&self, min_tx: u64, max_tx: u64) -> Result<(), IndexerError> {
         let (min_tx, max_tx) = (min_tx as i64, max_tx as i64);
         transactional_blocking_with_retry!(
@@ -2291,13 +2277,6 @@ impl IndexerStore for PgIndexerStore {
             self.metrics.last_pruned_checkpoint.set(cp as i64);
         }
 
-        // NOTE: prune epochs table last, otherwise get_checkpoint_range_for_epoch would
-        // fail.
-        self.execute_in_blocking_worker(move |this| this.prune_epochs_table(epoch))
-            .await
-            .unwrap_or_else(|e| {
-                tracing::error!("Failed to prune epoch table for epoch {}: {}", epoch, e);
-            });
         Ok(())
     }
 
