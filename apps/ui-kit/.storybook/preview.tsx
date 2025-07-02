@@ -3,7 +3,6 @@
 
 import { type Preview } from '@storybook/react';
 import { withThemeByClassName } from '@storybook/addon-themes';
-import { UIKitTheme } from '../src/lib/enums/theme.enums';
 
 import '../src/lib/styles/index.css';
 
@@ -22,7 +21,11 @@ const preview: Preview = {
     },
     decorators: [
         withThemeByClassName({
-            themes: UIKitTheme,
+            themes: {
+                light: 'light',
+                dark: 'dark',
+                names: 'names',
+            },
             defaultTheme: 'light',
         }),
     ],
@@ -33,7 +36,7 @@ const preview: Preview = {
             defaultValue: 'light',
             toolbar: {
                 icon: 'paintbrush',
-                items: Object.values(UIKitTheme),
+                items: ['light', 'dark', 'names'],
                 showName: true,
             },
         },
