@@ -17,7 +17,7 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestStateReader, RpcIndexes, WriteStore,
+        ObjectStore, ReadStore, RestIndexes, RestStateReader, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -531,12 +531,12 @@ impl RestStateReader for RestReadStore {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn indexes(&self) -> Option<&dyn RpcIndexes> {
+    fn indexes(&self) -> Option<&dyn RestIndexes> {
         self.index().ok().map(|index| index as _)
     }
 }
 
-impl RpcIndexes for RestIndexStore {
+impl RestIndexes for RestIndexStore {
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,

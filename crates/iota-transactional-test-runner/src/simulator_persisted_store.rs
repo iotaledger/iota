@@ -703,7 +703,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
         .into())
     }
 
-    fn indexes(&self) -> Option<&dyn iota_types::storage::RpcIndexes> {
+    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
         None
     }
 

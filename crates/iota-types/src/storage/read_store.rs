@@ -663,10 +663,10 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
     fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;
 
     // Get a handle to an instance of the RpcIndexes
-    fn indexes(&self) -> Option<&dyn RpcIndexes>;
+    fn indexes(&self) -> Option<&dyn RestIndexes>;
 }
 
-pub trait RpcIndexes: Send + Sync {
+pub trait RestIndexes: Send + Sync {
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,

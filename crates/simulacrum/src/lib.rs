@@ -581,7 +581,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
         todo!()
     }
 
-    fn indexes(&self) -> Option<&dyn iota_types::storage::RpcIndexes> {
+    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
         None
     }
 }
