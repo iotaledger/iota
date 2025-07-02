@@ -154,6 +154,13 @@ impl CertLockGuard {
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
+/// An alias type for a collection used to hold previously deferred
+/// transactions, where `Option<u64>` is used to hold suggested gas
+/// price for transactions deferred due to shared object congestion
+/// (`None` for transactions deferred due to randomness not available).
+pub(crate) type PreviouslyDeferredTransactions =
+    HashMap<TransactionDigest, (DeferralKey, Option<u64>)>;
+
 /// Holds a verified sequenced consensus transaction that is deferred
 /// and optionally a suggested gas price for that transaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1710,7 +1717,7 @@ impl AuthorityPerEpochStore {
     fn load_and_process_deferred_transactions_for_randomness(
         &self,
         output: &mut ConsensusCommitOutput,
-        previously_deferred_tx_digests: &mut HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &mut PreviouslyDeferredTransactions,
         sequenced_randomness_transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
     ) -> IotaResult {
         let deferred_randomness_txs = self.load_deferred_transactions_for_randomness(output)?;
@@ -1724,7 +1731,7 @@ impl AuthorityPerEpochStore {
                     .map(|tx| match tx.transaction.0.transaction.key() {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
-                        ) => (digest, *deferral_key),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price_as_opt)),
                         _ => {
                             panic!(
                                 "deferred randomness transaction was not a user certificate: {tx:?}"
@@ -1818,7 +1825,7 @@ impl AuthorityPerEpochStore {
         commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
-        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> SchedulingResult {
         // Defer transaction if it uses randomness but we aren't generating any this
@@ -1827,7 +1834,11 @@ impl AuthorityPerEpochStore {
         if !dkg_failed && !generating_randomness && cert.transaction_data().uses_randomness() {
             let deferred_from_round = previously_deferred_tx_digests
                 .get(cert.digest())
-                .map(|previous_key| previous_key.deferred_from_round())
+                .map(|previous_key_suggested_gas_price_pair| {
+                    previous_key_suggested_gas_price_pair
+                        .0
+                        .deferred_from_round()
+                })
                 .unwrap_or(commit_round);
             return SchedulingResult::Defer(
                 DeferralKey::new_for_randomness(deferred_from_round),
@@ -2652,19 +2663,18 @@ impl AuthorityPerEpochStore {
             )?
             .into_iter()
             .collect();
-        let mut previously_deferred_tx_digests: HashMap<TransactionDigest, DeferralKey> =
-            deferred_txs
-                .iter()
-                .flat_map(|(deferral_key, txs)| {
-                    txs.iter()
-                        .map(|tx| match tx.transaction.0.transaction.key() {
-                            SequencedConsensusTransactionKey::External(
-                                ConsensusTransactionKey::Certificate(digest),
-                            ) => (digest, *deferral_key),
-                            _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
-                        })
-                })
-                .collect();
+        let mut previously_deferred_tx_digests: PreviouslyDeferredTransactions = deferred_txs
+            .iter()
+            .flat_map(|(deferral_key, txs)| {
+                txs.iter()
+                    .map(|tx| match tx.transaction.0.transaction.key() {
+                        SequencedConsensusTransactionKey::External(
+                            ConsensusTransactionKey::Certificate(digest),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price_as_opt)),
+                        _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
+                    })
+            })
+            .collect();
 
         // Sequenced_transactions and sequenced_randomness_transactions store all
         // transactions that will be sent to process_consensus_transactions. We
@@ -3105,7 +3115,7 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         roots: &mut BTreeSet<TransactionKey>,
         randomness_roots: &mut BTreeSet<TransactionKey>,
-        previously_deferred_tx_digests: HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: PreviouslyDeferredTransactions,
         mut randomness_manager: Option<&mut RandomnessManager>,
         dkg_failed: bool,
         randomness_round: Option<RandomnessRound>,
@@ -3433,7 +3443,7 @@ impl AuthorityPerEpochStore {
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
         commit_round: CommitRound,
-        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         mut randomness_manager: Option<&mut RandomnessManager>,
         dkg_failed: bool,
         generating_randomness: bool,
