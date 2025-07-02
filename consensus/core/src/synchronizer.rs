@@ -13,11 +13,7 @@ use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{StreamExt as _, stream::FuturesUnordered};
 use iota_macros::fail_point_async;
-use iota_metrics::{
-    monitored_future,
-    monitored_mpsc::{Receiver, Sender, channel},
-    monitored_scope,
-};
+use iota_metrics::{metrics, monitored_future, monitored_mpsc::{Receiver, Sender, channel}, monitored_scope};
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
@@ -1152,6 +1148,20 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
+                // Record metrics about requested blocks
+                let metrics = &context.metrics.node_metrics;
+                metrics
+                    .synchronizer_requested_blocks_by_peer
+                    .with_label_values(&[peer_hostname.as_str(), "periodic"])
+                    .inc_by(block_refs.len() as u64);
+                for block_ref in &block_refs {
+                    let block_hostname =
+                        &context.committee.authority(block_ref.author).hostname;
+                    metrics
+                        .synchronizer_requested_blocks_by_authority
+                        .with_label_values(&[block_hostname.as_str(), "periodic"])
+                        .inc();
+                }
                 request_futures.push(Self::fetch_blocks_request(
                     network_client.clone(),
                     peer,
@@ -1198,6 +1208,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                             .collect::<Vec<_>>()
                                             .join(", ")
                                     );
+                                    let block_refs = blocks_guard.block_refs.clone(); 
+                                    // Record metrics about requested blocks
+                                    let metrics = &context.metrics.node_metrics;
+                                    metrics
+                                        .synchronizer_requested_blocks_by_peer
+                                        .with_label_values(&[peer_hostname.as_str(), "periodic"])
+                                        .inc_by(block_refs.len() as u64);
+                                    for block_ref in &block_refs {
+                                        let block_hostname =
+                                            &context.committee.authority(block_ref.author).hostname;
+                                        metrics
+                                            .synchronizer_requested_blocks_by_authority
+                                            .with_label_values(&[block_hostname.as_str(), "periodic"])
+                                            .inc();
+                                    }
                                     request_futures.push(Self::fetch_blocks_request(
                                         network_client.clone(),
                                         next_peer,
