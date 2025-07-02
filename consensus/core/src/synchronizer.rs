@@ -1682,7 +1682,6 @@ mod tests {
                 .get_missing_blocks()
                 .await
                 .unwrap()
-                .0
                 .is_empty()
         );
     }

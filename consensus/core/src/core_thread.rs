@@ -485,11 +485,11 @@ pub(crate) mod tests {
 
         async fn get_missing_blocks(
             &self,
-        ) -> Result<(BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, usize), CoreError> {
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             let mut missing_blocks = self.missing_blocks.lock();
             let result = missing_blocks.clone();
             missing_blocks.clear();
-            Ok((result, 0))
+            Ok(result)
         }
 
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {

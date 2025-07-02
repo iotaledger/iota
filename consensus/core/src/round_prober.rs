@@ -443,7 +443,7 @@ mod test {
 
         async fn get_missing_blocks(
             &self,
-        ) -> Result<(BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, usize), CoreError> {
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
