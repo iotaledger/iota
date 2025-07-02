@@ -60,7 +60,6 @@ use iota_macros::fail_point_async;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::{Bridge, get_bridge},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -477,7 +476,7 @@ impl WritebackCache {
         version: SequenceNumber,
         object: ObjectEntry,
     ) {
-        debug!(?object_id, ?version, ?object, "inserting object entry");
+        trace!(?object_id, ?version, ?object, "inserting object entry");
         fail_point_async!("write_object_entry");
         self.metrics.record_cache_write("object");
 
@@ -654,7 +653,7 @@ impl WritebackCache {
                         "object_by_id cache is incoherent for {:?}",
                         object_id
                     );
-                    panic!("object_by_id cache is incoherent for {:?}", object_id);
+                    panic!("object_by_id cache is incoherent for {object_id:?}");
                 }
             }
         }
@@ -1223,8 +1222,7 @@ impl ObjectCacheRead for WritebackCache {
                     assert_eq!(
                         store_package.digest(),
                         p.object().digest(),
-                        "Package object cache is inconsistent for package {:?}",
-                        package_id
+                        "Package object cache is inconsistent for package {package_id:?}"
                     );
                 }
             }
@@ -1538,10 +1536,6 @@ impl ObjectCacheRead for WritebackCache {
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
-    }
-
-    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
-        get_bridge(self)
     }
 
     fn get_marker_value(

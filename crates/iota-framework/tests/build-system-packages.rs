@@ -39,14 +39,12 @@ fn build_system_packages() {
 
     let packages_path = Path::new(CRATE_ROOT).join("packages");
 
-    let bridge_path = packages_path.join("bridge");
     let iota_system_path = packages_path.join("iota-system");
     let iota_framework_path = packages_path.join("iota-framework");
     let move_stdlib_path = packages_path.join("move-stdlib");
     let stardust_path = packages_path.join("stardust");
 
     build_packages(
-        &bridge_path,
         &iota_system_path,
         &iota_framework_path,
         &move_stdlib_path,
@@ -81,7 +79,6 @@ fn check_diff(checked_in: &Path, built: &Path) {
 }
 
 fn build_packages(
-    bridge_path: &Path,
     iota_system_path: &Path,
     iota_framework_path: &Path,
     stdlib_path: &Path,
@@ -98,13 +95,11 @@ fn build_packages(
     };
     debug_assert!(!config.test_mode);
     build_packages_with_move_config(
-        bridge_path,
         iota_system_path,
         iota_framework_path,
         stdlib_path,
         stardust_path,
         out_dir,
-        "bridge",
         "iota-system",
         "iota-framework",
         "move-stdlib",
@@ -114,13 +109,11 @@ fn build_packages(
 }
 
 fn build_packages_with_move_config(
-    bridge_path: &Path,
     iota_system_path: &Path,
     iota_framework_path: &Path,
     stdlib_path: &Path,
     stardust_path: &Path,
     out_dir: &Path,
-    bridge_dir: &str,
     system_dir: &str,
     framework_dir: &str,
     stdlib_dir: &str,
@@ -151,14 +144,6 @@ fn build_packages_with_move_config(
     }
     .build(iota_system_path)
     .unwrap();
-    let bridge_pkg = BuildConfig {
-        config: config.clone(),
-        run_bytecode_verifier: true,
-        print_diags_to_stderr: false,
-        chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
-    }
-    .build(bridge_path)
-    .unwrap();
     let stardust_pkg = BuildConfig {
         config,
         run_bytecode_verifier: true,
@@ -171,7 +156,6 @@ fn build_packages_with_move_config(
     let move_stdlib = stdlib_pkg.get_stdlib_modules();
     let iota_system = system_pkg.get_iota_system_modules();
     let iota_framework = framework_pkg.get_iota_framework_modules();
-    let bridge = bridge_pkg.get_bridge_modules();
     let stardust = stardust_pkg.get_stardust_modules();
 
     let compiled_packages_dir = out_dir.join(COMPILED_PACKAGES_DIR);
@@ -181,8 +165,6 @@ fn build_packages_with_move_config(
     let iota_framework_members =
         serialize_modules_to_file(iota_framework, &compiled_packages_dir.join(framework_dir))
             .unwrap();
-    let bridge_members =
-        serialize_modules_to_file(bridge, &compiled_packages_dir.join(bridge_dir)).unwrap();
     let stdlib_members =
         serialize_modules_to_file(move_stdlib, &compiled_packages_dir.join(stdlib_dir)).unwrap();
     let stardust_members =
@@ -206,11 +188,6 @@ fn build_packages_with_move_config(
         &stdlib_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
-    create_category_file("bridge");
-    relocate_docs(
-        &bridge_pkg.package.compiled_docs.unwrap(),
-        &mut files_to_write,
-    );
     create_category_file("stardust");
     relocate_docs(
         &stardust_pkg.package.compiled_docs.unwrap(),
@@ -225,7 +202,6 @@ fn build_packages_with_move_config(
     let published_api = [
         iota_system_members.join("\n"),
         iota_framework_members.join("\n"),
-        bridge_members.join("\n"),
         stdlib_members.join("\n"),
         stardust_members.join("\n"),
     ]
@@ -337,7 +313,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
             .replace(".md", "");
 
         // Store all files in a map to deduplicate and change extension to mdx
-        output.entry(format!("{}x", file_name)).or_insert_with(|| {
+        output.entry(format!("{file_name}x")).or_insert_with(|| {
             title_regex.replace_all(&content, |caps: &regex::Captures| {
                     let title_type = caps.get(1).unwrap().as_str();
                     let package = caps.get(2).unwrap().as_str();
@@ -349,7 +325,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
                     // The url of that file will be /framework/bridge. Which will break anchors that are for example in that mentioned file
                     // and look like this: bridge#anchor for example. So we enforced docusaurus to keep the duplicate in the url by using a custom slug.
                     // Another alternative for later could be to fix this weird anchors in the first place by using relative paths.
-                    format!("---\ntitle: {}{}\nsidebar_label: {}\nslug: {}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, package, name, name, anchor)
+                    format!("---\ntitle: {title_type}{package}\nsidebar_label: {name}\nslug: {name}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{anchor}\"/>")
             }).to_string()
         });
     }

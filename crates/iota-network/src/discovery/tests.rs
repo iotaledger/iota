@@ -278,15 +278,19 @@ async fn test_access_types() {
     //
     //
     // The topology:
-    //                                      ------------  11 (private, seed: 1,
-    // allowed: 7, 8)                                     /
+    //
+    //    11 (private, seed: 1, allowed: 7, 8)
+    //                             \
     //                       ------ 1 (public) ------
     //                      /                        \
-    //    2 (public, seed: 1, allowed: 7, 8)          3 (private, seed: 1, allowed:
-    // 4+, 5+)       |                                       /             \
-    //       |                 4 (private, allowed: 3+, 5, 6)     5 (private,
-    // allowed: 3, 4+)       |                                        \
-    //       |                                      6 (private, allowed: 4+)
+    //     2 (public, seed: 1, allowed: 7, 8)        |
+    //       |                                       /
+    //       |                          3 (private, seed: 1, allowed: 4+, 5+)
+    //       |                         /             \
+    //       |   4 (private, allowed: 3+, 5, 6) --- 5 (private, allowed: 3, 4+)
+    //       |                         \
+    //       |                       6 (private, allowed: 4+)
+    //       |
     //     7 (private, allowed: 2+, 8+)
     //       |
     //       |
@@ -318,7 +322,7 @@ async fn test_access_types() {
         ..Default::default()
     };
 
-    // None 1, public
+    // Node 1, public
     let (builder_1, network_1, key_1) = set_up_network(default_p2p_config.clone());
 
     let mut config = default_p2p_config.clone();
@@ -516,7 +520,7 @@ async fn test_access_types() {
         ]),
     );
 
-    // Node 1 is connected to everyone. But it does not "know" private nodes except
+    // Node 2 is connected to everyone. But it does not "know" private nodes except
     // the allowlisted ones 7 and 8.
     assert_peers(
         "Node 2",
@@ -580,20 +584,18 @@ async fn test_access_types() {
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
     );
 
-    // Node 11 finds Node 7 via Node 2, and invites Node 7 to connect. Node 7 says
-    // yes.
+    // Node 11 can't find private Node 7 via Node 2.
     assert_peers(
         "Node 7",
         &network_7,
         &state_7,
         HashSet::from_iter(vec![peer_id_2, peer_id_8]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9, peer_id_11]),
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9, peer_id_11]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
     );
 
-    // Node 11 finds Node 8 via Node 2, and invites Node 8 to connect. Node 8 said
-    // No because its `max_concurrent_connections` is 0.
+    // Node 11 can't find private Node 8 via Node 2.
     assert_peers(
         "Node 8",
         &network_8,
@@ -638,9 +640,9 @@ async fn test_access_types() {
         &network_11,
         &state_11,
         HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
     );
 }
 
@@ -661,14 +663,12 @@ fn assert_peers(
         .collect::<HashSet<_>>();
     assert_eq!(
         actual, expected_network_known_peers,
-        "{} network known peers mismatch. Expected: {:#?}, actual: {:#?}",
-        self_name, expected_network_known_peers, actual,
+        "{self_name} network known peers mismatch. Expected: {expected_network_known_peers:#?}, actual: {actual:#?}",
     );
     let actual = network.peers().iter().copied().collect::<HashSet<_>>();
     assert_eq!(
         actual, expected_network_connected_peers,
-        "{} network connected peers mismatch. Expected: {:#?}, actual: {:#?}",
-        self_name, expected_network_connected_peers, actual,
+        "{self_name} network connected peers mismatch. Expected: {expected_network_connected_peers:#?}, actual: {actual:#?}",
     );
     let actual = state
         .read()
@@ -679,8 +679,7 @@ fn assert_peers(
         .collect::<HashSet<_>>();
     assert_eq!(
         actual, expected_discovery_known_peers,
-        "{} discovery known peers mismatch. Expected: {:#?}, actual: {:#?}",
-        self_name, expected_discovery_known_peers, actual,
+        "{self_name} discovery known peers mismatch. Expected: {expected_discovery_known_peers:#?}, actual: {actual:#?}",
     );
 
     let actual = state
@@ -692,8 +691,7 @@ fn assert_peers(
         .collect::<HashSet<_>>();
     assert_eq!(
         actual, expected_discovery_connected_peers,
-        "{} discovery connected peers mismatch. Expected: {:#?}, actual: {:#?}",
-        self_name, expected_discovery_connected_peers, actual,
+        "{self_name} discovery connected peers mismatch. Expected: {expected_discovery_connected_peers:#?}, actual: {actual:#?}",
     );
 }
 
@@ -707,7 +705,7 @@ fn unwrap_new_peer_event(event: PeerEvent) -> PeerId {
 fn local_allowlisted_peer(peer_id: PeerId, port: Option<u16>) -> AllowlistedPeer {
     AllowlistedPeer {
         peer_id,
-        address: port.map(|port| format!("/dns/localhost/udp/{}", port).parse().unwrap()),
+        address: port.map(|port| format!("/dns/localhost/udp/{port}").parse().unwrap()),
     }
 }
 
@@ -750,7 +748,7 @@ fn create_test_channel() -> (
 #[tokio::test]
 async fn test_handle_trusted_peer_change_event() -> Result<()> {
     fn mock_multiaddr(id: u16) -> Multiaddr {
-        format!("/dns/mockhost/udp/{}", id).parse().unwrap()
+        format!("/dns/mockhost/udp/{id}").parse().unwrap()
     }
 
     // Create mock peers, good enough for the test

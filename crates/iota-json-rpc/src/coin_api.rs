@@ -8,14 +8,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
-use iota_core::authority::AuthorityState;
+use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
+use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
@@ -375,8 +375,7 @@ async fn find_package_object_id(
             }
         }
         Err(IotaRpcInputError::GenericNotFound(format!(
-            "Cannot find object [{}] from [{}] package event.",
-            object_struct_tag, package_id,
+            "Cannot find object [{object_struct_tag}] from [{package_id}] package event.",
         ))
         .into())
     })
@@ -610,7 +609,7 @@ mod tests {
     }
 
     fn get_test_coin_type(package_id: ObjectID) -> String {
-        format!("{}::test_coin::TEST_COIN", package_id)
+        format!("{package_id}::test_coin::TEST_COIN")
     }
 
     fn get_test_coin_type_tag(coin_type: String) -> TypeTag {
@@ -1241,7 +1240,7 @@ mod tests {
                 if let Some(pos) = result.iter().position(|i| *i == item) {
                     result.remove(pos);
                 } else {
-                    panic!("{:?} not found in result", item);
+                    panic!("{item:?} not found in result");
                 }
             }
             assert!(result.is_empty());

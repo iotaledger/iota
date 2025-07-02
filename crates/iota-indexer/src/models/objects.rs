@@ -455,22 +455,19 @@ impl TryFrom<StoredObject> for IotaCoin {
         let coin_type_canonical =
             o.coin_type
                 .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                    "Object {} is supposed to be a coin but has an empty coin_type column",
-                    coin_object_id,
+                    "Object {coin_object_id} is supposed to be a coin but has an empty coin_type column",
                 )))?;
         let coin_type = parse_to_struct_tag(coin_type_canonical.as_str())
             .map_err(|_| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "The type of object {} cannot be parsed as a struct tag",
-                    coin_object_id,
+                    "The type of object {coin_object_id} cannot be parsed as a struct tag",
                 ))
             })?
             .to_string();
         let balance = o
             .coin_balance
             .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                "Object {} is supposed to be a coin but has an empty coin_balance column",
-                coin_object_id,
+                "Object {coin_object_id} is supposed to be a coin but has an empty coin_balance column",
             )))?;
         Ok(IotaCoin {
             coin_type,

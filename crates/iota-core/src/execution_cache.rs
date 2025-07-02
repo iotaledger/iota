@@ -9,7 +9,6 @@ use iota_common::fatal;
 use iota_config::ExecutionCacheConfig;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::Bridge,
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -311,8 +310,7 @@ pub trait ObjectCacheRead: Send + Sync {
             assert!(
                 input_key.version().is_none() || input_key.version().unwrap().is_valid(),
                 "Shared objects in cancelled transaction should always be available immediately, 
-                 but it appears that transaction manager is waiting for {:?} to become available",
-                input_key
+                 but it appears that transaction manager is waiting for {input_key:?} to become available"
             );
             // If the key exists at the specified version, then the object is available.
             if has_key {
@@ -396,8 +394,6 @@ pub trait ObjectCacheRead: Send + Sync {
     fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
-
-    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge>;
 
     // Marker methods
 

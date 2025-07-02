@@ -159,11 +159,11 @@ impl Display for Keystore {
             Keystore::File(file) => {
                 writeln!(writer, "Keystore Type: File")?;
                 write!(writer, "Keystore Path : {:?}", file.path)?;
-                write!(f, "{}", writer)
+                write!(f, "{writer}")
             }
             Keystore::InMem(_) => {
                 writeln!(writer, "Keystore Type: InMem")?;
-                write!(f, "{}", writer)
+                write!(f, "{writer}")
             }
         }
     }

@@ -45,7 +45,7 @@ async fn run_one(
             IotaCommand::Move { .. } => {
                 unimplemented!("Supporting Move publish and upgrade commands")
             }
-            _ => panic!("Command {:?} not supported by RPC snapshot tests", cli_cmd),
+            _ => panic!("Command {cli_cmd:?} not supported by RPC snapshot tests"),
         }
     }
     Ok(test_output)

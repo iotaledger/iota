@@ -14,8 +14,7 @@ use std::{
 use fastcrypto::encoding::Base64;
 use iota_package_management::{PublishedAtError, resolve_published_id};
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
-    STARDUST_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     is_system_package,
@@ -191,7 +190,7 @@ impl BuildConfig {
                 .resolution_graph_for_package(path, chain_id, &mut std::io::sink())
         }
         .map_err(|err| IotaError::ModuleBuildFailure {
-            error: format!("{:?}", err),
+            error: format!("{err:?}"),
         })
     }
 }
@@ -257,8 +256,7 @@ pub fn build_from_resolution_graph(
             pkg.get_bytecodes_bytes()
                 .map_err(|error| IotaError::ModuleDeserializationFailure {
                     error: format!(
-                        "Deserializing bytecode dependency for package {}: {:?}",
-                        name, error
+                        "Deserializing bytecode dependency for package {name}: {error:?}"
                     ),
                 })?;
         for module in modules {
@@ -266,8 +264,7 @@ pub fn build_from_resolution_graph(
                 CompiledModule::deserialize_with_defaults(module.as_ref()).map_err(|error| {
                     IotaError::ModuleDeserializationFailure {
                         error: format!(
-                            "Deserializing bytecode dependency for package {}: {:?}",
-                            name, error
+                            "Deserializing bytecode dependency for package {name}: {error:?}"
                         ),
                     }
                 })?;
@@ -285,7 +282,7 @@ pub fn build_from_resolution_graph(
     let (package, fn_info) = match result {
         Err(error) => {
             return Err(IotaError::ModuleBuildFailure {
-                error: format!("{:?}", error),
+                error: format!("{error:?}"),
             });
         }
         Ok((package, fn_info)) => (package, fn_info),
@@ -428,12 +425,6 @@ impl CompiledPackage {
             .iter()
             .map(|b| Base64::from_bytes(b))
             .collect()
-    }
-
-    /// Get bytecode modules from Bridge that are used by this package
-    pub fn get_bridge_modules(&self) -> impl Iterator<Item = &CompiledModule> {
-        self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == BRIDGE_ADDRESS)
     }
 
     /// Get bytecode modules from the IOTA System that are used by this package

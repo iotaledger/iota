@@ -84,6 +84,8 @@ const ENV_VAR_DB_PARALLELISM: &str = "DB_PARALLELISM";
 const ROCKSDB_PROPERTY_TOTAL_BLOB_FILES_SIZE: &CStr =
     unsafe { CStr::from_bytes_with_nul_unchecked("rocksdb.total-blob-file-size\0".as_bytes()) };
 
+const DB_CORRUPTED_KEY: &[u8] = b"db_corrupted";
+
 #[cfg(test)]
 mod tests;
 
@@ -597,6 +599,31 @@ impl RocksDB {
     }
 }
 
+// Check if the database is corrupted, and if so, panic.
+// If the corrupted key is not set, we set it to [1].
+pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
+    let db = rocksdb::DB::open_default(path).map_err(|e| e.to_string())?;
+
+    db.get(DB_CORRUPTED_KEY)
+        .map_err(|e| format!("Failed to open database: {e}"))
+        .and_then(|value| match value {
+            Some(v) if v[0] == 1 => Err(
+                "Database is corrupted, please remove the current database and start clean!"
+                    .to_string(),
+            ),
+            Some(_) => Ok(()),
+            None => db
+                .put(DB_CORRUPTED_KEY, [1])
+                .map_err(|e| format!("Failed to set corrupted key in database: {e}")),
+        })?;
+
+    Ok(())
+}
+
+pub fn unmark_db_corruption(path: &Path) -> Result<(), Error> {
+    rocksdb::DB::open_default(path)?.put(DB_CORRUPTED_KEY, [0])
+}
+
 pub enum RocksDBSnapshot<'a> {
     DBWithThreadMode(rocksdb::Snapshot<'a>),
     OptimisticTransactionDB(SnapshotWithThreadMode<'a, OptimisticTransactionDB>),
@@ -1003,7 +1030,14 @@ impl<K, V> DBMap<K, V> {
     }
 
     fn report_metrics(rocksdb: &Arc<RocksDB>, cf_name: &str, db_metrics: &Arc<DBMetrics>) {
-        let cf = rocksdb.cf_handle(cf_name).expect("Failed to get cf");
+        let Some(cf) = rocksdb.cf_handle(cf_name) else {
+            tracing::warn!(
+                "unable to report metrics for cf {cf_name:?} in db {:?}",
+                rocksdb.db_name()
+            );
+            return;
+        };
+
         db_metrics
             .cf_metrics
             .rocksdb_total_sst_files_size
@@ -1501,7 +1535,6 @@ impl DBBatch {
     }
 }
 
-// TODO: Remove this entire implementation once we switch to sally
 impl DBBatch {
     pub fn delete_batch<J: Borrow<K>, K: Serialize, V>(
         &mut self,
@@ -2642,7 +2675,6 @@ pub fn default_db_options() -> DBOptions {
     opt.set_table_cache_num_shard_bits(10);
 
     // LSM compression settings
-    opt.set_min_level_to_compress(2);
     opt.set_compression_type(rocksdb::DBCompressionType::Lz4);
     opt.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
     opt.set_bottommost_zstd_max_train_bytes(1024 * 1024, true);

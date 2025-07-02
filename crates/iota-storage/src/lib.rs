@@ -4,8 +4,6 @@
 
 #![allow(dead_code)]
 
-pub mod indexes;
-
 use std::{
     fs,
     fs::File,
@@ -24,7 +22,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::StreamExt;
-pub use indexes::{IndexStore, IndexStoreTables};
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{
@@ -171,6 +168,7 @@ pub fn make_iterator<T: DeserializeOwned, R: Read + 'static>(
     }
 }
 
+#[expect(clippy::result_large_err)]
 pub fn verify_checkpoint_with_committee(
     committee: Arc<Committee>,
     current: &VerifiedCheckpoint,
@@ -230,6 +228,7 @@ pub fn verify_checkpoint_with_committee(
     Ok(VerifiedCheckpoint::new_unchecked(checkpoint))
 }
 
+#[expect(clippy::result_large_err)]
 pub fn verify_checkpoint<S>(
     current: &VerifiedCheckpoint,
     store: S,
@@ -268,8 +267,7 @@ pub async fn verify_checkpoint_range<S>(
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
-                        "Checkpoint {} should exist in store after summary sync but does not",
-                        a
+                        "Checkpoint {a} should exist in store after summary sync but does not"
                     );
                 });
             let next = store
@@ -277,8 +275,7 @@ pub async fn verify_checkpoint_range<S>(
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
-                        "Checkpoint {} should exist in store after summary sync but does not",
-                        a
+                        "Checkpoint {a} should exist in store after summary sync but does not"
                     );
                 });
             let committee = store

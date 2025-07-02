@@ -29,7 +29,8 @@ use iota_types::{
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::VerifiedTransaction,
+    transaction::{TransactionData, VerifiedTransaction},
+    transaction_executor::SimulateTransactionResult,
 };
 use prometheus::{
     Histogram, Registry,
@@ -111,15 +112,14 @@ where
         prometheus_registry: &Registry,
         reconfig_observer: OnsiteReconfigObserver,
     ) -> Self {
+        let metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let notifier = Arc::new(NotifyRead::new());
+        let reconfig_observer = Arc::new(reconfig_observer);
         let quorum_driver_handler = Arc::new(
-            QuorumDriverHandlerBuilder::new(
-                validators,
-                Arc::new(QuorumDriverMetrics::new(prometheus_registry)),
-            )
-            .with_notifier(notifier.clone())
-            .with_reconfig_observer(Arc::new(reconfig_observer))
-            .start(),
+            QuorumDriverHandlerBuilder::new(validators.clone(), metrics.clone())
+                .with_notifier(notifier.clone())
+                .with_reconfig_observer(reconfig_observer.clone())
+                .start(),
         );
 
         let effects_receiver = quorum_driver_handler.subscribe_to_effects();
@@ -359,7 +359,6 @@ where
                     Ok(unfinished_quorum_driver_task.await)
                 }
             };
-            #[expect(clippy::let_and_return)]
             res
         })
     }
@@ -745,5 +744,12 @@ where
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         self.execute_transaction_v1(request, client_addr).await
+    }
+
+    fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        self.validator_state.simulate_transaction(transaction)
     }
 }

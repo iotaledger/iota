@@ -13,7 +13,7 @@ use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
+    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
     IOTA_DENY_LIST_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
@@ -195,7 +195,7 @@ impl<'a> ObjectRuntime<'a> {
             self.metrics.excessive_new_move_object_ids
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
-                .with_message(format!("Creating more than {} IDs is not allowed", lim))
+                .with_message(format!("Creating more than {lim} IDs is not allowed"))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::NEW_ID_COUNT_LIMIT_EXCEEDED as u64,
                 ));
@@ -226,7 +226,7 @@ impl<'a> ObjectRuntime<'a> {
             self.metrics.excessive_deleted_move_object_ids
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
-                .with_message(format!("Deleting more than {} IDs is not allowed", lim))
+                .with_message(format!("Deleting more than {lim} IDs is not allowed"))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::DELETED_ID_COUNT_LIMIT_EXCEEDED as u64,
                 ));
@@ -259,7 +259,7 @@ impl<'a> ObjectRuntime<'a> {
             IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
             IOTA_RANDOMNESS_STATE_OBJECT_ID,
             IOTA_DENY_LIST_OBJECT_ID,
-            IOTA_BRIDGE_OBJECT_ID,
+            GENESIS_IOTA_BRIDGE_OBJECT_ID,
         ]
         .contains(&id);
         let transfer_result = if self.state.new_ids.contains(&id) {
@@ -293,7 +293,7 @@ impl<'a> ObjectRuntime<'a> {
             self.metrics.excessive_transferred_move_object_ids
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
-                .with_message(format!("Transferring more than {} IDs is not allowed", lim))
+                .with_message(format!("Transferring more than {lim} IDs is not allowed"))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::TRANSFER_ID_COUNT_LIMIT_EXCEEDED as u64,
                 ));
@@ -512,8 +512,7 @@ impl<'a> ObjectRuntime<'a> {
 pub fn max_event_error(max_events: u64) -> PartialVMError {
     PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
         .with_message(format!(
-            "Emitting more than {} events is not allowed",
-            max_events
+            "Emitting more than {max_events} events is not allowed"
         ))
         .with_sub_status(VMMemoryLimitExceededSubStatusCode::EVENT_COUNT_LIMIT_EXCEEDED as u64)
 }

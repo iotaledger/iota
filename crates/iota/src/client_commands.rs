@@ -20,6 +20,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
+use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -105,6 +106,8 @@ use crate::{
 #[cfg(test)]
 mod profiler_tests;
 
+static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
 /// Only to be used within CLI
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
@@ -188,8 +191,9 @@ pub enum IotaClientCommands {
         /// using --serialize-unsigned-transaction.
         #[arg(long)]
         tx_bytes: String,
-        /// A list of Base64 encoded signatures `flag || signature || pubkey`.
-        #[arg(long)]
+        /// A list of Base64 encoded signatures `flag || signature || pubkey`,
+        /// separated by space.
+        #[arg(long, num_args(1..))]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -412,7 +416,7 @@ pub enum IotaClientCommands {
         #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
         /// ID of the upgrade capability for the package being upgraded.
-        #[arg(long)]
+        #[arg(long, short = 'c')]
         upgrade_capability: ObjectID,
         /// Package build options
         #[command(flatten)]
@@ -751,7 +755,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NoOutput
             }
             IotaClientCommands::RemoveAddress { address } => {
-                let address = get_identity_address(Some(address), context)?;
+                let address = get_identity_address(Some(address), context).await?;
 
                 if context.config().keystore().get_key(&address).is_ok() {
                     context.config_mut().keystore_mut().remove_key(&address)?;
@@ -850,7 +854,7 @@ impl IotaClientCommands {
                 coin_type,
                 with_coins,
             } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
 
                 let objects =
@@ -953,7 +957,7 @@ impl IotaClientCommands {
                     package_path
                         .canonicalize()
                         .map_err(|e| IotaError::ModulePublishFailure {
-                            error: format!("Failed to canonicalize package path: {}", e),
+                            error: format!("Failed to canonicalize package path: {e}"),
                         })?;
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
@@ -1080,7 +1084,7 @@ impl IotaClientCommands {
                     package_path
                         .canonicalize()
                         .map_err(|e| IotaError::ModulePublishFailure {
-                            error: format!("Failed to canonicalize package path: {}", e),
+                            error: format!("Failed to canonicalize package path: {e}"),
                         })?;
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
@@ -1314,7 +1318,7 @@ impl IotaClientCommands {
                 opts,
             } => {
                 let signer = context.get_object_owner(&object_id).await?;
-                let to = get_identity_address(Some(to), context)?;
+                let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
@@ -1347,11 +1351,10 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
-                let recipients = recipients
-                    .into_iter()
-                    .map(|x| get_identity_address(Some(x), context))
-                    .collect::<Result<Vec<IotaAddress>, anyhow::Error>>()
-                    .map_err(|e| anyhow!("{e}"))?;
+                let recipients = futures::stream::iter(recipients)
+                    .then(|x| async { get_identity_address(Some(x), context).await })
+                    .try_collect::<Vec<IotaAddress>>()
+                    .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
@@ -1394,11 +1397,10 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
-                let recipients = recipients
-                    .into_iter()
-                    .map(|x| get_identity_address(Some(x), context))
-                    .collect::<Result<Vec<IotaAddress>, anyhow::Error>>()
-                    .map_err(|e| anyhow!("{e}"))?;
+                let recipients = futures::stream::iter(recipients)
+                    .then(|x| async { get_identity_address(Some(x), context).await })
+                    .try_collect::<Vec<IotaAddress>>()
+                    .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
@@ -1425,7 +1427,7 @@ impl IotaClientCommands {
                     !input_coins.is_empty(),
                     "PayAllIota transaction requires a non-empty list of input coins"
                 );
-                let recipient = get_identity_address(Some(recipient), context)?;
+                let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client.transaction_builder().pay_all_iota_tx_kind(recipient);
@@ -1441,7 +1443,7 @@ impl IotaClientCommands {
                 .await?
             }
             IotaClientCommands::Objects { address } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
                 let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
                     client
@@ -1501,7 +1503,7 @@ impl IotaClientCommands {
                 })
             }
             IotaClientCommands::Gas { address } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let coins = context
                     .gas_objects(address)
                     .await?
@@ -1512,7 +1514,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::Gas(coins)
             }
             IotaClientCommands::Faucet { address, url } => {
-                let address = get_identity_address(address, context)?;
+                let address = get_identity_address(address, context).await?;
                 let url = if let Some(url) = url {
                     url
                 } else {
@@ -1598,7 +1600,7 @@ impl IotaClientCommands {
                 }
 
                 if let Some(address) = address {
-                    let address = get_identity_address(Some(address), context)?;
+                    let address = get_identity_address(Some(address), context).await?;
                     if !context.config().keystore().addresses().contains(&address) {
                         bail!("Address {} not managed by wallet", address);
                     }
@@ -1727,7 +1729,7 @@ impl IotaClientCommands {
             }
             IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
                 PTBCommandResult::CommandResult(iota_client_command_result) => {
-                    iota_client_command_result
+                    *iota_client_command_result
                 }
                 res => {
                     let s = res.to_styled_str();
@@ -2062,7 +2064,7 @@ impl Display for IotaClientCommandResult {
                 let mut table = builder.build();
                 let style = TableStyle::rounded();
                 table.with(style);
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::Balance(coins, with_coins) => {
                 if coins.is_empty() {
@@ -2077,7 +2079,7 @@ impl Display for IotaClientCommandResult {
                     TableStyle::modern().get_horizontal(),
                 )]));
                 table.with(tabled::settings::style::BorderSpanCorrection);
-                write!(f, "{}", table)?;
+                write!(f, "{table}")?;
             }
             IotaClientCommandResult::DynamicFieldQuery(df_refs) => {
                 let df_refs = DynamicFieldOutput {
@@ -2090,7 +2092,7 @@ impl Display for IotaClientCommandResult {
                 let mut table = json_to_table(&json_obj);
                 let style = TableStyle::rounded().horizontals([]);
                 table.with(style);
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
@@ -2136,7 +2138,7 @@ impl Display for IotaClientCommandResult {
                     ]));
                     table.with(tabled::settings::style::BorderSpanCorrection);
                 }
-                write!(f, "{}", table)?;
+                write!(f, "{table}")?;
             }
             IotaClientCommandResult::NewAddress(new_address) => {
                 let mut builder = TableBuilder::default();
@@ -2182,7 +2184,7 @@ impl Display for IotaClientCommandResult {
                     let json_obj = json!(&object);
                     let mut table = json_to_table(&json_obj);
                     table.with(TableStyle::rounded().horizontals([]));
-                    writeln!(f, "{}", table)?
+                    writeln!(f, "{table}")?
                 }
                 Err(e) => writeln!(f, "Internal error, cannot read the object: {e}")?,
             },
@@ -2196,14 +2198,14 @@ impl Display for IotaClientCommandResult {
                             let json_obj = json!(objs);
                             let mut table = json_to_table(&json_obj);
                             table.with(TableStyle::rounded().horizontals([]));
-                            writeln!(f, "{}", table)?
+                            writeln!(f, "{table}")?
                         }
                         Err(e) => write!(f, "Internal error: {e}")?,
                     }
                 }
             }
             IotaClientCommandResult::TransactionBlock(response) => {
-                write!(writer, "{}", response)?;
+                write!(writer, "{response}")?;
             }
             IotaClientCommandResult::RawObject(raw_object_read) => {
                 let raw_object = match raw_object_read.object() {
@@ -2215,16 +2217,16 @@ impl Display for IotaClientCommandResult {
                             let mut temp = String::new();
                             let mut bcs_bytes = 0usize;
                             for m in &p.module_map {
-                                temp.push_str(&format!("{:?}\n", m));
+                                temp.push_str(&format!("{m:?}\n"));
                                 bcs_bytes += m.1.len()
                             }
-                            format!("{}Number of bytes: {}", temp, bcs_bytes)
+                            format!("{temp}Number of bytes: {bcs_bytes}")
                         }
                         None => "Bcs field is None".to_string().red().to_string(),
                     },
                     Err(err) => format!("{err}").red().to_string(),
                 };
-                writeln!(writer, "{}", raw_object)?;
+                writeln!(writer, "{raw_object}")?;
             }
             IotaClientCommandResult::RemoveAddress(address) => {
                 write!(writer, "Removed address \"{address}\" from keystore.")?
@@ -2247,14 +2249,14 @@ impl Display for IotaClientCommandResult {
                 writeln!(writer, "Client state sync complete.")?;
             }
             IotaClientCommandResult::ChainIdentifier(ci) => {
-                writeln!(writer, "{}", ci)?;
+                writeln!(writer, "{ci}")?;
             }
             IotaClientCommandResult::Switch(response) => {
-                write!(writer, "{}", response)?;
+                write!(writer, "{response}")?;
             }
             IotaClientCommandResult::ActiveAddress(response) => {
                 match response {
-                    Some(r) => write!(writer, "{}", r)?,
+                    Some(r) => write!(writer, "{r}")?,
                     None => write!(writer, "None")?,
                 };
             }
@@ -2278,7 +2280,7 @@ impl Display for IotaClientCommandResult {
                 }
                 let mut table = builder.build();
                 table.with(TableStyle::rounded());
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::VerifySource => {
                 writeln!(writer, "Source verification succeeded!")?;
@@ -2370,7 +2372,7 @@ impl Display for IotaClientCommandResult {
 
                 table.with(tabled::settings::style::BorderSpanCorrection);
 
-                writeln!(f, "{}", table)?;
+                writeln!(f, "{table}")?;
             }
             IotaClientCommandResult::NoOutput => {}
             IotaClientCommandResult::DryRun(response) => {
@@ -2656,7 +2658,7 @@ impl Display for SwitchResponse {
         if let Some(env) = &self.env {
             writeln!(writer, "Active environment switched to [{env}]")?;
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -2676,7 +2678,8 @@ pub async fn request_tokens_from_faucet(
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)
-        .header("Content-Type", "application/json")
+        .header(http::header::CONTENT_TYPE, "application/json")
+        .header(http::header::USER_AGENT, USER_AGENT)
         .json(&json_body)
         .send()
         .await?;
@@ -3167,8 +3170,8 @@ pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, St
             Ok(option) => {
                 options.insert(option);
             }
-            Err(_) => return Err(format!("Invalid display option: {}", part)), /* Return error if
-                                                                                * invalid */
+            Err(_) => return Err(format!("Invalid display option: {part}")), /* Return error if
+                                                                              * invalid */
         }
     }
 

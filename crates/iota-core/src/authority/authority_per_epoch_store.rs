@@ -12,7 +12,7 @@ use std::{
 use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
-use fastcrypto_tbls::{dkg, nodes::PartyId};
+use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
@@ -631,7 +631,7 @@ pub struct AuthorityEpochTables {
 
     /// Records the final output of DKG after completion, including the public
     /// VSS key and any local private shares.
-    pub(crate) dkg_output: DBMap<u64, dkg::Output<PkG, EncG>>,
+    pub(crate) dkg_output: DBMap<u64, dkg_v1::Output<PkG, EncG>>,
 
     /// Holds the value of the next RandomnessRound to be generated.
     pub(crate) randomness_next_round: DBMap<u64, RandomnessRound>,
@@ -698,7 +698,7 @@ impl AuthorityEpochTables {
     }
 
     pub fn path(epoch: EpochId, parent_path: &Path) -> PathBuf {
-        parent_path.join(format!("{}{}", EPOCH_DB_PREFIX, epoch))
+        parent_path.join(format!("{EPOCH_DB_PREFIX}{epoch}"))
     }
 
     fn load_reconfig_state(&self) -> IotaResult<ReconfigState> {
@@ -756,7 +756,7 @@ impl AuthorityEpochTables {
         impl Iterator<Item = ((CheckpointSequenceNumber, u64), CheckpointSignatureMessage)> + '_,
     > {
         let key = (checkpoint_seq, starting_index);
-        debug!("Scanning pending checkpoint signatures from {:?}", key);
+        trace!("Scanning pending checkpoint signatures from {:?}", key);
         let iter = self
             .pending_checkpoint_signatures
             .unbounded_iter()
@@ -1001,16 +1001,6 @@ impl AuthorityPerEpochStore {
         result
     }
 
-    pub fn bridge_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .bridge_obj_initial_shared_version()
-            .is_some()
-    }
-
-    pub fn bridge_committee_initiated(&self) -> bool {
-        self.epoch_start_configuration.bridge_committee_initiated()
-    }
-
     pub fn get_parent_path(&self) -> PathBuf {
         self.parent_path.clone()
     }
@@ -1241,7 +1231,7 @@ impl AuthorityPerEpochStore {
         tx_digest: &TransactionDigest,
     ) -> IotaResult {
         let tables = self.tables()?;
-        let mut batch = self.tables()?.effects_signatures.batch();
+        let mut batch = self.tables()?.executed_in_epoch.batch();
 
         batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
 
@@ -1930,18 +1920,6 @@ impl AuthorityPerEpochStore {
             .is_empty()
     }
 
-    /// Check whether certificate was processed by consensus.
-    /// For shared lock certificates, if this function returns true means shared
-    /// locks for this certificate are set
-    pub fn is_tx_cert_consensus_message_processed(
-        &self,
-        certificate: &CertifiedTransaction,
-    ) -> IotaResult<bool> {
-        self.is_consensus_message_processed(&SequencedConsensusTransactionKey::External(
-            ConsensusTransactionKey::Certificate(*certificate.digest()),
-        ))
-    }
-
     /// Check whether any certificates were processed by consensus.
     /// This handles multiple certificates at once.
     pub fn is_any_tx_certs_consensus_message_processed<'a>(
@@ -2457,7 +2435,7 @@ impl AuthorityPerEpochStore {
             .is_consensus_message_processed(&transaction.transaction.key())
             .expect("Storage error")
         {
-            debug!(
+            trace!(
                 consensus_index=?transaction.consensus_index.transaction_index,
                 tracking_id=?transaction.transaction.get_tracking_id(),
                 "handle_consensus_transaction UserTransaction [skip]",
@@ -3994,15 +3972,13 @@ impl AuthorityPerEpochStore {
                 (Some((left, ())), Some((right, _))) => {
                     if left != right {
                         panic!(
-                            "Executed transactions and checkpointed transactions do not match: {:?} {:?}",
-                            left, right
+                            "Executed transactions and checkpointed transactions do not match: {left:?} {right:?}"
                         );
                     }
                 }
                 (None, None) => break,
                 (left, right) => panic!(
-                    "Executed transactions and checkpointed transactions do not match: {:?} {:?}",
-                    left, right
+                    "Executed transactions and checkpointed transactions do not match: {left:?} {right:?}"
                 ),
             }
         }
@@ -4035,7 +4011,7 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg::Output<PkG, EncG>>,
+    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
 
     // jwk state
     pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
@@ -4127,7 +4103,7 @@ impl ConsensusCommitOutput {
         self.dkg_used_message = Some(used_messages);
     }
 
-    pub fn set_dkg_output(&mut self, output: dkg::Output<PkG, EncG>) {
+    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
         self.dkg_output = Some(output);
     }
 

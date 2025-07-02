@@ -60,7 +60,7 @@ pub struct Summary {
 pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
-    CommandResult(IotaClientCommandResult),
+    CommandResult(Box<IotaClientCommandResult>),
     DevInspect(Box<DevInspectResults>),
     Json(serde_json::Value),
     Help { long: bool },
@@ -128,7 +128,7 @@ impl PTB {
                 let rendered = build_error_reports(&source_string, errors);
                 eprintln!("Encountered error{suffix} when parsing PTB:");
                 for e in rendered.iter() {
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 bail!("Could not build PTB due to previous error{suffix}");
             }
@@ -157,7 +157,7 @@ impl PTB {
             eprintln!("Warning{suffix} produced when building PTB:");
             let rendered = build_error_reports(&source_string, warnings);
             for e in rendered.iter() {
-                eprintln!("{:?}", e);
+                eprintln!("{e:?}");
             }
         }
         let ptb = match res {
@@ -166,7 +166,7 @@ impl PTB {
                 eprintln!("Encountered error{suffix} when building PTB:");
                 let rendered = build_error_reports(&source_string, errors);
                 for e in rendered.iter() {
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 bail!("Could not build PTB due to previous error{suffix}");
             }
@@ -212,7 +212,7 @@ impl PTB {
             IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                return Ok(PTBCommandResult::CommandResult(res));
+                return Ok(PTBCommandResult::CommandResult(Box::new(res)));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
@@ -259,9 +259,9 @@ impl PTB {
                 Ok(PTBCommandResult::Summary(summary))
             }
         } else {
-            Ok(PTBCommandResult::CommandResult(
+            Ok(PTBCommandResult::CommandResult(Box::new(
                 IotaClientCommandResult::TransactionBlock(transaction_response),
-            ))
+            )))
         }
     }
 

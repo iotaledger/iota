@@ -36,7 +36,7 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
+    IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
     IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
     MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
@@ -201,7 +201,7 @@ impl AdapterInitConfig {
             custom_validator_account,
             reference_gas_price,
             default_gas_price,
-            objects_snapshot_min_checkpoint_lag,
+            snapshot_config,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -235,8 +235,6 @@ impl AdapterInitConfig {
         }
 
         let offchain_config = if simulator {
-            let snapshot_config =
-                SnapshotLagConfig::new(objects_snapshot_min_checkpoint_lag, Some(1));
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,
@@ -429,7 +427,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             if !output.is_empty() {
                 output.push_str(", ")
             }
-            write!(output, "{}: object({})", account, fake).unwrap()
+            write!(output, "{account}: object({fake})").unwrap()
         }
         for object_id in object_ids {
             test_adapter.enumerate_fake(object_id);
@@ -521,9 +519,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 .insert(named_addr.to_string(), package_addr);
             match prev_package.map(|a| a.into_inner()) {
                 Some(addr) if addr != AccountAddress::ZERO => panic!(
-                    "Cannot reuse named address '{}' for multiple packages. \
-                It should be set to 0 initially",
-                    named_addr
+                    "Cannot reuse named address '{named_addr}' for multiple packages. \
+                It should be set to 0 initially"
                 ),
                 _ => (),
             }
@@ -666,7 +663,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     self.executor.create_checkpoint().await?;
                 }
                 let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
-                Ok(Some(format!("Checkpoint created: {}", latest_chk)))
+                Ok(Some(format!("Checkpoint created: {latest_chk}")))
             }
             IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand { count }) => {
                 for _ in 0..count.unwrap_or(1) {
@@ -726,9 +723,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             .join(", ");
                         assert!(!modules.is_empty());
                         if num_modules > 1 {
-                            format!("{}::{{{}}}", fake_id, modules)
+                            format!("{fake_id}::{{{modules}}}")
                         } else {
-                            format!("{}::{}", fake_id, modules)
+                            format!("{fake_id}::{modules}")
                         }
                     }
                 }))
@@ -744,7 +741,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let obj_arg = IotaValue::Object(fake_id, None).into_argument(&mut builder, self)?;
                 let recipient = match self.accounts.get(&recipient) {
                     Some(test_account) => test_account.address,
-                    None => panic!("Unbound account {}", recipient),
+                    None => panic!("Unbound account {recipient}"),
                 };
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
@@ -1195,7 +1192,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         let mut err = error.to_string();
         for (name, account) in &self.accounts {
             let addr = account.address.to_string();
-            let replace = format!("@{}", name);
+            let replace = format!("@{name}");
             err = err.replace(&addr, &replace);
             // Also match without 0x since different error messages may use different
             // format.
@@ -1203,7 +1200,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         }
         for (id, fake_id) in &self.object_enumeration {
             let id = id.to_string();
-            let replace = format!("object({})", fake_id);
+            let replace = format!("object({fake_id})");
             err = err.replace(&id, &replace);
             // Also match without 0x since different error messages may use different
             // format.
@@ -1253,7 +1250,7 @@ impl IotaTestAdapter {
             .compiled_state
             .named_address_mapping
             .iter()
-            .map(|(name, addr)| (name.clone(), format!("{:#02x}", addr)));
+            .map(|(name, addr)| (name.clone(), format!("{addr:#02x}")));
 
         for (name, addr) in named_addrs {
             let addr = addr.to_string();
@@ -1286,8 +1283,7 @@ impl IotaTestAdapter {
 
                 let obj_id = objects_mapping.get(&obj_lookup).unwrap_or_else(|| {
                     panic!(
-                        "Unknown object lookup: {}\nAllowed variable mappings are {:#?}",
-                        obj_lookup, variables
+                        "Unknown object lookup: {obj_lookup}\nAllowed variable mappings are {variables:#?}"
                     )
                 });
 
@@ -1347,7 +1343,7 @@ impl IotaTestAdapter {
                 );
             };
 
-            let pattern = format!("@{{{}}}", var_name);
+            let pattern = format!("@{{{var_name}}}");
             interpolated_query = interpolated_query.replace(&pattern, value);
         }
 
@@ -1432,9 +1428,8 @@ impl IotaTestAdapter {
                 .insert(new_package_name.to_string(), package_addr);
             match prev_package.map(|a| a.into_inner()) {
                 Some(addr) if addr != AccountAddress::ZERO => panic!(
-                    "Cannot reuse named address '{}' for multiple packages. \
-                It should be set to 0 initially",
-                    new_package_name
+                    "Cannot reuse named address '{new_package_name}' for multiple packages. \
+                It should be set to 0 initially"
                 ),
                 _ => (),
             }
@@ -1505,7 +1500,7 @@ impl IotaTestAdapter {
         match sender {
             Some(n) => match self.accounts.get(&n) {
                 Some(test_account) => test_account,
-                None => panic!("Unbound account {}", n),
+                None => panic!("Unbound account {n}"),
             },
             None => &self.default_account,
         }
@@ -1870,7 +1865,7 @@ impl IotaTestAdapter {
             .unwrap();
         }
         out.push('\n');
-        write!(out, "gas summary: {}", gas_summary).unwrap();
+        write!(out, "gas summary: {gas_summary}").unwrap();
 
         if out.is_empty() { None } else { Some(out) }
     }
@@ -1881,7 +1876,7 @@ impl IotaTestAdapter {
         }
         events
             .iter()
-            .map(|event| self.stabilize_str(format!("{:?}", event)))
+            .map(|event| self.stabilize_str(format!("{event:?}")))
             .collect::<Vec<_>>()
             .join(", ")
     }
@@ -1897,7 +1892,7 @@ impl IotaTestAdapter {
                     let id: AccountAddress = id.into();
                     format!("0x{id:x}")
                 }
-                Some(fake) => format!("object({})", fake),
+                Some(fake) => format!("object({fake})"),
             })
             .collect::<Vec<_>>()
             .join(", ")
@@ -1948,7 +1943,7 @@ impl IotaTestAdapter {
         let hex_str = if hex_str.starts_with("0x") {
             hex_str
         } else {
-            format!("0x{}", hex_str)
+            format!("0x{hex_str}")
         };
         let parsed = AccountAddress::from_hex_literal(&hex_str).unwrap();
         if let Some((known, _)) = self
@@ -1965,7 +1960,7 @@ impl IotaTestAdapter {
                 let id: AccountAddress = id.into();
                 format!("0x{id:x}")
             }
-            Some(fake) => format!("fake({})", fake),
+            Some(fake) => format!("fake({fake})"),
         }
     }
 
@@ -2007,7 +2002,7 @@ impl<'a> GetModule for &'a IotaTestAdapter {
             self.compiled_state
                 .dep_modules()
                 .find(|m| &m.self_id() == id)
-                .unwrap_or_else(|| panic!("Internal error: Unbound module {}", id)),
+                .unwrap_or_else(|| panic!("Internal error: Unbound module {id}")),
         ))
     }
 }
@@ -2017,9 +2012,9 @@ impl fmt::Display for FakeID {
         match self {
             FakeID::Known(id) => {
                 let addr: AccountAddress = (*id).into();
-                write!(f, "0x{:x}", addr)
+                write!(f, "0x{addr:x}")
             }
-            FakeID::Enumerated(task, i) => write!(f, "{},{}", task, i),
+            FakeID::Enumerated(task, i) => write!(f, "{task},{i}"),
         }
     }
 }
@@ -2065,13 +2060,6 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
-    map.insert(
-        "bridge".to_string(),
-        NumericalAddress::new(
-            BRIDGE_ADDRESS.into_bytes(),
-            move_compiler::shared::NumberFormat::Hex,
-        ),
-    );
     map
 });
 
@@ -2100,15 +2088,10 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         flavor: Flavor::Iota,
         ..Default::default()
     };
-    let bridge_sources = {
-        let mut buf = iota_files.to_path_buf();
-        buf.extend(["packages", "bridge", "sources"]);
-        buf.to_string_lossy().to_string()
-    };
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: Some(("iota-framework".into(), config)),
-            paths: vec![iota_system_sources, iota_sources, iota_deps, bridge_sources],
+            paths: vec![iota_system_sources, iota_sources, iota_deps],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,
@@ -2406,10 +2389,7 @@ async fn update_named_address_mapping(
             && (named_address_mapping.get(&name) != Some(&addr)))
             || name == "iota"
         {
-            panic!(
-                "Invalid init. The named address '{}' is reserved or duplicated",
-                name
-            )
+            panic!("Invalid init. The named address '{name}' is reserved or duplicated")
         }
         named_address_mapping.insert(name, addr);
     }

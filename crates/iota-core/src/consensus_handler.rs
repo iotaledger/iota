@@ -513,6 +513,7 @@ pub struct SequencedConsensusTransaction {
 }
 
 #[derive(Debug, Clone)]
+#[expect(clippy::large_enum_variant)]
 pub enum SequencedConsensusTransactionKind {
     External(ConsensusTransaction),
     System(VerifiedExecutableTransaction),
@@ -538,18 +539,20 @@ impl<'de> Deserialize<'de> for SequencedConsensusTransactionKind {
 // design). This wrapper allows us to convert to a serializable format easily.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum SerializableSequencedConsensusTransactionKind {
-    External(ConsensusTransaction),
-    System(TrustedExecutableTransaction),
+    External(Box<ConsensusTransaction>),
+    System(Box<TrustedExecutableTransaction>),
 }
 
 impl From<&SequencedConsensusTransactionKind> for SerializableSequencedConsensusTransactionKind {
     fn from(kind: &SequencedConsensusTransactionKind) -> Self {
         match kind {
             SequencedConsensusTransactionKind::External(ext) => {
-                SerializableSequencedConsensusTransactionKind::External(ext.clone())
+                SerializableSequencedConsensusTransactionKind::External(Box::new(ext.clone()))
             }
             SequencedConsensusTransactionKind::System(txn) => {
-                SerializableSequencedConsensusTransactionKind::System(txn.clone().serializable())
+                SerializableSequencedConsensusTransactionKind::System(Box::new(
+                    txn.clone().serializable(),
+                ))
             }
         }
     }
@@ -559,10 +562,10 @@ impl From<SerializableSequencedConsensusTransactionKind> for SequencedConsensusT
     fn from(kind: SerializableSequencedConsensusTransactionKind) -> Self {
         match kind {
             SerializableSequencedConsensusTransactionKind::External(ext) => {
-                SequencedConsensusTransactionKind::External(ext)
+                SequencedConsensusTransactionKind::External(*ext)
             }
             SerializableSequencedConsensusTransactionKind::System(txn) => {
-                SequencedConsensusTransactionKind::System(txn.into())
+                SequencedConsensusTransactionKind::System((*txn).into())
             }
         }
     }
