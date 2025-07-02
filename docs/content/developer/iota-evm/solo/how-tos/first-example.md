@@ -19,11 +19,13 @@ The following is an example of a _Solo_ test. It deploys a new chain and invokes
 :::info L1 Network
 
 To run the tests a local IOTA network is required. That is what
+
 ```go
 func TestMain(m *testing.M) {
     l1starter.TestMain(m)
 }
 ```
+
 is for. You will need to call it once before running any tests that use the Solo framework.
 
 :::
@@ -63,7 +65,7 @@ The output of the test will be something like this:
 
 ```log
 === RUN   TestTutorialFirst
-config file .testconfig not found - using defaul values
+config file .testconfig not found - using default values
 02:54.102456000 INFO    TestTutorialFirst       WaitForNextVersionForTesting: Found the updated version of obj{id=0x0316f37b5651ca53efd28835209b5054636b9ae40c602db9f442eeb3d2843509, version=2, digest=8zFknGz5Jn71mBfRgGpGVN9DG6i5RWvG5cUi69PutcZY}, which is: {0x0316f37b5651ca53efd28835209b5054636b9ae40c602db9f442eeb3d2843509 3 BgPrbjBJKae1ZTLPxyktpJ3reJXPqR5zQegDgARuSTDw}
 02:54.102485000 INFO    TestTutorialFirst       Chain Originator address: &{0x140000d2e10 0x140000d2e40}
 02:54.102504000 INFO    TestTutorialFirst       GAS COIN BEFORE PULL: obj{id=0x24b93a63294dd2d601787bc2c6a0c3c6cdc8bbff5a256fcd9bf0b44692b6b2c3, version=3, digest=6sfviRVcVqTqZkigr2PqUbP62aG6a6KS5TbaSyZ7TB9A}
