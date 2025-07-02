@@ -2215,7 +2215,7 @@ pub trait CheckpointServiceNotify {
 }
 
 enum CheckpointServiceState {
-    Unstarted((CheckpointBuilder, CheckpointAggregator)),
+    Unstarted(Box<(CheckpointBuilder, CheckpointAggregator)>),
     Started,
 }
 
@@ -2225,7 +2225,7 @@ impl CheckpointServiceState {
         std::mem::swap(self, &mut state);
 
         match state {
-            CheckpointServiceState::Unstarted((builder, aggregator)) => (builder, aggregator),
+            CheckpointServiceState::Unstarted(tup) => (tup.0, tup.1),
             CheckpointServiceState::Started => panic!("CheckpointServiceState is already started"),
         }
     }
@@ -2312,7 +2312,9 @@ impl CheckpointService {
             highest_currently_built_seq_tx,
             highest_previously_built_seq,
             metrics,
-            state: Mutex::new(CheckpointServiceState::Unstarted((builder, aggregator))),
+            state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
+                builder, aggregator,
+            )))),
         })
     }
 

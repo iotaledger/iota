@@ -643,3 +643,48 @@ h4 {
   max-width: 100%;
   overflow-wrap: break-word;
 }
+
+
+/* Icon positions */
+.navbar__item.navbar-icon-about,
+.navbar__item.navbar-icon-developer,
+.navbar__item.navbar-icon-operator,
+.navbar__item.navbar-icon-references,
+.navbar__item.navbar-icon-users {
+  position: relative;
+  padding-left: 2.5rem !important;
+}
+
+/* Icons */
+.navbar__item.navbar-icon-about::before,
+.navbar__item.navbar-icon-developer::before,
+.navbar__item.navbar-icon-operator::before,
+.navbar__item.navbar-icon-references::before,
+.navbar__item.navbar-icon-users::before {
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.navbar__item.navbar-icon-about::before {
+  content: "\f05a";
+}
+
+.navbar__item.navbar-icon-developer::before {
+  content: "\f121";
+}
+
+.navbar__item.navbar-icon-operator::before {
+  content: "\f233";
+}
+
+.navbar__item.navbar-icon-references::before {
+  content: "\f02d"; 
+}
+
+.navbar__item.navbar-icon-users::before {
+  content: "\f0c0"; 
+}
