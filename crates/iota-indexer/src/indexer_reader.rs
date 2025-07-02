@@ -84,7 +84,7 @@ pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
-    package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
+    obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
 }
 
 impl Clone for IndexerReader {
@@ -92,7 +92,7 @@ impl Clone for IndexerReader {
         IndexerReader {
             pool: self.pool.clone(),
             package_resolver: self.package_resolver.clone(),
-            package_obj_type_cache: self.package_obj_type_cache.clone(),
+            obj_type_cache: self.obj_type_cache.clone(),
         }
     }
 }
@@ -105,11 +105,11 @@ impl IndexerReader {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
         let package_resolver = Arc::new(Resolver::new(package_cache));
-        let package_obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
+        let obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
         Self {
             pool,
             package_resolver,
-            package_obj_type_cache,
+            obj_type_cache,
         }
     }
 
@@ -1981,7 +1981,7 @@ impl IndexerReader {
     ) -> Result<Option<Supply>, IndexerError> {
         let tag = TreasuryCap::type_(coin_struct.clone());
         Ok(self
-            .get_package_object_as::<TreasuryCap>(tag)?
+            .get_object_as::<TreasuryCap>(tag)?
             .map(|tc| tc.total_supply))
     }
 
@@ -1991,18 +1991,18 @@ impl IndexerReader {
     ) -> Result<Option<Supply>, IndexerError> {
         let tag = CoinManager::type_(coin_struct.clone());
         Ok(self
-            .get_package_object_as::<CoinManager>(tag)?
+            .get_object_as::<CoinManager>(tag)?
             .map(|mgr| mgr.treasury_cap.total_supply))
     }
 
-    fn get_package_object_as<T>(&self, tag: StructTag) -> Result<Option<T>, IndexerError>
+    fn get_object_as<T>(&self, tag: StructTag) -> Result<Option<T>, IndexerError>
     where
         T: TryFrom<Object, Error = IotaError>,
     {
         let cache_key = tag.to_canonical_string(/* with_prefix */ true);
 
         let mut cache = self
-            .package_obj_type_cache
+            .obj_type_cache
             .lock()
             .inspect_err(|e| tracing::error!("cache poisoned: {:?}", e))
             .map_err(|_| IndexerError::Generic("failed to lock cache".into()))?;
