@@ -23,8 +23,7 @@ export function DepositLayer1() {
     const { watch } = useFormContext<DepositFormData>();
     const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
 
-    const { data: l1BalanceInL2 } = useGetAllBalancesL2(address);
-    console.log('l1BalanceInL2:', l1BalanceInL2);
+    const { refetch: refetchL2Balance } = useGetAllBalancesL2(address);
 
     // Get all coins of the type
     const selectedCoinsQuery = useGetAllCoins(selectedCoinType, address);
@@ -66,6 +65,11 @@ export function DepositLayer1() {
                     client
                         .waitForTransaction({
                             digest: tx.digest,
+                        })
+                        .then(() => {
+                            toast.success('Deposit transaction confirmed!');
+                            // Invalidate L2 balances to refresh them
+                            refetchL2Balance();
                         })
                         .catch((err) => {
                             if (import.meta.env.DEV) {

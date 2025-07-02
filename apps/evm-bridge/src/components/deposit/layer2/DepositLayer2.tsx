@@ -16,12 +16,17 @@ import { useGasEstimateL2 } from '../../../hooks/useGasEstimateL2';
 import { formatEther } from 'viem';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
+import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 export function DepositLayer2() {
     const queryClient = useQueryClient();
     const layer2Account = useAccount();
     const chainId = useChainId();
     const iscContractAddress = (layer2Account?.chain as L2Chain)?.iscContractAddress;
+    const address = useCurrentAccount()?.address as string;
+
+    const { refetch: refetchL2Balance } = useGetAllBalancesL2(address);
 
     const { watch } = useFormContext<DepositFormData>();
     const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
@@ -73,6 +78,7 @@ export function DepositLayer2() {
                 address: layer2Account.address,
             });
             queryClient.invalidateQueries({ queryKey: balanceQueryKey });
+            refetchL2Balance();
         }
     }, [isTransactionSuccess]);
 

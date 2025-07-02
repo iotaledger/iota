@@ -35,7 +35,7 @@ export function Bridge() {
             [BridgeFormInputName.CoinType]: IOTA_TYPE_ARG,
         },
     });
-    const isFromLayer1 = formMethods.watch('isFromLayer1');
+    const isFromLayer1 = formMethods.watch(BridgeFormInputName.IsFromLayer1);
 
     return (
         <FormProvider {...formMethods}>

@@ -17,14 +17,14 @@ interface Options {
     amount: bigint;
     receivingAddress: string;
     coinType: string;
-    coins: CoinStruct[];
     chain: ChainData;
+    coins?: CoinStruct[];
 }
 
 export function createL1DepositTransaction({
     amount,
     receivingAddress,
-    coins,
+    coins = [],
     coinType = IOTA_TYPE_ARG,
     chain,
 }: Options) {
