@@ -154,10 +154,33 @@ impl CertLockGuard {
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
-/// An alias type that holds a verified sequenced consensus transaction that
-/// is deferred and a suggested gas price for it. Suggested gas price is `None`
-/// for transactions deferred due to randomness not available.
-type DeferredTransaction = (VerifiedSequencedConsensusTransaction, Option<u64>);
+/// Holds a verified sequenced consensus transaction that is deferred
+/// and optionally a suggested gas price for that transaction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DeferredTransaction {
+    /// Deferred verified sequenced consensus transaction.
+    transaction: VerifiedSequencedConsensusTransaction,
+
+    /// Suggested gas price is `Some(u64)` for transactions deferred due
+    /// to shared object congestion, and it is `None` for transactions
+    /// deferred due to randomness not available.
+    suggested_gas_price_as_opt: Option<u64>,
+}
+
+impl DeferredTransaction {
+    /// Construct a new `DeferredTransaction` instance from a deferred
+    /// verified sequenced consensus transaction and optionally a suggested
+    /// gas price for that transaction.
+    fn new(
+        transaction: VerifiedSequencedConsensusTransaction,
+        suggested_gas_price_as_opt: Option<u64>,
+    ) -> Self {
+        Self {
+            transaction,
+            suggested_gas_price_as_opt,
+        }
+    }
+}
 
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
@@ -200,7 +223,7 @@ pub enum ConsensusCertificateResult {
     /// `suggested_gas_price` price field will be set to `None`.
     Deferred {
         deferral_key: DeferralKey,
-        suggested_gas_price: Option<u64>,
+        suggested_gas_price_as_opt: Option<u64>,
     },
     /// A message was processed which updates randomness state.
     RandomnessConsensusMessage,
@@ -3491,7 +3514,7 @@ impl AuthorityPerEpochStore {
                                 // Always defer transaction due to randomness not ready.
                                 ConsensusCertificateResult::Deferred {
                                     deferral_key,
-                                    suggested_gas_price: None,
+                                    suggested_gas_price_as_opt: None,
                                 }
                             }
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
@@ -3507,7 +3530,7 @@ impl AuthorityPerEpochStore {
                                     let suggested_gas_price = self.reference_gas_price();
                                     ConsensusCertificateResult::Deferred {
                                         deferral_key,
-                                        suggested_gas_price: Some(suggested_gas_price),
+                                        suggested_gas_price_as_opt: Some(suggested_gas_price),
                                     }
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
