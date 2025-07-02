@@ -154,6 +154,11 @@ impl CertLockGuard {
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
+/// An alias type that holds a verified sequenced consensus transaction that
+/// is deferred and a suggested gas price for it. Suggested gas price is `None`
+/// for transactions deferred due to randomness not available.
+type DeferredTransaction = (VerifiedSequencedConsensusTransaction, Option<u64>);
+
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
 /// returned by the `try_schedule` method of `AuthorityPerEpochStore`.
