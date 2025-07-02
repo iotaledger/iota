@@ -16,8 +16,8 @@ use crate::proof::{Proof, ProofTargets, TransactionProof};
 /// you need guaranteed validity consider calling `verify_proof` function on the
 /// constructed proof. It either returns `Ok` with a proof, or `Err` with a
 /// description of the error.
-pub fn construct_proof(targets: ProofTargets, data: &CheckpointData) -> Result<Proof> {
-    let checkpoint_summary = data.checkpoint_summary.clone();
+pub fn construct_proof(targets: ProofTargets, checkpoint: &CheckpointData) -> Result<Proof> {
+    let checkpoint_summary = checkpoint.checkpoint_summary.clone();
     let mut this_proof = Proof {
         targets,
         checkpoint_summary,
@@ -67,7 +67,7 @@ pub fn construct_proof(targets: ProofTargets, data: &CheckpointData) -> Result<P
     }
 
     // Find the transaction in the checkpoint data
-    let tx = data
+    let tx = checkpoint
         .transactions
         .iter()
         .find(|t| t.effects.transaction_digest() == &target_tx_id)
@@ -83,7 +83,7 @@ pub fn construct_proof(targets: ProofTargets, data: &CheckpointData) -> Result<P
 
     // Add all the transaction data in there
     this_proof.contents_proof = Some(TransactionProof {
-        checkpoint_contents: data.checkpoint_contents.clone(),
+        checkpoint_contents: checkpoint.checkpoint_contents.clone(),
         transaction,
         effects,
         events,

@@ -11,7 +11,7 @@ use iota_light_client::{
     Proof, ProofTargets,
     checkpoint::sync_and_verify_checkpoints,
     config::Config,
-    construct_proof,
+    construct_proof, graphql,
     object_store::CheckpointStore,
     package_store::RemotePackageStore,
     proof,
@@ -19,6 +19,7 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_rest_api::CheckpointData;
+use iota_sdk::IotaClientBuilder;
 use iota_types::{
     base_types::ObjectID,
     committee::Committee,
@@ -68,12 +69,14 @@ pub enum LightClientCommand {
             name = "events",
             long,
             value_parser = parse_event_id,
-            num_args(1..),
+            num_args(0..),
         )]
         event_ids: Vec<EventID>,
         /// Object IDs that should be included in the proof
-        #[arg(name = "objects", long, num_args(1..))]
+        #[arg(name = "objects", long, num_args(0..))]
         object_ids: Vec<ObjectID>,
+        #[arg(long, default_value_t = false)]
+        include_committee: bool,
         /// The checkpoint sequence number or checkpoint digest
         #[arg(name = "checkpoint", long, value_parser = parse_checkpoint_id)]
         checkpoint_id: CheckpointId,
@@ -207,48 +210,105 @@ pub async fn main() -> Result<()> {
         LightClientCommand::ConstructProof {
             event_ids,
             object_ids,
-            checkpoint_id: checkpoint,
+            include_committee,
+            checkpoint_id,
             output_file,
         } => {
-            let CheckpointId::SequenceNumber(seq) = checkpoint else {
-                todo!("convert digest to sequence number");
+            let client = IotaClientBuilder::default()
+                .build(config.rpc_url.as_str())
+                .await?;
+            let read_api = client.read_api();
+            let seq = match checkpoint_id {
+                CheckpointId::SequenceNumber(seq) => seq,
+                CheckpointId::Digest(_) => {
+                    let checkpoint = read_api.get_checkpoint(checkpoint_id).await?;
+                    checkpoint.sequence_number
+                }
             };
 
-            let committee: Option<Committee> = None;
+            let mut committee: Option<Committee> = None;
             let mut events = Vec::new();
-            for event in event_ids {
-                info!("Fetching event {event:?}");
-            }
-            let objects = Vec::new();
-            for object in object_ids {
-                info!("Fetching object {object}");
+            let mut objects = Vec::new();
+
+            let checkpoint = download_checkpoints_from_checkpoint_store(&config, seq).await?;
+            for tx in &checkpoint.transactions {
+                if let Some(tx_events) = &tx.events {
+                    let tx_digest = *tx.transaction.digest();
+                    // TODO: make sure this is the correct way to get the event sequence number
+                    for (event_seq, event) in tx_events.data.iter().cloned().enumerate() {
+                        let event_id: EventID = (tx_digest, event_seq as u64).into();
+                        if event_ids.contains(&event_id) {
+                            events.push((event_id, event));
+                        }
+                    }
+                }
+
+                for obj in &tx.output_objects {
+                    if object_ids.contains(&obj.id()) {
+                        let obj_ref = obj.compute_object_reference();
+                        objects.push((obj_ref, obj.clone()));
+                    }
+                }
             }
 
-            let data = download_checkpoints_from_checkpoint_store(&config, seq).await?;
+            if include_committee {
+                let epoch = checkpoint.checkpoint_summary.epoch;
+                let Some(prev_epoch) = epoch.checked_sub(1) else {
+                    bail!("no previous epoch");
+                };
+
+                let prev_end_of_epoch_sequence_number =
+                    graphql::query_last_checkpoint_of_epoch(&config, prev_epoch).await?;
+                let prev_end_of_epoch_checkpoint = download_checkpoints_from_checkpoint_store(
+                    &config,
+                    prev_end_of_epoch_sequence_number,
+                )
+                .await?;
+                let next_committee = prev_end_of_epoch_checkpoint
+                    .checkpoint_summary
+                    .into_data()
+                    .end_of_epoch_data
+                    .unwrap()
+                    .next_epoch_committee;
+
+                committee = Some(Committee::new(epoch, next_committee.into_iter().collect()));
+            }
+
             let targets = ProofTargets {
                 committee,
                 events,
                 objects,
             };
 
-            let proof = construct_proof(targets, &data)?;
+            let proof = construct_proof(targets, &checkpoint)?;
 
             let file = std::fs::File::create(output_file)?;
-            serde_json::to_writer_pretty(file, &proof)?;
+            serde_json::to_writer(file, &proof)?;
         }
         LightClientCommand::VerifyProof {
             checkpoint_id,
             input_file,
         } => {
-            let CheckpointId::SequenceNumber(seq) = checkpoint_id else {
-                todo!("convert digest to sequence number");
+            let seq = match checkpoint_id {
+                CheckpointId::SequenceNumber(seq) => seq,
+                CheckpointId::Digest(_) => {
+                    let client = IotaClientBuilder::default()
+                        .build(config.rpc_url.as_str())
+                        .await?;
+                    let checkpoint = client.read_api().get_checkpoint(checkpoint_id).await?;
+                    checkpoint.sequence_number
+                }
             };
-            let data = download_checkpoints_from_checkpoint_store(&config, seq).await?;
-            let summary = data.checkpoint_summary;
+            let checkpoint = download_checkpoints_from_checkpoint_store(&config, seq).await?;
+            for tx in &checkpoint.transactions {
+                let Some(event) = &tx.events else {
+                    todo!("handle no events");
+                };
+            }
+            let summary = checkpoint.checkpoint_summary;
             let Some(end_of_epoch_data) = &summary.end_of_epoch_data else {
                 bail!("not an end-of-epoch checkpoint");
             };
-
             let next_committee = end_of_epoch_data
                 .next_epoch_committee
                 .iter()
