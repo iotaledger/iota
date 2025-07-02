@@ -334,9 +334,21 @@ mod checked {
                 ))
             } else if let Some((cancelled_objects, reason)) = cancelled_objects {
                 match reason {
-                    SequenceNumber::CONGESTED => Err(ExecutionError::new(
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                            congested_objects: CongestedObjects(cancelled_objects),
+                    version if version.is_congested() => Err(ExecutionError::new(
+                        if protocol_config.congested_objects_gas_price_feedback_mechanism() {
+                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                                congested_objects: CongestedObjects(cancelled_objects),
+                                suggested_gas_price: version
+                                    .get_congested_version_suggested_gas_price(),
+                            }
+                        } else {
+                            // WARN: do not remove this `else` branch even after
+                            // `congested_objects_gas_price_feedback_mechanism` is enabled
+                            // on the mainnet. It must be kept to be able to replay old
+                            // transaction data.
+                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
+                                congested_objects: CongestedObjects(cancelled_objects),
+                            }
                         },
                         None,
                     )),

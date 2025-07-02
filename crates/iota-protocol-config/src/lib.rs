@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 9;
+pub const MAX_PROTOCOL_VERSION: u64 = 10;
 
 // Record history of protocol version allocations here:
 //
@@ -55,6 +55,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable zstd compression for consensus tonic network in mainnet.
 //            Enable passkey auth in multisig for devnet.
 //            Remove the iota-bridge from the framework.
+// Version 10: Enable the gas price feedback mechanism in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -274,6 +275,11 @@ struct FeatureFlags {
     // If true, multisig containing passkey sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_passkey_in_multisig: bool,
+
+    // To enable/disable the gas price feedback mechanism used for transactions
+    // cancelled due to shared object congestion
+    #[serde(skip_serializing_if = "is_false")]
+    congested_objects_gas_price_feedback_mechanism: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1240,6 +1246,13 @@ impl ProtocolConfig {
     pub fn accept_passkey_in_multisig(&self) -> bool {
         self.feature_flags.accept_passkey_in_multisig
     }
+
+    /// Check if the gas price feedback mechanism (which is used for
+    /// transactions cancelled due to shared object congestion) is enabled
+    pub fn congested_objects_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congested_objects_gas_price_feedback_mechanism
+    }
 }
 
 #[cfg(not(msim))]
@@ -1971,6 +1984,7 @@ impl ProtocolConfig {
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
                     }
+
                     // Enable min_free_execution_slot for the shared object congestion tracker in
                     // devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
@@ -1993,6 +2007,14 @@ impl ProtocolConfig {
 
                     // this flag is now deprecated because of the bridge removal.
                     cfg.bridge_should_try_to_finalize_committee = None;
+                }
+                10 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable the gas price feedback mechanism (which is used for
+                        // transactions cancelled due to shared object congestion) in devnet
+                        cfg.feature_flags
+                            .congested_objects_gas_price_feedback_mechanism = true;
+                    }
                 }
                 // Use this template when making changes:
                 //

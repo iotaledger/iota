@@ -202,7 +202,10 @@ enum SchedulingResult {
 }
 
 pub enum CancelConsensusCertificateReason {
-    CongestionOnObjects(Vec<ObjectID>),
+    CongestionOnObjects {
+        congested_objects: Vec<ObjectID>,
+        suggested_gas_price: u64,
+    },
     DkgFailed,
 }
 
@@ -2949,12 +2952,14 @@ impl AuthorityPerEpochStore {
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
-                Some(CancelConsensusCertificateReason::CongestionOnObjects(_))
+                Some(CancelConsensusCertificateReason::CongestionOnObjects { .. })
                 | Some(CancelConsensusCertificateReason::DkgFailed) => {
                     let assigned_versions = SharedObjVerManager::assign_versions_for_certificate(
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
+                        self.protocol_config
+                            .congested_objects_gas_price_feedback_mechanism(),
                     );
                     version_assignment.push((*txn.digest(), assigned_versions));
                 }
@@ -3569,17 +3574,30 @@ impl AuthorityPerEpochStore {
                                     }
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
+
+                                    let suggested_gas_price = shared_object_congestion_tracker
+                                        .compute_suggested_gas_price(&certificate)
+                                        .expect(
+                                            "cancelled transaction must have at least one shared \
+                                            object and calculated suggested gas price",
+                                        );
+
                                     debug!(
-                                        "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
+                                        "Cancelling consensus certificate for transaction {:?} with \
+                                        deferral key {deferral_key:?} due to congestion on \
+                                        objects {congested_objects:?}: actual gas price: \
+                                        {}, suggested gas price: \
+                                        {suggested_gas_price}",
                                         certificate.digest(),
-                                        deferral_key,
-                                        congested_objects
+                                        certificate.transaction_data().gas_price(),
                                     );
+
                                     ConsensusCertificateResult::Cancelled((
                                         certificate,
-                                        CancelConsensusCertificateReason::CongestionOnObjects(
+                                        CancelConsensusCertificateReason::CongestionOnObjects {
                                             congested_objects,
-                                        ),
+                                            suggested_gas_price,
+                                        },
                                     ))
                                 }
                             }

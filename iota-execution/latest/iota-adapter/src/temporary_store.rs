@@ -367,7 +367,7 @@ impl<'backing> TemporaryStore<'backing> {
         // transaction's lamport timestamp is strictly greater than all versions
         // witnessed by the transaction).
         debug_assert!(
-            object.is_immutable() || object.version() == SequenceNumber::MIN,
+            object.is_immutable() || object.version() == SequenceNumber::MIN_VALID_INCL,
             "Created mutable objects should not have a version set",
         );
         let id = object.id();
