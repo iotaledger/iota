@@ -3579,7 +3579,6 @@ impl AuthorityPerEpochStore {
                                         certificate,
                                         CancelConsensusCertificateReason::CongestionOnObjects(
                                             congested_objects,
-                                            // FIX: roman: suggested_gas_price
                                         ),
                                     ))
                                 }
