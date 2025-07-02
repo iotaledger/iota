@@ -1,0 +1,9 @@
+:root {
+    /* GRADIENTS */
+    --names-gradient-primary: linear-gradient(
+        223deg,
+        theme('colors.names-solid.purple') 0%,
+        theme('colors.names-solid.blue') 49.98%,
+        theme('colors.names-solid.green') 99.95%
+    );
+}

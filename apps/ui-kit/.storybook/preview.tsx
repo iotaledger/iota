@@ -3,9 +3,9 @@
 
 import { type Preview } from '@storybook/react';
 import { withThemeByClassName } from '@storybook/addon-themes';
+import { UIKitTheme } from '../src/lib/enums/theme.enums';
 
 import '../src/lib/styles/index.css';
-document.documentElement.classList.add('light');
 
 const preview: Preview = {
     parameters: {
@@ -22,11 +22,7 @@ const preview: Preview = {
     },
     decorators: [
         withThemeByClassName({
-            themes: {
-                light: 'light',
-                dark: 'dark',
-                names: 'names',
-            },
+            themes: UIKitTheme,
             defaultTheme: 'light',
         }),
     ],
@@ -37,7 +33,7 @@ const preview: Preview = {
             defaultValue: 'light',
             toolbar: {
                 icon: 'paintbrush',
-                items: ['light', 'dark', 'names'],
+                items: Object.values(UIKitTheme),
                 showName: true,
             },
         },
