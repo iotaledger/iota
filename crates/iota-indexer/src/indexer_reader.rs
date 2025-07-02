@@ -639,8 +639,11 @@ impl IndexerReader {
         &self,
         digests: &[TransactionDigest],
     ) -> Result<bool, IndexerError> {
-        let (checkpointed, optimistic) = self
-            .multi_get_transactions(digests)?
+        let stored_transactions = self.multi_get_transactions(digests)?;
+        if stored_transactions.len() != digests.len() {
+            return Ok(false);
+        }
+        let (checkpointed, optimistic) = stored_transactions
             .into_iter()
             .partition::<Vec<_>, _>(|tx| tx.checkpoint_sequence_number >= 0);
         if !optimistic.is_empty() {
@@ -660,7 +663,7 @@ impl IndexerReader {
             .map(|tx| tx.checkpoint_sequence_number)
             .max()
         else {
-            return Ok(false);
+            return Ok(true);
         };
         Ok(self
             .get_checkpoint(CheckpointId::SequenceNumber(
