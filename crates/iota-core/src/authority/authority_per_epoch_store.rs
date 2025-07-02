@@ -3583,10 +3583,10 @@ impl AuthorityPerEpochStore {
                                         );
 
                                     debug!(
-                                        "Cancelling consensus certificate for transaction {:?} with \
-                                        deferral key {deferral_key:?} due to congestion on \
-                                        objects {congested_objects:?}: actual gas price: \
-                                        {}, suggested gas price: \
+                                        "Cancelling consensus certificate for transaction {:?} \
+                                            with deferral key {deferral_key:?} due to congestion \
+                                            on objects {congested_objects:?}: actual gas price: \
+                                            {}, suggested gas price: \
                                         {suggested_gas_price}",
                                         certificate.digest(),
                                         certificate.transaction_data().gas_price(),
