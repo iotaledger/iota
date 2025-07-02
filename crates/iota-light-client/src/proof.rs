@@ -14,9 +14,24 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
+/// A proof for specific targets. It certifies a checkpoint summary and
+/// optionally includes transaction evidence to certify objects and events.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Proof {
+    /// Targets of the proof are a committee, objects, or events that need to be
+    /// certified.
+    pub targets: ProofTargets,
+
+    /// A summary of the checkpoint being certified.
+    pub checkpoint_summary: CertifiedCheckpointSummary,
+
+    /// Optional transaction proof to certify objects and events.
+    pub contents_proof: Option<TransactionProof>,
+}
+
 /// Define aspects of IOTA state that need to be certified in a proof
 #[derive(Default, Debug, Serialize, Deserialize)]
-pub struct ProofTarget {
+pub struct ProofTargets {
     /// Objects that need to be certified.
     pub objects: Vec<(ObjectRef, Object)>,
 
@@ -27,7 +42,7 @@ pub struct ProofTarget {
     pub committee: Option<Committee>,
 }
 
-impl ProofTarget {
+impl ProofTargets {
     /// Create a new empty proof target. An empty proof target still ensures
     /// that the checkpoint summary is correct.
     pub fn new() -> Self {
@@ -73,21 +88,6 @@ pub struct TransactionProof {
 
     /// The events of the transaction being certified.
     pub events: Option<TransactionEvents>,
-}
-
-/// A proof for specific targets. It certifies a checkpoint summary and
-/// optionally includes transaction evidence to certify objects and events.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Proof {
-    /// Targets of the proof are a committee, objects, or events that need to be
-    /// certified.
-    pub targets: ProofTarget,
-
-    /// A summary of the checkpoint being certified.
-    pub checkpoint_summary: CertifiedCheckpointSummary,
-
-    /// Optional transaction proof to certify objects and events.
-    pub contents_proof: Option<TransactionProof>,
 }
 
 /// Verify a proof against a committee. A proof is valid if it certifies the

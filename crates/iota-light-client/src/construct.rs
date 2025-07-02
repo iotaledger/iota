@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
 };
 
-use crate::proof::{Proof, ProofTarget, TransactionProof};
+use crate::proof::{Proof, ProofTargets, TransactionProof};
 
 /// Construct a proof from the given checkpoint data and proof targets.
 ///
@@ -16,7 +16,7 @@ use crate::proof::{Proof, ProofTarget, TransactionProof};
 /// you need guaranteed validity consider calling `verify_proof` function on the
 /// constructed proof. It either returns `Ok` with a proof, or `Err` with a
 /// description of the error.
-pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::Result<Proof> {
+pub fn construct_proof(targets: ProofTargets, data: &CheckpointData) -> Result<Proof> {
     let checkpoint_summary = data.checkpoint_summary.clone();
     let mut this_proof = Proof {
         targets,

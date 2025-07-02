@@ -152,7 +152,6 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use iota_config::object_storage_config::ObjectStoreType;
     use tempfile::TempDir;
 
     use super::*;
