@@ -18,7 +18,7 @@ export function CoinSelector() {
         <CoreCoinSelector
             activeCoinType={selectedCoinType}
             coins={sortedCoinsBalance}
-            onClick={(coinType) => {
+            onClick={(coinType: string) => {
                 setValue(BridgeFormInputName.DepositAmount, '', {
                     shouldValidate: true,
                     shouldTouch: true,

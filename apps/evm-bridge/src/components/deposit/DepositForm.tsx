@@ -16,7 +16,6 @@ import { type ComponentProps, forwardRef, useCallback, useEffect } from 'react';
 import { type SubmitHandler, useFormContext } from 'react-hook-form';
 import { WalletConnectInput } from '..';
 import { DepositFormData } from '../../lib/schema/bridgeForm.schema';
-import BigNumber from 'bignumber.js';
 import { useAccount } from 'wagmi';
 import { useBridgeStore } from '../../lib/stores';
 import { BridgeFormInputName } from '../../lib/enums';
@@ -25,6 +24,9 @@ import { Loader, SwapAccount } from '@iota/apps-ui-icons';
 import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
 import { CoinSelector } from '../CoinSelector';
 import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useCoinMetadata } from '@iota/core';
+import { parseAmount } from '../../lib/utils';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -59,7 +61,10 @@ export function DepositForm({
 
     const { depositAmount, receivingAddress, isFromLayer1, coinType: selectedCoinType } = values;
 
+    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
+
     const {
+        availableBalance: layer1AvailableBalance,
         formattedAvailableBalance: formattedAvailableBalanceL1,
         isLoading: isLoadingBalanceL1,
         symbol: symbolL1,
@@ -67,20 +72,21 @@ export function DepositForm({
 
     // L2 Balance
     const {
+        availableBalance: layer2AvailableBalance,
         formattedAvailableBalance: formattedAvailableBalanceL2,
         isLoading: isLoadingBalanceL2,
         symbol: symbolL2,
     } = useAvailableBalanceL2(selectedCoinType);
 
+    const availableBalance = isFromLayer1 ? layer1AvailableBalance : layer2AvailableBalance;
     const formattedAvailableBalance = isFromLayer1
         ? formattedAvailableBalanceL1
         : formattedAvailableBalanceL2;
     const isLoadingBalance = isFromLayer1 ? isLoadingBalanceL1 : isLoadingBalanceL2;
     const symbol = isFromLayer1 ? symbolL1 : symbolL2;
 
-    const isPayingAllBalance = new BigNumber(depositAmount).isEqualTo(
-        new BigNumber(formattedAvailableBalance),
-    );
+    const isPayingAllBalance =
+        parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) === availableBalance;
 
     useEffect(() => {
         const isFormIncomplete = Object.values(getValues()).some(
@@ -145,7 +151,9 @@ export function DepositForm({
                 <Input
                     label="Amount"
                     type={InputType.NumericFormat}
-                    prefix={isPayingAllBalance ? '~ ' : undefined}
+                    prefix={
+                        isPayingAllBalance && selectedCoinType === IOTA_TYPE_ARG ? '~ ' : undefined
+                    }
                     value={depositAmount}
                     errorMessage={depositAmountErrorMessage}
                     {...registerDepositAmount}
@@ -182,9 +190,12 @@ export function DepositForm({
                         <Button
                             type={ButtonType.Primary}
                             icon={<SwapAccount className="rotate-90 -scale-x-100" />}
-                            onClick={() =>
-                                setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1)
-                            }
+                            onClick={() => {
+                                setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1);
+                                setValue(BridgeFormInputName.CoinType, IOTA_TYPE_ARG, {
+                                    shouldValidate: true,
+                                });
+                            }}
                             testId="toggle-bridge-direction"
                         />
                     </div>

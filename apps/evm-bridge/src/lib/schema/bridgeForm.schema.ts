@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { BridgeFormInputName } from '../enums';
 import { parseAmount } from '../utils';
-import { isAddress, parseEther } from 'viem';
+import { isAddress } from 'viem';
 import { IOTA_TYPE_ARG, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { MINIMUM_SEND_AMOUNT } from '../constants';
@@ -64,11 +64,7 @@ export function createBridgeFormSchema(
                 const totalAccountBalance = isFromLayer1 ? availableBalanceL1 : availableBalanceL2;
                 const coinDecimals = coinMetadata.decimals;
 
-                const amount = isFromLayer1
-                    ? parseAmount(value, coinDecimals)
-                    : selectedCoinType === IOTA_TYPE_ARG
-                      ? parseEther(value)
-                      : parseAmount(value, coinDecimals);
+                const amount = parseAmount(value, coinDecimals);
 
                 if (!amount || amount > BigInt(totalAccountBalance)) {
                     ctx.addIssue({

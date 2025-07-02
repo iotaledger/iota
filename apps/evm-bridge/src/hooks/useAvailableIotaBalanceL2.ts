@@ -38,8 +38,12 @@ export function useAvailableIotaBalanceL2(): {
             ? layer2TotalBalance - gasEstimation
             : layer2TotalBalance;
 
+    // Convert the available balance to IOTA format
+    const eth = formatEther(availableBalance);
+    const availableBalanceInIota = parseAmount(eth, IOTA_DECIMALS);
+
     return {
-        availableBalance,
+        availableBalance: availableBalanceInIota,
         isLoading: isLoadingL2 || isGasEstimationLoading,
         formattedAvailableBalance: formatEther(availableBalance),
     };
