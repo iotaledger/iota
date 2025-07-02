@@ -65,14 +65,9 @@ pub async fn download_checkpoints_from_checkpoint_store(
 ) -> Result<()> {
     info!("Downloading checkpoints from checkpoint store.");
 
-    ensure!(
-        config.archive_store_config.is_some(),
-        "missing archive store config"
-    );
-
     let checkpoint_store = CheckpointStore::new(config)?;
     for seq in checkpoints {
-        info!("Downloading checkpoint: {seq}.chk");
+        info!("Downloading {seq}.chk");
 
         let checkpoint = checkpoint_store
             .fetch_full_checkpoint(seq)
