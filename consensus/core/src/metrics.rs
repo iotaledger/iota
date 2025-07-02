@@ -102,48 +102,52 @@ pub(crate) fn initialise_metrics(registry: Registry, committee_size: usize) -> A
 }
 
 impl Metrics {
-    pub(crate) fn update_scoring_metrics_after_cache_flush(
+    pub(crate) fn update_scoring_metrics_after_eviction(
         &self,
         validator: AuthorityIndex,
         hostname: &str,
-        cached_blocks: &BTreeSet<BlockRef>,
-        mut flushed_blocks: Vec<u32>,
+        blocks_in_cache: &BTreeSet<BlockRef>,
+        mut evicted_blocks_per_round: Vec<u32>,
         threshold_clock_round: u32,
         eviction_round: u32,
     ) {
-        let missing_blocks_flushed = flushed_blocks.extract_if(.., |x| x == &0).count() as u64;
-        let equivocations_flushed =
-            flushed_blocks.iter().sum::<u32>() as u64 - flushed_blocks.len() as u64;
+        // Update metrics according to the blocks from evicted rounds.
+        let missing_blocks_from_evicted_rounds =
+            evicted_blocks_per_round.extract_if(.., |x| x == &0).count() as u64;
+        let equivocations_from_evicted_rounds = evicted_blocks_per_round.iter().sum::<u32>() as u64
+            - evicted_blocks_per_round.len() as u64;
 
-        self.scoring_metrics.equivocations_in_storage_by_authority[validator.value()]
-            .fetch_add(equivocations_flushed, Ordering::Relaxed);
-        self.scoring_metrics
-            .missing_proposals_in_storage_by_authority[validator.value()]
-        .fetch_add(missing_blocks_flushed, Ordering::Relaxed);
+        self.scoring_metrics.uncached_equivocations_by_authority[validator.value()]
+            .fetch_add(equivocations_from_evicted_rounds, Ordering::Relaxed);
+        self.scoring_metrics.uncached_missing_proposals_by_authority[validator.value()]
+            .fetch_add(missing_blocks_from_evicted_rounds, Ordering::Relaxed);
+        self.node_metrics
+            .uncached_equivocations_by_authority
+            .with_label_values(&[hostname])
+            .inc_by(equivocations_from_evicted_rounds);
+        self.node_metrics
+            .uncached_missing_proposals_by_authority
+            .with_label_values(&[hostname])
+            .inc_by(missing_blocks_from_evicted_rounds);
 
-        let mut block_rounds = cached_blocks
+        // Update metrics according to the blocks that are still in cache.
+        let mut block_rounds_in_cache = blocks_in_cache
             .iter()
             .map(|block| block.round)
             .filter(|&round| round > eviction_round && round < threshold_clock_round)
             .collect::<Vec<u32>>();
-        let total_block_count = block_rounds.len();
-        block_rounds.dedup();
-        let equivocations_in_cache = (total_block_count - block_rounds.len()) as u64;
-        let missing_blocks_in_cache =
-            (threshold_clock_round - eviction_round - 1) as u64 - block_rounds.len() as u64;
+        let number_of_blocks_in_cache = block_rounds_in_cache.len();
+        block_rounds_in_cache.dedup();
+        let unique_block_rounds_in_cache = block_rounds_in_cache.len();
+        let equivocations_in_cache =
+            (number_of_blocks_in_cache - unique_block_rounds_in_cache) as u64;
+        let missing_blocks_in_cache = (threshold_clock_round - eviction_round - 1) as u64
+            - unique_block_rounds_in_cache as u64;
+
         self.scoring_metrics.equivocations_in_cache_by_authority[validator.value()]
             .store(equivocations_in_cache, Ordering::Relaxed);
         self.scoring_metrics.missing_proposals_in_cache_by_authority[validator.value()]
             .store(missing_blocks_in_cache, Ordering::Relaxed);
-
-        self.node_metrics
-            .equivocations_in_storage_by_authority
-            .with_label_values(&[hostname])
-            .inc_by(equivocations_flushed);
-        self.node_metrics
-            .missing_proposals_in_storage_by_authority
-            .with_label_values(&[hostname])
-            .inc_by(missing_blocks_flushed);
         self.node_metrics
             .equivocations_in_cache_by_authority
             .with_label_values(&[hostname])
@@ -154,47 +158,30 @@ impl Metrics {
             .set(missing_blocks_in_cache as i64);
     }
 
-    pub(crate) fn update_scoring_metrics_when_loading_dag_from_storage(
+    pub(crate) fn initialize_scoring_metrics_from_storage(
         &self,
         validator: AuthorityIndex,
         hostname: &str,
-        mut block_rounds: Vec<u32>,
+        mut stored_block_rounds_by_author: Vec<u32>,
         threshold_clock_round: u32,
         eviction_round: u32,
     ) {
-        let mut cached_blocks_by_author = block_rounds
+        // Update metrics according to the blocks that are loaded to cache.
+        let mut block_rounds_in_cache = stored_block_rounds_by_author
             .extract_if(.., |round| *round > eviction_round)
             .collect::<Vec<u32>>();
-
-        let missing_blocks_in_storage = block_rounds.extract_if(.., |x| x == &0).count() as u64;
-        let equivocations_in_storage =
-            block_rounds.iter().sum::<u32>() as u64 - block_rounds.len() as u64;
-
-        self.scoring_metrics.equivocations_in_storage_by_authority[validator.value()]
-            .store(equivocations_in_storage, Ordering::Relaxed);
-        self.scoring_metrics
-            .missing_proposals_in_storage_by_authority[validator.value()]
-        .store(missing_blocks_in_storage, Ordering::Relaxed);
-
-        cached_blocks_by_author.retain(|&round| round < threshold_clock_round);
-        let total_block_count = cached_blocks_by_author.len();
-        cached_blocks_by_author.dedup();
-        let equivocations_in_cache = (total_block_count - cached_blocks_by_author.len()) as u64;
+        let number_of_blocks_in_cache = block_rounds_in_cache.len();
+        block_rounds_in_cache.dedup();
+        let unique_block_rounds_in_cache = block_rounds_in_cache.len();
+        let equivocations_in_cache =
+            (number_of_blocks_in_cache - unique_block_rounds_in_cache) as u64;
         let missing_blocks_in_cache = (threshold_clock_round - eviction_round - 1) as u64
-            - cached_blocks_by_author.len() as u64;
+            - unique_block_rounds_in_cache as u64;
+
         self.scoring_metrics.equivocations_in_cache_by_authority[validator.value()]
             .store(equivocations_in_cache, Ordering::Relaxed);
         self.scoring_metrics.missing_proposals_in_cache_by_authority[validator.value()]
             .store(missing_blocks_in_cache, Ordering::Relaxed);
-
-        self.node_metrics
-            .equivocations_in_storage_by_authority
-            .with_label_values(&[hostname])
-            .inc_by(equivocations_in_storage);
-        self.node_metrics
-            .missing_proposals_in_storage_by_authority
-            .with_label_values(&[hostname])
-            .inc_by(missing_blocks_in_storage);
         self.node_metrics
             .equivocations_in_cache_by_authority
             .with_label_values(&[hostname])
@@ -203,6 +190,27 @@ impl Metrics {
             .missing_proposals_in_cache_by_authority
             .with_label_values(&[hostname])
             .set(missing_blocks_in_cache as i64);
+
+        // Update metrics according to the blocks that are loaded not to cache.
+        let number_of_uncached_blocks = stored_block_rounds_by_author.len();
+        stored_block_rounds_by_author.dedup();
+        let uncached_unique_block_rounds = stored_block_rounds_by_author.len();
+        let uncached_equivocations =
+            (number_of_uncached_blocks - uncached_unique_block_rounds) as u64;
+        let uncached_missing_blocks = eviction_round as u64 - uncached_unique_block_rounds as u64;
+
+        self.scoring_metrics.uncached_equivocations_by_authority[validator.value()]
+            .store(uncached_equivocations, Ordering::Relaxed);
+        self.scoring_metrics.uncached_missing_proposals_by_authority[validator.value()]
+            .store(uncached_missing_blocks, Ordering::Relaxed);
+        self.node_metrics
+            .uncached_equivocations_by_authority
+            .with_label_values(&[hostname])
+            .inc_by(uncached_equivocations);
+        self.node_metrics
+            .uncached_missing_proposals_by_authority
+            .with_label_values(&[hostname])
+            .inc_by(uncached_missing_blocks);
     }
 
     pub(crate) fn update_semantically_invalid_blocks(
@@ -280,8 +288,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) semantically_invalid_blocks: IntCounterVec,
     pub(crate) syntactically_invalid_blocks: IntCounterVec,
-    pub(crate) equivocations_in_storage_by_authority: IntCounterVec,
-    pub(crate) missing_proposals_in_storage_by_authority: IntCounterVec,
+    pub(crate) uncached_equivocations_by_authority: IntCounterVec,
+    pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
     pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
     pub(crate) rejected_blocks: IntCounterVec,
@@ -592,14 +600,14 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            equivocations_in_storage_by_authority: register_int_counter_vec_with_registry!(
-                "equivocations_in_storage_by_authority",
+            uncached_equivocations_by_authority: register_int_counter_vec_with_registry!(
+                "uncached_equivocations_by_authority",
                 "Registers the number of equivocations per authority persisted in storage.",
                 &["authority"],
                 registry,
             ).unwrap(),
-            missing_proposals_in_storage_by_authority: register_int_counter_vec_with_registry!(
-                "missing_proposals_in_storage_by_authority",
+            uncached_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
+                "uncached_missing_proposals_by_authority",
                 "Registers the number of blocks that should be on storage that an authority failed to send.",
                 &["authority"],
                 registry,
@@ -987,7 +995,7 @@ pub(crate) struct ValidatorScoreMetrics {
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of equivocations
     // they that were already flushed to cache in the epoch.
-    pub(crate) equivocations_in_storage_by_authority: Arc<Vec<AtomicU64>>,
+    pub(crate) uncached_equivocations_by_authority: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of equivocations
     // in cache, below the threshold clock round.
@@ -996,7 +1004,7 @@ pub(crate) struct ValidatorScoreMetrics {
     // by AuthorityIndex. For each of those validators, we count the number of blocks that the
     // validator failed to propose among the blocks that were already flushed to cache in the
     // epoch.
-    pub(crate) missing_proposals_in_storage_by_authority: Arc<Vec<AtomicU64>>,
+    pub(crate) uncached_missing_proposals_by_authority: Arc<Vec<AtomicU64>>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of blocks that the
     // validator failed to propose, or that the node did not receive yet, from the rounds stored in
@@ -1012,15 +1020,14 @@ impl ValidatorScoreMetrics {
         let mut syntactically_invalid_blocks_inner = vec![];
         syntactically_invalid_blocks_inner.resize_with(committee_size, || AtomicU64::new(0));
 
-        let mut equivocations_in_storage_by_authority_inner = vec![];
-        equivocations_in_storage_by_authority_inner
-            .resize_with(committee_size, || AtomicU64::new(0));
+        let mut uncached_equivocations_by_authority_inner = vec![];
+        uncached_equivocations_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
 
         let mut equivocations_in_cache_by_authority_inner = vec![];
         equivocations_in_cache_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
 
-        let mut missing_proposals_in_storage_by_authority_inner = vec![];
-        missing_proposals_in_storage_by_authority_inner
+        let mut uncached_missing_proposals_by_authority_inner = vec![];
+        uncached_missing_proposals_by_authority_inner
             .resize_with(committee_size, || AtomicU64::new(0));
 
         let mut missing_proposals_in_cache_by_authority_inner = vec![];
@@ -1030,14 +1037,14 @@ impl ValidatorScoreMetrics {
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
             syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
-            equivocations_in_storage_by_authority: Arc::new(
-                equivocations_in_storage_by_authority_inner,
+            uncached_equivocations_by_authority: Arc::new(
+                uncached_equivocations_by_authority_inner,
             ),
             equivocations_in_cache_by_authority: Arc::new(
                 equivocations_in_cache_by_authority_inner,
             ),
-            missing_proposals_in_storage_by_authority: Arc::new(
-                missing_proposals_in_storage_by_authority_inner,
+            uncached_missing_proposals_by_authority: Arc::new(
+                uncached_missing_proposals_by_authority_inner,
             ),
             missing_proposals_in_cache_by_authority: Arc::new(
                 missing_proposals_in_cache_by_authority_inner,
@@ -1504,7 +1511,7 @@ mod tests {
                     .map(|x| x.load(Ordering::Relaxed))
                     .collect::<Vec<u64>>(),
                 MetricType::EquivocationsInStorage => self
-                    .equivocations_in_storage_by_authority
+                    .uncached_equivocations_by_authority
                     .iter()
                     .map(|x| x.load(Ordering::Relaxed))
                     .collect::<Vec<u64>>(),
@@ -1514,7 +1521,7 @@ mod tests {
                     .map(|x| x.load(Ordering::Relaxed))
                     .collect::<Vec<u64>>(),
                 MetricType::MissingProposalsInStorage => self
-                    .missing_proposals_in_storage_by_authority
+                    .uncached_missing_proposals_by_authority
                     .iter()
                     .map(|x| x.load(Ordering::Relaxed))
                     .collect::<Vec<u64>>(),

@@ -246,23 +246,23 @@ impl DagState {
             );
         }
 
+        // Initialize the scoring metrics according to the stored blocks
         let threshold_clock_round = state.threshold_clock_round();
         for index in 0..num_authorities {
             let authority_index = state.context.committee.to_authority_index(index).unwrap();
             let eviction_round = state.evicted_rounds[index];
             let hostname = &state.context.committee.authority(authority_index).hostname;
-            let stored_blocks_by_author = state
+            let stored_block_rounds_by_author = state
                 .store
                 .scan_block_rounds_by_author(authority_index)
                 .expect("Database error");
-
             state
                 .context
                 .metrics
-                .update_scoring_metrics_when_loading_dag_from_storage(
+                .initialize_scoring_metrics_from_storage(
                     authority_index,
                     hostname,
-                    stored_blocks_by_author,
+                    stored_block_rounds_by_author,
                     threshold_clock_round,
                     eviction_round,
                 );
@@ -1031,7 +1031,8 @@ impl DagState {
             .inc();
 
         // Clean up old cached data. After flushing, all cached blocks are guaranteed to
-        // be persisted.
+        // be persisted. This clean up also triggers some of the scoring metrics
+        // updates.
         for (authority_index, _) in self.context.committee.authorities() {
             let last_evicted_round = self.evicted_rounds[authority_index];
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
@@ -1051,19 +1052,18 @@ impl DagState {
                 }
             }
             self.evicted_rounds[authority_index] = eviction_round;
+
+            // Update the scoring metrics.
             let threshold_clock_round = self.threshold_clock_round();
             let hostname = &self.context.committee.authority(authority_index).hostname;
-
-            self.context
-                .metrics
-                .update_scoring_metrics_after_cache_flush(
-                    authority_index,
-                    hostname,
-                    &self.recent_refs_by_authority[authority_index],
-                    evicted_blocks_per_round,
-                    threshold_clock_round,
-                    eviction_round,
-                );
+            self.context.metrics.update_scoring_metrics_after_eviction(
+                authority_index,
+                hostname,
+                &self.recent_refs_by_authority[authority_index],
+                evicted_blocks_per_round,
+                threshold_clock_round,
+                eviction_round,
+            );
         }
 
         let metrics = &self.context.metrics.node_metrics;
