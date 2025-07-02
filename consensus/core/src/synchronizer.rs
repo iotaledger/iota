@@ -2,23 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::prelude::{IteratorRandom, StdRng};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
     time::Duration,
 };
-use std::collections::HashSet;
+
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{StreamExt as _, stream::FuturesUnordered};
 use iota_macros::fail_point_async;
-use iota_metrics::{metrics, monitored_future, monitored_mpsc::{Receiver, Sender, channel}, monitored_scope};
+use iota_metrics::{
+    monitored_future,
+    monitored_mpsc::{Receiver, Sender, channel},
+    monitored_scope,
+};
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom};
-use rand::SeedableRng;
+use rand::prelude::SliceRandom;
+use rand::{
+    SeedableRng,
+    prelude::{IteratorRandom, StdRng},
+};
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -949,7 +955,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     blocks_to_fetch.clone(),
                     network_client,
                     missing_blocks,
-                    dag_state
+                    dag_state,
                 )
                 .await;
                 context
@@ -1019,12 +1025,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
-
-
-
         // The maximum number of peers which will be requested in periodic synchronizer
         const MAX_PEERS: usize = 4;
-        // The maximum number of peers which are chosen totally random to fetch blocks from
+        // The maximum number of peers which are chosen totally random to fetch blocks
+        // from
         const MAX_RANDOM_PEERS: usize = 2;
 
         // Step 1: Map authorities to missing blocks that they are aware of
@@ -1038,33 +1042,38 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }
         }
 
-        // Step 2: Choose at most two random peers from those who are aware of the missing blocks
+        // Step 2: Choose at most two random peers from those who are aware of the
+        // missing blocks
 
         let mut rng = StdRng::from_entropy();
         // Randomly pick up to 2 authorities from those aware of missing blocks
-        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> = authority_to_blocks
-            .iter()
-            .choose_multiple(&mut rng, MAX_PEERS - MAX_RANDOM_PEERS)
-            .into_iter()
-            .map(|(&peer, blocks)| (peer, blocks.clone()))
-            .collect();
+        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> =
+            authority_to_blocks
+                .iter()
+                .choose_multiple(&mut rng, MAX_PEERS - MAX_RANDOM_PEERS)
+                .into_iter()
+                .map(|(&peer, blocks)| (peer, blocks.clone()))
+                .collect();
 
-        // Step 3: Choose at most two random peers not known to be aware of the missing blocks
-        let already_chosen: HashSet<AuthorityIndex> =
-            chosen_peers_with_blocks.iter().map(|(peer, _)| *peer).collect();
+        // Step 3: Choose at most two random peers not known to be aware of the missing
+        // blocks
+        let already_chosen: HashSet<AuthorityIndex> = chosen_peers_with_blocks
+            .iter()
+            .map(|(peer, _)| *peer)
+            .collect();
 
         let random_candidates: Vec<_> = context
             .committee
             .authorities()
             .filter_map(|(peer_index, _)| {
-                (peer_index != context.own_index
-                    && !already_chosen.contains(&peer_index))
+                (peer_index != context.own_index && !already_chosen.contains(&peer_index))
                     .then_some(peer_index)
             })
             .collect();
 
-        let random_peers: Vec<AuthorityIndex> =
-            random_candidates.into_iter().choose_multiple(&mut rng, MAX_RANDOM_PEERS);
+        let random_peers: Vec<AuthorityIndex> = random_candidates
+            .into_iter()
+            .choose_multiple(&mut rng, MAX_RANDOM_PEERS);
 
         let mut all_missing_blocks: Vec<BlockRef> = missing_blocks.keys().cloned().collect();
         #[cfg(not(test))]
@@ -1079,8 +1088,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 break; // Not enough blocks left
             }
         }
-
-
 
         let mut request_futures = FuturesUnordered::new();
 
@@ -1109,14 +1116,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .set(missing as i64);
         }
 
-        // Look at peers that were not chosen yet, and try to fetch blocks from them if needed later
+        // Look at peers that were not chosen yet, and try to fetch blocks from them if
+        // needed later
         #[cfg_attr(test, expect(unused_mut))]
         let mut remaining_peers: Vec<_> = context
             .committee
             .authorities()
             .filter_map(|(peer_index, _)| {
                 if peer_index != context.own_index
-                    && !chosen_peers_with_blocks.iter().any(|(chosen_peer, _)| *chosen_peer == peer_index)
+                    && !chosen_peers_with_blocks
+                        .iter()
+                        .any(|(chosen_peer, _)| *chosen_peer == peer_index)
                 {
                     Some(peer_index)
                 } else {
@@ -1155,8 +1165,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .with_label_values(&[peer_hostname.as_str(), "periodic"])
                     .inc_by(block_refs.len() as u64);
                 for block_ref in &block_refs {
-                    let block_hostname =
-                        &context.committee.authority(block_ref.author).hostname;
+                    let block_hostname = &context.committee.authority(block_ref.author).hostname;
                     metrics
                         .synchronizer_requested_blocks_by_authority
                         .with_label_values(&[block_hostname.as_str(), "periodic"])
@@ -1172,7 +1181,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 ));
             }
         }
-        
 
         let mut results = Vec::new();
         let fetcher_timeout = sleep(FETCH_FROM_PEERS_TIMEOUT);
@@ -1208,7 +1216,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                             .collect::<Vec<_>>()
                                             .join(", ")
                                     );
-                                    let block_refs = blocks_guard.block_refs.clone(); 
+                                    let block_refs = blocks_guard.block_refs.clone();
                                     // Record metrics about requested blocks
                                     let metrics = &context.metrics.node_metrics;
                                     metrics
@@ -2021,9 +2029,7 @@ mod tests {
         async fn get_missing_blocks(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(
-                self.missing_blocks.lock().await.clone(),
-            )
+            Ok(self.missing_blocks.lock().await.clone())
         }
         async fn add_blocks(
             &self,

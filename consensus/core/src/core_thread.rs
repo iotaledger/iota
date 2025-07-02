@@ -52,9 +52,7 @@ enum CoreThreadCommand {
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks. In addition, it returns the count of
     /// suspended blocks.
-    GetMissingBlocks(
-        oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-    ),
+    GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
 
 #[derive(Error, Debug)]
@@ -364,8 +362,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         &self,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::GetMissingBlocks(sender))
-            .await;
+        self.send(CoreThreadCommand::GetMissingBlocks(sender)).await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
