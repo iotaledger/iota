@@ -152,7 +152,7 @@ where
     fn opt_debug(&self, def_str: &str) -> String {
         match self {
             None => def_str.to_string(),
-            Some(t) => format!("{:?}", t),
+            Some(t) => format!("{t:?}"),
         }
     }
 }
@@ -292,7 +292,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     let obj_digest = resp.object.compute_object_reference().2;
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
-                    write!(f, " {:<66} {:<45} {:<51}", obj_digest, parent, owner)?;
+                    write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
                 }
             }
             writeln!(f)?;
@@ -317,7 +317,7 @@ impl std::fmt::Display for VerboseObjectOutput {
             )?;
 
             match resp {
-                Err(e) => writeln!(f, "Error fetching object: {}", e)?,
+                Err(e) => writeln!(f, "Error fetching object: {e}")?,
                 Ok(resp) => {
                     writeln!(
                         f,
@@ -438,19 +438,17 @@ pub async fn get_transaction_block(
             Ok(Some((tx, effects, effects_digest))) => {
                 writeln!(
                     &mut s,
-                    "#{:<2} tx_digest: {:<68?} effects_digest: {:?}",
-                    i, tx_digest, effects_digest,
+                    "#{i:<2} tx_digest: {tx_digest:<68?} effects_digest: {effects_digest:?}",
                 )?;
-                writeln!(&mut s, "{:#?}", effects)?;
+                writeln!(&mut s, "{effects:#?}")?;
                 if show_input_tx {
-                    writeln!(&mut s, "{:#?}", tx)?;
+                    writeln!(&mut s, "{tx:#?}")?;
                 }
             }
             Ok(None) => {
                 writeln!(
                     &mut s,
-                    "#{:<2} tx_digest: {:<68?} Signed but not executed",
-                    i, tx_digest
+                    "#{i:<2} tx_digest: {tx_digest:<68?} Signed but not executed"
                 )?;
                 if show_input_tx {
                     // In this case, we expect at least one validator knows about this tx
@@ -459,11 +457,11 @@ pub async fn get_transaction_block(
                     let tx_info = client.handle_transaction_info_request(TransactionInfoRequest {
                         transaction_digest: tx_digest,
                     }).await.unwrap_or_else(|e| panic!("Validator {:?} should have known about tx_digest: {:?}, got error: {:?}", validator_aware_of_tx.0, tx_digest, e));
-                    writeln!(&mut s, "{:#?}", tx_info)?;
+                    writeln!(&mut s, "{tx_info:#?}")?;
                 }
             }
             other => {
-                writeln!(&mut s, "#{:<2} {:#?}", i, other)?;
+                writeln!(&mut s, "#{i:<2} {other:#?}")?;
             }
         }
         for (j, (_, _, res)) in group.enumerate() {
@@ -668,8 +666,7 @@ fn start_summary_sync(
                     num_summaries as f64 / s_instant.elapsed().as_secs_f64();
                 cloned_progress_bar.set_position(s_start + num_summaries);
                 cloned_progress_bar.set_message(format!(
-                    "checkpoints synced per sec: {}",
-                    total_checkpoints_per_sec
+                    "checkpoints synced per sec: {total_checkpoints_per_sec}"
                 ));
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -722,8 +719,7 @@ fn start_summary_sync(
                         num_summaries as f64 / v_instant.elapsed().as_secs_f64();
                     cloned_verify_progress_bar.set_position(v_start + num_summaries);
                     cloned_verify_progress_bar.set_message(format!(
-                        "checkpoints verified per sec: {}",
-                        total_checkpoints_per_sec
+                        "checkpoints verified per sec: {total_checkpoints_per_sec}"
                     ));
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
@@ -808,7 +804,7 @@ pub async fn check_completed_snapshot(
     snapshot_store_config: &ObjectStoreConfig,
     epoch: EpochId,
 ) -> Result<(), anyhow::Error> {
-    let success_marker = format!("epoch_{}/_SUCCESS", epoch);
+    let success_marker = format!("epoch_{epoch}/_SUCCESS");
     let remote_object_store = if snapshot_store_config.no_sign_request {
         snapshot_store_config.make_http()?
     } else {
@@ -843,8 +839,7 @@ pub async fn download_formal_snapshot(
 ) -> Result<(), anyhow::Error> {
     let m = MultiProgress::new();
     m.println(format!(
-        "Beginning formal snapshot restore to end of epoch {}, network: {:?}, verification mode: {:?}",
-        epoch, network, verify,
+        "Beginning formal snapshot restore to end of epoch {epoch}, network: {network:?}, verification mode: {verify:?}",
     ))?;
     let path = path.join("staging").to_path_buf();
     if path.exists() {
@@ -905,11 +900,11 @@ pub async fn download_formal_snapshot(
             m_clone,
         )
         .await
-        .unwrap_or_else(|err| panic!("Failed to create reader: {}", err));
+        .unwrap_or_else(|err| panic!("Failed to create reader: {err}"));
         reader
             .read(&perpetual_db_clone, abort_registration, Some(sender))
             .await
-            .unwrap_or_else(|err| panic!("Failed during read: {}", err));
+            .unwrap_or_else(|err| panic!("Failed during read: {err}"));
         Ok::<(), anyhow::Error>(())
     });
     let mut root_accumulator = Accumulator::default();
@@ -1006,10 +1001,7 @@ pub async fn download_formal_snapshot(
     }
     fs::rename(&path, &new_path)?;
     fs::remove_dir_all(snapshot_dir.clone())?;
-    println!(
-        "Successfully restored state from snapshot at end of epoch {}",
-        epoch
-    );
+    println!("Successfully restored state from snapshot at end of epoch {epoch}");
 
     Ok(())
 }
@@ -1036,7 +1028,7 @@ pub async fn download_db_snapshot(
         bail!("Epoch dir {} doesn't exist on the remote store", epoch);
     }
 
-    let epoch_path = format!("epoch_{}", epoch);
+    let epoch_path = format!("epoch_{epoch}");
     let epoch_dir = get_path(&epoch_path);
 
     let manifest_file = epoch_dir.child(MANIFEST_FILENAME);
@@ -1080,7 +1072,7 @@ pub async fn download_db_snapshot(
                 let counter_cloned = file_counter.clone();
                 async move {
                     counter_cloned.fetch_add(1, Ordering::Relaxed);
-                    let file_path = get_path(format!("epoch_{}/{}", epoch, file).as_str());
+                    let file_path = get_path(format!("epoch_{epoch}/{file}").as_str());
                     copy_file(&file_path, &file_path, &remote_store, &local_store).await?;
                     Ok::<::object_store::path::Path, anyhow::Error>(file_path.clone())
                 }

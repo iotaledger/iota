@@ -281,7 +281,7 @@ pub async fn force_delete_database(db_url: String) {
     blocking_pool
         .get()
         .unwrap()
-        .batch_execute(&format!("DROP DATABASE IF EXISTS {} WITH (FORCE)", db_name))
+        .batch_execute(&format!("DROP DATABASE IF EXISTS {db_name} WITH (FORCE)"))
         .unwrap();
 }
 

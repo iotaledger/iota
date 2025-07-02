@@ -194,7 +194,7 @@ async fn basic_flow() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
@@ -230,7 +230,7 @@ async fn graceful_shutdown_faulty_worker() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
@@ -269,7 +269,7 @@ async fn worker_pool_with_reducer() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
@@ -316,7 +316,7 @@ async fn graceful_shutdown_faulty_reducer() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,

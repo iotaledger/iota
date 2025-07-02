@@ -563,13 +563,13 @@ impl ReadApiServer for ReadApi {
                         Ok(response) => Ok(response),
                         Err(error) => {
                             error!("Failed to fetch object with error: {error:?}");
-                            Err(format!("Error: {}", error))
+                            Err(format!("Error: {error}"))
                         }
                     })
                     .collect();
 
                 let objects = objects_result.map_err(|err| {
-                    Error::Unexpected(format!("Failed to fetch objects with error: {}", err))
+                    Error::Unexpected(format!("Failed to fetch objects with error: {err}"))
                 })?;
 
                 self.metrics
@@ -1244,7 +1244,7 @@ fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String
             '}' if !escaped => {
                 in_braces = false;
                 let value = get_value_from_move_struct(move_struct, &var_name)?;
-                output = output.replace(&format!("{{{}}}", var_name), &value.to_string());
+                output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
             }
             _ if !escaped => {
                 if in_braces {
