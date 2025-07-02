@@ -361,7 +361,7 @@
 }
 
 .cardB {
-  background-color: black;
+  background-color: var(--ifm-background-color-dark);
   padding: 1.7rem;
   font-family: var(--headerFont);
   font-size: 1.5rem;
@@ -395,7 +395,7 @@
   row-gap: 1rem;
 }
 .whyImgCard {
-  background-color: rgb(0, 0, 0);
+  background-color: var(--ifm-background-color-dark);
   border-radius: 35px;
   display: flex;
   align-items: center;
