@@ -20,7 +20,7 @@ use iota_sdk::{
         transaction::{Command, ObjectArg, Transaction, TransactionData},
     },
 };
-use move_core_types::language_storage::StructTag;
+use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
@@ -140,24 +140,27 @@ pub async fn init_smart_account<K: AccountKeystore>(
 /// from transaction response.
 pub fn smart_account_data(
     smart_account_tx: IotaTransactionBlockResponse,
+    package_id: ObjectID,
 ) -> Result<(ObjectRef, ObjectRef)> {
+    let address: AccountAddress = package_id.into();
     let created = smart_account_tx
         .object_changes
         .ok_or_else(|| anyhow!("No object changes found"))?;
-    let find_ref = |name: &str| -> Result<ObjectRef> {
+    let find_ref = |name: &str, module: &str, addr: &str| -> Result<ObjectRef> {
         let id = Identifier::new(name)?;
+        let module = Identifier::new(module)?;
         created
             .iter()
             .find_map(|obj_change| match obj_change {
                 ObjectChange::Created {
-                    object_type: StructTag { name: n, .. },
+                    object_type: StructTag { name: n, module: m, address: a, .. },
                     ..
-                } if n == &id => Some(obj_change.object_ref()),
+                } if n == &id && m == &module && &a.to_canonical_string(false) == addr => Some(obj_change.object_ref()),
                 _ => None,
             })
             .ok_or_else(|| anyhow!("{name} not found"))
     };
-    Ok((find_ref("SmartAccount")?, find_ref("OwnerCap")?))
+    Ok((find_ref("SmartAccount", "smart_account", &address.to_canonical_string(false))?, find_ref("OwnerCap", "smart_account", &address.to_canonical_string(false))?))
 }
 
 /// Submits a deposit transaction into a SmartAccount.
@@ -166,8 +169,6 @@ pub async fn make_deposit_to_smart_account<K: AccountKeystore>(
     iota_client: &IotaClient,
     keystore: &K,
     depositor_addr: IotaAddress,
-    approver_addr: IotaAddress,
-    multisig_addr: IotaAddress,
     package_id: ObjectID,
     smart_account_obj: ObjectRef,
 ) -> Result<()> {
@@ -260,15 +261,13 @@ pub async fn make_deposit_to_smart_account<K: AccountKeystore>(
         .await?;
     let depositor_gas_coin = depositor_coin.first().unwrap();
 
-    let receive_tx_data = TransactionData::new_programmable_allow_sponsor(
-        multisig_addr,
+    let receive_tx_data = TransactionData::new_programmable(
+        depositor_addr,
         vec![depositor_gas_coin.object_ref()],
         ptb_builder.finish(),
         GAS_BUDGET,
         gas_price,
-        depositor_addr,
     );
-
     let depositor_sig: GenericSignature = keystore
         .sign_secure(
             &depositor_addr,
@@ -276,24 +275,10 @@ pub async fn make_deposit_to_smart_account<K: AccountKeystore>(
             Intent::iota_transaction(),
         )?
         .into();
-    let sigs: Vec<GenericSignature> = vec![
-        depositor_sig.clone(),
-        keystore
-            .sign_secure(&approver_addr, &receive_tx_data, Intent::iota_transaction())?
-            .into(),
-    ];
-    let multisig = build_multisig(
-        keystore,
-        &[depositor_addr, approver_addr],
-        WEIGHTS,
-        THRESHOLD,
-        sigs,
-    )?;
-
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_generic_sig_data(receive_tx_data, vec![multisig, depositor_sig]),
+            Transaction::from_generic_sig_data(receive_tx_data, vec![depositor_sig]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )

@@ -19,7 +19,7 @@ use move_core_types::language_storage::StructTag;
 use shared_crypto::intent::Intent;
 
 use crate::{
-    sig_utils::extract_pure_signature,
+    sig_utils::extract_pure_signature_ed25519,
     utils::{GAS_BUDGET, THRESHOLD, get_coin},
 };
 
@@ -132,7 +132,7 @@ pub async fn sign_proposed_tx<K: AccountKeystore>(
     let pub_key = keystore.get_key(&addr)?.public();
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
 
-    let pure_signature = extract_pure_signature(&signature);
+    let pure_signature = extract_pure_signature_ed25519(&signature);
 
     let arguments = vec![
         ptb_builder.obj(ObjectArg::SharedObject {

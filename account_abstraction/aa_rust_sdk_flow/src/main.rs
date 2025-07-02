@@ -101,7 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Smart account creation tx info: {smart_account}");
 
     // Extract the SmartAccount and OwnerCap object references
-    let (smart_account_object, owner_cap_object) = smart_account_data(smart_account)?;
+    let (smart_account_object, owner_cap_object) = smart_account_data(smart_account, package_id)?;
     println!("Smart Account ID: {}", smart_account_object.0);
     println!("OwnerCap ID: {}", owner_cap_object.0);
 
@@ -113,8 +113,6 @@ async fn main() -> Result<(), anyhow::Error> {
         &iota_client,
         &keystore,
         alice_addr,
-        bob_addr,
-        multisig_addr,
         package_id,
         smart_account_object,
     )
