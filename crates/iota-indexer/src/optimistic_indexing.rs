@@ -145,7 +145,7 @@ impl OptimisticTransactionExecutor {
         }
         tokio::select! {
             Ok(_) = self.wait_for_tx_dependencies(&effects) => (),
-            Ok(_) = self.deep_check_all_dependencies_are_indexed(&effects) => (),
+            Ok(true) = self.deep_check_all_dependencies_are_indexed(&effects) => (),
             else => {
                 tracing::warn!(
                     "Transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
