@@ -147,6 +147,9 @@ pub enum IndexerError {
 
     #[error("Inconsistent migration records: {0}")]
     DbMigration(String),
+
+    #[error("Transaction dependencies have not been indexed")]
+    TransactionDependenciesNotIndexed,
 }
 
 pub trait Context<T> {
