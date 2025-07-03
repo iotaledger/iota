@@ -1035,6 +1035,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let mut authority_to_blocks: HashMap<AuthorityIndex, Vec<BlockRef>> = HashMap::new();
         for (missing_block_ref, authorities) in &missing_blocks {
             for author in authorities {
+                if author == &context.own_index {
+                    // Skip our own index as we don't want to fetch blocks from ourselves
+                    continue;
+                }
                 authority_to_blocks
                     .entry(*author)
                     .or_default()
@@ -1052,7 +1056,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .iter()
                 .choose_multiple(&mut rng, MAX_PEERS - MAX_RANDOM_PEERS)
                 .into_iter()
-                .map(|(&peer, blocks)| (peer, blocks.clone()))
+                .map(|(&peer, blocks)| {
+                    let limited_blocks = blocks.iter().copied().take(MAX_BLOCKS_PER_FETCH).collect();
+                    (peer, limited_blocks)
+                })
                 .collect();
 
         // Step 3: Choose at most two random peers not known to be aware of the missing
@@ -1070,7 +1077,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .then_some(peer_index)
             })
             .collect();
-
+        #[cfg(test)]
+        let random_peers: Vec<AuthorityIndex> = random_candidates
+            .into_iter()
+            .take(MAX_RANDOM_PEERS)
+            .collect();
+        #[cfg(not(test))]
         let random_peers: Vec<AuthorityIndex> = random_candidates
             .into_iter()
             .choose_multiple(&mut rng, MAX_RANDOM_PEERS);
