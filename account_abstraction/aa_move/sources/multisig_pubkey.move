@@ -25,7 +25,7 @@ public fun new(pks: vector<vector<u8>>, weights: vector<u8>, threshold: u16): Mu
         && pks.length() == weights.length() 
         && pks.length() <= MAX_SIGNER_IN_MULTISIG
         && weights.contains(&0) == false
-        && weights.fold!(0 as u16, |acc, e| acc + (e as u16)) == threshold,
+        && weights.fold!(0 as u16, |acc, e| acc + (e as u16)) >= threshold,
         EInvalidMultiSigPublicKey,
     );
     pks.zip_do_ref!(&vector::tabulate!(pks.length(), |i| i), |a, b| {
