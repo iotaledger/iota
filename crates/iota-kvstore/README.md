@@ -22,10 +22,49 @@ This crate provides a key-value store implementation using Google Cloud Bigtable
 - `BigTableProgressStore`:
   Manages persistent progress information (watermarks) in Bigtable for ingestion jobs.
 
+## Protocol Buffers
+
+Before building this crate, you must have the `protoc` Protocol Buffers compiler installed. This is required by the `build.rs` script to generate Rust code from the `.proto` files.
+
+- **Linux (apt or apt-get):**
+  ```sh
+  sudo apt install -y protobuf-compiler
+  ```
+- **macOS (Homebrew):**
+  ```sh
+  brew install protobuf
+  ```
+
+If you encounter build errors related to missing generated files, ensure that `protoc` is installed and available in your `PATH`.
 
 ## Setup
 
+### Remote Development
+
+To instantiate a `BigTableClient` for communicating with a remote Google Cloud Bigtable instance, you need the following:
+
+- **Instance ID:**
+  This can be found in the Google Cloud Console (e.g., `my-instance-id`).
+
+- **Credentials:**
+  Download your service account credentials JSON file from the Google Cloud Console. Store this file securely on your local machine.
+  The client will use this file via the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
+  Example:
+  ```sh
+  export GOOGLE_APPLICATION_CREDENTIALS=/path/to/my-credentials.json
+  ```
+
+**Note:**
+Never commit your credentials file to version control. Always keep it secure and private.
+
+- Run the following script to configure the remote instance (replace `<instance_id>` and `<project_id>` accordingly).
+  The project ID can be found in your credentials JSON file:
+  ```sh
+  ./src/bigtable/init.sh <instance_id> <project_id>
+  ```
+
 ### Local development
+
 - install `gcloud` CLI tool: https://cloud.google.com/sdk/docs/install
 
 - install the `cbt` CLI tool

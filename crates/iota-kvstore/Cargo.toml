@@ -16,15 +16,18 @@ clap.workspace = true
 gcp_auth = "0.12.3"
 http.workspace = true
 prometheus.workspace = true
-prost = "0.13"
-prost-types = "0.13.1"
+prost.workspace = true
+prost-types = "0.13.0"
 serde.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tonic = { version = "0.12.2", features = ["tls", "transport"] }
+tonic = { workspace = true, features = ["tls-webpki-roots"] }
 tracing.workspace = true
 
 # internal dependencies
 iota-data-ingestion-core.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

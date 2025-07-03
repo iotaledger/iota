@@ -23,27 +23,34 @@ use iota_types::{
     storage::ObjectKey,
 };
 use prometheus::Registry;
+use prost::Message;
 use tonic::{
     Streaming,
-    body::BoxBody,
+    body::Body,
     codegen::Service,
     transport::{Certificate, Channel, ClientTlsConfig},
 };
 use tracing::error;
 
-use super::proto::bigtable::v2::{RowFilter, row_filter::Filter};
 use crate::{
     Checkpoint, KeyValueStoreReader, KeyValueStoreWriter, TransactionData,
     bigtable::{
         metrics::KvMetrics,
         proto::bigtable::v2::{
-            MutateRowsRequest, MutateRowsResponse, Mutation, ReadRowsRequest, RowRange, RowSet,
-            bigtable_client::BigtableClient as BigtableInternalClient, mutate_rows_request::Entry,
-            mutation, mutation::SetCell, read_rows_response::cell_chunk::RowStatus,
+            MutateRowsRequest, MutateRowsResponse, Mutation, ReadRowsRequest, RowFilter, RowRange,
+            RowSet,
+            bigtable_client::BigtableClient as BigtableInternalClient,
+            mutate_rows_request::Entry,
+            mutation::{self, SetCell},
+            read_rows_response::cell_chunk::RowStatus,
+            row_filter::Filter,
             row_range::EndKey,
         },
     },
 };
+
+/// BigTable GRPC Server max request size in bytes.
+const GRPC_MAX_REQUEST_SIZE: usize = 250 * 1024 * 1024; // 250 MB
 
 const OBJECTS_TABLE: &str = "objects";
 const TRANSACTIONS_TABLE: &str = "transactions";
@@ -329,7 +336,7 @@ impl BigTableClient {
         };
         let token_provider = gcp_auth::provider().await?;
         let tls_config = ClientTlsConfig::new()
-            .ca_certificate(Certificate::from_pem(include_bytes!("./proto/google.pem")))
+            .ca_certificate(Certificate::from_pem(include_bytes!("./certs/google.pem")))
             .domain_name("bigtable.googleapis.com");
         let mut endpoint = Channel::from_static("https://bigtable.googleapis.com")
             .http2_keep_alive_interval(Duration::from_secs(60))
@@ -439,38 +446,44 @@ impl BigTableClient {
         table_name: &str,
         values: impl IntoIterator<Item = (Bytes, Vec<(&str, Bytes)>)> + std::marker::Send,
     ) -> Result<()> {
-        let mut entries = vec![];
-        for (row_key, cells) in values {
-            let mutations = cells
-                .into_iter()
-                .map(|(column_name, value)| Mutation {
-                    mutation: Some(mutation::Mutation::SetCell(SetCell {
-                        family_name: COLUMN_FAMILY_NAME.to_string(),
-                        column_qualifier: column_name.to_owned().into_bytes(),
-                        // The timestamp of the cell into which new data should be written.
-                        // Use -1 for current Bigtable server time.
-                        timestamp_micros: -1,
-                        value,
-                    })),
-                })
-                .collect();
-            entries.push(Entry { row_key, mutations });
-        }
-        let request = MutateRowsRequest {
-            table_name: self.table_name(table_name),
-            entries,
-            ..MutateRowsRequest::default()
-        };
-        let mut response = self.mutate_rows(request).await?;
-        while let Some(part) = response.message().await? {
-            for entry in part.entries {
-                if let Some(status) = entry.status {
-                    if status.code != 0 {
-                        return Err(anyhow!(
-                            "bigtable write failed {} {}",
-                            status.code,
-                            status.message
-                        ));
+        let entries = values
+            .into_iter()
+            .map(|(row_key, cells)| {
+                let mutations = cells
+                    .into_iter()
+                    .map(|(column_name, value)| Mutation {
+                        mutation: Some(mutation::Mutation::SetCell(SetCell {
+                            family_name: COLUMN_FAMILY_NAME.to_string(),
+                            column_qualifier: column_name.to_owned().into_bytes(),
+                            // The timestamp of the cell into which new data should be written.
+                            // Use -1 for current Bigtable server time.
+                            timestamp_micros: -1,
+                            value,
+                        })),
+                    })
+                    .collect();
+                Entry { row_key, mutations }
+            })
+            .collect::<Vec<Entry>>();
+
+        for entries in Self::batch_entries_by_size(entries) {
+            let request = MutateRowsRequest {
+                table_name: self.table_name(table_name),
+                entries,
+                ..MutateRowsRequest::default()
+            };
+
+            let mut response = self.mutate_rows(request).await?;
+            while let Some(part) = response.message().await? {
+                for entry in part.entries {
+                    if let Some(status) = entry.status {
+                        if status.code != 0 {
+                            return Err(anyhow!(
+                                "bigtable write failed {} {}",
+                                status.code,
+                                status.message
+                            ));
+                        }
                     }
                 }
             }
@@ -612,6 +625,43 @@ impl BigTableClient {
         raw_key.extend(object_key.1.value().to_be_bytes());
         Ok(raw_key)
     }
+
+    /// Splits a vector of `Entry` messages into batches such that the total
+    /// serialized size of each batch does not exceed the gRPC message size
+    /// limit (250 MB).
+    ///
+    /// This function serializes each entry to determine its size, and
+    /// accumulates entries into a batch until adding another entry would
+    /// exceed the size limit. It then starts a new batch. The result is a
+    /// vector of batches, each of which can be safely sent as a single gRPC
+    /// request without exceeding the configured maximum message size.
+    fn batch_entries_by_size(entries: Vec<Entry>) -> Vec<Vec<Entry>> {
+        let mut batches = Vec::new();
+        let mut current_batch = Vec::new();
+        let mut current_size = 0;
+
+        for entry in entries {
+            // Estimate size by serializing the entry
+            let entry_size = entry.encoded_len();
+
+            // If adding this entry would exceed the limit, start a new batch
+            if current_size + entry_size > GRPC_MAX_REQUEST_SIZE && !current_batch.is_empty() {
+                batches.push(current_batch);
+                current_batch = Vec::new();
+                current_size = 0;
+            }
+
+            current_batch.push(entry);
+            current_size += entry_size;
+        }
+
+        // Push the last batch if not empty
+        if !current_batch.is_empty() {
+            batches.push(current_batch);
+        }
+
+        batches
+    }
 }
 
 /// A smart, thread-safe wrapper around a gRPC channel that transparently
@@ -677,8 +727,8 @@ impl AuthChannel {
     }
 }
 
-impl Service<Request<BoxBody>> for AuthChannel {
-    type Response = Response<BoxBody>;
+impl Service<Request<Body>> for AuthChannel {
+    type Response = Response<Body>;
     type Error = Box<dyn std::error::Error + Send + Sync>;
     #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
@@ -690,7 +740,7 @@ impl Service<Request<BoxBody>> for AuthChannel {
     // Handles an outgoing request:
     // - Injects authentication and feature headers.
     // - Forwards the request to the underlying channel.
-    fn call(&mut self, mut request: Request<BoxBody>) -> Self::Future {
+    fn call(&mut self, mut request: Request<Body>) -> Self::Future {
         let cloned_channel = self.channel.clone();
         let cloned_token = self.token.clone();
         let mut inner = std::mem::replace(&mut self.channel, cloned_channel);
