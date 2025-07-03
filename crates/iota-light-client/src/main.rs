@@ -83,21 +83,16 @@ pub enum LightClientCommand {
         #[arg(name = "checkpoint", long, value_parser = parse_checkpoint_id)]
         checkpoint_id: CheckpointId,
         /// The path to the file the proof is written to
-        #[arg(name = "output", value_name = "PATH")]
-        output_file: PathBuf,
+        #[arg(name = "proof", value_name = "PATH")]
+        proof_file: PathBuf,
     },
     /// Sync the light client
     Sync,
     /// Verify a proof stored in a file against a committee
     VerifyProof {
-        /// The checkpoint sequence number or checkpoint digest of an
-        /// end-of-epoch checkpoint of the committee to verify the proof
-        /// against
-        #[arg(name = "checkpoint", long, value_parser = parse_checkpoint_id)]
-        checkpoint_id: CheckpointId,
         /// The path to the file the proof is read from
-        #[arg(name = "input", value_name = "PATH")]
-        input_file: PathBuf,
+        #[arg(name = "proof", value_name = "PATH")]
+        proof_file: PathBuf,
     },
 }
 
@@ -214,7 +209,7 @@ pub async fn main() -> Result<()> {
             object_ids,
             include_committee,
             checkpoint_id,
-            output_file,
+            proof_file: output_file,
         } => {
             ensure!(
                 !event_ids.is_empty() || !object_ids.is_empty() || include_committee,
@@ -314,8 +309,7 @@ pub async fn main() -> Result<()> {
             println!("Created proof and written to {}.", output_file.display());
         }
         LightClientCommand::VerifyProof {
-            checkpoint_id,
-            input_file,
+            proof_file: input_file,
         } => {
             if config.sync_before_check {
                 sync_and_verify_checkpoints(&config)
@@ -323,17 +317,10 @@ pub async fn main() -> Result<()> {
                     .context("Failed to sync checkpoints")?;
             }
 
-            // determine the checkpoint sequence number
-            let seq = match checkpoint_id {
-                CheckpointId::SequenceNumber(seq) => seq,
-                CheckpointId::Digest(_) => {
-                    let client = IotaClientBuilder::default()
-                        .build(config.rpc_url.as_str())
-                        .await?;
-                    let checkpoint = client.read_api().get_checkpoint(checkpoint_id).await?;
-                    checkpoint.sequence_number
-                }
-            };
+            let file = std::fs::File::open(&input_file)?;
+            let proof: Proof = serde_json::from_reader(file)?;
+
+            let seq = proof.checkpoint_summary.sequence_number;
 
             // read the summary from the local checkpoints dir
             let summary = read_checkpoint_summary(&config, seq)?.into_data();
@@ -361,9 +348,6 @@ pub async fn main() -> Result<()> {
 
                 Committee::new(summary.epoch, authorities)
             };
-
-            let file = std::fs::File::open(&input_file)?;
-            let proof: Proof = serde_json::from_reader(file)?;
 
             proof::verify_proof(&current_committee, &proof)?;
 
