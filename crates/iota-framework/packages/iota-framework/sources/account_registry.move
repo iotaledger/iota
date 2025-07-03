@@ -19,9 +19,10 @@ public struct AccountRegistry has key {
     account_ids: Table<ID, ID>,
 }
 
-#[allow(unused_function)]
+
 /// Create and share the singleton AccountRegistry -- this function is
 /// called exactly once, during genesis.
+#[allow(unused_function)]
 fun create(ctx: &mut TxContext) {
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
 
