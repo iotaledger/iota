@@ -3574,13 +3574,6 @@ impl AuthorityPerEpochStore {
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
 
-                                    let suggested_gas_price = shared_object_congestion_tracker
-                                        .compute_suggested_gas_price(&certificate)
-                                        .expect(
-                                            "cancelled transaction must have at least one shared \
-                                            object and calculated suggested gas price",
-                                        );
-
                                     debug!(
                                         "Cancelling consensus certificate for transaction {:?} \
                                             with deferral key {deferral_key:?} due to congestion \
