@@ -176,13 +176,16 @@ impl PTB {
         // get all the metadata needed for executing the PTB: sender, gas, signing tx
         let gas = program_metadata.gas_object_id.map(|x| x.value);
 
-        // the sender is the gas object if gas is provided, otherwise the active address
-        let sender = match gas {
-            Some(gas) => context
-                .get_object_owner(&gas)
-                .await
-                .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
-            None => context.active_address()?,
+        let sender = match program_metadata.sender {
+            Some(sender) => sender.value.into_inner().into(),
+            // the sender is the gas object if gas is provided, otherwise the active address
+            None => match gas {
+                Some(gas) => context
+                    .get_object_owner(&gas)
+                    .await
+                    .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
+                None => context.active_address()?,
+            },
         };
 
         // build the tx kind
@@ -200,6 +203,7 @@ impl PTB {
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
                 display: self.display,
+                sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
             },
         };
 
@@ -442,6 +446,10 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"preview"
             "Preview the list of PTB transactions instead of executing them."
+        ))
+        .arg(arg!(
+            --"sender" <SENDER>
+            "Set the sender to this address instead of the active address."
         ))
         .arg(arg!(
             --"serialize-unsigned-transaction"
