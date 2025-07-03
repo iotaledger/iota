@@ -22,7 +22,6 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-#[async_trait]
 /// Read key-value data from a persistent store, such as objects, transactions,
 /// and checkpoints.
 #[async_trait]
@@ -58,7 +57,6 @@ pub trait KeyValueStoreReader {
     async fn get_latest_object(&mut self, object_id: &ObjectID) -> Result<Option<Object>>;
 }
 
-#[async_trait]
 /// Writing key-value data to a persistent store, such as objects, transactions,
 /// and checkpoints.
 #[async_trait]

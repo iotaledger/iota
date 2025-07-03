@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fmt::Display,
     io::{self, Write},
     str::FromStr,
 };
@@ -19,23 +18,15 @@ use iota_types::{base_types::ObjectID, digests::TransactionDigest, storage::Obje
 use prometheus::Registry;
 use telemetry_subscribers::TelemetryConfig;
 
-#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+#[derive(Debug, Clone, Copy, Default, ValueEnum, strum::Display)]
 enum Network {
+    #[strum(serialize = "mainnet")]
     #[default]
     Mainnet,
+    #[strum(serialize = "testnet")]
     Testnet,
+    #[strum(serialize = "devnet")]
     Devnet,
-}
-
-impl Display for Network {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Network::Mainnet => "mainnet",
-            Network::Testnet => "testnet",
-            Network::Devnet => "devnet",
-        }
-        .fmt(f)
-    }
 }
 
 #[derive(Parser)]

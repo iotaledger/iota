@@ -6608,6 +6608,7 @@ dependencies = [
  "prometheus",
  "prost",
  "serde",
+ "strum 0.26.3",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
