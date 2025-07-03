@@ -63,7 +63,7 @@ use crate::{
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
         transactions::{
-            OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
+            IndexStatus, OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
@@ -593,6 +593,84 @@ impl IndexerReader {
             .collect()
     }
 
+    }
+
+    /// Expensive check to assert whether all transactions
+    /// are indexed.
+    ///
+    /// It uses both the `tx_global_order` table
+    /// and the `checkpoints` table to cover old transactions.
+    fn deep_check_all_transactions_are_indexed(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Result<bool, IndexerError> {
+        let stored_transactions = self.multi_get_transactions(digests)?;
+        if stored_transactions.len() != digests.len() {
+            return Ok(false);
+        }
+        let (checkpointed, optimistic) = stored_transactions
+            .into_iter()
+            .partition::<Vec<_>, _>(|tx| tx.checkpoint_sequence_number >= 0);
+        if !optimistic.is_empty() {
+            let num_optimistic = optimistic.len();
+            let optimistic_digests = optimistic
+                .into_iter()
+                .map(|tx| tx.transaction_digest)
+                .collect::<HashSet<_>>();
+            let num_indexed =
+                self.count_indexed_tx_global_orders(optimistic_digests.into_iter())?;
+            if num_indexed as usize != num_optimistic {
+                return Ok(false);
+            }
+        }
+        let Some(max_transaction_checkpoint) = checkpointed
+            .iter()
+            .map(|tx| tx.checkpoint_sequence_number)
+            .max()
+        else {
+            return Ok(true);
+        };
+        Ok(self
+            .get_checkpoint(CheckpointId::SequenceNumber(
+                max_transaction_checkpoint as u64,
+            ))?
+            .is_some())
+    }
+
+    pub(crate) async fn deep_check_all_transactions_are_indexed_in_blocking_task(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> Result<bool, IndexerError> {
+        self.spawn_blocking(move |this| this.deep_check_all_transactions_are_indexed(&digests))
+            .await
+    }
+
+    /// Count how many entries in `tx_global_order` correspond
+    /// to indexed transactions.
+    ///
+    /// Any transaction with a non-zero optimistic sequence number
+    /// is considered as indexed.
+    fn count_indexed_tx_global_orders(
+        &self,
+        digests: impl Iterator<Item = Vec<u8>>,
+    ) -> Result<i64, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq_any(digests))
+                .filter(tx_global_order::optimistic_sequence_number.ne(IndexStatus::Started))
+                .count()
+                .get_result(conn)
+        })
+    }
+
+    pub(crate) async fn count_indexed_tx_global_orders_in_blocking_task(
+        &self,
+        digests: HashSet<TransactionDigest>,
+    ) -> Result<i64, IndexerError> {
+        self.spawn_blocking(move |this| {
+            this.count_indexed_tx_global_orders(digests.into_iter().map(|d| d.inner().to_vec()))
+        })
+        .await
     fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
