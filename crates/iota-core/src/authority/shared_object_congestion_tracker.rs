@@ -1082,7 +1082,7 @@ mod object_cost_tests {
                     future_round: 10,
                     deferred_from_round: 5,
                 },
-                Some(1),
+                Some(1_000),
             ),
         );
 
@@ -1146,7 +1146,7 @@ mod object_cost_tests {
                     future_round: 10,
                     deferred_from_round: 5,
                 },
-                Some(1),
+                Some(1_000),
             ),
         );
 
