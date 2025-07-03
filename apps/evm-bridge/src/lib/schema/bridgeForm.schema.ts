@@ -51,7 +51,7 @@ export function createBridgeFormSchema(
                 });
                 return;
             }
-            // Detrmine available balances based on isFromLayer1
+            // Determine available balances based on isFromLayer1
             const availableBalanceL1 =
                 coinBalancesL1.find((balance) => balance.coinType === selectedCoinType)
                     ?.totalBalance || '0';
