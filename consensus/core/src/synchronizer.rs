@@ -20,11 +20,7 @@ use iota_metrics::{
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
-use rand::prelude::SliceRandom;
-use rand::{
-    SeedableRng,
-    prelude::{IteratorRandom, StdRng},
-};
+use rand::prelude::{IteratorRandom, SeedableRng, SliceRandom, StdRng};
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -1012,8 +1008,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         )
     }
 
-    /// Fetches the `missing_blocks` from available peers. The method will
-    /// attempt to split the load amongst multiple (random) peers.
+    /// Fetches the given `missing_blocks` from up to `MAX_PEERS` authorities in
+    /// parallel:
+    ///
+    /// Randomly select `MAX_PEERS - MAX_RANDOM_PEERS` peers from those who
+    /// are known to hold some missing block, requesting up to
+    /// `MAX_BLOCKS_PER_FETCH` block refs per peer.
+    ///
+    /// Randomly select `MAX_RANDOM_PEERS` additional peers from the
+    ///  committee (excluding self and those already selected).
+    ///
     /// The method returns a vector with the fetched blocks from each peer that
     /// successfully responded and any corresponding additional ancestor blocks.
     /// Each element of the vector is a tuple which contains the requested
@@ -1049,8 +1053,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
         // aware of the missing blocks
 
+        #[cfg(not(test))]
         let mut rng = StdRng::from_entropy();
+
         // Randomly pick up to 2 authorities from those aware of missing blocks
+        #[cfg(not(test))]
         let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> =
             authority_to_blocks
                 .iter()
@@ -1062,6 +1069,24 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     (peer, limited_blocks)
                 })
                 .collect();
+        #[cfg(test)]
+        // Deterministically pick the smallest (MAX_PEERS - MAX_RANDOM_PEERS) authority indices
+        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> = {
+            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>)> = authority_to_blocks
+                .iter()
+                .map(|(&peer, blocks)| {
+                    let limited_blocks =
+                        blocks.iter().copied().take(MAX_BLOCKS_PER_FETCH).collect();
+                    (peer, limited_blocks)
+                })
+                .collect();
+            // Sort by AuthorityIndex (natural order), then take the first N
+            items.sort_by_key(|(peer, _)| *peer);
+            items
+                .into_iter()
+                .take(MAX_PEERS - MAX_RANDOM_PEERS)
+                .collect()
+        };
 
         // Step 3: Choose at most two random peers not known to be aware of the missing
         // blocks
@@ -1088,6 +1113,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .into_iter()
             .choose_multiple(&mut rng, MAX_RANDOM_PEERS);
 
+        #[cfg_attr(test, allow(unused_mut))]
         let mut all_missing_blocks: Vec<BlockRef> = missing_blocks.keys().cloned().collect();
         #[cfg(not(test))]
         all_missing_blocks.shuffle(&mut rng);
@@ -1290,7 +1316,6 @@ mod tests {
         BlockAPI, CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block::{BlockDigest, BlockRef, Round, TestBlock, VerifiedBlock},
-        block_manager::SuspendedBlock,
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
@@ -2097,60 +2122,40 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn hot_fetch_picks_smallest_authority() {
-        // 1) Setup 10‐node context and in‐mem DAG
-        let (ctx, _) = Context::new_for_test(10);
-        let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let inflight = InflightBlocksMap::new();
+    async fn known_before_random_peer_fetch() {
+        {
+            // 1) Setup 10‐node context and in‐mem DAG
+            let (ctx, _) = Context::new_for_test(10);
+            let context = Arc::new(ctx);
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let inflight = InflightBlocksMap::new();
 
-        // 2) One missing block
-        let missing_vb = VerifiedBlock::new_for_test(TestBlock::new(100, 3).build());
-        let missing_ref = missing_vb.reference();
-        let missing_blocks = BTreeMap::from([(
-            missing_ref,
-            BTreeSet::from([
-                AuthorityIndex::new_for_test(2),
-                AuthorityIndex::new_for_test(3),
-                AuthorityIndex::new_for_test(4),
-            ]),
-        )]);
+            // 2) One missing block
+            let missing_vb = VerifiedBlock::new_for_test(TestBlock::new(100, 3).build());
+            let missing_ref = missing_vb.reference();
+            let missing_blocks = BTreeMap::from([(
+                missing_ref,
+                BTreeSet::from([
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(3),
+                    AuthorityIndex::new_for_test(4),
+                ]),
+            )]);
 
-        // 3) 51 suspended children split across authors 2,3,4
-        let suspended_map = (0..51)
-            .map(|i| {
-                let auth = if i < 17 {
-                    2
-                } else if i < 34 {
-                    3
-                } else {
-                    4
-                };
-                let vb = VerifiedBlock::new_for_test(
-                    TestBlock::new(101 + i, auth)
-                        .set_ancestors(vec![missing_ref])
-                        .build(),
-                );
-                (
-                    vb.reference(),
-                    SuspendedBlock::new(vb, BTreeSet::from([missing_ref])),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
+            // 3) Prepare mocks and stubs
+            let network_client = Arc::new(MockNetworkClient::default());
+            // Stub *all*  authorities so none panic:
+            for i in 1..=9 {
+                let peer = AuthorityIndex::new_for_test(i);
+                network_client
+                    .stub_fetch_blocks(vec![missing_vb.clone()], peer, None)
+                    .await;
+            }
 
-        // 4) Prepare mocks and stubs
-        let network_client = Arc::new(MockNetworkClient::default());
-        // Stub *all*  authorities so none panic:
-        for i in 1..=9 {
-            let peer = AuthorityIndex::new_for_test(i);
-            network_client
-                .stub_fetch_blocks(vec![missing_vb.clone()], peer, None)
-                .await;
-        }
-
-        // 5) Invoke hot‐fetch directly
-        let results = Synchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
+            // 4) Invoke knowledge-based hot-fetch and random fallback selection
+            //    deterministically
+            let results = Synchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
         ::fetch_blocks_from_authorities(
             context.clone(),
             inflight.clone(),
@@ -2160,76 +2165,23 @@ mod tests {
         )
             .await;
 
-        // 6) Assert we got exactly two fetches - one hot path and one cold periodic
-        //    path,
-        assert_eq!(results.len(), 2);
+            // 5) Assert we got exactly two fetches - one hot path and one cold periodic
+            //    path,
+            assert_eq!(results.len(), 2);
 
-        // 7) The hot‐fetch went to peer 2
-        let (_hot_guard, hot_bytes, hot_peer) = &results[0];
-        assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
-
-        // 8) The periodic fetch went to peer 1
-        let (_periodic_guard, _periodic_bytes, periodic_peer) = &results[1];
-        assert_eq!(*periodic_peer, AuthorityIndex::new_for_test(1));
-
-        // 7) Verify the returned bytes correspond to that block
-        let expected = missing_vb.serialized().clone();
-        assert_eq!(hot_bytes, &vec![expected]);
+            // 6) The hot‐fetch went to peer 2 and 3
+            let (_hot_guard, hot_bytes, hot_peer) = &results[0];
+            assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
+            let (_periodic_guard, _periodic_bytes, periodic_peer) = &results[1];
+            assert_eq!(*periodic_peer, AuthorityIndex::new_for_test(3));
+            // 6) Verify the returned bytes correspond to that block
+            let expected = missing_vb.serialized().clone();
+            assert_eq!(hot_bytes, &vec![expected]);
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn no_hot_fetch_when_ratio_below_threshold() {
-        // 1) Setup 10-node context and in-mem DAG
-        let (ctx, _) = Context::new_for_test(10);
-        let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let inflight = InflightBlocksMap::new();
-
-        // 2) One missing block from authority 3
-        let missing_vb = VerifiedBlock::new_for_test(TestBlock::new(100, 3).build());
-        let missing_ref = missing_vb.reference();
-        let missing_blocks = BTreeMap::from([(
-            missing_ref,
-            BTreeSet::from([
-                AuthorityIndex::new_for_test(2),
-                AuthorityIndex::new_for_test(3),
-                AuthorityIndex::new_for_test(4),
-            ]),
-        )]);
-
-        // 3) Stub only the periodic fetch from peer 1
-        let peer = AuthorityIndex::new_for_test(1);
-        let network_client = Arc::new(MockNetworkClient::default());
-        network_client
-            .stub_fetch_blocks(vec![missing_vb.clone()], peer, None)
-            .await;
-
-        // 4) Call fetch_blocks_from_authorities with a small suspended_count (no hot)
-        let results = Synchronizer::<
-            MockNetworkClient,
-            NoopBlockVerifier,
-            SyncMockDispatcher,
-        >::fetch_blocks_from_authorities(
-            context.clone(),
-            inflight.clone(),
-            network_client.clone(),
-            missing_blocks,
-            dag_state.clone(),
-        )
-            .await;
-
-        // Expect only the periodic fetch (no hot)
-        assert_eq!(results.len(), 1);
-        let (_guard, bytes, got_peer) = &results[0];
-        assert_eq!(*got_peer, peer);
-        // verify returned bytes match the serialized missing block
-        let expected = missing_vb.serialized().clone();
-        assert_eq!(bytes, &vec![expected]);
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn hot_and_periodic_large_scenario() {
+    async fn known_before_periodic_peer_fetch_larger_scenario() {
         use std::{
             collections::{BTreeMap, BTreeSet},
             sync::Arc,
@@ -2274,26 +2226,25 @@ mod tests {
             missing_vbs.push(vb);
         }
 
-        // 4) Mock a suspended_map of 1000 entries referencing both first two missing
-        //    refs. We only need the count, not the actual map
-        let suspended_count = 1000;
-
-        // 5. Stub the hot path authority
-        let hot_authority = AuthorityIndex::new_for_test(2);
-        let hot_refs: Vec<BlockRef> = missing_blocks
+        // 4. Stub the 2 knowledge-based fetches (peers 2 and 3)
+        let known_peers = [2, 3].map(AuthorityIndex::new_for_test);
+        let known_vbs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlock>)> = known_peers
             .iter()
-            .filter(|(_, auths)| auths.contains(&hot_authority))
-            .map(|(r, _)| *r)
-            .take(MAX_BLOCKS_PER_FETCH)
+            .map(|&peer| {
+                let vbs = missing_vbs
+                    .iter()
+                    .filter(|vb| missing_blocks.get(&vb.reference()).unwrap().contains(&peer))
+                    .cloned()
+                    .take(MAX_BLOCKS_PER_FETCH)
+                    .collect::<Vec<_>>();
+                (peer, vbs)
+            })
             .collect();
-        let hot_vbs: Vec<VerifiedBlock> = missing_vbs
-            .iter()
-            .filter(|vb| hot_refs.contains(&vb.reference()))
-            .cloned()
-            .collect();
-        network_client
-            .stub_fetch_blocks(hot_vbs.clone(), hot_authority, None)
-            .await;
+        for (peer, vbs) in known_vbs_by_peer {
+            network_client
+                .stub_fetch_blocks(vbs.clone(), peer, None)
+                .await;
+        }
 
         // 6. Stub the perioidc path authority
         network_client
@@ -2314,26 +2265,29 @@ mod tests {
         )
             .await;
 
-        // 8) We should get exactly two fetches: hot then periodic
-        assert_eq!(results.len(), 2, "Expected one hot + one periodic fetch");
+        // 8) We should get exactly three fetches: two knowledge-based, then random
+        //    fallback
+        assert_eq!(results.len(), 3, "Expected 2 known + 1 random fetch");
 
-        // 9) Verify hot fetch went to authority 8 with the first two blocks
-        let (_hot_guard, hot_bytes, hot_peer) = &results[0];
-        assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
-        let expected_hot = hot_vbs
-            .iter()
-            .clone()
-            .map(|vb| vb.serialized())
-            .collect::<Vec<_>>();
-        assert_eq!(hot_bytes, &expected_hot);
+        // 9) First knowledge-based fetch goes to peer 2 with its block
+        let (_guard2, bytes2, peer2) = &results[0];
+        assert_eq!(*peer2, AuthorityIndex::new_for_test(2));
+        let expected2 = missing_vbs[2].serialized().clone();
+        assert_eq!(bytes2, &vec![expected2]);
 
-        // 10) Verify periodic fetch went to peer 1 with all 7 blocks
-        let (_per_guard, per_bytes, per_peer) = &results[1];
-        assert_eq!(*per_peer, AuthorityIndex::new_for_test(1));
-        let expected_per = missing_vbs
+        // 10) Second knowledge-based fetch goes to peer 3 with its block
+        let (_guard3, bytes3, peer3) = &results[1];
+        assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
+        let expected3 = missing_vbs[3].serialized().clone();
+        assert_eq!(bytes3, &vec![expected3]);
+
+        // 11) Random fallback fetch goes to peer 1 with all blocks
+        let (_guard1, bytes1, peer1) = &results[2];
+        assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
+        let expected1 = missing_vbs
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
-        assert_eq!(per_bytes, &expected_per);
+        assert_eq!(bytes1, &expected1);
     }
 }
