@@ -1151,6 +1151,80 @@ mod tests {
         }
     }
 
+    /// Tests that authorities that know about missing blocks are correctly
+    #[tokio::test]
+    async fn authorities_that_know_missing_blocks() {
+        let (context, _key_pairs) = Context::new_for_test(4);
+
+        let context = Arc::new(context);
+
+        // create a DAG of rounds 1 ~ 3
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=3).build();
+
+        let all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
+
+        let blocks_round_2 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 2)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let blocks_round_1 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 1)
+            .map(|block| block.reference())
+            .collect::<BTreeSet<_>>();
+
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+
+        let (_, missing_blocks) = block_manager.try_accept_blocks(vec![blocks_round_2[0].clone()]);
+        // Blocks from round 1 are all missing, since the DAG is fully connected
+        assert_eq!(missing_blocks, blocks_round_1);
+
+        let missing_blocks_with_authorities = block_manager.missing_blocks();
+
+        let block_round_1_authority_0 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 1 && block.author() == AuthorityIndex::new_for_test(0))
+            .map(|block| block.reference())
+            .next()
+            .unwrap();
+        let block_round_1_authority_1 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 1 && block.author() == AuthorityIndex::new_for_test(1))
+            .map(|block| block.reference())
+            .next()
+            .unwrap();
+        assert_eq!(
+            missing_blocks_with_authorities[&block_round_1_authority_0],
+            BTreeSet::from([AuthorityIndex::new_for_test(0)])
+        );
+        assert_eq!(
+            missing_blocks_with_authorities[&block_round_1_authority_1],
+            BTreeSet::from([
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(1)
+            ])
+        );
+
+        // Add a new block from round 2 from authority 1, which updates the set of
+        // authorities that are aware of the missing blocks
+        block_manager.try_accept_blocks(vec![blocks_round_2[1].clone()]);
+        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        assert_eq!(
+            missing_blocks_with_authorities[&block_round_1_authority_0],
+            BTreeSet::from([
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(1)
+            ])
+        );
+    }
+
     #[rstest]
     #[tokio::test]
     async fn unsuspend_blocks_for_latest_gc_round(#[values(5, 10, 14)] gc_depth: u32) {

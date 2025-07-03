@@ -55,7 +55,7 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// can finish on hosts with good network using the timeouts above.
 const MAX_BLOCKS_PER_FETCH: usize = 32;
 
-const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 2;
+const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 3;
 
 /// The number of rounds above the highest accepted round that still willing to
 /// fetch missing blocks via the periodic synchronizer. Any missing blocks of
@@ -1518,8 +1518,8 @@ mod tests {
         {
             let mut all_guards = Vec::new();
 
-            // Try to acquire the block locks for authorities 1 & 2
-            for i in 1..=2 {
+            // Try to acquire the block locks for authorities 1 & 2 & 3
+            for i in 1..=3 {
                 let authority = AuthorityIndex::new_for_test(i);
 
                 let guard = map.lock_blocks(missing_block_refs.clone(), authority);
@@ -1535,16 +1535,16 @@ mod tests {
 
             // Trying to acquire for authority 3 it will fail - as we have maxed out the
             // number of allowed peers
-            let authority_3 = AuthorityIndex::new_for_test(3);
+            let authority_4 = AuthorityIndex::new_for_test(4);
 
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority_3);
+            let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
             assert!(guard.is_none());
 
             // Explicitly drop the guard of authority 1 and try for authority 3 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority_3);
+            let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
             let guard = guard.expect("Guard should be successfully acquired");
 
             assert_eq!(guard.block_refs, missing_block_refs);
@@ -2174,6 +2174,16 @@ mod tests {
             // Stub *all*  authorities so none panic:
             for i in 1..=9 {
                 let peer = AuthorityIndex::new_for_test(i);
+                if i == 1 || i == 4 {
+                    network_client
+                        .stub_fetch_blocks(
+                            vec![missing_vb.clone()],
+                            peer,
+                            Some(2 * FETCH_REQUEST_TIMEOUT),
+                        )
+                        .await;
+                    continue;
+                }
                 network_client
                     .stub_fetch_blocks(vec![missing_vb.clone()], peer, None)
                     .await;
@@ -2191,8 +2201,8 @@ mod tests {
         )
             .await;
 
-            // 5) Assert we got exactly two fetches - one hot path and one cold periodic
-            //    path,
+            // 5) Assert we got exactly two fetches - two from the first two who are aware
+            //    of the missing block (authority 2 and 3)
             assert_eq!(results.len(), 2);
 
             // 6) The hot‐fetch went to peer 2 and 3
@@ -2260,8 +2270,8 @@ mod tests {
                 let vbs = missing_vbs
                     .iter()
                     .filter(|vb| missing_blocks.get(&vb.reference()).unwrap().contains(&peer))
-                    .cloned()
                     .take(MAX_BLOCKS_PER_FETCH)
+                    .cloned()
                     .collect::<Vec<_>>();
                 (peer, vbs)
             })
@@ -2272,7 +2282,7 @@ mod tests {
                 .await;
         }
 
-        // 6. Stub the perioidc path authority
+        // 6. Stub the periodic path authority
         network_client
             .stub_fetch_blocks(missing_vbs.clone(), AuthorityIndex::new_for_test(1), None)
             .await;
