@@ -4,6 +4,7 @@
 
 const tsSDK = require('./ts-sdk');
 const iotaEvm = require('./iota-evm');
+const notarization = require("./notarization");
 const iotaIdentity = require('./identity');
 
 import bridgeCategoryLink from '../developer/references/framework/bridge/_category_.json';
@@ -604,11 +605,27 @@ const developer = [
             },
         ],
     },
-    {      
+    {
         type: 'category',
-        label: 'IOTA Identity',
+        label: 'IOTA Trust Framework',
         collapsed: true,
-        items: iotaIdentity,
+        link: {
+            type: 'doc',
+            id: 'developer/iota-trust-framework',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'IOTA Identity',
+                collapsed: true,
+                items: iotaIdentity,
+            },
+            {
+                type: 'category',
+                label: 'Notarization',
+                items: notarization,
+            },
+        ]
     },
     {
         type:'category',

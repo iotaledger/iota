@@ -362,7 +362,7 @@ impl TelemetryConfig {
         let mut directives = config.log_string.unwrap_or_else(|| "info".into());
         if let Some(targets) = config.trace_target {
             for target in targets {
-                directives.push_str(&format!(",{}=trace", target));
+                directives.push_str(&format!(",{target}=trace"));
             }
         }
         let env_filter =

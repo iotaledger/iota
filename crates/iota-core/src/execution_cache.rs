@@ -310,8 +310,7 @@ pub trait ObjectCacheRead: Send + Sync {
             assert!(
                 input_key.version().is_none() || input_key.version().unwrap().is_valid(),
                 "Shared objects in cancelled transaction should always be available immediately, 
-                 but it appears that transaction manager is waiting for {:?} to become available",
-                input_key
+                 but it appears that transaction manager is waiting for {input_key:?} to become available"
             );
             // If the key exists at the specified version, then the object is available.
             if has_key {

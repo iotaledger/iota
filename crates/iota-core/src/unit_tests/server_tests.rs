@@ -22,13 +22,22 @@ async fn test_simple_request() {
 
     // The following two fields are only needed for shared objects (not by this
     // bench).
-    let server = AuthorityServer::new_for_test(authority_state);
+    let server = AuthorityServer::new_for_test(authority_state.clone());
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
 
     let req =
         ObjectInfoRequest::latest_object_info_request(object_id, LayoutGenerationOption::Generate);

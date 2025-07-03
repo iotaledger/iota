@@ -42,7 +42,7 @@ export class BcsReader {
      * @param {Uint8Array} data Data to use as a buffer.
      */
     constructor(data: Uint8Array) {
-        this.dataView = new DataView(data.buffer);
+        this.dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
     }
     /**
      * Shift current cursor position by `bytes`.

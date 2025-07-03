@@ -13,8 +13,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, domain::Domain,
-    error::IotaNamesError, registry::NameRecord,
+    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, error::IotaNamesError,
+    name::Name, registry::NameRecord,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -341,25 +341,25 @@ impl IndexerApiServer for IndexerApi {
     }
 
     async fn iota_names_lookup(&self, name: &str) -> RpcResult<Option<IotaNameRecord>> {
-        let domain: Domain = name.parse().map_err(IndexerError::IotaNames)?;
+        let name: Name = name.parse().map_err(IndexerError::IotaNames)?;
 
         // Construct the record id to lookup.
-        let record_id = self.iota_names_config.record_field_id(&domain);
+        let record_id = self.iota_names_config.record_field_id(&name);
 
         // Gather the requests to fetch in the multi_get_objs.
         let mut requests = vec![record_id];
 
-        // We only want to fetch both the child and the parent if the domain is a
-        // subdomain.
-        let parent_record_id = domain.parent().map(|parent_domain| {
-            let parent_record_id = self.iota_names_config.record_field_id(&parent_domain);
+        // We only want to fetch both the child and the parent if the name is a
+        // subname.
+        let parent_record_id = name.parent().map(|parent_name| {
+            let parent_record_id = self.iota_names_config.record_field_id(&parent_name);
             requests.push(parent_record_id);
             parent_record_id
         });
 
-        // Fetch both parent (if subdomain) and child records in a single get query.
-        // We do this as we do not know if the subdomain is a node or leaf record.
-        let mut domain_object_map = self
+        // Fetch both parent (if subname) and child records in a single get query.
+        // We do this as we do not know if the subname is a node or leaf record.
+        let mut name_object_map = self
             .inner
             .multi_get_objects_in_blocking_task(requests)
             .await?
@@ -371,8 +371,8 @@ impl IndexerApiServer for IndexerApi {
                 Ok::<HashMap<ObjectID, NameRecord>, IndexerError>(map)
             })?;
 
-        // Extract the name record for the provided domain
-        let Some(name_record) = domain_object_map.remove(&record_id) else {
+        // Extract the name record for the provided name
+        let Some(name_record) = name_object_map.remove(&record_id) else {
             return Ok(None);
         };
 
@@ -382,7 +382,7 @@ impl IndexerApiServer for IndexerApi {
             .get_latest_checkpoint_timestamp_ms_in_blocking_task()
             .await?;
 
-        // If the provided domain is a `node` record, we can check for expiration
+        // If the provided name is a `node` record, we can check for expiration
         if !name_record.is_leaf_record() {
             return if !name_record.is_node_expired(current_timestamp) {
                 Ok(Some(name_record.into()))
@@ -395,7 +395,7 @@ impl IndexerApiServer for IndexerApi {
             let parent_record_id = parent_record_id.expect("leaf record should have a parent");
             // If the parent record is not found for the existing leaf, we consider it
             // expired.
-            let parent_record = domain_object_map
+            let parent_record = name_object_map
                 .remove(&parent_record_id)
                 .ok_or_else(|| IndexerError::IotaNames(IotaNamesError::NameExpired))?;
 
@@ -420,8 +420,8 @@ impl IndexerApiServer for IndexerApi {
             return Ok(None);
         };
 
-        let domain = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Domain>>()
+        let name = field_reverse_record_object
+            .to_rust::<Field<IotaAddress, Name>>()
             .ok_or_else(|| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Malformed Object {reverse_record_id}"
@@ -429,18 +429,18 @@ impl IndexerApiServer for IndexerApi {
             })?
             .value;
 
-        let domain_name = domain.to_string();
+        let name = name.to_string();
 
         // Tries to resolve the name, to verify it is not expired.
-        let resolved_record = self.iota_names_lookup(&domain_name).await?;
+        let resolved_record = self.iota_names_lookup(&name).await?;
 
-        // If we do not have a resolved address, we do not include the domain in the
+        // If we do not have a resolved address, we do not include the name in the
         // result.
         if resolved_record.is_none() {
             return Ok(None);
         }
 
-        Ok(Some(domain_name))
+        Ok(Some(name))
     }
 
     async fn iota_names_find_all_registration_nfts(

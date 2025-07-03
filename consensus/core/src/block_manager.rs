@@ -159,10 +159,9 @@ impl BlockManager {
                         accepted_blocks.push(block);
                     }
                     TryAcceptResult::Processed => continue,
-                    TryAcceptResult::Suspended(_) | TryAcceptResult::Skipped => panic!(
-                        "Did not expect to suspend or skip a committed block: {:?}",
-                        block_ref
-                    ),
+                    TryAcceptResult::Suspended(_) | TryAcceptResult::Skipped => {
+                        panic!("Did not expect to suspend or skip a committed block: {block_ref:?}")
+                    }
                 };
             } else {
                 match self.try_accept_one_block(block) {
@@ -351,8 +350,7 @@ impl BlockManager {
                         ancestor_blocks.push(None);
                     } else {
                         panic!(
-                            "Unsuspended block {:?} has a missing ancestor! Ancestor not found in DagState: {:?}",
-                            b, ancestor_ref
+                            "Unsuspended block {b:?} has a missing ancestor! Ancestor not found in DagState: {ancestor_ref:?}"
                         );
                     }
                 }
@@ -1104,8 +1102,7 @@ mod tests {
 
             assert_eq!(
                 all_accepted_blocks, all_blocks,
-                "Failed acceptance sequence for seed {}",
-                seed
+                "Failed acceptance sequence for seed {seed}"
             );
             assert!(block_manager.is_empty());
         }

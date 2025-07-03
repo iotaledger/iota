@@ -121,7 +121,7 @@ pub async fn serve_executor(
     // can send a cancellation token on cleanup
     let cancellation_token = CancellationToken::new();
 
-    let executor_server_url: SocketAddr = format!("127.0.0.1:{}", internal_data_source_rpc_port)
+    let executor_server_url: SocketAddr = format!("127.0.0.1:{internal_data_source_rpc_port}")
         .parse()
         .unwrap();
 
@@ -139,7 +139,7 @@ pub async fn serve_executor(
         db_url,
         true,
         None,
-        format!("http://{}", executor_server_url),
+        format!("http://{executor_server_url}"),
         IndexerTypeConfig::writer_mode(snapshot_config.clone(), epochs_to_keep),
         Some(data_ingestion_path),
         cancellation_token.clone(),
@@ -189,11 +189,10 @@ pub async fn wait_for_graphql_checkpoint_pruned(
     let query = format!(
         r#"
         {{
-            checkpoint(id: {{ sequenceNumber: {} }}) {{
+            checkpoint(id: {{ sequenceNumber: {checkpoint} }}) {{
                 sequenceNumber
             }}
-        }}"#,
-        checkpoint
+        }}"#
     );
 
     let timeout = base_timeout.mul_f64(checkpoint.max(1) as f64);
@@ -395,8 +394,7 @@ impl ExecutorCluster {
             }
         })
         .await
-        .unwrap_or_else(|_| panic!("Timeout waiting for indexer to update objects snapshot - latest_cp: {}, latest_snapshot_cp: {}",
-        latest_cp, latest_snapshot_cp));
+        .unwrap_or_else(|_| panic!("Timeout waiting for indexer to update objects snapshot - latest_cp: {latest_cp}, latest_snapshot_cp: {latest_snapshot_cp}"));
     }
 
     /// Sends a cancellation signal to the graphql and indexer services, waits

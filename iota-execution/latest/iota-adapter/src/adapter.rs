@@ -208,7 +208,7 @@ mod checked {
             // Check that the status indicates metering timeout.
             if check_for_verifier_timeout(&e.major_status()) {
                 return Err(IotaError::ModuleVerificationFailure {
-                    error: format!("Verification timed out: {}", e),
+                    error: format!("Verification timed out: {e}"),
                 });
             }
         } else if let Err(err) =
