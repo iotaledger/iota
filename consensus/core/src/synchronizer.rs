@@ -471,7 +471,33 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     // get the highest accepted rounds
                     let highest_rounds = Self::get_highest_accepted_rounds(dag_state.clone(), &context);
 
-                    requests.push(Self::fetch_blocks_request(network_client.clone(), peer_index, blocks_guard, highest_rounds, FETCH_REQUEST_TIMEOUT, 1))
+                    // Record metrics for live synchronizer requests
+                    let metrics = &context.metrics.node_metrics;
+                    metrics
+                        .synchronizer_requested_blocks_by_peer
+                        .with_label_values(&[peer_hostname.as_str(), "live"])
+                        .inc_by(blocks_guard.block_refs.len() as u64);
+                    // Count requested blocks per authority and increment metric by one per authority
+                    let mut authors = HashSet::new();
+                    for block_ref in &blocks_guard.block_refs {
+                        authors.insert(block_ref.author);
+                    }
+                    for author in authors {
+                        let host = &context.committee.authority(author).hostname;
+                        metrics
+                            .synchronizer_requested_blocks_by_authority
+                            .with_label_values(&[host.as_str(), "live"])
+                            .inc();
+                    }
+
+                    requests.push(Self::fetch_blocks_request(
+                        network_client.clone(),
+                        peer_index,
+                        blocks_guard,
+                        highest_rounds,
+                        FETCH_REQUEST_TIMEOUT,
+                        1,
+                    ))
                 },
                 Some((response, blocks_guard, retries, _peer, highest_rounds)) = requests.next() => {
                     match response {
@@ -1081,7 +1107,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 })
                 .collect();
             // Sort by AuthorityIndex (natural order), then take the first N
-            items.sort_by_key(|(peer, _,_)| *peer);
+            items.sort_by_key(|(peer, _, _)| *peer);
             items
                 .into_iter()
                 .take(MAX_PEERS - MAX_RANDOM_PEERS)
@@ -1092,7 +1118,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         // blocks
         let already_chosen: HashSet<AuthorityIndex> = chosen_peers_with_blocks
             .iter()
-            .map(|(peer, _,_)| *peer)
+            .map(|(peer, _, _)| *peer)
             .collect();
 
         let random_candidates: Vec<_> = context
