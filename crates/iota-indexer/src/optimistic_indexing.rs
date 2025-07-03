@@ -264,7 +264,7 @@ impl OptimisticTransactionExecutor {
         &self,
         full_tx_data: &CheckpointTransaction,
     ) -> Result<(), IndexerError> {
-        tokio::task::spawn_blocking({
+        match tokio::task::spawn_blocking({
             let this: OptimisticTransactionExecutor = self.clone();
             let full_tx_data = full_tx_data.clone();
             move || this.index_transaction(&full_tx_data)
@@ -273,17 +273,16 @@ impl OptimisticTransactionExecutor {
         .map_err(|e| {
             tracing::error!("Failed to join optimistic index_transaction: {e}");
             IndexerError::from(e)
-        })?
-        .or_else(|e| match e {
-            // This error means that checkpoint indexing was faster than the optimistic
-            // indexing. Let's just return and let checkpoint indexing handle
+        })? {
+            // The unique violation error means that checkpoint indexing was faster than the
+            // optimistic indexing. Let's just return and let checkpoint indexing handle
             // the transaction.
-            IndexerError::PostgresUniqueTxGlobalOrderViolation(_) => Ok(()),
-            _ => Err(e),
-        })
-        .map_err(|e| {
-            IndexerError::PostgresWrite(format!("Failed to persist optimistic tx: {:?}", e))
-        })
+            Ok(_) | Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => Ok(()),
+            Err(e) => Err(IndexerError::PostgresWrite(format!(
+                "Failed to persist optimistic tx: {:?}",
+                e
+            ))),
+        }
     }
 
     fn index_transaction(&self, full_tx_data: &CheckpointTransaction) -> Result<(), IndexerError> {
