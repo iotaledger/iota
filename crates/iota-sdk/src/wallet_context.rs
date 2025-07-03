@@ -334,8 +334,7 @@ impl WalletContext {
         let response = self.execute_transaction_may_fail(tx).await.unwrap();
         assert!(
             response.status_ok().unwrap(),
-            "Transaction failed: {:?}",
-            response
+            "Transaction failed: {response:?}"
         );
         response
     }

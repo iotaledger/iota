@@ -4,7 +4,7 @@
 
 import { bcs } from '@iota/bcs';
 
-import { Address, ObjectDigest } from './bcs.js';
+import { Address, ObjectDigest, Owner } from './bcs.js';
 
 const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     UnableToFetchPackage: bcs.struct('UnableToFetchPackage', { packageId: Address }),
@@ -122,15 +122,6 @@ const GasCostSummary = bcs.struct('GasCostSummary', {
     storageCost: bcs.u64(),
     storageRebate: bcs.u64(),
     nonRefundableStorageFee: bcs.u64(),
-});
-
-const Owner = bcs.enum('Owner', {
-    AddressOwner: Address,
-    ObjectOwner: Address,
-    Shared: bcs.struct('Shared', {
-        initialSharedVersion: bcs.u64(),
-    }),
-    Immutable: null,
 });
 
 const VersionDigest = bcs.tuple([bcs.u64(), ObjectDigest]);

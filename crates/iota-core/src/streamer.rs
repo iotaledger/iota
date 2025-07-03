@@ -39,7 +39,7 @@ where
         metrics: Arc<SubscriptionMetrics>,
         metrics_label: &'static str,
     ) -> Self {
-        let channel_label = format!("streamer_{}", metrics_label);
+        let channel_label = format!("streamer_{metrics_label}");
         let gauge = if let Some(metrics) = iota_metrics::get_metrics() {
             metrics
                 .channel_inflight

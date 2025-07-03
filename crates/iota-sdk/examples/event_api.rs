@@ -23,7 +23,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // for demonstration purposes, we set to make a transaction
     let digest = split_coin_digest(&client, &active_address).await?;
     let events = client.event_api().get_events(digest).await?;
-    println!("{:?}", events);
+    println!("{events:?}");
     println!(" *** Get events ***\n ");
 
     let descending = true;
@@ -32,7 +32,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .query_events(EventFilter::All(vec![]), None, 5, descending) // query first 5 events in descending order
         .await?;
     println!(" *** Query events *** ");
-    println!("{:?}", query_events);
+    println!("{query_events:?}");
     println!(" *** Query events ***\n ");
 
     let ws = IotaClientBuilder::default()

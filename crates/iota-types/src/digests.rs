@@ -122,7 +122,7 @@ impl fmt::LowerHex for Digest {
         }
 
         for byte in self.0 {
-            write!(f, "{:02x}", byte)?;
+            write!(f, "{byte:02x}")?;
         }
 
         Ok(())
@@ -136,7 +136,7 @@ impl fmt::UpperHex for Digest {
         }
 
         for byte in self.0 {
-            write!(f, "{:02X}", byte)?;
+            write!(f, "{byte:02X}")?;
         }
 
         Ok(())
@@ -267,7 +267,7 @@ pub fn get_testnet_chain_identifier() -> ChainIdentifier {
 impl fmt::Display for ChainIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in self.0.0.0[0..4].iter() {
-            write!(f, "{:02x}", byte)?;
+            write!(f, "{byte:02x}")?;
         }
 
         Ok(())

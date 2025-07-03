@@ -13,6 +13,7 @@ import {
     SIGNATURE_SCHEME_TO_FLAG,
     SIGNATURE_SCHEME_TO_SIZE,
 } from './signature-scheme.js';
+import { parseSerializedPasskeySignature } from '../keypairs/passkey/publickey.js';
 
 /**
  * Pair of signature and corresponding public key
@@ -55,6 +56,8 @@ export function parseSerializedSignature(serializedSignature: string) {
         SIGNATURE_FLAG_TO_SCHEME[bytes[0] as keyof typeof SIGNATURE_FLAG_TO_SCHEME];
 
     switch (signatureScheme) {
+        case 'Passkey':
+            return parseSerializedPasskeySignature(serializedSignature);
         case 'MultiSig':
             const multisig: MultiSigStruct = bcs.MultiSig.parse(bytes.slice(1));
             return {
@@ -78,6 +81,7 @@ export function parseSerializedSignature(serializedSignature: string) {
                 publicKey,
                 bytes,
             };
+
         default:
             throw new Error('Unsupported signature scheme');
     }

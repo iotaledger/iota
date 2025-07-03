@@ -8,6 +8,7 @@ import {
     VerifyPasswordModal,
     ConnectLedgerModal,
     useIotaLedgerClient,
+    OffBalanceAddressesInfo,
 } from '_components';
 import {
     AccountSourceType,
@@ -17,14 +18,29 @@ import { AccountType, type SerializedUIAccount } from '_src/background/accounts/
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
-import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } from '_hooks';
+import {
+    useAccountSources,
+    useAccounts,
+    useUnlockMutation,
+    useAccountsFinder,
+    useGetOwnedObjectsMultipleAddresses,
+    useGetSharedObjectsMultipleAddresses,
+} from '_hooks';
 import { useMemo, useState } from 'react';
-import { toast } from '@iota/core';
+import {
+    STARDUST_BASIC_OUTPUT_TYPE,
+    STARDUST_NFT_OUTPUT_TYPE,
+    TIMELOCK_IOTA_TYPE,
+    TIMELOCK_STAKED_TYPE,
+    toast,
+} from '@iota/core';
 import { useNavigate, useParams } from 'react-router-dom';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
+import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -57,6 +73,9 @@ export function AccountsFinderView(): JSX.Element {
     const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
     const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(1);
+    const [dialogVestingOpen, setDialogVestingOpen] = useState(false);
+    const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
+
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
@@ -146,10 +165,50 @@ export function AccountsFinderView(): JSX.Element {
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
 
     const findingResultText = `Scanned ${totalCheckedAddresses} addresses`;
+    const allAddresses = persistedAccounts?.map((a) => a.address) ?? [];
 
+    const { data: ownedVestingObjects } = useGetOwnedObjectsMultipleAddresses(
+        allAddresses,
+        { MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }] },
+        10,
+    );
+    const { data: stardustOwned } = useGetOwnedObjectsMultipleAddresses(
+        allAddresses,
+        {
+            MatchAny: [
+                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                { StructType: STARDUST_NFT_OUTPUT_TYPE },
+            ],
+        },
+        1,
+    );
+    const { data: stardustShared } = useGetSharedObjectsMultipleAddresses(allAddresses, 1);
+
+    const hasVestingObjects = ownedVestingObjects?.pages?.some((p) =>
+        p.some((d) => d.data.length > 0),
+    );
+
+    const hasMigrationObjects =
+        stardustOwned?.pages?.some((p) => p.some((d) => d.data.length > 0)) ||
+        stardustShared?.pages?.some((p) =>
+            p.some((d) => d.nftOutputs.length > 0 || d.basicOutputs.length > 0),
+        );
     return (
         <>
             <div className="flex h-full flex-col justify-between">
+                {(hasVestingObjects || hasMigrationObjects) && (
+                    <>
+                        <OffBalanceAddressesInfo
+                            hasVesting={!!hasVestingObjects}
+                            hasMigration={!!hasMigrationObjects}
+                            onOpenVestingInfo={() => setDialogVestingOpen(true)}
+                            onOpenMigrationInfo={() => setDialogMigrationOpen(true)}
+                        />
+                        <span className="my-sm text-center text-title-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                            Found Addresses
+                        </span>
+                    </>
+                )}
                 <div className="flex h-[480px] w-full flex-col gap-xs overflow-y-auto">
                     {Object.entries(groupedAccounts || {}).map(([accountIndex, accounts]) => {
                         return (
@@ -185,7 +244,7 @@ export function AccountsFinderView(): JSX.Element {
                         ) : (
                             <>
                                 <Button
-                                    text="Finish"
+                                    text="Close"
                                     type={ButtonType.Secondary}
                                     fullWidth
                                     onClick={() => navigate('/tokens')}
@@ -240,6 +299,14 @@ export function AccountsFinderView(): JSX.Element {
                     }}
                 />
             )}
+            <SupplyIncreaseVestingStakingDialog
+                open={dialogVestingOpen}
+                setOpen={(isOpen) => setDialogVestingOpen(isOpen)}
+            />
+            <MigrationDialog
+                open={dialogMigrationOpen}
+                setOpen={(isOpen) => setDialogMigrationOpen(isOpen)}
+            />
         </>
     );
 }

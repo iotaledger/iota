@@ -627,8 +627,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let package = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         assert!(
             response.status_ok().unwrap(),
-            "Command failed: {:?}",
-            response
+            "Command failed: {response:?}"
         );
         assert_eq!(
             response.effects.as_ref().unwrap().gas_object().object_id(),
@@ -2331,8 +2330,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let (mut_obj1, mut_obj2) = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         assert!(
             response.status_ok().unwrap(),
-            "Command failed: {:?}",
-            response
+            "Command failed: {response:?}"
         );
         assert_eq!(
             response.effects.as_ref().unwrap().gas_object().object_id(),
@@ -2472,8 +2470,8 @@ fn test_bug_1078() {
     ));
     let mut writer = String::new();
     // fmt ObjectRead should not fail.
-    write!(writer, "{}", read).unwrap();
-    write!(writer, "{:?}", read).unwrap();
+    write!(writer, "{read}").unwrap();
+    write!(writer, "{read:?}").unwrap();
 }
 
 #[sim_test]
@@ -2786,7 +2784,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
     let g = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         assert_eq!(r.effects.as_ref().unwrap().gas_object().object_id(), gas);
         let object_id = r
             .effects
@@ -2906,7 +2904,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     .await?;
 
     let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         assert_eq!(r.effects.as_ref().unwrap().gas_object().object_id(), gas);
         let updated_object_id = r
             .effects
@@ -2972,7 +2970,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     .await?;
 
     let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         let updated_object_id = r
             .effects
             .as_ref()
@@ -3040,7 +3038,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     .await?;
 
     let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         let updated_object_id = r
             .effects
             .as_ref()
@@ -3464,20 +3462,28 @@ async fn key_identity_test() {
     // by alias
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Alias(alias)), context).unwrap()
+        get_identity_address(Some(KeyIdentity::Alias(alias)), context)
+            .await
+            .unwrap()
     );
     // by address
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Address(address)), context).unwrap()
+        get_identity_address(Some(KeyIdentity::Address(address)), context)
+            .await
+            .unwrap()
     );
     // alias does not exist
-    assert!(get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context).is_err());
+    assert!(
+        get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context)
+            .await
+            .is_err()
+    );
 
     // get active address instead when no alias/address is given
     assert_eq!(
         context.active_address().unwrap(),
-        get_identity_address(None, context).unwrap()
+        get_identity_address(None, context).await.unwrap()
     );
 }
 
@@ -3494,7 +3500,7 @@ fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectID, command
             "{command} dry run test failed, gas object used is not the expected one"
         );
     } else {
-        panic!("{} dry run failed", command);
+        panic!("{command} dry run failed");
     }
 }
 
@@ -4768,14 +4774,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     --make-move-vec <u8> "[1]"
     "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Input]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
 
@@ -4786,14 +4794,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
         --make-move-vec <u8> "[1]"
         "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Events]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Events]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
     // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
