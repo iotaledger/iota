@@ -79,6 +79,9 @@ pub enum IndexerError {
     #[error(transparent)]
     Postgres(#[from] diesel::result::Error),
 
+    #[error("Indexer failed to assign TX global order with error: `{0}`")]
+    PostgresUniqueTxGlobalOrderViolation(String),
+
     #[error("Indexer failed to initialize fullnode Http client with error: `{0}`")]
     HttpClientInit(String),
 

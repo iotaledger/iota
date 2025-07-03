@@ -91,6 +91,14 @@ pub struct CheckpointHandler {
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
 
+pub type IndexedTransactionComponents = (
+    IndexedTransaction,
+    TxIndex,
+    Vec<IndexedEvent>,
+    Vec<EventIndex>,
+    BTreeMap<String, StoredDisplay>,
+);
+
 #[async_trait]
 impl Worker for CheckpointHandler {
     type Message = ();
@@ -388,13 +396,7 @@ impl CheckpointHandler {
         checkpoint_seq: CheckpointSequenceNumber,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
-    ) -> IndexerResult<(
-        IndexedTransaction,
-        TxIndex,
-        Vec<IndexedEvent>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-    )> {
+    ) -> IndexerResult<IndexedTransactionComponents> {
         let CheckpointTransaction {
             transaction: sender_signed_data,
             effects: fx,
