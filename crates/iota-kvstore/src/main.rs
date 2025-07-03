@@ -19,13 +19,11 @@ use prometheus::Registry;
 use telemetry_subscribers::TelemetryConfig;
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum, strum::Display)]
+#[strum(serialize_all = "snake_case")]
 enum Network {
-    #[strum(serialize = "mainnet")]
     #[default]
     Mainnet,
-    #[strum(serialize = "testnet")]
     Testnet,
-    #[strum(serialize = "devnet")]
     Devnet,
 }
 
