@@ -14,9 +14,7 @@ use tracing::{error, info, instrument};
 use crate::{
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     metrics::IndexerMetrics,
-    models::{
-        display::StoredDisplay, obj_indices::StoredObjectVersion, transactions::TxGlobalOrder,
-    },
+    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     rolling::transform::CheckpointObjectChanges,
     store::{IndexerStore, IndexerStoreExt, PgIndexerStore},
     types::{
@@ -145,10 +143,7 @@ async fn commit_checkpoints(
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
 
-    let tx_global_order_batch = tx_batch
-        .iter()
-        .map(Into::into)
-        .collect::<Vec<TxGlobalOrder>>();
+    let tx_global_order_batch: Vec<_> = tx_batch.iter().map(Into::into).collect();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
@@ -168,7 +163,7 @@ async fn commit_checkpoints(
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
             state.persist_tx_indices_v2(tx_indices_batch),
-            state.persist_tx_global_order(tx_global_order_batch),
+            state.persist_tx_global_order(tx_global_order_batch.clone()),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
             state.persist_displays(display_updates_batch),
@@ -192,6 +187,14 @@ async fn commit_checkpoints(
             .collect::<IndexerResult<Vec<_>>>()
             .expect("Persisting data into DB should not fail.");
     }
+
+    state
+        .update_status_for_checkpoint_transactions(tx_global_order_batch)
+        .await
+        .inspect_err(|e| {
+            error!("failed to update tx global order as indexed with error: {e}");
+        })
+        .expect("updating tx global order as indexed should not fail.");
 
     let is_epoch_end = epoch.is_some();
 
