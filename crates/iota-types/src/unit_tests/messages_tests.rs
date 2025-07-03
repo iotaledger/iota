@@ -1267,8 +1267,7 @@ fn test_unique_input_objects() {
     assert_eq!(
         input_objects.len(),
         input_objects_map.len(),
-        "Duplicates in {:?}",
-        input_objects
+        "Duplicates in {input_objects:?}"
     );
 }
 

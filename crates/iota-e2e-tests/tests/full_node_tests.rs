@@ -506,6 +506,7 @@ async fn test_full_node_sync_flood() {
 }
 
 #[sim_test(check_determinism)]
+#[ignore = "https://github.com/iotaledger/iota/issues/7469"]
 async fn test_full_node_sync_flood_determinism() {
     do_test_full_node_sync_flood().await
 }
@@ -720,8 +721,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     // Test WaitForLocalExecution
@@ -734,7 +734,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
             None,
         )
         .await
-        .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
 
     let (
         tx,
@@ -757,7 +757,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     );
     // verify that the node has sequenced and executed the txn
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store.clone()).await
-        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {:?} that was executed with WaitForLocalExecution: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForLocalExecution: {e:?}"));
 
     // Test WaitForEffectsCert
     let txn = txns.swap_remove(0);
@@ -769,7 +769,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
             None,
         )
         .await
-        .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
 
     let (
         tx,
@@ -797,7 +797,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
         .await
         .unwrap();
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
-        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {:?} that was executed with WaitForEffectsCert: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
 
     Ok(())
 }
@@ -871,8 +871,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -1181,8 +1180,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
             None,
         )
         .await
-        .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
-    println!("res: {:?}", _res);
+        .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
+    println!("res: {_res:?}");
 
     let (
         _tx,

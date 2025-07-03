@@ -107,6 +107,9 @@ export type CompressedSignature =
       }
     | {
           ZkLogin: string;
+      }
+    | {
+          Passkey: string;
       };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {
@@ -389,10 +392,7 @@ export type IotaEventFilter =
     | {
           Or: [IotaEventFilter, IotaEventFilter];
       };
-/**
- * Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is
- * local to this particular fullnode and will be different from other fullnode.
- */
+/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
 export interface EventId {
     eventSeq: string;
     txDigest: string;
@@ -661,12 +661,12 @@ export interface IotaNameRecord {
      * The ID of the registration NFT assigned to this record.
      *
      * The owner of the corresponding NFT has the rights to be able to change and adjust the
-     * `target_address` of this domain.
+     * `target_address` of this name.
      *
      * It is possible that the ID changes if the record expires and is purchased by someone else.
      */
     nftId: string;
-    /** The target address that this domain points to */
+    /** The target address that this name points to */
     targetAddress?: string | null;
 }
 export type IotaObjectDataFilter =

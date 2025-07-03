@@ -13,18 +13,18 @@ export function RestrictedPage() {
 
     return (
         <PageMainLayout>
-            <div className="flex h-full w-full flex-col items-center justify-between bg-neutral-100 px-md py-2xl shadow-wallet-content dark:bg-neutral-6">
+            <div className="flex h-full w-full flex-col items-center justify-between bg-iota-neutral-100 px-md py-2xl shadow-wallet-content dark:bg-iota-neutral-6">
                 <IotaLogoWeb
                     width={130}
                     height={32}
-                    className="text-neutral-10 dark:text-neutral-92"
+                    className="text-iota-neutral-10 dark:text-iota-neutral-92"
                 />
                 <div className="flex flex-col items-center text-center">
-                    <span className="text-title-lg text-neutral-40 dark:text-neutral-60">
+                    <span className="text-title-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                         Regrettably this service is currently not available. Please try again later.
                     </span>
                 </div>
-                <div className="text-body-lg text-neutral-60">
+                <div className="text-body-lg text-iota-neutral-60">
                     &copy; IOTA Foundation {CURRENT_YEAR}
                 </div>
             </div>

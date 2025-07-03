@@ -2004,7 +2004,7 @@ impl ProtocolConfig {
                 //
                 //     // Remove a constant (ensure that it is never accessed during this version).
                 //     max_move_object_size: None,
-                _ => panic!("unsupported version {:?}", version),
+                _ => panic!("unsupported version {version:?}"),
             }
         }
         cfg
@@ -2251,7 +2251,7 @@ mod test {
             // only test Mainnet and Testnet
             let chain_str = match chain_id {
                 Chain::Unknown => "".to_string(),
-                _ => format!("{:?}_", chain_id),
+                _ => format!("{chain_id:?}_"),
             };
             for i in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
                 let cur = ProtocolVersion::new(i);

@@ -280,7 +280,7 @@ fn main() {
         Action::Record => {
             let content = serde_yaml::to_string(&registry).unwrap();
             let mut f = File::create(FILE_PATH).unwrap();
-            writeln!(f, "{}", content).unwrap();
+            writeln!(f, "{content}").unwrap();
         }
         Action::Test => {
             let reference = std::fs::read_to_string(FILE_PATH).unwrap();

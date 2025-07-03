@@ -41,7 +41,7 @@ const DialogOverlay = React.forwardRef<
 >(({ showCloseIcon, position, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
-        className={cx('inset-0 z-[99998] bg-shader-neutral-light-48 backdrop-blur-md', {
+        className={cx('dialog-overlay-bg inset-0 z-[99998] backdrop-blur-md', {
             fixed: position === DialogPosition.Right,
             absolute: position === DialogPosition.Center,
         })}
@@ -98,7 +98,7 @@ const DialogContent = React.forwardRef<
                 <RadixDialog.Content
                     ref={ref}
                     className={cx(
-                        'fixed z-[99999] flex flex-col justify-center bg-primary-100 dark:bg-neutral-6',
+                        'dialog-content-bg dialog-outline fixed z-[99999] flex flex-col justify-center',
                         positionClass,
                         widthClass,
                     )}
@@ -122,7 +122,7 @@ const DialogTitle = React.forwardRef<
 >((props, ref) => (
     <RadixDialog.Title
         ref={ref}
-        className="font-inter text-title-lg text-neutral-10 dark:text-neutral-92"
+        className="dialog-title-color font-inter text-title-lg"
         {...props}
     />
 ));
@@ -132,7 +132,7 @@ const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.ComponentProp
     (props, ref) => (
         <div
             ref={ref}
-            className="flex-1 overflow-y-auto p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
+            className="dialog-body-color flex-1 overflow-y-auto p-md--rs text-body-sm"
             {...props}
         />
     ),

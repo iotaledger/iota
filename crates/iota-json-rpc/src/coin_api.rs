@@ -375,8 +375,7 @@ async fn find_package_object_id(
             }
         }
         Err(IotaRpcInputError::GenericNotFound(format!(
-            "Cannot find object [{}] from [{}] package event.",
-            object_struct_tag, package_id,
+            "Cannot find object [{object_struct_tag}] from [{package_id}] package event.",
         ))
         .into())
     })
@@ -610,7 +609,7 @@ mod tests {
     }
 
     fn get_test_coin_type(package_id: ObjectID) -> String {
-        format!("{}::test_coin::TEST_COIN", package_id)
+        format!("{package_id}::test_coin::TEST_COIN")
     }
 
     fn get_test_coin_type_tag(coin_type: String) -> TypeTag {
@@ -1241,7 +1240,7 @@ mod tests {
                 if let Some(pos) = result.iter().position(|i| *i == item) {
                     result.remove(pos);
                 } else {
-                    panic!("{:?} not found in result", item);
+                    panic!("{item:?} not found in result");
                 }
             }
             assert!(result.is_empty());

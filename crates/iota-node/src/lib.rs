@@ -92,7 +92,7 @@ use iota_metrics::{
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
-use iota_network_stack::server::ServerBuilder;
+use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
@@ -450,7 +450,7 @@ impl IotaNode {
         // Check and set the db_corrupted flag
         let db_corrupted_path = &config.db_path().join("status");
         if let Err(err) = check_and_mark_db_corruption(db_corrupted_path) {
-            panic!("Failed to check database corruption: {}", err);
+            panic!("Failed to check database corruption: {err}");
         }
 
         // Initialize metrics to track db usage before creating any stores
@@ -1178,7 +1178,7 @@ impl IotaNode {
             }
             anemo_config.quic = Some(quic_config);
 
-            let server_name = format!("iota-{}", chain_identifier);
+            let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
                 .private_key(config.network_key_pair().copy().private().0.to_bytes())
@@ -1509,8 +1509,13 @@ impl IotaNode {
 
         server_builder = server_builder.add_service(ValidatorServer::new(validator_service));
 
+        let tls_config = iota_tls::create_rustls_server_config(
+            config.network_key_pair().copy().private(),
+            IOTA_TLS_SERVER_NAME.to_string(),
+            iota_tls::AllowAll,
+        );
         let mut server = server_builder
-            .bind(config.network_address())
+            .bind(config.network_address(), Some(tls_config))
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         let cancel_handle = server
