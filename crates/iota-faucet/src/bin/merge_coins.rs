@@ -71,7 +71,7 @@ async fn _split_coins_equally(
         )
         .await?;
 
-    println!("{:?}", resp);
+    println!("{resp:?}");
     Ok(())
 }
 

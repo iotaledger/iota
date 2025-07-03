@@ -56,6 +56,6 @@ impl Display for PTBPreview {
         ]));
         table.with(tabled::settings::style::BorderSpanCorrection);
 
-        write!(f, "{}", table)
+        write!(f, "{table}")
     }
 }

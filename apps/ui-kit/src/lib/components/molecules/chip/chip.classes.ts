@@ -7,7 +7,7 @@ export const ROUNDED_CLASS = 'rounded-full';
 
 export const BACKGROUND_CLASSES: Record<ChipState, string> = {
     [ChipState.Default]: 'bg-transparent',
-    [ChipState.Selected]: 'bg-primary-90 dark:bg-primary-10',
+    [ChipState.Selected]: 'chip-bg-selected',
 };
 
 const STATE_LAYER_OUTLINE =
@@ -19,14 +19,14 @@ const STATE_LAYER_BG_CLASSES =
 export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
 export const BORDER_CLASSES: Record<ChipState, string> = {
-    [ChipState.Default]: 'border-neutral-70 dark:border-neutral-40',
+    [ChipState.Default]: 'chip-border-default',
     [ChipState.Selected]: 'border-transparent',
 };
 
 export const TEXT_COLOR: Record<ChipState, string> = {
-    [ChipState.Default]: 'text-neutral-40 dark:text-neutral-60',
-    [ChipState.Selected]: 'text-neutral-10 dark:text-neutral-92',
+    [ChipState.Default]: 'chip-text-default',
+    [ChipState.Selected]: 'chip-text-selected',
 };
 
 export const FOCUS_CLASSES =
-    'focus-visible:shadow-[0_0_0_2px] focus-visible:shadow-primary-30 focus-visible:outline-none dark:focus-visible:shadow-primary-80';
+    'focus-visible:shadow-[0_0_0_2px] focus-visible:chip-focus-ring focus-visible:outline-none';

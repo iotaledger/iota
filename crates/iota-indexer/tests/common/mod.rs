@@ -96,7 +96,7 @@ impl SimulacrumTestSetup {
             let sim = env_initializer(data_ingestion_path.clone());
             let sim = Arc::new(sim);
 
-            let db_name = format!("simulacrum_env_db_{}", unique_env_name);
+            let db_name = format!("simulacrum_env_db_{unique_env_name}");
             let (_, store, _, client) =
                 runtime.block_on(start_simulacrum_rest_api_with_read_write_indexer(
                     sim.clone(),
@@ -346,7 +346,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
         get_indexer_db_url(database_name),
         true,
         db_init_hook,
-        format!("http://{}", server_url),
+        format!("http://{server_url}"),
         IndexerTypeConfig::writer_mode(
             Some(SnapshotLagConfig {
                 snapshot_min_lag: 5,
@@ -382,7 +382,7 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
 
     // start indexer in read mode
     let indexer_port =
-        start_indexer_reader(format!("http://{}", simulacrum_server_url), database_name);
+        start_indexer_reader(format!("http://{simulacrum_server_url}"), database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()

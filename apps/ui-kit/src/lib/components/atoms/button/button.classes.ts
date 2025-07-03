@@ -14,29 +14,29 @@ export const PADDINGS_ONLY_ICON: Record<ButtonSize, string> = {
 };
 
 export const BACKGROUND_COLORS: Record<ButtonType, string> = {
-    [ButtonType.Primary]: 'bg-primary-30',
-    [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20',
+    [ButtonType.Primary]: 'button-bg-color-primary',
+    [ButtonType.Secondary]: 'button-bg-color-secondary',
     [ButtonType.Ghost]: 'bg-transparent',
-    [ButtonType.Outlined]: 'bg-transparent border border-neutral-50',
-    [ButtonType.Destructive]: 'bg-error-90 dark:bg-error-20',
+    [ButtonType.Outlined]: 'bg-transparent button-border-color-outline',
+    [ButtonType.Destructive]: 'button-bg-color-error',
 };
 
 export const DISABLED_BACKGROUND_COLORS: Record<ButtonType, string> = {
-    [ButtonType.Primary]: 'bg-neutral-80 dark:bg-neutral-30',
-    [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20',
+    [ButtonType.Primary]: 'button-bg-color-disabled-primary',
+    [ButtonType.Secondary]: 'button-bg-color-secondary',
     [ButtonType.Ghost]: 'bg-transparent',
-    [ButtonType.Outlined]: 'bg-transparent border border-neutral-50',
-    [ButtonType.Destructive]: 'bg-error-90 dark:bg-error-20',
+    [ButtonType.Outlined]: 'bg-transparent button-border-color-outline',
+    [ButtonType.Destructive]: 'button-bg-color-error',
 };
 
-const DEFAULT_TEXT_COLORS: string = 'text-neutral-10 dark:text-neutral-92';
+const DEFAULT_TEXT_COLORS: string = 'button-text-color-neutral';
 
 export const TEXT_COLORS: Record<ButtonType, string> = {
-    [ButtonType.Primary]: 'text-primary-100',
+    [ButtonType.Primary]: 'button-text-color-primary',
     [ButtonType.Secondary]: DEFAULT_TEXT_COLORS,
     [ButtonType.Ghost]: DEFAULT_TEXT_COLORS,
     [ButtonType.Outlined]: DEFAULT_TEXT_COLORS,
-    [ButtonType.Destructive]: 'text-error-20 dark:text-error-90',
+    [ButtonType.Destructive]: 'button-text-color-error',
 };
 
 export const TEXT_CLASSES: Record<ButtonSize, string> = {
@@ -49,5 +49,5 @@ export const TEXT_COLOR_DISABLED: Record<ButtonType, string> = {
     [ButtonType.Secondary]: DEFAULT_TEXT_COLORS,
     [ButtonType.Ghost]: DEFAULT_TEXT_COLORS,
     [ButtonType.Outlined]: DEFAULT_TEXT_COLORS,
-    [ButtonType.Destructive]: 'text-error-20 dark:text-error-90',
+    [ButtonType.Destructive]: 'button-text-color-error',
 };

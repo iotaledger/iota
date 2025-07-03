@@ -44,7 +44,7 @@ impl LayoutResolver for TypeLayoutResolver<'_, '_> {
     ) -> Result<A::MoveDatatypeLayout, IotaError> {
         let Ok(ty) = load_type_from_struct(self.vm, &mut self.linkage_view, &[], struct_tag) else {
             return Err(IotaError::FailObjectLayout {
-                st: format!("{}", struct_tag),
+                st: format!("{struct_tag}"),
             });
         };
         let layout = self.vm.get_runtime().type_to_fully_annotated_layout(&ty);
@@ -52,7 +52,7 @@ impl LayoutResolver for TypeLayoutResolver<'_, '_> {
             Ok(A::MoveTypeLayout::Struct(s)) => Ok(A::MoveDatatypeLayout::Struct(s)),
             Ok(A::MoveTypeLayout::Enum(e)) => Ok(A::MoveDatatypeLayout::Enum(e)),
             _ => Err(IotaError::FailObjectLayout {
-                st: format!("{}", struct_tag),
+                st: format!("{struct_tag}"),
             }),
         }
     }

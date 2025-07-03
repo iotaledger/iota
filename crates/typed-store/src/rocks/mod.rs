@@ -605,7 +605,7 @@ pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
     let db = rocksdb::DB::open_default(path).map_err(|e| e.to_string())?;
 
     db.get(DB_CORRUPTED_KEY)
-        .map_err(|e| format!("Failed to open database: {}", e))
+        .map_err(|e| format!("Failed to open database: {e}"))
         .and_then(|value| match value {
             Some(v) if v[0] == 1 => Err(
                 "Database is corrupted, please remove the current database and start clean!"
@@ -614,7 +614,7 @@ pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
             Some(_) => Ok(()),
             None => db
                 .put(DB_CORRUPTED_KEY, [1])
-                .map_err(|e| format!("Failed to set corrupted key in database: {}", e)),
+                .map_err(|e| format!("Failed to set corrupted key in database: {e}")),
         })?;
 
     Ok(())

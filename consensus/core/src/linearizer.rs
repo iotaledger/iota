@@ -124,7 +124,7 @@ impl Linearizer {
         );
         let serialized = commit
             .serialize()
-            .unwrap_or_else(|e| panic!("Failed to serialize commit: {}", e));
+            .unwrap_or_else(|e| panic!("Failed to serialize commit: {e}"));
         let commit = TrustedCommit::new_trusted(commit, serialized);
 
         // Create the corresponding committed sub dag
@@ -165,8 +165,7 @@ impl Linearizer {
         if context.protocol_config.consensus_linearize_subdag_v2() {
             assert!(
                 dag_state.set_committed(&leader_block_ref),
-                "Leader block with reference {:?} attempted to be committed twice",
-                leader_block_ref
+                "Leader block with reference {leader_block_ref:?} attempted to be committed twice"
             );
 
             while let Some(x) = buffer.pop() {
@@ -247,8 +246,7 @@ impl Linearizer {
         if gc_enabled {
             assert!(
                 to_commit.iter().all(|block| block.round() > gc_round),
-                "No blocks <= {gc_round} should be committed. Leader round {}, blocks {to_commit:?}.",
-                leader_block_ref
+                "No blocks <= {gc_round} should be committed. Leader round {leader_block_ref}, blocks {to_commit:?}."
             );
         }
 
@@ -899,7 +897,7 @@ mod tests {
                     "Block D1 should have been committed."
                 );
             } else {
-                panic!("Unexpected subdag with index {:?}", idx);
+                panic!("Unexpected subdag with index {idx:?}");
             }
 
             for block in subdag.blocks.iter() {

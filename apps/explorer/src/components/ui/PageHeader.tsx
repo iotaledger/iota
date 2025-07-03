@@ -77,7 +77,7 @@ export function PageHeader({
                             <>
                                 {type && (
                                     <div className="flex flex-row items-center gap-xxs">
-                                        <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">
+                                        <span className="text-headline-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                             {type}
                                         </span>
                                         {status && (
@@ -93,7 +93,7 @@ export function PageHeader({
                                     </div>
                                 )}
                                 {title && (
-                                    <div className="flex items-center gap-xxs text-neutral-40 dark:text-neutral-60">
+                                    <div className="flex items-center gap-xxs text-iota-neutral-40 dark:text-iota-neutral-60">
                                         <span
                                             className="break-all text-body-ds-lg"
                                             data-testid="heading-object-id"
@@ -108,7 +108,7 @@ export function PageHeader({
                                     </div>
                                 )}
                                 {subtitle && (
-                                    <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                                    <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                         {subtitle}
                                     </span>
                                 )}

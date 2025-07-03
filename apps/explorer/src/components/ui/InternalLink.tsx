@@ -67,7 +67,7 @@ function createInternalLink<T extends string>(
                     onCopy={copyText ? handleCopyClick : undefined}
                     renderAddress={(address) => (
                         <Link
-                            className="text-primary-30 dark:text-primary-80"
+                            className="text-iota-primary-30 dark:text-iota-primary-80"
                             variant="mono"
                             to={to}
                             {...props}
@@ -83,7 +83,7 @@ function createInternalLink<T extends string>(
         return (
             <div className="flex flex-row items-center gap-x-xxs">
                 <Link
-                    className="text-primary-30 dark:text-primary-80"
+                    className="text-iota-primary-30 dark:text-iota-primary-80"
                     variant="mono"
                     to={to}
                     {...props}
@@ -92,7 +92,7 @@ function createInternalLink<T extends string>(
                 </Link>
                 {copyText && (
                     <ButtonUnstyled onClick={handleCopyClick}>
-                        <Copy className="text-neutral-60 dark:text-neutral-40" />
+                        <Copy className="text-iota-neutral-60 dark:text-iota-neutral-40" />
                     </ButtonUnstyled>
                 )}
             </div>

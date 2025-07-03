@@ -13,7 +13,7 @@ export function Header(): React.JSX.Element {
     return (
         <div className="fixed top-0 left-0 py-md--rs backdrop-blur-lg z-10 w-full">
             <div className="container flex justify-between items-center">
-                <IOTABridgeLogo className="dark:text-neutral-92 text-neutral-10" />
+                <IOTABridgeLogo className="dark:text-iota-neutral-92 text-iota-neutral-10" />
                 <div className="flex flex-row gap-xs">
                     <ThemeSwitcher />
 
