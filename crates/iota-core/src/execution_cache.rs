@@ -23,7 +23,7 @@ use iota_types::{
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use prometheus::Registry;
-use tracing::{error, instrument};
+use tracing::instrument;
 
 use crate::{
     authority::{
@@ -111,12 +111,14 @@ pub enum ExecutionCacheConfigType {
     PassthroughCache,
 }
 
-pub fn choose_execution_cache(_: &ExecutionCacheConfig) -> ExecutionCacheConfigType {
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
-        error!("DISABLE_WRITEBACK_CACHE is no longer respected. WritebackCache is the default.");
+pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheConfigType {
+    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
+        || matches!(config, ExecutionCacheConfig::PassthroughCache)
+    {
+        ExecutionCacheConfigType::PassthroughCache
+    } else {
+        ExecutionCacheConfigType::WritebackCache
     }
-
-    ExecutionCacheConfigType::WritebackCache
 }
 
 pub fn build_execution_cache(
