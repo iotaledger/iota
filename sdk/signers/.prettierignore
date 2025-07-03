@@ -1,2 +1,4 @@
 dist
 CHANGELOG.md
+/*.json
+/*.md

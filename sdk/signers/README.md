@@ -21,7 +21,7 @@ The Ledger Signer allows you to leverage a Ledger hardware wallet to sign IOTA t
 #### fromDerivationPath
 
 Creates a Ledger signer from the provided options. This method initializes the signer with the
-necessary configuration, allowing it to interact with a Ledger hardare wallet to perform
+necessary configuration, allowing it to interact with a Ledger hardware wallet to perform
 cryptographic operations.
 
 ##### Parameters
