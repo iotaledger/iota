@@ -2238,31 +2238,39 @@ mod tests {
         let inflight = InflightBlocksMap::new();
         let network_client = Arc::new(MockNetworkClient::default());
 
-        // 2) Create two missing blocks, both known by authorities 8 and 9
+        // 2) Create 1000 missing blocks known by authorities 0, 2, and 3
         let mut missing_blocks = BTreeMap::new();
         let mut missing_vbs = Vec::new();
-        for i in 0..2 {
+        let known_number_blocks = 10;
+        for i in 0..1000 {
             let vb = VerifiedBlock::new_for_test(TestBlock::new(1000 + i as Round, 0).build());
             let r = vb.reference();
-            missing_blocks.insert(
-                r,
-                BTreeSet::from([
-                    AuthorityIndex::new_for_test(8),
-                    AuthorityIndex::new_for_test(9),
-                ]),
-            );
+            if i < known_number_blocks {
+                // First 10 blocks are known by authorities 0, 2
+                missing_blocks.insert(
+                    r,
+                    BTreeSet::from([
+                        AuthorityIndex::new_for_test(0),
+                        AuthorityIndex::new_for_test(2),
+                    ]),
+                );
+            } else if i >= known_number_blocks && i < 2 * known_number_blocks {
+                // Second 10 blocks are known by authorities 0, 3
+                missing_blocks.insert(
+                    r,
+                    BTreeSet::from([
+                        AuthorityIndex::new_for_test(0),
+                        AuthorityIndex::new_for_test(3),
+                    ]),
+                );
+            } else {
+                // The rest are only known by authority 0
+                missing_blocks.insert(r, BTreeSet::from([AuthorityIndex::new_for_test(0)]));
+            }
             missing_vbs.push(vb);
         }
 
-        // 3) Create five additional missing blocks, each known by one authority 2..6
-        for (i, auth) in (2..7).enumerate() {
-            let vb = VerifiedBlock::new_for_test(TestBlock::new(2000 + i as Round, 0).build());
-            let r = vb.reference();
-            missing_blocks.insert(r, BTreeSet::from([AuthorityIndex::new_for_test(auth)]));
-            missing_vbs.push(vb);
-        }
-
-        // 4. Stub the 2 knowledge-based fetches (peers 2 and 3)
+        // 3) Stub fetches for knowledge-based peers (2 and 3)
         let known_peers = [2, 3].map(AuthorityIndex::new_for_test);
         let known_vbs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlock>)> = known_peers
             .iter()
@@ -2276,18 +2284,41 @@ mod tests {
                 (peer, vbs)
             })
             .collect();
+
         for (peer, vbs) in known_vbs_by_peer {
-            network_client
-                .stub_fetch_blocks(vbs.clone(), peer, None)
-                .await;
+            if peer == AuthorityIndex::new_for_test(2) {
+                // Simulate timeout for peer 2, then fallback to peer 5
+                network_client
+                    .stub_fetch_blocks(vbs.clone(), peer, Some(2 * FETCH_REQUEST_TIMEOUT))
+                    .await;
+                network_client
+                    .stub_fetch_blocks(vbs.clone(), AuthorityIndex::new_for_test(5), None)
+                    .await;
+            } else {
+                network_client
+                    .stub_fetch_blocks(vbs.clone(), peer, None)
+                    .await;
+            }
         }
 
-        // 6. Stub the periodic path authority
+        // 4) Stub fetches from periodic path peers (1 and 4)
         network_client
-            .stub_fetch_blocks(missing_vbs.clone(), AuthorityIndex::new_for_test(1), None)
+            .stub_fetch_blocks(
+                missing_vbs[0..MAX_BLOCKS_PER_FETCH].to_vec(),
+                AuthorityIndex::new_for_test(1),
+                None,
+            )
             .await;
 
-        // 7) Execute the fetch logic
+        network_client
+            .stub_fetch_blocks(
+                missing_vbs[MAX_BLOCKS_PER_FETCH..2 * MAX_BLOCKS_PER_FETCH].to_vec(),
+                AuthorityIndex::new_for_test(4),
+                None,
+            )
+            .await;
+
+        // 5) Execute the fetch logic
         let results = Synchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,
@@ -2301,29 +2332,44 @@ mod tests {
         )
             .await;
 
-        // 8) We should get exactly three fetches: two knowledge-based, then random
-        //    fallback
-        assert_eq!(results.len(), 3, "Expected 2 known + 1 random fetch");
+        // 6) Assert we got 4 fetches: peer 2 (timed out), fallback to 5, then periodic
+        //    from 1 and 4
+        assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
-        // 9) First knowledge-based fetch goes to peer 2 with its block
-        let (_guard2, bytes2, peer2) = &results[0];
-        assert_eq!(*peer2, AuthorityIndex::new_for_test(2));
-        let expected2 = missing_vbs[2].serialized().clone();
-        assert_eq!(bytes2, &vec![expected2]);
-
-        // 10) Second knowledge-based fetch goes to peer 3 with its block
-        let (_guard3, bytes3, peer3) = &results[1];
+        // 7) First fetch from peer 3 (knowledge-based)
+        let (_guard3, bytes3, peer3) = &results[0];
         assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
-        let expected3 = missing_vbs[3].serialized().clone();
-        assert_eq!(bytes3, &vec![expected3]);
+        let expected2 = missing_vbs[known_number_blocks..2 * known_number_blocks]
+            .iter()
+            .map(|vb| vb.serialized().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(bytes3, &expected2);
 
-        // 11) Random fallback fetch goes to peer 1 with all blocks
-        let (_guard1, bytes1, peer1) = &results[2];
+        // 8) Second fetch from peer 1 (periodic)
+        let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
-        let expected1 = missing_vbs
+        let expected1 = missing_vbs[0..MAX_BLOCKS_PER_FETCH]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes1, &expected1);
+
+        // 9) Third fetch from peer 4 (periodic)
+        let (_guard4, bytes4, peer4) = &results[2];
+        assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
+        let expected4 = missing_vbs[MAX_BLOCKS_PER_FETCH..2 * MAX_BLOCKS_PER_FETCH]
+            .iter()
+            .map(|vb| vb.serialized().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(bytes4, &expected4);
+
+        // 10) Fourth fetch from peer 5 (fallback after peer 2 timeout)
+        let (_guard5, bytes5, peer5) = &results[3];
+        assert_eq!(*peer5, AuthorityIndex::new_for_test(5));
+        let expected5 = missing_vbs[0..known_number_blocks]
+            .iter()
+            .map(|vb| vb.serialized().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(bytes5, &expected5);
     }
 }

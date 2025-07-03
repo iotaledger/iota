@@ -50,8 +50,7 @@ enum CoreThreadCommand {
     /// be found on the `Core` component.
     NewBlock(Round, oneshot::Sender<()>, bool),
     /// Request missing blocks that need to be synced together with authorities
-    /// that have these blocks. In addition, it returns the count of
-    /// suspended blocks.
+    /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
 
