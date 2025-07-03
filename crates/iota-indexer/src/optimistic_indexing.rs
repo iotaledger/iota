@@ -1,6 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{collections::BTreeMap, time::Duration};
+use std::{
+    collections::{BTreeMap, HashSet},
+    time::Duration,
+};
 
 use diesel::{OptionalExtension, RunQueryDsl, sql_query, sql_types};
 use downcast::Any;
@@ -9,7 +12,7 @@ use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResp
 use iota_rest_api::{ExecuteTransactionQueryParameters, client::TransactionExecutionResponse};
 use iota_types::{
     base_types::TransactionDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -37,6 +40,8 @@ use crate::{
         IndexerResult, IotaTransactionBlockResponseWithOptions, TxIndex,
     },
 };
+
+const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
 
 type TransactionDataToCommit = (
     OptimisticTransaction,
@@ -70,6 +75,112 @@ impl OptimisticTransactionExecutor {
         }
     }
 
+    /// Wait until all dependencies are indexed through the `tx_global_order`
+    /// table.
+    ///
+    /// It uses exponential backoff to retry the check.
+    ///
+    /// This does not cover old transactions that do not have
+    /// entries in `tx_global_order`.
+    pub(crate) async fn wait_for_tx_dependencies(
+        &self,
+        effects: &TransactionEffects,
+    ) -> Result<(), IndexerError> {
+        let expected_dependencies = effects
+            .dependencies()
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>();
+        let backoff = backoff::ExponentialBackoff {
+            max_elapsed_time: Some(WAIT_FOR_DEPS_MAX_ELAPSED_TIME),
+            ..Default::default()
+        };
+
+        backoff::future::retry(backoff, async || {
+            let count = self
+                .indexer_reader
+                .count_indexed_tx_global_orders_in_blocking_task(expected_dependencies.clone())
+                .await?;
+            if count as usize != expected_dependencies.len() {
+                return Err(IndexerError::TransactionDependenciesNotIndexed)?;
+            }
+            Ok(())
+        })
+        .await
+        .or(Err(IndexerError::TransactionDependenciesNotIndexed))
+    }
+
+    /// Index the executed transaction under the following conditions:
+    ///
+    /// * If the transaction has input and output objects, and
+    /// * If the transaction dependencies are already indexed.
+    ///
+    /// The latter is essential in avoiding race conditions while
+    /// indexing checkpointed transactions.
+    pub(crate) async fn maybe_index_executed_transaction(
+        &self,
+        transaction: Transaction,
+        execution_response: TransactionExecutionResponse,
+    ) -> Result<(), IndexerError> {
+        let TransactionExecutionResponse {
+            effects,
+            events,
+            input_objects,
+            output_objects,
+            ..
+        } = execution_response;
+        let tx_digest = transaction.digest();
+        let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects) else {
+            tracing::warn!(
+                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+            );
+            return Ok(());
+        };
+
+        if input_objects.is_empty() || output_objects.is_empty() {
+            tracing::warn!(
+                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+            );
+            return Ok(());
+        }
+        tokio::select! {
+            Ok(_) = self.wait_for_tx_dependencies(&effects) => (),
+            Ok(true) = self.deep_check_all_dependencies_are_indexed(&effects) => (),
+            else => {
+                tracing::warn!(
+                    "Transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
+                );
+                return Ok(());
+            }
+        };
+        let full_tx_data = CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        };
+        self.index_transaction(&full_tx_data).await
+    }
+
+    /// Expensive operation that checks if all transactions
+    /// are indexed.
+    ///
+    /// This queries both `tx_global_order` which represents
+    /// the index status for newer transactions, and the `checkpoints`
+    /// table for older transactions that do not have entries
+    /// in `tx_global_order`.
+    pub(crate) async fn deep_check_all_dependencies_are_indexed(
+        &self,
+        effects: &TransactionEffects,
+    ) -> Result<bool, IndexerError> {
+        self.indexer_reader
+            .deep_check_all_transactions_are_indexed_in_blocking_task(
+                effects.dependencies().to_vec(),
+            )
+            .await
+    }
+
     pub(crate) async fn execute_and_index_transaction(
         &self,
         tx_bytes: Base64,
@@ -97,35 +208,9 @@ impl OptimisticTransactionExecutor {
             .await
             .map_err(|e| IndexerError::Generic(e.to_string()))?;
 
-        let TransactionExecutionResponse {
-            effects,
-            events,
-            input_objects,
-            output_objects,
-            ..
-        } = response;
-        let tx_digest = *effects.transaction_digest();
-
-        match (input_objects, output_objects) {
-            (Some(input_objects), Some(output_objects))
-                if !input_objects.is_empty() && !output_objects.is_empty() =>
-            {
-                let full_tx_data = CheckpointTransaction {
-                    transaction,
-                    effects,
-                    events,
-                    input_objects,
-                    output_objects,
-                };
-                self.index_transaction(&full_tx_data).await?;
-            }
-            _ => {
-                tracing::warn!(
-                    "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
-                );
-            }
-        }
-
+        let tx_digest = *response.effects.transaction_digest();
+        self.maybe_index_executed_transaction(transaction, response)
+            .await?;
         let tx_block_response = self
             .wait_for_local_indexing(tx_digest, options.clone())
             .await?;
