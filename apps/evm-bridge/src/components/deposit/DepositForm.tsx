@@ -21,12 +21,11 @@ import { useBridgeStore } from '../../lib/stores';
 import { BridgeFormInputName } from '../../lib/enums';
 import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/constants';
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
-import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
 import { CoinSelector } from '../CoinSelector';
-import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { parseAmount } from '../../lib/utils';
+import { useAvailableBalance } from '../../hooks/useAvailableBalance';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -64,26 +63,11 @@ export function DepositForm({
     const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
 
     const {
-        availableBalance: layer1AvailableBalance,
-        formattedAvailableBalance: formattedAvailableBalanceL1,
-        isLoading: isLoadingBalanceL1,
-        symbol: symbolL1,
-    } = useAvailableBalanceL1(selectedCoinType);
-
-    // L2 Balance
-    const {
-        availableBalance: layer2AvailableBalance,
-        formattedAvailableBalance: formattedAvailableBalanceL2,
-        isLoading: isLoadingBalanceL2,
-        symbol: symbolL2,
-    } = useAvailableBalanceL2(selectedCoinType);
-
-    const availableBalance = isFromLayer1 ? layer1AvailableBalance : layer2AvailableBalance;
-    const formattedAvailableBalance = isFromLayer1
-        ? formattedAvailableBalanceL1
-        : formattedAvailableBalanceL2;
-    const isLoadingBalance = isFromLayer1 ? isLoadingBalanceL1 : isLoadingBalanceL2;
-    const symbol = isFromLayer1 ? symbolL1 : symbolL2;
+        availableBalance,
+        formattedAvailableBalance,
+        isLoading: isLoadingBalance,
+        symbol,
+    } = useAvailableBalance(selectedCoinType, isFromLayer1);
 
     const isPayingAllBalance =
         parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) === availableBalance;

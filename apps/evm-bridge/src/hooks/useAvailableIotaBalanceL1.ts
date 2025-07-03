@@ -1,6 +1,6 @@
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useBalance as useBalanceL1 } from './useBalance';
-import { formatIOTAFromNanos, parseAmount } from '../lib/utils';
+import { parseAmount } from '../lib/utils';
 import { useBuildL1DepositTransaction } from './useBuildL1DepositTransaction';
 import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
@@ -11,7 +11,6 @@ const GENERIC_EVM_ADDRESS = '0x1111111111111111111111111111111111111111';
 export function useAvailableIotaBalanceL1(): {
     availableBalance: bigint;
     isLoading: boolean;
-    formattedAvailableBalance: string;
 } {
     const layer1Account = useCurrentAccount();
     const { data: layer1BalanceData, isLoading: isLoadingL1 } = useBalanceL1(
@@ -43,6 +42,5 @@ export function useAvailableIotaBalanceL1(): {
     return {
         availableBalance,
         isLoading: isLoadingL1 || isLoadingL1Transaction,
-        formattedAvailableBalance: formatIOTAFromNanos(availableBalance),
     };
 }

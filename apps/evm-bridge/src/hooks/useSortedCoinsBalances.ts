@@ -14,19 +14,24 @@ export const useSortedCoinsBalances = () => {
 
     const knownEvmCoins = useFeatureValue(Feature.KnownIotaEVMCoinTypes, []);
 
-    const { availableBalance: availableIotaBalanceL1 } = useAvailableIotaBalanceL1();
+    // Fetch L1 balances
+    const { availableBalance: availableIotaBalanceL1, isLoading: isLoadingIotaL1 } =
+        useAvailableIotaBalanceL1();
 
-    const { data: coinsBalanceL1 } = useGetAllBalances(addressL1);
+    const { data: coinsBalanceL1, isLoading: isLoadingAllBalancesL1 } =
+        useGetAllBalances(addressL1);
     const { recognized: recognizedL1, pinned: pinnedL1 } = useSortedCoinsByCategories(
         coinsBalanceL1 || [],
         knownEvmCoins,
     );
     const sortedCoinsBalanceL1 = [...recognizedL1, ...pinnedL1];
 
-    // Fetch L2 balance for L1 address
-    const { availableBalance: availableIotaBalanceL2 } = useAvailableIotaBalanceL2();
+    // Fetch L2 balances
+    const { availableBalance: availableIotaBalanceL2, isLoading: isLoadingIotaL2 } =
+        useAvailableIotaBalanceL2();
 
-    const { data: coinsBalancesL2 } = useGetAllBalancesL2(addressL2);
+    const { data: coinsBalancesL2, isLoading: isLoadingAllBalancesL2 } =
+        useGetAllBalancesL2(addressL2);
     const { recognized: recognizedL2, pinned: pinnedL2 } = useSortedCoinsByCategories(
         coinsBalancesL2 || [],
         knownEvmCoins,
@@ -47,7 +52,7 @@ export const useSortedCoinsBalances = () => {
                 : coin,
         );
     };
-    // Adjust the iota balances to both L1 and L2 balances. Add available iota instead of total balance
+    // Adjust the iota balances for both L1 and L2 balances. Add available iota instead of total balance
     const updatedSortedCoinsBalanceL1 = adjustIotaBalance(
         sortedCoinsBalanceL1,
         availableIotaBalanceL1,
@@ -60,5 +65,7 @@ export const useSortedCoinsBalances = () => {
     return {
         sortedCoinsBalanceL1: updatedSortedCoinsBalanceL1,
         sortedCoinsBalanceL2: updatedSortedCoinsBalanceL2,
+        isLoadingL1: isLoadingIotaL1 || isLoadingAllBalancesL1,
+        isLoadingL2: isLoadingIotaL2 || isLoadingAllBalancesL2,
     };
 };

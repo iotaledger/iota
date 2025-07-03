@@ -10,7 +10,6 @@ const GENERIC_IOTA_ADDRESS = '0x111111111111111111111111111111111111111111111111
 export function useAvailableIotaBalanceL2(): {
     availableBalance: bigint;
     isLoading: boolean;
-    formattedAvailableBalance: string;
 } {
     const layer2Account = useAccount();
 
@@ -39,12 +38,11 @@ export function useAvailableIotaBalanceL2(): {
             : layer2TotalBalance;
 
     // Convert the available balance to IOTA format
-    const eth = formatEther(availableBalance);
-    const availableBalanceInIota = parseAmount(eth, IOTA_DECIMALS);
+    const formattedIota = formatEther(availableBalance);
+    const availableBalanceInIota = parseAmount(formattedIota, IOTA_DECIMALS);
 
     return {
         availableBalance: availableBalanceInIota,
         isLoading: isLoadingL2 || isGasEstimationLoading,
-        formattedAvailableBalance: formatEther(availableBalance),
     };
 }
