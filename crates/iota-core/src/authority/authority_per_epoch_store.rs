@@ -3550,18 +3550,17 @@ impl AuthorityPerEpochStore {
 
                                 // FIX: roman: call suggested gas price calculator here
                                 let current_commit_suggested_gas_price = self.reference_gas_price();
-                                let suggested_gas_price =
-                                    previously_deferred_tx_digests
-                                        .get(certificate.digest())
-                                        .map_or_else(
-                                            || current_commit_suggested_gas_price,
-                                            |deferral_key_suggested_gas_price_pair| {
-                                                deferral_key_suggested_gas_price_pair.1.expect(
-                                                "Suggested gas price for previously deferred \
+                                let suggested_gas_price = previously_deferred_tx_digests
+                                    .get(certificate.digest())
+                                    .map_or_else(
+                                        || current_commit_suggested_gas_price,
+                                        |deferral_key_suggested_gas_price_pair| {
+                                            deferral_key_suggested_gas_price_pair.1.expect(
+                                                "Suggested gas price for transaction previously \
                                                     deferred due to congestion must not be None",
                                             ).min(current_commit_suggested_gas_price)
-                                            },
-                                        );
+                                        },
+                                    );
 
                                 if transaction_deferral_within_limit(
                                     &deferral_key,
