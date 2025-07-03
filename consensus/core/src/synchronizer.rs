@@ -1058,7 +1058,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         // Randomly pick up to 2 authorities from those aware of missing blocks
         #[cfg(not(test))]
-        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> =
+        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
             authority_to_blocks
                 .iter()
                 .choose_multiple(&mut rng, MAX_PEERS - MAX_RANDOM_PEERS)
@@ -1066,22 +1066,22 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .map(|(&peer, blocks)| {
                     let limited_blocks =
                         blocks.iter().copied().take(MAX_BLOCKS_PER_FETCH).collect();
-                    (peer, limited_blocks)
+                    (peer, limited_blocks, "periodic_known")
                 })
                 .collect();
         #[cfg(test)]
         // Deterministically pick the smallest (MAX_PEERS - MAX_RANDOM_PEERS) authority indices
-        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)> = {
-            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>)> = authority_to_blocks
+        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> = {
+            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> = authority_to_blocks
                 .iter()
                 .map(|(&peer, blocks)| {
                     let limited_blocks =
                         blocks.iter().copied().take(MAX_BLOCKS_PER_FETCH).collect();
-                    (peer, limited_blocks)
+                    (peer, limited_blocks, "periodic_known")
                 })
                 .collect();
             // Sort by AuthorityIndex (natural order), then take the first N
-            items.sort_by_key(|(peer, _)| *peer);
+            items.sort_by_key(|(peer, _,_)| *peer);
             items
                 .into_iter()
                 .take(MAX_PEERS - MAX_RANDOM_PEERS)
@@ -1092,7 +1092,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         // blocks
         let already_chosen: HashSet<AuthorityIndex> = chosen_peers_with_blocks
             .iter()
-            .map(|(peer, _)| *peer)
+            .map(|(peer, _,_)| *peer)
             .collect();
 
         let random_candidates: Vec<_> = context
@@ -1122,7 +1122,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         for peer in random_peers {
             if let Some(chunk) = block_chunks.next() {
-                chosen_peers_with_blocks.push((peer, chunk.to_vec()));
+                chosen_peers_with_blocks.push((peer, chunk.to_vec(), "periodic_random"));
             } else {
                 break;
             }
@@ -1165,7 +1165,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 if peer_index != context.own_index
                     && !chosen_peers_with_blocks
                         .iter()
-                        .any(|(chosen_peer, _)| *chosen_peer == peer_index)
+                        .any(|(chosen_peer, _, _)| *chosen_peer == peer_index)
                 {
                     Some(peer_index)
                 } else {
@@ -1179,7 +1179,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let mut remaining_peers = remaining_peers.into_iter();
 
         // Send the initial requests
-        for (peer, blocks_to_request) in chosen_peers_with_blocks {
+        for (peer, blocks_to_request, label) in chosen_peers_with_blocks {
             let peer_hostname = &context.committee.authority(peer).hostname;
             let block_refs = blocks_to_request.iter().cloned().collect::<BTreeSet<_>>();
 
@@ -1201,13 +1201,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 let metrics = &context.metrics.node_metrics;
                 metrics
                     .synchronizer_requested_blocks_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), "periodic"])
+                    .with_label_values(&[peer_hostname.as_str(), label])
                     .inc_by(block_refs.len() as u64);
                 for block_ref in &block_refs {
                     let block_hostname = &context.committee.authority(block_ref.author).hostname;
                     metrics
                         .synchronizer_requested_blocks_by_authority
-                        .with_label_values(&[block_hostname.as_str(), "periodic"])
+                        .with_label_values(&[block_hostname.as_str(), label])
                         .inc();
                 }
                 request_futures.push(Self::fetch_blocks_request(
@@ -1260,14 +1260,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                     let metrics = &context.metrics.node_metrics;
                                     metrics
                                         .synchronizer_requested_blocks_by_peer
-                                        .with_label_values(&[peer_hostname.as_str(), "periodic"])
+                                        .with_label_values(&[peer_hostname.as_str(), "periodic_retry"])
                                         .inc_by(block_refs.len() as u64);
                                     for block_ref in &block_refs {
                                         let block_hostname =
                                             &context.committee.authority(block_ref.author).hostname;
                                         metrics
                                             .synchronizer_requested_blocks_by_authority
-                                            .with_label_values(&[block_hostname.as_str(), "periodic"])
+                                            .with_label_values(&[block_hostname.as_str(), "periodic_retry"])
                                             .inc();
                                     }
                                     request_futures.push(Self::fetch_blocks_request(
@@ -1708,7 +1708,7 @@ mod tests {
             false,
         );
 
-        sleep(2 * FETCH_REQUEST_TIMEOUT).await;
+        sleep(8 * FETCH_REQUEST_TIMEOUT).await;
 
         // THEN the missing blocks should now be fetched and added to core
         let added_blocks = core_dispatcher.get_add_blocks().await;
