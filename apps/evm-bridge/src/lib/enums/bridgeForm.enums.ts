@@ -3,4 +3,5 @@ export enum BridgeFormInputName {
     ReceivingAddress = 'receivingAddress',
     IsFromLayer1 = 'isFromLayer1',
     CoinType = 'coinType',
+    IsDepositAddressManualInput = 'isDepositAddressManualInput',
 }

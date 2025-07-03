@@ -17,7 +17,6 @@ import { type SubmitHandler, useFormContext } from 'react-hook-form';
 import { WalletConnectInput } from '..';
 import { DepositFormData } from '../../lib/schema/bridgeForm.schema';
 import { useAccount } from 'wagmi';
-import { useBridgeStore } from '../../lib/stores';
 import { BridgeFormInputName } from '../../lib/enums';
 import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/constants';
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
@@ -236,16 +235,16 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
     ref,
 ) {
     const { setValue, watch } = useFormContext<DepositFormData>();
-    const values = watch();
+    const { isFromLayer1, isDepositAddressManualInput: isManualInput } = watch();
 
-    const { isFromLayer1 } = values;
     const layer1Account = useCurrentAccount();
     const layer2Account = useAccount();
 
-    const toggleIsDepositAddressManualInput = useBridgeStore(
-        (state) => state.toggleIsDepositAddressManualInput,
-    );
-    const isManualInput = useBridgeStore((state) => state.isDepositAddressManualInput);
+    const toggleIsDepositAddressManualInput = useCallback(() => {
+        setValue(BridgeFormInputName.IsDepositAddressManualInput, !isManualInput, {
+            shouldValidate: true,
+        });
+    }, [isManualInput, setValue]);
 
     const isLayer1WalletConnected = !!layer1Account?.address;
     const isLayer2WalletConnected = layer2Account.isConnected;

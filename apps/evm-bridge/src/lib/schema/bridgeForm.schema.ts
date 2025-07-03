@@ -16,6 +16,7 @@ export function createBridgeFormSchema(
     return z
         .object({
             [BridgeFormInputName.IsFromLayer1]: z.boolean().default(true),
+            [BridgeFormInputName.IsDepositAddressManualInput]: z.boolean().default(false),
             [BridgeFormInputName.CoinType]: z.string().default(IOTA_TYPE_ARG),
             [BridgeFormInputName.ReceivingAddress]: z.string().trim(),
             [BridgeFormInputName.DepositAmount]: z
