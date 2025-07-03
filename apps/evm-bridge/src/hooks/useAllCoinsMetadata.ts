@@ -79,20 +79,20 @@ export function useAllCoinsMetadata(coins: Array<{ coinType: string }>) {
                     throw err;
                 }
             },
-            select: (data) => {
+            select: (data: unknown) => {
                 if (!data) return null;
-
+                const coinData = data as CoinMetadata;
                 // Same post-processing as in useCoinMetadata
                 return {
-                    ...data,
+                    ...coinData,
                     symbol:
-                        data.symbol.length > SYMBOL_TRUNCATE_LENGTH
-                            ? data.symbol.slice(0, SYMBOL_TRUNCATE_LENGTH) + ELLIPSIS
-                            : data.symbol,
+                        coinData.symbol.length > SYMBOL_TRUNCATE_LENGTH
+                            ? coinData.symbol.slice(0, SYMBOL_TRUNCATE_LENGTH) + ELLIPSIS
+                            : coinData.symbol,
                     name:
-                        data.name.length > NAME_TRUNCATE_LENGTH
-                            ? data.name.slice(0, NAME_TRUNCATE_LENGTH) + ELLIPSIS
-                            : data.name,
+                        coinData.name.length > NAME_TRUNCATE_LENGTH
+                            ? coinData.name.slice(0, NAME_TRUNCATE_LENGTH) + ELLIPSIS
+                            : coinData.name,
                 };
             },
             retry: false,
