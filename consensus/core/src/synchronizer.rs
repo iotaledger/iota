@@ -1042,7 +1042,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }
         }
 
-        // Step 2: Choose at most two random peers from those who are aware of the
+        // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are aware of the
         // missing blocks
 
         let mut rng = StdRng::from_entropy();
@@ -1085,7 +1085,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             if let Some(chunk) = block_chunks.next() {
                 chosen_peers_with_blocks.push((peer, chunk.to_vec()));
             } else {
-                break; // Not enough blocks left
+                break; 
             }
         }
 
