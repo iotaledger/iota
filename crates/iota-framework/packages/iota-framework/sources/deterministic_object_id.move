@@ -31,3 +31,36 @@ public fun new_precomputed(iota_address: address, salt: vector<u8>, account_regi
     account_registry.add(id.to_id());
     new_uid_from_hash(id)
 }
+
+// -------------------------------- Smart Account basic flow for test purpose (PTB) ---------------------------------------------------
+//
+
+#[test_only]
+public struct SmartAccount has key {
+    id: UID,
+    balance: u64,
+}
+
+
+// Initializion a mocked smart account
+#[test_only]
+public fun init_smart_account(addr: address, account_registry: &mut AccountRegistry, _ctx: &mut TxContext) {
+    let salt = vector[0x12, 0x34, 0xab, 0xcd]; // for prototype purpose salt is hardcoded here
+    let smart_account = SmartAccount {
+        id: new_precomputed(addr, salt,  account_registry),
+        balance: 0,
+    };
+    transfer::share_object(smart_account);
+}
+
+// Deletion a mocked smart account
+#[test_only]
+public fun delete_smart_account(
+    smart_account: SmartAccount,
+    account_registry: &mut AccountRegistry,
+    _ctx: &mut TxContext,
+) {
+    let SmartAccount { id: sm_id, .. } = smart_account;
+    account_registry.remove(*sm_id.as_inner());
+    sm_id.delete();
+}
