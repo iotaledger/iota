@@ -6,6 +6,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
+use iota_config::genesis::Genesis;
 use iota_json_rpc_types::CheckpointId;
 use iota_light_client::{
     Proof, ProofTargets,
@@ -335,37 +336,36 @@ pub async fn main() -> Result<()> {
             };
 
             // read the summary from the local checkpoints dir
-            let summary = read_checkpoint_summary(&config, seq)
-                .expect("read checkpoint summary")
-                .into_data();
+            let summary = read_checkpoint_summary(&config, seq)?.into_data();
 
-            let list = read_checkpoint_list(&config).expect("read checkpoint list");
-            let Some(index) = list.get_index(seq) else {
-                bail!("invalid list");
+            let checkpoint_list = read_checkpoint_list(&config)?;
+            let Some(index) = checkpoint_list.get_index(seq) else {
+                bail!("invalid checkpoint list");
             };
 
-            // TODO: if the index is 0, then we need to extract the committee from the
-            // genesis
-            let Some(prev_seq) = list.get(index - 1) else {
-                bail!("invalid request");
+            let current_committee = if index == 0 {
+                Genesis::load(config.genesis_blob_file_path())?.committee()?
+            } else {
+                let Some(prev_seq) = checkpoint_list.get(index - 1) else {
+                    bail!("invalid checkpoint list");
+                };
+                let prev_summary = read_checkpoint_summary(&config, prev_seq)?.into_data();
+                let authorities = prev_summary
+                    .end_of_epoch_data
+                    .as_ref()
+                    .unwrap()
+                    .next_epoch_committee
+                    .iter()
+                    .cloned()
+                    .collect();
+
+                Committee::new(summary.epoch, authorities)
             };
-
-            let prev_summary = read_checkpoint_summary(&config, prev_seq)?.into_data();
-            let next_committee = prev_summary
-                .end_of_epoch_data
-                .as_ref()
-                .unwrap()
-                .next_epoch_committee
-                .iter()
-                .cloned()
-                .collect();
-
-            let committee = Committee::new(summary.epoch, next_committee);
 
             let file = std::fs::File::open(&input_file)?;
             let proof: Proof = serde_json::from_reader(file)?;
 
-            proof::verify_proof(&committee, &proof)?;
+            proof::verify_proof(&current_committee, &proof)?;
 
             println!("The proof stored in {} is valid.", input_file.display())
         }
