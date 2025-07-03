@@ -853,6 +853,23 @@ mod tests {
                 .map(|block| block.reference())
                 .collect::<BTreeSet<_>>()
         );
+
+        // AND each missing block should be known to all authorities
+        let known_by_manager = block_manager
+            .missing_blocks()
+            .iter()
+            .next()
+            .expect("We should expect at least two elements there")
+            .1
+            .clone();
+        assert_eq!(
+            known_by_manager,
+            context
+                .committee
+                .authorities()
+                .map(|(a, _)| a)
+                .collect::<BTreeSet<_>>()
+        );
     }
 
     #[tokio::test]
