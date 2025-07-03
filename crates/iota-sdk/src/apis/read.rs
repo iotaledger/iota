@@ -520,16 +520,8 @@ impl ReadApi {
             filter: query.filter.as_ref().map(|f| f.as_v2()),
             options: query.options,
         };
-        Ok(self
-            .api
-            .http
-            .query_transaction_blocks_v2(
-                query_v2,
-                cursor.into(),
-                limit.into(),
-                Some(descending_order),
-            )
-            .await?)
+        self.query_transaction_blocks_v2(query_v2, cursor, limit, descending_order)
+            .await
     }
 
     /// Get filtered transaction blocks information.
@@ -592,32 +584,12 @@ impl ReadApi {
         cursor: impl Into<Option<TransactionDigest>>,
         descending_order: bool,
     ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
-        let cursor = cursor.into();
+        let query_v2 = IotaTransactionBlockResponseQueryV2 {
+            filter: query.filter.as_ref().map(|f| f.as_v2()),
+            options: query.options,
+        };
 
-        stream::unfold(
-            (vec![], cursor, true, query),
-            move |(mut data, cursor, first, query)| async move {
-                if let Some(item) = data.pop() {
-                    Some((item, (data, cursor, false, query)))
-                } else if (cursor.is_none() && first) || cursor.is_some() {
-                    let page = self
-                        .query_transaction_blocks(
-                            query.clone(),
-                            cursor,
-                            Some(100),
-                            descending_order,
-                        )
-                        .await
-                        .ok()?;
-                    let mut data = page.data;
-                    data.reverse();
-                    data.pop()
-                        .map(|item| (item, (data, page.next_cursor, false, query)))
-                } else {
-                    None
-                }
-            },
-        )
+        self.get_transactions_stream_v2(query_v2, cursor, descending_order)
     }
 
     /// Get a stream of transactions.
