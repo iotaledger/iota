@@ -389,6 +389,18 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                                         .collect(),
                             }).collect()
                         },
+                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(vec) =>
+                        ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                            cancelled_transactions: vec.into_iter().map(|value| CancelledTransaction {
+                                digest: value.digest.into(),
+                                version_assignments:
+                                    value
+                                        .version_assignments
+                                        .into_iter()
+                                        .map(|value| VersionAssignment { object_id: value.object_id.into(), version: value.version.value() })
+                                        .collect(),
+                            }).collect()
+                        },
                 };
                 TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
                     epoch: consensus_commit_prologue_v1.epoch,

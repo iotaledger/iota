@@ -318,6 +318,29 @@ where
     }
 }
 
+impl SerializeAs<crate::base_types::SequenceNumber> for BigInt<u64> {
+    fn serialize_as<S>(
+        value: &crate::base_types::SequenceNumber,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = value.value().to_string();
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for BigInt<u64> {
+    fn deserialize_as<D>(deserializer: D) -> Result<crate::base_types::SequenceNumber, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let b = BigInt::deserialize(deserializer)?;
+        Ok(crate::base_types::SequenceNumber::from_u64(*b))
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
 pub struct SequenceNumber(#[schemars(with = "BigInt<u64>")] u64);

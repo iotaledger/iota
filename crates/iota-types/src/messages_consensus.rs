@@ -16,12 +16,14 @@ use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::{
     base_types::{
         AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
     digests::ConsensusCommitDigest,
+    iota_serde::BigInt,
     messages_checkpoint::{
         CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointTimestamp,
     },
@@ -31,12 +33,38 @@ use crate::{
     transaction::CertifiedTransaction,
 };
 
+/// Holds object ID and assigned version for cancelled shared objects.
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct VersionAssignment {
+    /// ID of shared object that appear in cancelled transactions.
+    pub object_id: ObjectID,
+
+    /// Version assigned to cancelled shared object. It embeds the
+    /// cancellation reason.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub version: SequenceNumber,
+}
+
+/// Holds digest of cancelled transaction and shared object version
+/// assignments.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct CancelledTransactionV2 {
+    /// Digest of cancelled transaction.
+    pub digest: TransactionDigest,
+
+    /// Version assignments for input shared objects.
+    pub version_assignments: Vec<VersionAssignment>,
+}
+
 /// Uses an enum to allow for future expansion of the
 /// ConsensusDeterminedVersionAssignments.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum ConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>),
+    CancelledTransactionsV2(Vec<CancelledTransactionV2>),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
