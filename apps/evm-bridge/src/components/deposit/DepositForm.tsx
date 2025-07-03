@@ -176,9 +176,6 @@ export function DepositForm({
                             icon={<SwapAccount className="rotate-90 -scale-x-100" />}
                             onClick={() => {
                                 setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1);
-                                setValue(BridgeFormInputName.CoinType, IOTA_TYPE_ARG, {
-                                    shouldValidate: true,
-                                });
                             }}
                             testId="toggle-bridge-direction"
                         />
