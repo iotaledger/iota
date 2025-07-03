@@ -264,6 +264,7 @@ optimistic_from_into_checkpoint!(OptimisticEventStructInstantiation, StoredEvent
     sender,
 });
 
+#[derive(Clone)]
 pub struct OptimisticEventIndices {
     pub optimistic_event_emit_packages: Vec<OptimisticEventEmitPackage>,
     pub optimistic_event_emit_modules: Vec<OptimisticEventEmitModule>,

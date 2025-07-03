@@ -593,8 +593,6 @@ impl IndexerReader {
             .collect()
     }
 
-    }
-
     /// Expensive check to assert whether all transactions
     /// are indexed.
     ///
@@ -671,6 +669,8 @@ impl IndexerReader {
             this.count_indexed_tx_global_orders(digests.into_iter().map(|d| d.inner().to_vec()))
         })
         .await
+    }
+
     fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
