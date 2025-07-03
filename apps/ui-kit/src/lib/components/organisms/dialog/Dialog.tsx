@@ -53,11 +53,11 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = RadixDialog.Overlay.displayName;
 
-const DialogContainer = ({ children }: React.PropsWithChildren) => (
-    <div className="fixed inset-0 z-[99999]">
-        <div className="relative h-full w-full">{children}</div>
+const DialogContainer = React.forwardRef<HTMLDivElement, React.PropsWithChildren>((props, ref) => (
+    <div className="fixed inset-0 z-[99999]" ref={ref}>
+        <div className="relative h-full w-full">{props.children}</div>
     </div>
-);
+));
 
 const DialogContent = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Content>,
