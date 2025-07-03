@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use diesel::{OptionalExtension, RunQueryDsl, sql_query, sql_types};
+use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
@@ -22,7 +22,9 @@ use crate::{
     errors::IndexerError,
     handlers::{
         TransactionObjectChangesToCommit,
-        checkpoint_handler::{CheckpointHandler, try_extract_df_kind},
+        checkpoint_handler::{
+            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
+        },
     },
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
@@ -34,10 +36,10 @@ use crate::{
         tx_indices::OptimisticTxIndices,
     },
     store::{IndexerStore, PgIndexerStore},
-    transactional_blocking_with_retry,
+    transactional_blocking_with_retry_with_conditional_abort,
     types::{
-        EventIndex, IndexedDeletedObject, IndexedEvent, IndexedObject, IndexedTransaction,
-        IndexerResult, IotaTransactionBlockResponseWithOptions, TxIndex,
+        EventIndex, IndexedDeletedObject, IndexedObject, IndexerResult,
+        IotaTransactionBlockResponseWithOptions, TxIndex,
     },
 };
 
@@ -52,6 +54,7 @@ type TransactionDataToCommit = (
     TransactionObjectChangesToCommit,
 );
 
+#[derive(Clone)]
 pub(crate) struct OptimisticTransactionExecutor {
     rpc_client: iota_rest_api::Client,
     indexer_reader: IndexerReader,
@@ -160,7 +163,7 @@ impl OptimisticTransactionExecutor {
             input_objects,
             output_objects,
         };
-        self.index_transaction(&full_tx_data).await
+        self.index_transaction_in_blocking_task(&full_tx_data).await
     }
 
     /// Expensive operation that checks if all transactions
@@ -257,68 +260,91 @@ impl OptimisticTransactionExecutor {
         .await
     }
 
-    async fn index_transaction(
+    async fn index_transaction_in_blocking_task(
         &self,
         full_tx_data: &CheckpointTransaction,
     ) -> Result<(), IndexerError> {
-        let assigned_global_order = self
-            .assign_optimistic_tx_global_order(full_tx_data.transaction.digest())
-            .await?;
-
-        let Some(assigned_global_order) = assigned_global_order else {
-            // Global order was assigned earlier by other indexing process, we avoid double
-            // or concurrent indexing and return
-            return Ok(());
-        };
-
-        let extractor = TransactionExtractor::new(
-            full_tx_data,
-            assigned_global_order
-                .optimistic_sequence_number
-                .expect("Optimistic sequence number is always set for data read from DB")
-                .try_into()
-                .map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "Failed to convert optimistic sequence number: {e}"
-                    ))
-                })?,
-            &self.metrics,
-        );
-
-        let tx_data_to_commit = extractor.to_transaction_data_to_commit().await?;
-
-        self.persist_optimistic_tx(tx_data_to_commit).await
+        match tokio::task::spawn_blocking({
+            let this: OptimisticTransactionExecutor = self.clone();
+            let full_tx_data = full_tx_data.clone();
+            move || this.index_transaction(&full_tx_data)
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to join optimistic index_transaction: {e}");
+            IndexerError::from(e)
+        })? {
+            // The unique violation error means that checkpoint indexing was faster than the
+            // optimistic indexing. Let's just return and let checkpoint indexing handle
+            // the transaction.
+            Ok(_) | Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => Ok(()),
+            Err(e) => Err(IndexerError::PostgresWrite(format!(
+                "Failed to persist optimistic tx: {:?}",
+                e
+            ))),
+        }
     }
 
-    async fn assign_optimistic_tx_global_order(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TxGlobalOrder>, IndexerError> {
-        let tx_digest_bytes = tx_digest.inner().to_vec();
-
-        let pool = self.indexer_reader.get_pool();
-
-        transactional_blocking_with_retry!(
+    fn index_transaction(&self, full_tx_data: &CheckpointTransaction) -> Result<(), IndexerError> {
+        let pool = self.store.blocking_cp();
+        transactional_blocking_with_retry_with_conditional_abort!(
             &pool,
-            |conn| {
-                sql_query(
-                    r#"
-                        INSERT INTO tx_global_order (tx_digest, global_sequence_number)
-                        SELECT $1, MAX(tx_sequence_number) FROM tx_digests
-                        ON CONFLICT (tx_digest) DO NOTHING
-                        RETURNING *;
-                    "#,
-                )
-                .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-                .get_result::<TxGlobalOrder>(conn)
-                .optional()
+            move |conn| {
+                let assigned_global_order =
+                    OptimisticTransactionExecutor::assign_optimistic_tx_global_order(
+                        conn,
+                        full_tx_data.transaction.digest(),
+                    )?;
+
+                let extractor = TransactionExtractor::new(
+                    full_tx_data,
+                    assigned_global_order
+                        .optimistic_sequence_number
+                        .expect("Optimistic sequence number is always set for data read from DB")
+                        .try_into()
+                        .map_err(|e| {
+                            IndexerError::PersistentStorageDataCorruption(format!(
+                                "Failed to convert optimistic sequence number: {e}"
+                            ))
+                        })?,
+                    &self.metrics,
+                );
+
+                let tx_data_to_commit = extractor.to_transaction_data_to_commit()?;
+
+                self.persist_optimistic_tx(conn, tx_data_to_commit)
             },
-            Duration::from_secs(30)
+            |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation(_)),
+            Duration::from_secs(3600)
         )
     }
 
-    async fn persist_optimistic_tx(
+    fn assign_optimistic_tx_global_order(
+        conn: &mut PgConnection,
+        tx_digest: &TransactionDigest,
+    ) -> Result<TxGlobalOrder, IndexerError> {
+        let tx_digest_bytes = tx_digest.inner().to_vec();
+
+        sql_query(
+            r#"
+                INSERT INTO tx_global_order (tx_digest, global_sequence_number)
+                SELECT $1, MAX(tx_sequence_number) FROM tx_digests
+                RETURNING *;
+            "#,
+        )
+        .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
+        .get_result::<TxGlobalOrder>(conn)
+        .map_err(|e| match e {
+            diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                IndexerError::PostgresUniqueTxGlobalOrderViolation(e.to_string())
+            }
+            _ => IndexerError::PostgresWrite(format!("Failed to assign global order: {e}")),
+        })
+    }
+
+    fn persist_optimistic_tx(
         &self,
+        conn: &mut PgConnection,
         tx_data_to_commit: TransactionDataToCommit,
     ) -> Result<(), IndexerError> {
         let (
@@ -330,23 +356,27 @@ impl OptimisticTransactionExecutor {
             object_changes,
         ) = tx_data_to_commit;
 
-        self.store.persist_objects(vec![object_changes]).await?;
-        self.store.persist_displays(indexed_displays).await?;
+        self.store
+            .persist_objects_in_existing_transaction(conn, vec![object_changes.clone()])?;
+        self.store.persist_displays_in_existing_transaction(
+            conn,
+            indexed_displays.values().collect::<Vec<_>>(),
+        )?;
 
         self.store
-            .persist_optimistic_transaction(optimistic_tx)
-            .await?;
+            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx.clone())?;
         self.store
-            .persist_optimistic_events(optimistic_events)
-            .await?;
+            .persist_optimistic_events_in_existing_transaction(conn, optimistic_events.clone())?;
         self.store
-            .persist_optimistic_event_indices(optimistic_event_indices)
-            .await?;
+            .persist_optimistic_event_indices_in_existing_transaction(
+                conn,
+                optimistic_event_indices.clone(),
+            )?;
         self.store
-            .persist_optimistic_tx_indices(optimistic_tx_indices)
-            .await?;
-
-        Ok(())
+            .persist_optimistic_tx_indices_in_existing_transaction(
+                conn,
+                optimistic_tx_indices.clone(),
+            )
     }
 }
 
@@ -401,29 +431,26 @@ impl<'a> TransactionExtractor<'a> {
         })
     }
 
-    async fn get_indexed_transactions_events_and_displays(
+    fn get_indexed_transactions_events_and_displays(
         &self,
-    ) -> IndexerResult<(
-        IndexedTransaction,
-        TxIndex,
-        Vec<IndexedEvent>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-    )> {
-        CheckpointHandler::index_transaction(
-            self.full_tx_data,
-            self.optimistic_sequence_number,
-            0, // checkpoint sequence number - unknown
-            0, // checkpoint timestamp - unknown
-            self.metrics,
-        )
-        .await
+    ) -> IndexerResult<IndexedTransactionComponents> {
+        let handle = tokio::runtime::Handle::current();
+        handle.block_on(async move {
+            CheckpointHandler::index_transaction(
+                self.full_tx_data,
+                self.optimistic_sequence_number,
+                0, // checkpoint sequence number - unknown
+                0, // checkpoint timestamp - unknown
+                self.metrics,
+            )
+            .await
+        })
     }
 
-    async fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
+    fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = self.get_object_changes()?;
         let (indexed_tx, tx_indices, indexed_events, events_indices, indexed_displays) =
-            self.get_indexed_transactions_events_and_displays().await?;
+            self.get_indexed_transactions_events_and_displays()?;
 
         let optimistic_tx = StoredTransaction::from(&indexed_tx).into();
         let optimistic_tx_indices = Self::optimistic_tx_indices(tx_indices);
