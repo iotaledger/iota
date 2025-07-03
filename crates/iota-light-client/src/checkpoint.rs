@@ -45,6 +45,14 @@ impl CheckpointList {
     pub fn is_empty(&self) -> bool {
         self.checkpoints.is_empty()
     }
+
+    pub fn get_index(&self, seq: u64) -> Option<usize> {
+        self.checkpoints.iter().position(|s| *s == seq)
+    }
+
+    pub fn get(&self, index: usize) -> Option<u64> {
+        self.checkpoints.get(index).copied()
+    }
 }
 
 pub fn read_checkpoint_list(config: &Config) -> Result<CheckpointList> {
