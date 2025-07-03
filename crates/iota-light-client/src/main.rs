@@ -65,7 +65,7 @@ pub enum LightClientCommand {
     },
     /// Construct a proof for events and objects, and write it to a file
     ConstructProof {
-        /// Event IDs that should be included in the proof
+        /// Events that should be included in the proof
         #[arg(
             name = "events",
             long,
@@ -73,13 +73,13 @@ pub enum LightClientCommand {
             num_args(0..),
         )]
         event_ids: Vec<EventID>,
-        /// Object IDs that should be included in the proof
+        /// Objects that should be included in the proof
         #[arg(name = "objects", long, num_args(0..))]
         object_ids: Vec<ObjectID>,
-        /// Whether to include the committee in the proof
+        /// Whether to include the next committee in the proof
         #[arg(long, default_value_t = false)]
         include_committee: bool,
-        /// The checkpoint sequence number or checkpoint digest
+        /// The checkpoint given by either its sequence number or its digest
         #[arg(name = "checkpoint", long, value_parser = parse_checkpoint_id)]
         checkpoint_id: CheckpointId,
         /// The path to the file the proof is written to
@@ -88,7 +88,7 @@ pub enum LightClientCommand {
     },
     /// Sync the light client
     Sync,
-    /// Verify a proof stored in a file against a committee
+    /// Verify a proof stored in a file
     VerifyProof {
         /// The path to the file the proof is read from
         #[arg(name = "proof", value_name = "PATH")]
