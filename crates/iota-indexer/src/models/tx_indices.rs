@@ -350,6 +350,7 @@ optimistic_from_into_checkpoint!(OptimisticTxMod, StoredTxMod, { package, module
 optimistic_from_into_checkpoint!(OptimisticTxFun, StoredTxFun, { package, module, func, sender });
 optimistic_from_into_checkpoint!(OptimisticTxKind, StoredTxKind, { tx_kind });
 
+#[derive(Clone)]
 pub struct OptimisticTxIndices {
     pub optimistic_tx_senders: Vec<OptimisticTxSenders>,
     pub optimistic_tx_recipients: Vec<OptimisticTxRecipients>,

@@ -5,6 +5,7 @@
 use std::{any::Any, collections::BTreeMap};
 
 use async_trait::async_trait;
+use diesel::PgConnection;
 
 use crate::{
     errors::IndexerError,
@@ -80,22 +81,25 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         transactions: Vec<IndexedTransaction>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_optimistic_transaction(
+    fn persist_optimistic_transaction_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
-    async fn persist_optimistic_tx_indices(
+    fn persist_optimistic_tx_indices_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         indices: OptimisticTxIndices,
     ) -> Result<(), IndexerError>;
 
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
 
-    async fn persist_optimistic_events(
+    fn persist_optimistic_events_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         events: Vec<OptimisticEvent>,
     ) -> Result<(), IndexerError>;
 
@@ -104,8 +108,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         event_indices: Vec<EventIndex>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_optimistic_event_indices(
+    fn persist_optimistic_event_indices_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         indices: OptimisticEventIndices,
     ) -> Result<(), IndexerError>;
 
@@ -131,10 +136,17 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     fn as_any(&self) -> &dyn Any;
 
-    async fn get_transactions_with_global_order(
+    fn persist_displays_in_existing_transaction(
         &self,
-        digests: &[Vec<u8>],
-    ) -> Result<Vec<Vec<u8>>, IndexerError>;
+        conn: &mut PgConnection,
+        display_updates: Vec<&StoredDisplay>,
+    ) -> Result<(), IndexerError>;
+
+    fn persist_objects_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        object_changes: Vec<TransactionObjectChangesToCommit>,
+    ) -> Result<(), IndexerError>;
 }
 
 #[async_trait]
