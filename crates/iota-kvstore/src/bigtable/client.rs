@@ -396,7 +396,7 @@ impl BigTableClient {
                             row.push((cell_name, cell_value));
                             cell_value = vec![];
                         }
-                        cell_name = Some(qualifier);
+                        cell_name = Some(qualifier.value);
                         timestamp = chunk.timestamp_micros;
                         cell_value.append(&mut chunk.value);
                     }

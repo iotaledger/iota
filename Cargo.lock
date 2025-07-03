@@ -6607,7 +6607,6 @@ dependencies = [
  "iota-types",
  "prometheus",
  "prost",
- "prost-types",
  "serde",
  "telemetry-subscribers",
  "tempfile",
