@@ -15,7 +15,7 @@ use crate::{
         events::OptimisticEvent,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
-        transactions::{OptimisticTransaction, TxGlobalOrder},
+        transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
         tx_indices::OptimisticTxIndices,
     },
     rolling::transform::CheckpointObjectChanges,
@@ -85,11 +85,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_global_order(
-        &self,
-        tx_order: Vec<TxGlobalOrder>,
-    ) -> Result<(), IndexerError>;
-
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
     async fn persist_optimistic_tx_indices(
@@ -147,6 +142,16 @@ pub(crate) trait IndexerStoreExt: IndexerStore {
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError>;
+
+    async fn update_status_for_checkpoint_transactions(
+        &self,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_tx_global_order(
+        &self,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError>;
