@@ -1595,7 +1595,16 @@ pub fn generate_genesis_system_object(
             vec![],
         );
 
-        // Step 6: Run genesis.
+        // Step 6: Create and share the AccountRegistry.
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("account_registry").to_owned(),
+            ident_str!("create").to_owned(),
+            vec![],
+            vec![],
+        )?;
+
+        // Step 7: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
         // one is the IOTA `TreasuryCap` we got from step 4.
         let mut arguments = vec![iota_system_state_uid, iota_treasury_cap];
