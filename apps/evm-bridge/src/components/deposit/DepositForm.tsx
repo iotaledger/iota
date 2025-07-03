@@ -128,104 +128,100 @@ export function DepositForm({
         ...registerDepositAmount
     } = register(BridgeFormInputName.DepositAmount);
     return (
-        <>
-            <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
-                <CoinSelector />
-                <Input
-                    label="Amount"
-                    type={InputType.NumericFormat}
-                    prefix={
-                        isPayingAllBalance && selectedCoinType === IOTA_TYPE_ARG ? '~ ' : undefined
-                    }
-                    value={depositAmount}
-                    errorMessage={depositAmountErrorMessage}
-                    {...registerDepositAmount}
-                    data-testid="bridge-amount"
-                    onValueChange={(values) => {
-                        setValue(BridgeFormInputName.DepositAmount, values.value, {
-                            shouldValidate: true,
-                            shouldTouch: true,
-                        });
-                    }}
-                    caption={caption}
-                    maxLength={MAX_DEPOSIT_INPUT_LENGTH}
-                    trailingElement={
-                        <ButtonPill onClick={handleMaxAmountClick} disabled={isMaxButtonDisabled}>
-                            Max
-                        </ButtonPill>
-                    }
-                />
-                <div className="relative flex flex-col gap-y-md--rs">
-                    {fromAddress ? (
-                        <Input
-                            type={InputType.Text}
-                            label={FROM_LABEL}
-                            name="senderAddress"
-                            value={fromAddress}
-                            key={fromAddress}
-                            readOnly
-                        />
-                    ) : (
-                        <WalletConnectInput label={FROM_LABEL} isLayer1={isFromLayer1} />
-                    )}
-
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1]">
-                        <Button
-                            type={ButtonType.Primary}
-                            icon={<SwapAccount className="rotate-90 -scale-x-100" />}
-                            onClick={() => {
-                                setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1);
-                            }}
-                            testId="toggle-bridge-direction"
-                        />
-                    </div>
-
-                    <DestinationInput
+        <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
+            <CoinSelector />
+            <Input
+                label="Amount"
+                type={InputType.NumericFormat}
+                prefix={isPayingAllBalance && selectedCoinType === IOTA_TYPE_ARG ? '~ ' : undefined}
+                value={depositAmount}
+                errorMessage={depositAmountErrorMessage}
+                {...registerDepositAmount}
+                data-testid="bridge-amount"
+                onValueChange={(values) => {
+                    setValue(BridgeFormInputName.DepositAmount, values.value, {
+                        shouldValidate: true,
+                        shouldTouch: true,
+                    });
+                }}
+                caption={caption}
+                maxLength={MAX_DEPOSIT_INPUT_LENGTH}
+                trailingElement={
+                    <ButtonPill onClick={handleMaxAmountClick} disabled={isMaxButtonDisabled}>
+                        Max
+                    </ButtonPill>
+                }
+            />
+            <div className="relative flex flex-col gap-y-md--rs">
+                {fromAddress ? (
+                    <Input
                         type={InputType.Text}
-                        errorMessage={receivingAddressErrorMessage}
-                        {...register(BridgeFormInputName.ReceivingAddress)}
-                        data-testid="receive-address"
+                        label={FROM_LABEL}
+                        name="senderAddress"
+                        value={fromAddress}
+                        key={fromAddress}
+                        readOnly
+                    />
+                ) : (
+                    <WalletConnectInput label={FROM_LABEL} isLayer1={isFromLayer1} />
+                )}
+
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1]">
+                    <Button
+                        type={ButtonType.Primary}
+                        icon={<SwapAccount className="rotate-90 -scale-x-100" />}
+                        onClick={() => {
+                            setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1);
+                        }}
+                        testId="toggle-bridge-direction"
                     />
                 </div>
 
-                <div className="flex flex-col p-md">
-                    {isFromLayer1 && (
-                        <KeyValueInfo
-                            fullwidth
-                            keyText="Est. IOTA Gas Fees"
-                            supportingLabel="IOTA"
-                            value={gasEstimation ?? PLACEHOLDER_VALUE_DISPLAY}
-                        />
-                    )}
+                <DestinationInput
+                    type={InputType.Text}
+                    errorMessage={receivingAddressErrorMessage}
+                    {...register(BridgeFormInputName.ReceivingAddress)}
+                    data-testid="receive-address"
+                />
+            </div>
+
+            <div className="flex flex-col p-md">
+                {isFromLayer1 && (
                     <KeyValueInfo
                         fullwidth
-                        keyText="Est. IOTA EVM Gas fees"
+                        keyText="Est. IOTA Gas Fees"
                         supportingLabel="IOTA"
-                        value={gasEstimationEVM ?? PLACEHOLDER_VALUE_DISPLAY}
+                        value={gasEstimation ?? PLACEHOLDER_VALUE_DISPLAY}
                     />
-                </div>
-
-                <Button
-                    text="Bridge Assets"
-                    htmlType={ButtonHtmlType.Submit}
-                    disabled={
-                        (isFromLayer1 && !isLayer1WalletConnected) ||
-                        (!isFromLayer1 && !isLayer2WalletConnected) ||
-                        !isValid ||
-                        !!Object.values(values).some((value) => value === '') ||
-                        isTransactionLoading ||
-                        isGasEstimationLoading ||
-                        isLoadingBalance
-                    }
-                    icon={
-                        depositAmount && isTransactionLoading ? (
-                            <Loader className="animate-spin" />
-                        ) : undefined
-                    }
-                    iconAfterText
+                )}
+                <KeyValueInfo
+                    fullwidth
+                    keyText="Est. IOTA EVM Gas fees"
+                    supportingLabel="IOTA"
+                    value={gasEstimationEVM ?? PLACEHOLDER_VALUE_DISPLAY}
                 />
-            </form>
-        </>
+            </div>
+
+            <Button
+                text="Bridge Assets"
+                htmlType={ButtonHtmlType.Submit}
+                disabled={
+                    (isFromLayer1 && !isLayer1WalletConnected) ||
+                    (!isFromLayer1 && !isLayer2WalletConnected) ||
+                    !isValid ||
+                    !!Object.values(values).some((value) => value === '') ||
+                    isTransactionLoading ||
+                    isGasEstimationLoading ||
+                    isLoadingBalance
+                }
+                icon={
+                    depositAmount && isTransactionLoading ? (
+                        <Loader className="animate-spin" />
+                    ) : undefined
+                }
+                iconAfterText
+            />
+        </form>
     );
 }
 

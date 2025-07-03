@@ -29,18 +29,17 @@ export function DepositLayer1() {
     const { refetch: refetchL2Balance } = useGetAllBalancesL2(addressL2);
 
     // Get all coins of the type
-    const selectedCoinsQuery = useGetAllCoins(selectedCoinType, addressL1);
-    const { data: selectedCoins = [] } = selectedCoinsQuery;
+    const { data: selectedCoinObjects = [] } = useGetAllCoins(selectedCoinType, addressL1);
 
     const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
 
-    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS);
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
 
     const { data: transactionData, isPending: isBuildingTransaction } =
         useBuildL1DepositTransaction({
             receivingAddress,
-            amount: amount ?? BigInt(0),
-            coins: selectedCoins,
+            amount,
+            coins: selectedCoinObjects,
             coinType: selectedCoinType,
             refetchInterval: 2000,
         });

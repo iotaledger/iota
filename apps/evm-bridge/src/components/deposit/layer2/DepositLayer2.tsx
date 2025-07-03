@@ -31,7 +31,8 @@ export function DepositLayer2() {
     const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
 
     const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
-    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS);
+
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
 
     const { data: hash, writeContractAsync, isSuccess, isError, error } = useWriteContract({});
 
@@ -45,7 +46,7 @@ export function DepositLayer2() {
 
     const { data: gasEstimationEVM, isPending: isGasEstimationLoading } = useGasEstimateL2({
         address: receivingAddress,
-        amount: amount || 0n,
+        amount,
         coinType: selectedCoinType,
     });
 
