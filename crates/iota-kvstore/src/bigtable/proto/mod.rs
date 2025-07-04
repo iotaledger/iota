@@ -5,10 +5,6 @@
 // for generated code we ignore all clippy warnings
 #![allow(clippy::all)]
 mod google {
-    mod protobuf {
-        tonic::include_proto!("google.protobuf");
-    }
-
     mod rpc {
         tonic::include_proto!("google.rpc");
     }

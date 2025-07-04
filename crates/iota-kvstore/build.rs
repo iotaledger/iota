@@ -26,7 +26,6 @@ fn main() -> Result<()> {
     tonic_build::configure()
         // the server is on the google side, we don't need code generation for it.
         .build_server(false)
-        .compile_well_known_types(true)
         .compile_protos(PROTOS, &["src/bigtable/proto"])?;
 
     Ok(())
