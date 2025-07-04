@@ -261,30 +261,23 @@ impl CoinReadApiServer for CoinReadApi {
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
         async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
-            Ok(if GAS::is_gas(&coin_struct) {
-                let system_state_summary = IotaSystemStateSummaryV2::try_from(
-                    self.internal
-                        .get_state()
-                        .get_system_state()?
-                        .into_iota_system_state_summary(),
-                )?;
-                Supply {
-                    value: system_state_summary.iota_total_supply,
-                }
-            } else {
-                let treasury_cap_object = self
-                    .internal
-                    .find_package_object(
-                        &coin_struct.address.into(),
-                        TreasuryCap::type_(coin_struct),
-                    )
-                    .await?;
-                let treasury_cap = TreasuryCap::from_bcs_bytes(
-                    treasury_cap_object.data.try_as_move().unwrap().contents(),
-                )
-                .map_err(Error::from)?;
-                treasury_cap.total_supply
-            })
+
+            if let Some(s) = gas_total_supply(&*self.internal, &coin_struct).await? {
+                return Ok(s);
+            }
+            if let Some(s) = treasury_cap_total_supply(&*self.internal, &coin_struct).await? {
+                return Ok(s);
+            }
+            if let Some(s) = coin_manager_total_supply(&*self.internal, &coin_struct).await? {
+                return Ok(s);
+            }
+
+            Err(IotaRpcInputError::GenericNotFound(format!(
+                "Cannot find object [{}] or [{}] from [{}] package event.",
+                TreasuryCap::type_(coin_struct.clone()),
+                CoinManager::type_(coin_struct.clone()),
+                coin_struct.address
+            )))?
         }
         .trace()
         .await
@@ -380,6 +373,70 @@ async fn find_package_object_id(
         .into())
     })
     .await?
+}
+
+#[instrument(skip(internal), ret)]
+async fn gas_total_supply<I>(internal: &I, tag: &StructTag) -> Result<Option<Supply>, Error>
+where
+    I: CoinReadInternal + Send + Sync + ?Sized,
+{
+    if !GAS::is_gas(tag) {
+        return Ok(None);
+    }
+
+    let summary = IotaSystemStateSummaryV2::try_from(
+        internal
+            .get_state()
+            .get_system_state()
+            .map_err(Error::from)?
+            .into_iota_system_state_summary(),
+    )
+    .map_err(Error::from)?;
+
+    Ok(Some(Supply {
+        value: summary.iota_total_supply,
+    }))
+}
+
+#[instrument(skip(internal), ret)]
+async fn treasury_cap_total_supply<I>(
+    internal: &I,
+    tag: &StructTag,
+) -> Result<Option<Supply>, Error>
+where
+    I: CoinReadInternal + Send + Sync + ?Sized,
+{
+    if let Ok(obj) = internal
+        .find_package_object(&tag.address.into(), TreasuryCap::type_(tag.clone()))
+        .await
+    {
+        let data = obj
+            .data
+            .try_as_move()
+            .ok_or_else(|| Error::Unexpected("Cannot get move contents".into()))?
+            .contents();
+        let tc = TreasuryCap::from_bcs_bytes(data).map_err(Error::from)?;
+        return Ok(Some(tc.total_supply));
+    }
+    Ok(None)
+}
+
+#[instrument(skip(internal), ret)]
+async fn coin_manager_total_supply<I>(
+    internal: &I,
+    tag: &StructTag,
+) -> Result<Option<Supply>, Error>
+where
+    I: CoinReadInternal + Send + Sync + ?Sized,
+{
+    if let Ok(obj) = internal
+        .find_package_object(&tag.address.into(), CoinManager::type_(tag.clone()))
+        .await
+    {
+        let cm = CoinManager::try_from(obj).map_err(Error::from)?;
+        return Ok(Some(cm.treasury_cap.total_supply));
+    }
+    Ok(None)
 }
 
 /// CoinReadInternal trait to capture logic of interactions with AuthorityState
@@ -1452,10 +1509,14 @@ mod tests {
             let mut mock_state = MockStateRead::new();
             mock_state
                 .expect_find_publish_txn_digest()
-                .return_once(move |_| Ok(transaction_digest));
+                .times(2)
+                .returning(move |_| Ok(transaction_digest));
+
+            let effects_clone = transaction_effects.clone();
             mock_state
                 .expect_get_executed_transaction_and_effects()
-                .return_once(move |_, _| Ok((create_fake_transaction(), transaction_effects)));
+                .times(2)
+                .returning(move |_, _| Ok((create_fake_transaction(), effects_clone.clone())));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;
@@ -1465,7 +1526,7 @@ mod tests {
             let expected = expect!["-32602"];
             expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
-                "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."
+                "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] or [0x2::coin_manager::CoinManager<0xf::test_coin::TEST_COIN>] from [000000000000000000000000000000000000000000000000000000000000000f] package event."
             ];
             expected.assert_eq(error_result.message());
         }
