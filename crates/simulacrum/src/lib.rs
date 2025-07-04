@@ -46,7 +46,9 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{ObjectStoreFallible, ReadStore, RestStateReader},
+    storage::{
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, RestStateReader,
+    },
     transaction::{
         EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
         VerifiedTransaction,
@@ -432,6 +434,8 @@ impl ValidatorKeypairProvider for CommitteeWithKeys<'_> {
     }
 }
 
+impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {}
+
 impl<T, V: store::SimulatorStore> ObjectStoreFallible for Simulacrum<T, V> {
     fn try_get_object(
         &self,
@@ -446,6 +450,16 @@ impl<T, V: store::SimulatorStore> ObjectStoreFallible for Simulacrum<T, V> {
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.store.try_get_object_by_key(object_id, version)
+    }
+}
+
+impl<T, V: store::SimulatorStore> ObjectStoreNonFallible for Simulacrum<T, V> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        store::SimulatorStore::get_object(&self.store, object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.store.get_object_by_key(object_id, version)
     }
 }
 

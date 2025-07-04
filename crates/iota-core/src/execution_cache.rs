@@ -17,7 +17,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
-        ObjectOrTombstone, ObjectStoreFallible, PackageObject,
+        ObjectOrTombstone, ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, PackageObject,
         error::{Error as StorageError, Result as StorageResult},
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -60,7 +60,7 @@ pub struct ExecutionCacheTraitPointers {
     pub cache_writer: Arc<dyn ExecutionCacheWrite>,
     pub backing_store: Arc<dyn BackingStore + Send + Sync>,
     pub backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-    pub object_store: Arc<dyn ObjectStoreFallible + Send + Sync>,
+    pub object_store: Arc<dyn ObjectStore + Send + Sync>,
     pub reconfig_api: Arc<dyn ExecutionCacheReconfigAPI>,
     pub accumulator_store: Arc<dyn AccumulatorStore>,
     pub checkpoint_cache: Arc<dyn CheckpointCache>,
@@ -77,7 +77,7 @@ impl ExecutionCacheTraitPointers {
             + ExecutionCacheWrite
             + BackingStore
             + BackingPackageStore
-            + ObjectStoreFallible
+            + ObjectStore
             + ExecutionCacheReconfigAPI
             + AccumulatorStore
             + CheckpointCache
@@ -744,7 +744,9 @@ pub trait TestingAPI: Send + Sync {
 
 macro_rules! implement_storage_traits {
     ($implementor: ident) => {
-        impl ObjectStore for $implementor {
+        impl ObjectStore for $implementor {}
+
+        impl ObjectStoreFallible for $implementor {
             fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
                 ObjectCacheRead::get_object(self, object_id).map_err(StorageError::custom)
             }
@@ -756,6 +758,21 @@ macro_rules! implement_storage_traits {
             ) -> StorageResult<Option<Object>> {
                 ObjectCacheRead::get_object_by_key(self, object_id, version)
                     .map_err(StorageError::custom)
+            }
+        }
+
+        impl ObjectStoreNonFallible for $implementor {
+            fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+                ObjectCacheRead::get_object(self, object_id).expect("read cannot fail")
+            }
+
+            fn get_object_by_key(
+                &self,
+                object_id: &ObjectID,
+                version: iota_types::base_types::VersionNumber,
+            ) -> Option<Object> {
+                ObjectCacheRead::get_object_by_key(self, object_id, version)
+                    .expect("read cannot fail")
             }
         }
 

@@ -20,8 +20,9 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, ReadStore,
-        RestStateReader, load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
+        ObjectStoreNonFallible, PackageObject, ReadStore, RestStateReader,
+        load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -500,6 +501,8 @@ impl ModuleResolver for PersistedStore {
     }
 }
 
+impl ObjectStore for PersistedStore {}
+
 impl ObjectStoreFallible for PersistedStore {
     fn try_get_object(
         &self,
@@ -517,6 +520,21 @@ impl ObjectStoreFallible for PersistedStore {
     }
 }
 
+impl ObjectStoreNonFallible for PersistedStore {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        SimulatorStore::get_object(self, object_id)
+    }
+
+    fn get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> Option<Object> {
+        self.get_object_at_version(object_id, version)
+    }
+}
+
+impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {}
 impl ObjectStoreFallible for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
@@ -546,6 +564,28 @@ impl ObjectStoreFallible for PersistedStoreInnerReadOnlyWrapper {
             .get(object_id)
             .expect("Fatal: DB read failed")
             .and_then(|x| x.get(&version).cloned()))
+    }
+}
+
+impl ObjectStoreNonFallible for PersistedStoreInnerReadOnlyWrapper {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.sync();
+
+        self.inner
+            .live_objects
+            .get(object_id)
+            .expect("Fatal: DB read failed")
+            .and_then(|version| self.get_object_by_key(object_id, version))
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.sync();
+
+        self.inner
+            .objects
+            .get(object_id)
+            .expect("Fatal: DB read failed")
+            .and_then(|x| x.get(&version).cloned())
     }
 }
 

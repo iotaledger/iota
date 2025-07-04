@@ -17,7 +17,7 @@ use iota_types::{
     },
     messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
     randomness_state::get_randomness_state_obj_initial_shared_version,
-    storage::ObjectStoreFallible,
+    storage::ObjectStore,
 };
 use serde::{Deserialize, Serialize};
 
@@ -101,7 +101,7 @@ impl EpochStartConfiguration {
     pub fn new(
         system_state: EpochStartSystemState,
         epoch_digest: CheckpointDigest,
-        object_store: &dyn ObjectStoreFallible,
+        object_store: &dyn ObjectStore,
         initial_epoch_flags: Vec<EpochFlag>,
     ) -> IotaResult<Self> {
         let authenticator_obj_initial_shared_version =

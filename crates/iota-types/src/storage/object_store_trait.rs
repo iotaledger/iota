@@ -11,23 +11,15 @@ use crate::{
     storage::WriteKind,
 };
 
+pub trait ObjectStore: ObjectStoreFallible + ObjectStoreNonFallible {}
+impl<T: ObjectStore + ?Sized> ObjectStore for &T {}
+impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {}
+impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {}
+impl ObjectStore for &[Object] {}
+impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {}
+impl ObjectStore for BTreeMap<ObjectID, Object> {}
+
 pub trait ObjectStoreFallible {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        self.try_get_object(object_id).unwrap()
-    }
-
-    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
-        self.try_get_object_by_key(object_id, version).unwrap()
-    }
-
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
-        self.try_multi_get_objects(object_ids).unwrap()
-    }
-
-    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
-        self.try_multi_get_objects_by_key(object_keys).unwrap()
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
 
     fn try_get_object_by_key(
@@ -55,29 +47,6 @@ pub trait ObjectStoreFallible {
 }
 
 impl<T: ObjectStoreFallible + ?Sized> ObjectStoreFallible for &T {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        (*self).get_object(object_id)
-    }
-
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Option<Object> {
-        (*self).get_object_by_key(object_id, version)
-    }
-
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
-        (*self).multi_get_objects(object_ids)
-    }
-
-    fn multi_get_objects_by_key(
-        &self,
-        object_keys: &[ObjectKey],
-    ) -> Vec<Option<Object>> {
-        (*self).multi_get_objects_by_key(object_keys)
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         (*self).try_get_object(object_id)
     }
@@ -103,29 +72,6 @@ impl<T: ObjectStoreFallible + ?Sized> ObjectStoreFallible for &T {
 }
 
 impl<T: ObjectStoreFallible + ?Sized> ObjectStoreFallible for Box<T> {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        (**self).get_object(object_id)
-    }
-
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Option<Object> {
-        (**self).get_object_by_key(object_id, version)
-    }
-
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
-        (**self).multi_get_objects(object_ids)
-    }
-
-    fn multi_get_objects_by_key(
-        &self,
-        object_keys: &[ObjectKey],
-    ) -> Vec<Option<Object>> {
-        (**self).multi_get_objects_by_key(object_keys)
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         (**self).try_get_object(object_id)
     }
@@ -151,27 +97,15 @@ impl<T: ObjectStoreFallible + ?Sized> ObjectStoreFallible for Box<T> {
 }
 
 impl<T: ObjectStoreFallible + ?Sized> ObjectStoreFallible for Arc<T> {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        (**self).get_object(object_id)
-    }
-
-    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
-        (**self).get_object_by_key(object_id, version)
-    }
-
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
-        (**self).multi_get_objects(object_ids)
-    }
-
-    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
-        (**self).multi_get_objects_by_key(object_keys)
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         (**self).try_get_object(object_id)
     }
 
-    fn try_get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Result<Option<Object>> {
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: VersionNumber,
+    ) -> Result<Option<Object>> {
         (**self).try_get_object_by_key(object_id, version)
     }
 
@@ -179,27 +113,15 @@ impl<T: ObjectStoreFallible + ?Sized> ObjectStoreFallible for Arc<T> {
         (**self).try_multi_get_objects(object_ids)
     }
 
-    fn try_multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>> {
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> Result<Vec<Option<Object>>> {
         (**self).try_multi_get_objects_by_key(object_keys)
     }
 }
 
 impl ObjectStoreFallible for &[Object] {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        self.iter().find(|o| o.id() == *object_id).cloned()
-    }
-
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Option<Object> {
-        self
-            .iter()
-            .find(|o| o.id() == *object_id && o.version() == version)
-            .cloned()
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.iter().find(|o| o.id() == *object_id).cloned())
     }
@@ -217,27 +139,6 @@ impl ObjectStoreFallible for &[Object] {
 }
 
 impl ObjectStoreFallible for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        self.get(object_id).map(|(_, obj, _)| obj).cloned()
-    }
-
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Option<Object> {
-        self
-            .get(object_id)
-            .and_then(|(_, obj, _)| {
-                if obj.version() == version {
-                    Some(obj)
-                } else {
-                    None
-                }
-            })
-            .cloned()
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.get(object_id).map(|(_, obj, _)| obj).cloned())
     }
@@ -261,24 +162,6 @@ impl ObjectStoreFallible for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> 
 }
 
 impl ObjectStoreFallible for BTreeMap<ObjectID, Object> {
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        self.get(object_id).cloned()
-    }
-
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Option<Object> {
-        self.get(object_id).and_then(|o| {
-            if o.version() == version {
-                Some(o.clone())
-            } else {
-                None
-            }
-        })
-    }
-
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.get(object_id).cloned())
     }
@@ -295,5 +178,128 @@ impl ObjectStoreFallible for BTreeMap<ObjectID, Object> {
                 None
             }
         }))
+    }
+}
+
+///////////////////////
+///
+
+pub trait ObjectStoreNonFallible {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object>;
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object>;
+
+    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
+        object_ids
+            .iter()
+            .map(|digest| self.get_object(digest))
+            .collect()
+    }
+
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        object_keys
+            .iter()
+            .map(|k| self.get_object_by_key(&k.0, k.1))
+            .collect()
+    }
+}
+
+impl<T: ObjectStoreNonFallible + ?Sized> ObjectStoreNonFallible for &T {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        (*self).get_object(object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        (*self).get_object_by_key(object_id, version)
+    }
+
+    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
+        (*self).multi_get_objects(object_ids)
+    }
+
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        (*self).multi_get_objects_by_key(object_keys)
+    }
+}
+
+impl<T: ObjectStoreNonFallible + ?Sized> ObjectStoreNonFallible for Box<T> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        (**self).get_object(object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        (**self).get_object_by_key(object_id, version)
+    }
+
+    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
+        (**self).multi_get_objects(object_ids)
+    }
+
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        (**self).multi_get_objects_by_key(object_keys)
+    }
+}
+
+impl<T: ObjectStoreNonFallible + ?Sized> ObjectStoreNonFallible for Arc<T> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        (**self).get_object(object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        (**self).get_object_by_key(object_id, version)
+    }
+
+    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
+        (**self).multi_get_objects(object_ids)
+    }
+
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        (**self).multi_get_objects_by_key(object_keys)
+    }
+}
+
+impl ObjectStoreNonFallible for &[Object] {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.iter().find(|o| o.id() == *object_id).cloned()
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.iter()
+            .find(|o| o.id() == *object_id && o.version() == version)
+            .cloned()
+    }
+}
+
+impl ObjectStoreNonFallible for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.get(object_id).map(|(_, obj, _)| obj).cloned()
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.get(object_id)
+            .and_then(|(_, obj, _)| {
+                if obj.version() == version {
+                    Some(obj)
+                } else {
+                    None
+                }
+            })
+            .cloned()
+    }
+}
+
+impl ObjectStoreNonFallible for BTreeMap<ObjectID, Object> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.get(object_id).cloned()
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.get(object_id).and_then(|o| {
+            if o.version() == version {
+                Some(o.clone())
+            } else {
+                None
+            }
+        })
     }
 }

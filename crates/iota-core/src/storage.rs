@@ -17,7 +17,8 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStoreFallible, ReadStore, RestStateReader, WriteStore,
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, RestStateReader,
+        WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -266,6 +267,8 @@ impl ReadStore for RocksDbStore {
     }
 }
 
+impl ObjectStore for RocksDbStore {}
+
 impl ObjectStoreFallible for RocksDbStore {
     fn try_get_object(
         &self,
@@ -282,6 +285,22 @@ impl ObjectStoreFallible for RocksDbStore {
         self.cache_traits
             .object_store
             .try_get_object_by_key(object_id, version)
+    }
+}
+
+impl ObjectStoreNonFallible for RocksDbStore {
+    fn get_object(&self, object_id: &iota_types::base_types::ObjectID) -> Option<Object> {
+        self.cache_traits.object_store.get_object(object_id)
+    }
+
+    fn get_object_by_key(
+        &self,
+        object_id: &iota_types::base_types::ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> Option<Object> {
+        self.cache_traits
+            .object_store
+            .get_object_by_key(object_id, version)
     }
 }
 
@@ -378,6 +397,8 @@ impl RestReadStore {
     }
 }
 
+impl ObjectStore for RestReadStore {}
+
 impl ObjectStoreFallible for RestReadStore {
     fn try_get_object(
         &self,
@@ -392,6 +413,20 @@ impl ObjectStoreFallible for RestReadStore {
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object_by_key(object_id, version)
+    }
+}
+
+impl ObjectStoreNonFallible for RestReadStore {
+    fn get_object(&self, object_id: &iota_types::base_types::ObjectID) -> Option<Object> {
+        self.rocks.get_object(object_id)
+    }
+
+    fn get_object_by_key(
+        &self,
+        object_id: &iota_types::base_types::ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> Option<Object> {
+        self.rocks.get_object_by_key(object_id, version)
     }
 }
 

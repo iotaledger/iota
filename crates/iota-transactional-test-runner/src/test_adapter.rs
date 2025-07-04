@@ -56,7 +56,9 @@ use iota_types::{
     move_package::MovePackage,
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::{ObjectStoreFallible, ReadStore, RestStateReader},
+    storage::{
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, RestStateReader,
+    },
     transaction::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
@@ -2401,6 +2403,8 @@ async fn update_named_address_mapping(
     }
 }
 
+impl ObjectStore for IotaTestAdapter {}
+
 impl ObjectStoreFallible for IotaTestAdapter {
     fn try_get_object(
         &self,
@@ -2415,6 +2419,16 @@ impl ObjectStoreFallible for IotaTestAdapter {
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         ObjectStoreFallible::try_get_object_by_key(&*self.executor, object_id, version)
+    }
+}
+
+impl ObjectStoreNonFallible for IotaTestAdapter {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        ObjectStoreNonFallible::get_object(&*self.executor, object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        ObjectStoreNonFallible::get_object_by_key(&*self.executor, object_id, version)
     }
 }
 

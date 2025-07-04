@@ -24,7 +24,8 @@ use iota_types::{
     },
     message_envelope::Message,
     storage::{
-        BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible, get_module,
+        BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible,
+        get_module,
     },
 };
 use itertools::izip;
@@ -1865,7 +1866,8 @@ impl ObjectStoreFallible for AuthorityStore {
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        self.perpetual_tables.try_get_object_by_key(object_id, version)
+        self.perpetual_tables
+            .try_get_object_by_key(object_id, version)
     }
 }
 

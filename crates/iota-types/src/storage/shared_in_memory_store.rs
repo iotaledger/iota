@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use tap::Pipe;
 use tracing::error;
 
-use super::{ObjectStoreFallible, error::Result};
+use super::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, error::Result};
 use crate::{
     base_types::{EpochId, TransactionDigest},
     committee::Committee,
@@ -23,6 +23,8 @@ use crate::{
 
 #[derive(Clone, Debug, Default)]
 pub struct SharedInMemoryStore(Arc<std::sync::RwLock<InMemoryStore>>);
+
+impl ObjectStore for SharedInMemoryStore {}
 
 impl SharedInMemoryStore {
     pub fn inner(&self) -> std::sync::RwLockReadGuard<'_, InMemoryStore> {
@@ -176,6 +178,23 @@ impl ObjectStoreFallible for SharedInMemoryStore {
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,
     ) -> Result<Option<crate::object::Object>> {
+        todo!()
+    }
+}
+
+impl ObjectStoreNonFallible for SharedInMemoryStore {
+    fn get_object(
+        &self,
+        _object_id: &crate::base_types::ObjectID,
+    ) -> Option<crate::object::Object> {
+        todo!()
+    }
+
+    fn get_object_by_key(
+        &self,
+        _object_id: &crate::base_types::ObjectID,
+        _version: crate::base_types::VersionNumber,
+    ) -> Option<crate::object::Object> {
         todo!()
     }
 }
@@ -462,6 +481,8 @@ impl InMemoryStore {
 #[derive(Clone, Debug, Default)]
 pub struct SingleCheckpointSharedInMemoryStore(SharedInMemoryStore);
 
+impl ObjectStore for SingleCheckpointSharedInMemoryStore {}
+
 impl SingleCheckpointSharedInMemoryStore {
     pub fn insert_genesis_state(
         &mut self,
@@ -487,6 +508,23 @@ impl ObjectStoreFallible for SingleCheckpointSharedInMemoryStore {
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,
     ) -> Result<Option<crate::object::Object>> {
+        todo!()
+    }
+}
+
+impl ObjectStoreNonFallible for SingleCheckpointSharedInMemoryStore {
+    fn get_object(
+        &self,
+        _object_id: &crate::base_types::ObjectID,
+    ) -> Option<crate::object::Object> {
+        todo!()
+    }
+
+    fn get_object_by_key(
+        &self,
+        _object_id: &crate::base_types::ObjectID,
+        _version: crate::base_types::VersionNumber,
+    ) -> Option<crate::object::Object> {
         todo!()
     }
 }

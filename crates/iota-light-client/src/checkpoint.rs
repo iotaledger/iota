@@ -20,7 +20,7 @@ use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
-    storage::{ObjectStoreFallible, ReadStore, WriteStore},
+    storage::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, WriteStore},
 };
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -493,6 +493,8 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
+impl ObjectStore for CheckpointSummaryFileStore<'_> {}
+
 impl ObjectStoreFallible for CheckpointSummaryFileStore<'_> {
     fn try_get_object(
         &self,
@@ -506,6 +508,23 @@ impl ObjectStoreFallible for CheckpointSummaryFileStore<'_> {
         _: &iota_types::base_types::ObjectID,
         _: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
+        unimplemented!()
+    }
+}
+
+impl ObjectStoreNonFallible for CheckpointSummaryFileStore<'_> {
+    fn get_object(
+        &self,
+        _: &iota_types::base_types::ObjectID,
+    ) -> Option<iota_types::object::Object> {
+        unimplemented!()
+    }
+
+    fn get_object_by_key(
+        &self,
+        _: &iota_types::base_types::ObjectID,
+        _: iota_types::base_types::VersionNumber,
+    ) -> Option<iota_types::object::Object> {
         unimplemented!()
     }
 }

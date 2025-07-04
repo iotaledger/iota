@@ -5,8 +5,11 @@
 use std::path::Path;
 
 use iota_types::{
-    accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
-    effects::TransactionEffects, storage::MarkerValue,
+    accumulator::Accumulator,
+    base_types::SequenceNumber,
+    digests::TransactionEventsDigest,
+    effects::TransactionEffects,
+    storage::{MarkerValue, ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible},
 };
 use serde::{Deserialize, Serialize};
 use typed_store::{
@@ -515,6 +518,8 @@ impl AuthorityPerpetualTables {
     }
 }
 
+impl ObjectStore for AuthorityPerpetualTables {}
+
 impl ObjectStoreFallible for AuthorityPerpetualTables {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
@@ -549,6 +554,35 @@ impl ObjectStoreFallible for AuthorityPerpetualTables {
             .transpose()
             .map_err(iota_types::storage::error::Error::custom)?
             .flatten())
+    }
+}
+
+impl ObjectStoreNonFallible for AuthorityPerpetualTables {
+    /// Read an object and return it, or Ok(None) if the object was not found.
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        let obj_entry = self
+            .objects
+            .unbounded_iter()
+            .skip_prior_to(&ObjectKey::max_for_id(object_id))
+            .expect("Failed to get object iterator")
+            .next();
+
+        match obj_entry {
+            Some((ObjectKey(obj_id, version), obj)) if obj_id == *object_id => self
+                .object(&ObjectKey(obj_id, version), obj)
+                .expect("Failed to construct object"),
+            _ => None,
+        }
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.objects
+            .get(&ObjectKey(*object_id, version))
+            .expect("Failed to get object by key")
+            .map(|object| self.object(&ObjectKey(*object_id, version), object))
+            .transpose()
+            .expect("Failed to construct object")
+            .flatten()
     }
 }
 

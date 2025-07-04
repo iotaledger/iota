@@ -16,8 +16,9 @@ use crate::{
     inner_temporary_store::WrittenObjects,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, get_module,
-        get_module_by_id, load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
+        ObjectStoreNonFallible, PackageObject, get_module, get_module_by_id,
+        load_package_object_from_object_store,
     },
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
@@ -103,8 +104,14 @@ impl ModuleResolver for &mut InMemoryStorage {
     }
 }
 
+impl ObjectStore for InMemoryStorage {}
+impl ObjectStore for &mut InMemoryStorage {}
+
 impl ObjectStoreFallible for InMemoryStorage {
-    fn try_get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectID,
+    ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
 
@@ -128,7 +135,10 @@ impl ObjectStoreFallible for InMemoryStorage {
 }
 
 impl ObjectStoreFallible for &mut InMemoryStorage {
-    fn try_get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectID,
+    ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
 
@@ -148,6 +158,44 @@ impl ObjectStoreFallible for &mut InMemoryStorage {
                 }
             })
             .cloned())
+    }
+}
+
+impl ObjectStoreNonFallible for InMemoryStorage {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.persistent.get(object_id).cloned()
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.persistent
+            .get(object_id)
+            .and_then(|obj| {
+                if obj.version() == version {
+                    Some(obj)
+                } else {
+                    None
+                }
+            })
+            .cloned()
+    }
+}
+
+impl ObjectStoreNonFallible for &mut InMemoryStorage {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.persistent.get(object_id).cloned()
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.persistent
+            .get(object_id)
+            .and_then(|obj| {
+                if obj.version() == version {
+                    Some(obj)
+                } else {
+                    None
+                }
+            })
+            .cloned()
     }
 }
 

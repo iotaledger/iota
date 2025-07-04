@@ -102,7 +102,7 @@ use iota_types::{
         bounded_visitor::BoundedVisitor,
     },
     storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStoreFallible, WriteKind,
+        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
     supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
     transaction::*,
@@ -2910,7 +2910,7 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.backing_package_store
     }
 
-    pub fn get_object_store(&self) -> &Arc<dyn ObjectStoreFallible + Send + Sync> {
+    pub fn get_object_store(&self) -> &Arc<dyn ObjectStore + Send + Sync> {
         &self.execution_cache_trait_pointers.object_store
     }
 
@@ -5346,7 +5346,7 @@ impl NodeStateDump {
         tx_digest: &TransactionDigest,
         effects: &TransactionEffects,
         expected_effects_digest: TransactionEffectsDigest,
-        object_store: &dyn ObjectStoreFallible,
+        object_store: &dyn ObjectStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         inner_temporary_store: &InnerTemporaryStore,
         certificate: &VerifiedExecutableTransaction,

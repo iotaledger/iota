@@ -7,7 +7,7 @@ use std::sync::Arc;
 use move_core_types::language_storage::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use super::{ObjectStoreFallible, error::Result};
+use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::Committee,
@@ -24,7 +24,7 @@ use crate::{
     transaction::VerifiedTransaction,
 };
 
-pub trait ReadStore: ObjectStoreFallible {
+pub trait ReadStore: ObjectStore {
     // Committee Getters
     //
 
@@ -651,7 +651,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 ///
 /// It extends both ObjectStore and ReadStore by adding functionality that may
 /// require more detailed underlying databases or indexes to support.
-pub trait RestStateReader: ObjectStoreFallible + ReadStore + Send + Sync {
+pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,

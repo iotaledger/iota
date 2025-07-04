@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, get_module,
-        load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
+        ObjectStoreNonFallible, PackageObject, get_module, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -309,6 +309,8 @@ impl ModuleResolver for InMemoryStore {
     }
 }
 
+impl ObjectStore for InMemoryStore {}
+
 impl ObjectStoreFallible for InMemoryStore {
     fn try_get_object(
         &self,
@@ -323,6 +325,20 @@ impl ObjectStoreFallible for InMemoryStore {
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version).cloned())
+    }
+}
+
+impl ObjectStoreNonFallible for InMemoryStore {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.get_object(object_id).cloned()
+    }
+
+    fn get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> Option<Object> {
+        self.get_object_at_version(object_id, version).cloned()
     }
 }
 

@@ -566,7 +566,13 @@ fn select_gas(
         .account_owned_objects_info_iter(owner, None)?
         .filter(|info| info.type_.is_gas_coin())
         .filter(|info| !input_objects.contains(&info.object_id))
-        .filter_map(|info| reader.inner().try_get_object(&info.object_id).ok().flatten())
+        .filter_map(|info| {
+            reader
+                .inner()
+                .try_get_object(&info.object_id)
+                .ok()
+                .flatten()
+        })
         .filter_map(|object| {
             GasCoin::try_from(&object)
                 .ok()

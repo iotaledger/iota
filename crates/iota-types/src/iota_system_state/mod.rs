@@ -250,7 +250,9 @@ pub fn get_iota_system_state_wrapper(
     Ok(result)
 }
 
-pub fn get_iota_system_state(object_store: &dyn ObjectStoreFallible) -> Result<IotaSystemState, IotaError> {
+pub fn get_iota_system_state(
+    object_store: &dyn ObjectStoreFallible,
+) -> Result<IotaSystemState, IotaError> {
     let wrapper = get_iota_system_state_wrapper(object_store)?;
     let id = wrapper.id.id.bytes;
     match wrapper.version {
