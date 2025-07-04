@@ -1077,12 +1077,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         }
 
         // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
-        // aware of the missing blocks
+        // aware of some missing blocks
 
         #[cfg(not(test))]
         let mut rng = StdRng::from_entropy();
 
-        // Randomly pick up to 2 authorities from those aware of missing blocks
+        // Randomly pick up MAX_PEERS - MAX_RANDOM_PEERS authorities that are aware of
+        // missing blocks
         #[cfg(not(test))]
         let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
             authority_to_blocks
@@ -1106,7 +1107,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     (peer, limited_blocks, "periodic_known")
                 })
                 .collect();
-            // Sort by AuthorityIndex (natural order), then take the first N
+            // Sort by AuthorityIndex (natural order), then take the first MAX_PEERS -
+            // MAX_RANDOM_PEERS
             items.sort_by_key(|(peer, _, _)| *peer);
             items
                 .into_iter()
@@ -1181,7 +1183,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .set(missing as i64);
         }
 
-        // Look at peers that were not chosen yet, and try to fetch blocks from them if
+        // Look at peers that were not chosen yet and try to fetch blocks from them if
         // needed later
         #[cfg_attr(test, expect(unused_mut))]
         let mut remaining_peers: Vec<_> = context
@@ -1209,8 +1211,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             let peer_hostname = &context.committee.authority(peer).hostname;
             let block_refs = blocks_to_request.iter().cloned().collect::<BTreeSet<_>>();
 
-            // lock the blocks to be fetched. If no lock can be acquired for any of the
-            // blocks then don't bother
+            // Lock the blocks to be fetched. If no lock can be acquired for any of the
+            // blocks then don't bother.
             if let Some(blocks_guard) = inflight_blocks.lock_blocks(block_refs.clone(), peer) {
                 info!(
                     "Periodic sync of {} missing blocks from peer {} {}: {}",
@@ -1910,7 +1912,7 @@ mod tests {
             commit_vote_monitor.observe_block(&block);
         }
 
-        // WHEN start the synchronizer and wait for a couple of seconds where normally
+        // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
         let _handle = Synchronizer::start(
             network_client.clone(),
@@ -2189,7 +2191,7 @@ mod tests {
                     .await;
             }
 
-            // 4) Invoke knowledge-based hot-fetch and random fallback selection
+            // 4) Invoke knowledge-based fetch and random fallback selection
             //    deterministically
             let results = Synchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
         ::fetch_blocks_from_authorities(
@@ -2205,12 +2207,12 @@ mod tests {
             //    of the missing block (authority 2 and 3)
             assert_eq!(results.len(), 2);
 
-            // 6) The hot‐fetch went to peer 2 and 3
+            // 6) The  knowledge-based‐fetch went to peer 2 and 3
             let (_hot_guard, hot_bytes, hot_peer) = &results[0];
             assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
             let (_periodic_guard, _periodic_bytes, periodic_peer) = &results[1];
             assert_eq!(*periodic_peer, AuthorityIndex::new_for_test(3));
-            // 6) Verify the returned bytes correspond to that block
+            // 7) Verify the returned bytes correspond to that block
             let expected = missing_vb.serialized().clone();
             assert_eq!(hot_bytes, &vec![expected]);
         }

@@ -61,12 +61,12 @@ pub(crate) struct BlockManager {
     /// already fetched but it self is still missing some of its ancestors to be
     /// processed.
     missing_ancestors: BTreeMap<BlockRef, BTreeSet<BlockRef>>,
-    /// Keeps all the blocks that we actually miss and haven't fetched them yet.
-    /// That set will basically contain all the keys from the
-    /// `missing_ancestors` minus any keys that exist in `suspended_blocks`.
-    /// In addition, it will contain authorities that have locally these blocks.
-    /// The latter is only approximated based on the creators of the block and
-    /// its direct children
+    /// A map of currently missing blocks to the set of authorities expected
+    /// to have them available locally. This set is approximated based on the
+    /// block's author and the authors of its direct children.
+    /// A block is considered missing if it appears in `missing_ancestors`
+    /// and has not yet been accepted or fetched. Blocks already stored or
+    /// present in `suspended_blocks` are excluded.
     missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
@@ -1151,7 +1151,8 @@ mod tests {
         }
     }
 
-    /// Tests that authorities that know about missing blocks are correctly
+    /// Tests that `missing_blocks()` correctly infers the authorities
+    /// referencing each missing block based on accepted blocks in the DAG.
     #[tokio::test]
     async fn authorities_that_know_missing_blocks() {
         let (context, _key_pairs) = Context::new_for_test(4);
