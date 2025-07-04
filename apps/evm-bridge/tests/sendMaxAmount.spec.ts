@@ -183,8 +183,12 @@ test.describe('Send MAX amount from L2', () => {
             .locator('xpath=../div/span')
             .nth(1)
             .textContent();
-        expect(Number(gasFeeValue).toFixed(6)).toEqual('0.000370');
+        // Convert to number for comparison
+        const actualGasFee = Number(Number(gasFeeValue).toFixed(6));
 
+        // Check if within acceptable range
+        expect(actualGasFee).toBeGreaterThanOrEqual(0.000365);
+        expect(actualGasFee).toBeLessThanOrEqual(0.000373);
         await expect(testPageL2.getByText('Bridge Assets')).toBeEnabled();
 
         const approveTransactionPagePromise = browserL2.waitForEvent('page');

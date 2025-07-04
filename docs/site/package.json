@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@artsy/to-title-case": "^1.1.0",
+    "@boxfish-studio/react-cookie-manager": "^1.0.2",
     "@docusaurus/core": "3.7.0",
     "@docusaurus/plugin-client-redirects": "3.7.0",
     "@docusaurus/preset-classic": "3.7.0",

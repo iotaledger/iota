@@ -1175,6 +1175,14 @@ impl AuthorityState {
             .get_transaction_cache_reader()
             .get_executed_effects(tx_digest)?
         {
+            if let Some(expected_effects_digest) = expected_effects_digest {
+                assert_eq!(
+                    effects.digest(),
+                    expected_effects_digest,
+                    "Unexpected effects digest for transaction {:?}",
+                    tx_digest
+                );
+            }
             tx_guard.release();
             return Ok((effects, None));
         }
@@ -2962,6 +2970,16 @@ impl AuthorityState {
 
     pub fn transaction_manager(&self) -> &Arc<TransactionManager> {
         &self.transaction_manager
+    }
+
+    /// Adds transactions / certificates to transaction manager for ordered
+    /// execution.
+    pub fn enqueue_transactions_for_execution(
+        &self,
+        txns: Vec<VerifiedExecutableTransaction>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        self.transaction_manager.enqueue(txns, epoch_store)
     }
 
     /// Adds certificates to transaction manager for ordered execution.

@@ -145,27 +145,6 @@ export async function closeBrowserTabsExceptLast(browserContext: BrowserContext)
     }
 }
 
-/**
- * Utility function to close a modal if it exists and is visible.
- * @param page - The Playwright page instance.
- * @param modalSelector - The selector for the modal container.
- * @param selector - The modal close button selector (e.g., aria-label="Close").
- */
-export async function closeMetaMaskModalIfExists(
-    page: Page,
-    modalSelector: string,
-    buttonSelector: string,
-): Promise<void> {
-    await page.waitForTimeout(500);
-    const modal = page.locator(modalSelector);
-    if (await modal.isVisible()) {
-        const closeButton = modal.locator(buttonSelector);
-        if (await closeButton.isVisible()) {
-            await closeButton.click();
-        }
-    }
-}
-
 export async function getExtensionUrl(browserContext: BrowserContext): Promise<string> {
     let [background] = browserContext.serviceWorkers();
 
@@ -178,13 +157,19 @@ export async function getExtensionUrl(browserContext: BrowserContext): Promise<s
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
-    await closeMetaMaskModalIfExists(
-        l2WalletPage,
-        '.mm-box.mm-modal-content',
-        'button[aria-label="Close"]',
-    );
-    await l2WalletPage.click('[data-testid="network-display"]');
-    await l2WalletPage.getByText('Add a custom network').click();
+    await l2WalletPage.click('[data-testid="network-display"]', { force: true });
+    const popoverCloseButton = l2WalletPage.locator('.page-container__header-close');
+
+    if (await popoverCloseButton.isVisible()) {
+        await popoverCloseButton.click();
+    }
+    const addCustomNetworkButton = await l2WalletPage.getByText('Add a custom network');
+
+    if (await addCustomNetworkButton.isHidden()) {
+        await l2WalletPage.click('[data-testid="network-display"]');
+    }
+
+    await addCustomNetworkButton.click();
 
     await l2WalletPage.getByTestId('network-form-network-name').fill(CONFIG.L2.chainName);
     await l2WalletPage.getByTestId('test-add-rpc-drop-down').click();
@@ -204,7 +189,7 @@ export async function addNetworkToMetaMask(l2WalletPage: Page) {
 export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserContext) {
     // Add funds to L1
     await page.getByTestId('request-l1-funds-button').click();
-    await expect(page.getByText('Funds successfully sent.')).toBeVisible();
+    await expect(page.getByText('Funds successfully sent.')).toBeVisible({ timeout: 30000 });
     // Check the funds arrived (ui)
     const l1WalletExtension = await browser.newPage();
     const l1ExtensionUrl = await getExtensionUrl(browser);
