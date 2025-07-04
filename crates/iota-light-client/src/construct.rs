@@ -29,8 +29,6 @@ pub fn construct_proof(targets: ProofTargets, checkpoint: &CheckpointData) -> Re
     if let Some(committee_target) = &result.targets.committee {
         // Check we have the correct epoch
         if result.checkpoint_summary.epoch() + 1 != committee_target.epoch {
-            println!("proof summary epoch: {}", result.checkpoint_summary.epoch());
-            println!("proof committee target epoch: {}", committee_target.epoch);
             bail!("Epoch mismatch between checkpoint and committee");
         }
 
