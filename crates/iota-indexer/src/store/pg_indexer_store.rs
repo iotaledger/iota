@@ -890,8 +890,7 @@ impl PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all event indices in a chunk: {:?}",
-                    e
+                    "Failed to persist all event indices in a chunk: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -1161,8 +1160,7 @@ impl PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx indices in a chunk: {:?}",
-                    e
+                    "Failed to persist all tx indices in a chunk: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -1606,8 +1604,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object mutation chunks: {:?}",
-                    e
+                    "Failed to persist all object mutation chunks: {e:?}"
                 ))
             })?;
         let deletion_futures = object_deletion_chunks
@@ -1626,8 +1623,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object deletion chunks: {:?}",
-                    e
+                    "Failed to persist all object deletion chunks: {e:?}"
                 ))
             })?;
 
@@ -1679,8 +1675,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects snapshot chunks: {:?}",
-                    e
+                    "Failed to persist all objects snapshot chunks: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -1728,8 +1723,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects history chunks: {:?}",
-                    e
+                    "Failed to persist all objects history chunks: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -1762,8 +1756,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object version chunks: {:?}",
-                    e
+                    "Failed to persist all object version chunks: {e:?}"
                 ))
             })?;
         info!("Persisted {} objects history", object_versions_count);
@@ -1803,8 +1796,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all transactions chunks: {:?}",
-                    e
+                    "Failed to persist all transactions chunks: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -1833,10 +1825,7 @@ impl IndexerStore for PgIndexerStore {
         })
         .await
         .map_err(|e| {
-            IndexerError::PostgresWrite(format!(
-                "Failed to persist optimistic transaction: {:?}",
-                e
-            ))
+            IndexerError::PostgresWrite(format!("Failed to persist optimistic transaction: {e:?}"))
         })??;
 
         info!("Persisted optimistic transaction {insertion_order}");
@@ -1899,7 +1888,7 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!("Failed to persist all events chunks: {:?}", e))
+                IndexerError::PostgresWrite(format!("Failed to persist all events chunks: {e:?}"))
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} events", len);
@@ -1926,8 +1915,7 @@ impl IndexerStore for PgIndexerStore {
         })?
         .map_err(|e| {
             IndexerError::PostgresWrite(format!(
-                "Failed to persist all optimistic events chunks: {:?}",
-                e
+                "Failed to persist all optimistic events chunks: {e:?}"
             ))
         })
     }
@@ -1979,8 +1967,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all event_indices chunks: {:?}",
-                    e
+                    "Failed to persist all event_indices chunks: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -2102,8 +2089,7 @@ impl IndexerStore for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx_indices chunks: {:?}",
-                    e
+                    "Failed to persist all tx_indices chunks: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();
@@ -2202,8 +2188,7 @@ impl IndexerStore for PgIndexerStore {
         let (mut min_cp, max_cp) = match self.get_checkpoint_range_for_epoch(epoch)? {
             (min_cp, Some(max_cp)) => Ok((min_cp, max_cp)),
             _ => Err(IndexerError::PostgresRead(format!(
-                "Failed to get checkpoint range for epoch {}",
-                epoch
+                "Failed to get checkpoint range for epoch {epoch}"
             ))),
         }?;
 

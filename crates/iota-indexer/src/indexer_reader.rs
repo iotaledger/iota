@@ -21,9 +21,8 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics,
-    TransactionFilter,
+    IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
+    NetworkMetrics, ParticipationMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -36,12 +35,12 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
+    error::IotaError,
     event::EventID,
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    is_system_package,
     messages_checkpoint::CheckpointDigest,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
@@ -85,7 +84,7 @@ pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
-    package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
+    obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
 }
 
 impl Clone for IndexerReader {
@@ -93,7 +92,7 @@ impl Clone for IndexerReader {
         IndexerReader {
             pool: self.pool.clone(),
             package_resolver: self.package_resolver.clone(),
-            package_obj_type_cache: self.package_obj_type_cache.clone(),
+            obj_type_cache: self.obj_type_cache.clone(),
         }
     }
 }
@@ -106,11 +105,11 @@ impl IndexerReader {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
         let package_resolver = Arc::new(Resolver::new(package_cache));
-        let package_obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
+        let obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
         Self {
             pool,
             package_resolver,
-            package_obj_type_cache,
+            obj_type_cache,
         }
     }
 
@@ -349,8 +348,7 @@ impl IndexerReader {
             .await
             .map_err(|e| {
                 IndexerError::PostgresRead(format!(
-                    "Fail to fetch package from package store with error {:?}",
-                    e
+                    "Fail to fetch package from package store with error {e:?}"
                 ))
             })?
             .as_ref()
@@ -595,41 +593,6 @@ impl IndexerReader {
             .collect()
     }
 
-    fn get_transaction_effects_with_digest(
-        &self,
-        digest: TransactionDigest,
-    ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
-            transactions::table
-                .filter(
-                    transactions::tx_sequence_number
-                        .nullable()
-                        .eq(tx_digests::table
-                            .select(tx_digests::tx_sequence_number)
-                            // we filter the tx_digests table because it is indexed by digest,
-                            // transactions table is not
-                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
-                            .single_value()),
-                )
-                .first::<StoredTransaction>(conn)
-        })?;
-
-        stored_txn.try_into_iota_transaction_effects()
-    }
-
-    fn get_transaction_effects_with_sequence_number(
-        &self,
-        sequence_number: i64,
-    ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
-            transactions::table
-                .filter(transactions::tx_sequence_number.eq(sequence_number))
-                .first::<StoredTransaction>(conn)
-        })?;
-
-        stored_txn.try_into_iota_transaction_effects()
-    }
-
     fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
@@ -764,8 +727,7 @@ impl IndexerReader {
                     IotaObjectDataFilter::StructType(struct_tag) => {
                         let object_type =
                             struct_tag.to_canonical_string(/* with_prefix */ true);
-                        query =
-                            query.filter(objects::object_type.like(format!("{}%", object_type)));
+                        query = query.filter(objects::object_type.like(format!("{object_type}%")));
                     }
                     IotaObjectDataFilter::MatchAny(filters) => {
                         let mut condition = "(".to_string();
@@ -775,11 +737,11 @@ impl IndexerReader {
                                     struct_tag.to_canonical_string(/* with_prefix */ true);
                                 if i == 0 {
                                     condition +=
-                                        format!("objects.object_type LIKE '{}%'", object_type)
+                                        format!("objects.object_type LIKE '{object_type}%'")
                                             .as_str();
                                 } else {
                                     condition +=
-                                        format!(" OR objects.object_type LIKE '{}%'", object_type)
+                                        format!(" OR objects.object_type LIKE '{object_type}%'")
                                             .as_str();
                                 }
                             } else {
@@ -797,7 +759,7 @@ impl IndexerReader {
                                 let object_type =
                                     struct_tag.to_canonical_string(/* with_prefix */ true);
                                 query = query.filter(
-                                    objects::object_type.not_like(format!("{}%", object_type)),
+                                    objects::object_type.not_like(format!("{object_type}%")),
                                 );
                             } else {
                                 return Err(IndexerError::InvalidArgument(
@@ -843,33 +805,6 @@ impl IndexerReader {
             .try_into()?;
             Ok(Some(object))
         })
-    }
-
-    fn filter_object_id_with_type(
-        &self,
-        object_ids: Vec<ObjectID>,
-        object_type: String,
-    ) -> Result<Vec<ObjectID>, IndexerError> {
-        let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
-        let filtered_ids = run_query!(&self.pool, |conn| {
-            objects::dsl::objects
-                .filter(objects::object_id.eq_any(object_ids))
-                .filter(objects::object_type.eq(object_type))
-                .select(objects::object_id)
-                .load::<Vec<u8>>(conn)
-        })?;
-
-        filtered_ids
-            .into_iter()
-            .map(|id| {
-                ObjectID::from_bytes(id.clone()).map_err(|_e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "Can't convert {:?} to ObjectID",
-                        id,
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
     }
 
     pub async fn multi_get_objects_in_blocking_task(
@@ -975,9 +910,9 @@ impl IndexerReader {
         };
         let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
             if is_descending {
-                format!("AND {TX_SEQUENCE_NUMBER_STR} < {}", cursor_tx_seq)
+                format!("AND {TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
             } else {
-                format!("AND {TX_SEQUENCE_NUMBER_STR} > {}", cursor_tx_seq)
+                format!("AND {TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
             }
         } else {
             "".to_string()
@@ -1007,16 +942,12 @@ impl IndexerReader {
                     (Some(module), Some(function)) => (
                         "tx_calls_fun".into(),
                         format!(
-                            "package = '\\x{}'::bytea AND module = '{}' AND func = '{}'",
-                            package, module, function
+                            "package = '\\x{package}'::bytea AND module = '{module}' AND func = '{function}'"
                         ),
                     ),
                     (Some(module), None) => (
                         "tx_calls_mod".into(),
-                        format!(
-                            "package = '\\x{}'::bytea AND module = '{}'",
-                            package, module
-                        ),
+                        format!("package = '\\x{package}'::bytea AND module = '{module}'"),
                     ),
                     (None, Some(_)) => {
                         return Err(IndexerError::InvalidArgument(
@@ -1025,7 +956,7 @@ impl IndexerReader {
                     }
                     (None, None) => (
                         "tx_calls_pkg".into(),
-                        format!("package = '\\x{}'::bytea", package),
+                        format!("package = '\\x{package}'::bytea"),
                     ),
                 }
             }
@@ -1033,28 +964,28 @@ impl IndexerReader {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_input_objects".into(),
-                    format!("object_id = '\\x{}'::bytea", object_id),
+                    format!("object_id = '\\x{object_id}'::bytea"),
                 )
             }
             Some(TransactionFilter::ChangedObject(object_id)) => {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_changed_objects".into(),
-                    format!("object_id = '\\x{}'::bytea", object_id),
+                    format!("object_id = '\\x{object_id}'::bytea"),
                 )
             }
             Some(TransactionFilter::FromAddress(from_address)) => {
                 let from_address = Hex::encode(from_address.to_vec());
                 (
                     "tx_senders".into(),
-                    format!("sender = '\\x{}'::bytea", from_address),
+                    format!("sender = '\\x{from_address}'::bytea"),
                 )
             }
             Some(TransactionFilter::ToAddress(to_address)) => {
                 let to_address = Hex::encode(to_address.to_vec());
                 (
                     "tx_recipients".into(),
-                    format!("recipient = '\\x{}'::bytea", to_address),
+                    format!("recipient = '\\x{to_address}'::bytea"),
                 )
             }
             Some(TransactionFilter::FromAndToAddress { from, to }) => {
@@ -1063,15 +994,9 @@ impl IndexerReader {
                 // Need to remove ambiguities for tx_sequence_number column
                 let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
                     if is_descending {
-                        format!(
-                            "AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {}",
-                            cursor_tx_seq
-                        )
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
                     } else {
-                        format!(
-                            "AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {}",
-                            cursor_tx_seq
-                        )
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
                     }
                 } else {
                     "".to_string()
@@ -1081,17 +1006,12 @@ impl IndexerReader {
                     FROM tx_senders \
                     JOIN tx_recipients \
                     ON tx_senders.{TX_SEQUENCE_NUMBER_STR} = tx_recipients.{TX_SEQUENCE_NUMBER_STR} \
-                    WHERE tx_senders.sender = '\\x{}'::BYTEA \
-                    AND tx_recipients.recipient = '\\x{}'::BYTEA \
-                    {} \
-                    ORDER BY {TX_SEQUENCE_NUMBER_STR} {} \
-                    LIMIT {}) AS inner_query
+                    WHERE tx_senders.sender = '\\x{from_address}'::BYTEA \
+                    AND tx_recipients.recipient = '\\x{to_address}'::BYTEA \
+                    {cursor_clause} \
+                    ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                    LIMIT {limit}) AS inner_query
                     ",
-                    from_address,
-                    to_address,
-                    cursor_clause,
-                    order_str,
-                    limit,
                 );
                 (inner_query, "1 = 1".into())
             }
@@ -1101,26 +1021,18 @@ impl IndexerReader {
                     "( \
                         ( \
                             SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
-                            WHERE sender = '\\x{}'::BYTEA {} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {} \
-                            LIMIT {} \
+                            WHERE sender = '\\x{address}'::BYTEA {cursor_clause} \
+                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                            LIMIT {limit} \
                         ) \
                         UNION \
                         ( \
                             SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
-                            WHERE recipient = '\\x{}'::BYTEA {} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {} \
-                            LIMIT {} \
+                            WHERE recipient = '\\x{address}'::BYTEA {cursor_clause} \
+                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                            LIMIT {limit} \
                         ) \
                     ) AS combined",
-                    address,
-                    cursor_clause,
-                    order_str,
-                    limit,
-                    address,
-                    cursor_clause,
-                    order_str,
-                    limit,
                 );
                 (inner_query, "1 = 1".into())
             }
@@ -1197,8 +1109,7 @@ impl IndexerReader {
         };
 
         let query = format!(
-            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {} WHERE {} {} ORDER BY {TX_SEQUENCE_NUMBER_STR} {} LIMIT {}",
-            table_name, main_where_clause, cursor_clause, order_str, limit,
+            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {table_name} WHERE {main_where_clause} {cursor_clause} ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} LIMIT {limit}",
         );
 
         tracing::debug!("query transaction blocks: {}", query);
@@ -1396,13 +1307,11 @@ impl IndexerReader {
             // Need to remove ambiguities for tx_sequence_number column
             let cursor_clause = if descending_order {
                 format!(
-                    "(e.{TX_SEQUENCE_NUMBER_STR} < {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {}))",
-                    tx_seq, tx_seq, event_seq
+                    "(e.{TX_SEQUENCE_NUMBER_STR} < {tx_seq} OR (e.{TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {event_seq}))"
                 )
             } else {
                 format!(
-                    "(e.{TX_SEQUENCE_NUMBER_STR} > {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {}))",
-                    tx_seq, tx_seq, event_seq
+                    "(e.{TX_SEQUENCE_NUMBER_STR} > {tx_seq} OR (e.{TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {event_seq}))"
                 )
             };
             let order_clause = if descending_order {
@@ -1472,13 +1381,11 @@ impl IndexerReader {
 
             let cursor_clause = if descending_order {
                 format!(
-                    "AND ({TX_SEQUENCE_NUMBER_STR} < {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} < {}))",
-                    tx_seq, tx_seq, event_seq
+                    "AND ({TX_SEQUENCE_NUMBER_STR} < {tx_seq} OR ({TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND {EVENT_SEQUENCE_NUMBER_STR} < {event_seq}))"
                 )
             } else {
                 format!(
-                    "AND ({TX_SEQUENCE_NUMBER_STR} > {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} > {}))",
-                    tx_seq, tx_seq, event_seq
+                    "AND ({TX_SEQUENCE_NUMBER_STR} > {tx_seq} OR ({TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND {EVENT_SEQUENCE_NUMBER_STR} > {event_seq}))"
                 )
             };
             let order_clause = if descending_order {
@@ -1490,11 +1397,10 @@ impl IndexerReader {
             format!(
                 "
                     SELECT * FROM events \
-                    WHERE {} {} \
-                    ORDER BY {} \
-                    LIMIT {}
+                    WHERE {main_where_clause} {cursor_clause} \
+                    ORDER BY {order_clause} \
+                    LIMIT {limit}
                 ",
-                main_where_clause, cursor_clause, order_clause, limit,
             )
         };
         tracing::debug!("query events: {}", query);
@@ -1782,7 +1688,7 @@ impl IndexerReader {
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
         let coin_type_filter = if let Some(coin_type) = coin_type {
-            format!("= '{}'", coin_type)
+            format!("= '{coin_type}'")
         } else {
             "IS NOT NULL".to_string()
         };
@@ -2026,28 +1932,60 @@ impl IndexerReader {
     }
 
     fn get_total_supply(&self, coin_struct: StructTag) -> Result<Supply, IndexerError> {
-        let package_id = coin_struct.address.into();
-        let treasury_cap_type =
-            TreasuryCap::type_(coin_struct).to_canonical_string(/* with_prefix */ true);
-        let treasury_cap_obj_id = self
-            .package_obj_type_cache
+        if let Some(supply) = self.get_treasury_cap_total_supply(&coin_struct)? {
+            return Ok(supply);
+        }
+        if let Some(supply) = self.get_coin_manager_total_supply(&coin_struct)? {
+            return Ok(supply);
+        }
+        Err(IndexerError::Generic(format!(
+            "Cannot find treasury cap or coin manager for coin type: {}",
+            coin_struct.to_canonical_string(/* with_prefix */ true)
+        )))
+    }
+
+    fn get_treasury_cap_total_supply(
+        &self,
+        coin_struct: &StructTag,
+    ) -> Result<Option<Supply>, IndexerError> {
+        let tag = TreasuryCap::type_(coin_struct.clone());
+        Ok(self
+            .get_object_as::<TreasuryCap>(tag)?
+            .map(|tc| tc.total_supply))
+    }
+
+    fn get_coin_manager_total_supply(
+        &self,
+        coin_struct: &StructTag,
+    ) -> Result<Option<Supply>, IndexerError> {
+        let tag = CoinManager::type_(coin_struct.clone());
+        Ok(self
+            .get_object_as::<CoinManager>(tag)?
+            .map(|mgr| mgr.treasury_cap.total_supply))
+    }
+
+    fn get_object_as<T>(&self, tag: StructTag) -> Result<Option<T>, IndexerError>
+    where
+        T: TryFrom<Object, Error = IotaError>,
+    {
+        let cache_key = tag.to_canonical_string(/* with_prefix */ true);
+
+        let mut cache = self
+            .obj_type_cache
             .lock()
-            .unwrap()
-            .cache_get_or_set_with(format!("{}{}", package_id, treasury_cap_type), || {
-                get_single_obj_id_from_package_publish(self, package_id, treasury_cap_type.clone())
-                    .unwrap()
-            })
-            .ok_or(IndexerError::Generic(format!(
-                "Cannot find treasury cap for type {}",
-                treasury_cap_type
-            )))?;
-        let treasury_cap_obj_object =
-            self.get_object(&treasury_cap_obj_id, None)?
-                .ok_or(IndexerError::Generic(format!(
-                    "Cannot find treasury cap object with id {}",
-                    treasury_cap_obj_id
-                )))?;
-        Ok(TreasuryCap::try_from(treasury_cap_obj_object)?.total_supply)
+            .inspect_err(|e| tracing::error!("cache poisoned: {:?}", e))
+            .map_err(|_| IndexerError::Generic("failed to lock cache".into()))?;
+
+        let maybe_obj = match cache.cache_get(&cache_key) {
+            Some(Some(id)) => self.get_object(id, None).ok().flatten(),
+            _ => {
+                let fetched = self.get_singleton_object(tag.clone())?;
+                cache.cache_set(cache_key.clone(), fetched.as_ref().map(|o| o.id()));
+                fetched
+            }
+        };
+
+        Ok(maybe_obj.map(T::try_from).transpose()?)
     }
 
     pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
@@ -2116,47 +2054,5 @@ impl iota_types::storage::ObjectStore for IndexerReader {
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, Some(version))
             .map_err(iota_types::storage::error::Error::custom)
-    }
-}
-
-fn get_single_obj_id_from_package_publish(
-    reader: &IndexerReader,
-    package_id: ObjectID,
-    obj_type: String,
-) -> Result<Option<ObjectID>, IndexerError> {
-    let publish_txn_effects_opt = if is_system_package(package_id) {
-        Some(reader.get_transaction_effects_with_sequence_number(0))
-    } else {
-        reader.get_object(&package_id, None)?.map(|o| {
-            let publish_txn_digest = o.previous_transaction;
-            reader.get_transaction_effects_with_digest(publish_txn_digest)
-        })
-    };
-    if let Some(publish_txn_effects) = publish_txn_effects_opt {
-        let created_objs = publish_txn_effects?
-            .created()
-            .iter()
-            .map(|o| o.object_id())
-            .collect::<Vec<_>>();
-        let obj_ids_with_type =
-            reader.filter_object_id_with_type(created_objs, obj_type.clone())?;
-        if obj_ids_with_type.len() == 1 {
-            Ok(Some(obj_ids_with_type[0]))
-        } else if obj_ids_with_type.is_empty() {
-            // The package exists but no such object is created in that transaction. Or
-            // maybe it is wrapped and we don't know yet.
-            Ok(None)
-        } else {
-            // We expect there to be only one object of this type created by the package but
-            // more than one is found.
-            tracing::error!(
-                "There are more than one objects found for type {}",
-                obj_type
-            );
-            Ok(None)
-        }
-    } else {
-        // The coin package does not exist.
-        Ok(None)
     }
 }

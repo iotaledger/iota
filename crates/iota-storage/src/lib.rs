@@ -267,8 +267,7 @@ pub async fn verify_checkpoint_range<S>(
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
-                        "Checkpoint {} should exist in store after summary sync but does not",
-                        a
+                        "Checkpoint {a} should exist in store after summary sync but does not"
                     );
                 });
             let next = store
@@ -276,8 +275,7 @@ pub async fn verify_checkpoint_range<S>(
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
-                        "Checkpoint {} should exist in store after summary sync but does not",
-                        a
+                        "Checkpoint {a} should exist in store after summary sync but does not"
                     );
                 });
             let committee = store

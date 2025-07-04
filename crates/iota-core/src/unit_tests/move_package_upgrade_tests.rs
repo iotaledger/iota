@@ -81,14 +81,14 @@ fn build_upgrade_test_modules_with_overlay(
 
     match overlay {
         FileOverlay::Remove(file_name) => {
-            let file_path = tmp_dir_path.join(format!("sources/{}", file_name));
+            let file_path = tmp_dir_path.join(format!("sources/{file_name}"));
             std::fs::remove_file(file_path).unwrap();
         }
         FileOverlay::Add {
             file_name,
             contents,
         } => {
-            let new_file_path = tmp_dir_path.join(format!("sources/{}", file_name));
+            let new_file_path = tmp_dir_path.join(format!("sources/{file_name}"));
             std::fs::write(new_file_path, contents).unwrap();
         }
     }
@@ -313,7 +313,7 @@ async fn test_upgrade_package_happy_path() {
 
     match effects.into_status().unwrap_err().0 {
         ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
-        err => panic!("Unexpected error: {:#?}", err),
+        err => panic!("Unexpected error: {err:#?}"),
     };
 
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
@@ -1083,7 +1083,7 @@ async fn test_publish_transitive_happy_path() {
 
     match call_effects.into_status().unwrap_err().0 {
         ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
-        err => panic!("Unexpected error: {:#?}", err),
+        err => panic!("Unexpected error: {err:#?}"),
     };
 }
 
@@ -1406,7 +1406,7 @@ async fn test_conflicting_versions_across_calls() {
     // verify that execution aborts
     match call_error.0 {
         ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
-        err => panic!("Unexpected error: {:#?}", err),
+        err => panic!("Unexpected error: {err:#?}"),
     };
 
     // verify that execution aborts in the second (counting from 0) command

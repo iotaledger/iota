@@ -130,8 +130,7 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
 
         if !self.allower.allowed(&public_key) {
             return Err(rustls::Error::General(format!(
-                "invalid certificate: {:?} is not in the validator set",
-                public_key,
+                "invalid certificate: {public_key:?} is not in the validator set",
             )));
         }
 
@@ -221,8 +220,7 @@ impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
         let public_key = public_key_from_certificate(end_entity)?;
         if public_key != self.public_key {
             return Err(rustls::Error::General(format!(
-                "invalid certificate: {:?} is not the expected server public key",
-                public_key,
+                "invalid certificate: {public_key:?} is not the expected server public key",
             )));
         }
 

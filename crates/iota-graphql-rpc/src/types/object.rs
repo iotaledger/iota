@@ -1600,11 +1600,7 @@ where
         .finish();
 
         RawQuery::new(
-            format!(
-                "SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",
-                id_query = id_query,
-                key_query = key_query,
-            ),
+            format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
             id_bindings.into_iter().chain(key_bindings).collect(),
         )
         .order_by("object_id")

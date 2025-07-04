@@ -179,6 +179,10 @@ describe('bcs', () => {
         testType('bytes', bcs.bytes(4), new Uint8Array([1, 2, 3, 4]), '01020304');
     });
 
+    describe('byteVector', () => {
+        testType('byteVector', bcs.byteVector(), new Uint8Array([1, 2, 3]), '03010203');
+    });
+
     describe('tuples', () => {
         testType('tuple(u8, u8)', bcs.tuple([bcs.u8(), bcs.u8()]), [1, 2], '0102');
         testType(
@@ -267,6 +271,31 @@ describe('bcs', () => {
             $kind: 'Variant2',
             Variant2: 'hello',
         });
+    });
+
+    describe('transform', () => {
+        const stringU8 = bcs.u8().transform({
+            input: (val: string) => parseInt(val),
+            output: (val) => val.toString(),
+        });
+
+        testType('transform', stringU8, '1', '01', '1');
+
+        // Output only
+        const bigIntu64 = bcs.u64().transform({
+            output: (val) => BigInt(val),
+        });
+
+        testType('transform', bigIntu64, '1', '0100000000000000', 1n);
+        testType('transform', bigIntu64, 1, '0100000000000000', 1n);
+        testType('transform', bigIntu64, 1n, '0100000000000000', 1n);
+
+        // Input only
+        const hexU8 = bcs.u8().transform({
+            input: (val: string) => Number.parseInt(val, 16),
+        });
+
+        testType('transform', hexU8, 'ff', 'ff', 255);
     });
 });
 

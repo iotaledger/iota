@@ -432,4 +432,56 @@ expression: parsed
             severity: Error,
         },
     ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 8,
+                end: 8,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 9,
+                end: 13,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Unexpected '@'",
+            span: Span {
+                start: 14,
+                end: 15,
+            },
+            help: Some(
+                "Expected to find a command here",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 9,
+                end: 12,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
 ]
