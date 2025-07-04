@@ -57,7 +57,7 @@
     --checkbox-border-color-default: theme('colors.iota-neutral.20');
     --checkbox-border-color-checked: theme('colors.iota-primary.30');
     --checkbox-border-color-disabled: theme('colors.iota-neutral.30');
-    --checkbox-border-color-disabled-checked: theme('colors.iota-primary.30');
+    --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.40');
     --checkbox-bg-color-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.40');
     --checkbox-text-color: theme('colors.iota-neutral.60');
