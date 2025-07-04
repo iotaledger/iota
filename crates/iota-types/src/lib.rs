@@ -45,6 +45,7 @@ pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
+pub mod deterministic_object_id;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;
@@ -133,6 +134,7 @@ built_in_ids! {
     IOTA_RANDOMNESS_STATE_ADDRESS / IOTA_RANDOMNESS_STATE_OBJECT_ID = 0x8;
     IOTA_BRIDGE_ADDRESS / IOTA_BRIDGE_OBJECT_ID = 0x9;
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
+    IOTA_ACCOUNT_REGISTRY_ADDRESS / IOTA_ACCOUNT_REGISTRY_OBJECT_ID = 0x10;
 }
 
 pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;

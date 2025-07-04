@@ -19,7 +19,6 @@ public struct AccountRegistry has key {
     account_ids: Table<ID, ID>,
 }
 
-
 /// Create and share the singleton AccountRegistry -- this function is
 /// called exactly once, during genesis.
 #[allow(unused_function)]

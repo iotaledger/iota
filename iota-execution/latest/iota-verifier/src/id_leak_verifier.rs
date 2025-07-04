@@ -22,6 +22,9 @@ use iota_types::{
     bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
     deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    deterministic_object_id::{
+        DETERMINISTIC_OBJECT_MODULE_NAME, DETERMINISTIC_OBJECT_PRE_COMPUTED_FUNCTION_NAME,
+    },
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
     id::OBJECT_MODULE_NAME,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
@@ -107,7 +110,18 @@ const IOTA_ACCOUNT_REGISTRY_CREATE: FunctionIdent = (
     ACCOUNT_REGISTRY_MODULE_NAME,
     ACCOUNT_REGISTRY_CREATE_FUNCTION_NAME,
 );
-const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
+
+const IOTA_NEW_PRECOMPUTED: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    DETERMINISTIC_OBJECT_MODULE_NAME,
+    DETERMINISTIC_OBJECT_PRE_COMPUTED_FUNCTION_NAME,
+);
+const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[
+    OBJECT_NEW,
+    OBJECT_NEW_UID_FROM_HASH,
+    TS_NEW_OBJECT,
+    IOTA_NEW_PRECOMPUTED,
+];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
     IOTA_CLOCK_CREATE,
@@ -361,8 +375,14 @@ fn pack(
             "Invalid object creation in {cur_package}::{cur_module}::{cur_function}. \
                 Object created without a newly created UID. \
                 The UID must come directly from iota::{}::{}. \
-                Or for tests, it can come from iota::{}::{}",
-            OBJECT_NEW.1, OBJECT_NEW.2, TS_NEW_OBJECT.1, TS_NEW_OBJECT.2,
+                Or for tests, it can come from iota::{}::{}, \
+                Or come from iota::{}::{}",
+            OBJECT_NEW.1,
+            OBJECT_NEW.2,
+            TS_NEW_OBJECT.1,
+            TS_NEW_OBJECT.2,
+            IOTA_NEW_PRECOMPUTED.1,
+            IOTA_NEW_PRECOMPUTED.2
         );
 
         return Err(PartialVMError::new(StatusCode::UNKNOWN_VERIFICATION_ERROR)

@@ -180,12 +180,15 @@ impl<'a> SimpleAbsInt for IDLeakVerifierAI<'a> {
             let msg = "Invalid object creation without a newly created UID.".to_string();
             let uid_msg = format!(
                 "The UID must come directly from {iota}::{object}::{new}. \
-                Or for tests, it can come from {iota}::{ts}::{ts_new}",
+                Or for tests, it can come from {iota}::{ts}::{ts_new}. \
+                Or come from {iota}::{precomluted_module}::{newprecomputed}",
                 iota = IOTA_ADDR_NAME,
                 object = OBJECT_MODULE_NAME,
                 new = OBJECT_NEW,
                 ts = TEST_SCENARIO_MODULE_NAME,
                 ts_new = TS_NEW_OBJECT,
+                precomluted_module = DETERMINISTIC_OBJECT_MODULE_NAME,
+                newprecomputed = IOTA_DETERMINISTIC_OBJECT_NEW_PRECOMPUTED,
             );
             let mut d = diag!(ID_LEAK_DIAG, (e.exp.loc, msg), (f.loc(), uid_msg));
             if let Value::NotFresh(stale) = first_value {

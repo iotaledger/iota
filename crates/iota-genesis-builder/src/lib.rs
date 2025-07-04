@@ -1147,7 +1147,7 @@ fn build_unsigned_genesis_data<'info>(
             metrics,
             &epoch_data,
         );
-
+        
     // Create the genesis checkpoint including the main transaction and, if present,
     // the migration transactions
     let (checkpoint, checkpoint_contents) = create_genesis_checkpoint(
@@ -1510,7 +1510,16 @@ pub fn generate_genesis_system_object(
             vec![],
         )?;
 
-        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled
+        // Step 3: Create and share the AccountRegistry.
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("account_registry").to_owned(),
+            ident_str!("create").to_owned(),
+            vec![],
+            vec![],
+        )?;
+
+        // Step 4: Create ProtocolConfig-controlled system objects, unless disabled
         // (which only happens in tests).
         if protocol_config.create_authenticator_state_in_genesis() {
             builder.move_call(
@@ -1558,7 +1567,7 @@ pub fn generate_genesis_system_object(
             );
         }
 
-        // Step 4: Create the IOTA Coin Treasury Cap.
+        // Step 5: Create the IOTA Coin Treasury Cap.
         let iota_treasury_cap = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("iota").to_owned(),
@@ -1586,7 +1595,7 @@ pub fn generate_genesis_system_object(
             vec![pre_minted_supply],
         );
 
-        // Step 5: Create System Admin Cap.
+        // Step 6: Create System Admin Cap.
         let system_admin_cap = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME.to_owned(),
@@ -1594,15 +1603,6 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         );
-
-        // Step 6: Create and share the AccountRegistry.
-        builder.move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("account_registry").to_owned(),
-            ident_str!("create").to_owned(),
-            vec![],
-            vec![],
-        )?;
 
         // Step 7: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second

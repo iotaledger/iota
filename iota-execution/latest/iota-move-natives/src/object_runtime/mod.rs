@@ -13,8 +13,9 @@ use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_ACCOUNT_REGISTRY_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID,
+    IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
@@ -260,6 +261,7 @@ impl<'a> ObjectRuntime<'a> {
             IOTA_RANDOMNESS_STATE_OBJECT_ID,
             IOTA_DENY_LIST_OBJECT_ID,
             IOTA_BRIDGE_OBJECT_ID,
+            IOTA_ACCOUNT_REGISTRY_OBJECT_ID,
         ]
         .contains(&id);
         let transfer_result = if self.state.new_ids.contains(&id) {

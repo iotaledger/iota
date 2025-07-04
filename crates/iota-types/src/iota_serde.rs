@@ -25,8 +25,8 @@ use serde::{
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
-    STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
+    IOTA_ACCOUNT_REGISTRY_ADDRESS, IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    IOTA_SYSTEM_STATE_ADDRESS, STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
 };
 
 #[inline]
@@ -168,7 +168,7 @@ impl SerializeAs<StructTag> for IotaStructTag {
     }
 }
 
-const IOTA_ADDRESSES: [AccountAddress; 7] = [
+const IOTA_ADDRESSES: [AccountAddress; 8] = [
     AccountAddress::ZERO,
     AccountAddress::ONE,
     IOTA_FRAMEWORK_ADDRESS,
@@ -176,6 +176,7 @@ const IOTA_ADDRESSES: [AccountAddress; 7] = [
     STARDUST_ADDRESS,
     IOTA_SYSTEM_STATE_ADDRESS,
     IOTA_CLOCK_ADDRESS,
+    IOTA_ACCOUNT_REGISTRY_ADDRESS,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
