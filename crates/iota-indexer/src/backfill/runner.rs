@@ -57,7 +57,7 @@ impl BackfillRunner {
         let in_progress = Arc::new(Mutex::new(BTreeSet::new()));
 
         // Generate chunks
-        let chunk_stream = generate_chunks(total_range, config.chunk_size);
+        let chunk_stream = chunk_range_stream(total_range, config.chunk_size);
 
         // Process chunks in parallel, fail-fast on error
         chunk_stream
@@ -148,7 +148,7 @@ impl BackfillRunner {
 ///     println!("{:?}", chunk);
 /// }
 /// ```
-fn generate_chunks(
+fn chunk_range_stream(
     total: RangeInclusive<usize>,
     chunk_size: usize,
 ) -> impl Stream<Item = RangeInclusive<usize>> {
