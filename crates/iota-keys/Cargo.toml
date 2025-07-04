@@ -18,6 +18,7 @@ serde_json.workspace = true
 signature.workspace = true
 slip10_ed25519 = "0.1"
 tiny-bip39 = "1.0"
+tracing.workspace = true
 
 # internal dependencies
 iota-types.workspace = true

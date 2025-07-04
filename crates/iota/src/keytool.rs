@@ -34,7 +34,7 @@ use iota_keys::{
         read_authority_keypair_from_file, read_keypair_from_file, write_authority_keypair_to_file,
         write_keypair_to_file,
     },
-    keystore::{AccountKeystore, Keystore},
+    keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_types::{
     base_types::IotaAddress,
@@ -552,19 +552,26 @@ impl KeyToolCommand {
             }
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let ikp = keystore.get_key(&address)?;
-                let mut key = Key::from(ikp);
+                let stored = keystore.get_key(&address)?;
 
-                key.alias = keystore.get_alias_by_address(&address).ok();
+                match stored {
+                    StoredKey::KeyPair(keypair) => {
+                        let mut key = Key::from(keypair);
+                        key.alias = keystore.get_alias_by_address(&address).ok();
 
-                let key = ExportedKey {
-                    exported_private_key: ikp
-                        .encode()
-                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key
-                };
+                        let key = ExportedKey {
+                            exported_private_key: keypair
+                                .encode()
+                                .map_err(|_| anyhow!("Cannot decode keypair"))?,
+                            key,
+                        };
 
-                CommandOutput::Export(key)
+                        CommandOutput::Export(key)
+                    }
+                    StoredKey::External { source, .. } => {
+                        bail!("Cannot export external keys from {source}");
+                    }
+                }
             }
             KeyToolCommand::Generate {
                 key_scheme,
@@ -575,7 +582,10 @@ impl KeyToolCommand {
                     let (iota_address, kp) = get_authority_key_pair();
                     let file_name = format!("bls-{iota_address}.key");
                     write_authority_keypair_to_file(&kp, file_name)?;
-                    let public_base64_key_with_flag = encode_public_key_with_flag_base64(SignatureScheme::BLS12381.flag(), kp.public().as_ref());
+                    let public_base64_key_with_flag = encode_public_key_with_flag_base64(
+                        SignatureScheme::BLS12381.flag(),
+                        kp.public().as_ref(),
+                    );
                     CommandOutput::Generate(Key {
                         alias: None,
                         iota_address,
@@ -607,7 +617,7 @@ impl KeyToolCommand {
                     info!("Importing Bech32 encoded private key to keystore");
                     let mut key = Key::from(&ikp);
 
-                    keystore.add_key(alias, ikp)?;
+                    keystore.add_key(alias, ikp.into())?;
                     key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
 
                     CommandOutput::Import(key)
@@ -668,7 +678,7 @@ impl KeyToolCommand {
                 let mut output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: vec![],
-                    threshold
+                    threshold,
                 };
 
                 for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
@@ -707,7 +717,10 @@ impl KeyToolCommand {
                     Err(_) => match read_authority_keypair_from_file(&file) {
                         Ok(keypair) => {
                             let public_base64_key = keypair.public().encode_base64();
-                            let public_base64_key_with_flag= encode_public_key_with_flag_base64(SignatureScheme::BLS12381.flag(), keypair.public().as_ref());
+                            let public_base64_key_with_flag = encode_public_key_with_flag_base64(
+                                SignatureScheme::BLS12381.flag(),
+                                keypair.public().as_ref(),
+                            );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
                                 iota_address: (keypair.public()).into(),
@@ -742,8 +755,17 @@ impl KeyToolCommand {
                 let mut hasher = DefaultHash::default();
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
-                let iota_signature =
-                    keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?;
+
+                let key = keystore.get_key(&address)?;
+                let iota_signature = match key {
+                    StoredKey::KeyPair(_) => {
+                        keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?
+                    }
+                    StoredKey::External { source, .. } => {
+                        bail!("External signing is not supported for source: {source}")
+                    }
+                };
+
                 CommandOutput::Sign(SignData {
                     iota_address: address,
                     raw_tx_data: data,
@@ -821,8 +843,7 @@ impl KeyToolCommand {
                     old_alias,
                     new_alias,
                 })
-            }
-            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
@@ -1180,6 +1201,12 @@ impl KeyToolCommand {
 impl From<&IotaKeyPair> for Key {
     fn from(ikp: &IotaKeyPair) -> Self {
         Key::from(ikp.public())
+    }
+}
+
+impl From<&StoredKey> for Key {
+    fn from(stored: &StoredKey) -> Self {
+        Key::from(stored.public())
     }
 }
 

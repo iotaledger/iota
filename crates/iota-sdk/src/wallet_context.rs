@@ -309,7 +309,10 @@ impl WalletContext {
 
     /// Add an account.
     pub fn add_account(&mut self, alias: impl Into<Option<String>>, keypair: IotaKeyPair) {
-        self.config.keystore.add_key(alias.into(), keypair).unwrap();
+        self.config
+            .keystore
+            .add_key(alias.into(), keypair.into())
+            .unwrap();
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext.

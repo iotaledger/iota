@@ -6,3 +6,5 @@ pub mod key_derive;
 pub mod keypair_file;
 pub mod keystore;
 pub mod random_names;
+mod serde_derivation_path;
+mod serde_iota_keypair;

@@ -6660,6 +6660,7 @@ dependencies = [
  "slip10_ed25519",
  "tempfile",
  "tiny-bip39",
+ "tracing",
 ]
 
 [[package]]

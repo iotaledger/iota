@@ -168,13 +168,15 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
                 .config()
                 .keystore()
                 .get_key(&sender)
-                .unwrap(),
+                .unwrap()
+                .try_keypair()?,
             test_cluster
                 .wallet
                 .config()
                 .keystore()
                 .get_key(&sponsor)
-                .unwrap(),
+                .unwrap()
+                .try_keypair()?,
         ],
     );
 
@@ -826,11 +828,11 @@ async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error
     context
         .config_mut()
         .keystore_mut()
-        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1).into())?;
     context
         .config_mut()
         .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1).into())?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
@@ -1169,7 +1171,12 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     .unwrap();
     let tx = to_sender_signed_transaction(
         tx_data,
-        context.config().keystore().get_key(&sender).unwrap(),
+        context
+            .config()
+            .keystore()
+            .get_key(&sender)
+            .unwrap()
+            .try_keypair()?,
     );
 
     let digest = *tx.digest();
