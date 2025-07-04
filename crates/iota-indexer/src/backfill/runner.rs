@@ -127,7 +127,26 @@ impl BackfillRunner {
     }
 }
 
-/// Creates chunks based on the total range and chunk size.
+/// Returns an asynchronous stream that yields consecutive, non-overlapping subranges ("chunks")
+/// from the given inclusive range, each with a maximum length of `chunk_size`.
+///
+/// This is useful for processing a large range in smaller, manageable pieces, such as
+/// batching database queries or parallelizing work.
+///
+/// # Example
+///
+/// ```rust
+/// use futures::StreamExt;
+///
+/// let range = 0..=10;
+/// let chunk_size = 3;
+/// let mut stream = chunk_range_stream(range, chunk_size);
+///
+/// // This will yield: 0..=2, 3..=5, 6..=8, 9..=10
+/// while let Some(chunk) = stream.next().await {
+///     println!("{:?}", chunk);
+/// }
+/// ```
 fn generate_chunks(
     total: RangeInclusive<usize>,
     chunk_size: usize,
