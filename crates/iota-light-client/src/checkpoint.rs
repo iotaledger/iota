@@ -46,12 +46,8 @@ impl CheckpointList {
         self.checkpoints.is_empty()
     }
 
-    pub fn get_index(&self, seq: u64) -> Option<usize> {
-        self.checkpoints.iter().position(|s| *s == seq)
-    }
-
-    pub fn get(&self, index: usize) -> Option<u64> {
-        self.checkpoints.get(index).copied()
+    pub fn get_sequence_number_by_epoch(&self, epoch: u64) -> Option<u64> {
+        self.checkpoints.get(epoch as usize).copied()
     }
 }
 

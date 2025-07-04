@@ -12,7 +12,7 @@ use iota_light_client::{
     Proof, ProofTargets,
     checkpoint::{read_checkpoint_list, read_checkpoint_summary, sync_and_verify_checkpoints},
     config::Config,
-    construct_proof, graphql,
+    construct_proof,
     object_store::CheckpointStore,
     package_store::RemotePackageStore,
     proof,
@@ -28,7 +28,7 @@ use iota_types::{
     event::EventID,
     object::{Data, bounded_visitor::BoundedVisitor},
 };
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
@@ -261,38 +261,33 @@ pub async fn main() -> Result<()> {
                     }
                 }
             }
+
+            event_ids_map.iter().for_each(|id| {
+                error!(
+                    "event '{}' could not be found in checkpoint {seq}",
+                    String::from(*id)
+                );
+            });
+            object_ids_map.iter().for_each(|id| {
+                error!("object '{id}' could not be found in checkpoint {seq}");
+            });
+
             ensure!(
-                event_ids_map.is_empty(),
-                "not all provided events could be added to the proof for checkpoint {seq}"
-            );
-            ensure!(
-                object_ids_map.is_empty(),
-                "not all provided objects could be added to the proof for checkpoint {seq}"
+                event_ids_map.is_empty() && object_ids_map.is_empty(),
+                "not all provided events/objects could be added to the proof for checkpoint {seq}"
             );
 
             // add the committee of the next epoch as a proof target
             if include_committee {
-                // fetch the end-of-epoch checkpoint; this will fail if the epoch has not ended
-                // yet
+                let checkpoint_list = read_checkpoint_list(&config)?;
                 let epoch = checkpoint.checkpoint_summary.epoch;
-                let end_of_epoch_sequence_number =
-                    graphql::query_last_checkpoint_of_epoch(&config, epoch).await?;
-                let end_of_epoch_checkpoint = download_checkpoints_from_checkpoint_store(
-                    &config,
-                    end_of_epoch_sequence_number,
-                )
-                .await?;
-                let next_committee = end_of_epoch_checkpoint
-                    .checkpoint_summary
-                    .into_data()
-                    .end_of_epoch_data
-                    .unwrap()
-                    .next_epoch_committee;
-
-                committee.replace(Committee::new(
-                    epoch + 1,
-                    next_committee.into_iter().collect(),
-                ));
+                let Some(end_of_epoch_seq) = checkpoint_list.get_sequence_number_by_epoch(epoch)
+                else {
+                    bail!("checkpoint list not synced");
+                };
+                let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
+                let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
+                committee.replace(Committee::new(epoch + 1, authorities.into_iter().collect()));
             }
 
             let targets = ProofTargets {
@@ -306,52 +301,45 @@ pub async fn main() -> Result<()> {
             let file = std::fs::File::create(&output_file)?;
             serde_json::to_writer_pretty(file, &proof)?;
 
-            println!("Created proof and written to {}.", output_file.display());
+            println!(
+                "Successfully created proof for given targets of checkpoint {}. It has been written to '{}'.",
+                proof.checkpoint_summary.digest(),
+                output_file.display()
+            );
         }
-        LightClientCommand::VerifyProof {
-            proof_file: input_file,
-        } => {
+        LightClientCommand::VerifyProof { proof_file } => {
             if config.sync_before_check {
                 sync_and_verify_checkpoints(&config)
                     .await
                     .context("Failed to sync checkpoints")?;
             }
 
-            let file = std::fs::File::open(&input_file)?;
+            let file = std::fs::File::open(&proof_file)?;
             let proof: Proof = serde_json::from_reader(file)?;
+            let epoch = proof.checkpoint_summary.epoch;
 
-            let seq = proof.checkpoint_summary.sequence_number;
-
-            // read the summary from the local checkpoints dir
-            let summary = read_checkpoint_summary(&config, seq)?.into_data();
-
-            let checkpoint_list = read_checkpoint_list(&config)?;
-            let Some(index) = checkpoint_list.get_index(seq) else {
-                bail!("invalid checkpoint list");
-            };
-
-            let current_committee = if index == 0 {
+            let current_committee = if epoch == 0 {
                 Genesis::load(config.genesis_blob_file_path())?.committee()?
             } else {
-                let Some(prev_seq) = checkpoint_list.get(index - 1) else {
-                    bail!("invalid checkpoint list");
+                let checkpoint_list = read_checkpoint_list(&config)?;
+                let Some(end_of_epoch_seq) =
+                    checkpoint_list.get_sequence_number_by_epoch(epoch - 1)
+                else {
+                    bail!("checkpoint list not synced");
                 };
-                let prev_summary = read_checkpoint_summary(&config, prev_seq)?.into_data();
-                let authorities = prev_summary
-                    .end_of_epoch_data
-                    .as_ref()
-                    .unwrap()
-                    .next_epoch_committee
-                    .iter()
-                    .cloned()
-                    .collect();
-
-                Committee::new(summary.epoch, authorities)
+                let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
+                let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
+                Committee::new(epoch, authorities.into_iter().collect())
             };
 
             proof::verify_proof(&current_committee, &proof)?;
 
-            println!("The proof stored in {} is valid.", input_file.display())
+            println!(
+                "Successfully verified proof for targets of checkpoint {} stored in '{}':\n{:?}",
+                proof.checkpoint_summary.digest(),
+                proof_file.display(),
+                proof.targets
+            );
         }
     }
 
