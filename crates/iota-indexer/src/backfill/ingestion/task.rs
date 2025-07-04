@@ -13,8 +13,8 @@ use tracing::error;
 
 use crate::{
     backfill::{
+        Backfill,
         ingestion::{IngestionBackfill, adapter::Adapter},
-        task::BackfillTask,
     },
     db::ConnectionPool,
     errors::IndexerError,
@@ -75,7 +75,7 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: IngestionBackfill> BackfillTask for IngestionBackfillTask<T> {
+impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
     async fn backfill_range(
         &self,
         pool: ConnectionPool,

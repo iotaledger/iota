@@ -2,22 +2,33 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{ops::RangeInclusive, sync::Arc};
 
+use async_trait::async_trait;
 use clap::{Subcommand, ValueEnum};
 
-use crate::backfill::{sql::task::SqlBackfillTask, task::BackfillTask};
+use crate::{backfill::sql::sql_backfill::SqlBackfill, db::ConnectionPool, errors::IndexerError};
 
 pub(crate) mod ingestion;
 pub mod runner;
 pub(crate) mod sql;
-pub(crate) mod task;
+
+/// Encapsulates the logic to process and persist data for a chunk of
+/// checkpoints.
+#[async_trait]
+pub(crate) trait Backfill: Send + Sync {
+    async fn backfill_range(
+        &self,
+        pool: ConnectionPool,
+        range: &RangeInclusive<usize>,
+    ) -> Result<(), IndexerError>;
+}
 
 // Subcommands for selecting a backfill task to run.
 // Each variant corresponds to a different backfill implementation.
 #[derive(Subcommand, Clone, Debug)]
 #[non_exhaustive]
-pub enum BackfillTaskKind {
+pub enum BackfillKind {
     /// Run a SQL backfill.
     ///
     /// - `sql`: the base SQL statement to execute (without any `WHERE` clause).
@@ -49,15 +60,10 @@ pub enum BackfillTaskKind {
 #[non_exhaustive]
 pub enum IngestionBackfillKind {}
 
-pub(crate) async fn get_backfill(
-    kind: BackfillTaskKind,
-    _range_start: usize,
-) -> Arc<dyn BackfillTask> {
+pub(crate) async fn get_backfill(kind: BackfillKind, _range_start: usize) -> Arc<dyn Backfill> {
     match kind {
-        BackfillTaskKind::Sql { sql, key_column } => {
-            Arc::new(SqlBackfillTask::new(sql, key_column))
-        }
-        BackfillTaskKind::Ingestion { .. } => {
+        BackfillKind::Sql { sql, key_column } => Arc::new(SqlBackfill::new(sql, key_column)),
+        BackfillKind::Ingestion { .. } => {
             unimplemented!("No ingestion backfill tasks implemented yet.")
         }
     }

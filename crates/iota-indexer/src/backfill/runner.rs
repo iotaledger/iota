@@ -19,7 +19,7 @@ use tokio_stream::Stream;
 use tracing::{error, info};
 
 use crate::{
-    backfill::{BackfillTaskKind, get_backfill, task::BackfillTask},
+    backfill::{Backfill, BackfillKind, get_backfill},
     config::BackfillConfig,
     db::ConnectionPool,
     errors::IndexerError,
@@ -35,20 +35,20 @@ pub struct BackfillRunner;
 impl BackfillRunner {
     /// Execute a backfill over `total_range` using the specified task kind.
     pub async fn run(
-        runner_kind: BackfillTaskKind,
+        runner_kind: BackfillKind,
         pool: ConnectionPool,
         backfill_config: BackfillConfig,
         total_range: RangeInclusive<usize>,
     ) -> Result<(), IndexerError> {
-        let task = get_backfill(runner_kind, *total_range.start()).await;
-        Self::run_impl(pool, backfill_config, total_range, task).await
+        let backfill = get_backfill(runner_kind, *total_range.start()).await;
+        Self::run_impl(pool, backfill_config, total_range, backfill).await
     }
 
     async fn run_impl(
         pool: ConnectionPool,
         config: BackfillConfig,
         total_range: RangeInclusive<usize>,
-        task: Arc<dyn BackfillTask>,
+        backfill: Arc<dyn Backfill>,
     ) -> Result<(), IndexerError> {
         let timer = Instant::now();
         let processed_counter = Arc::new(AtomicUsize::new(0));
@@ -63,7 +63,7 @@ impl BackfillRunner {
         chunk_stream
             .map(|range| {
                 let pool = pool.clone();
-                let task = task.clone();
+                let backfill = backfill.clone();
                 let in_progress = in_progress.clone();
                 let counter = processed_counter.clone();
 
@@ -75,7 +75,7 @@ impl BackfillRunner {
                     in_progress.lock().await.insert(start_cp);
 
                     // Execute backfill for the range
-                    if let Err(e) = task.backfill_range(pool, &range).await {
+                    if let Err(e) = backfill.backfill_range(pool, &range).await {
                         let min_range_restart_num = {
                             let mut guard = in_progress.lock().await;
                             guard.remove(&start_cp);

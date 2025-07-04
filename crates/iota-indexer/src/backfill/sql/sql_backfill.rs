@@ -8,20 +8,20 @@ use async_trait::async_trait;
 use diesel::{RunQueryDsl, sql_types::BigInt};
 
 use crate::{
-    backfill::task::BackfillTask,
+    backfill::Backfill,
     db::{ConnectionPool, get_pool_connection},
     errors::IndexerError,
 };
 
 /// A backfiller that runs SQL queries in parallel to update a range of rows in
 /// a database table.
-pub(crate) struct SqlBackfillTask {
+pub(crate) struct SqlBackfill {
     sql: String,
     key_column: String,
 }
 
-impl SqlBackfillTask {
-    /// Creates a new `SqlBackfillTask` instance with the provided SQL query and
+impl SqlBackfill {
+    /// Creates a new `SqlBackfill` instance with the provided SQL query and
     /// key column.
     pub fn new(sql: String, key_column: String) -> Self {
         Self { sql, key_column }
@@ -29,7 +29,7 @@ impl SqlBackfillTask {
 }
 
 #[async_trait]
-impl BackfillTask for SqlBackfillTask {
+impl Backfill for SqlBackfill {
     async fn backfill_range(
         &self,
         pool: ConnectionPool,
@@ -62,7 +62,7 @@ mod tests {
     use super::*;
     use crate::{
         backfill::{
-            BackfillTaskKind,
+            BackfillKind,
             pg_test_utils::{RowCount, database_url},
             runner::BackfillRunner,
         },
@@ -142,7 +142,7 @@ mod tests {
             let total_range = 11..=15;
 
             BackfillRunner::run(
-                BackfillTaskKind::Sql {
+                BackfillKind::Sql {
                     sql: "INSERT INTO target_items (id, payload) SELECT id, payload FROM source_items"
                         .into(),
                     key_column: "id".into(),
@@ -184,7 +184,7 @@ mod tests {
 
             // First run fills missing IDs 11..=13
             BackfillRunner::run(
-                BackfillTaskKind::Sql {
+                BackfillKind::Sql {
                     sql: "INSERT INTO target_items (id, payload) SELECT id, payload FROM source_items"
                         .into(),
                     key_column: "id".into(),
@@ -197,7 +197,7 @@ mod tests {
 
             // Rerun overlaps at ID 13, should fill IDs 14 and 15 only
             BackfillRunner::run(
-                BackfillTaskKind::Sql {
+                BackfillKind::Sql {
                     sql: "INSERT INTO target_items (id, payload) SELECT id, payload FROM source_items"
                         .into(),
                     key_column: "id".into(),

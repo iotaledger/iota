@@ -9,7 +9,7 @@ use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use url::Url;
 
-use crate::{backfill::BackfillTaskKind, db::ConnectionPoolConfig};
+use crate::{backfill::BackfillKind, db::ConnectionPoolConfig};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -254,7 +254,7 @@ pub enum CommandV2 {
         /// End of the range to backfill, inclusive.
         end: usize,
         #[command(subcommand)]
-        runner_kind: BackfillTaskKind,
+        runner_kind: BackfillKind,
         #[command(flatten)]
         backfill_config: BackfillConfig,
     },
