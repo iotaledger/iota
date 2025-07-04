@@ -48,7 +48,7 @@ pub trait AccountKeystore: Send + Sync {
         key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error>;
     fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error>;
-    fn keys(&self) -> Vec<PublicKey>;
+    fn keys(&self) -> Vec<&StoredKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error>;
 
     fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
@@ -63,7 +63,7 @@ pub trait AccountKeystore: Send + Sync {
     where
         T: Serialize;
     fn addresses(&self) -> Vec<IotaAddress> {
-        self.keys().iter().map(|k| k.into()).collect()
+        self.keys().into_iter().map(|k| k.address()).collect()
     }
     fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)>;
     fn aliases(&self) -> Vec<&Alias>;
@@ -243,12 +243,41 @@ impl From<IotaKeyPair> for StoredKey {
 }
 
 impl StoredKey {
+    pub fn address(&self) -> IotaAddress {
+        IotaAddress::from(&self.public())
+    }
+
     pub fn public(&self) -> PublicKey {
         match self {
             StoredKey::KeyPair(keypair) => keypair.public(),
             StoredKey::External {
                 public_key_base64, ..
             } => PublicKey::decode_base64(public_key_base64).unwrap(),
+        }
+    }
+
+    pub fn public_base64(&self) -> String {
+        match self {
+            StoredKey::KeyPair(keypair) => keypair.public().encode_base64(),
+            StoredKey::External {
+                public_key_base64, ..
+            } => public_key_base64.clone(),
+        }
+    }
+
+    pub fn derivation_path(&self) -> Option<DerivationPath> {
+        match self {
+            StoredKey::KeyPair(_) => None,
+            StoredKey::External {
+                derivation_path, ..
+            } => derivation_path.clone(),
+        }
+    }
+
+    pub fn external_source(&self) -> Option<String> {
+        match self {
+            StoredKey::KeyPair(_) => None,
+            StoredKey::External { source, .. } => Some(source.clone()),
         }
     }
 
@@ -381,8 +410,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.aliases.values_mut().collect()
     }
 
-    fn keys(&self) -> Vec<PublicKey> {
-        self.keys.values().map(|key| key.public()).collect()
+    fn keys(&self) -> Vec<&StoredKey> {
+        self.keys.values().collect()
     }
 
     /// This function returns an error if the provided alias already exists. If
@@ -774,8 +803,8 @@ impl AccountKeystore for InMemKeystore {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
-    fn keys(&self) -> Vec<PublicKey> {
-        self.keys.values().map(|key| key.public()).collect()
+    fn keys(&self) -> Vec<&StoredKey> {
+        self.keys.values().collect()
     }
 
     fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error> {

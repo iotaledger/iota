@@ -182,7 +182,7 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
         .import_from_mnemonic(phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
 
-    let pubkey = keystore.keys()[0].clone();
+    let pubkey = keystore.keys()[0].public();
     assert_eq!(pubkey.flag(), Ed25519IotaSignature::SCHEME.flag());
 
     let mut hasher = DefaultHash::default();

@@ -2583,7 +2583,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.flag() == Ed25519IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == Ed25519IotaSignature::SCHEME.flag())
             .count(),
         5
     );
@@ -2604,7 +2604,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.flag() == Secp256k1IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == Secp256k1IotaSignature::SCHEME.flag())
             .count(),
         1
     );
