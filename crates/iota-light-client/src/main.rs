@@ -199,17 +199,12 @@ pub async fn main() -> Result<()> {
                 println!("No events found");
             }
         }
-        LightClientCommand::Sync => {
-            sync_and_verify_checkpoints(&config)
-                .await
-                .context("Failed to sync checkpoints")?;
-        }
         LightClientCommand::ConstructProof {
             event_ids,
             object_ids,
             include_committee,
             checkpoint_id,
-            proof_file: output_file,
+            proof_file,
         } => {
             ensure!(
                 !event_ids.is_empty() || !object_ids.is_empty() || include_committee,
@@ -284,12 +279,17 @@ pub async fn main() -> Result<()> {
 
             // add the committee of the next epoch as a proof target
             if include_committee {
-                let checkpoint_list = read_checkpoint_list(&config)?;
                 let epoch = checkpoint.checkpoint_summary.epoch;
+                let checkpoint_list = read_checkpoint_list(&config)?;
                 let Some(end_of_epoch_seq) = checkpoint_list.get_sequence_number_by_epoch(epoch)
                 else {
-                    bail!("checkpoint list not synced");
+                    bail!("checkpoint list not synced, or epoch is still ongoing");
                 };
+                if seq != end_of_epoch_seq {
+                    bail!(
+                        "cannot use `--include-committee` option with checkpoint {seq} because it is not the end-of-epoch checkpoint for epoch {epoch}"
+                    );
+                }
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
                 committee.replace(Committee::new(epoch + 1, authorities.into_iter().collect()));
@@ -303,14 +303,22 @@ pub async fn main() -> Result<()> {
 
             let proof = construct_proof(targets, &checkpoint)?;
 
-            let file = std::fs::File::create(&output_file)?;
+            let file = std::fs::File::create(&proof_file)?;
             serde_json::to_writer_pretty(file, &proof)?;
 
             println!(
-                "Successfully created proof for given targets of checkpoint {}. It has been written to '{}'.",
+                "Successfully created proof '{}'.\ncheckpoint: {}\ncheckpoint sequence number: {}\nepoch: {}\n{:?}",
+                proof_file.display(),
                 proof.checkpoint_summary.digest(),
-                output_file.display()
+                proof.checkpoint_summary.sequence_number,
+                proof.checkpoint_summary.epoch,
+                proof.targets
             );
+        }
+        LightClientCommand::Sync => {
+            sync_and_verify_checkpoints(&config)
+                .await
+                .context("Failed to sync checkpoints")?;
         }
         LightClientCommand::VerifyProof { proof_file } => {
             if config.sync_before_check {
@@ -323,7 +331,7 @@ pub async fn main() -> Result<()> {
             let proof: Proof = serde_json::from_reader(file)?;
             let epoch = proof.checkpoint_summary.epoch;
 
-            let current_committee = if epoch == 0 {
+            let committee = if epoch == 0 {
                 Genesis::load(config.genesis_blob_file_path())?.committee()?
             } else {
                 let checkpoint_list = read_checkpoint_list(&config)?;
@@ -337,12 +345,14 @@ pub async fn main() -> Result<()> {
                 Committee::new(epoch, authorities.into_iter().collect())
             };
 
-            proof::verify_proof(&current_committee, &proof)?;
+            proof::verify_proof(&committee, &proof)?;
 
             println!(
-                "Successfully verified proof for targets of checkpoint {} stored in '{}':\n{:?}",
-                proof.checkpoint_summary.digest(),
+                "Successfully verified proof '{}'.\ncheckpoint: {}\ncheckpoint sequence number: {}\nepoch: {}\n{:?}",
                 proof_file.display(),
+                proof.checkpoint_summary.digest(),
+                proof.checkpoint_summary.sequence_number,
+                proof.checkpoint_summary.epoch,
                 proof.targets
             );
         }

@@ -118,21 +118,22 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
     // If the proof target is the next committee check it
     if let Some(committee) = &proof.targets.committee {
-        match &summary.end_of_epoch_data {
-            Some(EndOfEpochData {
-                next_epoch_committee,
-                ..
-            }) => {
-                // Extract the end of epoch committee
-                let next_committee_data = next_epoch_committee.iter().cloned().collect();
-                let new_committee =
-                    Committee::new(summary.epoch().checked_add(1).unwrap(), next_committee_data);
+        let Some(EndOfEpochData {
+            next_epoch_committee,
+            ..
+        }) = &summary.end_of_epoch_data
+        else {
+            bail!("No end of epoch committee in the checkpoint summary");
+        };
 
-                if new_committee != *committee {
-                    bail!("Given committee does not match the end of epoch committee");
-                }
-            }
-            None => bail!("No end of epoch committee in the checkpoint summary"),
+        // Extract the end of epoch committee
+        let new_committee = Committee::new(
+            summary.epoch().checked_add(1).unwrap(),
+            next_epoch_committee.iter().cloned().collect(),
+        );
+
+        if new_committee != *committee {
+            bail!("Given committee does not match the end of epoch committee");
         }
     }
 
