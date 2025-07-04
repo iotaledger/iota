@@ -216,15 +216,20 @@ pub async fn main() -> Result<()> {
                 "missing proof targets"
             );
 
-            let client = IotaClientBuilder::default()
-                .build(config.rpc_url.as_str())
-                .await?;
-            let read_api = client.read_api();
+            if config.sync_before_check {
+                sync_and_verify_checkpoints(&config)
+                    .await
+                    .context("Failed to sync checkpoints")?;
+            }
 
             // determine the checkpoint sequence number
             let seq = match checkpoint_id {
                 CheckpointId::SequenceNumber(seq) => seq,
                 CheckpointId::Digest(_) => {
+                    let client = IotaClientBuilder::default()
+                        .build(config.rpc_url.as_str())
+                        .await?;
+                    let read_api = client.read_api();
                     let checkpoint = read_api.get_checkpoint(checkpoint_id).await?;
                     checkpoint.sequence_number
                 }
