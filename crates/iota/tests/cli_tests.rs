@@ -217,7 +217,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
         context
             .config_mut()
             .keystore_mut()
-            .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1).into())?;
+            .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
     }
 
     // Print all addresses

@@ -42,7 +42,11 @@ pub enum Keystore {
 
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
-    fn add_key(&mut self, alias: Option<String>, key: StoredKey) -> Result<(), anyhow::Error>;
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        key: impl Into<StoredKey>,
+    ) -> Result<(), anyhow::Error>;
     fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error>;
@@ -119,7 +123,7 @@ pub trait AccountKeystore: Send + Sync {
     ) -> Result<(IotaAddress, String, SignatureScheme), anyhow::Error> {
         let (address, kp, scheme, phrase) =
             generate_new_key(key_scheme, derivation_path, word_length)?;
-        self.add_key(alias, kp.into())?;
+        self.add_key(alias, kp)?;
         Ok((address, phrase, scheme))
     }
 
@@ -145,7 +149,7 @@ pub trait AccountKeystore: Send + Sync {
     ) -> Result<IotaAddress, anyhow::Error> {
         match derive_key_pair_from_path(seed, derivation_path, &key_scheme) {
             Ok((address, kp)) => {
-                self.add_key(alias, kp.into())?;
+                self.add_key(alias, kp)?;
                 Ok(address)
             }
             Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
@@ -334,7 +338,12 @@ impl AccountKeystore for FileBasedKeystore {
         }
     }
 
-    fn add_key(&mut self, alias: Option<String>, key: StoredKey) -> Result<(), anyhow::Error> {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        key: impl Into<StoredKey>,
+    ) -> Result<(), anyhow::Error> {
+        let key = key.into();
         let address: IotaAddress = (&key.public()).into();
         let alias = self.create_alias(alias)?;
         self.aliases.insert(
@@ -723,7 +732,12 @@ impl AccountKeystore for InMemKeystore {
         }
     }
 
-    fn add_key(&mut self, alias: Option<String>, key: StoredKey) -> Result<(), anyhow::Error> {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        key: impl Into<StoredKey>,
+    ) -> Result<(), anyhow::Error> {
+        let key = key.into();
         let address: IotaAddress = (&key.public()).into();
         let alias = alias.unwrap_or_else(|| {
             random_name(

@@ -75,7 +75,7 @@ async fn test_apy() {
         .wallet
         .config_mut()
         .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(keypair).into())
+        .add_key(None, IotaKeyPair::Ed25519(keypair))
         .unwrap();
 
     let ref_gas_price = test_cluster.get_reference_gas_price().await;

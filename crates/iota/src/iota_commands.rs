@@ -830,9 +830,7 @@ async fn start(
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let address: IotaAddress = kp.public().into();
-            keystore
-                .add_key(None, IotaKeyPair::Ed25519(kp).into())
-                .unwrap();
+            keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
@@ -970,7 +968,7 @@ async fn genesis(
                 let path = iota_config_dir.join(IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME);
                 let mut keystore = FileBasedKeystore::new(&path)?;
                 for gas_key in GenesisConfig::benchmark_gas_keys(ips.len()) {
-                    keystore.add_key(None, gas_key.into())?;
+                    keystore.add_key(None, gas_key)?;
                 }
                 keystore.save()?;
 
@@ -1031,7 +1029,7 @@ async fn genesis(
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
-        keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()).into())?;
+        keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
     }
     let active_address = keystore.addresses().pop();
 

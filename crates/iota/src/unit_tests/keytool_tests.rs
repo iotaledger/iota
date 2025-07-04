@@ -40,7 +40,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1).into())?;
+        keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
     }
 
     // List all addresses with flag
@@ -57,8 +57,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1).into())?;
-    keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1).into())?;
+    keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+    keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
 
     for pk in keystore.keys() {
         let pk1 = pk.clone();

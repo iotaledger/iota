@@ -366,7 +366,7 @@ pub fn new_wallet_context_from_cluster(
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     let address: IotaAddress = key_pair.public().into();
     keystore
-        .add_key(None, IotaKeyPair::Ed25519(key_pair).into())
+        .add_key(None, IotaKeyPair::Ed25519(key_pair))
         .unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])

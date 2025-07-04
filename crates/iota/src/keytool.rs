@@ -617,7 +617,7 @@ impl KeyToolCommand {
                     info!("Importing Bech32 encoded private key to keystore");
                     let mut key = Key::from(&ikp);
 
-                    keystore.add_key(alias, ikp.into())?;
+                    keystore.add_key(alias, ikp)?;
                     key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
 
                     CommandOutput::Import(key)
