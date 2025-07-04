@@ -59,10 +59,6 @@ name = "coin_read_api"
 path = "examples/coin_read_api.rs"
 
 [[example]]
-name = "event_api"
-path = "examples/event_api.rs"
-
-[[example]]
 name = "governance_api"
 path = "examples/governance_api.rs"
 
