@@ -52,7 +52,7 @@ impl BackfillRunner {
     ) -> Result<(), IndexerError> {
         let timer = Instant::now();
         let processed_counter = Arc::new(AtomicUsize::new(0));
-        // Keeps track of the checkpoint ranges (using starting checkpoint number)
+        // Keeps track of the ranges (using starting range number)
         // that are in progress.
         let in_progress = Arc::new(Mutex::new(BTreeSet::new()));
 
