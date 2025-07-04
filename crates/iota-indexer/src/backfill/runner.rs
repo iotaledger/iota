@@ -19,7 +19,7 @@ use tokio_stream::Stream;
 use tracing::{error, info};
 
 use crate::{
-    backfill::{BackfillTaskKind, get_backfill_task, task::BackfillTask},
+    backfill::{BackfillTaskKind, get_backfill, task::BackfillTask},
     config::BackfillConfig,
     db::ConnectionPool,
     errors::IndexerError,
@@ -40,7 +40,7 @@ impl BackfillRunner {
         backfill_config: BackfillConfig,
         total_range: RangeInclusive<usize>,
     ) -> Result<(), IndexerError> {
-        let task = get_backfill_task(runner_kind, *total_range.start()).await;
+        let task = get_backfill(runner_kind, *total_range.start()).await;
         Self::run_impl(pool, backfill_config, total_range, task).await
     }
 

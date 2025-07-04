@@ -49,7 +49,7 @@ pub enum BackfillTaskKind {
 #[non_exhaustive]
 pub enum IngestionBackfillKind {}
 
-pub(crate) async fn get_backfill_task(
+pub(crate) async fn get_backfill(
     kind: BackfillTaskKind,
     _range_start: usize,
 ) -> Arc<dyn BackfillTask> {
