@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA TypeScript API",
     "homepage": "https://docs.iota.org/ts-sdk/typescript/",
-    "version": "1.2.0",
+    "version": "1.4.0",
     "license": "Apache-2.0",
     "sideEffects": false,
     "files": [
@@ -60,6 +60,10 @@
         "./keypairs/secp256r1": {
             "import": "./dist/esm/keypairs/secp256r1/index.js",
             "require": "./dist/cjs/keypairs/secp256r1/index.js"
+        },
+        "./keypairs/passkey": {
+            "import": "./dist/esm/keypairs/passkey/index.js",
+            "require": "./dist/cjs/keypairs/passkey/index.js"
         },
         "./multisig": {
             "import": "./dist/esm/multisig/index.js",

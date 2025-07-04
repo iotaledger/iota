@@ -718,8 +718,7 @@ impl SimpleFaucet {
             .to_vec();
         if created.len() != number_of_coins {
             return Err(FaucetError::CoinAmountTransferredIncorrect(format!(
-                "PayIota Transaction should create exact {:?} new coins, but got {:?}",
-                number_of_coins, created
+                "PayIota Transaction should create exact {number_of_coins:?} new coins, but got {created:?}"
             )));
         }
         assert!(
@@ -877,7 +876,7 @@ impl SimpleFaucet {
         loop {
             let coin_id = consumer
                 .try_recv()
-                .unwrap_or_else(|e| panic!("Expect the {}th candidate but got {}", i, e));
+                .unwrap_or_else(|e| panic!("Expect the {i}th candidate but got {e}"));
             candidates.insert(coin_id);
             i += 1;
             if i == expected_gas_count {
@@ -1237,8 +1236,7 @@ mod tests {
         assert_eq!(available as usize, candidates.len());
         assert_eq!(
             candidates, gas_coins,
-            "gases: {:?}, candidates: {:?}",
-            gas_coins, candidates
+            "gases: {gas_coins:?}, candidates: {candidates:?}"
         );
     }
 
@@ -1289,8 +1287,7 @@ mod tests {
         assert_eq!(available as usize, candidates.len());
         assert_eq!(
             candidates, gas_coins,
-            "gases: {:?}, candidates: {:?}",
-            gas_coins, candidates
+            "gases: {gas_coins:?}, candidates: {candidates:?}"
         );
     }
 
@@ -1511,8 +1508,7 @@ mod tests {
         assert_eq!(discarded, 1);
         assert_eq!(
             candidates, gas_coins,
-            "gases: {:?}, candidates: {:?}",
-            gas_coins, candidates
+            "gases: {gas_coins:?}, candidates: {candidates:?}"
         );
     }
 

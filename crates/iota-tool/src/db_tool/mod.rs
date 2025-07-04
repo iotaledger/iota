@@ -206,7 +206,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
                 SearchRange::ExclusiveLastKey(rg.end_key),
             )?;
             for (k, v) in res {
-                println!("{}: {}", k, v);
+                println!("{k}: {v}");
             }
             Ok(())
         }
@@ -218,7 +218,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
                 SearchRange::Count(sc.count),
             )?;
             for (k, v) in res {
-                println!("{}: {}", k, v);
+                println!("{k}: {v}");
             }
             Ok(())
         }
@@ -227,7 +227,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
 }
 
 pub fn print_db_all_tables(db_path: PathBuf) -> anyhow::Result<()> {
-    list_tables(db_path)?.iter().for_each(|t| println!("{}", t));
+    list_tables(db_path)?.iter().for_each(|t| println!("{t}"));
     Ok(())
 }
 
@@ -235,8 +235,7 @@ pub fn print_db_duplicates_summary(db_path: PathBuf) -> anyhow::Result<()> {
     let (total_count, duplicate_count, total_bytes, duplicated_bytes) =
         duplicate_objects_summary(db_path);
     println!(
-        "Total objects = {}, duplicated objects = {}, total bytes = {}, duplicated bytes = {}",
-        total_count, duplicate_count, total_bytes, duplicated_bytes
+        "Total objects = {total_count}, duplicated objects = {duplicate_count}, total bytes = {total_bytes}, duplicated bytes = {duplicated_bytes}"
     );
     Ok(())
 }
@@ -249,7 +248,7 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
         None,
     );
     let last_index = epoch_tables.get_last_consensus_index()?;
-    println!("Last consensus index is {:?}", last_index);
+    println!("Last consensus index is {last_index:?}");
     Ok(())
 }
 
@@ -299,7 +298,7 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
             "Checkpoint digest {:?} not found in checkpoint store",
             opt.digest
         ))?;
-    println!("Checkpoint: {:?}", checkpoint);
+    println!("Checkpoint: {checkpoint:?}");
     drop(checkpoint_store);
     print_checkpoint_content(
         path,
@@ -320,7 +319,7 @@ pub fn print_checkpoint_content(
             "Checkpoint content digest {:?} not found in checkpoint store",
             opt.digest
         ))?;
-    println!("Checkpoint content: {:?}", contents);
+    println!("Checkpoint content: {contents:?}");
     Ok(())
 }
 
@@ -469,7 +468,7 @@ pub fn print_all_entries(
     page_number: usize,
 ) -> anyhow::Result<()> {
     for (k, v) in dump_table(store, epoch, path, table_name, page_size, page_number)? {
-        println!("{:>100?}: {:?}", k, v);
+        println!("{k:>100?}: {v:?}");
     }
     Ok(())
 }

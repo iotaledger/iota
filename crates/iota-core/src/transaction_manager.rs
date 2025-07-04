@@ -525,7 +525,7 @@ impl TransactionManager {
                 receiving_objects,
                 epoch_store.epoch(),
             )
-            .unwrap_or_else(|err| panic!("Checking object existence cannot fail: {:?}", err))
+            .unwrap_or_else(|err| panic!("Checking object existence cannot fail: {err:?}"))
             .into_iter()
             .zip(input_object_cache_misses);
 
@@ -640,9 +640,7 @@ impl TransactionManager {
 
                     assert!(
                         inner.missing_inputs.entry(key).or_default().insert(digest),
-                        "Duplicated certificate {:?} for missing object {:?}",
-                        digest,
-                        key
+                        "Duplicated certificate {digest:?} for missing object {key:?}"
                     );
                     let input_txns = inner.input_objects.entry(key.id()).or_default();
                     input_txns.insert(digest, pending_cert_enqueue_time);
@@ -666,8 +664,7 @@ impl TransactionManager {
                     .pending_certificates
                     .insert(digest, pending_cert)
                     .is_none(),
-                "Duplicated pending certificate {:?}",
-                digest
+                "Duplicated pending certificate {digest:?}"
             );
 
             self.metrics

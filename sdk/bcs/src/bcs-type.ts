@@ -80,24 +80,25 @@ export class BcsType<T, Input = T> {
         return this.parse(fromB64(b64));
     }
 
-    transform<T2, Input2>({
+    transform<T2 = T, Input2 = Input>({
         name,
         input,
         output,
         validate,
     }: {
-        input: (val: Input2) => Input;
-        output: (value: T) => T2;
+        input?: (val: Input2) => Input;
+        output?: (value: T) => T2;
     } & BcsTypeOptions<T2, Input2>) {
         return new BcsType<T2, Input2>({
             name: name ?? this.name,
-            read: (reader) => output(this.read(reader)),
-            write: (value, writer) => this.#write(input(value), writer),
-            serializedSize: (value) => this.serializedSize(input(value)),
-            serialize: (value, options) => this.#serialize(input(value), options),
+            read: (reader) => (output ? output(this.read(reader)) : (this.read(reader) as never)),
+            write: (value, writer) => this.#write(input ? input(value) : (value as never), writer),
+            serializedSize: (value) => this.serializedSize(input ? input(value) : (value as never)),
+            serialize: (value, options) =>
+                this.#serialize(input ? input(value) : (value as never), options),
             validate: (value) => {
                 validate?.(value);
-                this.validate(input(value));
+                this.validate(input ? input(value) : (value as never));
             },
         });
     }

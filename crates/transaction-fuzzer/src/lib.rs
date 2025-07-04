@@ -174,6 +174,6 @@ pub fn run_proptest<D>(
         test_fn(test_data.data, test_data.executor)
     });
     if result.is_err() {
-        panic!("test failed: {:?}", result);
+        panic!("test failed: {result:?}");
     }
 }
