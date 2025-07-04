@@ -76,7 +76,7 @@ impl SimpleClient {
             // Make type defs which is a csv is the form of $var_name: $var_type
             let type_defs_csv = type_defs
                 .iter()
-                .map(|(name, ty)| format!("${}: {}", name, ty))
+                .map(|(name, ty)| format!("${name}: {ty}"))
                 .collect::<Vec<_>>()
                 .join(", ");
             let query = format!(
@@ -117,7 +117,7 @@ impl SimpleClient {
     }
 }
 
-#[expect(clippy::type_complexity, clippy::result_large_err)]
+#[expect(clippy::type_complexity)]
 pub fn resolve_variables(
     vars: &[GraphqlQueryVariable],
 ) -> Result<(BTreeMap<String, String>, BTreeMap<String, Value>), ClientError> {

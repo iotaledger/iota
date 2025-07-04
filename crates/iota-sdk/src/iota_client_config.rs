@@ -292,13 +292,13 @@ impl Display for IotaClientConfig {
         )?;
         write!(writer, "Active address: ")?;
         match self.active_address {
-            Some(r) => writeln!(writer, "{}", r)?,
+            Some(r) => writeln!(writer, "{r}")?,
             None => writeln!(writer, "None")?,
         };
         writeln!(writer, "{}", self.keystore)?;
         if let Ok(env) = self.get_active_env() {
-            write!(writer, "{}", env)?;
+            write!(writer, "{env}")?;
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }

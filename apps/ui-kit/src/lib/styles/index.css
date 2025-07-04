@@ -12,8 +12,7 @@
 @import 'tailwindcss/utilities';
 @import './utilities.css';
 
-:root.light,
-:root.dark {
+:root {
     /* FONTS */
     --font-family-heading: theme('fontFamily.alliance-no2');
     --font-family-text: theme('fontFamily.inter');
@@ -26,8 +25,7 @@
     --headline-lg-font-weight: 500;
     --headline-md-font-weight: 500;
     --headline-sm-font-weight: 500;
-}
-:root.light {
+
     /* COLORS */
     --warning-surface: theme('colors.iota-warning.90');
     --on-warning: theme('colors.iota-warning.20');
@@ -517,6 +515,7 @@
 }
 
 :root.names {
+    /* FONTS */
     --font-family-heading: theme('fontFamily.roboto-flex');
     --font-family-text: theme('fontFamily.inter');
     --display-lg-font-weight: 700;

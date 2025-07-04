@@ -313,7 +313,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
             .replace(".md", "");
 
         // Store all files in a map to deduplicate and change extension to mdx
-        output.entry(format!("{}x", file_name)).or_insert_with(|| {
+        output.entry(format!("{file_name}x")).or_insert_with(|| {
             title_regex.replace_all(&content, |caps: &regex::Captures| {
                     let title_type = caps.get(1).unwrap().as_str();
                     let package = caps.get(2).unwrap().as_str();
@@ -325,7 +325,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
                     // The url of that file will be /framework/bridge. Which will break anchors that are for example in that mentioned file
                     // and look like this: bridge#anchor for example. So we enforced docusaurus to keep the duplicate in the url by using a custom slug.
                     // Another alternative for later could be to fix this weird anchors in the first place by using relative paths.
-                    format!("---\ntitle: {}{}\nsidebar_label: {}\nslug: {}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, package, name, name, anchor)
+                    format!("---\ntitle: {title_type}{package}\nsidebar_label: {name}\nslug: {name}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{anchor}\"/>")
             }).to_string()
         });
     }

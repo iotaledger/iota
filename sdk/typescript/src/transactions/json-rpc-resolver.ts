@@ -164,54 +164,46 @@ async function resolveObjectReferences(
     ];
 
     const objectChunks = dedupedIds.length ? chunk(dedupedIds, MAX_OBJECTS_PER_FETCH) : [];
-    const resolved = (
-        await Promise.all(
-            objectChunks.map((chunk) =>
-                getClient(options).multiGetObjects({
-                    ids: chunk,
-                    options: { showOwner: true },
-                }),
-            ),
-        )
-    ).flat();
 
-    const responsesById = new Map(
-        dedupedIds.map((id, index) => {
-            return [id, resolved[index]];
+    const resolvedObjects = new Map();
+    const erroredObjects = new Map();
+
+    await Promise.all(
+        objectChunks.map(async (chunk) => {
+            const chunkObjects = await getClient(options).multiGetObjects({
+                ids: chunk,
+                options: { showOwner: true },
+            });
+
+            for (const object of chunkObjects) {
+                const objectId = object.data?.objectId;
+                if (objectId) {
+                    if (object.error || !object.data) {
+                        erroredObjects.set(objectId, object.error);
+                        return;
+                    }
+                    const owner = object.data.owner;
+                    const initialSharedVersion =
+                        owner && typeof owner === 'object' && 'Shared' in owner
+                            ? owner.Shared.initial_shared_version
+                            : null;
+
+                    resolvedObjects.set(objectId, {
+                        objectId,
+                        digest: object.data.digest,
+                        version: object.data.version,
+                        initialSharedVersion,
+                    });
+                }
+            }
         }),
     );
 
-    const invalidObjects = Array.from(responsesById)
-        .filter(([_, obj]) => obj.error)
-        .map(([_, obj]) => JSON.stringify(obj.error));
-
-    if (invalidObjects.length) {
-        throw new Error(`The following input objects are invalid: ${invalidObjects.join(', ')}`);
+    if (erroredObjects.size > 0) {
+        throw new Error(
+            `The following input objects are invalid: ${Array.from(erroredObjects).join(', ')}`,
+        );
     }
-
-    const objects = resolved.map((object) => {
-        if (object.error || !object.data) {
-            throw new Error(`Failed to fetch object: ${object.error}`);
-        }
-        const owner = object.data.owner;
-        const initialSharedVersion =
-            owner && typeof owner === 'object' && 'Shared' in owner
-                ? owner.Shared.initial_shared_version
-                : null;
-
-        return {
-            objectId: object.data.objectId,
-            digest: object.data.digest,
-            version: object.data.version,
-            initialSharedVersion,
-        };
-    });
-
-    const objectsById = new Map(
-        dedupedIds.map((id, index) => {
-            return [id, objects[index]];
-        }),
-    );
 
     for (const [index, input] of transactionData.inputs.entries()) {
         if (!input.UnresolvedObject) {
@@ -220,7 +212,7 @@ async function resolveObjectReferences(
 
         let updated: CallArg | undefined;
         const id = normalizeIotaAddress(input.UnresolvedObject.objectId);
-        const object = objectsById.get(id);
+        const object = resolvedObjects.get(id);
 
         if (input.UnresolvedObject.initialSharedVersion ?? object?.initialSharedVersion) {
             updated = Inputs.SharedObjectRef({
@@ -375,10 +367,12 @@ async function normalizeInputs(
             const inputValue =
                 input.UnresolvedPure?.value ?? (input.UnresolvedObject?.objectId as string);
 
+            const inputIndex = inputs.indexOf(input);
+
             const schema = getPureBcsSchema(param.body);
             if (schema) {
                 arg.type = 'pure';
-                inputs[inputs.indexOf(input)] = Inputs.Pure(schema.serialize(inputValue));
+                inputs[inputIndex] = Inputs.Pure(schema.serialize(inputValue));
                 return;
             }
 
@@ -402,7 +396,7 @@ async function normalizeInputs(
                   }
                 : input;
 
-            inputs[arg.Input] = unresolvedObject;
+            inputs[inputIndex] = unresolvedObject;
         });
     });
 }

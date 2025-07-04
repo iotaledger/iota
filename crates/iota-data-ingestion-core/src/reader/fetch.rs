@@ -152,7 +152,7 @@ pub(crate) trait LocalRead {
         std::fs::create_dir_all(self.path()).expect("failed to create a directory");
         let mut watcher = notify::recommended_watcher(move |res| {
             if let Err(err) = res {
-                eprintln!("watch error: {:?}", err);
+                eprintln!("watch error: {err:?}");
             }
             inotify_sender
                 .blocking_send(())

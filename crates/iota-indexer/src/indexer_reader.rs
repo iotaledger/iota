@@ -348,8 +348,7 @@ impl IndexerReader {
             .await
             .map_err(|e| {
                 IndexerError::PostgresRead(format!(
-                    "Fail to fetch package from package store with error {:?}",
-                    e
+                    "Fail to fetch package from package store with error {e:?}"
                 ))
             })?
             .as_ref()
@@ -728,8 +727,7 @@ impl IndexerReader {
                     IotaObjectDataFilter::StructType(struct_tag) => {
                         let object_type =
                             struct_tag.to_canonical_string(/* with_prefix */ true);
-                        query =
-                            query.filter(objects::object_type.like(format!("{}%", object_type)));
+                        query = query.filter(objects::object_type.like(format!("{object_type}%")));
                     }
                     IotaObjectDataFilter::MatchAny(filters) => {
                         let mut condition = "(".to_string();
@@ -739,11 +737,11 @@ impl IndexerReader {
                                     struct_tag.to_canonical_string(/* with_prefix */ true);
                                 if i == 0 {
                                     condition +=
-                                        format!("objects.object_type LIKE '{}%'", object_type)
+                                        format!("objects.object_type LIKE '{object_type}%'")
                                             .as_str();
                                 } else {
                                     condition +=
-                                        format!(" OR objects.object_type LIKE '{}%'", object_type)
+                                        format!(" OR objects.object_type LIKE '{object_type}%'")
                                             .as_str();
                                 }
                             } else {
@@ -761,7 +759,7 @@ impl IndexerReader {
                                 let object_type =
                                     struct_tag.to_canonical_string(/* with_prefix */ true);
                                 query = query.filter(
-                                    objects::object_type.not_like(format!("{}%", object_type)),
+                                    objects::object_type.not_like(format!("{object_type}%")),
                                 );
                             } else {
                                 return Err(IndexerError::InvalidArgument(
@@ -912,9 +910,9 @@ impl IndexerReader {
         };
         let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
             if is_descending {
-                format!("AND {TX_SEQUENCE_NUMBER_STR} < {}", cursor_tx_seq)
+                format!("AND {TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
             } else {
-                format!("AND {TX_SEQUENCE_NUMBER_STR} > {}", cursor_tx_seq)
+                format!("AND {TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
             }
         } else {
             "".to_string()
@@ -944,16 +942,12 @@ impl IndexerReader {
                     (Some(module), Some(function)) => (
                         "tx_calls_fun".into(),
                         format!(
-                            "package = '\\x{}'::bytea AND module = '{}' AND func = '{}'",
-                            package, module, function
+                            "package = '\\x{package}'::bytea AND module = '{module}' AND func = '{function}'"
                         ),
                     ),
                     (Some(module), None) => (
                         "tx_calls_mod".into(),
-                        format!(
-                            "package = '\\x{}'::bytea AND module = '{}'",
-                            package, module
-                        ),
+                        format!("package = '\\x{package}'::bytea AND module = '{module}'"),
                     ),
                     (None, Some(_)) => {
                         return Err(IndexerError::InvalidArgument(
@@ -962,7 +956,7 @@ impl IndexerReader {
                     }
                     (None, None) => (
                         "tx_calls_pkg".into(),
-                        format!("package = '\\x{}'::bytea", package),
+                        format!("package = '\\x{package}'::bytea"),
                     ),
                 }
             }
@@ -970,28 +964,28 @@ impl IndexerReader {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_input_objects".into(),
-                    format!("object_id = '\\x{}'::bytea", object_id),
+                    format!("object_id = '\\x{object_id}'::bytea"),
                 )
             }
             Some(TransactionFilter::ChangedObject(object_id)) => {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_changed_objects".into(),
-                    format!("object_id = '\\x{}'::bytea", object_id),
+                    format!("object_id = '\\x{object_id}'::bytea"),
                 )
             }
             Some(TransactionFilter::FromAddress(from_address)) => {
                 let from_address = Hex::encode(from_address.to_vec());
                 (
                     "tx_senders".into(),
-                    format!("sender = '\\x{}'::bytea", from_address),
+                    format!("sender = '\\x{from_address}'::bytea"),
                 )
             }
             Some(TransactionFilter::ToAddress(to_address)) => {
                 let to_address = Hex::encode(to_address.to_vec());
                 (
                     "tx_recipients".into(),
-                    format!("recipient = '\\x{}'::bytea", to_address),
+                    format!("recipient = '\\x{to_address}'::bytea"),
                 )
             }
             Some(TransactionFilter::FromAndToAddress { from, to }) => {
@@ -1000,15 +994,9 @@ impl IndexerReader {
                 // Need to remove ambiguities for tx_sequence_number column
                 let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
                     if is_descending {
-                        format!(
-                            "AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {}",
-                            cursor_tx_seq
-                        )
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
                     } else {
-                        format!(
-                            "AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {}",
-                            cursor_tx_seq
-                        )
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
                     }
                 } else {
                     "".to_string()
@@ -1018,17 +1006,12 @@ impl IndexerReader {
                     FROM tx_senders \
                     JOIN tx_recipients \
                     ON tx_senders.{TX_SEQUENCE_NUMBER_STR} = tx_recipients.{TX_SEQUENCE_NUMBER_STR} \
-                    WHERE tx_senders.sender = '\\x{}'::BYTEA \
-                    AND tx_recipients.recipient = '\\x{}'::BYTEA \
-                    {} \
-                    ORDER BY {TX_SEQUENCE_NUMBER_STR} {} \
-                    LIMIT {}) AS inner_query
+                    WHERE tx_senders.sender = '\\x{from_address}'::BYTEA \
+                    AND tx_recipients.recipient = '\\x{to_address}'::BYTEA \
+                    {cursor_clause} \
+                    ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                    LIMIT {limit}) AS inner_query
                     ",
-                    from_address,
-                    to_address,
-                    cursor_clause,
-                    order_str,
-                    limit,
                 );
                 (inner_query, "1 = 1".into())
             }
@@ -1038,26 +1021,18 @@ impl IndexerReader {
                     "( \
                         ( \
                             SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
-                            WHERE sender = '\\x{}'::BYTEA {} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {} \
-                            LIMIT {} \
+                            WHERE sender = '\\x{address}'::BYTEA {cursor_clause} \
+                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                            LIMIT {limit} \
                         ) \
                         UNION \
                         ( \
                             SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
-                            WHERE recipient = '\\x{}'::BYTEA {} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {} \
-                            LIMIT {} \
+                            WHERE recipient = '\\x{address}'::BYTEA {cursor_clause} \
+                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                            LIMIT {limit} \
                         ) \
                     ) AS combined",
-                    address,
-                    cursor_clause,
-                    order_str,
-                    limit,
-                    address,
-                    cursor_clause,
-                    order_str,
-                    limit,
                 );
                 (inner_query, "1 = 1".into())
             }
@@ -1134,8 +1109,7 @@ impl IndexerReader {
         };
 
         let query = format!(
-            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {} WHERE {} {} ORDER BY {TX_SEQUENCE_NUMBER_STR} {} LIMIT {}",
-            table_name, main_where_clause, cursor_clause, order_str, limit,
+            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {table_name} WHERE {main_where_clause} {cursor_clause} ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} LIMIT {limit}",
         );
 
         tracing::debug!("query transaction blocks: {}", query);
@@ -1333,13 +1307,11 @@ impl IndexerReader {
             // Need to remove ambiguities for tx_sequence_number column
             let cursor_clause = if descending_order {
                 format!(
-                    "(e.{TX_SEQUENCE_NUMBER_STR} < {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {}))",
-                    tx_seq, tx_seq, event_seq
+                    "(e.{TX_SEQUENCE_NUMBER_STR} < {tx_seq} OR (e.{TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {event_seq}))"
                 )
             } else {
                 format!(
-                    "(e.{TX_SEQUENCE_NUMBER_STR} > {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {}))",
-                    tx_seq, tx_seq, event_seq
+                    "(e.{TX_SEQUENCE_NUMBER_STR} > {tx_seq} OR (e.{TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {event_seq}))"
                 )
             };
             let order_clause = if descending_order {
@@ -1409,13 +1381,11 @@ impl IndexerReader {
 
             let cursor_clause = if descending_order {
                 format!(
-                    "AND ({TX_SEQUENCE_NUMBER_STR} < {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} < {}))",
-                    tx_seq, tx_seq, event_seq
+                    "AND ({TX_SEQUENCE_NUMBER_STR} < {tx_seq} OR ({TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND {EVENT_SEQUENCE_NUMBER_STR} < {event_seq}))"
                 )
             } else {
                 format!(
-                    "AND ({TX_SEQUENCE_NUMBER_STR} > {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} > {}))",
-                    tx_seq, tx_seq, event_seq
+                    "AND ({TX_SEQUENCE_NUMBER_STR} > {tx_seq} OR ({TX_SEQUENCE_NUMBER_STR} = {tx_seq} AND {EVENT_SEQUENCE_NUMBER_STR} > {event_seq}))"
                 )
             };
             let order_clause = if descending_order {
@@ -1427,11 +1397,10 @@ impl IndexerReader {
             format!(
                 "
                     SELECT * FROM events \
-                    WHERE {} {} \
-                    ORDER BY {} \
-                    LIMIT {}
+                    WHERE {main_where_clause} {cursor_clause} \
+                    ORDER BY {order_clause} \
+                    LIMIT {limit}
                 ",
-                main_where_clause, cursor_clause, order_clause, limit,
             )
         };
         tracing::debug!("query events: {}", query);
@@ -1719,7 +1688,7 @@ impl IndexerReader {
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
         let coin_type_filter = if let Some(coin_type) = coin_type {
-            format!("= '{}'", coin_type)
+            format!("= '{coin_type}'")
         } else {
             "IS NOT NULL".to_string()
         };

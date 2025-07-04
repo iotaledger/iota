@@ -459,7 +459,7 @@ impl FullnodeConfigBuilder {
             let rpc_port = self
                 .rpc_port
                 .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
-            format!("{}:{}", ip, rpc_port).parse().unwrap()
+            format!("{ip}:{rpc_port}").parse().unwrap()
         });
 
         let checkpoint_executor_config = CheckpointExecutorConfig {

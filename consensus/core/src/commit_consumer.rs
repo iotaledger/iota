@@ -75,9 +75,7 @@ impl CommitConsumerMonitor {
         let highest_handled_commit = self.highest_handled_commit();
         assert!(
             highest_observed_commit_at_startup >= highest_handled_commit,
-            "we cannot have handled a commit that we do not know about: {} < {}",
-            highest_observed_commit_at_startup,
-            highest_handled_commit,
+            "we cannot have handled a commit that we do not know about: {highest_observed_commit_at_startup} < {highest_handled_commit}",
         );
 
         let mut commit = self.highest_observed_commit_at_startup.write().unwrap();

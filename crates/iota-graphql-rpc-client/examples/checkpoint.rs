@@ -61,7 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .ok_or(anyhow::anyhow!("missing sequenceNumber"))?
     );
     // Full response
-    println!("{:#?}", resp_body);
+    println!("{resp_body:#?}");
 
     Ok(())
 }
