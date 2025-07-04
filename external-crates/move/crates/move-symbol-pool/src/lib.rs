@@ -96,7 +96,9 @@ static_symbols!(
     "migration",
     "beta",
     "development",
-    "account_registry"
+    "account_registry",
+    "deterministic_object_id",
+    "new_precomputed"
 );
 
 /// The global, unique cache of strings.

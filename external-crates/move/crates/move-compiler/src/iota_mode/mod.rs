@@ -65,6 +65,9 @@ pub const BRIDGE_CREATE: Symbol = symbol!("create");
 pub const ACCOUNT_REGISTRY_MODULE_NAME: Symbol = symbol!("account_registry");
 pub const IOTA_ACCOUNT_REGISTRY_CREATE: Symbol = symbol!("create");
 
+pub const DETERMINISTIC_OBJECT_MODULE_NAME: Symbol = symbol!("deterministic_object_id");
+pub const IOTA_DETERMINISTIC_OBJECT_NEW_PRECOMPUTED: Symbol = symbol!("new_precomputed");
+
 pub const EVENT_MODULE_NAME: Symbol = symbol!("event");
 pub const EVENT_FUNCTION_NAME: Symbol = symbol!("emit");
 
