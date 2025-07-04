@@ -131,8 +131,8 @@ pub enum KeyToolCommand {
     /// generate one.
     Import {
         /// Sets an alias for this address. The alias must start with a letter
-        /// and can contain only letters, digits, hyphens (-), or underscores
-        /// (_).
+        /// and can contain only letters, digits, dots, hyphens (-), or
+        /// underscores (_).
         #[arg(long)]
         alias: Option<String>,
         input_string: String,
@@ -333,6 +333,7 @@ pub struct DecodeOrVerifyTxOutput {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Key {
+    #[serde(skip_serializing_if = "Option::is_none")]
     alias: Option<String>,
     pub(crate) iota_address: IotaAddress,
     pub(crate) public_base64_key: String,
@@ -342,6 +343,10 @@ pub struct Key {
     #[serde(skip_serializing_if = "Option::is_none")]
     mnemonic: Option<String>,
     peer_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    external_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    derivation_path: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -556,7 +561,7 @@ impl KeyToolCommand {
 
                 match stored {
                     StoredKey::KeyPair(keypair) => {
-                        let mut key = Key::from(keypair);
+                        let mut key = Key::from(stored);
                         key.alias = keystore.get_alias_by_address(&address).ok();
 
                         let key = ExportedKey {
@@ -595,6 +600,8 @@ impl KeyToolCommand {
                         flag: SignatureScheme::BLS12381.flag(),
                         mnemonic: None,
                         peer_id: None,
+                        external_source: None,
+                        derivation_path: None,
                     })
                 }
                 _ => {
@@ -602,7 +609,7 @@ impl KeyToolCommand {
                         generate_new_key(key_scheme, derivation_path, word_length)?;
                     let file = format!("{iota_address}.key");
                     write_keypair_to_file(&ikp, file)?;
-                    let mut key = Key::from(&ikp);
+                    let mut key = Key::from(ikp);
                     key.mnemonic = Some(phrase);
                     CommandOutput::Generate(key)
                 }
@@ -615,9 +622,10 @@ impl KeyToolCommand {
             } => match IotaKeyPair::decode(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
-                    let mut key = Key::from(&ikp);
+                    let stored = ikp.into();
+                    let mut key = Key::from(&stored);
 
-                    keystore.add_key(alias, ikp)?;
+                    keystore.add_key(alias, stored)?;
                     key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
 
                     CommandOutput::Import(key)
@@ -711,7 +719,7 @@ impl KeyToolCommand {
                 let res = read_keypair_from_file(&file);
                 match res {
                     Ok(ikp) => {
-                        let key = Key::from(&ikp);
+                        let key = Key::from(ikp);
                         CommandOutput::Show(key)
                     }
                     Err(_) => match read_authority_keypair_from_file(&file) {
@@ -730,6 +738,8 @@ impl KeyToolCommand {
                                 flag: SignatureScheme::BLS12381.flag(),
                                 peer_id: None,
                                 mnemonic: None,
+                                external_source: None,
+                                derivation_path: None,
                             })
                         }
                         Err(e) => CommandOutput::Error(format!(
@@ -1198,29 +1208,26 @@ impl KeyToolCommand {
     }
 }
 
-impl From<&IotaKeyPair> for Key {
-    fn from(ikp: &IotaKeyPair) -> Self {
-        Key::from(ikp.public())
+impl From<IotaKeyPair> for Key {
+    fn from(ikp: IotaKeyPair) -> Self {
+        Key::from(&StoredKey::from(ikp))
     }
 }
 
 impl From<&StoredKey> for Key {
     fn from(stored: &StoredKey) -> Self {
-        Key::from(stored.public())
-    }
-}
-
-impl From<PublicKey> for Key {
-    fn from(pk: PublicKey) -> Self {
-        Key {
+        let pk = stored.public();
+        Self {
             alias: None, // this is retrieved later
-            iota_address: IotaAddress::from(&pk),
+            iota_address: stored.address(),
             public_base64_key: Base64::encode(pk.as_ref()),
             public_base64_key_with_flag: pk.encode_base64(),
             key_scheme: pk.scheme().to_string(),
             mnemonic: None,
             flag: pk.flag(),
             peer_id: anemo_styling(&pk),
+            external_source: stored.external_source(),
+            derivation_path: stored.derivation_path().map(|d| d.to_string()),
         }
     }
 }
