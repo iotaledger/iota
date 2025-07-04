@@ -104,14 +104,7 @@ export function DepositLayer2() {
             if (!receivingAddress || !depositAmount || !iscContractAddress) {
                 throw Error('Transaction is missing');
             }
-
-            const coinBalances = [
-                {
-                    coinType: selectedCoinType,
-                    amount: Number(amount),
-                },
-            ];
-            const params = buildDepositL2Parameters(receivingAddress, coinBalances);
+            const params = buildDepositL2Parameters(receivingAddress, amount, selectedCoinType);
             await writeContractAsync({
                 abi: iscAbi,
                 address: iscContractAddress,

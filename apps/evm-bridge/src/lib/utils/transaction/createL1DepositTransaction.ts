@@ -32,7 +32,7 @@ export function createL1DepositTransaction({
     const bag = iscTx.newBag();
 
     const isIotaCoinType = coinType === IOTA_TYPE_ARG;
-    // If the coin type is IOTA, we need to add the L2 gas budget to the amount
+    // If the coin type is IOTA, we need to add the L2 gas budget to the amount otherwise for native coins we only need the gas budget
     const amountToPlace = isIotaCoinType ? amount + L2_FROM_L1_GAS_BUDGET : L2_FROM_L1_GAS_BUDGET;
 
     // add iota coins to the bag

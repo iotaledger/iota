@@ -33,13 +33,8 @@ export function useGasEstimateL2({
             if (!address || !amount || !iscContractAddress) {
                 return null;
             }
-            const coinBalances = [
-                {
-                    coinType,
-                    amount,
-                },
-            ];
-            const params = buildDepositL2Parameters(address, coinBalances);
+
+            const params = buildDepositL2Parameters(address, amount, coinType);
 
             const gas = await client?.estimateContractGas({
                 address: iscContractAddress,

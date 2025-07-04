@@ -70,7 +70,6 @@ export function DepositLayer1() {
                         })
                         .then(() => {
                             toast.success('Deposit transaction confirmed!');
-                            // Invalidate L2 balances to refresh them
                             refetchL2Balance();
                         })
                         .catch((err) => {

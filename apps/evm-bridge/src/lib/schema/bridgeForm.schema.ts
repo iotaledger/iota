@@ -34,14 +34,17 @@ export function createBridgeFormSchema(
         .required()
         .superRefine((data, ctx) => {
             const value = data[BridgeFormInputName.DepositAmount];
-            // Access isFromLayer1 from the form data
             const isFromLayer1 = data[BridgeFormInputName.IsFromLayer1];
-            // Selected coin type
             const selectedCoinType = data[BridgeFormInputName.CoinType];
-            // Determine the coin metadata based on isFromLayer1 and selectedCoinType
+
             const coinMetadata = isFromLayer1
                 ? coinsMetadataL1[selectedCoinType]
                 : coinsMetadataL2[selectedCoinType];
+
+            const coinBalances = isFromLayer1 ? coinBalancesL1 : coinBalancesL2;
+            const availableBalance =
+                coinBalances.find((balance) => balance.coinType === selectedCoinType)
+                    ?.totalBalance || '0';
 
             if (!coinMetadata) {
                 ctx.addIssue({
@@ -51,23 +54,12 @@ export function createBridgeFormSchema(
                 });
                 return;
             }
-            // Determine available balances based on isFromLayer1
-            const availableBalanceL1 =
-                coinBalancesL1.find((balance) => balance.coinType === selectedCoinType)
-                    ?.totalBalance || '0';
-
-            const availableBalanceL2 =
-                coinBalancesL2.find((balance) => balance.coinType === selectedCoinType)
-                    ?.totalBalance || '0';
 
             if (value) {
-                // Validate max amount using the form's isFromLayer1 value
-                const totalAccountBalance = isFromLayer1 ? availableBalanceL1 : availableBalanceL2;
                 const coinDecimals = coinMetadata.decimals;
-
                 const amount = parseAmount(value, coinDecimals);
 
-                if (!amount || amount > BigInt(totalAccountBalance)) {
+                if (!amount || amount > BigInt(availableBalance)) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
                         message: `Insufficient balance.`,

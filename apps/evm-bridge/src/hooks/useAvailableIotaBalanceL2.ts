@@ -26,7 +26,7 @@ export function useAvailableIotaBalanceL2(): {
     const amount = parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS);
     const { data: gasEstimationData, isPending: isGasEstimationLoading } = useGasEstimateL2({
         address: GENERIC_IOTA_ADDRESS,
-        amount: amount,
+        amount,
     });
 
     const gasEstimation = gasEstimationData ?? 0n;
@@ -37,7 +37,7 @@ export function useAvailableIotaBalanceL2(): {
             ? layer2TotalBalance - gasEstimation
             : layer2TotalBalance;
 
-    // Convert the available balance to IOTA format
+    // Convert the available balance to IOTA format because the balance is in wei (18 decimals)
     const formattedIota = formatEther(availableBalance);
     const availableBalanceInIota = parseAmount(formattedIota, IOTA_DECIMALS);
 

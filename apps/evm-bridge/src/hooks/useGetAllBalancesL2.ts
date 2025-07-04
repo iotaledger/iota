@@ -29,8 +29,7 @@ export function useGetAllBalancesL2(address: string) {
                 totalBalance: string;
             }> = [];
 
-            // Add base token (IOTA) if it exists
-            if (data.baseTokens !== undefined && data.baseTokens !== null) {
+            if (data.baseTokens) {
                 coinBalances.push({
                     coinType: IOTA_TYPE_ARG,
                     coinObjectCount: 1,
@@ -38,17 +37,14 @@ export function useGetAllBalancesL2(address: string) {
                 });
             }
 
-            // Add all native tokens if they exist
-            if (data.nativeTokens && Array.isArray(data.nativeTokens)) {
-                data.nativeTokens.forEach((token) => {
-                    if (token.coinType && token.balance) {
-                        coinBalances.push({
-                            coinType: token.coinType,
-                            coinObjectCount: 1,
-                            totalBalance: token.balance,
-                        });
-                    }
-                });
+            for (const { coinType, balance } of data.nativeTokens ?? []) {
+                if (coinType && balance) {
+                    coinBalances.push({
+                        coinType,
+                        coinObjectCount: 1,
+                        totalBalance: balance,
+                    });
+                }
             }
 
             return coinBalances;

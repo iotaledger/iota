@@ -1,11 +1,19 @@
 export function buildDepositL2Parameters(
     receiverAddress: string,
-    coinBalances: { coinType: string; amount: number | bigint }[],
+    amount: number | bigint,
+    coinType: string,
 ) {
+    const coins = [
+        {
+            coinType,
+            amount,
+        },
+    ];
+
     const parameters = [
         receiverAddress,
         {
-            coins: coinBalances,
+            coins,
             objects: [
                 // Place any objects in here you want to withdraw
             ],
