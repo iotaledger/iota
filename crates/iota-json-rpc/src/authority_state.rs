@@ -40,7 +40,7 @@ use iota_types::{
     },
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
-    timelock::timelocked_staked_iota::TimelockedStakedIota,
+    timelock::timelocked_staked_iotObjectStoreFallibleedStakedIota,
     transaction::{Transaction, TransactionData, TransactionKind},
 };
 #[cfg(test)]
@@ -85,7 +85,7 @@ pub trait StateRead: Send + Sync {
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
     fn get_object_store(&self) -> &Arc<dyn ObjectStore + Send + Sync>;
-
+ObjectStoreFallible
     fn get_backing_package_store(&self) -> &Arc<dyn BackingPackageStore + Send + Sync>;
 
     fn get_owner_objects(
@@ -288,7 +288,7 @@ impl StateRead for AuthorityState {
         self.get_object_store()
     }
 
-    fn get_backing_package_store(&self) -> &Arc<dyn BackingPackageStore + Send + Sync> {
+    fn get_backing_package_store(&self) -> ObjectStoreFallibleckingPackageStore + Send + Sync> {
         self.get_backing_package_store()
     }
 

@@ -10,7 +10,7 @@ use iota_types::{
     digests::TransactionDigest,
     move_package::MovePackage,
     object::{OBJECT_START_VERSION, Object},
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility,
@@ -186,7 +186,7 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   without a framework upgrade).
 /// - Returns the digest of the new framework (and version) if it is compatible
 ///   (indicates support for a protocol upgrade with a framework upgrade).
-pub async fn compare_system_package<S: ObjectStore>(
+pub async fn compare_system_package<S: ObjectStoreFallible>(
     object_store: &S,
     id: &ObjectID,
     modules: &[CompiledModule],

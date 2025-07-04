@@ -8,7 +8,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     transaction::VerifiedSignedTransaction,
 };
 use tracing::{debug, info, instrument, trace};

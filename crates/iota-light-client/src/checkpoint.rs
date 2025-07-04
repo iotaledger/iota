@@ -20,7 +20,7 @@ use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
-    storage::{ObjectStore, ReadStore, WriteStore},
+    storage::{ObjectStoreFallible, ReadStore, WriteStore},
 };
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -493,7 +493,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
-impl ObjectStore for CheckpointSummaryFileStore<'_> {
+impl ObjectStoreFallible for CheckpointSummaryFileStore<'_> {
     fn try_get_object(
         &self,
         _: &iota_types::base_types::ObjectID,

@@ -17,7 +17,7 @@ use std::{
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
-pub use object_store_trait::ObjectStore;
+pub use object_store_trait::ObjectStoreFallible;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStore,
     RestStateReader,
@@ -279,7 +279,7 @@ impl<S: ?Sized + BackingPackageStore> BackingPackageStore for &mut S {
 }
 
 pub fn load_package_object_from_object_store(
-    store: &impl ObjectStore,
+    store: &impl ObjectStoreFallible,
     package_id: &ObjectID,
 ) -> IotaResult<Option<PackageObject>> {
     let package = store.try_get_object(package_id)?;
@@ -556,17 +556,17 @@ impl Display for DeleteKind {
     }
 }
 
-pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStore {
-    fn as_object_store(&self) -> &dyn ObjectStore;
+pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStoreFallible {
+    fn as_object_store(&self) -> &dyn ObjectStoreFallible;
 }
 
 impl<T> BackingStore for T
 where
     T: BackingPackageStore,
     T: ChildObjectResolver,
-    T: ObjectStore,
+    T: ObjectStoreFallible,
 {
-    fn as_object_store(&self) -> &dyn ObjectStore {
+    fn as_object_store(&self) -> &dyn ObjectStoreFallible {
         self
     }
 }

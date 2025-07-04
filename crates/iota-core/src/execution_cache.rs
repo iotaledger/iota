@@ -17,7 +17,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
-        ObjectOrTombstone, ObjectStore, PackageObject,
+        ObjectOrTombstone, ObjectStoreFallible, PackageObject,
         error::{Error as StorageError, Result as StorageResult},
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -60,7 +60,7 @@ pub struct ExecutionCacheTraitPointers {
     pub cache_writer: Arc<dyn ExecutionCacheWrite>,
     pub backing_store: Arc<dyn BackingStore + Send + Sync>,
     pub backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-    pub object_store: Arc<dyn ObjectStore + Send + Sync>,
+    pub object_store: Arc<dyn ObjectStoreFallible + Send + Sync>,
     pub reconfig_api: Arc<dyn ExecutionCacheReconfigAPI>,
     pub accumulator_store: Arc<dyn AccumulatorStore>,
     pub checkpoint_cache: Arc<dyn CheckpointCache>,
@@ -77,7 +77,7 @@ impl ExecutionCacheTraitPointers {
             + ExecutionCacheWrite
             + BackingStore
             + BackingPackageStore
-            + ObjectStore
+            + ObjectStoreFallible
             + ExecutionCacheReconfigAPI
             + AccumulatorStore
             + CheckpointCache

@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use tap::Pipe;
 use tracing::error;
 
-use super::{ObjectStore, error::Result};
+use super::{ObjectStoreFallible, error::Result};
 use crate::{
     base_types::{EpochId, TransactionDigest},
     committee::Committee,
@@ -163,7 +163,7 @@ impl ReadStore for SharedInMemoryStore {
     }
 }
 
-impl ObjectStore for SharedInMemoryStore {
+impl ObjectStoreFallible for SharedInMemoryStore {
     fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
@@ -474,7 +474,7 @@ impl SingleCheckpointSharedInMemoryStore {
     }
 }
 
-impl ObjectStore for SingleCheckpointSharedInMemoryStore {
+impl ObjectStoreFallible for SingleCheckpointSharedInMemoryStore {
     fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,

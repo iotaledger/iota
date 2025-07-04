@@ -28,7 +28,7 @@ use crate::{
     id::UID,
     iota_serde::{IotaTypeTag, Readable},
     object::Object,
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
 };
 
 pub mod visitor;
@@ -310,7 +310,7 @@ where
 /// returns the Move type tag. Note that this function returns the Field object
 /// itself, not the value in the field.
 pub fn get_dynamic_field_object_from_store<K>(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
     parent_id: ObjectID,
     key: &K,
 ) -> Result<Object, IotaError>
@@ -331,7 +331,7 @@ where
 /// Similar to `get_dynamic_field_object_from_store`, but returns the value in
 /// the field instead of the Field object itself.
 pub fn get_dynamic_field_from_store<K, V>(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
     parent_id: ObjectID,
     key: &K,
 ) -> Result<V, IotaError>

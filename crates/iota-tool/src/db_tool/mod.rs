@@ -18,7 +18,7 @@ use iota_types::{
     digests::{CheckpointContentsDigest, TransactionDigest},
     effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
 };
 use typed_store::rocks::MetricConf;
 

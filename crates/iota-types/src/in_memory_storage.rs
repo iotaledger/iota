@@ -16,7 +16,7 @@ use crate::{
     inner_temporary_store::WrittenObjects,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
+        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, get_module,
         get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
@@ -103,7 +103,7 @@ impl ModuleResolver for &mut InMemoryStorage {
     }
 }
 
-impl ObjectStore for InMemoryStorage {
+impl ObjectStoreFallible for InMemoryStorage {
     fn try_get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
@@ -127,7 +127,7 @@ impl ObjectStore for InMemoryStorage {
     }
 }
 
-impl ObjectStore for &mut InMemoryStorage {
+impl ObjectStoreFallible for &mut InMemoryStorage {
     fn try_get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }

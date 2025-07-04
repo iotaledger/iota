@@ -67,7 +67,7 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use moka::sync::Cache as MokaCache;

@@ -25,7 +25,7 @@ use iota_types::{
 pub mod in_mem_store;
 
 pub trait SimulatorStore:
-    iota_types::storage::BackingPackageStore + iota_types::storage::ObjectStore + ChildObjectResolver
+    iota_types::storage::BackingPackageStore + iota_types::storage::ObjectStoreFallible + ChildObjectResolver
 {
     fn init_with_genesis(&mut self, genesis: &genesis::Genesis) {
         self.insert_checkpoint(genesis.checkpoint());

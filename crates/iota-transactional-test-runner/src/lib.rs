@@ -34,7 +34,7 @@ use iota_types::{
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
-    storage::{ObjectStore, ReadStore},
+    storage::{ObjectStoreFallible, ReadStore},
     transaction::{
         InputObjects, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
@@ -402,7 +402,7 @@ impl ReadStore for ValidatorWithFullnode {
     }
 }
 
-impl ObjectStore for ValidatorWithFullnode {
+impl ObjectStoreFallible for ValidatorWithFullnode {
     fn try_get_object(
         &self,
         object_id: &ObjectID,

@@ -7,7 +7,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 use iota_types::{
     base_types::ObjectID,
     error::{IotaError, IotaResult, UserInputError},
-    storage::{ObjectStore, PackageObject},
+    storage::{ObjectStoreFallible, PackageObject},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -28,7 +28,7 @@ impl PackageObjectCache {
     pub fn get_package_object(
         &self,
         package_id: &ObjectID,
-        store: &impl ObjectStore,
+        store: &impl ObjectStoreFallible,
     ) -> IotaResult<Option<PackageObject>> {
         // TODO: Here the use of `peek` doesn't update the internal use record,
         // and hence the LRU is really used as a capped map here.
@@ -67,7 +67,7 @@ impl PackageObjectCache {
     pub fn force_reload_system_packages(
         &self,
         system_package_ids: impl IntoIterator<Item = ObjectID>,
-        store: &impl ObjectStore,
+        store: &impl ObjectStoreFallible,
     ) {
         for package_id in system_package_ids {
             if let Some(p) = store

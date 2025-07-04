@@ -199,7 +199,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
     }
 }
 
-impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
+impl iota_types::storage::ObjectStoreFallible for EpochEndIndexingObjectStore<'_> {
     fn try_get_object(
         &self,
         object_id: &ObjectID,

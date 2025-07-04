@@ -32,7 +32,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
+        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, get_module,
         get_module_by_id,
     },
     transaction::{
@@ -2053,7 +2053,7 @@ impl ModuleResolver for &mut LocalExec {
     }
 }
 
-impl ObjectStore for LocalExec {
+impl ObjectStoreFallible for LocalExec {
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
     fn try_get_object(
@@ -2111,7 +2111,7 @@ impl ObjectStore for LocalExec {
     }
 }
 
-impl ObjectStore for &mut LocalExec {
+impl ObjectStoreFallible for &mut LocalExec {
     fn try_get_object(
         &self,
         object_id: &ObjectID,

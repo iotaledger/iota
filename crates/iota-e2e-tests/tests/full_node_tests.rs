@@ -35,7 +35,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverResponse,
     },
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     transaction::{
         CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionKind,

@@ -20,7 +20,7 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
+        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, ReadStore,
         RestStateReader, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
@@ -500,7 +500,7 @@ impl ModuleResolver for PersistedStore {
     }
 }
 
-impl ObjectStore for PersistedStore {
+impl ObjectStoreFallible for PersistedStore {
     fn try_get_object(
         &self,
         object_id: &ObjectID,
@@ -517,7 +517,7 @@ impl ObjectStore for PersistedStore {
     }
 }
 
-impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
+impl ObjectStoreFallible for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
         object_id: &ObjectID,

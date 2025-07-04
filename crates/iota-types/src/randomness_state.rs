@@ -11,7 +11,7 @@ use crate::{
     base_types::SequenceNumber,
     error::{IotaError, IotaResult},
     object::Owner,
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
 };
 
 pub const RANDOMNESS_MODULE_NAME: &IdentStr = ident_str!("random");
@@ -25,7 +25,7 @@ pub const RESOLVED_IOTA_RANDOMNESS_STATE: (&AccountAddress, &IdentStr, &IdentStr
 );
 
 pub fn get_randomness_state_obj_initial_shared_version(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> IotaResult<SequenceNumber> {
     object_store
         .try_get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)?

@@ -2100,7 +2100,7 @@ impl IndexerReader {
     }
 }
 
-impl iota_types::storage::ObjectStore for IndexerReader {
+impl iota_types::storage::ObjectStoreFallible for IndexerReader {
     fn try_get_object(
         &self,
         object_id: &ObjectID,

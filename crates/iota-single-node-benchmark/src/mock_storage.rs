@@ -15,7 +15,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module_by_id,
+        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
@@ -108,7 +108,7 @@ impl InMemoryObjectStore {
     }
 }
 
-impl ObjectStore for InMemoryObjectStore {
+impl ObjectStoreFallible for InMemoryObjectStore {
     fn try_get_object(
         &self,
         object_id: &ObjectID,

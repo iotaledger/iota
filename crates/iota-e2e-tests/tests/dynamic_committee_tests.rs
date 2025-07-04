@@ -23,7 +23,7 @@ use iota_types::{
     },
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
 };
 use move_core_types::ident_str;

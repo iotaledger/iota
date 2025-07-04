@@ -15,7 +15,7 @@ use iota_types::{
     error::IotaResult,
     in_memory_storage::InMemoryStorage,
     messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
 };
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use serde::Serialize;
@@ -52,7 +52,7 @@ pub struct StateAccumulatorV1 {
     metrics: Arc<StateAccumulatorMetrics>,
 }
 
-pub trait AccumulatorStore: ObjectStore + Send + Sync {
+pub trait AccumulatorStore: ObjectStoreFallible + Send + Sync {
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,

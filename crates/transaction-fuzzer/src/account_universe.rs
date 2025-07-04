@@ -5,7 +5,7 @@
 
 use std::{fmt, sync::Arc};
 
-use iota_types::{storage::ObjectStore, transaction::Transaction};
+use iota_types::{storage::ObjectStoreFallible, transaction::Transaction};
 use once_cell::sync::Lazy;
 use proptest::{prelude::*, strategy::Union};
 

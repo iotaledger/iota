@@ -24,7 +24,7 @@ use iota_types::{
     },
     message_envelope::Message,
     storage::{
-        BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
+        BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible, get_module,
     },
 };
 use itertools::izip;
@@ -1851,7 +1851,7 @@ impl AccumulatorStore for AuthorityStore {
     }
 }
 
-impl ObjectStore for AuthorityStore {
+impl ObjectStoreFallible for AuthorityStore {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,

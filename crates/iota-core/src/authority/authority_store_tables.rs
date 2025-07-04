@@ -515,7 +515,7 @@ impl AuthorityPerpetualTables {
     }
 }
 
-impl ObjectStore for AuthorityPerpetualTables {
+impl ObjectStoreFallible for AuthorityPerpetualTables {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,

@@ -18,7 +18,7 @@ use crate::{
     iota_serde::{BigInt, Readable},
     iota_system_state::get_validator_from_table,
     multiaddr::Multiaddr,
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
 };
 
 /// This is the JSON-RPC type for IOTA system state objects.
@@ -848,7 +848,7 @@ pub fn get_validator_by_pool_id<S>(
     pool_id: ObjectID,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
-    S: ObjectStore + ?Sized,
+    S: ObjectStoreFallible + ?Sized,
 {
     match system_state_summary {
         IotaSystemStateSummary::V1(summary) => {
@@ -867,7 +867,7 @@ fn get_validator_by_pool_id_v1<S>(
     pool_id: ObjectID,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
-    S: ObjectStore + ?Sized,
+    S: ObjectStoreFallible + ?Sized,
 {
     // First try to find in active validator set.
     let active_validator = system_state_summary
@@ -915,7 +915,7 @@ fn get_validator_by_pool_id_v2<S>(
     pool_id: ObjectID,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
-    S: ObjectStore + ?Sized,
+    S: ObjectStoreFallible + ?Sized,
 {
     // First try to find in active validator set.
     let active_validator = system_state_summary

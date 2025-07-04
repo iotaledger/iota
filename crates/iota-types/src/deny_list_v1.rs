@@ -25,7 +25,7 @@ use crate::{
     },
     id::{ID, UID},
     object::{Object, Owner},
-    storage::{DenyListResult, ObjectStore},
+    storage::{DenyListResult, ObjectStoreFallible},
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
@@ -126,7 +126,7 @@ pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(input_objects, receiving_objects);
     for coin_type in coin_types {
@@ -149,7 +149,7 @@ pub fn check_coin_deny_list_v1_during_signing(
 pub fn check_coin_deny_list_v1_during_execution(
     written_objects: &BTreeMap<ObjectID, Object>,
     cur_epoch: EpochId,
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> DenyListResult {
     let mut new_coin_owners = BTreeMap::new();
     for obj in written_objects.values() {
@@ -193,7 +193,7 @@ pub fn check_coin_deny_list_v1_during_execution(
 fn check_new_regulated_coin_owners(
     new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<IotaAddress>)>,
     cur_epoch: EpochId,
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> Result<(), ExecutionError> {
     for (coin_type, (deny_list, owners)) in new_regulated_coin_owners {
         if check_global_pause(&deny_list, object_store, Some(cur_epoch)) {
@@ -219,7 +219,7 @@ fn check_new_regulated_coin_owners(
 
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> Option<Config> {
     let config_key = DOFWrapper {
         name: ConfigKey {
@@ -236,7 +236,7 @@ pub fn get_per_type_coin_deny_list_v1(
 pub fn check_address_denied_by_config(
     deny_config: &Config,
     address: IotaAddress,
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
     cur_epoch: Option<EpochId>,
 ) -> bool {
     let address_key = AddressKey(address);
@@ -245,14 +245,14 @@ pub fn check_address_denied_by_config(
 
 pub fn check_global_pause(
     deny_config: &Config,
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
     cur_epoch: Option<EpochId>,
 ) -> bool {
     let global_pause_key = GlobalPauseKey::new();
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 
-pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<Object> {
+pub fn get_deny_list_root_object(object_store: &dyn ObjectStoreFallible) -> IotaResult<Object> {
     match object_store.try_get_object(&IOTA_DENY_LIST_OBJECT_ID) {
         Ok(Some(obj)) => Ok(obj),
         Ok(None) => {
@@ -269,7 +269,7 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<O
 }
 
 pub fn get_deny_list_obj_initial_shared_version(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> IotaResult<SequenceNumber> {
     get_deny_list_root_object(object_store).map(|obj| match obj.owner {
         Owner::Shared {
@@ -284,7 +284,7 @@ pub fn get_deny_list_obj_initial_shared_version(
 /// greater than `newer_value_epoch`, and `older_value_opt` otherwise.
 /// If `cur_epoch` is `None`, the `newer_value` is always returned.
 fn read_config_setting<K, V>(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
     config: &Config,
     setting_name: K,
     cur_epoch: Option<EpochId>,

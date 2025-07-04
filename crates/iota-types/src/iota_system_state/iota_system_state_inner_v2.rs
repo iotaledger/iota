@@ -25,7 +25,7 @@ use crate::{
         epoch_start_iota_system_state::EpochStartSystemState,
         iota_system_state_inner_v1::SystemParametersV1,
     },
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     system_admin_cap::IotaSystemAdminCap,
 };
 
@@ -159,7 +159,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
         CommitteeWithNetworkMetadata::new(self.epoch, committee)
     }
 
-    fn get_pending_active_validators<S: ObjectStore + ?Sized>(
+    fn get_pending_active_validators<S: ObjectStoreFallible + ?Sized>(
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {

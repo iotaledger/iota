@@ -17,7 +17,7 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestStateReader, WriteStore,
+        ObjectStoreFallible, ReadStore, RestStateReader, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -266,7 +266,7 @@ impl ReadStore for RocksDbStore {
     }
 }
 
-impl ObjectStore for RocksDbStore {
+impl ObjectStoreFallible for RocksDbStore {
     fn try_get_object(
         &self,
         object_id: &iota_types::base_types::ObjectID,
@@ -378,7 +378,7 @@ impl RestReadStore {
     }
 }
 
-impl ObjectStore for RestReadStore {
+impl ObjectStoreFallible for RestReadStore {
     fn try_get_object(
         &self,
         object_id: &iota_types::base_types::ObjectID,

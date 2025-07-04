@@ -24,7 +24,7 @@ use crate::{
     id::UID,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     object::{MoveObject, Object},
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     versioned::Versioned,
 };
 
@@ -85,7 +85,7 @@ impl IotaSystemStateWrapper {
     pub fn advance_epoch_safe_mode(
         &self,
         params: &AdvanceEpochParams,
-        object_store: &dyn ObjectStore,
+        object_store: &dyn ObjectStoreFallible,
         protocol_config: &ProtocolConfig,
     ) -> (Object, Object) {
         let id = self.id.id.bytes;
@@ -182,7 +182,7 @@ pub trait IotaSystemStateTrait {
     fn safe_mode(&self) -> bool;
     fn advance_epoch_safe_mode(&mut self, params: &AdvanceEpochParams);
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata;
-    fn get_pending_active_validators<S: ObjectStore + ?Sized>(
+    fn get_pending_active_validators<S: ObjectStoreFallible + ?Sized>(
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError>;
@@ -232,7 +232,7 @@ impl IotaSystemState {
 }
 
 pub fn get_iota_system_state_wrapper(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
         .try_get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
@@ -250,7 +250,7 @@ pub fn get_iota_system_state_wrapper(
     Ok(result)
 }
 
-pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSystemState, IotaError> {
+pub fn get_iota_system_state(object_store: &dyn ObjectStoreFallible) -> Result<IotaSystemState, IotaError> {
     let wrapper = get_iota_system_state_wrapper(object_store)?;
     let id = wrapper.id.id.bytes;
     match wrapper.version {
@@ -329,7 +329,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 /// determine which inner type to use for the Validator type. This is assuming
 /// that the validator is stored in the table as Validator type.
 pub fn get_validator_from_table<K>(
-    object_store: &dyn ObjectStore,
+    object_store: &dyn ObjectStoreFallible,
     table_id: ObjectID,
     key: &K,
 ) -> Result<IotaValidatorSummary, IotaError>
@@ -394,7 +394,7 @@ pub fn get_validators_from_table_vec<S, ValidatorType>(
     table_size: u64,
 ) -> Result<Vec<ValidatorType>, IotaError>
 where
-    S: ObjectStore + ?Sized,
+    S: ObjectStoreFallible + ?Sized,
     ValidatorType: Serialize + DeserializeOwned,
 {
     let mut validators = vec![];

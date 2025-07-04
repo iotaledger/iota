@@ -53,7 +53,7 @@ use iota_types::{
         ConsensusTransactionKind, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
-    storage::{BackingPackageStore, InputKey, ObjectStore},
+    storage::{BackingPackageStore, InputKey, ObjectStoreFallible},
     transaction::{
         AuthenticatorStateUpdateV1, CertifiedTransaction, InputObjectKind, SenderSignedData,
         Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
@@ -814,7 +814,7 @@ impl AuthorityPerEpochStore {
         metrics: Arc<EpochMetrics>,
         epoch_start_configuration: EpochStartConfiguration,
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-        object_store: Arc<dyn ObjectStore + Send + Sync>,
+        object_store: Arc<dyn ObjectStoreFallible + Send + Sync>,
         cache_metrics: Arc<ResolverMetrics>,
         signature_verifier_metrics: Arc<SignatureVerifierMetrics>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
@@ -1026,7 +1026,7 @@ impl AuthorityPerEpochStore {
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-        object_store: Arc<dyn ObjectStore + Send + Sync>,
+        object_store: Arc<dyn ObjectStoreFallible + Send + Sync>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         chain_identifier: ChainIdentifier,
     ) -> Arc<Self> {
@@ -1052,7 +1052,7 @@ impl AuthorityPerEpochStore {
     pub fn new_at_next_epoch_for_testing(
         &self,
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-        object_store: Arc<dyn ObjectStore + Send + Sync>,
+        object_store: Arc<dyn ObjectStoreFallible + Send + Sync>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
     ) -> Arc<Self> {
         let next_epoch = self.epoch() + 1;

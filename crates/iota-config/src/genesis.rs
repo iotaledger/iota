@@ -32,7 +32,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     transaction::Transaction,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

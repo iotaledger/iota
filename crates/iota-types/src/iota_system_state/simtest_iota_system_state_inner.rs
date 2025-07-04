@@ -20,7 +20,7 @@ use crate::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartValidatorInfoV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    storage::ObjectStore,
+    storage::ObjectStoreFallible,
     system_admin_cap::IotaSystemAdminCap,
 };
 
@@ -185,7 +185,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
         CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
-    fn get_pending_active_validators<S: ObjectStore + ?Sized>(
+    fn get_pending_active_validators<S: ObjectStoreFallible + ?Sized>(
         &self,
         _object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
@@ -302,7 +302,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
         CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
-    fn get_pending_active_validators<S: ObjectStore + ?Sized>(
+    fn get_pending_active_validators<S: ObjectStoreFallible + ?Sized>(
         &self,
         _object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
@@ -448,7 +448,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
         CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
-    fn get_pending_active_validators<S: ObjectStore + ?Sized>(
+    fn get_pending_active_validators<S: ObjectStoreFallible + ?Sized>(
         &self,
         _object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
