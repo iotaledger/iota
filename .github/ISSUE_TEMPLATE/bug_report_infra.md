@@ -38,6 +38,7 @@ Provide clear, copy-&-paste instructions to reproduce the issue.
 - If relevant, add commands or scripts to set up test data locally (e.g., PTB commands).
 
 Example JSON-RPC request:
+
 ```sh
 curl 'http://localhost:9124/' \
 -H 'Content-Type: application/json' \
