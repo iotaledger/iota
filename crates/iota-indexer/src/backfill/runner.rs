@@ -133,21 +133,6 @@ impl BackfillRunner {
 ///
 /// This is useful for processing a large range in smaller, manageable pieces,
 /// such as batching database queries or parallelizing work.
-///
-/// # Example
-///
-/// ```rust
-/// use futures::StreamExt;
-///
-/// let range = 0..=10;
-/// let chunk_size = 3;
-/// let mut stream = chunk_range_stream(range, chunk_size);
-///
-/// // This will yield: 0..=2, 3..=5, 6..=8, 9..=10
-/// while let Some(chunk) = stream.next().await {
-///     println!("{:?}", chunk);
-/// }
-/// ```
 fn chunk_range_stream(
     total: RangeInclusive<usize>,
     chunk_size: usize,
@@ -167,4 +152,26 @@ fn chunk_range_stream(
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::{StreamExt, pin_mut};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_chunk_range_stream() {
+        let range = 0..=10;
+        let chunk_size = 3;
+        let stream = chunk_range_stream(range, chunk_size);
+        pin_mut!(stream);
+
+        let mut results = vec![];
+        while let Some(chunk) = stream.next().await {
+            results.push(chunk);
+        }
+
+        assert_eq!(results, vec![0..=2, 3..=5, 6..=8, 9..=10]);
+    }
 }
