@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use anemo::{Request, Response};
 use iota_config::p2p::AccessType;
-use rand::seq::IteratorRandom;
+use rand::seq::{IteratorRandom, SliceRandom};
 use serde::{Deserialize, Serialize};
 
 use super::{Discovery, MAX_PEERS_TO_SEND, NodeInfo, SignedNodeInfo, State};
@@ -75,6 +75,7 @@ impl Discovery for Server {
             })
             .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
         known_peers.append(&mut known_not_connected_peers);
+        known_peers.shuffle(&mut rng);
 
         Ok(Response::new(GetKnownPeersResponseV2 {
             own_info,
