@@ -24,7 +24,7 @@ export interface LedgerSignerOptions {
 }
 
 /**
- * Ledger integrates with the Sui blockchain to provide signing capabilities using Ledger devices.
+ * Ledger integrates with the Iota blockchain to provide signing capabilities using Ledger devices.
  */
 export class LedgerSigner extends Signer {
     #derivationPath: string;
@@ -161,7 +161,7 @@ export class LedgerSigner extends Signer {
 
         // NOTE: We should probably get rid of this manual serialization logic in favor of using the
         // already serialized object bytes from the GraphQL API once there is more mainstream support
-        // for it + we can enforce the transport type on the Sui client.
+        // for it + we can enforce the transport type on the Iota client.
         const bcsObjects = objects
             .map((object) => {
                 if (object.error || !object.data || object.data.bcs?.dataType !== 'moveObject') {
