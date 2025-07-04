@@ -83,7 +83,6 @@ export default function MultiSigAddressGenerator() {
                                 pubKey: 'APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4',
                                 weight: '1',
                             });
-                            // Set threshold to 2
                             setValue('threshold', 2);
                         }}
                     >
