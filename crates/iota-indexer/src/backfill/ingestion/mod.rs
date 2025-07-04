@@ -13,7 +13,7 @@ use crate::{db::ConnectionPool, errors::IndexerError};
 
 /// Processes checkpoints and commits processed data to the database.
 #[async_trait::async_trait]
-pub(crate) trait IngestionBackfillHandler: Send + Sync {
+pub(crate) trait IngestionBackfill: Send + Sync {
     type ProcessedType: Send + Sync;
 
     /// Converts a `CheckpointData` into zero-or-more items (`ProcessedType`).

@@ -127,11 +127,12 @@ impl BackfillRunner {
     }
 }
 
-/// Returns an asynchronous stream that yields consecutive, non-overlapping subranges ("chunks")
-/// from the given inclusive range, each with a maximum length of `chunk_size`.
+/// Returns an asynchronous stream that yields consecutive, non-overlapping
+/// subranges ("chunks") from the given inclusive range, each with a maximum
+/// length of `chunk_size`.
 ///
-/// This is useful for processing a large range in smaller, manageable pieces, such as
-/// batching database queries or parallelizing work.
+/// This is useful for processing a large range in smaller, manageable pieces,
+/// such as batching database queries or parallelizing work.
 ///
 /// # Example
 ///

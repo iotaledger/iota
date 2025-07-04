@@ -13,7 +13,7 @@ use tracing::error;
 
 use crate::{
     backfill::{
-        ingestion::{IngestionBackfillHandler, adapter::Adapter},
+        ingestion::{IngestionBackfill, adapter::Adapter},
         task::BackfillTask,
     },
     db::ConnectionPool,
@@ -28,13 +28,13 @@ use crate::{
 /// them in `ready_checkpoints`. Backfill operations can then drain these
 /// buffered records in order, pausing the backfill until the required
 /// checkpoint data arrives (via `notify`), and commit the chunks.
-pub struct IngestionBackfillTask<T: IngestionBackfillHandler> {
+pub struct IngestionBackfillTask<T: IngestionBackfill> {
     ready_checkpoints: Arc<DashMap<CheckpointSequenceNumber, Vec<T::ProcessedType>>>,
     notify: Arc<Notify>,
     _cancel_token: CancellationToken,
 }
 
-impl<T: IngestionBackfillHandler + 'static> IngestionBackfillTask<T> {
+impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
     // Creates and starts a new ingestion‐driven backfill task using processor `T`.
     #[expect(dead_code)]
     pub(crate) async fn new(
@@ -75,7 +75,7 @@ impl<T: IngestionBackfillHandler + 'static> IngestionBackfillTask<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: IngestionBackfillHandler> BackfillTask for IngestionBackfillTask<T> {
+impl<T: IngestionBackfill> BackfillTask for IngestionBackfillTask<T> {
     async fn backfill_range(
         &self,
         pool: ConnectionPool,
@@ -127,7 +127,7 @@ mod tests {
 
     struct BackfillDummyTable;
     #[async_trait::async_trait]
-    impl IngestionBackfillHandler for BackfillDummyTable {
+    impl IngestionBackfill for BackfillDummyTable {
         type ProcessedType = usize;
 
         fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType> {
