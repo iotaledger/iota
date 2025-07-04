@@ -64,9 +64,8 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
+    signing::{EXTERNAL_KEY_SOURCE_LEDGER, sign_secure},
 };
-
-pub(crate) const EXTERNAL_KEY_SOURCE_LEDGER: &str = "ledger";
 
 #[derive(Subcommand)]
 #[expect(clippy::large_enum_variant)]
@@ -799,42 +798,8 @@ impl KeyToolCommand {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let key = keystore.get_key(&address)?;
-                let iota_signature = match key {
-                    StoredKey::KeyPair(_) => {
-                        keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?
-                    }
-                    StoredKey::External {
-                        derivation_path,
-                        source,
-                        ..
-                    } => {
-                        match source.as_str() {
-                            EXTERNAL_KEY_SOURCE_LEDGER => {
-                                if let Some(derivation_path) = derivation_path {
-                                    let ledger = Ledger::new_with_default()?;
-                                    // Pass the expected address to the ledger to ensure the signature is for the correct address.
-                                    ledger
-                                        .sign_intent(
-                                            derivation_path,
-                                            &address,
-                                            intent_msg.intent,
-                                            &intent_msg.value,
-                                            vec![],
-                                        )?
-                                        .signature
-                                } else {
-                                    bail!(
-                                        "Derivation path is required for Ledger signing. Please specify it in the keystore."
-                                    );
-                                }
-                            }
-                            _ => {
-                                bail!("External signing is not supported for source: {source}")
-                            }
-                        }
-                    }
-                };
+                let iota_signature =
+                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
 
                 CommandOutput::Sign(SignData {
                     iota_address: address,
