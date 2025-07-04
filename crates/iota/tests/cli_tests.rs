@@ -34,8 +34,8 @@ use iota::{
     key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
-    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
+    IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -104,13 +104,12 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
 
-    assert_eq!(10, files.len());
+    assert_eq!(9, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
     assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
     assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
-    assert!(files.contains(&IOTA_KEYSTORE_ALIASES_FILENAME.to_string()));
 
     // Check network config
     let network_conf =
@@ -188,7 +187,6 @@ async fn test_start() -> Result<(), anyhow::Error> {
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
     assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
     assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
-    assert!(files.contains(&IOTA_KEYSTORE_ALIASES_FILENAME.to_string()));
 
     // Check network config
     let network_conf =
