@@ -252,20 +252,17 @@ impl DagState {
             let authority_index = state.context.committee.to_authority_index(index).unwrap();
             let eviction_round = state.evicted_rounds[index];
             let hostname = &state.context.committee.authority(authority_index).hostname;
-            let stored_block_rounds_by_author = state
+            let stored_block_rounds = state
                 .store
                 .scan_block_rounds_by_author(authority_index)
                 .expect("Database error");
-            state
-                .context
-                .metrics
-                .initialize_scoring_metrics_from_storage(
-                    authority_index,
-                    hostname,
-                    stored_block_rounds_by_author,
-                    threshold_clock_round,
-                    eviction_round,
-                );
+            state.context.metrics.load_scoring_metrics_from_storage(
+                authority_index,
+                hostname,
+                stored_block_rounds,
+                threshold_clock_round,
+                eviction_round,
+            );
         }
 
         if state.gc_enabled() {

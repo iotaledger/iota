@@ -158,16 +158,16 @@ impl Metrics {
             .set(missing_blocks_in_cache as i64);
     }
 
-    pub(crate) fn initialize_scoring_metrics_from_storage(
+    pub(crate) fn load_scoring_metrics_from_storage(
         &self,
         validator: AuthorityIndex,
         hostname: &str,
-        mut stored_block_rounds_by_author: Vec<u32>,
+        mut stored_block_rounds: Vec<u32>,
         threshold_clock_round: u32,
         eviction_round: u32,
     ) {
         // Update metrics according to the blocks that are loaded to cache.
-        let mut block_rounds_in_cache = stored_block_rounds_by_author
+        let mut block_rounds_in_cache = stored_block_rounds
             .extract_if(.., |round| *round > eviction_round)
             .collect::<Vec<u32>>();
         let number_of_blocks_in_cache = block_rounds_in_cache.len();
@@ -192,9 +192,9 @@ impl Metrics {
             .set(missing_blocks_in_cache as i64);
 
         // Update metrics according to the blocks that are loaded not to cache.
-        let number_of_uncached_blocks = stored_block_rounds_by_author.len();
-        stored_block_rounds_by_author.dedup();
-        let uncached_unique_block_rounds = stored_block_rounds_by_author.len();
+        let number_of_uncached_blocks = stored_block_rounds.len();
+        stored_block_rounds.dedup();
+        let uncached_unique_block_rounds = stored_block_rounds.len();
         let uncached_equivocations =
             (number_of_uncached_blocks - uncached_unique_block_rounds) as u64;
         let uncached_missing_blocks = eviction_round as u64 - uncached_unique_block_rounds as u64;
@@ -227,6 +227,7 @@ impl Metrics {
             .with_label_values(&[hostname, source, error])
             .inc();
     }
+
     pub(crate) fn update_syntactically_invalid_blocks(
         &self,
         validator: AuthorityIndex,
@@ -241,11 +242,6 @@ impl Metrics {
             .with_label_values(&[hostname, source, error])
             .inc();
     }
-}
-
-#[cfg(test)]
-pub(crate) fn test_metrics(committee_size: usize) -> Arc<Metrics> {
-    initialise_metrics(Registry::new(), committee_size)
 }
 
 pub(crate) struct NodeMetrics {
@@ -980,75 +976,58 @@ impl NodeMetrics {
     }
 }
 
+fn new_atomicu64_vec(size: usize) -> Vec<AtomicU64> {
+    let mut vec = Vec::with_capacity(size);
+    vec.resize_with(size, || AtomicU64::new(0));
+    vec
+}
+
+#[cfg(test)]
+pub(crate) fn test_metrics(committee_size: usize) -> Arc<Metrics> {
+    initialise_metrics(Registry::new(), committee_size)
+}
+
 // Metrics stored related to the current epoch used to calculate the validator
 // score.
-#[derive(Clone)]
+//#[derive(Clone)]
 pub(crate) struct ValidatorScoreMetrics {
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of times that a
     // semantically invalid block signed by the validator was already verified in the epoch.
-    pub(crate) semantically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    pub(crate) semantically_invalid_blocks: Vec<AtomicU64>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of syntactically
     // invalid blocks sent by the validator that were already handled in the epoch.
-    pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    pub(crate) syntactically_invalid_blocks: Vec<AtomicU64>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of equivocations
-    // they that were already flushed to cache in the epoch.
-    pub(crate) uncached_equivocations_by_authority: Arc<Vec<AtomicU64>>,
+    // they that were already evicted from cache in the epoch.
+    pub(crate) uncached_equivocations_by_authority: Vec<AtomicU64>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of equivocations
     // in cache, below the threshold clock round.
-    pub(crate) equivocations_in_cache_by_authority: Arc<Vec<AtomicU64>>,
+    pub(crate) equivocations_in_cache_by_authority: Vec<AtomicU64>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of blocks that the
-    // validator failed to propose among the blocks that were already flushed to cache in the
+    // validator failed to propose among the blocks that were already evicted from cache in the
     // epoch.
-    pub(crate) uncached_missing_proposals_by_authority: Arc<Vec<AtomicU64>>,
+    pub(crate) uncached_missing_proposals_by_authority: Vec<AtomicU64>,
     // Each entry in the vector corresponds to a counter relative to an active validator, indexed
     // by AuthorityIndex. For each of those validators, we count the number of blocks that the
     // validator failed to propose, or that the node did not receive yet, from the rounds stored in
     // cache and below the threshold clock round.
-    pub(crate) missing_proposals_in_cache_by_authority: Arc<Vec<AtomicU64>>,
+    pub(crate) missing_proposals_in_cache_by_authority: Vec<AtomicU64>,
 }
 
 impl ValidatorScoreMetrics {
     pub(crate) fn new(committee_size: usize) -> Self {
-        let mut semantically_invalid_blocks_inner = vec![];
-        semantically_invalid_blocks_inner.resize_with(committee_size, || AtomicU64::new(0));
-
-        let mut syntactically_invalid_blocks_inner = vec![];
-        syntactically_invalid_blocks_inner.resize_with(committee_size, || AtomicU64::new(0));
-
-        let mut uncached_equivocations_by_authority_inner = vec![];
-        uncached_equivocations_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
-
-        let mut equivocations_in_cache_by_authority_inner = vec![];
-        equivocations_in_cache_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
-
-        let mut uncached_missing_proposals_by_authority_inner = vec![];
-        uncached_missing_proposals_by_authority_inner
-            .resize_with(committee_size, || AtomicU64::new(0));
-
-        let mut missing_proposals_in_cache_by_authority_inner = vec![];
-        missing_proposals_in_cache_by_authority_inner
-            .resize_with(committee_size, || AtomicU64::new(0));
-
         Self {
-            semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
-            syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
-            uncached_equivocations_by_authority: Arc::new(
-                uncached_equivocations_by_authority_inner,
-            ),
-            equivocations_in_cache_by_authority: Arc::new(
-                equivocations_in_cache_by_authority_inner,
-            ),
-            uncached_missing_proposals_by_authority: Arc::new(
-                uncached_missing_proposals_by_authority_inner,
-            ),
-            missing_proposals_in_cache_by_authority: Arc::new(
-                missing_proposals_in_cache_by_authority_inner,
-            ),
+            semantically_invalid_blocks: new_atomicu64_vec(committee_size),
+            syntactically_invalid_blocks: new_atomicu64_vec(committee_size),
+            uncached_equivocations_by_authority: new_atomicu64_vec(committee_size),
+            equivocations_in_cache_by_authority: new_atomicu64_vec(committee_size),
+            uncached_missing_proposals_by_authority: new_atomicu64_vec(committee_size),
+            missing_proposals_in_cache_by_authority: new_atomicu64_vec(committee_size),
         }
     }
 }
@@ -1057,7 +1036,10 @@ impl ValidatorScoreMetrics {
 mod tests {
     use std::{
         collections::BTreeSet,
-        sync::{Arc, atomic::Ordering},
+        sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        },
         time::Duration,
         vec,
     };
@@ -1065,49 +1047,26 @@ mod tests {
     use async_trait::async_trait;
     use bytes::Bytes;
     use consensus_config::{AuthorityIndex, NetworkKeyPair, ProtocolKeyPair};
-    use parking_lot::{Mutex, RwLock};
+    use parking_lot::RwLock;
     use strum::IntoEnumIterator;
     use strum_macros::{Display, EnumIter};
     use tokio::sync::broadcast;
 
     use crate::{
         Round, Transaction, TransactionVerifier, ValidationError,
-        authority_service::AuthorityService,
+        authority_service::{AuthorityService, tests::FakeCoreThreadDispatcher},
         block::{BlockDigest, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
         block_verifier::SignedBlockVerifier,
-        commit::{CertifiedCommits, CommitAPI as _, CommitRange},
+        commit::{CommitAPI as _, CommitRange},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core_thread::{CoreError, CoreThreadDispatcher},
         dag_state::DagState,
         error::ConsensusResult,
-        metrics::ValidatorScoreMetrics,
         network::{BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkService},
-        round_prober::QuorumRound,
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
     };
-    #[derive(Clone)]
-    struct TestParameters<'a> {
-        round: u32,
-        committee_size: usize,
-        keypairs: Vec<&'a ProtocolKeyPair>,
-    }
 
-    fn generate_default_ancestors(round: u32, author: u32, committee_size: usize) -> Vec<BlockRef> {
-        let mut ancestors = (0..committee_size)
-            .map(|i| {
-                BlockRef::new(
-                    round - 1,
-                    AuthorityIndex::new_for_test(i as u32),
-                    BlockDigest::MIN,
-                )
-            })
-            .collect::<Vec<_>>();
-        let own_ancestor = ancestors.remove(author as usize);
-        ancestors.insert(0, own_ancestor);
-        ancestors
-    }
     struct TxnSizeVerifier {}
 
     impl TransactionVerifier for TxnSizeVerifier {
@@ -1124,74 +1083,9 @@ mod tests {
             Ok(())
         }
     }
-    pub(crate) struct FakeCoreThreadDispatcher {
-        blocks: Mutex<Vec<VerifiedBlock>>,
-    }
 
-    impl FakeCoreThreadDispatcher {
-        fn new() -> Self {
-            Self {
-                blocks: Mutex::new(vec![]),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl CoreThreadDispatcher for FakeCoreThreadDispatcher {
-        async fn add_blocks(
-            &self,
-            blocks: Vec<VerifiedBlock>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            let block_refs = blocks.iter().map(|b| b.reference()).collect();
-            self.blocks.lock().extend(blocks);
-            Ok(block_refs)
-        }
-
-        async fn check_block_refs(
-            &self,
-            _block_refs: Vec<BlockRef>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            Ok(BTreeSet::new())
-        }
-
-        async fn add_certified_commits(
-            &self,
-            _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
-            Ok(())
-        }
-
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            Ok(Default::default())
-        }
-
-        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn set_propagation_delay_and_quorum_rounds(
-            &self,
-            _delay: Round,
-            _received_quorum_rounds: Vec<QuorumRound>,
-            _accepted_quorum_rounds: Vec<QuorumRound>,
-        ) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
-            todo!()
-        }
-    }
-
-    pub(crate) fn new_authority_service_for_tests(
+    // Creates a new authority service for scoring metrics testing purposes.
+    pub(crate) fn new_authority_service_for_metrics_tests(
         committee_size: usize,
     ) -> (
         Vec<(NetworkKeyPair, ProtocolKeyPair)>,
@@ -1293,16 +1187,6 @@ mod tests {
         ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
             unimplemented!("Unimplemented")
         }
-    }
-
-    #[derive(Debug)]
-    enum MetricType {
-        SemanticallyInvalid,
-        SyntacticallyInvalid,
-        EquivocationsInStorage,
-        EquivocationsInCache,
-        MissingProposalsInStorage,
-        MissingProposalsInCache,
     }
 
     #[derive(PartialEq, EnumIter, Display, Clone)]
@@ -1471,9 +1355,11 @@ mod tests {
             }
         }
     }
+
     enum ValidBlocks {
         Valid,
     }
+
     impl ValidBlocks {
         fn new(self, parameters: TestParameters, author: u32) -> ExtendedSerializedBlock {
             let round = parameters.round;
@@ -1497,57 +1383,45 @@ mod tests {
             serialized
         }
     }
-    impl ValidatorScoreMetrics {
-        fn assert_scoring_metric_equals(&self, metric_type: MetricType, vector: &Vec<u64>) {
-            let metric_state = match metric_type {
-                MetricType::SemanticallyInvalid => self
-                    .semantically_invalid_blocks
-                    .iter()
-                    .map(|x| x.load(Ordering::Relaxed))
-                    .collect::<Vec<u64>>(),
-                MetricType::SyntacticallyInvalid => self
-                    .syntactically_invalid_blocks
-                    .iter()
-                    .map(|x| x.load(Ordering::Relaxed))
-                    .collect::<Vec<u64>>(),
-                MetricType::EquivocationsInStorage => self
-                    .uncached_equivocations_by_authority
-                    .iter()
-                    .map(|x| x.load(Ordering::Relaxed))
-                    .collect::<Vec<u64>>(),
-                MetricType::EquivocationsInCache => self
-                    .equivocations_in_cache_by_authority
-                    .iter()
-                    .map(|x| x.load(Ordering::Relaxed))
-                    .collect::<Vec<u64>>(),
-                MetricType::MissingProposalsInStorage => self
-                    .uncached_missing_proposals_by_authority
-                    .iter()
-                    .map(|x| x.load(Ordering::Relaxed))
-                    .collect::<Vec<u64>>(),
-                MetricType::MissingProposalsInCache => self
-                    .missing_proposals_in_cache_by_authority
-                    .iter()
-                    .map(|x| x.load(Ordering::Relaxed))
-                    .collect::<Vec<u64>>(),
-            };
-            assert_eq!(
-                metric_state, *vector,
-                "{:?} state does not match expected vector",
-                metric_type
-            );
-        }
+
+    #[derive(Clone)]
+    struct TestParameters<'a> {
+        round: u32,
+        committee_size: usize,
+        keypairs: Vec<&'a ProtocolKeyPair>,
+    }
+
+    fn generate_default_ancestors(round: u32, author: u32, committee_size: usize) -> Vec<BlockRef> {
+        let mut ancestors = (0..committee_size)
+            .map(|i| {
+                BlockRef::new(
+                    round - 1,
+                    AuthorityIndex::new_for_test(i as u32),
+                    BlockDigest::MIN,
+                )
+            })
+            .collect::<Vec<_>>();
+        let own_ancestor = ancestors.remove(author as usize);
+        ancestors.insert(0, own_ancestor);
+        ancestors
     }
 
     fn assigned_peer(index: usize, committee_size: usize) -> usize {
         index % committee_size
     }
 
+    fn integer_vec(vec_of_atomics: &Vec<AtomicU64>) -> Vec<u64> {
+        vec_of_atomics
+            .iter()
+            .map(|x| x.load(Ordering::Relaxed))
+            .collect::<Vec<u64>>()
+    }
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_metrics_handle_send_block() {
         // Initialize context and authority service given a committee_size
         let committee_size = 4;
-        let (keys, context, _, authority_service) = new_authority_service_for_tests(committee_size);
+        let (keys, context, _, authority_service) =
+            new_authority_service_for_metrics_tests(committee_size);
         let metrics = &context.metrics.scoring_metrics;
 
         // Set current round and build TestParameters
@@ -1559,13 +1433,13 @@ mod tests {
         };
 
         // Initial check: ensure that all metrics are zero
-        metrics.assert_scoring_metric_equals(
-            MetricType::SemanticallyInvalid,
-            &vec![0; committee_size],
+        assert_eq!(
+            integer_vec(&metrics.syntactically_invalid_blocks),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::SyntacticallyInvalid,
-            &vec![0; committee_size],
+        assert_eq!(
+            integer_vec(&metrics.semantically_invalid_blocks),
+            vec![0; committee_size]
         );
 
         // Generates a single valid block from each authority
@@ -1591,13 +1465,13 @@ mod tests {
         }
 
         // Ensure that the metrics are still all zero
-        metrics.assert_scoring_metric_equals(
-            MetricType::SemanticallyInvalid,
-            &vec![0; committee_size],
+        assert_eq!(
+            integer_vec(&metrics.syntactically_invalid_blocks),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::SyntacticallyInvalid,
-            &vec![0; committee_size],
+        assert_eq!(
+            integer_vec(&metrics.semantically_invalid_blocks),
+            vec![0; committee_size]
         );
 
         // Generates one of each type of semantically invalid blocks. Assigns each of
@@ -1629,13 +1503,13 @@ mod tests {
             let _ = handle.await;
             semantic_block_count[peer] += 1;
             // Check that only the metrics for semantically invalid blocks were updated
-            metrics.assert_scoring_metric_equals(
-                MetricType::SemanticallyInvalid,
-                &semantic_block_count,
+            assert_eq!(
+                integer_vec(&metrics.semantically_invalid_blocks),
+                semantic_block_count
             );
-            metrics.assert_scoring_metric_equals(
-                MetricType::SyntacticallyInvalid,
-                &vec![0; committee_size],
+            assert_eq!(
+                integer_vec(&metrics.syntactically_invalid_blocks),
+                vec![0; committee_size]
             );
         }
 
@@ -1657,13 +1531,13 @@ mod tests {
             let _ = handle.await;
             syntactic_block_count[peer] += 1;
             // Check that only the metrics for syntactically invalid blocks were updated
-            metrics.assert_scoring_metric_equals(
-                MetricType::SemanticallyInvalid,
-                &semantic_block_count,
+            assert_eq!(
+                integer_vec(&metrics.semantically_invalid_blocks),
+                semantic_block_count
             );
-            metrics.assert_scoring_metric_equals(
-                MetricType::SyntacticallyInvalid,
-                &syntactic_block_count,
+            assert_eq!(
+                integer_vec(&metrics.syntactically_invalid_blocks),
+                syntactic_block_count
             );
         }
     }
@@ -1677,8 +1551,8 @@ mod tests {
         const GC_DEPTH: u32 = 3;
         const CACHED_ROUNDS: u32 = 4;
 
-        let num_authorities: u32 = 4;
-        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        let committee_size = 4;
+        let (mut context, _) = Context::new_for_test(committee_size);
 
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         context
@@ -1720,21 +1594,21 @@ mod tests {
         }
 
         // Checks that metrics are still all zeroed
-        metrics.assert_scoring_metric_equals(
-            MetricType::MissingProposalsInCache,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.missing_proposals_in_cache_by_authority),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::MissingProposalsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.uncached_missing_proposals_by_authority),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInCache,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.equivocations_in_cache_by_authority),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.uncached_equivocations_by_authority),
+            vec![0; committee_size]
         );
 
         // Holds all the committed blocks from the commits that ended up being persisted
@@ -1755,20 +1629,21 @@ mod tests {
         println!("clock after flush: {:?}", dag_state.threshold_clock_round());
 
         // Check that metrics were updated correctly after flushing
-        metrics.assert_scoring_metric_equals(
-            MetricType::MissingProposalsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.missing_proposals_in_cache_by_authority),
+            vec![3, 0, 0, 0]
         );
-        metrics
-            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![3, 0, 0, 0]);
-
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.uncached_missing_proposals_by_authority),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInCache,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.equivocations_in_cache_by_authority),
+            vec![0; committee_size]
+        );
+        assert_eq!(
+            integer_vec(&metrics.uncached_equivocations_by_authority),
+            vec![0; committee_size]
         );
 
         // Add the rest of the blocks and commits to the dag state
@@ -1788,20 +1663,21 @@ mod tests {
         );
 
         // Check that metrics were still not updated
-        metrics.assert_scoring_metric_equals(
-            MetricType::MissingProposalsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.missing_proposals_in_cache_by_authority),
+            vec![3, 0, 0, 0]
         );
-        metrics
-            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![3, 0, 0, 0]);
-
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.uncached_missing_proposals_by_authority),
+            vec![0; committee_size]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInCache,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.equivocations_in_cache_by_authority),
+            vec![0; committee_size]
+        );
+        assert_eq!(
+            integer_vec(&metrics.uncached_equivocations_by_authority),
+            vec![0; committee_size]
         );
 
         // Flush the dag state
@@ -1818,37 +1694,42 @@ mod tests {
         );
 
         // Check that metrics were updated correctly after flushing
-        metrics
-            .assert_scoring_metric_equals(MetricType::MissingProposalsInStorage, &vec![1, 0, 0, 0]);
-        metrics
-            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![2, 0, 0, 0]);
-
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.missing_proposals_in_cache_by_authority),
+            vec![2, 0, 0, 0]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInCache,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.uncached_missing_proposals_by_authority),
+            vec![1, 0, 0, 0]
+        );
+        assert_eq!(
+            integer_vec(&metrics.equivocations_in_cache_by_authority),
+            vec![0; committee_size]
+        );
+        assert_eq!(
+            integer_vec(&metrics.uncached_equivocations_by_authority),
+            vec![0; committee_size]
         );
 
         // Destroy the dag state.
         drop(dag_state);
 
         // Metrics should remain the same
-
-        metrics
-            .assert_scoring_metric_equals(MetricType::MissingProposalsInStorage, &vec![1, 0, 0, 0]);
-        metrics
-            .assert_scoring_metric_equals(MetricType::MissingProposalsInCache, &vec![2, 0, 0, 0]);
-
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInStorage,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.missing_proposals_in_cache_by_authority),
+            vec![2, 0, 0, 0]
         );
-        metrics.assert_scoring_metric_equals(
-            MetricType::EquivocationsInCache,
-            &vec![0; num_authorities as usize],
+        assert_eq!(
+            integer_vec(&metrics.uncached_missing_proposals_by_authority),
+            vec![1, 0, 0, 0]
+        );
+        assert_eq!(
+            integer_vec(&metrics.equivocations_in_cache_by_authority),
+            vec![0; committee_size]
+        );
+        assert_eq!(
+            integer_vec(&metrics.uncached_equivocations_by_authority),
+            vec![0; committee_size]
         );
     }
 }
