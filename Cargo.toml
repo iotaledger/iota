@@ -101,6 +101,8 @@ members = [
   "crates/iota-json-rpc-tests",
   "crates/iota-json-rpc-types",
   "crates/iota-keys",
+  "crates/iota-ledger",
+  "crates/iota-ledger-signer",
   "crates/iota-light-client",
   "crates/iota-macros",
   "crates/iota-mainnet-unlocks",
@@ -146,6 +148,7 @@ members = [
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
+  "crates/ledger-transport-tcp",
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
   "crates/simulacrum",
@@ -402,6 +405,8 @@ iota-json-rpc = { path = "crates/iota-json-rpc" }
 iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
 iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
 iota-keys = { path = "crates/iota-keys" }
+iota-ledger = { path = "crates/iota-ledger" }
+iota-ledger-signer = { path = "crates/iota-ledger-signer" }
 iota-macros = { path = "crates/iota-macros" }
 iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }
@@ -446,6 +451,7 @@ iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner
 iota-types = { path = "crates/iota-types" }
 iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
+ledger-transport-tcp = { path = "crates/ledger-transport-tcp" }
 move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
 move-analyzer = { path = "external-crates/move/crates/move-analyzer" }

@@ -32,6 +32,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
+use iota_ledger_signer::LedgerSigner;
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
@@ -97,7 +98,7 @@ use crate::{
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
-    keytool::Key,
+    keytool::{EXTERNAL_KEY_SOURCE_LEDGER, Key},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
@@ -3066,8 +3067,34 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                     &tx_data,
                     Intent::iota_transaction(),
                 )?,
-                StoredKey::External { source, .. } => {
-                    bail!("External signing is not supported for source: {source}")
+                StoredKey::External {
+                    derivation_path,
+                    source,
+                    ..
+                } => {
+                    match source.as_str() {
+                        EXTERNAL_KEY_SOURCE_LEDGER => {
+                            if let Some(derivation_path) = derivation_path {
+                                let signer = LedgerSigner::new_with_default(
+                                    derivation_path.clone(),
+                                    Some(client.clone()),
+                                )?;
+                                // pass the transaction sender to the signer to ensure the correct
+                                // key is used
+                                signer
+                                    .sign_transaction(&tx_data, &tx_data.sender())
+                                    .await
+                                    .map(|s| s.signature)?
+                            } else {
+                                bail!(
+                                    "Derivation path is required for Ledger signing. Please specify it in the keystore."
+                                );
+                            }
+                        }
+                        _ => {
+                            bail!("External signing is not supported for source: {source}")
+                        }
+                    }
                 }
             }
         };

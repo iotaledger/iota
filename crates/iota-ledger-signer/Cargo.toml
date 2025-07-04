@@ -1,0 +1,23 @@
+[package]
+name = "iota-ledger-signer"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+bcs.workspace = true
+bip32.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-ledger.workspace = true
+iota-sdk.workspace = true
+shared-crypto.workspace = true

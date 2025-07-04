@@ -36,6 +36,7 @@ use iota_keys::{
     },
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
+use iota_ledger::Ledger;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -64,6 +65,8 @@ use crate::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
 };
+
+pub(crate) const EXTERNAL_KEY_SOURCE_LEDGER: &str = "ledger";
 
 #[derive(Subcommand)]
 #[expect(clippy::large_enum_variant)]
@@ -138,6 +141,16 @@ pub enum KeyToolCommand {
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
+    },
+    /// Import a key from Ledger hardware wallet. The derivation path is
+    /// required. Example "m/44'/4218'/0'/0'/0'"
+    ImportLedger {
+        /// Sets an alias for this address. The alias must start with a letter
+        /// and can contain only letters, digits, dots, hyphens (-), or
+        /// underscores (_).
+        #[arg(long)]
+        alias: Option<String>,
+        derivation_path: DerivationPath,
     },
     /// List all keys by its IOTA address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
@@ -661,6 +674,26 @@ impl KeyToolCommand {
                     CommandOutput::Import(key)
                 }
             },
+            KeyToolCommand::ImportLedger {
+                alias,
+                derivation_path,
+            } => {
+                info!("Importing Ledger to keystore");
+                let ledger = Ledger::new_with_default()?;
+                let response = ledger.get_public_key(&derivation_path)?;
+                keystore.import_from_external(
+                    EXTERNAL_KEY_SOURCE_LEDGER,
+                    response.public_key,
+                    Some(derivation_path),
+                    alias,
+                )?;
+                let ikp = keystore.get_key(&response.address)?;
+                let mut key = Key::from(ikp);
+
+                key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
+                CommandOutput::Import(key)
+            }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
                     .keys()
@@ -771,8 +804,35 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(_) => {
                         keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?
                     }
-                    StoredKey::External { source, .. } => {
-                        bail!("External signing is not supported for source: {source}")
+                    StoredKey::External {
+                        derivation_path,
+                        source,
+                        ..
+                    } => {
+                        match source.as_str() {
+                            EXTERNAL_KEY_SOURCE_LEDGER => {
+                                if let Some(derivation_path) = derivation_path {
+                                    let ledger = Ledger::new_with_default()?;
+                                    // Pass the expected address to the ledger to ensure the signature is for the correct address.
+                                    ledger
+                                        .sign_intent(
+                                            derivation_path,
+                                            &address,
+                                            intent_msg.intent,
+                                            &intent_msg.value,
+                                            vec![],
+                                        )?
+                                        .signature
+                                } else {
+                                    bail!(
+                                        "Derivation path is required for Ledger signing. Please specify it in the keystore."
+                                    );
+                                }
+                            }
+                            _ => {
+                                bail!("External signing is not supported for source: {source}")
+                            }
+                        }
                     }
                 };
 
