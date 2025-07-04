@@ -64,7 +64,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
-    signing::{EXTERNAL_KEY_SOURCE_LEDGER, sign_secure},
+    signing::{ExternalKeySource, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -681,7 +681,7 @@ impl KeyToolCommand {
                 let ledger = Ledger::new_with_default()?;
                 let response = ledger.get_public_key(&derivation_path)?;
                 keystore.import_from_external(
-                    EXTERNAL_KEY_SOURCE_LEDGER,
+                    ExternalKeySource::Ledger.as_str(),
                     response.public_key,
                     Some(derivation_path),
                     alias,

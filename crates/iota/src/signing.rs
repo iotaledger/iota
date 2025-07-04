@@ -1,6 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt;
+
 use anyhow::{Result, bail};
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
@@ -14,7 +16,35 @@ use iota_types::{
 use serde::Serialize;
 use shared_crypto::intent::Intent;
 
-pub(crate) const EXTERNAL_KEY_SOURCE_LEDGER: &str = "ledger";
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ExternalKeySource {
+    Ledger,
+    Unknown(String),
+}
+
+impl ExternalKeySource {
+    pub(crate) fn as_str(&self) -> &str {
+        match self {
+            ExternalKeySource::Ledger => "ledger",
+            ExternalKeySource::Unknown(source) => source.as_str(),
+        }
+    }
+}
+
+impl From<&str> for ExternalKeySource {
+    fn from(s: &str) -> Self {
+        match s {
+            "ledger" => ExternalKeySource::Ledger,
+            other => ExternalKeySource::Unknown(other.to_string()),
+        }
+    }
+}
+
+impl fmt::Display for ExternalKeySource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
@@ -37,8 +67,8 @@ pub(crate) async fn sign_transaction(
                 source,
                 ..
             } => {
-                match source.as_str() {
-                    EXTERNAL_KEY_SOURCE_LEDGER => {
+                match ExternalKeySource::from(source.as_str()) {
+                    ExternalKeySource::Ledger => {
                         if let Some(derivation_path) = derivation_path {
                             let signer = LedgerSigner::new_with_default(
                                 derivation_path.clone(),
@@ -56,8 +86,8 @@ pub(crate) async fn sign_transaction(
                             );
                         }
                     }
-                    _ => {
-                        bail!("External signing is not supported for source: {source}")
+                    ExternalKeySource::Unknown(name) => {
+                        bail!("External signing is not supported for source: {name}")
                     }
                 }
             }
@@ -83,8 +113,8 @@ where
             source,
             ..
         } => {
-            match source.as_str() {
-                EXTERNAL_KEY_SOURCE_LEDGER => {
+            match ExternalKeySource::from(source.as_str()) {
+                ExternalKeySource::Ledger => {
                     if let Some(derivation_path) = derivation_path {
                         let ledger = Ledger::new_with_default()?;
                         // Pass the expected address to the ledger to ensure the signature is for
@@ -98,8 +128,8 @@ where
                         );
                     }
                 }
-                _ => {
-                    bail!("External signing is not supported for source: {source}")
+                ExternalKeySource::Unknown(name) => {
+                    bail!("External signing is not supported for source: {name}")
                 }
             }
         }
