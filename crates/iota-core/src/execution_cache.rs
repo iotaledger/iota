@@ -30,7 +30,7 @@ use crate::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
-        epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
@@ -128,14 +128,9 @@ pub fn build_execution_cache(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
-    match epoch_start_config.execution_cache_type() {
-        ExecutionCacheConfigType::WritebackCache => ExecutionCacheTraitPointers::new(
-            WritebackCache::new(store.clone(), execution_cache_metrics).into(),
-        ),
-        ExecutionCacheConfigType::PassthroughCache => ExecutionCacheTraitPointers::new(
-            ProxyCache::new(epoch_start_config, store.clone(), execution_cache_metrics).into(),
-        ),
-    }
+    ExecutionCacheTraitPointers::new(
+        ProxyCache::new(epoch_start_config, store.clone(), execution_cache_metrics).into(),
+    )
 }
 
 /// Should only be used for iota-tool or tests. Nodes must use
