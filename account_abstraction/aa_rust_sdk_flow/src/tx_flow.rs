@@ -20,10 +20,11 @@ use shared_crypto::intent::Intent;
 
 use crate::{
     sig_utils::extract_pure_signature_ed25519,
-    utils::{GAS_BUDGET, THRESHOLD, get_coin},
+    utils::{GAS_BUDGET, THRESHOLD, WEIGHTS, get_coin},
 };
 
 const TX_MODULE_NAME: &str = "tx_flow";
+const MULTISIG_PUBKEY_MODULE_NAME: &str = "multisig_pubkey";
 
 /// Proposes a withdrawal transaction to the on-chain SmartAccount.
 ///
@@ -36,6 +37,7 @@ const TX_MODULE_NAME: &str = "tx_flow";
 /// The `ObjectRef` of the created `ProposedTx` Move object.
 pub async fn propose_tx_to_smart_account<K: AccountKeystore>(
     iota_client: &IotaClient,
+    multisig_pubkeys: &[&[u8]],
     digest: Vec<u8>,
     withdraw_tx_data: &TransactionData,
     keystore: &K,
@@ -44,6 +46,19 @@ pub async fn propose_tx_to_smart_account<K: AccountKeystore>(
     smart_account_object: ObjectRef,
 ) -> Result<ObjectRef> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
+
+    let arguments = vec![
+        ptb_builder.pure(multisig_pubkeys)?,
+        ptb_builder.pure(WEIGHTS)?,
+        ptb_builder.pure(THRESHOLD)?,
+    ];
+    let multisig_pubkey = ptb_builder.command(Command::move_call(
+        package_id,
+        Identifier::new(MULTISIG_PUBKEY_MODULE_NAME)?,
+        Identifier::new("new")?,
+        vec![],
+        arguments,
+    ));
 
     let withdraw_tx_bytes = bcs::to_bytes(&withdraw_tx_data)?;
     let arguments = vec![
@@ -54,7 +69,7 @@ pub async fn propose_tx_to_smart_account<K: AccountKeystore>(
         })?,
         ptb_builder.pure(digest)?,
         ptb_builder.pure(withdraw_tx_bytes)?,
-        ptb_builder.pure(THRESHOLD as u64)?,
+        multisig_pubkey,
     ];
     ptb_builder.command(Command::move_call(
         package_id,
@@ -173,6 +188,9 @@ pub async fn sign_proposed_tx<K: AccountKeystore>(
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )
         .await?;
+
+    print!("\n Sign proposed tx transaction info: ");
+    println!("{}", transaction_response);
 
     Ok(transaction_response)
 }

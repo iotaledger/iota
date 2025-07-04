@@ -54,7 +54,7 @@ impl SignedTx {
                 })
             })
             .map(|change| change.object_ref())
-            .unwrap()
+            .ok_or_else(|| anyhow!("No SignedTx object created in the transaction"))?
             .0;
 
         let signed_tx_object = iota_client
