@@ -240,7 +240,7 @@
     ]
   },
   "9": {
-    "git_revision": "280770a3eb12-dirty",
+    "git_revision": "10192410c592",
     "packages": [
       {
         "name": "MoveStdlib",
