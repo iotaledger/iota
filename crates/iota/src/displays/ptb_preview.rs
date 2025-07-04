@@ -11,7 +11,7 @@ use tabled::{
 
 use crate::{
     client_ptb::{
-        ast::{GAS_BUDGET, GAS_COIN, JSON, SUMMARY, WARN_SHADOWS},
+        ast::{GAS_BUDGET, GAS_COIN, JSON, SENDER, SUMMARY, WARN_SHADOWS},
         ptb::PTBPreview,
     },
     sp,
@@ -32,6 +32,16 @@ impl Display for PTBPreview {
         }
         if let Some(gas_coin_id) = self.program_metadata.gas_object_id {
             builder.push_record([GAS_COIN, gas_coin_id.value.to_string().as_str()]);
+        }
+        if let Some(sender) = &self.program_metadata.sender {
+            builder.push_record([
+                SENDER,
+                sender
+                    .value
+                    .into_inner()
+                    .to_canonical_string(/* with_prefix */ true)
+                    .as_str(),
+            ]);
         }
         if self.program_metadata.json_set {
             builder.push_record([JSON, "true"]);

@@ -584,7 +584,14 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
-
+    /// Set the transaction sender to this address. When not specified, the
+    /// sender is inferred by finding the owner of the gas payment. Note
+    /// that when setting this field, the transaction will fail to execute
+    /// if the sender's private key is not in the keystore; similarly, it
+    /// will fail when using this with `--serialize-signed-transaction` flag if
+    /// the private key corresponding to this address is not in keystore.
+    #[arg(long, required = false, value_parser)]
+    pub sender: Option<IotaAddress>,
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
     /// The fields are: input, effects, events, object_changes,
@@ -617,6 +624,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
+            sender: None,
         }
     }
     /// Uses the passed `gas_budget` for the gas budget variable, sets
@@ -630,6 +638,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
+            sender: None,
         }
     }
 
@@ -644,6 +653,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display,
+            sender: None,
         }
     }
 }
@@ -2955,12 +2965,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         gas_budget,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
+        sender,
     ) = (
         opts.dry_run,
         opts.dev_inspect,
         opts.gas_budget,
         opts.serialize_unsigned_transaction,
         opts.serialize_signed_transaction,
+        opts.sender,
     );
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -2973,6 +2985,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     };
 
     let client = context.get_client().await?;
+
+    let signer = sender.unwrap_or(signer);
 
     if dev_inspect {
         return execute_dev_inspect(
