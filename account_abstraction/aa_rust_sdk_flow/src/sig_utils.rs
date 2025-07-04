@@ -3,8 +3,7 @@
 
 use anyhow::{Ok, Result};
 use fastcrypto::{
-    encoding::{Encoding, Hex},
-    traits::ToFromBytes,
+    ed25519::Ed25519Signature, encoding::{Encoding, Hex}, traits::{Authenticator, ToFromBytes}
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::types::{
@@ -56,13 +55,13 @@ pub fn restore_signagure_bytes_to_generic<K: AccountKeystore>(
 /// # Notes
 /// This function assumes the Ed25519 scheme (flag byte 0x00) and extracts only
 /// the signature.
-pub fn extract_pure_signature(signature: &GenericSignature) -> String {
-    let flag_prefix = 2;
-    let pure_signature_length = 128;
+pub fn extract_pure_signature_ed25519(signature: &GenericSignature) -> String {
+    let flag_prefix_length = 1 /* FLAG_LENGTH */ * 2;
+    let pure_signature_length = Ed25519Signature::LENGTH * 2;
     let hex_encoded_signature = Hex::encode(signature);
     hex_encoded_signature
         .chars()
-        .skip(flag_prefix)
+        .skip(flag_prefix_length)
         .take(pure_signature_length)
         .collect()
 }

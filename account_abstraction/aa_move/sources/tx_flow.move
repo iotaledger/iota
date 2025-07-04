@@ -44,7 +44,7 @@ public fun entry_point(
 ) {
     let proposed_tx = ProposedTx {
         id: object::new(ctx),
-        tx_digest: proposed_tx_digest,
+        tx_digest: proposed_tx_digest, // The digest could be also derived on-chain
         tx_bytes: proposed_tx_bytes,
         signatures: vec_map::empty(),
         multisig,
@@ -55,7 +55,6 @@ public fun entry_point(
         proposed_tx_id,
         proposed_tx,
     );
-    assert!(dof::exists_(smart_account.id_mut(), proposed_tx_id), 10);
 }
 
 // Signatures verification on-chain
