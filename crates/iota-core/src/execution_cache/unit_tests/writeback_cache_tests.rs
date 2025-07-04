@@ -1525,8 +1525,20 @@ async fn concurrent_latest_object_cache_collision_test() {
             LatestObjectCacheEntry::Object(latest2_version, object2.into()),
             ticket2,
         );
-
-        // now we get a cache miss instead of getting the latest version
-        assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
     }
+
+    // object1 is up to date in the cache
+    assert_eq!(
+        cache
+            .cached
+            .object_by_id_cache
+            .get(&object1_id)
+            .unwrap()
+            .lock()
+            .version()
+            .unwrap(),
+        OBJECT_START_VERSION.next()
+    );
+    // but now we get a cache miss on object2 instead of getting the latest version
+    assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
 }
