@@ -8,7 +8,7 @@ pub(crate) mod client;
 mod metrics;
 /// Data ingestion core ~ProgressStore` implementation.
 pub(crate) mod progress_store;
-/// Proto definition for BigTableDB communincation trough GRPC.
+/// Proto definition for BigTableDB communication through GRPC.
 mod proto;
 /// Data ingestion core `Worker` implementation.
 pub(crate) mod worker;
