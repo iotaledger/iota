@@ -28,7 +28,7 @@ use typed_store::Map;
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
     ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
-    implement_passthrough_traits,
+    TransactionCacheReadFallible, TransactionCacheReadNonFallible, implement_passthrough_traits,
 };
 use crate::{
     authority::{
@@ -191,8 +191,10 @@ impl ObjectCacheRead for PassthroughCache {
     }
 }
 
-impl TransactionCacheRead for PassthroughCache {
-    fn multi_get_transaction_blocks(
+impl TransactionCacheRead for PassthroughCache {}
+
+impl TransactionCacheReadFallible for PassthroughCache {
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
@@ -204,24 +206,76 @@ impl TransactionCacheRead for PassthroughCache {
             .collect())
     }
 
-    fn multi_get_executed_effects_digests(
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         self.store.multi_get_executed_effects_digests(digests)
     }
 
-    fn multi_get_effects(
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
+        self.executed_effects_digests_notify_read
+            .try_read(digests, |digests| {
+                self.try_multi_get_executed_effects_digests(digests)
+            })
+            .boxed()
+    }
+
+    fn try_multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.store.multi_get_events(event_digests)
+    }
+}
+
+impl TransactionCacheReadNonFallible for PassthroughCache {
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+        self.store
+            .multi_get_transaction_blocks(digests)
+            .expect("db error")
+            .into_iter()
+            .map(|o| o.map(Arc::new))
+            .collect()
+    }
+
+    fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        self.store
+            .multi_get_executed_effects_digests(digests)
+            .expect("db error")
+    }
+
+    fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        self.store
+            .perpetual_tables
+            .effects
+            .multi_get(digests)
+            .expect("db error")
+    }
+
+    fn notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
                 self.multi_get_executed_effects_digests(digests)
@@ -232,8 +286,10 @@ impl TransactionCacheRead for PassthroughCache {
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        self.store.multi_get_events(event_digests)
+    ) -> Vec<Option<TransactionEvents>> {
+        self.store
+            .multi_get_events(event_digests)
+            .expect("db error")
     }
 }
 

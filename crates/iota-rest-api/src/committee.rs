@@ -4,7 +4,7 @@
 
 use axum::extract::{Path, State};
 use iota_sdk2::types::{EpochId, ValidatorCommittee};
-use iota_types::storage::ReadStore;
+use iota_types::storage::ReadStoreFallible;
 use tap::Pipe;
 
 use crate::{

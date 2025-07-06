@@ -9,7 +9,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use iota_types::storage::ReadStore;
+use iota_types::storage::ReadStoreFallible;
 use tap::Pipe;
 
 use crate::{

@@ -19,8 +19,8 @@ use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible};
 pub use read_store::{
-    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStore,
-    RestStateReader,
+    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStoreFallible,
+    ReadStoreNonFallible, RestStateReader,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

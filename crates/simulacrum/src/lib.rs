@@ -47,7 +47,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{
-        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, RestStateReader,
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreFallible,
+        RestStateReader,
     },
     transaction::{
         EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
@@ -463,8 +464,8 @@ impl<T, V: store::SimulatorStore> ObjectStoreNonFallible for Simulacrum<T, V> {
     }
 }
 
-impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
-    fn get_committee(
+impl<T, V: store::SimulatorStore> ReadStoreFallible for Simulacrum<T, V> {
+    fn try_get_committee(
         &self,
         _epoch: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
@@ -496,14 +497,14 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         Ok(0)
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.store().get_checkpoint_by_digest(digest))
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
@@ -512,7 +513,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
             .get_checkpoint_by_sequence_number(sequence_number))
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
@@ -521,7 +522,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         Ok(self.store().get_checkpoint_contents(digest))
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -530,28 +531,28 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         todo!()
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         tx_digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.store().get_transaction(tx_digest).map(Arc::new))
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         tx_digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.store().get_transaction_effects(tx_digest))
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         event_digest: &iota_types::digests::TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.store().get_transaction_events(event_digest))
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -560,7 +561,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         todo!()
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<

@@ -16,7 +16,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     gas_coin::GAS,
     quorum_driver_types::ExecuteTransactionRequestType,
-    storage::ReadStore,
+    storage::ReadStoreFallible,
 };
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;

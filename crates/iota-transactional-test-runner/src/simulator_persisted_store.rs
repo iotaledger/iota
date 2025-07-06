@@ -21,7 +21,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
-        ObjectStoreNonFallible, PackageObject, ReadStore, RestStateReader,
+        ObjectStoreNonFallible, PackageObject, ReadStoreFallible, RestStateReader,
         load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
@@ -589,8 +589,8 @@ impl ObjectStoreNonFallible for PersistedStoreInnerReadOnlyWrapper {
     }
 }
 
-impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
-    fn get_committee(
+impl ReadStoreFallible for PersistedStoreInnerReadOnlyWrapper {
+    fn try_get_committee(
         &self,
         _epoch: EpochId,
     ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
@@ -629,14 +629,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         Ok(0)
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         _digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
@@ -649,7 +649,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .map(|checkpoint| checkpoint.into()))
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
@@ -662,14 +662,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .expect("Fatal: DB read failed"))
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         todo!()
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
@@ -683,7 +683,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .map(|transaction| Arc::new(transaction.into())))
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
@@ -696,7 +696,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .expect("Fatal: DB read failed"))
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
@@ -709,7 +709,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .expect("Fatal: DB read failed"))
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -718,7 +718,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         todo!()
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         _digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
@@ -746,7 +746,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
         &self,
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
         Ok((*self
-            .get_checkpoint_by_sequence_number(0)
+            .try_get_checkpoint_by_sequence_number(0)
             .unwrap()
             .unwrap()
             .digest())

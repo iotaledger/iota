@@ -650,7 +650,7 @@ mod sim_only_tests {
                 let framework = store.get_object(package);
                 let digest = framework.unwrap().unwrap().previous_transaction;
                 let tx_store = node.state().get_transaction_cache_reader().clone();
-                let effects = tx_store.get_executed_effects(&digest);
+                let effects = tx_store.try_get_executed_effects(&digest);
                 effects.unwrap().unwrap()
             })
             .await

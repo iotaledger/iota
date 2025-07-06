@@ -16,13 +16,13 @@ use iota_types::{
 
 use crate::{
     checkpoints::CheckpointStore,
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_cache::{ObjectCacheRead, TransactionCacheReadFallible},
 };
 
 pub(crate) fn load_checkpoint_data(
     checkpoint: VerifiedCheckpoint,
     object_cache_reader: &dyn ObjectCacheRead,
-    transaction_cache_reader: &dyn TransactionCacheRead,
+    transaction_cache_reader: &dyn TransactionCacheReadFallible,
     checkpoint_store: Arc<CheckpointStore>,
     transaction_digests: &[TransactionDigest],
 ) -> IotaResult<CheckpointData> {
@@ -31,14 +31,14 @@ pub(crate) fn load_checkpoint_data(
         .expect("checkpoint content has to be stored");
 
     let transactions = transaction_cache_reader
-        .multi_get_transaction_blocks(transaction_digests)?
+        .try_multi_get_transaction_blocks(transaction_digests)?
         .into_iter()
         .zip(transaction_digests)
         .map(|(tx, digest)| tx.ok_or(IotaError::TransactionNotFound { digest: *digest }))
         .collect::<IotaResult<Vec<_>>>()?;
 
     let effects = transaction_cache_reader
-        .multi_get_executed_effects(transaction_digests)?
+        .try_multi_get_executed_effects(transaction_digests)?
         .into_iter()
         .zip(transaction_digests)
         .map(|(effects, &digest)| effects.ok_or(IotaError::TransactionNotFound { digest }))
@@ -50,7 +50,7 @@ pub(crate) fn load_checkpoint_data(
         .collect::<Vec<_>>();
 
     let events = transaction_cache_reader
-        .multi_get_events(&event_digests)?
+        .try_multi_get_events(&event_digests)?
         .into_iter()
         .zip(&event_digests)
         .map(|(event, digest)| {

@@ -15,7 +15,7 @@ use iota_storage::{FileCompression, StorageFormat};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     messages_checkpoint::CheckpointDigest,
-    storage::{ReadStore, SharedInMemoryStore, WriteStore},
+    storage::{ReadStoreNonFallible, SharedInMemoryStore, WriteStore},
 };
 use prometheus::Registry;
 use tempfile::tempdir;
@@ -727,14 +727,8 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_1
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
-            assert_eq!(
-                store_2
-                    .get_full_checkpoint_contents(&content_digest)
-                    .unwrap(),
-                None
-            );
+            assert_eq!(store_2.get_full_checkpoint_contents(&content_digest), None);
         }
     })
     .await
@@ -794,7 +788,6 @@ async fn sync_with_checkpoints_watermark() {
         let content_digest = contents[1].clone().into_checkpoint_contents_digest();
         store_3
             .get_full_checkpoint_contents(&content_digest)
-            .unwrap()
             .unwrap();
     })
     .await
@@ -833,11 +826,9 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_2
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
             store_3
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
         }
     })
@@ -914,7 +905,6 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_4
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
         }
     })

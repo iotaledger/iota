@@ -34,7 +34,7 @@ use iota_types::{
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
-    storage::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore},
+    storage::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreFallible},
     transaction::{
         InputObjects, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
@@ -65,7 +65,7 @@ pub struct ValidatorWithFullnode {
 
 /// TODO: better name?
 #[async_trait::async_trait]
-pub trait TransactionalAdapter: Send + Sync + ReadStore {
+pub trait TransactionalAdapter: Send + Sync + ReadStoreFallible {
     async fn execute_txn(
         &mut self,
         transaction: Transaction,
@@ -274,8 +274,8 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     }
 }
 
-impl ReadStore for ValidatorWithFullnode {
-    fn get_committee(
+impl ReadStoreFallible for ValidatorWithFullnode {
+    fn try_get_committee(
         &self,
         _epoch: EpochId,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::committee::Committee>>> {
@@ -291,7 +291,7 @@ impl ReadStore for ValidatorWithFullnode {
             .validator
             .get_latest_checkpoint_sequence_number()
             .unwrap();
-        self.get_checkpoint_by_sequence_number(sequence_number)
+        self.try_get_checkpoint_by_sequence_number(sequence_number)
             .map(|c| c.unwrap())
     }
 
@@ -314,14 +314,14 @@ impl ReadStore for ValidatorWithFullnode {
         todo!()
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         _digest: &iota_types::messages_checkpoint::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
@@ -331,7 +331,7 @@ impl ReadStore for ValidatorWithFullnode {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
@@ -343,7 +343,7 @@ impl ReadStore for ValidatorWithFullnode {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -352,38 +352,38 @@ impl ReadStore for ValidatorWithFullnode {
         todo!()
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
     {
         self.validator
             .get_transaction_cache_reader()
-            .get_transaction_block(tx_digest)
+            .try_get_transaction_block(tx_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.validator
             .get_transaction_cache_reader()
-            .get_executed_effects(tx_digest)
+            .try_get_executed_effects(tx_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.validator
             .get_transaction_cache_reader()
-            .get_events(event_digest)
+            .try_get_events(event_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -392,7 +392,7 @@ impl ReadStore for ValidatorWithFullnode {
         todo!()
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         _digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<

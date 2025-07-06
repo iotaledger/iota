@@ -646,44 +646,44 @@ async fn test_extra_outputs() {
 
         let tx = s.do_tx().await;
 
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        let fx = s.cache.get_executed_effects(&tx).unwrap().unwrap();
+        s.cache.try_get_transaction_block(&tx).unwrap().unwrap();
+        let fx = s.cache.try_get_executed_effects(&tx).unwrap().unwrap();
         let events_digest = fx.events_digest().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
+        s.cache.try_get_events(events_digest).unwrap().unwrap();
 
         s.commit(tx).await.unwrap();
 
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
+        s.cache.try_get_transaction_block(&tx).unwrap().unwrap();
+        s.cache.try_get_executed_effects(&tx).unwrap().unwrap();
+        s.cache.try_get_events(events_digest).unwrap().unwrap();
 
         // clear cache
         s.reset_cache();
 
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
+        s.cache.try_get_transaction_block(&tx).unwrap().unwrap();
+        s.cache.try_get_executed_effects(&tx).unwrap().unwrap();
+        s.cache.try_get_events(events_digest).unwrap().unwrap();
 
         s.with_created(&[3]);
         let tx = s.do_tx().await;
 
         // when Events is empty, it should be treated as None
-        let fx = s.cache.get_executed_effects(&tx).unwrap().unwrap();
+        let fx = s.cache.try_get_executed_effects(&tx).unwrap().unwrap();
         let events_digest = fx.events_digest().unwrap();
         assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
+            s.cache.try_get_events(events_digest).unwrap().is_none(),
             "empty events should be none"
         );
 
         s.commit(tx).await.unwrap();
         assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
+            s.cache.try_get_events(events_digest).unwrap().is_none(),
             "empty events should be none"
         );
 
         s.reset_cache();
         assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
+            s.cache.try_get_events(events_digest).unwrap().is_none(),
             "empty events should be none"
         );
     })

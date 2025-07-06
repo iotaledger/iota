@@ -17,8 +17,8 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, RestStateReader,
-        WriteStore,
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreFallible,
+        ReadStoreNonFallible, RestStateReader, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -72,23 +72,20 @@ impl RocksDbStore {
     }
 }
 
-impl ReadStore for RocksDbStore {
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &CheckpointDigest,
-    ) -> Result<Option<VerifiedCheckpoint>, StorageError> {
+impl ReadStoreNonFallible for RocksDbStore {
+    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
         self.checkpoint_store
             .get_checkpoint_by_digest(digest)
-            .map_err(Into::into)
+            .expect("db error")
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<VerifiedCheckpoint>, StorageError> {
+    ) -> Option<VerifiedCheckpoint> {
         self.checkpoint_store
             .get_checkpoint_by_sequence_number(sequence_number)
-            .map_err(Into::into)
+            .expect("db error")
     }
 
     fn get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint, StorageError> {
@@ -127,13 +124,181 @@ impl ReadStore for RocksDbStore {
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
+    ) -> Option<FullCheckpointContents> {
+        self.checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(sequence_number)
+            .expect("db error")
+    }
+
+    fn get_full_checkpoint_contents(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<FullCheckpointContents> {
+        // First look to see if we saved the complete contents already.
+        if let Some(seq_num) = self
+            .checkpoint_store
+            .get_sequence_number_by_contents_digest(digest)
+            .expect("db error")
+        {
+            let contents = self
+                .checkpoint_store
+                .get_full_checkpoint_contents_by_sequence_number(seq_num)
+                .expect("db error");
+            if contents.is_some() {
+                return contents;
+            }
+        }
+
+        // Otherwise gather it from the individual components.
+        // Note we can't insert the constructed contents into `full_checkpoint_content`,
+        // because it needs to be inserted along with
+        // `checkpoint_sequence_by_contents_digest` and `checkpoint_content`.
+        // However at this point it's likely we don't know the corresponding
+        // sequence number yet.
+        self.checkpoint_store
+            .get_checkpoint_contents(digest)
+            .expect("db error")
+            .and_then(|contents| {
+                let mut transactions = Vec::with_capacity(contents.size());
+                for tx in contents.iter() {
+                    if let (Some(t), Some(e)) = (
+                        self.get_transaction(&tx.transaction),
+                        self.cache_traits
+                            .transaction_cache_reader
+                            .get_effects(&tx.effects),
+                    ) {
+                        transactions.push(iota_types::base_types::ExecutionData::new(
+                            (*t).clone().into_inner(),
+                            e,
+                        ))
+                    } else {
+                        return None;
+                    }
+                }
+                Some(FullCheckpointContents::from_contents_and_execution_data(
+                    contents,
+                    transactions.into_iter(),
+                ))
+            })
+    }
+
+    fn get_committee(&self, epoch: EpochId) -> Option<Arc<Committee>> {
+        self.committee_store.get_committee(&epoch).unwrap()
+    }
+
+    fn get_transaction(&self, digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
+        self.cache_traits
+            .transaction_cache_reader
+            .get_transaction_block(digest)
+    }
+
+    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.cache_traits
+            .transaction_cache_reader
+            .get_executed_effects(digest)
+    }
+
+    fn get_events(&self, digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.cache_traits
+            .transaction_cache_reader
+            .get_events(digest)
+    }
+
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.checkpoint_store
+            .get_highest_executed_checkpoint()
+            .expect("db error")
+            .ok_or_else(|| {
+                iota_types::storage::error::Error::missing("unable to get latest checkpoint")
+            })
+    }
+
+    fn get_checkpoint_contents_by_digest(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        self.checkpoint_store
+            .get_checkpoint_contents(digest)
+            .expect("db error")
+    }
+
+    fn get_checkpoint_contents_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        match self.get_checkpoint_by_sequence_number(sequence_number) {
+            Some(checkpoint) => self.get_checkpoint_contents_by_digest(&checkpoint.content_digest),
+            None => None,
+        }
+    }
+}
+
+impl ReadStoreFallible for RocksDbStore {
+    fn try_get_checkpoint_by_digest(
+        &self,
+        digest: &CheckpointDigest,
+    ) -> Result<Option<VerifiedCheckpoint>, StorageError> {
+        self.checkpoint_store
+            .get_checkpoint_by_digest(digest)
+            .map_err(Into::into)
+    }
+
+    fn try_get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> Result<Option<VerifiedCheckpoint>, StorageError> {
+        self.checkpoint_store
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .map_err(Into::into)
+    }
+
+    fn get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint, StorageError> {
+        self.checkpoint_store
+            .get_highest_verified_checkpoint()
+            .map(|maybe_checkpoint| {
+                maybe_checkpoint.expect(
+                    "storage should have been initialized with
+genesis checkpoint",
+                )
+            })
+            .map_err(Into::into)
+    }
+
+    fn get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint, StorageError> {
+        self.checkpoint_store
+            .get_highest_synced_checkpoint()
+            .map(|maybe_checkpoint| {
+                maybe_checkpoint.expect(
+                    "storage should have been initialized with
+genesis checkpoint",
+                )
+            })
+            .map_err(Into::into)
+    }
+
+    fn get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber, StorageError> {
+        let highest_pruned_cp = self
+            .checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .map_err(Into::<StorageError>::into)?;
+
+        if highest_pruned_cp == 0 {
+            Ok(0)
+        } else {
+            Ok(highest_pruned_cp + 1)
+        }
+    }
+
+    fn try_get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
         self.checkpoint_store
             .get_full_checkpoint_contents_by_sequence_number(sequence_number)
             .map_err(Into::into)
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
@@ -153,11 +318,11 @@ impl ReadStore for RocksDbStore {
         }
 
         // Otherwise gather it from the individual components.
-        // Note we can't insert the constructed contents into `full_checkpoint_content`,
-        // because it needs to be inserted along with
-        // `checkpoint_sequence_by_contents_digest` and `checkpoint_content`.
-        // However at this point it's likely we don't know the corresponding
-        // sequence number yet.
+        // Note we can't insert the constructed contents into
+        // `full_checkpoint_content`, because it needs to be inserted along
+        // with `checkpoint_sequence_by_contents_digest` and
+        // `checkpoint_content`. However at this point it's likely we don't
+        // know the corresponding sequence number yet.
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)?
@@ -165,10 +330,10 @@ impl ReadStore for RocksDbStore {
                 let mut transactions = Vec::with_capacity(contents.size());
                 for tx in contents.iter() {
                     if let (Some(t), Some(e)) = (
-                        self.get_transaction(&tx.transaction)?,
+                        self.try_get_transaction(&tx.transaction)?,
                         self.cache_traits
                             .transaction_cache_reader
-                            .get_effects(&tx.effects)
+                            .try_get_effects(&tx.effects)
                             .map_err(iota_types::storage::error::Error::custom)?,
                     ) {
                         transactions.push(iota_types::base_types::ExecutionData::new(
@@ -194,40 +359,40 @@ impl ReadStore for RocksDbStore {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_committee(
+    fn try_get_committee(
         &self,
         epoch: EpochId,
     ) -> Result<Option<Arc<Committee>>, iota_types::storage::error::Error> {
         Ok(self.committee_store.get_committee(&epoch).unwrap())
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<Arc<VerifiedTransaction>>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
-            .get_transaction_block(digest)
+            .try_get_transaction_block(digest)
             .map_err(StorageError::custom)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEffects>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
-            .get_executed_effects(digest)
+            .try_get_executed_effects(digest)
             .map_err(StorageError::custom)
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         digest: &TransactionEventsDigest,
     ) -> Result<Option<TransactionEvents>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
-            .get_events(digest)
+            .try_get_events(digest)
             .map_err(StorageError::custom)
     }
 
@@ -240,7 +405,7 @@ impl ReadStore for RocksDbStore {
             })
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
@@ -251,15 +416,15 @@ impl ReadStore for RocksDbStore {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        match self.get_checkpoint_by_sequence_number(sequence_number) {
+        match self.try_get_checkpoint_by_sequence_number(sequence_number) {
             Ok(Some(checkpoint)) => {
-                self.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                self.try_get_checkpoint_contents_by_digest(&checkpoint.content_digest)
             }
             Ok(None) => Ok(None),
             Err(e) => Err(e),
@@ -430,104 +595,104 @@ impl ObjectStoreNonFallible for RestReadStore {
     }
 }
 
-impl ReadStore for RestReadStore {
-    fn get_committee(
+impl ReadStoreFallible for RestReadStore {
+    fn try_get_committee(
         &self,
         epoch: EpochId,
     ) -> iota_types::storage::error::Result<Option<Arc<Committee>>> {
-        self.rocks.get_committee(epoch)
+        self.rocks.try_get_committee(epoch)
     }
 
     fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.rocks.get_latest_checkpoint()
+        ReadStoreFallible::get_latest_checkpoint(&self.rocks)
     }
 
     fn get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.rocks.get_highest_verified_checkpoint()
+        ReadStoreFallible::get_highest_verified_checkpoint(&self.rocks)
     }
 
     fn get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.rocks.get_highest_synced_checkpoint()
+        ReadStoreFallible::get_highest_synced_checkpoint(&self.rocks)
     }
 
     fn get_lowest_available_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        self.rocks.get_lowest_available_checkpoint()
+        ReadStoreFallible::get_lowest_available_checkpoint(&self.rocks)
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        self.rocks.get_checkpoint_by_digest(digest)
+        self.rocks.try_get_checkpoint_by_digest(digest)
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.rocks
-            .get_checkpoint_by_sequence_number(sequence_number)
+            .try_get_checkpoint_by_sequence_number(sequence_number)
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        self.rocks.get_checkpoint_contents_by_digest(digest)
+        self.rocks.try_get_checkpoint_contents_by_digest(digest)
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
         self.rocks
-            .get_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
-        self.rocks.get_transaction(digest)
+        self.rocks.try_get_transaction(digest)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
-        self.rocks.get_transaction_effects(digest)
+        self.rocks.try_get_transaction_effects(digest)
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.rocks.get_events(digest)
+        self.rocks.try_get_events(digest)
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<FullCheckpointContents>> {
         self.rocks
-            .get_full_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<Option<FullCheckpointContents>> {
-        self.rocks.get_full_checkpoint_contents(digest)
+        self.rocks.try_get_full_checkpoint_contents(digest)
     }
 }
 

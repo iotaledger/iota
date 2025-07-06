@@ -22,7 +22,8 @@ use parking_lot::RwLock;
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfigType, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, PassthroughCache,
-    StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
+    StateSyncAPI, TestingAPI, TransactionCacheRead, TransactionCacheReadFallible,
+    TransactionCacheReadNonFallible, WritebackCache,
 };
 use crate::{
     authority::{
@@ -199,39 +200,78 @@ impl ObjectCacheRead for ProxyCache {
     }
 }
 
-impl TransactionCacheRead for ProxyCache {
-    fn multi_get_transaction_blocks(
+impl TransactionCacheRead for ProxyCache {}
+
+impl TransactionCacheReadFallible for ProxyCache {
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        delegate_method!(self.try_multi_get_transaction_blocks(digests))
+    }
+
+    fn try_multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        delegate_method!(self.try_multi_get_executed_effects_digests(digests))
+    }
+
+    fn try_multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        delegate_method!(self.try_multi_get_effects(digests))
+    }
+
+    fn try_notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
+        delegate_method!(self.try_notify_read_executed_effects_digests(digests))
+    }
+
+    fn try_multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        delegate_method!(self.try_multi_get_events(event_digests))
+    }
+}
+
+impl TransactionCacheReadNonFallible for ProxyCache {
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
         delegate_method!(self.multi_get_transaction_blocks(digests))
     }
 
     fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+    ) -> Vec<Option<TransactionEffectsDigest>> {
         delegate_method!(self.multi_get_executed_effects_digests(digests))
     }
 
     fn multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+    ) -> Vec<Option<TransactionEffects>> {
         delegate_method!(self.multi_get_effects(digests))
     }
 
     fn notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
         delegate_method!(self.notify_read_executed_effects_digests(digests))
     }
 
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+    ) -> Vec<Option<TransactionEvents>> {
         delegate_method!(self.multi_get_events(event_digests))
     }
 }

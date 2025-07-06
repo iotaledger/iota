@@ -93,9 +93,11 @@ where
         request: Request<GetCheckpointSummaryRequest>,
     ) -> Result<Response<Option<Checkpoint>>, Status> {
         let checkpoint = match request.inner() {
-            GetCheckpointSummaryRequest::Latest => {
-                self.store.get_highest_synced_checkpoint().map(Some)
-            }
+            GetCheckpointSummaryRequest::Latest => self
+                .store
+                .get_highest_synced_checkpoint()
+                .map(Some)
+                .map_err(|e| Status::internal(e.to_string()))?,
             GetCheckpointSummaryRequest::ByDigest(digest) => {
                 self.store.get_checkpoint_by_digest(digest)
             }
@@ -103,7 +105,6 @@ where
                 .store
                 .get_checkpoint_by_sequence_number(*sequence_number),
         }
-        .map_err(|e| Status::internal(e.to_string()))?
         .map(VerifiedCheckpoint::into_inner);
 
         Ok(Response::new(checkpoint))
@@ -136,10 +137,7 @@ where
         &self,
         request: Request<CheckpointContentsDigest>,
     ) -> Result<Response<Option<FullCheckpointContents>>, Status> {
-        let contents = self
-            .store
-            .get_full_checkpoint_contents(request.inner())
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let contents = self.store.get_full_checkpoint_contents(request.inner());
         Ok(Response::new(contents))
     }
 }

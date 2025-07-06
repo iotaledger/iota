@@ -1079,7 +1079,7 @@ impl AuthorityState {
 
         let observed_effects = self
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[digest])
+            .try_notify_read_executed_effects(&[digest])
             .instrument(tracing::debug_span!(
                 "notify_read_effects_in_execute_certificate_with_effects"
             ))
@@ -1171,7 +1171,7 @@ impl AuthorityState {
         // so check if the effects have already been written.
         if let Some(effects) = self
             .get_transaction_cache_reader()
-            .get_executed_effects(tx_digest)?
+            .try_get_executed_effects(tx_digest)?
         {
             tx_guard.release();
             return Ok((effects, None));
@@ -1246,7 +1246,7 @@ impl AuthorityState {
         certificate: &VerifiedCertificate,
     ) -> IotaResult<TransactionEffects> {
         self.get_transaction_cache_reader()
-            .notify_read_executed_effects(&[*certificate.digest()])
+            .try_notify_read_executed_effects(&[*certificate.digest()])
             .await
             .map(|mut r| r.pop().expect("must return correct number of effects"))
     }
@@ -2212,7 +2212,7 @@ impl AuthorityState {
 
     pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.get_transaction_cache_reader()
-            .is_tx_already_executed(digest)
+            .try_is_tx_already_executed(digest)
     }
 
     /// Indexes a transaction by updating various indexes in the `IndexStore`.
@@ -3702,7 +3702,7 @@ impl AuthorityState {
         digest: &TransactionEventsDigest,
     ) -> IotaResult<TransactionEvents> {
         self.get_transaction_cache_reader()
-            .get_events(digest)?
+            .try_get_events(digest)?
             .ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
     }
 
@@ -4135,7 +4135,7 @@ impl AuthorityState {
         {
             if let Some(transaction) = self
                 .get_transaction_cache_reader()
-                .get_transaction_block(transaction_digest)?
+                .try_get_transaction_block(transaction_digest)?
             {
                 let cert_sig = epoch_store.get_transaction_cert_sig(transaction_digest)?;
                 let events = if let Some(digest) = effects.events_digest() {
@@ -4175,7 +4175,7 @@ impl AuthorityState {
     ) -> IotaResult<Option<VerifiedSignedTransactionEffects>> {
         let effects = self
             .get_transaction_cache_reader()
-            .get_executed_effects(transaction_digest)?;
+            .try_get_executed_effects(transaction_digest)?;
         match effects {
             Some(effects) => Ok(Some(self.sign_effects(effects, epoch_store)?)),
             None => Ok(None),
@@ -4772,7 +4772,7 @@ impl AuthorityState {
         // reconfiguration anyway.
         if self
             .get_transaction_cache_reader()
-            .is_tx_already_executed(tx_digest)
+            .try_is_tx_already_executed(tx_digest)
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
@@ -5015,7 +5015,7 @@ impl RandomnessRoundReceiver {
                 RANDOMNESS_STATE_UPDATE_EXECUTION_TIMEOUT,
                 authority_state
                     .get_transaction_cache_reader()
-                    .notify_read_executed_effects(&[digest]),
+                    .try_notify_read_executed_effects(&[digest]),
             )
             .await;
             let result = match result {
@@ -5033,7 +5033,7 @@ impl RandomnessRoundReceiver {
                     // Continue waiting as long as necessary in non-debug builds.
                     authority_state
                         .get_transaction_cache_reader()
-                        .notify_read_executed_effects(&[digest])
+                        .try_notify_read_executed_effects(&[digest])
                         .await
                 }
             };
@@ -5061,7 +5061,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     ) -> IotaResult<KVStoreTransactionData> {
         let txns = if !transaction_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_transaction_blocks(transaction_keys)?
+                .try_multi_get_transaction_blocks(transaction_keys)?
                 .into_iter()
                 .map(|t| t.map(|t| (*t).clone().into_inner()))
                 .collect()
@@ -5071,7 +5071,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
         let fx = if !effects_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_executed_effects(effects_keys)?
+                .try_multi_get_executed_effects(effects_keys)?
         } else {
             vec![]
         };
@@ -5165,14 +5165,14 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         }
         let events_digests: Vec<_> = self
             .get_transaction_cache_reader()
-            .multi_get_executed_effects(digests)?
+            .try_multi_get_executed_effects(digests)?
             .into_iter()
             .map(|t| t.and_then(|t| t.events_digest().cloned()))
             .collect();
         let non_empty_events: Vec<_> = events_digests.iter().filter_map(|e| *e).collect();
         let mut events = self
             .get_transaction_cache_reader()
-            .multi_get_events(&non_empty_events)?
+            .try_multi_get_events(&non_empty_events)?
             .into_iter();
         Ok(events_digests
             .into_iter()

@@ -8,10 +8,10 @@ use super::error::Result;
 use crate::{
     committee::Committee,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
-    storage::ReadStore,
+    storage::ReadStoreNonFallible,
 };
 
-pub trait WriteStore: ReadStore {
+pub trait WriteStore: ReadStoreNonFallible {
     fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
     fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
     fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;

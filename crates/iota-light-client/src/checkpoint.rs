@@ -20,7 +20,9 @@ use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
-    storage::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStore, WriteStore},
+    storage::{
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreNonFallible, WriteStore,
+    },
 };
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -389,11 +391,8 @@ impl WriteStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
-impl ReadStore for CheckpointSummaryFileStore<'_> {
-    fn get_committee(
-        &self,
-        _: iota_types::committee::EpochId,
-    ) -> iota_types::storage::error::Result<Option<Arc<Committee>>> {
+impl ReadStoreNonFallible for CheckpointSummaryFileStore<'_> {
+    fn get_committee(&self, _: iota_types::committee::EpochId) -> Option<Arc<Committee>> {
         unimplemented!()
     }
 
@@ -423,72 +422,63 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
     fn get_checkpoint_by_digest(
         &self,
         _: &iota_types::digests::CheckpointDigest,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    ) -> Option<VerifiedCheckpoint> {
         unimplemented!()
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    ) -> Option<VerifiedCheckpoint> {
         unimplemented!()
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         _: &iota_types::digests::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         unimplemented!()
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         unimplemented!()
     }
 
     fn get_transaction(
         &self,
         _: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
-    {
+    ) -> Option<Arc<iota_types::transaction::VerifiedTransaction>> {
         unimplemented!()
     }
 
     fn get_transaction_effects(
         &self,
         _: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
+    ) -> Option<iota_types::effects::TransactionEffects> {
         unimplemented!()
     }
 
     fn get_events(
         &self,
         _: &iota_types::digests::TransactionEventsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
+    ) -> Option<iota_types::effects::TransactionEvents> {
         unimplemented!()
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         unimplemented!()
     }
 
     fn get_full_checkpoint_contents(
         &self,
         _: &iota_types::digests::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         unimplemented!()
     }
 }

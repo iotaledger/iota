@@ -79,7 +79,7 @@ use tracing::{debug, info, instrument, trace, warn};
 use super::{
     CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
-    TransactionCacheRead,
+    TransactionCacheRead, TransactionCacheReadFallible, TransactionCacheReadNonFallible,
     cache_types::{CachedVersionMap, IsNewer, MonotonicCache},
     implement_passthrough_traits,
     object_locks::ObjectLocks,
@@ -1141,7 +1141,9 @@ impl WritebackCache {
         // pending_consensus_transactions until after the transaction has executed.
         let Some((_, outputs)) = self.dirty.pending_transaction_writes.remove(tx) else {
             assert!(
-                !self.is_tx_already_executed(tx).expect("read cannot fail"),
+                !self
+                    .try_is_tx_already_executed(tx)
+                    .expect("read cannot fail"),
                 "attempt to revert committed transaction"
             );
 
@@ -1287,7 +1289,7 @@ impl ObjectCacheRead for WritebackCache {
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             object_keys,
             |key| {
                 Ok(match self.get_object_by_key_cache_only(&key.0, key.1) {
@@ -1318,7 +1320,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             object_keys,
             |key| {
                 Ok(match self.get_object_by_key_cache_only(&key.0, key.1) {
@@ -1616,7 +1618,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
                 CacheResult::Hit((version, obj)) => {
@@ -1651,12 +1653,14 @@ impl ObjectCacheRead for WritebackCache {
     }
 }
 
-impl TransactionCacheRead for WritebackCache {
-    fn multi_get_transaction_blocks(
+impl TransactionCacheRead for WritebackCache {}
+
+impl TransactionCacheReadFallible for WritebackCache {
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             digests,
             |digest| {
                 self.metrics
@@ -1689,11 +1693,11 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn multi_get_executed_effects_digests(
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             digests,
             |digest| {
                 self.metrics
@@ -1725,11 +1729,11 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn multi_get_effects(
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             digests,
             |digest| {
                 self.metrics
@@ -1761,18 +1765,18 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
         self.executed_effects_digests_notify_read
-            .read(digests, |digests| {
-                self.multi_get_executed_effects_digests(digests)
+            .try_read(digests, |digests| {
+                self.try_multi_get_executed_effects_digests(digests)
             })
             .boxed()
     }
 
-    fn multi_get_events(
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
@@ -1784,7 +1788,7 @@ impl TransactionCacheRead for WritebackCache {
             }
         }
 
-        do_fallback_lookup(
+        do_fallback_lookup_fallible(
             event_digests,
             |digest| {
                 self.metrics
@@ -1826,6 +1830,186 @@ impl TransactionCacheRead for WritebackCache {
     }
 }
 
+impl TransactionCacheReadNonFallible for WritebackCache {
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+        do_fallback_lookup(
+            digests,
+            |digest| {
+                self.metrics
+                    .record_cache_request("transaction_block", "uncommitted");
+                if let Some(tx) = self.dirty.pending_transaction_writes.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_block", "uncommitted");
+                    return CacheResult::Hit(Some(tx.transaction.clone()));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_block", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_block", "committed");
+                if let Some(tx) = self.cached.transactions.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_block", "committed");
+                    return CacheResult::Hit(Some(tx.clone()));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_block", "committed");
+
+                CacheResult::Miss
+            },
+            |remaining| {
+                self.record_db_multi_get("transaction_block", remaining.len())
+                    .multi_get_transaction_blocks(remaining)
+                    .expect("db error")
+                    .into_iter()
+                    .map(|o| o.map(Arc::new))
+                    .collect()
+            },
+        )
+    }
+
+    fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        do_fallback_lookup(
+            digests,
+            |digest| {
+                self.metrics
+                    .record_cache_request("executed_effects_digests", "uncommitted");
+                if let Some(digest) = self.dirty.executed_effects_digests.get(digest) {
+                    self.metrics
+                        .record_cache_hit("executed_effects_digests", "uncommitted");
+                    return CacheResult::Hit(Some(*digest));
+                }
+                self.metrics
+                    .record_cache_miss("executed_effects_digests", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("executed_effects_digests", "committed");
+                if let Some(digest) = self.cached.executed_effects_digests.get(digest) {
+                    self.metrics
+                        .record_cache_hit("executed_effects_digests", "committed");
+                    return CacheResult::Hit(Some(digest));
+                }
+                self.metrics
+                    .record_cache_miss("executed_effects_digests", "committed");
+
+                CacheResult::Miss
+            },
+            |remaining| {
+                self.record_db_multi_get("executed_effects_digests", remaining.len())
+                    .multi_get_executed_effects_digests(remaining)
+                    .expect("db error")
+            },
+        )
+    }
+
+    fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        do_fallback_lookup(
+            digests,
+            |digest| {
+                self.metrics
+                    .record_cache_request("transaction_effects", "uncommitted");
+                if let Some(effects) = self.dirty.transaction_effects.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_effects", "uncommitted");
+                    return CacheResult::Hit(Some(effects.clone()));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_effects", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_effects", "committed");
+                if let Some(effects) = self.cached.transaction_effects.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_effects", "committed");
+                    return CacheResult::Hit(Some((*effects).clone()));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_effects", "committed");
+
+                CacheResult::Miss
+            },
+            |remaining| {
+                self.record_db_multi_get("transaction_effects", remaining.len())
+                    .multi_get_effects(remaining.iter())
+                    .expect("db error")
+            },
+        )
+    }
+
+    fn notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
+        self.executed_effects_digests_notify_read
+            .read(digests, |digests| {
+                self.multi_get_executed_effects_digests(digests)
+            })
+            .boxed()
+    }
+
+    fn multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> Vec<Option<TransactionEvents>> {
+        fn map_events(events: TransactionEvents) -> Option<TransactionEvents> {
+            if events.data.is_empty() {
+                None
+            } else {
+                Some(events)
+            }
+        }
+
+        do_fallback_lookup(
+            event_digests,
+            |digest| {
+                self.metrics
+                    .record_cache_request("transaction_events", "uncommitted");
+                if let Some(events) = self
+                    .dirty
+                    .transaction_events
+                    .get(digest)
+                    .map(|e| e.1.clone())
+                {
+                    self.metrics
+                        .record_cache_hit("transaction_events", "uncommitted");
+
+                    return CacheResult::Hit(map_events(events));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_events", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_events", "committed");
+                if let Some(events) = self
+                    .cached
+                    .transaction_events
+                    .get(digest)
+                    .map(|e| (*e).clone())
+                {
+                    self.metrics
+                        .record_cache_hit("transaction_events", "committed");
+                    return CacheResult::Hit(map_events(events));
+                }
+
+                self.metrics
+                    .record_cache_miss("transaction_events", "committed");
+
+                CacheResult::Miss
+            },
+            |digests| self.store.multi_get_events(digests).expect("db error"),
+        )
+    }
+}
+
 impl ExecutionCacheWrite for WritebackCache {
     fn acquire_transaction_locks<'a>(
         &'a self,
@@ -1856,6 +2040,19 @@ impl ExecutionCacheWrite for WritebackCache {
 /// The "get from cache" and "get from store" behavior are implemented by the
 /// caller and provided via the get_cached_key and multiget_fallback functions.
 fn do_fallback_lookup<K: Copy, V: Default + Clone>(
+    keys: &[K],
+    get_cached_key: impl Fn(&K) -> CacheResult<V>,
+    multiget_fallback: impl Fn(&[K]) -> Vec<V>,
+) -> Vec<V> {
+    do_fallback_lookup_fallible(
+        keys,
+        |key| Ok(get_cached_key(key)),
+        |keys| Ok(multiget_fallback(keys)),
+    )
+    .expect("cannot fail")
+}
+
+fn do_fallback_lookup_fallible<K: Copy, V: Default + Clone>(
     keys: &[K],
     get_cached_key: impl Fn(&K) -> IotaResult<CacheResult<V>>,
     multiget_fallback: impl Fn(&[K]) -> IotaResult<Vec<V>>,

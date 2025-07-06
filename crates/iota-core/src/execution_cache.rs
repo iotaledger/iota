@@ -471,17 +471,22 @@ pub trait ObjectCacheRead: Send + Sync {
     fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber>;
 }
 
-pub trait TransactionCacheRead: Send + Sync {
-    fn multi_get_transaction_blocks(
+pub trait TransactionCacheRead:
+    TransactionCacheReadFallible + TransactionCacheReadNonFallible
+{
+}
+
+pub trait TransactionCacheReadFallible: Send + Sync {
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>>;
 
-    fn get_transaction_block(
+    fn try_get_transaction_block(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<Arc<VerifiedTransaction>>> {
-        self.multi_get_transaction_blocks(&[*digest])
+        self.try_multi_get_transaction_blocks(&[*digest])
             .map(|mut blocks| {
                 blocks
                     .pop()
@@ -490,11 +495,167 @@ pub trait TransactionCacheRead: Send + Sync {
     }
 
     #[instrument(level = "trace", skip_all)]
+    fn try_get_transactions_and_serialized_sizes(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(VerifiedTransaction, usize)>>> {
+        let txns = self.try_multi_get_transaction_blocks(digests)?;
+        txns.into_iter()
+            .map(|txn| {
+                txn.map(|txn| {
+                    // Note: if the transaction is read from the db, we are wasting some
+                    // effort relative to reading the raw bytes from the db instead of
+                    // calling serialized_size. However, transactions should usually be
+                    // fetched from cache.
+                    match txn.serialized_size() {
+                        Ok(size) => Ok(((*txn).clone(), size)),
+                        Err(e) => Err(e),
+                    }
+                })
+                .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
+
+    fn try_multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>;
+
+    fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+        self.try_multi_get_executed_effects_digests(&[*digest])
+            .map(|mut digests| {
+                digests
+                    .pop()
+                    .expect("multi-get must return correct number of items")
+                    .is_some()
+            })
+    }
+
+    fn try_multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let effects_digests = self.try_multi_get_executed_effects_digests(digests)?;
+        assert_eq!(effects_digests.len(), digests.len());
+
+        let mut results = vec![None; digests.len()];
+        let mut fetch_digests = Vec::with_capacity(digests.len());
+        let mut fetch_indices = Vec::with_capacity(digests.len());
+
+        for (i, digest) in effects_digests.into_iter().enumerate() {
+            if let Some(digest) = digest {
+                fetch_digests.push(digest);
+                fetch_indices.push(i);
+            }
+        }
+
+        let effects = self.try_multi_get_effects(&fetch_digests)?;
+        for (i, effects) in fetch_indices.into_iter().zip(effects.into_iter()) {
+            results[i] = effects;
+        }
+
+        Ok(results)
+    }
+
+    fn try_get_executed_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
+        self.try_multi_get_executed_effects(&[*digest])
+            .map(|mut effects| {
+                effects
+                    .pop()
+                    .expect("multi-get must return correct number of items")
+            })
+    }
+
+    fn try_multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>>;
+
+    fn try_get_effects(
+        &self,
+        digest: &TransactionEffectsDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
+        self.try_multi_get_effects(&[*digest]).map(|mut effects| {
+            effects
+                .pop()
+                .expect("multi-get must return correct number of items")
+        })
+    }
+
+    fn try_multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+
+    fn try_get_events(
+        &self,
+        digest: &TransactionEventsDigest,
+    ) -> IotaResult<Option<TransactionEvents>> {
+        self.try_multi_get_events(&[*digest]).map(|mut events| {
+            events
+                .pop()
+                .expect("multi-get must return correct number of items")
+        })
+    }
+
+    fn try_notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
+
+    /// Wait until the effects of the given transactions are available and
+    /// return them. WARNING: If calling this on a transaction that could be
+    /// reverted, you must be sure that this function cannot be called
+    /// during reconfiguration. The best way to do this is to wrap your
+    /// future in EpochStore::within_alive_epoch. Holding an
+    /// ExecutionLockReadGuard would also prevent reconfig from happening while
+    /// waiting, but this is very dangerous, as it could prevent
+    /// reconfiguration from ever occurring!
+    fn try_notify_read_executed_effects<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
+        async move {
+            let digests = self
+                .try_notify_read_executed_effects_digests(digests)
+                .await?;
+            // once digests are available, effects must be present as well
+            self.try_multi_get_effects(&digests).map(|effects| {
+                effects
+                    .into_iter()
+                    .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))
+                    .collect()
+            })
+        }
+        .boxed()
+    }
+}
+
+pub trait TransactionCacheReadNonFallible: Send + Sync {
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>>;
+
+    fn get_transaction_block(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Arc<VerifiedTransaction>> {
+        self.multi_get_transaction_blocks(&[*digest])
+            .pop()
+            .expect("multi-get must return correct number of items")
+    }
+
+    #[instrument(level = "trace", skip_all)]
     fn get_transactions_and_serialized_sizes(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(VerifiedTransaction, usize)>>> {
-        let txns = self.multi_get_transaction_blocks(digests)?;
+        let txns = self.multi_get_transaction_blocks(digests);
         txns.into_iter()
             .map(|txn| {
                 txn.map(|txn| {
@@ -515,23 +676,20 @@ pub trait TransactionCacheRead: Send + Sync {
     fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>;
+    ) -> Vec<Option<TransactionEffectsDigest>>;
 
-    fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+    fn is_tx_already_executed(&self, digest: &TransactionDigest) -> bool {
         self.multi_get_executed_effects_digests(&[*digest])
-            .map(|mut digests| {
-                digests
-                    .pop()
-                    .expect("multi-get must return correct number of items")
-                    .is_some()
-            })
+            .pop()
+            .expect("multi-get must return correct number of items")
+            .is_some()
     }
 
     fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        let effects_digests = self.multi_get_executed_effects_digests(digests)?;
+    ) -> Vec<Option<TransactionEffects>> {
+        let effects_digests = self.multi_get_executed_effects_digests(digests);
         assert_eq!(effects_digests.len(), digests.len());
 
         let mut results = vec![None; digests.len()];
@@ -545,62 +703,46 @@ pub trait TransactionCacheRead: Send + Sync {
             }
         }
 
-        let effects = self.multi_get_effects(&fetch_digests)?;
+        let effects = self.multi_get_effects(&fetch_digests);
         for (i, effects) in fetch_indices.into_iter().zip(effects.into_iter()) {
             results[i] = effects;
         }
 
-        Ok(results)
+        results
     }
 
-    fn get_executed_effects(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<TransactionEffects>> {
+    fn get_executed_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
         self.multi_get_executed_effects(&[*digest])
-            .map(|mut effects| {
-                effects
-                    .pop()
-                    .expect("multi-get must return correct number of items")
-            })
+            .pop()
+            .expect("multi-get must return correct number of items")
     }
 
     fn multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffects>>>;
+    ) -> Vec<Option<TransactionEffects>>;
 
-    fn get_effects(
-        &self,
-        digest: &TransactionEffectsDigest,
-    ) -> IotaResult<Option<TransactionEffects>> {
-        self.multi_get_effects(&[*digest]).map(|mut effects| {
-            effects
-                .pop()
-                .expect("multi-get must return correct number of items")
-        })
+    fn get_effects(&self, digest: &TransactionEffectsDigest) -> Option<TransactionEffects> {
+        self.multi_get_effects(&[*digest])
+            .pop()
+            .expect("multi-get must return correct number of items")
     }
 
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+    ) -> Vec<Option<TransactionEvents>>;
 
-    fn get_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> IotaResult<Option<TransactionEvents>> {
-        self.multi_get_events(&[*digest]).map(|mut events| {
-            events
-                .pop()
-                .expect("multi-get must return correct number of items")
-        })
+    fn get_events(&self, digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.multi_get_events(&[*digest])
+            .pop()
+            .expect("multi-get must return correct number of items")
     }
 
     fn notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>>;
 
     /// Wait until the effects of the given transactions are available and
     /// return them. WARNING: If calling this on a transaction that could be
@@ -613,16 +755,14 @@ pub trait TransactionCacheRead: Send + Sync {
     fn notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
+    ) -> BoxFuture<'a, Vec<TransactionEffects>> {
         async move {
-            let digests = self.notify_read_executed_effects_digests(digests).await?;
+            let digests = self.notify_read_executed_effects_digests(digests).await;
             // once digests are available, effects must be present as well
-            self.multi_get_effects(&digests).map(|effects| {
-                effects
-                    .into_iter()
-                    .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))
-                    .collect()
-            })
+            self.multi_get_effects(&digests)
+                .into_iter()
+                .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))
+                .collect()
         }
         .boxed()
     }

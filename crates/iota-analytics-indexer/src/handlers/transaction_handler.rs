@@ -205,7 +205,7 @@ mod tests {
 
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
-    use iota_types::{base_types::IotaAddress, storage::ReadStore};
+    use iota_types::{base_types::IotaAddress, storage::ReadStoreFallible};
     use simulacrum::Simulacrum;
 
     use crate::handlers::transaction_handler::TransactionHandler;
@@ -224,7 +224,7 @@ mod tests {
         let checkpoint = sim.create_checkpoint();
         let checkpoint_data = sim.get_checkpoint_data(
             checkpoint.clone(),
-            sim.get_checkpoint_contents_by_digest(&checkpoint.content_digest)?
+            sim.try_get_checkpoint_contents_by_digest(&checkpoint.content_digest)?
                 .unwrap(),
         )?;
         let shared_checkpoint_data = Arc::new(checkpoint_data);

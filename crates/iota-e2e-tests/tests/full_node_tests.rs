@@ -68,7 +68,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .try_notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -115,7 +115,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .try_notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -484,7 +484,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .try_notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -606,7 +606,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .try_notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -794,7 +794,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .try_notify_read_executed_effects(&[digest])
         .await
         .unwrap();
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
@@ -1094,7 +1094,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
 
     node.state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .try_notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -1114,7 +1114,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
         transfer_coin(&test_cluster.wallet).await?;
     node.state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest_after_restore])
+        .try_notify_read_executed_effects(&[digest_after_restore])
         .await
         .unwrap();
     Ok(())

@@ -31,7 +31,7 @@ use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
     authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_cache::{ObjectCacheRead, TransactionCacheReadFallible},
 };
 
 #[cfg(test)]
@@ -52,7 +52,7 @@ const MIN_HASHMAP_CAPACITY: usize = 1000;
 /// back to TransactionManager.
 pub struct TransactionManager {
     object_cache_read: Arc<dyn ObjectCacheRead>,
-    transaction_cache_read: Arc<dyn TransactionCacheRead>,
+    transaction_cache_read: Arc<dyn TransactionCacheReadFallible>,
     tx_ready_certificates: UnboundedSender<PendingCertificate>,
     metrics: Arc<AuthorityMetrics>,
     // inner is a doubly nested lock so that we can enforce that an outer lock (for read) is held
@@ -343,7 +343,7 @@ impl TransactionManager {
     /// retry transactions.
     pub(crate) fn new(
         object_cache_read: Arc<dyn ObjectCacheRead>,
-        transaction_cache_read: Arc<dyn TransactionCacheRead>,
+        transaction_cache_read: Arc<dyn TransactionCacheReadFallible>,
         epoch_store: &AuthorityPerEpochStore,
         tx_ready_certificates: UnboundedSender<PendingCertificate>,
         metrics: Arc<AuthorityMetrics>,
@@ -419,7 +419,7 @@ impl TransactionManager {
                 // skip already executed txes
                 if self
                     .transaction_cache_read
-                    .is_tx_already_executed(&digest)
+                    .try_is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
                         fatal!("Failed to check if tx is already executed: {:?}", err)
                     })
@@ -458,7 +458,7 @@ impl TransactionManager {
                             // remove the race.
                             if self
                                 .transaction_cache_read
-                                .is_tx_already_executed(cert.digest())
+                                .try_is_tx_already_executed(cert.digest())
                                 .expect("is_tx_already_executed cannot fail")
                             {
                                 return None;
@@ -618,7 +618,7 @@ impl TransactionManager {
             // skip already executed txes
             let is_tx_already_executed = self
                 .transaction_cache_read
-                .is_tx_already_executed(&digest)
+                .try_is_tx_already_executed(&digest)
                 .expect("Check if tx is already executed should not fail");
             if is_tx_already_executed {
                 self.metrics

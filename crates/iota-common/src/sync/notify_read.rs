@@ -120,7 +120,7 @@ impl<K: Eq + Hash + Clone, V: Clone> NotifyRead<K, V> {
 }
 
 impl<K: Eq + Hash + Clone + Unpin, V: Clone + Unpin> NotifyRead<K, V> {
-    pub async fn read<E: Error>(
+    pub async fn try_read<E: Error>(
         &self,
         keys: &[K],
         fetch: impl FnOnce(&[K]) -> Result<Vec<Option<V>>, E>,
@@ -139,6 +139,23 @@ impl<K: Eq + Hash + Clone + Unpin, V: Clone + Unpin> NotifyRead<K, V> {
             });
 
         Ok(join_all(results).await)
+    }
+
+    pub async fn read(&self, keys: &[K], fetch: impl FnOnce(&[K]) -> Vec<Option<V>>) -> Vec<V> {
+        let registrations = self.register_all(keys);
+
+        let results = fetch(keys);
+
+        let results = results
+            .into_iter()
+            .zip(registrations)
+            .map(|(a, r)| match a {
+                // Note that Some() clause also drops registration that is already fulfilled
+                Some(ready) => Either::Left(futures::future::ready(ready)),
+                None => Either::Right(r),
+            });
+
+        join_all(results).await
     }
 }
 
