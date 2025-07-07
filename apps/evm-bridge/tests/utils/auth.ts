@@ -69,25 +69,49 @@ export async function importL1WalletFromMnemonic(
 
 export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promise<string> {
     await page.goto(l2ExtensionUrl);
+    await page.getByTestId('onboarding-get-started-button').click();
 
-    await page.getByTestId('onboarding-terms-checkbox').click();
-    await page.getByRole('button', { name: /Import an existing wallet/ }).click();
-    await page.getByRole('button', { name: /No thanks/ }).click();
+    await page.getByTestId('terms-of-use-checkbox').click();
+
+    await page.locator('.mm-box.terms-of-use-popup__body').focus();
+    // Press End key multiple times to ensure we reach the bottom
+    await page.keyboard.press('End');
+
+    // Wait for button to be enabled
+    await page.getByTestId('terms-of-use-agree-button').isEnabled({ timeout: 10000 });
+    await page.getByTestId('terms-of-use-agree-button').click();
+
+    await page.getByTestId('onboarding-import-wallet').click();
 
     const { mnemonic, address } = getRandomL2MnemonicAndAddress();
-
     const mnemonicWords = mnemonic.split(' ');
+
+    await page.getByTestId('srp-input-import__srp-note').focus();
+
+    // Type each word manually with spaces in between
     for (let i = 0; i < mnemonicWords.length; i++) {
-        await page.getByTestId(`import-srp__srp-word-${i}`).first().fill(mnemonicWords[i]);
+        // Type the word
+        await page.keyboard.type(mnemonicWords[i]);
+
+        // Add space after each word except the last one
+        if (i < mnemonicWords.length - 1) {
+            await page.keyboard.press('Space');
+        }
+
+        // Optional: small delay between words to make it look more human-like
+        await page.waitForTimeout(50);
     }
 
-    await page.getByRole('button', { name: /Confirm Secret/ }).click();
-    await page.getByTestId('create-password-new').fill('iotae2etests');
-    await page.getByTestId('create-password-confirm').fill('iotae2etests');
+    await page.getByTestId('import-srp-confirm').isEnabled({ timeout: 10000 });
+    await page.getByTestId('import-srp-confirm').click();
+
+    await page.getByTestId('create-password-new-input').fill('iotae2etests');
+    await page.getByTestId('create-password-confirm-input').fill('iotae2etests');
     await page.getByTestId(/create-password-terms/).click();
-    await page.getByRole('button', { name: /Import my wallet/ }).click();
+    await page.getByTestId('create-password-submit').click();
+    await page.getByTestId('metametrics-no-thanks').click();
+
     await page.getByRole('button', { name: /Done/ }).click();
-    await page.getByRole('button', { name: /Next/ }).click();
     await page.getByRole('button', { name: /Done/ }).click();
 
     return address;
