@@ -1362,6 +1362,9 @@ importers:
       '@artsy/to-title-case':
         specifier: ^1.1.0
         version: 1.1.0
+      '@boxfish-studio/react-cookie-manager':
+        specifier: ^1.0.2
+        version: 1.0.2
       '@docusaurus/core':
         specifier: 3.7.0
         version: 3.7.0(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(bufferutil@4.0.9)(eslint@8.57.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10)
@@ -3419,6 +3422,9 @@ packages:
 
   '@blakeembrey/template@1.2.0':
     resolution: {integrity: sha512-w/63nURdkRPpg3AXbNr7lPv6HgOuVDyefTumiXsbXxtIwcuk5EXayWR5OpSwDjsQPgaYsfUSedMduaNOjAYY8A==}
+
+  '@boxfish-studio/react-cookie-manager@1.0.2':
+    resolution: {integrity: sha512-2UZPvRNy+uakMpHXrg+2MiKUFk1PanoZ5YbX8kM09Bhs9zd4L/XQD0IF4OAxz6fWEZxcwSxRIj8KwxkyvNwS/A==}
 
   '@braintree/sanitize-url@6.0.4':
     resolution: {integrity: sha512-s3jaWicZd0pkP0jf5ysyHUI/RE7MHos6qlToFcGWXVp+ykHOy77OUMrfbgJ9it2C5bow7OIQwYYaHjk9XlBQ2A==}
@@ -22162,6 +22168,12 @@ snapshots:
   '@blakeembrey/deque@1.0.5': {}
 
   '@blakeembrey/template@1.2.0': {}
+
+  '@boxfish-studio/react-cookie-manager@1.0.2':
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      sass: 1.86.0
 
   '@braintree/sanitize-url@6.0.4': {}
 

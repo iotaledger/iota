@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
-type NetworkType = 'mainnet' | 'testnet' | 'devnet';
+type NetworkType = 'mainnet' | 'testnet' | 'devnet' | 'localnet';
 
 export default function ExecuteTransaction() {
     const [network, setNetwork] = useState<NetworkType>('mainnet');
@@ -102,6 +102,7 @@ export default function ExecuteTransaction() {
                                 <option value="devnet">Devnet</option>
                                 <option value="testnet">Testnet</option>
                                 <option value="mainnet">Mainnet</option>
+                                <option value="localnet">Localnet</option>
                             </select>
                         </div>
                         <div className="grid w-full gap-1.5">
