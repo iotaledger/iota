@@ -136,7 +136,6 @@ use self::{
 pub use crate::checkpoints::checkpoint_executor::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
 };
-use crate::congestion_tracker::CongestionTracker;
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, CertTxGuard},
@@ -147,6 +146,7 @@ use crate::{
     },
     authority_client::NetworkAuthorityClient,
     checkpoints::CheckpointStore,
+    congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
     execution_cache::{
@@ -1818,14 +1818,9 @@ impl AuthorityState {
         let tx_clone = transaction.clone();
         let tracker_clone = self.congestion_tracker.clone();
 
-        let suggested_gas_price = tokio::task::spawn(async move {
-            tracker_clone
-                .get_suggested_gas_price_with_ogd(tx_clone)
-                .await
-        })
-        .await
-        .ok()
-        .flatten();
+        let suggested_gas_price = tracker_clone
+            .get_suggested_gas_price_with_ogd(tx_clone)
+            .await;
 
         let mut layout_resolver =
             epoch_store
