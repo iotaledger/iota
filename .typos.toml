@@ -33,8 +33,6 @@ tring = "tring"
 transferer = "transferrer"
 # not in the correction dictionary
 checkpoitn = "checkpoint"
-# CSS font variation property
-wdth = "wdth"
 
 [default.extend-identifiers]
 numer = "numer"
