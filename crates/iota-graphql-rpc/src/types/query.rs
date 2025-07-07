@@ -36,7 +36,7 @@ use crate::{
         epoch::Epoch,
         event::{self, Event, EventFilter},
         iota_address::IotaAddress,
-        iota_names_registration::{Domain, IotaNames},
+        iota_names_registration::{IotaNames, Name},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
         object::{self, Object, ObjectFilter},
@@ -541,16 +541,16 @@ impl Query {
             .extend()
     }
 
-    /// Resolves an IOTA-Names `domain` name to an address, if it has been
+    /// Resolves an IOTA-Names `name` to an address, if it has been
     /// bound.
     async fn resolve_iota_names_address(
         &self,
         ctx: &Context<'_>,
-        domain: Domain,
+        name: Name,
     ) -> Result<Option<Address>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
-        Ok(IotaNames::resolve_to_record(ctx, &domain, checkpoint)
+        Ok(IotaNames::resolve_to_record(ctx, &name, checkpoint)
             .await
             .extend()?
             .and_then(|r| r.target_address)

@@ -275,6 +275,6 @@ async fn handle_error(error: BoxError) -> impl IntoResponse {
 
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Cow::from(format!("Unhandled internal error: {}", error)),
+        Cow::from(format!("Unhandled internal error: {error}")),
     )
 }

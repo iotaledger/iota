@@ -1,0 +1,111 @@
+---
+description: A guide on how to restore an account using a seed or a .stronghold file.
+teams:
+   - iotaledger/tooling
+tags: [iota-wallet]
+pagination_prev: users/iota-wallet/how-to/import
+pagination_next: users/iota-wallet/how-to/import/balance-finder
+---
+import Seed from '../../../../_snippets/about-iota/iota-wallet/seed.md'
+import Wait from '../../../../_snippets/about-iota/iota-wallet/wait.md';
+
+# Restore From Seed or Stronghold
+
+If you have lost your mnemonic, you can still recover your account provided you have access to your seed or
+`.stronghold` file.
+
+<Seed />
+
+## Back Up a Seed From a Firefly Profile
+
+You can export you seed by clicking on the `...` menu, and then clicking `Backup Seed`.
+
+![Backup Seed](/img/about-iota/iota-wallet/how-to/restore-account/backup-seed-falafel.png)
+
+Firefly will then prompt you to enter your password.
+
+![Enter Password](/img/about-iota/iota-wallet/how-to/restore-account/enter-password.png)
+
+<Wait />
+
+![Copy Seed](/img/about-iota/iota-wallet/how-to/restore-account/copy-seed.png)
+
+With your seed at hand, you can [import your wallet using the IOTA Web Wallet](#import-accounts-from-a-seed).
+
+## Back Up a Seed From a `.stronghold` file
+
+:::info Not Recommended
+
+If you are using Firefly, we recommend using the [Backup Seed](#back-up-a-seed-from-a-firefly-profile) option from the Firefly menu.
+Using a stronghold file directly should only be done if you don't have a profile in Firefly or if you are using a different wallet.
+
+:::
+
+You can use your `.stronghold` backup file to obtain your wallet's seed.
+
+If don't know where your `.stronghold` file is, click on the `...` menu and select the `Copy system profile location`. 
+
+![Copy Stronghold Location](/img/about-iota/iota-wallet/how-to/restore-account/copy-stronghold-location.png)
+
+<Tabs groupId="os" queryString>
+   <TabItem value="windows" label="Windows">
+      Next, you should click on the burger menu in the top left and `Firefly > Backup Seed`.
+
+      ![Backup Seed Menu](/img/about-iota/iota-wallet/how-to/restore-account/backup-seed-menu-windows.png)
+   </TabItem>
+   <TabItem value="linux" label="Linux">
+      Next, you should click on `Electron > Backup Seed`.
+
+      ![Backup Seed Menu](/img/about-iota/iota-wallet/how-to/restore-account/backup-seed-menu-linux.png)
+   </TabItem>
+   <TabItem value="macos" label="MacOS">
+      Next, in the menu bar click on `Firefly > Backup Seed`.
+
+      ![Backup Seed Menu](/img/about-iota/iota-wallet/how-to/restore-account/backup-seed-menu-macos.png)
+   </TabItem>
+</Tabs>
+
+Once you have the `.stronghold` file at hand, you can drag and drop it into Firefly's Stronghold Backup.
+
+![Drag and Drop Stronghold](/img/about-iota/iota-wallet/how-to/restore-account/drag-and-drop-stronghold.png)
+
+Firefly will then prompt you to enter your password to unlock the `.stronghold` file.
+
+![Enter Password](/img/about-iota/iota-wallet/how-to/restore-account/enter-password.png)
+
+<Wait />
+
+Firefly will then show you the seed it restored from the `.stronghold` file. 
+
+![Copy Seed](/img/about-iota/iota-wallet/how-to/restore-account/copy-seed.png)
+
+With your seed at hand, you can [import your wallet using the IOTA Web Wallet](#import-accounts-from-a-seed).
+
+## Import Accounts from a Seed
+
+<Seed />
+
+To use your IOTA Wallet on different devices or browsers, you can import it using your Seed:
+
+1. Open IOTA Wallet and select `Add Profile`
+
+![Add Profile](/img/about-iota/iota-wallet/getting-started/add-profile.png)
+
+2. Click the `Mnemonic` button in the `Import` section.
+
+![Import Mnemonic](/img/about-iota/iota-wallet/getting-started/click-import-mnemonic.png)
+
+3. Enter your Seed and click `Add Profile`.
+
+![Add Profile](/img/about-iota/iota-wallet/getting-started/mnemonic.png)
+
+4. Enter your desired password.
+
+![Create Password](/img/about-iota/iota-wallet/getting-started/create-password.png)
+
+5. Carefully read and accept the Terms of Service, and click `Create Wallet`.
+
+![Create Wallet](/img/about-iota/iota-wallet/getting-started/create-wallet.png)
+
+By following these steps, you can manage, stake,
+and transfer your digital assets on the IOTA network from any of your devices, ensuring a seamless experience.

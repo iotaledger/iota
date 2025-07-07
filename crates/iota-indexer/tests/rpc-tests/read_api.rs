@@ -1330,7 +1330,7 @@ fn try_get_past_object_version_found() {
                     gas_ref.1, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {:?}", result),
+            _ => panic!("Expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1492,7 +1492,7 @@ fn try_get_past_object_object_deleted() {
                     nft_object_ref.1, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {:?}", result),
+            _ => panic!("Expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1608,10 +1608,7 @@ fn try_multi_get_past_objects() {
                     gas_ref_1.1, data.version
                 );
             }
-            _ => panic!(
-                "Expected VersionFound response, got: {:?}",
-                past_object_response_1
-            ),
+            _ => panic!("Expected VersionFound response, got: {past_object_response_1:?}"),
         }
 
         match past_object_response_2 {
@@ -1622,10 +1619,7 @@ fn try_multi_get_past_objects() {
                     gas_ref_2.1, data.version
                 );
             }
-            _ => panic!(
-                "Expected VersionFound response, got: {:?}",
-                past_object_response_2
-            ),
+            _ => panic!("Expected VersionFound response, got: {past_object_response_2:?}"),
         }
 
         let expected_responses = vec![
@@ -1710,7 +1704,7 @@ fn try_get_object_before_version() {
                     gas_ref.1, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {:?}", result),
+            _ => panic!("Expected VersionFound response, got: {result:?}"),
         }
     });
 }

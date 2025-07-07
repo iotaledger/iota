@@ -484,7 +484,7 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
                         num_in_flight
                     );
                     if show_progress {
-                        eprintln!("{}", stat);
+                        eprintln!("{stat}");
                     }
                 }
             }
@@ -527,7 +527,7 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
                         cpu_usage_histogram.value_at_quantile(0.99)
                     );
                     if show_progress {
-                        eprintln!("{}", stat);
+                        eprintln!("{stat}");
                     }
                 }
             }

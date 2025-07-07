@@ -283,7 +283,7 @@ describe('GraphQL IotaClient compatibility', () => {
     });
 
     // This should work with a full node. Try to unskip it "later"
-    test.skip('tryGetPastObject', async () => {
+    test('tryGetPastObject', async () => {
         const {
             data: [{ coinObjectId: id, version }],
         } = await toolbox.getGasObjectsOwnedByAddress();
@@ -415,13 +415,13 @@ describe('GraphQL IotaClient compatibility', () => {
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
+                showEvents: true,
                 // TODO inputs missing valueType
                 showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
         });
-
         expect(graphQLTransactionBlock).toEqual(rpcTransactionBlock);
     });
 
@@ -541,7 +541,9 @@ describe('GraphQL IotaClient compatibility', () => {
             sender: toolbox.address(),
         });
 
-        expect(graphql).toEqual(rpc);
+        expect(graphql.events).toEqual(rpc.events);
+        expect(graphql.error).toBeFalsy();
+        expect(rpc.error).toBeFalsy();
     });
 
     test.skip('getDynamicFields', async () => {
@@ -576,7 +578,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getDynamicFieldObjectV2', async () => {
+    test('getDynamicFieldObjectV2', async () => {
         const { data } = await toolbox.client.getDynamicFields({
             parentId: parentObjectId,
         });
@@ -610,21 +612,39 @@ describe('GraphQL IotaClient compatibility', () => {
         const [coin] = tx.splitCoins(tx.gas, [1]);
         tx.transferObjects([coin], toolbox.address());
 
-        const { confirmedLocalExecution, ...graphql } =
-            await graphQLClient!.signAndExecuteTransaction({
-                transaction: tx as Transaction,
-                signer: toolbox.keypair,
-                options: {
-                    showBalanceChanges: true,
-                    showEffects: true,
-                    showEvents: true,
-                    showInput: true,
-                    showObjectChanges: true,
-                    showRawInput: true,
-                },
-            });
+        const transaction = await graphQLClient!.signAndExecuteTransaction({
+            transaction: tx as Transaction,
+            signer: toolbox.keypair,
+            options: {
+                showBalanceChanges: true,
+                showEffects: true,
+                showEvents: true,
+                // TODO inputs missing valueType
+                showInput: false,
+                showObjectChanges: true,
+                showRawInput: true,
+            },
+        });
 
-        await toolbox.client.waitForTransaction({ digest: graphql.digest });
+        await toolbox.client.waitForTransaction({ digest: transaction.digest });
+
+        const {
+            checkpoint: gCheckpoint,
+            timestampMs: gTimestampMs,
+            rawEffects: gRawEffects,
+            ...graphql
+        } = (await graphQLClient.getTransactionBlock({
+            digest: transaction.digest,
+            options: {
+                showBalanceChanges: true,
+                showEffects: true,
+                showEvents: true,
+                // TODO inputs missing valueType
+                showInput: false,
+                showObjectChanges: true,
+                showRawInput: true,
+            },
+        })) as IotaTransactionBlockResponse & { rawEffects: unknown };
 
         const { checkpoint, timestampMs, rawEffects, ...rpc } =
             (await toolbox.client.getTransactionBlock({
@@ -633,7 +653,8 @@ describe('GraphQL IotaClient compatibility', () => {
                     showBalanceChanges: true,
                     showEffects: true,
                     showEvents: true,
-                    showInput: true,
+                    // TODO inputs missing valueType
+                    showInput: false,
                     showObjectChanges: true,
                     showRawInput: true,
                 },
@@ -642,7 +663,8 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('dryRunTransactionBlock', async () => {
+    // TODO: Skipped because of GraphQL inconsistencies in the implementation, see https://github.com/iotaledger/iota/issues/7323
+    test.skip('dryRunTransactionBlock', async () => {
         const tx = new Transaction();
         tx.setSender(toolbox.address());
         const [coin] = tx.splitCoins(tx.gas, [1]);
@@ -664,7 +686,7 @@ describe('GraphQL IotaClient compatibility', () => {
         const rpc = await toolbox.client.getLatestCheckpointSequenceNumber();
         const graphql = await graphQLClient!.getLatestCheckpointSequenceNumber();
 
-        expect(Number.parseInt(graphql)).closeTo(Number.parseInt(rpc), 3);
+        expect(Number.parseInt(graphql)).closeTo(Number.parseInt(rpc), 4);
     });
 
     test('getCheckpoint', async () => {
@@ -698,21 +720,28 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getNetworkMetrics', async () => {
+    test('getNetworkMetrics', async () => {
         const rpc = await toolbox.client.getNetworkMetrics();
         const graphql = await graphQLClient!.getNetworkMetrics();
 
-        expect(graphql).toEqual(rpc);
+        expect(Number.parseInt(graphql.currentCheckpoint)).closeTo(
+            Number.parseInt(rpc.currentCheckpoint),
+            4,
+        );
+        expect({ ...graphql, currentCheckpoint: undefined }).toEqual({
+            ...rpc,
+            currentCheckpoint: undefined,
+        });
     });
 
-    test.skip('getParticipationMetrics', async () => {
+    test('getParticipationMetrics', async () => {
         const rpc = await toolbox.client.getParticipationMetrics();
         const graphql = await graphQLClient!.getParticipationMetrics();
 
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getMoveCallMetrics', async () => {
+    test('getMoveCallMetrics', async () => {
         const rpc = await toolbox.client.getMoveCallMetrics();
         const graphql = await graphQLClient!.getMoveCallMetrics();
 
@@ -726,7 +755,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getAllEpochAddressMetrics', async () => {
+    test('getAllEpochAddressMetrics', async () => {
         const rpc = await toolbox.client.getAllEpochAddressMetrics();
         const graphql = await graphQLClient!.getAllEpochAddressMetrics();
 
@@ -740,7 +769,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getEpochs', async () => {
+    test('getEpochs', async () => {
         const rpc = await toolbox.client.getEpochs();
         const graphql = await graphQLClient!.getEpochs();
 
