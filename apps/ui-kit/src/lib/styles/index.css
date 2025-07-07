@@ -12,7 +12,7 @@
 @import 'tailwindcss/utilities';
 @import './utilities.css';
 
-@import './variables/common-variables.css';
+@import './variables/general-variables.css';
 @import './variables/light-variables.css';
 @import './variables/dark-variables.css';
 @import './variables/names-variables.css';
