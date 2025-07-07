@@ -168,6 +168,13 @@ pub enum Ticket {
 // probability 15/16.
 const KEY_GENERATION_SIZE: usize = 1024 * 16;
 
+pub(crate) fn key_generation_hash<K: Hash>(key: &K) -> usize {
+    let mut state = DefaultHasher::new();
+    key.hash(&mut state);
+    let hash = state.finish();
+    (hash % KEY_GENERATION_SIZE as u64) as usize
+}
+
 impl<K, V> MonotonicCache<K, V>
 where
     K: Hash + Eq + Send + Sync + Copy + 'static,
@@ -187,10 +194,7 @@ where
     }
 
     fn generation(&self, key: &K) -> &AtomicU64 {
-        let mut state = DefaultHasher::new();
-        key.hash(&mut state);
-        let hash = state.finish();
-        &self.key_generation[(hash % KEY_GENERATION_SIZE as u64) as usize]
+        &self.key_generation[key_generation_hash(key)]
     }
 
     /// Get a ticket for caching the result of a read operation. The ticket will

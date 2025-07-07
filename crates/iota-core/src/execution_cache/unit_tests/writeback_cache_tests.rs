@@ -1317,3 +1317,205 @@ async fn latest_object_cache_race_test() {
     checker.join().unwrap();
     invalidator.join().unwrap();
 }
+
+#[tokio::test]
+async fn concurrent_latest_object_cache_race_test() {
+    // This test is a thread-less variant of latest_object_cache_race_test.
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+
+    let store = authority.database_for_testing().clone();
+
+    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
+        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
+
+    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+
+    let object_id = ObjectID::random();
+    let owner = IotaAddress::random_for_testing_only();
+
+    // write a new version on request
+    let mut write_version = OBJECT_START_VERSION;
+    let mut writer = || {
+        let object = Object::with_id_owner_version_for_testing(object_id, write_version, owner);
+
+        cache
+            .write_object_entry(&object_id, write_version, object.into())
+            .now_or_never()
+            .unwrap();
+
+        write_version = write_version.next();
+    };
+
+    // invalidate the cache on request
+    let invalidator = || {
+        cache.cached.object_by_id_cache.invalidate(&object_id);
+    };
+
+    // check cache consistency, ie. it can't contain an older version
+    let mut checked_latest = OBJECT_START_VERSION;
+    let mut checker = || {
+        if let Some(cur) = cache
+            .cached
+            .object_by_id_cache
+            .get(&object_id)
+            .and_then(|e| e.lock().version())
+        {
+            assert!(cur >= checked_latest, "{} >= {}", cur, checked_latest);
+            checked_latest = cur;
+        }
+    };
+
+    // populate the cache
+    writer();
+
+    // a reader that pretends it saw some previous version on the db
+    {
+        // acquire the ticket before getting the latest version
+        let ticket = cache
+            .cached
+            .object_by_id_cache
+            .get_ticket_for_read(&object_id);
+
+        // get the latest cached version
+        let latest_version = cache
+            .dirty
+            .objects
+            .get(&object_id)
+            .and_then(|e| e.value().get_highest().map(|v| v.0))
+            .unwrap();
+
+        let object = Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
+
+        // preempt the reader to update the latest version and invalidate the cache
+        {
+            // this write will invalidate the ticket
+            writer();
+            writer();
+            // checker observes the new latest version
+            checker();
+            // invalidate the cache to make it forget the latest version
+            invalidator();
+        }
+
+        // the following insert will not populate the cache with an older version
+        // because the ticket was invalidated
+        cache.cache_latest_object_by_id(
+            &object_id,
+            LatestObjectCacheEntry::Object(latest_version, object.into()),
+            ticket,
+        );
+    }
+
+    // the checker will not see an older version but will only get a cache miss
+    checker();
+}
+
+#[tokio::test]
+async fn concurrent_latest_object_cache_collision_test() {
+    use crate::execution_cache::cache_types::key_generation_hash;
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+
+    let store = authority.database_for_testing().clone();
+
+    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
+        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
+
+    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+
+    let mk_object_id = |i: usize| -> ObjectID {
+        let mut obj_id = [0_u8; 32];
+        obj_id[0..8].copy_from_slice(&i.to_le_bytes());
+        ObjectID::new(obj_id)
+    };
+    // these two object ids have the same hash within MonotonicCache
+    let object1_id = mk_object_id(166);
+    let object2_id = mk_object_id(170);
+    assert_eq!(
+        key_generation_hash(&object1_id),
+        key_generation_hash(&object2_id)
+    );
+
+    let owner1 = IotaAddress::random_for_testing_only();
+    let owner2 = IotaAddress::random_for_testing_only();
+
+    // write a new version on request
+    let mut write1_version = OBJECT_START_VERSION;
+    let mut write2_version = OBJECT_START_VERSION;
+    let mut writer = |object_id: ObjectID| {
+        let (write_version, owner) = if object_id == object1_id {
+            (&mut write1_version, owner1)
+        } else {
+            (&mut write2_version, owner2)
+        };
+        let object = Object::with_id_owner_version_for_testing(object_id, *write_version, owner);
+
+        cache
+            .write_object_entry(&object_id, *write_version, object.into())
+            .now_or_never()
+            .unwrap();
+
+        *write_version = write_version.next();
+    };
+
+    // invalidate the cache on request
+    let invalidator = |object_id: ObjectID| {
+        cache.cached.object_by_id_cache.invalidate(&object_id);
+    };
+
+    // populate the cache
+    writer(object1_id);
+    writer(object2_id);
+
+    // a reader that pretends it saw some previous version on the db
+    {
+        // acquire the ticket before getting the latest version
+        let ticket2 = cache
+            .cached
+            .object_by_id_cache
+            .get_ticket_for_read(&object2_id);
+
+        // get the latest version
+        let latest2_version = cache
+            .dirty
+            .objects
+            .get(&object2_id)
+            .and_then(|e| e.value().get_highest().map(|v| v.0))
+            .unwrap();
+
+        let object2 =
+            Object::with_id_owner_version_for_testing(object2_id, latest2_version, owner2);
+
+        // preempt the reader
+        {
+            // this write to object1 will invalidate the ticket for object2
+            writer(object1_id);
+            // invalidate object2 cache to make it forget the latest version
+            invalidator(object2_id);
+        }
+
+        // the following insert will not populate the cache with an older version
+        // because the ticket was invalidated, although it shouldn't have been!
+        cache.cache_latest_object_by_id(
+            &object2_id,
+            LatestObjectCacheEntry::Object(latest2_version, object2.into()),
+            ticket2,
+        );
+    }
+
+    // object1 is up to date in the cache
+    assert_eq!(
+        cache
+            .cached
+            .object_by_id_cache
+            .get(&object1_id)
+            .unwrap()
+            .lock()
+            .version()
+            .unwrap(),
+        OBJECT_START_VERSION.next()
+    );
+    // but now we get a cache miss on object2 instead of getting the latest version
+    assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
+}
