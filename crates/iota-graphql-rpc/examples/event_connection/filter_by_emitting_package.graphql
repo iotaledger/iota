@@ -1,4 +1,4 @@
-# Queries fetches all on-chain events emitted by the module `0x3::iota_system
+# Get all on-chain events emitted by the module `0x3::iota_system
 query ByEmittingPackageModule {
   events(
     filter: {
