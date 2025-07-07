@@ -4,6 +4,7 @@
 
 use std::{sync::Arc, time::Instant};
 
+use dashmap::DashSet;
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -127,8 +128,14 @@ impl ConsensusAuthority {
             transaction_verifier,
         ));
 
-        let block_manager =
-            BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
+        let received_block_headers = Arc::new(DashSet::new());
+
+        let block_manager = BlockManager::new(
+            context.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+            received_block_headers.clone(),
+        );
 
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -200,6 +207,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store,
+            received_block_headers,
         ));
 
         let subscriber = Subscriber::new(

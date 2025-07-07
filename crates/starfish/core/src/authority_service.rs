@@ -6,6 +6,7 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use dashmap::DashSet;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
@@ -50,6 +51,10 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
+    /// A set contains BlockRefs for all received verified block headers.
+    /// Used to filter the headers if they are received multiple times.
+    /// Shared with BlockManager
+    received_block_headers: Arc<DashSet<Bytes>>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -62,6 +67,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
+        received_block_headers: Arc<DashSet<Bytes>>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -77,6 +83,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             subscription_counter,
             dag_state,
             store,
+            received_block_headers,
         }
     }
 }
@@ -145,7 +152,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let verified_block_header = VerifiedBlockHeader::new_verified(
             signed_block_header,
-            serialized_block_and_transactions.serialized_block_header,
+            serialized_block_and_transactions
+                .serialized_block_header
+                .clone(),
         );
         let transactions: Vec<Transaction> =
             bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
@@ -415,8 +424,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let mut additional_block_headers = vec![];
         for serialized_header in serialized_block_and_headers.serialized_headers {
+            if self.received_block_headers.contains(&serialized_header) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .filtered_headers_in_bundles
+                    .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+                    .inc();
+                continue;
+            }
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
                 .map_err(ConsensusError::MalformedBlockHeader)?;
+
             let header_round = signed_block_header.round();
             if header_round >= verified_block.round() {
                 let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
@@ -426,7 +445,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_headers_in_a_bundle
+                    .invalid_headers_in_bundles
                     .with_label_values(&[
                         peer_hostname.as_str(),
                         "handle_subscribed_block_bundle",
@@ -445,7 +464,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_headers_in_a_bundle
+                    .invalid_headers_in_bundles
                     .with_label_values(&[
                         peer_hostname.as_str(),
                         "handle_subscribed_block_bundle",
@@ -464,7 +483,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .valid_headers_in_a_bundle
+                .valid_headers_in_bundles
                 .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
                 .inc();
         }
@@ -527,18 +546,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Normally, there should be no missing ancestors, as the headers are sent in
         // order of increasing rounds.
 
-        // TODO::Uncomment when the filter for headers is implemented, and already
-        // processed headers are removed from additional_block_headers. Before that it
-        // is incorrect
-        // self.context
-        // .metrics
-        // .node_metrics
-        // .received_unique_headers_from_a_bundle
-        // .with_label_values(&[
-        // peer_hostname.as_str(),
-        // "handle_subscribed_block_bundle",
-        // ])
-        // .inc_by(additional_block_headers.len() as u64);
+        self.context
+            .metrics
+            .node_metrics
+            .received_unique_headers_from_bundles
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(additional_block_headers.len() as u64);
 
         let mut missing_ancestors = self
             .core_dispatcher

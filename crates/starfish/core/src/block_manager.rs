@@ -8,6 +8,8 @@ use std::{
     time::Instant,
 };
 
+use bytes::Bytes;
+use dashmap::DashSet;
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -72,6 +74,10 @@ pub(crate) struct BlockManager {
     /// blocks per authority. This is used for metrics reporting purposes
     /// and resets during restarts.
     received_block_rounds: Vec<Option<(Round, Round)>>,
+    /// A set contains BlockRefs for all received verified block headers.
+    /// Used to filter the headers if they are received multiple times
+    /// Shared with AuthorityService
+    received_block_headers: Arc<DashSet<Bytes>>,
 }
 
 impl BlockManager {
@@ -79,6 +85,7 @@ impl BlockManager {
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
         block_verifier: Arc<dyn BlockVerifier>,
+        received_block_headers: Arc<DashSet<Bytes>>,
     ) -> Self {
         let committee_size = context.committee.size();
         Self {
@@ -90,6 +97,7 @@ impl BlockManager {
             missing_ancestors: BTreeMap::new(),
             missing_blocks: BTreeSet::new(),
             received_block_rounds: vec![None; committee_size],
+            received_block_headers,
         }
     }
 
@@ -163,6 +171,8 @@ impl BlockManager {
         let mut missing_block_headers = BTreeSet::new();
 
         for block_header in block_headers {
+            self.received_block_headers
+                .insert(block_header.serialized().clone());
             self.update_block_received_metrics(&block_header);
 
             // Try to accept the input block.
