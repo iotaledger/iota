@@ -47,6 +47,8 @@ use crate::{
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
 
+const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
+
 async fn prepare_and_sign_object_transfer_tx(
     sender: IotaAddress,
     sender_key_pair: AccountKeyPair,
@@ -330,7 +332,6 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let consecutive_updates = 20;
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -348,7 +349,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
             .await;
         indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
 
-        for _ in 0..consecutive_updates {
+        for _ in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let tx_data = client
                 .split_coin_equal(
                     address,
@@ -379,7 +380,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
             .data;
 
         // 2 gas coins + N coins created by 'split_coin_equal'
-        assert_eq!(consecutive_updates + 2, objects.len());
+        assert_eq!(NON_DETERMINISTIC_TESTS_REPETITIONS + 2, objects.len());
         Ok(())
     })
 }
@@ -395,7 +396,6 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
-        let consecutive_updates = 50;
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -422,7 +422,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
 
         let basic_obj = create_basic_object(sender, &sender_kp, client, &package_id).await?;
 
-        for _ in 0..consecutive_updates {
+        for _ in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let (res, wrapped_obj_id) =
                 wrap_basic_object(sender, &sender_kp, client, &package_id, &basic_obj)
                     .await
@@ -529,7 +529,7 @@ fn test_parallel_shared_object_updates() {
 
             let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
             let rgp = cluster.get_reference_gas_price().await;
-            let range = 0..20;
+            let range = 0..NON_DETERMINISTIC_TESTS_REPETITIONS;
             let gas_objs: Vec<_> = range
                 .map(|_| cluster.fund_address_and_return_gas(rgp, Some(10_000_000_000), sender))
                 .collect::<FuturesUnordered<_>>()
@@ -757,7 +757,7 @@ fn test_parallel_repeated_tx_execution() {
                 to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_kp);
             let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
-            let range = 0..20;
+            let range = 0..NON_DETERMINISTIC_TESTS_REPETITIONS;
             let transaction_results: Vec<_> = range
                 .map(|_| {
                     client.execute_transaction_block(
@@ -800,7 +800,6 @@ fn test_repeatedly_update_display() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async {
-        let consecutive_updates = 150;
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
@@ -833,7 +832,7 @@ fn test_repeatedly_update_display() {
             type_params: Vec::new(),
         }));
 
-        for n in 0..consecutive_updates {
+        for n in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let new_bear_description = format!("Bear description {n}");
 
             let res = update_display_object(
