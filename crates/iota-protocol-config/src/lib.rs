@@ -19,42 +19,44 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 9;
+pub const MAX_PROTOCOL_VERSION: u64 = 10;
 
 // Record history of protocol version allocations here:
 //
-// Version 1: Original version.
-// Version 2: Don't redistribute slashed staking rewards, fix computation of
-//            SystemEpochInfoEventV1.
-// Version 3: Set the `relocate_event_module` to be true so that the module that
-//            is associated as the "sending module" for an event is relocated by
-//            linkage.
-//            Add `Clock` based unlock to `Timelock` objects.
-// Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
-//            maximal nodes which are allowed when converting to a type layout.
-// Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
-//            SystemEpochInfoEventV2.
-//            Disallow adding new modules in `deps-only` packages.
-//            Improve gas/wall time efficiency of some Move stdlib vector
-//            functions.
-//            Add new gas model version to update charging of functions.
-//            Enable proper conversion of certain type argument errors in the
-//            execution layer.
-// Version 6: Bound size of values created in the adapter.
-// Version 7: Improve handling of stake withdrawal from candidate validators.
-// Version 8: Variants as type nodes.
-//            Enable smart ancestor selection for testnet.
-//            Enable probing for accepted rounds in round prober for testnet.
-//            Switch to distributed vote scoring in consensus in testnet.
-//            Enable zstd compression for consensus tonic network in testnet.
-//            Enable consensus garbage collection for testnet
-//            Enable the new consensus commit rule for testnet.
-//            Enable min_free_execution_slot for the shared object congestion
-//            tracker in devnet.
-// Version 9: Disable smart ancestor selection for the testnet.
-//            Enable zstd compression for consensus tonic network in mainnet.
-//            Enable passkey auth in multisig for devnet.
-//            Remove the iota-bridge from the framework.
+// Version 1:  Original version.
+// Version 2:  Don't redistribute slashed staking rewards, fix computation of
+//             SystemEpochInfoEventV1.
+// Version 3:  Set the `relocate_event_module` to be true so that the module
+//             that is associated as the "sending module" for an event is
+//             relocated by linkage.
+//             Add `Clock` based unlock to `Timelock` objects.
+// Version 4:  Introduce the `max_type_to_layout_nodes` config that sets the
+//             maximal nodes which are allowed when converting to a type layout.
+// Version 5:  Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
+//             SystemEpochInfoEventV2.
+//             Disallow adding new modules in `deps-only` packages.
+//             Improve gas/wall time efficiency of some Move stdlib vector
+//             functions.
+//             Add new gas model version to update charging of functions.
+//             Enable proper conversion of certain type argument errors in the
+//             execution layer.
+// Version 6:  Bound size of values created in the adapter.
+// Version 7:  Improve handling of stake withdrawal from candidate validators.
+// Version 8:  Variants as type nodes.
+//             Enable smart ancestor selection for testnet.
+//             Enable probing for accepted rounds in round prober for testnet.
+//             Switch to distributed vote scoring in consensus in testnet.
+//             Enable zstd compression for consensus tonic network in testnet.
+//             Enable consensus garbage collection for testnet
+//             Enable the new consensus commit rule for testnet.
+//             Enable min_free_execution_slot for the shared object congestion
+//             tracker in devnet.
+// Version 9:  Disable smart ancestor selection for the testnet.
+//             Enable zstd compression for consensus tonic network in mainnet.
+//             Enable passkey auth in multisig for devnet.
+//             Remove the iota-bridge from the framework.
+// Version 10: Enable min_free_execution_slot for the shared object congestion
+//             tracker in all networks.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1993,6 +1995,11 @@ impl ProtocolConfig {
 
                     // this flag is now deprecated because of the bridge removal.
                     cfg.bridge_should_try_to_finalize_committee = None;
+                }
+                10 => {
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // all networks.
+                    cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                 }
                 // Use this template when making changes:
                 //
