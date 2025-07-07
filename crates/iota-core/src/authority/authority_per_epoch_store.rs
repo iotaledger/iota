@@ -157,7 +157,7 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 /// An alias type for a collection used to hold previously deferred
 /// transactions, where `Option<u64>` is used to hold suggested gas
 /// price for transactions deferred due to shared object congestion
-/// (`None` for transactions deferred due to randomness not available).
+/// (`None` for transactions deferred due to "randomness not available").
 pub(crate) type PreviouslyDeferredTransactions =
     HashMap<TransactionDigest, (DeferralKey, Option<u64>)>;
 
