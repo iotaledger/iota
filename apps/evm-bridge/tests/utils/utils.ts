@@ -157,6 +157,7 @@ export async function getExtensionUrl(browserContext: BrowserContext): Promise<s
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
+    await l2WalletPage.waitForTimeout(500);
     await l2WalletPage.click('[data-testid="network-display"]', { force: true });
     const popoverCloseButton = l2WalletPage.locator('.page-container__header-close');
 
@@ -189,7 +190,7 @@ export async function addNetworkToMetaMask(l2WalletPage: Page) {
 export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserContext) {
     // Add funds to L1
     await page.getByTestId('request-l1-funds-button').click();
-    await expect(page.getByText('Funds successfully sent.')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText('Funds successfully sent.')).toBeVisible({ timeout: 60000 });
     // Check the funds arrived (ui)
     const l1WalletExtension = await browser.newPage();
     const l1ExtensionUrl = await getExtensionUrl(browser);

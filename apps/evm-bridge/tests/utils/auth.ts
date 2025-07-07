@@ -112,7 +112,12 @@ export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promis
     await page.getByTestId('metametrics-no-thanks').click();
 
     await page.getByRole('button', { name: /Done/ }).click();
+    await page.waitForTimeout(1000);
     await page.getByRole('button', { name: /Done/ }).click();
+
+    await page.getByTestId('unlock-password').isEditable({ timeout: 10000 });
+    await page.getByTestId('unlock-password').fill('iotae2etests');
+    await page.getByTestId('unlock-submit').click();
 
     return address;
 }
