@@ -13,8 +13,7 @@ pub(crate) mod ingestion;
 pub mod runner;
 pub(crate) mod sql;
 
-/// Encapsulates the logic to process and persist data for a chunk of
-/// checkpoints.
+/// Encapsulates the logic to process and persist data for a range.
 #[async_trait]
 pub(crate) trait Backfill: Send + Sync {
     async fn backfill_range(
@@ -24,8 +23,8 @@ pub(crate) trait Backfill: Send + Sync {
     ) -> Result<(), IndexerError>;
 }
 
-// Subcommands for selecting a backfill task to run.
-// Each variant corresponds to a different backfill implementation.
+/// Subcommands for selecting a backfill task to run.
+/// Each variant corresponds to a different backfill implementation.
 #[derive(Subcommand, Clone, Debug)]
 #[non_exhaustive]
 pub enum BackfillKind {
