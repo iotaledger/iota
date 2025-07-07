@@ -170,7 +170,7 @@ pub struct DeferredTransaction {
 
     /// Suggested gas price is `Some(u64)` for transactions deferred due
     /// to shared object congestion, and it is `None` for transactions
-    /// deferred due to randomness not available.
+    /// deferred due to "randomness not available".
     suggested_gas_price_as_opt: Option<u64>,
 }
 
