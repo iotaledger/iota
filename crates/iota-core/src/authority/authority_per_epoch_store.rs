@@ -3548,7 +3548,6 @@ impl AuthorityPerEpochStore {
                                     .consensus_handler_congested_transactions
                                     .inc();
 
-                                // FIX: roman: call suggested gas price calculator here
                                 let current_commit_suggested_gas_price = self.reference_gas_price();
                                 let suggested_gas_price = previously_deferred_tx_digests
                                     .get(certificate.digest())
