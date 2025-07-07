@@ -229,7 +229,7 @@ pub enum ConsensusCertificateResult {
     /// The transaction should be re-processed at a future commit, specified by
     /// `deferral_key`. `suggested_gas_price_as_opt` indicates a gas price that
     /// the certificate would need to pay to be scheduled in a consensus commit.
-    /// For certificates deferred due to randomness not available, the
+    /// For certificates deferred due to "randomness not available", the
     /// `suggested_gas_price_as_opt` price field will be set to `None`.
     Deferred {
         deferral_key: DeferralKey,
