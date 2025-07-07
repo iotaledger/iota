@@ -58,10 +58,6 @@ export class LedgerSigner extends WalletSigner {
         return signer.getPublicKey();
     }
 
-    async signData(_data: Uint8Array): Promise<string> {
-        throw new Error('signData is not implemented in LedgerSigner');
-    }
-
     async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
         const signer = await this.#initializeSigner();
         const signature = await signer.signPersonalMessage(input.message);
