@@ -74,6 +74,15 @@ export const ObjectArg = bcs.enum('ObjectArg', {
     Receiving: IotaObjectRef,
 });
 
+export const Owner = bcs.enum('Owner', {
+    AddressOwner: Address,
+    ObjectOwner: Address,
+    Shared: bcs.struct('Shared', {
+        initialSharedVersion: bcs.u64(),
+    }),
+    Immutable: null,
+});
+
 export const CallArg = bcs.enum('CallArg', {
     Pure: bcs.struct('Pure', {
         bytes: bcs.vector(bcs.u8()).transform({

@@ -34,7 +34,7 @@ pub struct CongestedObjects(pub Vec<ObjectID>);
 impl fmt::Display for CongestedObjects {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         for obj in &self.0 {
-            write!(f, "{}, ", obj)?;
+            write!(f, "{obj}, ")?;
         }
         Ok(())
     }
@@ -355,7 +355,7 @@ impl ExecutionStatus {
         match self {
             ExecutionStatus::Success => {}
             ExecutionStatus::Failure { .. } => {
-                panic!("Unable to unwrap() on {:?}", self);
+                panic!("Unable to unwrap() on {self:?}");
             }
         }
     }
@@ -363,7 +363,7 @@ impl ExecutionStatus {
     pub fn unwrap_err(self) -> (ExecutionFailureStatus, Option<CommandIndex>) {
         match self {
             ExecutionStatus::Success => {
-                panic!("Unable to unwrap() on {:?}", self);
+                panic!("Unable to unwrap() on {self:?}");
             }
             ExecutionStatus::Failure { error, command } => (error, command),
         }

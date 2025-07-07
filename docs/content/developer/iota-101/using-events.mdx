@@ -45,7 +45,7 @@ When targeting specific events for [querying](#querying-events) or [subscribing]
 
 ## Emitting Events in Move
 
-To emit events from your Move modules, you need to use the [`iota::event`](../../references/framework/iota/event.mdx) module.
+To emit events from your Move modules, you need to use the [`iota::event`](../../developer/references/framework/iota/event.mdx) module.
 Emitting events allows external applications to subscribe and respond to specific on-chain activities.
 
 First, import the `event` module in your Move code:
@@ -54,7 +54,7 @@ First, import the `event` module in your Move code:
 use iota::event;
 ```
 
-Then, within your function, you can emit an event using the [`emit`](../../references/framework/iota/event.mdx#function-emit) function. For example:
+Then, within your function, you can emit an event using the [`emit`](../../developer/references/framework/iota/event.mdx#function-emit) function. For example:
 
 ```move file=<rootDir>/examples/trading/contracts/escrow/sources/lock.move#L42-L63
 ```
@@ -89,7 +89,7 @@ curl -X POST https://api.testnet.iota.cafe:443 \
 ```
 
 The TypeScript SDK provides a wrapper for the `iotax_queryEvents` method:
-[`client.queryEvents`](../../ts-sdk/api/client/classes/IotaClient#queryevents).
+[`client.queryEvents`](../../developer/ts-sdk/api/client/classes/IotaClient#queryevents).
 
 </TabItem>
 <TabItem value="rs" label="Rust">
@@ -151,7 +151,7 @@ You can use GraphQL to query events instead of JSON RPC. The following example q
 
 :::tip
 
-The [TypeScript SDK](../../ts-sdk/api/graphql/classes/IotaGraphQLClient) provides functionality to
+The [TypeScript SDK](../../developer/ts-sdk/api/graphql/classes/IotaGraphQLClient) provides functionality to
 interact with the IOTA GraphQL service.
 
 :::
@@ -167,7 +167,7 @@ This example leverages the IOTA TypeScript SDK to subscribe to events the packag
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-See [Rust SDK](../../references/rust-sdk.mdx).
+See [Rust SDK](../../developer/references/rust-sdk.mdx).
 
 ```rust
 use futures::StreamExt;
@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
 </TabItem>
 <TabItem value="ts" label="TypeScript">
 
-To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
+To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../developer/ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
 ```ts
 

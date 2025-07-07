@@ -173,24 +173,21 @@ fn make_key_files(
     key: Option<IotaKeyPair>,
 ) -> Result<()> {
     if file_name.exists() {
-        println!("Use existing {:?} key file.", file_name);
+        println!("Use existing {file_name:?} key file.");
         return Ok(());
     } else if is_authority_key {
         let (_, keypair) = get_authority_key_pair();
         write_authority_keypair_to_file(&keypair, file_name.clone())?;
-        println!("Generated new key file: {:?}.", file_name);
+        println!("Generated new key file: {file_name:?}.");
     } else {
         let kp = match key {
             Some(key) => {
-                println!(
-                    "Generated new key file {:?} based on iota.keystore file.",
-                    file_name
-                );
+                println!("Generated new key file {file_name:?} based on iota.keystore file.");
                 key
             }
             None => {
                 let (_, kp, _, _) = generate_new_key(SignatureScheme::ED25519, None, None)?;
-                println!("Generated new key file: {:?}.", file_name);
+                println!("Generated new key file: {file_name:?}.");
                 kp
             }
         };
@@ -251,14 +248,10 @@ impl IotaValidatorCommand {
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
-                            "/dns/{}/tcp/8080/http",
-                            host_name
+                            "/dns/{host_name}/tcp/8080/http"
                         ))?,
-                        p2p_address: Multiaddr::try_from(format!("/dns/{}/udp/8084", host_name))?,
-                        primary_address: Multiaddr::try_from(format!(
-                            "/dns/{}/udp/8081",
-                            host_name
-                        ))?,
+                        p2p_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8084"))?,
+                        primary_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8081"))?,
                         description,
                         image_url,
                         project_url,
@@ -269,10 +262,7 @@ impl IotaValidatorCommand {
                 let validator_info_file_name = dir.join("validator.info");
                 let validator_info_bytes = serde_yaml::to_string(&validator_info)?;
                 fs::write(validator_info_file_name.clone(), validator_info_bytes)?;
-                println!(
-                    "Generated validator info file: {:?}.",
-                    validator_info_file_name
-                );
+                println!("Generated validator info file: {validator_info_file_name:?}.");
                 IotaValidatorCommandResponse::MakeValidatorInfo
             }
             IotaValidatorCommand::BecomeCandidate { file, gas_budget } => {
@@ -503,7 +493,7 @@ async fn get_cap_object_ref(
         let owner = resp.owner().unwrap();
         let cap_obj_ref = resp
             .object_ref_if_exists()
-            .unwrap_or_else(|| panic!("OperationCap {} shall exist.", cap_object_id));
+            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} shall exist."));
         if owner != Owner::AddressOwner(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
@@ -662,7 +652,7 @@ impl Display for IotaValidatorCommandResponse {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
             IotaValidatorCommandResponse::SerializedPayload(response) => {
-                write!(writer, "Serialized payload: {}", response)?;
+                write!(writer, "Serialized payload: {response}")?;
             }
             IotaValidatorCommandResponse::List => {}
         }
@@ -687,7 +677,7 @@ pub fn write_transaction_response(
     let mut writer = String::new();
     for line in lines {
         let colorized_line = if success { line.green() } else { line.red() };
-        writeln!(writer, "{}", colorized_line)?;
+        writeln!(writer, "{colorized_line}")?;
     }
     Ok(writer)
 }
@@ -699,7 +689,7 @@ impl Debug for IotaValidatorCommandResponse {
             Ok(s) => s,
             Err(err) => format!("{err}").red().to_string(),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

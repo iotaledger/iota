@@ -23,7 +23,7 @@ const address = keypair.toIotaAddress();
 console.log('Requesting faucet...');
 
 await requestIotaFromFaucetV0({
-    host: L1.faucetUrl,
+    host: L1.faucetUrl as string,
     recipient: address,
 });
 

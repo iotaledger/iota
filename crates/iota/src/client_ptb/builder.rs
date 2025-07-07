@@ -319,7 +319,7 @@ impl<'a> PTBBuilder<'a> {
                 for (i, command_loc) in commands.iter().enumerate() {
                     if i == 0 {
                         warnings.push(PTBError {
-                            message: format!("Variable '{}' first declared here", ident),
+                            message: format!("Variable '{ident}' first declared here"),
                             span: *command_loc,
                             help: None,
                             severity: Severity::Warning,
@@ -1110,7 +1110,7 @@ pub fn to_ordinal_contraction(num: usize) -> String {
             _ => "th",
         },
     };
-    format!("{}{}", num, suffix)
+    format!("{num}{suffix}")
 }
 
 pub(crate) fn find_did_you_means<'a>(
@@ -1157,9 +1157,9 @@ pub(crate) fn display_did_you_mean<S: AsRef<str> + std::fmt::Display>(
     let len = possibles.len();
     for (i, possible) in possibles.into_iter().enumerate() {
         if i == len - 1 && len > 1 {
-            strs.push(format!("or '{}'", possible));
+            strs.push(format!("or '{possible}'"));
         } else {
-            strs.push(format!("'{}'", possible));
+            strs.push(format!("'{possible}'"));
         }
     }
 
