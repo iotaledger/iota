@@ -4,7 +4,7 @@
 description: This section describes the configuration parameters and their types for WASP.
 keywords:
 - IOTA Node
-- Hornet Node
+- IOTA Node
 - WASP Node
 - Smart Contracts
 - L2
