@@ -32,7 +32,7 @@ function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                             disableAutoPlay
                         />
                         <div className="absolute bottom-0 flex h-full w-full items-end justify-start rounded-xl p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-48 group-hover:opacity-100 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48">
-                            <span className="self-center text-label-md text-neutral-100">
+                            <span className="self-center text-label-md text-iota-neutral-100">
                                 {displayName}
                             </span>
                         </div>
@@ -47,7 +47,7 @@ function ThumbnailsOnlyLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
-                <div key={index} className="md:h-31.5 md:w-31.5 h-16 w-16 text-primary-30">
+                <div key={index} className="md:h-31.5 md:w-31.5 h-16 w-16 text-iota-primary-30">
                     <Loader className="animate-spin" />
                 </div>
             ))}

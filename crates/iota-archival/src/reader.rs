@@ -569,8 +569,7 @@ impl ArchiveReader {
                         .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
                         .map_err(|e| anyhow!("Store op failed: {e}"))?
                         .context(format!(
-                            "Missing previous checkpoint {} in store",
-                            prev_checkpoint_seq_num
+                            "Missing previous checkpoint {prev_checkpoint_seq_num} in store"
                         ))?;
 
                     verify_checkpoint(&prev_checkpoint, store, certified_checkpoint)

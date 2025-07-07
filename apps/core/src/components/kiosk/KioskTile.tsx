@@ -59,15 +59,15 @@ export function KioskTile({ object, address, onClick }: KioskTileProps) {
                         <NFTMediaRenderer src={displayBackgroundImage} alt={kioskId} />
                     ) : (
                         <CardImage type={ImageType.BgTransparent}>
-                            <PlaceholderReplace className="text-neutral-40" />
+                            <PlaceholderReplace className="text-iota-neutral-40" />
                         </CardImage>
                     )}
                 </div>
-                <ButtonUnstyled className="absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100">
-                    <span className="text-neutral-90">{items.length}</span>
+                <ButtonUnstyled className="absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-primary-100">
+                    <span className="text-iota-neutral-90">{items.length}</span>
                 </ButtonUnstyled>
                 <div className="absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <span className="text-title-md text-neutral-100">{truncate(kioskId)}</span>
+                    <span className="text-title-md text-iota-neutral-100">{truncate(kioskId)}</span>
                 </div>
             </div>
         </div>

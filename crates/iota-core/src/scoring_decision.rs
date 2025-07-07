@@ -30,8 +30,7 @@ pub(crate) fn update_low_scoring_authorities(
 ) {
     assert!(
         (0..=33).contains(&consensus_bad_nodes_stake_threshold),
-        "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected {}",
-        consensus_bad_nodes_stake_threshold
+        "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected {consensus_bad_nodes_stake_threshold}"
     );
 
     let Some(reputation_scores) = reputation_score_sorted_desc else {

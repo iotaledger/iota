@@ -12,7 +12,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381};
-use fastcrypto_tbls::{dkg, dkg_v1};
+use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -91,7 +91,7 @@ pub enum ConsensusTransactionKey {
 impl Debug for ConsensusTransactionKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Certificate(digest) => write!(f, "Certificate({:?})", digest),
+            Self::Certificate(digest) => write!(f, "Certificate({digest:?})"),
             Self::CheckpointSignature(name, seq) => {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
@@ -224,7 +224,7 @@ pub enum VersionedDkgMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedDkgConfirmation {
-    V1(dkg::Confirmation<bls12381::G2Element>),
+    V1(dkg_v1::Confirmation<bls12381::G2Element>),
 }
 
 impl Debug for VersionedDkgMessage {
@@ -250,10 +250,10 @@ impl VersionedDkgMessage {
 
     pub fn create(
         dkg_version: u64,
-        party: Arc<dkg::Party<bls12381::G2Element, bls12381::G2Element>>,
+        party: Arc<dkg_v1::Party<bls12381::G2Element, bls12381::G2Element>>,
     ) -> FastCryptoResult<VersionedDkgMessage> {
         assert_eq!(dkg_version, 1, "BUG: invalid DKG version");
-        let msg = party.create_message_v1(&mut rand::thread_rng())?;
+        let msg = party.create_message(&mut rand::thread_rng())?;
         Ok(VersionedDkgMessage::V1(msg))
     }
 
@@ -281,7 +281,7 @@ impl VersionedDkgConfirmation {
         }
     }
 
-    pub fn unwrap_v1(&self) -> &dkg::Confirmation<bls12381::G2Element> {
+    pub fn unwrap_v1(&self) -> &dkg_v1::Confirmation<bls12381::G2Element> {
         match self {
             VersionedDkgConfirmation::V1(msg) => msg,
         }
