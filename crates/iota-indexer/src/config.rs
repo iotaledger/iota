@@ -30,25 +30,6 @@ pub struct IndexerConfig {
     pub command: Command,
 }
 
-#[derive(Parser, Clone, Debug)]
-#[command(
-    name = "IOTA indexer",
-    about = "An off-fullnode service serving data from IOTA protocol"
-)]
-pub struct IndexerConfigV2 {
-    #[arg(long, alias = "db-url")]
-    pub database_url: Option<Url>,
-
-    #[command(flatten)]
-    pub connection_pool_config: ConnectionPoolConfig,
-
-    #[arg(long, default_value = "0.0.0.0:9184")]
-    pub metrics_address: SocketAddr,
-
-    #[command(subcommand)]
-    pub command: CommandV2,
-}
-
 #[derive(Args, Debug, Clone)]
 pub struct IotaNamesOptions {
     #[arg(default_value_t = IotaNamesConfig::default().package_address)]
@@ -221,25 +202,6 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
-}
-
-#[derive(Subcommand, Clone, Debug)]
-#[non_exhaustive]
-pub enum CommandV2 {
-    Indexer {
-        #[command(flatten)]
-        ingestion_config: IngestionConfig,
-        #[command(flatten)]
-        snapshot_config: SnapshotLagConfig,
-        #[command(flatten)]
-        pruning_options: PruningOptions,
-        #[arg(long)]
-        reset_db: bool,
-    },
-    JsonRpcService(JsonRpcConfig),
-    AnalyticalWorker,
-    /// Print help for the deprecated interface.
-    HelpDeprecated,
     /// Backfill DB tables for some ID range [start, end].
     /// The tool will automatically slice it into smaller ranges and for each
     /// range, it first makes a read query to the DB to get data needed for
@@ -306,8 +268,8 @@ pub mod deprecated {
 
     use crate::{
         config::{
-            Command, CommandV2, IndexerConfig, IndexerConfigV2, IngestionConfig, IngestionSources,
-            IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig,
+            Command, IndexerConfig, IngestionConfig, IngestionSources, IotaNamesOptions,
+            JsonRpcConfig, PruningOptions, SnapshotLagConfig,
         },
         db::ConnectionPoolConfig,
         errors::IndexerError,
@@ -560,40 +522,6 @@ pub mod deprecated {
                 metrics_address,
                 command,
             })
-        }
-    }
-
-    impl TryFrom<OldIndexerConfig> for IndexerConfigV2 {
-        type Error = IndexerError;
-        fn try_from(old_conf: OldIndexerConfig) -> Result<Self, Self::Error> {
-            let interim_config: IndexerConfig = old_conf.try_into()?;
-            Ok(interim_config.into())
-        }
-    }
-
-    impl From<IndexerConfig> for IndexerConfigV2 {
-        fn from(cfg: IndexerConfig) -> Self {
-            IndexerConfigV2 {
-                database_url: cfg.database_url,
-                connection_pool_config: cfg.connection_pool_config,
-                metrics_address: cfg.metrics_address,
-                command: match cfg.command {
-                    Command::Indexer {
-                        ingestion_config,
-                        snapshot_config,
-                        pruning_options,
-                        reset_db,
-                    } => CommandV2::Indexer {
-                        ingestion_config,
-                        snapshot_config,
-                        pruning_options,
-                        reset_db,
-                    },
-                    Command::JsonRpcService(cfg) => CommandV2::JsonRpcService(cfg),
-                    Command::AnalyticalWorker => CommandV2::AnalyticalWorker,
-                    Command::HelpDeprecated => CommandV2::HelpDeprecated,
-                },
-            }
         }
     }
 }
