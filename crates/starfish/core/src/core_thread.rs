@@ -367,6 +367,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use dashmap::DashSet;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use tokio::time::Instant;
@@ -510,6 +511,7 @@ pub(crate) mod tests {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());

@@ -4,6 +4,8 @@
 
 use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
 
+#[cfg(test)]
+use dashmap::DashSet;
 use iota_macros::fail_point;
 #[cfg(test)]
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
@@ -1126,6 +1128,7 @@ impl CoreTextFixture {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(
             LeaderSchedule::from_store(context.clone(), dag_state.clone())
@@ -1175,6 +1178,7 @@ impl CoreTextFixture {
 mod test {
     use std::{collections::BTreeSet, time::Duration};
 
+    use dashmap::DashSet;
     use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;
@@ -1255,6 +1259,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -1387,6 +1392,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -1480,6 +1486,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let (transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
@@ -1630,6 +1637,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -1720,6 +1728,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -1912,6 +1921,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -2565,6 +2575,7 @@ mod test {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
+            Arc::new(DashSet::new()),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),

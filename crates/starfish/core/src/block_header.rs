@@ -554,6 +554,18 @@ impl VerifiedBlockHeader {
         }
     }
 
+    pub(crate) fn new_verified_with_digest(
+        signed_block_header: SignedBlockHeader,
+        serialized: Bytes,
+        digest: BlockHeaderDigest,
+    ) -> Self {
+        VerifiedBlockHeader {
+            signed_block_header: Arc::new(signed_block_header),
+            digest,
+            serialized,
+        }
+    }
+
     pub(crate) fn new_from_bytes(serialized_block_header: Bytes) -> ConsensusResult<Self> {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedBlockHeader)?;

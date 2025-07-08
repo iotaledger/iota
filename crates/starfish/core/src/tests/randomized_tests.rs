@@ -4,6 +4,7 @@
 
 use std::{env, sync::Arc};
 
+use dashmap::DashSet;
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::AuthorityIndex;
@@ -214,6 +215,7 @@ fn authority_setup(num_authorities: usize, authority_index: u32) -> AuthorityTes
         context.clone(),
         dag_state.clone(),
         Arc::new(NoopBlockVerifier),
+        Arc::new(DashSet::new()),
     );
 
     AuthorityTestFixture {

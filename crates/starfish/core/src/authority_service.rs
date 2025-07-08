@@ -18,8 +18,8 @@ use tracing::{debug, info, warn};
 use crate::{
     BlockHeaderAPI, CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockRef, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
-        VerifiedTransactions,
+        BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment,
+        VerifiedBlock, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -51,10 +51,10 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
-    /// A set contains BlockRefs for all received verified block headers.
+    /// A set contains BlockHeaderDigests for all received block headers.
     /// Used to filter the headers if they are received multiple times.
     /// Shared with BlockManager
-    received_block_headers: Arc<DashSet<Bytes>>,
+    received_block_headers: Arc<DashSet<BlockHeaderDigest>>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -67,7 +67,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
-        received_block_headers: Arc<DashSet<Bytes>>,
+        received_block_headers: Arc<DashSet<BlockHeaderDigest>>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -424,7 +424,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let mut additional_block_headers = vec![];
         for serialized_header in serialized_block_and_headers.serialized_headers {
-            if self.received_block_headers.contains(&serialized_header) {
+            let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
+            if self.received_block_headers.contains(&digest) {
                 self.context
                     .metrics
                     .node_metrics
@@ -433,6 +434,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .inc();
                 continue;
             }
+
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
                 .map_err(ConsensusError::MalformedBlockHeader)?;
 
@@ -477,8 +479,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 continue;
             }
 
-            let verified_block_header =
-                VerifiedBlockHeader::new_verified(signed_block_header, serialized_header);
+            let verified_block_header = VerifiedBlockHeader::new_verified_with_digest(
+                signed_block_header,
+                serialized_header,
+                digest,
+            );
+
             additional_block_headers.push(verified_block_header);
             self.context
                 .metrics
@@ -1104,6 +1110,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
+    use dashmap::DashSet;
     use parking_lot::RwLock;
     use starfish_config::AuthorityIndex;
     use tokio::{sync::broadcast, time::sleep};
@@ -1219,6 +1226,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(DashSet::new()),
         ));
 
         // Test delaying blocks with time drift.
@@ -1282,6 +1290,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(DashSet::new()),
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well
