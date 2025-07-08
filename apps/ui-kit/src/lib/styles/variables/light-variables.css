@@ -179,6 +179,18 @@
     --chip-bg-color-active: theme('colors.shader-primary-light.12');
     --chip-bg-color-focus: theme('colors.shader-primary-light.12');
 
+    /* DISPLAY STATS */
+    --display-stats-bg-default: theme('colors.iota-neutral.96');
+    --display-stats-bg-highlight: theme('colors.iota-primary.30');
+    --display-stats-bg-secondary: theme('colors.iota-secondary.90');
+
+    --display-stats-text-default: theme('colors.iota-neutral.10');
+    --display-stats-text-highlight: theme('colors.iota-neutral.100');
+    --display-stats-text-secondary: theme('colors.iota-neutral.10');
+
+    --display-stats-icon-color: theme('colors.iota-neutral.10');
+    --display-stats-copy-icon-color: theme('colors.iota-neutral.60');
+
     /* DROPDOWN */
     --dropdown-bg: theme('colors.iota-neutral.100');
     --dropdown-border-color: theme('colors.iota-neutral.80');
