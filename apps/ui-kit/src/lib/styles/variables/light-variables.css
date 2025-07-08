@@ -159,23 +159,25 @@
     --card-body-subtitle-color: theme('colors.iota-neutral.40');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.iota-primary.90');
+    --chip-bg-selected-outline: theme('colors.iota-primary.90');
+    --chip-bg-elevated: theme('colors.iota-primary.90');
+    --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.70');
     --chip-text-default: theme('colors.iota-neutral.40');
-    --chip-text-selected: theme('colors.iota-neutral.10');
+    --chip-text-secondary: theme('colors.iota-neutral.10');
     --chip-focus-ring: theme('colors.iota-primary.30');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-light.16');
+    --chip-close-icon-opacity: 100;
 
-    /* DISPLAY STATS */
-    --display-stats-bg-default: theme('colors.iota-neutral.96');
-    --display-stats-bg-highlight: theme('colors.iota-primary.30');
-    --display-stats-bg-secondary: theme('colors.iota-secondary.90');
+    --chip-outline-color: theme('colors.shader-primary-light.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-light.8');
+    --chip-outline-color-active: theme('colors.shader-primary-light.12');
 
-    --display-stats-text-default: theme('colors.iota-neutral.10');
-    --display-stats-text-highlight: theme('colors.iota-neutral.100');
-    --display-stats-text-secondary: theme('colors.iota-neutral.10');
-
-    --display-stats-icon-color: theme('colors.iota-neutral.10');
-    --display-stats-copy-icon-color: theme('colors.iota-neutral.60');
+    --chip-bg-color-hover: theme('colors.shader-primary-light.8');
+    --chip-bg-color-active: theme('colors.shader-primary-light.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-light.12');
 
     /* DROPDOWN */
     --dropdown-bg: theme('colors.iota-neutral.100');
