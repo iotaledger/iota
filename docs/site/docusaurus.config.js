@@ -358,7 +358,7 @@ const config = {
           },
           {
             label: "Users",
-            to: "users/wallets",
+            to: "users",
             className: 'navbar-icon-users',
           },
           {
