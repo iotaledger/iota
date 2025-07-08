@@ -69,7 +69,7 @@ export function createL1DepositTransaction({
         });
     }
 
-    const transfers: [string, number | bigint][] = [[IOTA_TYPE_ARG, amount]];
+    const transfers: [string, bigint][] = [[IOTA_TYPE_ARG, amount]];
     if (!isIotaCoinType) {
         transfers.push([coinType, amount]);
     }

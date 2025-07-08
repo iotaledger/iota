@@ -14,45 +14,44 @@ export function CoinSelector() {
 
     const { sortedCoinsBalanceL1, sortedCoinsBalanceL2 } = useSortedCoinsBalances();
 
-    // Track previous list state
-    const prevListLengthRef = useRef(0);
-    const prevIsFromLayer1Ref = useRef(isFromLayer1);
+    // Track previous direction and coins count
+    const previousCoinsCount = useRef(0);
+    const previousDirection = useRef(isFromLayer1);
 
-    const sortedCoinsBalance = useMemo(
+    const sortedCoins = useMemo(
         () => (isFromLayer1 ? sortedCoinsBalanceL1 : sortedCoinsBalanceL2),
         [isFromLayer1, sortedCoinsBalanceL1, sortedCoinsBalanceL2],
     );
 
     useEffect(() => {
-        const currentLength = sortedCoinsBalance.length;
-        const lengthChanged = currentLength !== prevListLengthRef.current;
-        const directionChanged = isFromLayer1 !== prevIsFromLayer1Ref.current;
+        const coinsCountChanged = sortedCoins.length !== previousCoinsCount.current;
+        const directionChanged = isFromLayer1 !== previousDirection.current;
+        const shouldResetSelection = coinsCountChanged || directionChanged;
 
-        // Only reset selection when list contents change or direction changes
-        if ((lengthChanged && currentLength > 0) || directionChanged) {
-            // Only update if there are coins to select and the desired coin exists
-            if (currentLength > 0 && sortedCoinsBalance[0]) {
-                const firstCoinType = sortedCoinsBalance[0].coinType;
+        // Update tracking variables for next comparison
+        previousCoinsCount.current = sortedCoins.length;
+        previousDirection.current = isFromLayer1;
 
-                // Only update if different from current selection
-                if (selectedCoinType !== firstCoinType) {
-                    setValue(BridgeFormInputName.CoinType, firstCoinType, {
-                        shouldValidate: true,
-                        shouldTouch: true,
-                    });
-                }
-            }
-        }
+        // Skip if no reset needed
+        if (!shouldResetSelection) return;
 
-        // Update refs for next comparison
-        prevListLengthRef.current = currentLength;
-        prevIsFromLayer1Ref.current = isFromLayer1;
-    }, [sortedCoinsBalance, isFromLayer1, setValue]);
+        // Get first coin as default selection
+        const firstCoinType = sortedCoins[0]?.coinType;
+
+        // Skip if first coin matches current selection
+        if (!firstCoinType || firstCoinType === selectedCoinType) return;
+
+        // Reset selection to first coin
+        setValue(BridgeFormInputName.CoinType, firstCoinType, {
+            shouldValidate: true,
+            shouldTouch: true,
+        });
+    }, [previousCoinsCount, isFromLayer1, setValue]);
 
     return (
         <CoreCoinSelector
             activeCoinType={selectedCoinType}
-            coins={sortedCoinsBalance}
+            coins={sortedCoins}
             onClick={(coinType: string) => {
                 setValue(BridgeFormInputName.DepositAmount, '', {
                     shouldValidate: true,
