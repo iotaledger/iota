@@ -1114,25 +1114,18 @@ mod tests {
     use parking_lot::RwLock;
     use starfish_config::AuthorityIndex;
     use tokio::{sync::broadcast, time::sleep};
-
-    use crate::{
-        Round,
-        authority_service::AuthorityService,
-        block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader,
-        },
-        commit::CommitRange,
-        commit_vote_monitor::CommitVoteMonitor,
-        context::Context,
-        core_thread::tests::MockCoreThreadDispatcher,
-        dag_state::DagState,
-        error::ConsensusResult,
-        network::{BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock},
-        storage::mem_store::MemStore,
-        synchronizer::Synchronizer,
-        test_dag_builder::DagBuilder,
-    };
+    use iota_metrics::monitored_mpsc::unbounded_channel;
+    use crate::{Round, authority_service::AuthorityService, block_header::{
+        BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
+        VerifiedBlockHeader,
+    }, commit::CommitRange, commit_vote_monitor::CommitVoteMonitor, context::Context, core_thread::tests::MockCoreThreadDispatcher, dag_state::DagState, error::ConsensusResult, network::{BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock}, storage::mem_store::MemStore, synchronizer::Synchronizer, test_dag_builder::DagBuilder, TransactionClient, CommitConsumer};
+    use crate::block_manager::BlockManager;
+    use crate::block_verifier::{NoopBlockVerifier, SignedBlockVerifier};
+    use crate::commit_observer::CommitObserver;
+    use crate::core::{Core, CoreSignals};
+    use crate::core_thread::ChannelCoreThreadDispatcher;
+    use crate::leader_schedule::LeaderSchedule;
+    use crate::transaction::TransactionConsumer;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -1272,6 +1265,113 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            true,
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            Arc::new(DashSet::new()),
+        ));
+
+        // Create some blocks for a few authorities. Create some equivocations as well
+        // and store in dag state.
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=10)
+            .authorities(vec![AuthorityIndex::new_for_test(2)])
+            .equivocate(1)
+            .build()
+            .persist_layers(dag_state);
+
+        // WHEN
+        let authorities_to_request = vec![
+            AuthorityIndex::new_for_test(1),
+            AuthorityIndex::new_for_test(2),
+        ];
+        let results = authority_service
+            .handle_fetch_latest_blocks(AuthorityIndex::new_for_test(1), authorities_to_request)
+            .await;
+
+        // THEN
+        let serialised_blocks = results.unwrap();
+        for serialised_block in serialised_blocks {
+            let signed_block: SignedBlockHeader =
+                bcs::from_bytes(&serialised_block).expect("Error while deserialising block");
+            let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialised_block);
+
+            assert_eq!(verified_block.round(), 10);
+        }
+    }
+
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_handle_subscribe_bundle() {
+        // GIVEN
+        let (context, mut key_pairs) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(context.clone(), Arc::new(crate::block_verifier::test::TxnSizeVerifier {}));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let received_block_headers = Arc::new(DashSet::new());
+        let block_manager = BlockManager::new(
+            context.clone(),
+            dag_state.clone(),
+            block_verifier,
+            received_block_headers.clone(),
+        );
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, signal_receivers) = CoreSignals::new(context.clone());
+        //let _block_receiver = signal_receivers.block_broadcast_receiver();
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store,
+            leader_schedule.clone(),
+        );
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs.remove(context.own_index.value()).1,
+            dag_state.clone(),
+            false,
+        );
+        let (core_dispatcher, core_thread_handle) =
+            ChannelCoreThreadDispatcher::start(context.clone(), &dag_state, core);
+        let core_dispatcher = Arc::new(core_dispatcher);
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
         let synchronizer = Synchronizer::start(
             network_client,
             context.clone(),
