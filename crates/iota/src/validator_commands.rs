@@ -220,7 +220,7 @@ impl IotaValidatorCommand {
                     let account_keypair = match keypair {
                         IotaKeyPair::Ed25519(pair) => IotaKeyPair::Ed25519(pair.copy()),
                         _ => panic!(
-                            "Other account key types supported yet, please use Ed25519 keys for now."
+                            "Only Ed25519 accounts are supported, please use Ed25519 keys for now."
                         ),
                     };
                     let account_key_file_name = dir.join("account.key");
