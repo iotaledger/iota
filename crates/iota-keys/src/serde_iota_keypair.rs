@@ -38,7 +38,7 @@ mod tests {
         let keypair = IotaKeyPair::decode(private_key_str).unwrap();
 
         let test_struct = TestStruct {
-            keypair: keypair.copy(),
+            keypair: keypair.clone(),
         };
 
         // Serialize

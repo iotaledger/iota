@@ -198,7 +198,7 @@ pub struct Alias {
 }
 
 #[expect(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(
     tag = "type",            // this makes {"type": "...", "value": …}
     content = "value",       // name the payload field "value"
@@ -218,23 +218,6 @@ pub enum StoredKey {
         #[serde(rename = "public_key_base64_with_flag", with = "serde_publickey")]
         public_key: PublicKey,
     },
-}
-
-impl Clone for StoredKey {
-    fn clone(&self) -> Self {
-        match self {
-            StoredKey::KeyPair(keypair) => StoredKey::KeyPair(keypair.copy()),
-            StoredKey::External {
-                source,
-                derivation_path,
-                public_key,
-            } => StoredKey::External {
-                source: source.clone(),
-                derivation_path: derivation_path.clone(),
-                public_key: public_key.clone(),
-            },
-        }
-    }
 }
 
 impl From<IotaKeyPair> for StoredKey {
