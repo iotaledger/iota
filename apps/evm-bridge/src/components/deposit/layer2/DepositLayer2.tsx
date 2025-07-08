@@ -48,6 +48,7 @@ export function DepositLayer2() {
         address: receivingAddress,
         amount,
         coinType: selectedCoinType,
+        refetchInterval: 2000,
     });
 
     useEffect(() => {

@@ -9,12 +9,14 @@ interface UseL2GasEstimateProps {
     address: string;
     amount: bigint;
     coinType?: string;
+    refetchInterval?: number;
 }
 
 export function useGasEstimateL2({
     address,
     amount,
     coinType = IOTA_TYPE_ARG,
+    refetchInterval,
 }: UseL2GasEstimateProps) {
     const layer2Account = useAccount();
     const iscContractAddress = (layer2Account?.chain as L2Chain)?.iscContractAddress;
@@ -50,6 +52,6 @@ export function useGasEstimateL2({
             }
             return gas ? gas * gasPrice : null;
         },
-        refetchInterval: 2000,
+        refetchInterval,
     });
 }
