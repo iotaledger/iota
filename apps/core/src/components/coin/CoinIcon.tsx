@@ -23,7 +23,7 @@ function NonIotaCoin({ coinType, size = ImageIconSize.Full, rounded }: NonIotaCo
                 src={coinMeta?.iconUrl}
                 label={coinMeta?.name || coinType}
                 fallback={coinMeta?.name || coinType}
-                size={coinMeta?.iconUrl ? ImageIconSize.Full : size}
+                size={size}
                 rounded={rounded}
             />
         </div>
