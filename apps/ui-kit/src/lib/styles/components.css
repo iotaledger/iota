@@ -415,8 +415,12 @@
 
     /* CHIP */
 
-    .chip-bg-selected {
-        background-color: var(--chip-bg-selected);
+    .chip-bg-selected-outline {
+        background-color: var(--chip-bg-selected-outline);
+    }
+
+    .chip-bg-elevated {
+        background-color: var(--chip-bg-elevated);
     }
 
     .chip-border-default {
@@ -427,12 +431,56 @@
         color: var(--chip-text-default);
     }
 
-    .chip-text-selected {
-        color: var(--chip-text-selected);
+    .chip-text-secondary {
+        color: var(--chip-text-secondary);
     }
 
     .chip-focus-ring {
         box-shadow: 0 0 0 2px var(--chip-focus-ring);
+    }
+
+    .chip-bg-brand {
+        background-color: var(--chip-bg-brand);
+    }
+
+    .chip-text-brand {
+        color: var(--chip-text-brand);
+    }
+
+    .chip-border-color-brand {
+        border-color: var(--chip-border-color-brand);
+    }
+
+    .chip-bg-selected-overlay {
+        background-color: var(--chip-bg-selected-overlay);
+    }
+
+    .chip-outline-color {
+        outline-color: var(--chip-outline-color);
+    }
+
+    .chip-outline-color-hover {
+        outline-color: var(--chip-outline-color-hover);
+    }
+
+    .chip-outline-color-active {
+        outline-color: var(--chip-outline-color-active);
+    }
+
+    .chip-bg-color-hover {
+        background-color: var(--chip-bg-color-hover);
+    }
+
+    .chip-bg-color-active {
+        background-color: var(--chip-bg-color-active);
+    }
+
+    .chip-bg-color-focus {
+        background-color: var(--chip-bg-color-focus);
+    }
+
+    .chip-close-icon-opacity {
+        opacity: var(--chip-close-icon-opacity);
     }
 
     /* DISPLAY STATS */

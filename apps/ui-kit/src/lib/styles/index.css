@@ -173,11 +173,25 @@
     --card-body-subtitle-color: theme('colors.iota-neutral.40');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.iota-primary.90');
+    --chip-bg-selected-outline: theme('colors.iota-primary.90');
+    --chip-bg-elevated: theme('colors.iota-primary.90');
+    --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.70');
     --chip-text-default: theme('colors.iota-neutral.40');
-    --chip-text-selected: theme('colors.iota-neutral.10');
+    --chip-text-secondary: theme('colors.iota-neutral.10');
     --chip-focus-ring: theme('colors.iota-primary.30');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-light.16');
+    --chip-close-icon-opacity: 100;
+
+    --chip-outline-color: theme('colors.shader-primary-light.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-light.8');
+    --chip-outline-color-active: theme('colors.shader-primary-light.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-light.8');
+    --chip-bg-color-active: theme('colors.shader-primary-light.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-light.12');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.96');
@@ -418,11 +432,25 @@
     --card-body-subtitle-color: theme('colors.iota-neutral.60');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.iota-primary.10');
+    --chip-bg-selected-outline: theme('colors.iota-primary.10');
+    --chip-bg-elevated: theme('colors.iota-primary.10');
+    --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.40');
     --chip-text-default: theme('colors.iota-neutral.60');
-    --chip-text-selected: theme('colors.iota-neutral.92');
+    --chip-text-secondary: theme('colors.iota-neutral.92');
     --chip-focus-ring: theme('colors.iota-primary.80');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+    --chip-close-icon-opacity: 100;
+
+    --chip-outline-color: theme('colors.shader-primary-dark.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-outline-color-active: theme('colors.shader-primary-dark.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-bg-color-active: theme('colors.shader-primary-dark.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-dark.12');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.10');
@@ -670,14 +698,28 @@
     --card-action-title-color: theme('colors.names-neutral.92');
     --card-action-subtitle-color: theme('colors.names-neutral.40');
     --card-body-title-color: theme('colors.names-neutral.92');
-    --card-body-subtitle-color: theme('colors.names-neutral.70');
+    --card-body-subtitle-color: theme('colors.names-neutral.60');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.names-primary.20');
+    --chip-bg-selected-outline: theme('colors.shader-primary-dark.16');
+    --chip-bg-elevated: theme('colors.names-neutral.12');
+    --chip-bg-brand: theme('colors.names-primary.30');
     --chip-border-default: theme('colors.names-neutral.20');
-    --chip-text-default: theme('colors.names-neutral.70');
-    --chip-text-selected: theme('colors.names-neutral.92');
+    --chip-text-default: theme('colors.names-neutral.92');
+    --chip-text-secondary: theme('colors.names-neutral.92');
     --chip-focus-ring: theme('colors.names-primary.80');
+    --chip-border-color-brand: theme('colors.names-primary.30');
+    --chip-text-brand: theme('colors.names-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+    --chip-close-icon-opacity: 0.4;
+
+    --chip-outline-color: theme('colors.shader-primary-dark.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-outline-color-active: theme('colors.shader-primary-dark.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-bg-color-active: theme('colors.shader-primary-dark.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-dark.12');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.names-neutral.10');
