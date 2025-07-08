@@ -24,7 +24,17 @@ export const useSortedCoinsBalances = () => {
         coinsBalanceL1 || [],
         knownEvmCoins,
     );
-    const sortedCoinsBalanceL1 = [...recognizedL1, ...pinnedL1];
+    let sortedCoinsBalanceL1 = [...recognizedL1, ...pinnedL1];
+    // If the sorted coins array is empty, add IOTA with zero balance
+    if (sortedCoinsBalanceL1.length === 0) {
+        sortedCoinsBalanceL1 = [
+            {
+                coinType: IOTA_TYPE_ARG,
+                totalBalance: '0',
+                coinObjectCount: 0,
+            },
+        ];
+    }
 
     // Fetch L2 balances
     const { availableBalance: availableIotaBalanceL2, isLoading: isLoadingIotaL2 } =

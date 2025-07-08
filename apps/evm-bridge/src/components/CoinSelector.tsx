@@ -46,7 +46,7 @@ export function CoinSelector() {
             shouldValidate: true,
             shouldTouch: true,
         });
-    }, [previousCoinsCount, isFromLayer1, setValue]);
+    }, [sortedCoins, isFromLayer1, setValue]);
 
     return (
         <CoreCoinSelector
