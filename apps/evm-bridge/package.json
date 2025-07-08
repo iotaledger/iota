@@ -2,6 +2,9 @@
     "name": "iota-evm-bridge",
     "version": "0.1.0",
     "private": true,
+    "config": {
+        "metamaskVersion": "12.20.0"
+    },
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
