@@ -23,28 +23,14 @@ export interface ImageIconProps {
 interface FallBackAvatarProps {
     str: string;
     rounded?: boolean;
-    size?: ImageIconSize;
 }
 
-function FallBackAvatar({ str, rounded, size = ImageIconSize.Large }: FallBackAvatarProps) {
-    function generateTextSize(size: ImageIconSize) {
-        switch (size) {
-            case ImageIconSize.Small:
-                return 'text-label-sm';
-            case ImageIconSize.Medium:
-                return 'text-label-md';
-            case ImageIconSize.Large:
-                return 'text-title-lg';
-            case ImageIconSize.Full:
-                return 'text-display-lg';
-        }
-    }
+function FallBackAvatar({ str, rounded }: FallBackAvatarProps) {
     return (
         <div
             className={cn(
-                'flex h-full w-full items-center justify-center bg-iota-neutral-96 bg-gradient-to-r capitalize text-iota-neutral-10 dark:bg-iota-neutral-12 dark:text-iota-neutral-92',
+                'flex h-full w-full items-center justify-center bg-iota-neutral-96 bg-gradient-to-r capitalize text-iota-neutral-10 dark:bg-iota-neutral-12 dark:text-iota-neutral-92 text-label-sm overflow-hidden',
                 { 'rounded-full': rounded, 'rounded-lg': !rounded },
-                generateTextSize(size),
             )}
         >
             {str?.slice(0, 2)}
@@ -55,7 +41,7 @@ function FallBackAvatar({ str, rounded, size = ImageIconSize.Large }: FallBackAv
 export function ImageIcon({ src, label, alt = label, fallback, rounded, size }: ImageIconProps) {
     const [error, setError] = useState(false);
     return error || !src ? (
-        <FallBackAvatar rounded={rounded} str={fallback} size={size} />
+        <FallBackAvatar rounded={rounded} str={fallback} />
     ) : (
         <img
             src={src}
