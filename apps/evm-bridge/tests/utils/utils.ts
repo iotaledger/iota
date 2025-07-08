@@ -187,9 +187,60 @@ export async function addNetworkToMetaMask(l2WalletPage: Page) {
 }
 
 export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserContext) {
-    // Add funds to L1
-    await page.getByTestId('request-l1-funds-button').click();
-    await expect(page.getByText('Funds successfully sent.')).toBeVisible({ timeout: 30000 });
+    const maxRetries = 3; // Maximum number of retry attempts
+    let attempt = 1;
+    let success = false;
+
+    while (attempt <= maxRetries && !success) {
+        try {
+            console.log(`Attempt ${attempt}/${maxRetries} to add funds through bridge UI`);
+
+            // Add funds to L1
+            await page.getByTestId('request-l1-funds-button').click();
+
+            // Wait for transaction completion - look for either success or error message
+            const successPromise = page
+                .getByText('Funds successfully sent.')
+                .waitFor({ timeout: 30000 })
+                .then(() => 'success')
+                .catch(() => 'timeout');
+
+            const errorPromise = page
+                .getByText('Something went wrong while requesting funds.')
+                .waitFor({ timeout: 30000 })
+                .then(() => 'error')
+                .catch(() => 'timeout');
+
+            // Wait for either message to appear
+            const result = await Promise.race([successPromise, errorPromise]);
+
+            if (result === 'success') {
+                console.log('✅ Bridge funding transaction successful: Funds sent from faucet!');
+                success = true;
+            } else if (result === 'error') {
+                console.log(
+                    `❌ Bridge funding transaction failed on attempt ${attempt}/${maxRetries}, retrying...`,
+                );
+                await page.pause();
+                // Wait a bit before retrying
+                await page.waitForTimeout(3000);
+            } else {
+                console.log(
+                    '⏱️ Bridge funding transaction timed out on attempt ${attempt}/${maxRetries}, retrying...',
+                );
+                await page.waitForTimeout(3000);
+            }
+        } catch (error) {
+            console.error(`Error during attempt ${attempt}:`, error);
+        }
+
+        attempt++;
+    }
+
+    if (!success) {
+        throw new Error(`Failed to add funds trough bridge UI after ${maxRetries} attempts`);
+    }
+
     // Check the funds arrived (ui)
     const l1WalletExtension = await browser.newPage();
     const l1ExtensionUrl = await getExtensionUrl(browser);
