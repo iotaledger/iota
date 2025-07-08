@@ -24,13 +24,14 @@ use iota_types::{
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{DisplayFromStr, serde_as};
 use shared_crypto::intent::{Intent, IntentMessage};
 use tracing::{debug, info};
 
 use crate::{
     key_derive::{derive_key_pair_from_path, generate_new_key},
     random_names::{random_name, random_names},
-    serde_derivation_path, serde_iota_keypair, serde_publickey,
+    serde_iota_keypair, serde_publickey,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -198,6 +199,7 @@ pub struct Alias {
 }
 
 #[expect(clippy::large_enum_variant)]
+#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(
     tag = "type",            // this makes {"type": "...", "value": …}
@@ -209,11 +211,9 @@ pub enum StoredKey {
     KeyPair(IotaKeyPair),
     External {
         source: String,
-        #[serde(
-            with = "serde_derivation_path::option",
-            default,
-            skip_serializing_if = "Option::is_none"
-        )]
+
+        #[serde_as(as = "Option<DisplayFromStr>")]
+        #[serde(skip_serializing_if = "Option::is_none")]
         derivation_path: Option<DerivationPath>,
         #[serde(rename = "public_key_base64_with_flag", with = "serde_publickey")]
         public_key: PublicKey,
