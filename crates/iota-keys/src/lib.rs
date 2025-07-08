@@ -8,3 +8,4 @@ pub mod keystore;
 pub mod random_names;
 mod serde_derivation_path;
 mod serde_iota_keypair;
+mod serde_publickey;

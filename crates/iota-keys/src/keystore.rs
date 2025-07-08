@@ -30,7 +30,7 @@ use tracing::{debug, info};
 use crate::{
     key_derive::{derive_key_pair_from_path, generate_new_key},
     random_names::{random_name, random_names},
-    serde_derivation_path, serde_iota_keypair,
+    serde_derivation_path, serde_iota_keypair, serde_publickey,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -167,7 +167,7 @@ pub trait AccountKeystore: Send + Sync {
             alias,
             StoredKey::External {
                 derivation_path,
-                public_key_base64_with_flag: public_key.encode_base64(),
+                public_key,
                 source: source.to_string(),
             },
         )
@@ -215,7 +215,8 @@ pub enum StoredKey {
             skip_serializing_if = "Option::is_none"
         )]
         derivation_path: Option<DerivationPath>,
-        public_key_base64_with_flag: String,
+        #[serde(rename = "public_key_base64_with_flag", with = "serde_publickey")]
+        public_key: PublicKey,
     },
 }
 
@@ -226,11 +227,11 @@ impl Clone for StoredKey {
             StoredKey::External {
                 source,
                 derivation_path,
-                public_key_base64_with_flag,
+                public_key,
             } => StoredKey::External {
                 source: source.clone(),
                 derivation_path: derivation_path.clone(),
-                public_key_base64_with_flag: public_key_base64_with_flag.clone(),
+                public_key: public_key.clone(),
             },
         }
     }
@@ -250,10 +251,7 @@ impl StoredKey {
     pub fn public(&self) -> PublicKey {
         match self {
             StoredKey::KeyPair(keypair) => keypair.public(),
-            StoredKey::External {
-                public_key_base64_with_flag,
-                ..
-            } => PublicKey::decode_base64(public_key_base64_with_flag).unwrap(),
+            StoredKey::External { public_key, .. } => public_key.clone(),
         }
     }
 
