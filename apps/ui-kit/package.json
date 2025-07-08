@@ -1,6 +1,7 @@
 {
     "name": "@iota/apps-ui-kit",
     "version": "0.7.0",
+    "sideEffects": false,
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"

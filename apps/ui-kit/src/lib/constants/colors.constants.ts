@@ -87,6 +87,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '100': '#FFFFFF',
     },
 };
+
 export const IOTA_NAMES_COLOR_PALETTE = {
     'names-primary': {
         '0': '#000000',
@@ -159,11 +160,11 @@ export const IOTA_NAMES_COLOR_PALETTE = {
         '98': '#F8F9FF',
         '100': '#ffffff',
     },
-    'names-gradient': {
-        'stop-1': '#3131FF',
-        'stop-2': '#A139FF',
-        'stop-3': '#14F0D6',
-        'stop-4': '#20233C',
+    'names-solid': {
+        blue: '#3131FF',
+        purple: '#A139FF',
+        green: '#14F0D6',
+        neutral: '#20233C',
     },
     'names-warning': {
         '0': '#000000',
