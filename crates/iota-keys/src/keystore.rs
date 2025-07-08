@@ -167,7 +167,7 @@ pub trait AccountKeystore: Send + Sync {
             alias,
             StoredKey::External {
                 derivation_path,
-                public_key_base64: public_key.encode_base64(),
+                public_key_base64_with_flag: public_key.encode_base64(),
                 source: source.to_string(),
             },
         )
@@ -215,7 +215,7 @@ pub enum StoredKey {
             skip_serializing_if = "Option::is_none"
         )]
         derivation_path: Option<DerivationPath>,
-        public_key_base64: String,
+        public_key_base64_with_flag: String,
     },
 }
 
@@ -226,11 +226,11 @@ impl Clone for StoredKey {
             StoredKey::External {
                 source,
                 derivation_path,
-                public_key_base64,
+                public_key_base64_with_flag,
             } => StoredKey::External {
                 source: source.clone(),
                 derivation_path: derivation_path.clone(),
-                public_key_base64: public_key_base64.clone(),
+                public_key_base64_with_flag: public_key_base64_with_flag.clone(),
             },
         }
     }
@@ -251,17 +251,9 @@ impl StoredKey {
         match self {
             StoredKey::KeyPair(keypair) => keypair.public(),
             StoredKey::External {
-                public_key_base64, ..
-            } => PublicKey::decode_base64(public_key_base64).unwrap(),
-        }
-    }
-
-    pub fn public_base64(&self) -> String {
-        match self {
-            StoredKey::KeyPair(keypair) => keypair.public().encode_base64(),
-            StoredKey::External {
-                public_key_base64, ..
-            } => public_key_base64.clone(),
+                public_key_base64_with_flag,
+                ..
+            } => PublicKey::decode_base64(public_key_base64_with_flag).unwrap(),
         }
     }
 
