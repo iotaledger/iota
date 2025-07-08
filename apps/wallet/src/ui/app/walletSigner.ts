@@ -55,9 +55,15 @@ export abstract class WalletSigner {
         throw new Error('Unknown transaction format');
     }
 
-    abstract signTransaction(input: {
+    abstract signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction>;
+
+    async signTransaction(input: {
         transaction: Uint8Array | Transaction;
-    }): Promise<SignedTransaction>;
+    }): Promise<SignedTransaction> {
+        // Prepare the transaction (sets sender if not already set, builds Transaction objects)
+        const bytes = await this.prepareTransaction(input.transaction);
+        return this.signTransactionBytes(bytes);
+    }
 
     async signAndExecuteTransaction(input: {
         transactionBlock: Uint8Array | Transaction;

@@ -69,7 +69,12 @@ describe('LedgerSigner', () => {
         vi.mocked(MockedLedgerSigner.fromDerivationPath).mockResolvedValue(mockSignersLedgerSigner);
 
         // Create LedgerSigner instance
-        ledgerSigner = new LedgerSigner(mockConnectToLedger, derivationPath, mockIotaClient);
+        ledgerSigner = new LedgerSigner(
+            mockConnectToLedger,
+            derivationPath,
+            testAddress,
+            mockIotaClient,
+        );
     });
 
     describe('constructor', () => {
@@ -80,7 +85,12 @@ describe('LedgerSigner', () => {
 
         it('should accept derivation path parameter', () => {
             const customPath = "m/44'/4218'/1'/0'/0'";
-            const customSigner = new LedgerSigner(mockConnectToLedger, customPath, mockIotaClient);
+            const customSigner = new LedgerSigner(
+                mockConnectToLedger,
+                customPath,
+                testAddress,
+                mockIotaClient,
+            );
             expect(customSigner).toBeInstanceOf(LedgerSigner);
         });
     });
@@ -225,6 +235,58 @@ describe('LedgerSigner', () => {
         });
     });
 
+    describe('address verification', () => {
+        it('should verify correct address before signing transaction', async () => {
+            const transaction = new Uint8Array([1, 2, 3, 4, 5]);
+
+            const result = await ledgerSigner.signTransaction({ transaction });
+
+            expect(result).toEqual({ bytes: testBytes, signature: testSignature });
+            // Verify that getAddress was called for verification
+            expect(mockSignersLedgerSigner.toIotaAddress).toHaveBeenCalled();
+        });
+
+        it('should verify correct address before signing message', async () => {
+            const message = new Uint8Array([1, 2, 3, 4, 5]);
+
+            const result = await ledgerSigner.signMessage({ message });
+
+            expect(result).toEqual({ bytes: testBytes, signature: testSignature });
+            // Verify that getAddress was called for verification
+            expect(mockSignersLedgerSigner.toIotaAddress).toHaveBeenCalled();
+        });
+
+        it('should throw error when ledger address does not match expected address', async () => {
+            const wrongAddress =
+                'iota1qppppppppppppppppppppppppppppppppppppppppppppppppppppppppu7xss';
+            mockSignersLedgerSigner.toIotaAddress.mockResolvedValue(wrongAddress);
+
+            const transaction = new Uint8Array([1, 2, 3, 4, 5]);
+
+            await expect(ledgerSigner.signTransaction({ transaction })).rejects.toThrow(
+                `Ledger address mismatch. Expected: ${testAddress}, Got: ${wrongAddress}`,
+            );
+
+            // Should not proceed to actual signing
+            expect(mockSignersLedgerSigner.signTransaction).not.toHaveBeenCalled();
+        });
+
+        it('should throw error when ledger address verification fails during message signing', async () => {
+            const wrongAddress =
+                'iota1qppppppppppppppppppppppppppppppppppppppppppppppppppppppppu7xss';
+            mockSignersLedgerSigner.toIotaAddress.mockResolvedValue(wrongAddress);
+
+            const message = new Uint8Array([1, 2, 3, 4, 5]);
+
+            await expect(ledgerSigner.signMessage({ message })).rejects.toThrow(
+                `Ledger address mismatch. Expected: ${testAddress}, Got: ${wrongAddress}`,
+            );
+
+            // Should not proceed to actual signing
+            expect(mockSignersLedgerSigner.signPersonalMessage).not.toHaveBeenCalled();
+        });
+    });
+
     describe('connect', () => {
         it('should return new LedgerSigner instance with new client', () => {
             const newClient = {} as IotaClient;
@@ -270,7 +332,12 @@ describe('LedgerSigner', () => {
             mockConnectToLedger.mockRejectedValue(error);
 
             // Create new signer instance to test reconnection
-            const newSigner = new LedgerSigner(mockConnectToLedger, derivationPath, mockIotaClient);
+            const newSigner = new LedgerSigner(
+                mockConnectToLedger,
+                derivationPath,
+                testAddress,
+                mockIotaClient,
+            );
 
             await expect(newSigner.getAddress()).rejects.toThrow('Ledger disconnected');
         });
@@ -373,14 +440,19 @@ describe('LedgerSigner', () => {
 
             validPaths.forEach((path) => {
                 expect(
-                    () => new LedgerSigner(mockConnectToLedger, path, mockIotaClient),
+                    () => new LedgerSigner(mockConnectToLedger, path, testAddress, mockIotaClient),
                 ).not.toThrow();
             });
         });
 
         it('should pass correct derivation path to SignersLedgerSigner', async () => {
             const customPath = "m/44'/4218'/1'/0'/0'";
-            const customSigner = new LedgerSigner(mockConnectToLedger, customPath, mockIotaClient);
+            const customSigner = new LedgerSigner(
+                mockConnectToLedger,
+                customPath,
+                testAddress,
+                mockIotaClient,
+            );
 
             await customSigner.getAddress();
 

@@ -6,7 +6,6 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { bcs } from '@iota/iota-sdk/bcs';
 import { type IotaClient } from '@iota/iota-sdk/client';
 import { messageWithIntent } from '@iota/iota-sdk/cryptography';
-import { type Transaction } from '@iota/iota-sdk/transactions';
 import { toB64 } from '@iota/iota-sdk/utils';
 
 import type { BackgroundClient } from '.';
@@ -45,10 +44,7 @@ export class BackgroundServiceSigner extends WalletSigner {
         };
     }
 
-    async signTransaction(input: {
-        transaction: Uint8Array | Transaction;
-    }): Promise<SignedTransaction> {
-        const bytes = await this.prepareTransaction(input.transaction);
+    async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
         const signature = await this.#backgroundClient.signData(
             this.#account.id,
             messageWithIntent('TransactionData', bytes),
