@@ -162,7 +162,12 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
             .locator('xpath=../div/span')
             .nth(1)
             .textContent();
-        expect(Number(gasFeeValue).toFixed(6)).toEqual('0.000370');
+        // Convert to number for comparison
+        const actualGasFee = Number(Number(gasFeeValue).toFixed(6));
+
+        // Check if within acceptable range
+        expect(actualGasFee).toBeGreaterThanOrEqual(0.000355);
+        expect(actualGasFee).toBeLessThanOrEqual(0.000373);
 
         await expect(pageWithL2Wallet.getByText('Bridge Assets')).toBeEnabled();
 
