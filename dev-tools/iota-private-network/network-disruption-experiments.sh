@@ -2,66 +2,38 @@
 
 # === CONFIGURATION ===
 
-# Docker validator container names
-validators=("validator-1" "validator-2" "validator-3" "validator-4")
+# Docker validator container name
+validator="validator-1"
 
 # Duration settings (in seconds)
-initial_duration=100
-max_duration=120
-step=30
+disrupt_duration=60
+recover_duration=60
 
-echo "=== Starting network disruption experiments using Pumba ==="
+echo "=== Starting custom network disruption experiment using direct tc ==="
 
-# Ensure Pumba is available
-if ! docker image inspect gaiaadm/pumba:latest >/dev/null 2>&1; then
-  echo "Pulling Pumba image..."
-  docker pull gaiaadm/pumba
-fi
+# === HELPER FUNCTIONS ===
 
-# === HELPER FUNCTION ===
-run_pumba() {
-  local validator=$1
-  local duration=$2
-  local pumba_args=$3
-
-  echo "[PUMBA] Running on $validator with: $pumba_args for $duration seconds"
-  docker run -d --rm \
-    --name "pumba_${validator}_$(date +%s)" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    gaiaadm/pumba \
-    netem --tc-image gaiadocker/iproute2 \
-    --duration "${duration}s" \
-    $pumba_args "$validator"
+add_netem_loss() {
+  local loss_percent=$1
+  echo "[NETEM] Adding $loss_percent% packet loss to $validator"
+  docker run --rm --privileged --net container:$validator gaiadocker/iproute2 qdisc add dev eth0 root netem loss ${loss_percent}%
 }
 
+remove_netem_loss() {
+  echo "[NETEM] Removing traffic disruption from $validator"
+  docker run --rm --privileged --net container:$validator gaiadocker/iproute2 qdisc del dev eth0 root
+}
 
-echo "=== PHASE 1: Full isolation ==="
-# === PHASE 1: Full isolation ===
-for duration in $(seq $initial_duration $step $max_duration); do
-  run_pumba "${validators[0]}" "$duration" "loss --percent 100"
-  sleep $((duration + 10))
+# === DISRUPTION CYCLE ===
+
+for loss in 20 40 60 80 100; do
+  echo "=== Disruption phase with $loss% loss ==="
+  add_netem_loss $loss
+  sleep $disrupt_duration
+
+  echo "=== Recovery phase ==="
+  remove_netem_loss
+  sleep $recover_duration
 done
 
-echo "=== PHASE 2: Outgoing blocked ==="
-# === PHASE 2: Outgoing blocked ===
-for duration in $(seq $initial_duration $step $max_duration); do
-  run_pumba "${validators[1]}" "$duration" "loss --percent 100 --direction outbound"
-  sleep $((duration + 10))
-done
-
-echo  "=== PHASE 3: Incoming blocked ==="
-# === PHASE 3: Incoming blocked ===
-for duration in $(seq $initial_duration $step $max_duration); do
-  run_pumba "${validators[2]}" "$duration" "loss --percent 100 --direction inbound"
-  sleep $((duration + 10))
-done
-
-echo "# === PHASE 4: Only allow connection to validator-3 ==="
-# === PHASE 4: Only allow connection to validator-3 ===
-validator_3_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' validator-3)
-for duration in $(seq $initial_duration $step $max_duration); do
-  run_pumba "${validators[3]}" "$duration" "loss --percent 100 --exclude-dst $validator_3_ip"
-  sleep $((duration + 10))
-done
-
-echo "=== All experiments completed ==="
+echo "=== Experiment completed ==="
