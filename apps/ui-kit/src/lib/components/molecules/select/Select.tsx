@@ -171,7 +171,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
                     {isOpen && (
                         <div
-                            className="fixed left-0 top-0 z-[49] h-screen w-screen bg-transparent"
+                            className="fixed left-0 top-0 z-[49] bg-transparent"
                             onClick={closeDropdown}
                         />
                     )}
