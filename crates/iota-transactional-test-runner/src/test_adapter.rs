@@ -1755,13 +1755,13 @@ impl IotaTestAdapter {
 
     fn get_object(&self, id: &ObjectID, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
-            ObjectStoreFallible::try_get_object_by_key(&*self.executor, id, v)
+            ObjectStoreNonFallible::get_object_by_key(&*self.executor, id, v)
         } else {
-            ObjectStoreFallible::try_get_object(&*self.executor, id)
+            ObjectStoreNonFallible::get_object(&*self.executor, id)
         };
         match obj_res {
-            Ok(Some(obj)) => Ok(obj),
-            Ok(None) | Err(_) => Err(anyhow!("INVALID TEST! Unable to find object {id}")),
+            Some(obj) => Ok(obj),
+            None => Err(anyhow!("INVALID TEST! Unable to find object {id}")),
         }
     }
 

@@ -15,8 +15,8 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject,
-        get_module_by_id,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
+        ObjectStoreNonFallible, PackageObject, get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
@@ -64,7 +64,7 @@ impl InMemoryObjectStore {
             let obj: Option<Object> = match kind {
                 InputObjectKind::MovePackage(id) => self.get_package_object(id)?.map(|o| o.into()),
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.try_get_object_by_key(&objref.0, objref.1)?
+                    self.get_object_by_key(&objref.0, objref.1)
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
@@ -83,7 +83,7 @@ impl InMemoryObjectStore {
                         panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
                     });
 
-                    self.try_get_object_by_key(id, *version)?
+                    self.get_object_by_key(id, *version)
                 }
             };
 
@@ -109,6 +109,8 @@ impl InMemoryObjectStore {
     }
 }
 
+impl ObjectStore for InMemoryObjectStore {}
+
 impl ObjectStoreFallible for InMemoryObjectStore {
     fn try_get_object(
         &self,
@@ -130,6 +132,23 @@ impl ObjectStoreFallible for InMemoryObjectStore {
                 None
             }
         }))
+    }
+}
+
+impl ObjectStoreNonFallible for InMemoryObjectStore {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.num_object_reads.inc_by(1);
+        self.objects.read().unwrap().get(object_id).cloned()
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.get_object(object_id).and_then(|o| {
+            if o.version() == version {
+                Some(o.clone())
+            } else {
+                None
+            }
+        })
     }
 }
 

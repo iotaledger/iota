@@ -10,7 +10,7 @@ use iota_types::{
     digests::TransactionDigest,
     move_package::MovePackage,
     object::{OBJECT_START_VERSION, Object},
-    storage::ObjectStoreFallible,
+    storage::ObjectStore,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility,
@@ -186,17 +186,17 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   without a framework upgrade).
 /// - Returns the digest of the new framework (and version) if it is compatible
 ///   (indicates support for a protocol upgrade with a framework upgrade).
-pub async fn compare_system_package<S: ObjectStoreFallible>(
+pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
     id: &ObjectID,
     modules: &[CompiledModule],
     dependencies: Vec<ObjectID>,
     binary_config: &BinaryConfig,
 ) -> Option<ObjectRef> {
-    let cur_object = match object_store.try_get_object(id) {
-        Ok(Some(cur_object)) => cur_object,
+    let cur_object = match object_store.get_object(id) {
+        Some(cur_object) => cur_object,
 
-        Ok(None) => {
+        None => {
             // creating a new framework package--nothing to check
             return Some(
                 Object::new_system_package(
@@ -213,11 +213,6 @@ pub async fn compare_system_package<S: ObjectStoreFallible>(
                 )
                 .compute_object_reference(),
             );
-        }
-
-        Err(e) => {
-            error!("Error loading framework object at {id}: {e:?}");
-            return None;
         }
     };
 

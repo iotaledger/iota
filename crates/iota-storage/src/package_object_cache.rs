@@ -7,7 +7,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 use iota_types::{
     base_types::ObjectID,
     error::{IotaError, IotaResult, UserInputError},
-    storage::{ObjectStoreFallible, PackageObject},
+    storage::{ObjectStoreNonFallible, PackageObject},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -28,7 +28,7 @@ impl PackageObjectCache {
     pub fn get_package_object(
         &self,
         package_id: &ObjectID,
-        store: &impl ObjectStoreFallible,
+        store: &impl ObjectStoreNonFallible,
     ) -> IotaResult<Option<PackageObject>> {
         // TODO: Here the use of `peek` doesn't update the internal use record,
         // and hence the LRU is really used as a capped map here.
@@ -39,7 +39,7 @@ impl PackageObjectCache {
             #[cfg(debug_assertions)]
             {
                 assert_eq!(
-                    store.try_get_object(package_id).unwrap().unwrap().digest(),
+                    store.get_object(package_id).unwrap().digest(),
                     p.object().digest(),
                     "Package object cache is inconsistent for package {:?}",
                     package_id
@@ -47,7 +47,7 @@ impl PackageObjectCache {
             }
             return Ok(Some(p.clone()));
         }
-        if let Some(p) = store.try_get_object(package_id)? {
+        if let Some(p) = store.get_object(package_id) {
             if p.is_package() {
                 let p = PackageObject::new(p);
                 self.cache.write().push(*package_id, p.clone());
@@ -67,13 +67,10 @@ impl PackageObjectCache {
     pub fn force_reload_system_packages(
         &self,
         system_package_ids: impl IntoIterator<Item = ObjectID>,
-        store: &impl ObjectStoreFallible,
+        store: &impl ObjectStoreNonFallible,
     ) {
         for package_id in system_package_ids {
-            if let Some(p) = store
-                .try_get_object(&package_id)
-                .expect("Failed to update system packages")
-            {
+            if let Some(p) = store.get_object(&package_id) {
                 assert!(p.is_package());
                 self.cache.write().push(package_id, PackageObject::new(p));
             }

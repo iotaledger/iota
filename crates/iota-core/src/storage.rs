@@ -64,7 +64,7 @@ impl RocksDbStore {
     pub fn get_objects(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>, IotaError> {
         self.cache_traits
             .object_cache_reader
-            .multi_get_objects_by_key(object_keys)
+            .try_multi_get_objects_by_key(object_keys)
     }
 
     pub fn get_last_executed_checkpoint(&self) -> Result<Option<VerifiedCheckpoint>, IotaError> {
@@ -527,8 +527,7 @@ impl WriteStore for RocksDbStore {
     ) -> Result<(), iota_types::storage::error::Error> {
         self.cache_traits
             .state_sync_store
-            .multi_insert_transaction_and_effects(contents.transactions())
-            .map_err(iota_types::storage::error::Error::custom)?;
+            .multi_insert_transaction_and_effects(contents.transactions());
         self.checkpoint_store
             .insert_verified_checkpoint_contents(checkpoint, contents)
             .map_err(Into::into)
@@ -713,7 +712,7 @@ impl RestStateReader for RestReadStore {
         let highest_pruned_cp = self
             .state
             .get_object_cache_reader()
-            .get_highest_pruned_checkpoint()
+            .try_get_highest_pruned_checkpoint()
             .map_err(StorageError::custom)?;
 
         if highest_pruned_cp == 0 {

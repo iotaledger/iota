@@ -80,7 +80,7 @@ use crate::{
         checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput},
     },
     consensus_handler::SequencedConsensusTransactionKey,
-    execution_cache::TransactionCacheReadFallible,
+    execution_cache::TransactionCacheRead,
     stake_aggregator::{InsertResult, MultiStakeAggregator},
     state_accumulator::StateAccumulator,
 };
@@ -784,9 +784,7 @@ impl CheckpointStore {
 
             let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
             let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
-            let txns = cache
-                .try_multi_get_transaction_blocks(&tx_digests)
-                .expect("multi_get_transaction_blocks should not fail");
+            let txns = cache.multi_get_transaction_blocks(&tx_digests);
             for (tx, digest) in txns.iter().zip(tx_digests.iter()) {
                 if tx.is_none() {
                     panic!("transaction {:?} not found", digest);
@@ -834,9 +832,8 @@ impl CheckpointStore {
             });
 
             cache
-                .try_notify_read_executed_effects_digests(&tx_digests)
-                .await
-                .expect("notify_read_executed_effects_digests should not fail");
+                .notify_read_executed_effects_digests(&tx_digests)
+                .await;
 
             waiting_logger.abort();
             waiting_logger.await.ok();
@@ -862,7 +859,7 @@ pub struct CheckpointBuilder {
     notify: Arc<Notify>,
     notify_aggregator: Arc<Notify>,
     last_built: watch::Sender<CheckpointSequenceNumber>,
-    effects_store: Arc<dyn TransactionCacheReadFallible>,
+    effects_store: Arc<dyn TransactionCacheRead>,
     accumulator: Weak<StateAccumulator>,
     output: Box<dyn CheckpointOutput>,
     metrics: Arc<CheckpointMetrics>,
@@ -898,7 +895,7 @@ impl CheckpointBuilder {
         tables: Arc<CheckpointStore>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         notify: Arc<Notify>,
-        effects_store: Arc<dyn TransactionCacheReadFallible>,
+        effects_store: Arc<dyn TransactionCacheRead>,
         accumulator: Weak<StateAccumulator>,
         output: Box<dyn CheckpointOutput>,
         notify_aggregator: Arc<Notify>,
@@ -1077,9 +1074,9 @@ impl CheckpointBuilder {
             .await?;
         let root_effects = self
             .effects_store
-            .try_notify_read_executed_effects(&root_digests)
+            .notify_read_executed_effects(&root_digests)
             .in_monitored_scope("CheckpointNotifyRead")
-            .await?;
+            .await;
 
         let _scope = monitored_scope("CheckpointBuilder");
 
@@ -1156,7 +1153,7 @@ impl CheckpointBuilder {
         let first_tx = self
             .state
             .get_transaction_cache_reader()
-            .try_get_transaction_block(&root_digests[0])?
+            .get_transaction_block(&root_digests[0])
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
@@ -1226,7 +1223,7 @@ impl CheckpointBuilder {
         self.state
             .get_cache_commit()
             .persist_transactions(&all_tx_digests)
-            .await?;
+            .await;
 
         batch.write()?;
 
@@ -1670,9 +1667,7 @@ impl CheckpointBuilder {
                 break;
             }
             let pending = pending.into_iter().collect::<Vec<_>>();
-            let effects = self
-                .effects_store
-                .try_multi_get_executed_effects(&pending)?;
+            let effects = self.effects_store.multi_get_executed_effects(&pending);
             let effects = effects
                 .into_iter()
                 .zip(pending)
@@ -1703,8 +1698,7 @@ impl CheckpointBuilder {
         let root_txs = self
             .state
             .get_transaction_cache_reader()
-            .try_multi_get_transaction_blocks(root_digests)
-            .unwrap();
+            .multi_get_transaction_blocks(root_digests);
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
@@ -1725,13 +1719,12 @@ impl CheckpointBuilder {
         let txs = self
             .state
             .get_transaction_cache_reader()
-            .try_multi_get_transaction_blocks(
+            .multi_get_transaction_blocks(
                 &sorted
                     .iter()
                     .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
-            )
-            .unwrap();
+            );
 
         if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
@@ -2255,7 +2248,7 @@ impl CheckpointService {
         state: Arc<AuthorityState>,
         checkpoint_store: Arc<CheckpointStore>,
         epoch_store: Arc<AuthorityPerEpochStore>,
-        effects_store: Arc<dyn TransactionCacheReadFallible>,
+        effects_store: Arc<dyn TransactionCacheRead>,
         accumulator: Weak<StateAccumulator>,
         checkpoint_output: Box<dyn CheckpointOutput>,
         certified_checkpoint_output: Box<dyn CertifiedCheckpointOutput>,
@@ -2698,6 +2691,81 @@ mod tests {
         let c2sc = certified_result.recv().await.unwrap();
         assert_eq!(c1sc.sequence_number, 0);
         assert_eq!(c2sc.sequence_number, 1);
+    }
+
+    impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {}
+
+    impl TransactionCacheReadNonFallible for HashMap<TransactionDigest, TransactionEffects> {
+        fn notify_read_executed_effects(
+            &self,
+            digests: &[TransactionDigest],
+        ) -> BoxFuture<'_, Vec<TransactionEffects>> {
+            std::future::ready(
+                digests
+                    .iter()
+                    .map(|d| self.get(d).expect("effects not found").clone())
+                    .collect(),
+            )
+            .boxed()
+        }
+
+        fn notify_read_executed_effects_digests(
+            &self,
+            digests: &[TransactionDigest],
+        ) -> BoxFuture<'_, Vec<TransactionEffectsDigest>> {
+            std::future::ready(
+                digests
+                    .iter()
+                    .map(|d| {
+                        self.get(d)
+                            .map(|fx| fx.digest())
+                            .expect("effects not found")
+                    })
+                    .collect(),
+            )
+            .boxed()
+        }
+
+        fn multi_get_executed_effects(
+            &self,
+            digests: &[TransactionDigest],
+        ) -> Vec<Option<TransactionEffects>> {
+            digests.iter().map(|d| self.get(d).cloned()).collect()
+        }
+
+        // Unimplemented methods - its unfortunate to have this big blob of useless
+        // code, but it wasn't worth it to keep EffectsNotifyRead around just
+        // for these tests, as it caused a ton of complication in non-test code.
+        // (e.g. had to implement EFfectsNotifyRead for all ExecutionCacheRead
+        // implementors).
+
+        fn multi_get_transaction_blocks(
+            &self,
+            _: &[TransactionDigest],
+        ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+            unimplemented!()
+        }
+
+        fn multi_get_executed_effects_digests(
+            &self,
+            _: &[TransactionDigest],
+        ) -> Vec<Option<TransactionEffectsDigest>> {
+            unimplemented!()
+        }
+
+        fn multi_get_effects(
+            &self,
+            _: &[TransactionEffectsDigest],
+        ) -> Vec<Option<TransactionEffects>> {
+            unimplemented!()
+        }
+
+        fn multi_get_events(
+            &self,
+            _: &[TransactionEventsDigest],
+        ) -> Vec<Option<TransactionEvents>> {
+            unimplemented!()
+        }
     }
 
     impl TransactionCacheReadFallible for HashMap<TransactionDigest, TransactionEffects> {

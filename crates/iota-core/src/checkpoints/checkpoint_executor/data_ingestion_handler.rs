@@ -16,12 +16,12 @@ use iota_types::{
 
 use crate::{
     checkpoints::CheckpointStore,
-    execution_cache::{ObjectCacheRead, TransactionCacheReadFallible},
+    execution_cache::{ObjectCacheReadFallible, TransactionCacheReadFallible},
 };
 
 pub(crate) fn load_checkpoint_data(
     checkpoint: VerifiedCheckpoint,
-    object_cache_reader: &dyn ObjectCacheRead,
+    object_cache_reader: &dyn ObjectCacheReadFallible,
     transaction_cache_reader: &dyn TransactionCacheReadFallible,
     checkpoint_store: Arc<CheckpointStore>,
     transaction_digests: &[TransactionDigest],
@@ -75,7 +75,7 @@ pub(crate) fn load_checkpoint_data(
             .collect::<Vec<_>>();
 
         let input_objects = object_cache_reader
-            .multi_get_objects_by_key(&input_object_keys)?
+            .try_multi_get_objects_by_key(&input_object_keys)?
             .into_iter()
             .zip(&input_object_keys)
             .map(|(object, object_key)| {
@@ -95,7 +95,7 @@ pub(crate) fn load_checkpoint_data(
             .collect::<Vec<_>>();
 
         let output_objects = object_cache_reader
-            .multi_get_objects_by_key(&output_object_keys)?
+            .try_multi_get_objects_by_key(&output_object_keys)?
             .into_iter()
             .zip(&output_object_keys)
             .map(|(object, object_key)| {

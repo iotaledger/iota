@@ -8,7 +8,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    storage::ObjectStoreFallible,
+    storage::ObjectStoreNonFallible,
     transaction::VerifiedSignedTransaction,
 };
 use tracing::{debug, info, instrument, trace};
@@ -174,7 +174,7 @@ impl ObjectLocks {
         cache: &WritebackCache,
         object_ids: &[ObjectID],
     ) -> IotaResult<Vec<Object>> {
-        let objects = cache.try_multi_get_objects(object_ids)?;
+        let objects = cache.multi_get_objects(object_ids);
         let mut result = Vec::with_capacity(objects.len());
         for (i, object) in objects.into_iter().enumerate() {
             if let Some(object) = object {

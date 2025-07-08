@@ -194,9 +194,8 @@ async fn reconfig_with_revert_end_to_end_test() {
         .with_async(|node| async {
             let object = node
                 .state()
-                .get_objects(&[gas2.0])
+                .try_get_objects(&[gas2.0])
                 .await
-                .unwrap()
                 .into_iter()
                 .next()
                 .unwrap()
@@ -228,9 +227,8 @@ async fn reconfig_with_revert_end_to_end_test() {
             .with_async(|node| async {
                 let object = node
                     .state()
-                    .get_objects(&[gas1.0])
+                    .try_get_objects(&[gas1.0])
                     .await
-                    .unwrap()
                     .into_iter()
                     .next()
                     .unwrap()
@@ -244,9 +242,8 @@ async fn reconfig_with_revert_end_to_end_test() {
                 // Note that previously test checked that object version == 2 on authority 0
                 let object = node
                     .state()
-                    .get_objects(&[gas2.0])
+                    .try_get_objects(&[gas2.0])
                     .await
-                    .unwrap()
                     .into_iter()
                     .next()
                     .unwrap()

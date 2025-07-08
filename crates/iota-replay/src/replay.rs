@@ -32,8 +32,8 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStoreFallible, PackageObject, get_module,
-        get_module_by_id,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
+        ObjectStoreNonFallible, PackageObject, get_module, get_module_by_id,
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
@@ -1937,7 +1937,7 @@ impl ChildObjectResolver for LocalExec {
             receiving_object_id: &ObjectID,
             receive_object_at_version: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
-            let recv_object = match self_.try_get_object(receiving_object_id)? {
+            let recv_object = match self_.get_object(receiving_object_id) {
                 None => return Ok(None),
                 Some(o) => o,
             };
@@ -2053,6 +2053,9 @@ impl ModuleResolver for &mut LocalExec {
     }
 }
 
+impl ObjectStore for LocalExec {}
+impl ObjectStore for &mut LocalExec {}
+
 impl ObjectStoreFallible for LocalExec {
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
@@ -2129,6 +2132,71 @@ impl ObjectStoreFallible for &mut LocalExec {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
         (**self).try_get_object_by_key(object_id, version)
+    }
+}
+
+impl ObjectStoreNonFallible for LocalExec {
+    /// The object must be present in store by normal process we used to
+    /// backfill store in init We dont download if not present
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        let res = self
+            .storage
+            .live_objects_store
+            .lock()
+            .expect("Can't lock")
+            .get(object_id)
+            .cloned();
+        self.exec_store_events
+            .lock()
+            .expect("Unable to lock events list")
+            .push(ExecutionStoreEvent::ObjectStoreGetObject {
+                object_id: *object_id,
+                result: Ok(res.clone()),
+            });
+        res
+    }
+
+    /// The object must be present in store by normal process we used to
+    /// backfill store in init We dont download if not present
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        let res = self
+            .storage
+            .live_objects_store
+            .lock()
+            .expect("Can't lock")
+            .get(object_id)
+            .and_then(|obj| {
+                if obj.version() == version {
+                    Some(obj.clone())
+                } else {
+                    None
+                }
+            });
+
+        self.exec_store_events
+            .lock()
+            .expect("Unable to lock events list")
+            .push(ExecutionStoreEvent::ObjectStoreGetObjectByKey {
+                object_id: *object_id,
+                version,
+                result: Ok(res.clone()),
+            });
+
+        res
+    }
+}
+
+impl ObjectStoreNonFallible for &mut LocalExec {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        // Recording event here will be double-counting since its already recorded in
+        // the get_module fn
+        (**self).get_object(object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        // Recording event here will be double-counting since its already recorded in
+        // the get_module fn
+        (**self).get_object_by_key(object_id, version)
     }
 }
 

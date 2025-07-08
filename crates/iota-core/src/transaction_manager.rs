@@ -31,7 +31,7 @@ use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
     authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
-    execution_cache::{ObjectCacheRead, TransactionCacheReadFallible},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
 
 #[cfg(test)]
@@ -52,7 +52,7 @@ const MIN_HASHMAP_CAPACITY: usize = 1000;
 /// back to TransactionManager.
 pub struct TransactionManager {
     object_cache_read: Arc<dyn ObjectCacheRead>,
-    transaction_cache_read: Arc<dyn TransactionCacheReadFallible>,
+    transaction_cache_read: Arc<dyn TransactionCacheRead>,
     tx_ready_certificates: UnboundedSender<PendingCertificate>,
     metrics: Arc<AuthorityMetrics>,
     // inner is a doubly nested lock so that we can enforce that an outer lock (for read) is held
@@ -343,7 +343,7 @@ impl TransactionManager {
     /// retry transactions.
     pub(crate) fn new(
         object_cache_read: Arc<dyn ObjectCacheRead>,
-        transaction_cache_read: Arc<dyn TransactionCacheReadFallible>,
+        transaction_cache_read: Arc<dyn TransactionCacheRead>,
         epoch_store: &AuthorityPerEpochStore,
         tx_ready_certificates: UnboundedSender<PendingCertificate>,
         metrics: Arc<AuthorityMetrics>,
@@ -417,13 +417,7 @@ impl TransactionManager {
             .filter(|(cert, _)| {
                 let digest = *cert.digest();
                 // skip already executed txes
-                if self
-                    .transaction_cache_read
-                    .try_is_tx_already_executed(&digest)
-                    .unwrap_or_else(|err| {
-                        fatal!("Failed to check if tx is already executed: {:?}", err)
-                    })
-                {
+                if self.transaction_cache_read.is_tx_already_executed(&digest) {
                     self.metrics
                         .transaction_manager_num_enqueued_certificates
                         .with_label_values(&["already_executed"])
@@ -458,8 +452,7 @@ impl TransactionManager {
                             // remove the race.
                             if self
                                 .transaction_cache_read
-                                .try_is_tx_already_executed(cert.digest())
-                                .expect("is_tx_already_executed cannot fail")
+                                .is_tx_already_executed(cert.digest())
                             {
                                 return None;
                             }
@@ -525,7 +518,6 @@ impl TransactionManager {
                 receiving_objects,
                 epoch_store.epoch(),
             )
-            .unwrap_or_else(|err| panic!("Checking object existence cannot fail: {:?}", err))
             .into_iter()
             .zip(input_object_cache_misses);
 
@@ -616,10 +608,8 @@ impl TransactionManager {
                 continue;
             }
             // skip already executed txes
-            let is_tx_already_executed = self
-                .transaction_cache_read
-                .try_is_tx_already_executed(&digest)
-                .expect("Check if tx is already executed should not fail");
+            let is_tx_already_executed =
+                self.transaction_cache_read.is_tx_already_executed(&digest);
             if is_tx_already_executed {
                 self.metrics
                     .transaction_manager_num_enqueued_certificates

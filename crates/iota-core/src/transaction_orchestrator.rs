@@ -383,7 +383,7 @@ where
         //    one extra time)
         // 3. at the end of day, the tx will be executed at most once per lock guard.
         let tx_digest = transaction.digest();
-        if validator_state.is_tx_already_executed(tx_digest)? {
+        if validator_state.is_tx_already_executed(tx_digest) {
             return Ok(());
         }
         metrics.local_execution_in_flight.inc();
@@ -421,17 +421,7 @@ where
                 metrics.local_execution_timeout.inc();
                 Err(IotaError::Timeout)
             }
-            Ok(Err(err)) => {
-                debug!(
-                    ?tx_digest,
-                    "Executing tx locally by orchestrator failed with error: {:?}", err
-                );
-                metrics.local_execution_failure.inc();
-                Err(IotaError::TransactionOrchestratorLocalExecution {
-                    error: err.to_string(),
-                })
-            }
-            Ok(Ok(_)) => {
+            Ok(_) => {
                 metrics.local_execution_success.inc();
                 Ok(())
             }
@@ -589,7 +579,6 @@ pub struct TransactionOrchestratorMetrics {
     local_execution_in_flight: GenericGauge<AtomicI64>,
     local_execution_success: GenericCounter<AtomicU64>,
     local_execution_timeout: GenericCounter<AtomicU64>,
-    local_execution_failure: GenericCounter<AtomicU64>,
 
     request_latency_single_writer: Histogram,
     request_latency_shared_obj: Histogram,
@@ -706,12 +695,6 @@ impl TransactionOrchestratorMetrics {
             local_execution_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_timeout",
                 "Total number of timed-out local execution txns Transaction Orchestrator handles",
-                registry,
-            )
-            .unwrap(),
-            local_execution_failure: register_int_counter_with_registry!(
-                "tx_orchestrator_local_execution_failure",
-                "Total number of failed local execution txns Transaction Orchestrator handles",
                 registry,
             )
             .unwrap(),

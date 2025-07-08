@@ -448,17 +448,17 @@ impl IotaValue {
             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
         };
         let obj_res = if let Some(v) = version {
-            iota_types::storage::ObjectStoreFallible::try_get_object_by_key(
+            iota_types::storage::ObjectStoreNonFallible::get_object_by_key(
                 &*test_adapter.executor,
                 &id,
                 v,
             )
         } else {
-            iota_types::storage::ObjectStoreFallible::try_get_object(&*test_adapter.executor, &id)
+            iota_types::storage::ObjectStoreNonFallible::get_object(&*test_adapter.executor, &id)
         };
         let obj = match obj_res {
-            Ok(Some(obj)) => obj,
-            Err(_) | Ok(None) => bail!("INVALID TEST. Could not load object argument {}", id),
+            Some(obj) => obj,
+            None => bail!("INVALID TEST. Could not load object argument {}", id),
         };
         Ok(obj)
     }

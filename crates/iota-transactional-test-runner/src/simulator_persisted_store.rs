@@ -21,8 +21,8 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, ObjectStoreFallible,
-        ObjectStoreNonFallible, PackageObject, ReadStoreFallible, RestStateReader,
-        load_package_object_from_object_store,
+        ObjectStoreNonFallible, PackageObject, ReadStoreFallible, ReadStoreNonFallible,
+        RestStateReader, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -724,6 +724,121 @@ impl ReadStoreFallible for PersistedStoreInnerReadOnlyWrapper {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
+        todo!()
+    }
+}
+
+impl ReadStoreNonFallible for PersistedStoreInnerReadOnlyWrapper {
+    fn get_committee(&self, _epoch: EpochId) -> Option<std::sync::Arc<Committee>> {
+        todo!()
+    }
+
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.sync();
+        self.inner
+            .checkpoints
+            .unbounded_iter()
+            .skip_to_last()
+            .next()
+            .map(|(_, checkpoint)| checkpoint.into())
+            .ok_or(IotaError::UserInput {
+                error: UserInputError::LatestCheckpointSequenceNumberNotFound,
+            })
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
+    fn get_highest_verified_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_highest_synced_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_lowest_available_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        Ok(0)
+    }
+
+    fn get_checkpoint_by_digest(&self, _digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> Option<VerifiedCheckpoint> {
+        self.sync();
+        self.inner
+            .checkpoints
+            .get(&sequence_number)
+            .expect("Fatal: DB read failed")
+            .map(|checkpoint| checkpoint.into())
+    }
+
+    fn get_checkpoint_contents_by_digest(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<CheckpointContents> {
+        self.sync();
+
+        self.inner
+            .checkpoint_contents
+            .get(digest)
+            .expect("Fatal: DB read failed")
+    }
+
+    fn get_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: CheckpointSequenceNumber,
+    ) -> Option<CheckpointContents> {
+        todo!()
+    }
+
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
+        self.sync();
+
+        self.inner
+            .transactions
+            .get(tx_digest)
+            .expect("Fatal: DB read failed")
+            .map(|transaction| Arc::new(transaction.into()))
+    }
+
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.sync();
+
+        self.inner
+            .effects
+            .get(tx_digest)
+            .expect("Fatal: DB read failed")
+    }
+
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.sync();
+
+        self.inner
+            .events
+            .get(event_digest)
+            .expect("Fatal: DB read failed")
+    }
+
+    fn get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: CheckpointSequenceNumber,
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
+        todo!()
+    }
+
+    fn get_full_checkpoint_contents(
+        &self,
+        _digest: &CheckpointContentsDigest,
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 }

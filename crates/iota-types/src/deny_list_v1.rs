@@ -20,12 +20,10 @@ use crate::{
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
-    error::{
-        ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
-    },
+    error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
     object::{Object, Owner},
-    storage::{DenyListResult, ObjectStoreFallible},
+    storage::{DenyListResult, ObjectStoreFallible, ObjectStoreNonFallible},
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
@@ -252,31 +250,27 @@ pub fn check_global_pause(
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 
-pub fn get_deny_list_root_object(object_store: &dyn ObjectStoreFallible) -> IotaResult<Object> {
-    match object_store.try_get_object(&IOTA_DENY_LIST_OBJECT_ID) {
-        Ok(Some(obj)) => Ok(obj),
-        Ok(None) => {
+pub fn get_deny_list_root_object(object_store: &dyn ObjectStoreNonFallible) -> Option<Object> {
+    match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
+        Some(obj) => Some(obj),
+        None => {
             error!("Deny list object not found");
-            Err(IotaError::Storage("Deny list object not found".to_string()))
-        }
-        Err(err) => {
-            error!("Failed to get deny list object: {err}");
-            Err(IotaError::Storage(format!(
-                "Failed to get deny list object: {err}"
-            )))
+            None
         }
     }
 }
 
 pub fn get_deny_list_obj_initial_shared_version(
-    object_store: &dyn ObjectStoreFallible,
-) -> IotaResult<SequenceNumber> {
-    get_deny_list_root_object(object_store).map(|obj| match obj.owner {
-        Owner::Shared {
-            initial_shared_version,
-        } => initial_shared_version,
-        _ => unreachable!("Deny list object must be shared"),
-    })
+    object_store: &dyn ObjectStoreNonFallible,
+) -> SequenceNumber {
+    get_deny_list_root_object(object_store)
+        .map(|obj| match obj.owner {
+            Owner::Shared {
+                initial_shared_version,
+            } => initial_shared_version,
+            _ => unreachable!("Deny list object must be shared"),
+        })
+        .unwrap()
 }
 
 /// Fetches the setting from a particular config.

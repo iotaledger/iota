@@ -17,7 +17,7 @@ use crate::{
     authority_aggregator::AuthAggMetrics,
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     epoch::committee_store::CommitteeStore,
-    execution_cache::ObjectCacheRead,
+    execution_cache::ObjectCacheReadFallible,
     safe_client::SafeClientMetricsBase,
 };
 
@@ -31,7 +31,7 @@ pub trait ReconfigObserver<A: Clone> {
 /// This is used in TransactionOrchestrator.
 pub struct OnsiteReconfigObserver {
     reconfig_rx: tokio::sync::broadcast::Receiver<IotaSystemState>,
-    execution_cache: Arc<dyn ObjectCacheRead>,
+    execution_cache: Arc<dyn ObjectCacheReadFallible>,
     committee_store: Arc<CommitteeStore>,
     // TODO: Use Arc for both metrics.
     safe_client_metrics_base: SafeClientMetricsBase,
@@ -41,7 +41,7 @@ pub struct OnsiteReconfigObserver {
 impl OnsiteReconfigObserver {
     pub fn new(
         reconfig_rx: tokio::sync::broadcast::Receiver<IotaSystemState>,
-        execution_cache: Arc<dyn ObjectCacheRead>,
+        execution_cache: Arc<dyn ObjectCacheReadFallible>,
         committee_store: Arc<CommitteeStore>,
         safe_client_metrics_base: SafeClientMetricsBase,
         auth_agg_metrics: AuthAggMetrics,

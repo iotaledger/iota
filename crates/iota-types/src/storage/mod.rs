@@ -279,10 +279,10 @@ impl<S: ?Sized + BackingPackageStore> BackingPackageStore for &mut S {
 }
 
 pub fn load_package_object_from_object_store(
-    store: &impl ObjectStoreFallible,
+    store: &impl ObjectStoreNonFallible,
     package_id: &ObjectID,
 ) -> IotaResult<Option<PackageObject>> {
-    let package = store.try_get_object(package_id)?;
+    let package = store.get_object(package_id);
     if let Some(obj) = &package {
         fp_ensure!(
             obj.is_package(),
@@ -556,17 +556,17 @@ impl Display for DeleteKind {
     }
 }
 
-pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStoreFallible {
-    fn as_object_store(&self) -> &dyn ObjectStoreFallible;
+pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStore {
+    fn as_object_store(&self) -> &dyn ObjectStore;
 }
 
 impl<T> BackingStore for T
 where
     T: BackingPackageStore,
     T: ChildObjectResolver,
-    T: ObjectStoreFallible,
+    T: ObjectStore,
 {
-    fn as_object_store(&self) -> &dyn ObjectStoreFallible {
+    fn as_object_store(&self) -> &dyn ObjectStore {
         self
     }
 }

@@ -34,7 +34,10 @@ use iota_types::{
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
-    storage::{ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreFallible},
+    storage::{
+        ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreFallible,
+        ReadStoreNonFallible,
+    },
     transaction::{
         InputObjects, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
@@ -398,6 +401,114 @@ impl ReadStoreFallible for ValidatorWithFullnode {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
+        todo!()
+    }
+}
+
+impl ReadStoreNonFallible for ValidatorWithFullnode {
+    fn get_committee(&self, _epoch: EpochId) -> Option<Arc<iota_types::committee::Committee>> {
+        todo!()
+    }
+
+    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        Ok(self.validator.epoch_store_for_testing().epoch())
+    }
+
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        let sequence_number = self
+            .validator
+            .get_latest_checkpoint_sequence_number()
+            .unwrap();
+        Ok(self
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .unwrap())
+    }
+
+    fn get_highest_verified_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_highest_synced_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_lowest_available_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
+    {
+        todo!()
+    }
+
+    fn get_checkpoint_by_digest(
+        &self,
+        _digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> Option<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> Option<VerifiedCheckpoint> {
+        self.validator
+            .get_checkpoint_store()
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .expect("db error")
+    }
+
+    fn get_checkpoint_contents_by_digest(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        self.validator
+            .get_checkpoint_store()
+            .get_checkpoint_contents(digest)
+            .expect("db error")
+    }
+
+    fn get_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        todo!()
+    }
+
+    fn get_transaction(
+        &self,
+        tx_digest: &TransactionDigest,
+    ) -> Option<Arc<iota_types::transaction::VerifiedTransaction>> {
+        self.validator
+            .get_transaction_cache_reader()
+            .get_transaction_block(tx_digest)
+    }
+
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.validator
+            .get_transaction_cache_reader()
+            .get_executed_effects(tx_digest)
+    }
+
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.validator
+            .get_transaction_cache_reader()
+            .get_events(event_digest)
+    }
+
+    fn get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
+        todo!()
+    }
+
+    fn get_full_checkpoint_contents(
+        &self,
+        _digest: &CheckpointContentsDigest,
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 }

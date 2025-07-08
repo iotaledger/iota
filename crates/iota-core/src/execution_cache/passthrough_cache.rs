@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{future::ready, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
@@ -17,7 +17,10 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible, PackageObject},
+    storage::{
+        MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible, ObjectStoreNonFallible,
+        PackageObject,
+    },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use prometheus::Registry;
@@ -26,8 +29,9 @@ use tracing::instrument;
 use typed_store::Map;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
-    ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
+    CheckpointCacheFallible, ExecutionCacheCommit, ExecutionCacheMetrics,
+    ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, ObjectCacheReadFallible,
+    ObjectCacheReadNonFallible, StateSyncAPI, TestingAPI, TransactionCacheRead,
     TransactionCacheReadFallible, TransactionCacheReadNonFallible, implement_passthrough_traits,
 };
 use crate::{
@@ -67,8 +71,8 @@ impl PassthroughCache {
         &self.store
     }
 
-    fn revert_state_update_impl(&self, digest: &TransactionDigest) -> IotaResult {
-        self.store.revert_state_update(digest)
+    fn revert_state_update_impl(&self, digest: &TransactionDigest) {
+        self.store.revert_state_update(digest).expect("db error");
     }
 
     fn clear_state_end_of_epoch_impl(&self, execution_guard: &ExecutionLockWriteGuard) {
@@ -80,16 +84,126 @@ impl PassthroughCache {
             .ok();
     }
 
-    fn bulk_insert_genesis_objects_impl(&self, objects: &[Object]) -> IotaResult {
-        self.store.bulk_insert_genesis_objects(objects)
+    fn bulk_insert_genesis_objects_impl(&self, objects: &[Object]) {
+        self.store
+            .bulk_insert_genesis_objects(objects)
+            .expect("db error");
     }
 
-    fn insert_genesis_object_impl(&self, object: Object) -> IotaResult {
-        self.store.insert_genesis_object(object)
+    fn insert_genesis_object_impl(&self, object: Object) {
+        self.store.insert_genesis_object(object).expect("db error");
     }
 }
 
-impl ObjectCacheRead for PassthroughCache {
+impl ObjectCacheRead for PassthroughCache {}
+
+impl ObjectCacheReadFallible for PassthroughCache {
+    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+        self.package_cache
+            .get_package_object(package_id, &*self.store)
+    }
+
+    fn try_force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
+        self.package_cache
+            .force_reload_system_packages(system_package_ids.iter().cloned(), self);
+    }
+
+    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+        self.store.try_get_object(id).map_err(Into::into)
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+    ) -> IotaResult<Option<Object>> {
+        Ok(self.store.try_get_object_by_key(object_id, version)?)
+    }
+
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> Result<Vec<Option<Object>>, IotaError> {
+        Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
+    }
+
+    fn try_object_exists_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+    ) -> IotaResult<bool> {
+        self.store.object_exists_by_key(object_id, version)
+    }
+
+    fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
+        self.store.multi_object_exists_by_key(object_keys)
+    }
+
+    fn try_get_latest_object_ref_or_tombstone(
+        &self,
+        object_id: ObjectID,
+    ) -> IotaResult<Option<ObjectRef>> {
+        self.store.get_latest_object_ref_or_tombstone(object_id)
+    }
+
+    fn try_get_latest_object_or_tombstone(
+        &self,
+        object_id: ObjectID,
+    ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
+        self.store.get_latest_object_or_tombstone(object_id)
+    }
+
+    fn try_find_object_lt_or_eq_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> IotaResult<Option<Object>> {
+        self.store.find_object_lt_or_eq_version(object_id, version)
+    }
+
+    fn try_get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaLockResult {
+        self.store.get_lock(obj_ref, epoch_store)
+    }
+
+    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+        self.store.get_latest_live_version_for_object_id(object_id)
+    }
+
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+        self.store.check_owned_objects_are_live(owned_object_refs)
+    }
+
+    fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+        get_iota_system_state(self)
+    }
+
+    fn try_get_marker_value(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<MarkerValue>> {
+        self.store.get_marker_value(object_id, &version, epoch_id)
+    }
+
+    fn try_get_latest_marker(
+        &self,
+        object_id: &ObjectID,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
+        self.store.get_latest_marker(object_id, epoch_id)
+    }
+
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+        self.store.perpetual_tables.get_highest_pruned_checkpoint()
+    }
+}
+
+impl ObjectCacheReadNonFallible for PassthroughCache {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
@@ -100,57 +214,53 @@ impl ObjectCacheRead for PassthroughCache {
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.store.try_get_object(id).map_err(Into::into)
+    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+        self.store.get_object(id)
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<Option<Object>> {
-        Ok(self.store.try_get_object_by_key(object_id, version)?)
+    fn get_object_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+        self.store.get_object_by_key(object_id, version)
     }
 
-    fn multi_get_objects_by_key(
-        &self,
-        object_keys: &[ObjectKey],
-    ) -> Result<Vec<Option<Object>>, IotaError> {
-        Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        self.store.multi_get_objects_by_key(object_keys)
     }
 
-    fn object_exists_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<bool> {
-        self.store.object_exists_by_key(object_id, version)
+    fn object_exists_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> bool {
+        self.store
+            .object_exists_by_key(object_id, version)
+            .expect("db error")
     }
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
-        self.store.multi_object_exists_by_key(object_keys)
+    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> Vec<bool> {
+        self.store
+            .multi_object_exists_by_key(object_keys)
+            .expect("db error")
     }
 
-    fn get_latest_object_ref_or_tombstone(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        self.store.get_latest_object_ref_or_tombstone(object_id)
+    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+        self.store
+            .get_latest_object_ref_or_tombstone(object_id)
+            .expect("db error")
     }
 
     fn get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
-        self.store.get_latest_object_or_tombstone(object_id)
+    ) -> Option<(ObjectKey, ObjectOrTombstone)> {
+        self.store
+            .get_latest_object_or_tombstone(object_id)
+            .expect("db error")
     }
 
     fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> IotaResult<Option<Object>> {
-        self.store.find_object_lt_or_eq_version(object_id, version)
+    ) -> Option<Object> {
+        self.store
+            .find_object_lt_or_eq_version(object_id, version)
+            .expect("db error")
     }
 
     fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
@@ -174,20 +284,27 @@ impl ObjectCacheRead for PassthroughCache {
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<MarkerValue>> {
-        self.store.get_marker_value(object_id, &version, epoch_id)
+    ) -> Option<MarkerValue> {
+        self.store
+            .get_marker_value(object_id, &version, epoch_id)
+            .expect("db error")
     }
 
     fn get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        self.store.get_latest_marker(object_id, epoch_id)
+    ) -> Option<(SequenceNumber, MarkerValue)> {
+        self.store
+            .get_latest_marker(object_id, epoch_id)
+            .expect("db error")
     }
 
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
-        self.store.perpetual_tables.get_highest_pruned_checkpoint()
+    fn get_highest_pruned_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.store
+            .perpetual_tables
+            .get_highest_pruned_checkpoint()
+            .expect("db error")
     }
 }
 
@@ -299,7 +416,7 @@ impl ExecutionCacheWrite for PassthroughCache {
         &'a self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> BoxFuture<'a, ()> {
         async move {
             let tx_digest = *tx_outputs.transaction.digest();
             let effects_digest = tx_outputs.effects.digest();
@@ -317,11 +434,13 @@ impl ExecutionCacheWrite for PassthroughCache {
             //    could have since been deleted by a concurrent tx that finished first. In
             //    that case, check if the tx effects exist.
             self.store
-                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
+                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)
+                .expect("db error");
 
             self.store
                 .write_transaction_outputs(epoch_id, &[tx_outputs])
-                .await?;
+                .await
+                .expect("db error");
 
             self.executed_effects_digests_notify_read
                 .notify(&tx_digest, &effects_digest);
@@ -329,8 +448,6 @@ impl ExecutionCacheWrite for PassthroughCache {
             self.metrics
                 .pending_notify_read
                 .set(self.executed_effects_digests_notify_read.num_pending() as i64);
-
-            Ok(())
         }
         .boxed()
     }
@@ -383,16 +500,16 @@ impl ExecutionCacheCommit for PassthroughCache {
         &'a self,
         _epoch: EpochId,
         _digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> BoxFuture<'a, ()> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        ready(()).boxed()
     }
 
-    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, IotaResult> {
+    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, ()> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        ready(()).boxed()
     }
 }
 

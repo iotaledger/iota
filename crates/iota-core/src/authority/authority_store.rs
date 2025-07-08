@@ -25,7 +25,7 @@ use iota_types::{
     message_envelope::Message,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStoreFallible,
-        get_module,
+        ObjectStoreNonFallible, get_module,
     },
 };
 use itertools::izip;
@@ -643,7 +643,7 @@ impl AuthorityStore {
     pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, IotaError> {
         let mut result = Vec::new();
         for id in objects {
-            result.push(self.try_get_object(id)?);
+            result.push(self.get_object(id));
         }
         Ok(result)
     }
@@ -1868,6 +1868,17 @@ impl ObjectStoreFallible for AuthorityStore {
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.perpetual_tables
             .try_get_object_by_key(object_id, version)
+    }
+}
+
+impl ObjectStoreNonFallible for AuthorityStore {
+    /// Read an object and return it, or Ok(None) if the object was not found.
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.perpetual_tables.as_ref().get_object(object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.perpetual_tables.get_object_by_key(object_id, version)
     }
 }
 

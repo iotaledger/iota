@@ -48,7 +48,7 @@ use iota_types::{
     signature::VerifyParams,
     storage::{
         ObjectStore, ObjectStoreFallible, ObjectStoreNonFallible, ReadStoreFallible,
-        RestStateReader,
+        ReadStoreNonFallible, RestStateReader,
     },
     transaction::{
         EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
@@ -398,7 +398,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     ) -> anyhow::Result<()> {
         if let Some(path) = &self.data_ingestion_path {
             let file_name = format!("{}.chk", checkpoint.sequence_number);
-            let checkpoint_data = self.get_checkpoint_data(checkpoint, checkpoint_contents)?;
+            let checkpoint_data =
+                ReadStoreFallible::get_checkpoint_data(self, checkpoint, checkpoint_contents)?;
             std::fs::create_dir_all(path)?;
             let blob = Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?;
             std::fs::write(path.join(file_name), blob.to_bytes())?;
@@ -567,6 +568,104 @@ impl<T, V: store::SimulatorStore> ReadStoreFallible for Simulacrum<T, V> {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
+        todo!()
+    }
+}
+
+impl<T, V: store::SimulatorStore> ReadStoreNonFallible for Simulacrum<T, V> {
+    fn get_committee(
+        &self,
+        _epoch: iota_types::committee::EpochId,
+    ) -> Option<std::sync::Arc<Committee>> {
+        todo!()
+    }
+
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        Ok(self.store().get_highest_checkpoint().unwrap())
+    }
+
+    fn get_highest_verified_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_highest_synced_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        todo!()
+    }
+
+    fn get_lowest_available_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
+    {
+        // TODO wire this up to the underlying sim store, for now this will work since
+        // we never prune the sim store
+        Ok(0)
+    }
+
+    fn get_checkpoint_by_digest(
+        &self,
+        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> Option<VerifiedCheckpoint> {
+        self.store().get_checkpoint_by_digest(digest)
+    }
+
+    fn get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> Option<VerifiedCheckpoint> {
+        self.store()
+            .get_checkpoint_by_sequence_number(sequence_number)
+    }
+
+    fn get_checkpoint_contents_by_digest(
+        &self,
+        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        self.store().get_checkpoint_contents(digest)
+    }
+
+    fn get_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        todo!()
+    }
+
+    fn get_transaction(
+        &self,
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> Option<Arc<VerifiedTransaction>> {
+        self.store().get_transaction(tx_digest).map(Arc::new)
+    }
+
+    fn get_transaction_effects(
+        &self,
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> Option<TransactionEffects> {
+        self.store().get_transaction_effects(tx_digest)
+    }
+
+    fn get_events(
+        &self,
+        event_digest: &iota_types::digests::TransactionEventsDigest,
+    ) -> Option<iota_types::effects::TransactionEvents> {
+        self.store().get_transaction_events(event_digest)
+    }
+
+    fn get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
+        todo!()
+    }
+
+    fn get_full_checkpoint_contents(
+        &self,
+        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 }
