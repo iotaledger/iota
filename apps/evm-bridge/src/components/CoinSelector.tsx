@@ -35,14 +35,16 @@ export function CoinSelector() {
         // Skip if no reset needed
         if (!shouldResetSelection) return;
 
-        // Get first coin as default selection
-        const firstCoinType = sortedCoins[0]?.coinType;
+        // Find selected coin type in the sorted coins or default to the first one
+        const coinTypeToSelect =
+            sortedCoins.find((coin) => coin.coinType === selectedCoinType)?.coinType ||
+            sortedCoins[0]?.coinType;
 
         // Skip if first coin matches current selection
-        if (!firstCoinType || firstCoinType === selectedCoinType) return;
+        if (!coinTypeToSelect || coinTypeToSelect === selectedCoinType) return;
 
         // Reset selection to first coin
-        setValue(BridgeFormInputName.CoinType, firstCoinType, {
+        setValue(BridgeFormInputName.CoinType, coinTypeToSelect, {
             shouldValidate: true,
             shouldTouch: true,
         });
