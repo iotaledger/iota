@@ -2462,7 +2462,10 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::*;
-    use crate::authority::test_authority_builder::TestAuthorityBuilder;
+    use crate::{
+        authority::test_authority_builder::TestAuthorityBuilder,
+        execution_cache::{TransactionCacheReadFallible, TransactionCacheReadNonFallible},
+    };
 
     #[sim_test]
     pub async fn checkpoint_builder_test() {

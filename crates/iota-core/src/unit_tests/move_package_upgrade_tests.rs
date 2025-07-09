@@ -24,7 +24,6 @@ use iota_types::{
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectStoreFallible,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::{ident_str, language_storage::StructTag};
