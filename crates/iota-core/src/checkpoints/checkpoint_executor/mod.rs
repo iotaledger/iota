@@ -1345,7 +1345,7 @@ async fn finalize_checkpoint(
             transaction_cache_reader,
             &checkpoint,
             &effects,
-        );
+        ).await;
     }
 
     // TODO remove once we no longer need to support this table for read RPC
