@@ -126,12 +126,20 @@ while [[ $(date +%s) -lt $end_time ]]; do
           netem_loss $v $p $d
           ;;
         "iptables")
-          peers=("${validators[@]/$v}")
-          b=${peers[RANDOM % ${#peers[@]}]}
-          iptables_block $v $b
+          # build peers array excluding the current validator
+          peers=()
+          for p in "${validators[@]}"; do
+            if [[ "$p" != "$v" ]]; then
+              peers+=("$p")
+            fi
+          done
+          # select a random peer to block
+          b="${peers[RANDOM % ${#peers[@]}]}"
+          iptables_block "$v" "$b"
+          # block duration
           d=$((RANDOM % 60 + 60))
-          sleep $d
-          iptables_unblock $v $b
+          sleep "$d"
+          iptables_unblock "$v" "$b"
           ;;
       esac
     done
