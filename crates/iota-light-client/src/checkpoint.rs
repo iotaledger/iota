@@ -346,7 +346,7 @@ impl<'a> CheckpointSummaryFileStore<'a> {
 }
 
 impl WriteStore for CheckpointSummaryFileStore<'_> {
-    fn insert_checkpoint(
+    fn try_insert_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> iota_types::storage::error::Result<()> {
@@ -362,21 +362,21 @@ impl WriteStore for CheckpointSummaryFileStore<'_> {
         Ok(())
     }
 
-    fn update_highest_synced_checkpoint(
+    fn try_update_highest_synced_checkpoint(
         &self,
         _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
     ) -> iota_types::storage::error::Result<()> {
         unimplemented!()
     }
 
-    fn update_highest_verified_checkpoint(
+    fn try_update_highest_verified_checkpoint(
         &self,
         _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
     ) -> iota_types::storage::error::Result<()> {
         unimplemented!()
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
         _: iota_types::messages_checkpoint::VerifiedCheckpointContents,
@@ -384,7 +384,7 @@ impl WriteStore for CheckpointSummaryFileStore<'_> {
         unimplemented!()
     }
 
-    fn insert_committee(&self, _: Committee) -> iota_types::storage::error::Result<()> {
+    fn try_insert_committee(&self, _: Committee) -> iota_types::storage::error::Result<()> {
         unimplemented!()
     }
 }

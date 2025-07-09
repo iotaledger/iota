@@ -184,24 +184,27 @@ impl ObjectStore for SharedInMemoryStore {
 }
 
 impl WriteStore for SharedInMemoryStore {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         self.inner_mut().insert_checkpoint(checkpoint);
         Ok(())
     }
 
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         self.inner_mut()
             .update_highest_synced_checkpoint(checkpoint);
         Ok(())
     }
 
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
         self.inner_mut()
             .update_highest_verified_checkpoint(checkpoint);
         Ok(())
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
@@ -211,7 +214,7 @@ impl WriteStore for SharedInMemoryStore {
         Ok(())
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         self.inner_mut().insert_committee(new_committee);
         Ok(())
     }
@@ -582,27 +585,30 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 }
 
 impl WriteStore for SingleCheckpointSharedInMemoryStore {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         {
             let mut locked = self.0.0.write().unwrap();
             locked.checkpoints.clear();
             locked.sequence_number_to_digest.clear();
         }
-        self.0.insert_checkpoint(checkpoint)?;
+        self.0.try_insert_checkpoint(checkpoint)?;
         Ok(())
     }
 
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.update_highest_synced_checkpoint(checkpoint)?;
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
         Ok(())
     }
 
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.update_highest_verified_checkpoint(checkpoint)?;
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
+        self.0.try_update_highest_verified_checkpoint(checkpoint)?;
         Ok(())
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
@@ -615,11 +621,12 @@ impl WriteStore for SingleCheckpointSharedInMemoryStore {
             locked.full_checkpoint_contents.clear();
             locked.checkpoint_contents.clear();
         }
-        self.0.insert_checkpoint_contents(checkpoint, contents)?;
+        self.0
+            .try_insert_checkpoint_contents(checkpoint, contents)?;
         Ok(())
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
-        self.0.insert_committee(new_committee)
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
+        self.0.try_insert_committee(new_committee)
     }
 }

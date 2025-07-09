@@ -626,15 +626,15 @@ where
             let committee =
                 Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
             self.store
-                .insert_committee(committee)
+                .try_insert_committee(committee)
                 .expect("store operation should not fail");
         }
 
         self.store
-            .update_highest_verified_checkpoint(&checkpoint)
+            .try_update_highest_verified_checkpoint(&checkpoint)
             .expect("store operation should not fail");
         self.store
-            .update_highest_synced_checkpoint(&checkpoint)
+            .try_update_highest_synced_checkpoint(&checkpoint)
             .expect("store operation should not fail");
 
         // We don't care if no one is listening as this is a broadcast channel
@@ -1158,7 +1158,7 @@ where
         // Insert the newly verified checkpoint into our store, which will bump our
         // highest verified checkpoint watermark as well.
         store
-            .insert_checkpoint(&checkpoint)
+            .try_insert_checkpoint(&checkpoint)
             .expect("store operation should not fail");
     }
 
@@ -1293,7 +1293,7 @@ async fn sync_checkpoint_contents<S>(
                         let _: &VerifiedCheckpoint = &checkpoint;  // type hint
 
                         store
-                            .update_highest_synced_checkpoint(&checkpoint)
+                            .try_update_highest_synced_checkpoint(&checkpoint)
                             .expect("store operation should not fail");
                         // We don't care if no one is listening as this is a broadcast channel
                         let _ = checkpoint_event_sender.send(checkpoint.clone());
@@ -1469,7 +1469,7 @@ where
             if contents.verify_digests(digest).is_ok() {
                 let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
                 store
-                    .insert_checkpoint_contents(checkpoint, verified_contents)
+                    .try_insert_checkpoint_contents(checkpoint, verified_contents)
                     .expect("store operation should not fail");
                 return Some(contents);
             }

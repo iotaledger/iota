@@ -470,11 +470,14 @@ impl ArchiveReader {
                                 VerifiedCheckpointContents::new_unchecked(contents.clone());
                             // Insert content
                             store
-                                .insert_checkpoint_contents(&verified_checkpoint, verified_contents)
+                                .try_insert_checkpoint_contents(
+                                    &verified_checkpoint,
+                                    verified_contents,
+                                )
                                 .map_err(|e| anyhow!("Failed to insert content: {e}"))?;
                             // Update highest synced watermark
                             store
-                                .update_highest_synced_checkpoint(&verified_checkpoint)
+                                .try_update_highest_synced_checkpoint(&verified_checkpoint)
                                 .map_err(|e| anyhow!("Failed to update watermark: {e}"))?;
                             txn_counter.fetch_add(contents.size() as u64, Ordering::Relaxed);
                             self.archive_reader_metrics
@@ -541,7 +544,7 @@ impl ArchiveReader {
         S: WriteStore + Clone,
     {
         store
-            .insert_checkpoint(VerifiedCheckpoint::new_unchecked(certified_checkpoint).borrow())
+            .try_insert_checkpoint(VerifiedCheckpoint::new_unchecked(certified_checkpoint).borrow())
             .map_err(|e| anyhow!("Failed to insert checkpoint: {e}"))
     }
 
@@ -579,11 +582,11 @@ impl ArchiveReader {
                 };
                 // Insert checkpoint summary
                 store
-                    .insert_checkpoint(&verified_checkpoint)
+                    .try_insert_checkpoint(&verified_checkpoint)
                     .map_err(|e| anyhow!("Failed to insert checkpoint: {e}"))?;
                 // Update highest verified checkpoint watermark
                 store
-                    .update_highest_verified_checkpoint(&verified_checkpoint)
+                    .try_update_highest_verified_checkpoint(&verified_checkpoint)
                     .expect("store operation should not fail");
                 Ok::<VerifiedCheckpoint, anyhow::Error>(verified_checkpoint)
             })

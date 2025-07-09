@@ -308,7 +308,7 @@ pub async fn verify_checkpoint_range<S>(
         .expect("Failed to fetch checkpoint")
         .expect("Expected end of checkpoint range to exist in store");
     store
-        .update_highest_verified_checkpoint(&final_checkpoint)
+        .try_update_highest_verified_checkpoint(&final_checkpoint)
         .expect("Failed to update highest verified checkpoint");
 }
 

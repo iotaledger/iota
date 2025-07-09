@@ -288,7 +288,7 @@ impl ObjectStore for RocksDbStore {
 }
 
 impl WriteStore for RocksDbStore {
-    fn insert_checkpoint(
+    fn try_insert_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), iota_types::storage::error::Error> {
@@ -300,7 +300,7 @@ impl WriteStore for RocksDbStore {
             let next_committee = next_epoch_committee.iter().cloned().collect();
             let committee =
                 Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
-            self.insert_committee(committee)?;
+            self.try_insert_committee(committee)?;
         }
 
         self.checkpoint_store
@@ -308,7 +308,7 @@ impl WriteStore for RocksDbStore {
             .map_err(Into::into)
     }
 
-    fn update_highest_synced_checkpoint(
+    fn try_update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), iota_types::storage::error::Error> {
@@ -323,7 +323,7 @@ impl WriteStore for RocksDbStore {
         Ok(())
     }
 
-    fn update_highest_verified_checkpoint(
+    fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), iota_types::storage::error::Error> {
@@ -338,7 +338,7 @@ impl WriteStore for RocksDbStore {
         Ok(())
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
@@ -352,7 +352,7 @@ impl WriteStore for RocksDbStore {
             .map_err(Into::into)
     }
 
-    fn insert_committee(
+    fn try_insert_committee(
         &self,
         new_committee: Committee,
     ) -> Result<(), iota_types::storage::error::Error> {
