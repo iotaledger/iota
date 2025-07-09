@@ -355,7 +355,7 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) -> IotaResult {
-        let res = self.cache().commit_transaction_outputs(1, &[tx]).await;
+        let res = self.cache().try_commit_transaction_outputs(1, &[tx]).await;
         self.count_action();
         res
     }
@@ -559,7 +559,7 @@ async fn test_committed() {
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
         s.cache()
-            .commit_transaction_outputs(1, &[tx])
+            .try_commit_transaction_outputs(1, &[tx])
             .await
             .expect("commit failed");
         s.assert_not_dirty(&[1, 2]);

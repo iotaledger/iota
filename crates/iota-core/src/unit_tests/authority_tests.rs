@@ -3636,7 +3636,7 @@ async fn test_store_revert_wrap_move_call() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[*create_effects.transaction_digest()],
         )
@@ -3733,7 +3733,7 @@ async fn test_store_revert_unwrap_move_call() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_effects.transaction_digest(),
@@ -4014,7 +4014,7 @@ async fn test_store_revert_add_ofield() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_outer_effects.transaction_digest(),
@@ -4141,7 +4141,7 @@ async fn test_store_revert_remove_ofield() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_outer_effects.transaction_digest(),

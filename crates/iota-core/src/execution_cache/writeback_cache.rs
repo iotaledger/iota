@@ -1196,7 +1196,7 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
-    fn commit_transaction_outputs<'a>(
+    fn try_commit_transaction_outputs<'a>(
         &'a self,
         epoch: EpochId,
         digests: &'a [TransactionDigest],
@@ -1204,7 +1204,7 @@ impl ExecutionCacheCommit for WritebackCache {
         WritebackCache::commit_transaction_outputs(self, epoch, digests).boxed()
     }
 
-    fn persist_transactions<'a>(
+    fn try_persist_transactions<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {

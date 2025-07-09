@@ -440,7 +440,7 @@ impl CheckpointExecutor {
         let cache_commit = self.state.get_cache_commit();
         debug!("committing checkpoint transactions to disk");
         cache_commit
-            .commit_transaction_outputs(epoch_store.epoch(), all_tx_digests)
+            .try_commit_transaction_outputs(epoch_store.epoch(), all_tx_digests)
             .await
             .expect("commit_transaction_outputs cannot fail");
 
@@ -678,7 +678,7 @@ impl CheckpointExecutor {
 
                     let cache_commit = self.state.get_cache_commit();
                     cache_commit
-                        .commit_transaction_outputs(cur_epoch, &[change_epoch_tx_digest])
+                        .try_commit_transaction_outputs(cur_epoch, &[change_epoch_tx_digest])
                         .await
                         .expect("commit_transaction_outputs cannot fail");
                     fail_point_async!("prune-and-compact");

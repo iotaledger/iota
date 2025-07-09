@@ -1225,7 +1225,7 @@ impl CheckpointBuilder {
         // can be removed.
         self.state
             .get_cache_commit()
-            .persist_transactions(&all_tx_digests)
+            .try_persist_transactions(&all_tx_digests)
             .await?;
 
         batch.write()?;

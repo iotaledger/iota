@@ -296,19 +296,19 @@ impl AccumulatorStore for ProxyCache {
 }
 
 impl ExecutionCacheCommit for ProxyCache {
-    fn commit_transaction_outputs<'a>(
+    fn try_commit_transaction_outputs<'a>(
         &'a self,
         epoch: EpochId,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {
-        delegate_method!(self.commit_transaction_outputs(epoch, digests))
+        delegate_method!(self.try_commit_transaction_outputs(epoch, digests))
     }
 
-    fn persist_transactions<'a>(
+    fn try_persist_transactions<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {
-        delegate_method!(self.persist_transactions(digests))
+        delegate_method!(self.try_persist_transactions(digests))
     }
 }
 

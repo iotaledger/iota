@@ -173,7 +173,7 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
-    fn commit_transaction_outputs<'a>(
+    fn try_commit_transaction_outputs<'a>(
         &'a self,
         epoch: EpochId,
         digests: &'a [TransactionDigest],
@@ -190,7 +190,7 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// After we have done that, crash recovery will be done by
     /// re-processing consensus commits and pending_consensus_transactions,
     /// and this method can be removed.
-    fn persist_transactions<'a>(
+    fn try_persist_transactions<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult>;
@@ -846,8 +846,8 @@ macro_rules! implement_passthrough_traits {
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-                self.store.
-                    multi_get_transactions_perpetual_checkpoints(digests)
+                self.store
+                    .multi_get_transactions_perpetual_checkpoints(digests)
             }
 
             fn try_insert_finalized_transactions_perpetual_checkpoints(

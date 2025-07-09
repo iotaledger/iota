@@ -323,7 +323,7 @@ impl AccumulatorStore for PassthroughCache {
 }
 
 impl ExecutionCacheCommit for PassthroughCache {
-    fn commit_transaction_outputs<'a>(
+    fn try_commit_transaction_outputs<'a>(
         &'a self,
         _epoch: EpochId,
         _digests: &'a [TransactionDigest],
@@ -333,7 +333,10 @@ impl ExecutionCacheCommit for PassthroughCache {
         async { Ok(()) }.boxed()
     }
 
-    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, IotaResult> {
+    fn try_persist_transactions(
+        &self,
+        _digests: &[TransactionDigest],
+    ) -> BoxFuture<'_, IotaResult> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
         async { Ok(()) }.boxed()
