@@ -169,6 +169,7 @@ pub fn build_execution_cache_from_env(
     }
 }
 
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
@@ -196,6 +197,7 @@ pub trait ExecutionCacheCommit: Send + Sync {
     ) -> BoxFuture<'a, IotaResult>;
 }
 
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait ObjectCacheRead: Send + Sync {
     fn try_get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
@@ -474,6 +476,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber>;
 }
 
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait TransactionCacheRead: Send + Sync {
     fn try_multi_get_transaction_blocks(
         &self,
@@ -633,6 +636,7 @@ pub trait TransactionCacheRead: Send + Sync {
     }
 }
 
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait ExecutionCacheWrite: Send + Sync {
     /// Write the output of a transaction.
     ///
@@ -669,6 +673,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
     ) -> BoxFuture<'a, IotaResult>;
 }
 
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait CheckpointCache: Send + Sync {
     // TODO: In addition to the methods below, this will eventually
     // include access to the CheckpointStore.
@@ -695,6 +700,7 @@ pub trait CheckpointCache: Send + Sync {
     ) -> IotaResult;
 }
 
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait ExecutionCacheReconfigAPI: Send + Sync {
     fn try_insert_genesis_object(&self, object: Object) -> IotaResult;
     fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
@@ -730,6 +736,7 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 // execution, but that arrived via state sync. The fact that it came via state
 // sync implies that it is certified output, and can be immediately persisted to
 // the store.
+#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
 pub trait StateSyncAPI: Send + Sync {
     fn try_insert_transaction_and_effects(
         &self,
@@ -761,6 +768,20 @@ macro_rules! implement_storage_traits {
             ) -> StorageResult<Option<Object>> {
                 ObjectCacheRead::try_get_object_by_key(self, object_id, version)
                     .map_err(StorageError::custom)
+            }
+
+            // Non-fallible implementations we need to provide manually to avoid type ambiguity.
+            fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+                ObjectCacheRead::try_get_object(self, object_id).expect("read from store failed")
+            }
+
+            fn get_object_by_key(
+                &self,
+                object_id: &ObjectID,
+                version: iota_types::base_types::VersionNumber,
+            ) -> Option<Object> {
+                ObjectCacheRead::try_get_object_by_key(self, object_id, version)
+                    .expect("read from store failed")
             }
         }
 
@@ -840,6 +861,7 @@ macro_rules! implement_storage_traits {
 // store.
 macro_rules! implement_passthrough_traits {
     ($implementor: ident) => {
+        #[iota_macros::extend_impl_with_non_fallible("read from store failed")]
         impl CheckpointCache for $implementor {
             fn try_get_transaction_perpetual_checkpoint(
                 &self,
@@ -867,6 +889,7 @@ macro_rules! implement_passthrough_traits {
             }
         }
 
+        #[iota_macros::extend_impl_with_non_fallible("read from store failed")]
         impl ExecutionCacheReconfigAPI for $implementor {
             fn try_insert_genesis_object(&self, object: Object) -> IotaResult {
                 self.insert_genesis_object_impl(object)
@@ -927,6 +950,7 @@ macro_rules! implement_passthrough_traits {
             }
         }
 
+        #[iota_macros::extend_impl_with_non_fallible("read from store failed")]
         impl StateSyncAPI for $implementor {
             fn try_insert_transaction_and_effects(
                 &self,

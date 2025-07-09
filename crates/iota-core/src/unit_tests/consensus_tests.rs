@@ -66,11 +66,7 @@ pub async fn test_certificates(
     };
     for gas_object in test_gas_objects() {
         // Object digest may be different in genesis than originally generated.
-        let gas_object = authority
-            .get_object(&gas_object.id())
-            .await
-            .unwrap()
-            .unwrap();
+        let gas_object = authority.get_object(&gas_object.id()).await.unwrap();
         // Make a sample transaction.
         let module = "object_basics";
         let function = "create";

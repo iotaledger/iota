@@ -6679,6 +6679,7 @@ dependencies = [
  "iota-data-ingestion-core",
  "iota-graphql-rpc-client",
  "iota-json-rpc-types",
+ "iota-macros",
  "iota-package-resolver",
  "iota-rest-api",
  "iota-sdk 1.4.0-alpha",
@@ -7096,6 +7097,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.100",
+ "tokio",
 ]
 
 [[package]]
@@ -7225,6 +7227,7 @@ dependencies = [
  "bcs",
  "diffy",
  "fastcrypto",
+ "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rust-sdk",
@@ -13146,6 +13149,7 @@ dependencies = [
  "iota-framework",
  "iota-genesis-builder",
  "iota-keys",
+ "iota-macros",
  "iota-protocol-config",
  "iota-storage",
  "iota-swarm-config",

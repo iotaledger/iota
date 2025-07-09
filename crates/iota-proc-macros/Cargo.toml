@@ -19,3 +19,6 @@ syn = { version = "2.0", features = ["full", "fold", "extra-traits"] }
 
 [target.'cfg(msim)'.dependencies]
 msim-macros = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.44.2", package = "msim-macros" }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }

@@ -71,6 +71,7 @@ impl RocksDbStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ReadStore for RocksDbStore {
     fn try_get_checkpoint_by_digest(
         &self,
@@ -268,6 +269,7 @@ impl ReadStore for RocksDbStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectStore for RocksDbStore {
     fn try_get_object(
         &self,
@@ -287,6 +289,7 @@ impl ObjectStore for RocksDbStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl WriteStore for RocksDbStore {
     fn try_insert_checkpoint(
         &self,
@@ -380,6 +383,7 @@ impl RestReadStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectStore for RestReadStore {
     fn try_get_object(
         &self,
@@ -397,6 +401,7 @@ impl ObjectStore for RestReadStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ReadStore for RestReadStore {
     fn try_get_committee(
         &self,

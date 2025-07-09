@@ -818,6 +818,7 @@ pub struct AuthorityState {
 /// lock.
 ///
 /// Repeating valid commands should produce no changes and return no error.
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl AuthorityState {
     pub fn is_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
         epoch_store.committee().authority_exists(&self.name)
@@ -2220,7 +2221,7 @@ impl AuthorityState {
         Ok(epoch_store.reference_gas_price())
     }
 
-    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+    pub fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.get_transaction_cache_reader()
             .try_is_tx_already_executed(digest)
     }
@@ -2694,7 +2695,7 @@ impl AuthorityState {
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
                 let (_, seq, _) = self
-                    .get_object_or_tombstone(request.object_id)
+                    .try_get_object_or_tombstone(request.object_id)
                     .await?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
@@ -3346,15 +3347,13 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.get_object_store()
-            .try_get_object(object_id)
-            .map_err(Into::into)
+    pub async fn try_get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
+        self.get_object_store().try_get_object(object_id).map_err(Into::into)
     }
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .get_object(&IOTA_SYSTEM_ADDRESS.into())
+            .try_get_object(&IOTA_SYSTEM_ADDRESS.into())
             .await?
             .expect("framework object should always exist")
             .compute_object_reference())
@@ -4334,11 +4333,11 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    pub async fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
-    pub async fn get_object_or_tombstone(
+    pub async fn try_get_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
@@ -4451,7 +4450,7 @@ impl AuthorityState {
         binary_config: &BinaryConfig,
     ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
         let ids: Vec<_> = system_packages.iter().map(|(id, _, _)| *id).collect();
-        let objects = self.get_objects(&ids).await.expect("read cannot fail");
+        let objects = self.get_objects(&ids).await;
 
         let mut res = Vec::with_capacity(system_packages.len());
         for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
@@ -4787,8 +4786,7 @@ impl AuthorityState {
         // reconfiguration anyway.
         if self
             .get_transaction_cache_reader()
-            .try_is_tx_already_executed(tx_digest)
-            .expect("read cannot fail")
+            .try_is_tx_already_executed(tx_digest)?
         {
             warn!("change epoch tx has already been executed via state sync");
             bail!("change epoch tx has already been executed via state sync",);

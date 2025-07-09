@@ -1702,8 +1702,7 @@ impl CheckpointBuilder {
         let root_txs = self
             .state
             .get_transaction_cache_reader()
-            .try_multi_get_transaction_blocks(root_digests)
-            .unwrap();
+            .multi_get_transaction_blocks(root_digests);
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
@@ -1729,8 +1728,7 @@ impl CheckpointBuilder {
                     .iter()
                     .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
-            )
-            .unwrap();
+            );
 
         if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
@@ -2711,6 +2709,7 @@ mod tests {
         assert_eq!(c2sc.sequence_number, 1);
     }
 
+    #[iota_macros::extend_impl_with_non_fallible("read from store failed")]
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
         fn try_notify_read_executed_effects(
             &self,

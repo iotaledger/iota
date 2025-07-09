@@ -109,7 +109,7 @@ impl EpochStartConfiguration {
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
-            get_deny_list_obj_initial_shared_version(object_store)?;
+            get_deny_list_obj_initial_shared_version(object_store);
         Ok(Self::V2(EpochStartConfigurationV2 {
             system_state,
             epoch_digest,

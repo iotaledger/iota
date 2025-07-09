@@ -237,16 +237,13 @@ pub fn verify_checkpoint<S>(
 where
     S: WriteStore,
 {
-    let committee = store
-        .try_get_committee(checkpoint.epoch())
-        .expect("store operation should not fail")
-        .unwrap_or_else(|| {
-            panic!(
-                "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
-                checkpoint.epoch(),
-                checkpoint.sequence_number()
-            )
-        });
+    let committee = store.get_committee(checkpoint.epoch()).unwrap_or_else(|| {
+        panic!(
+            "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
+            checkpoint.epoch(),
+            checkpoint.sequence_number()
+        )
+    });
 
     verify_checkpoint_with_committee(committee, current, checkpoint)
 }
@@ -263,31 +260,23 @@ pub async fn verify_checkpoint_range<S>(
     futures::stream::iter(range_clone.into_iter().tuple_windows())
         .map(|(a, b)| {
             let current = store
-                .try_get_checkpoint_by_sequence_number(a)
-                .expect("store operation should not fail")
+                .get_checkpoint_by_sequence_number(a)
                 .unwrap_or_else(|| {
-                    panic!(
-                        "Checkpoint {a} should exist in store after summary sync but does not"
-                    );
+                    panic!("Checkpoint {a} should exist in store after summary sync but does not");
                 });
             let next = store
-                .try_get_checkpoint_by_sequence_number(b)
-                .expect("store operation should not fail")
+                .get_checkpoint_by_sequence_number(b)
                 .unwrap_or_else(|| {
-                    panic!(
-                        "Checkpoint {a} should exist in store after summary sync but does not"
-                    );
+                    panic!("Checkpoint {a} should exist in store after summary sync but does not");
                 });
-            let committee = store
-                .try_get_committee(next.epoch())
-                .expect("store operation should not fail")
-                .unwrap_or_else(|| {
-                    panic!(
-                        "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
-                        next.epoch(),
-                        next.sequence_number()
-                    )
-                });
+
+            let committee = store.get_committee(next.epoch()).unwrap_or_else(|| {
+                panic!(
+                    "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
+                    next.epoch(),
+                    next.sequence_number()
+                )
+            });
             tokio::spawn(async move {
                 verify_checkpoint_with_committee(committee, &current, next.clone().into())
                     .expect("Checkpoint verification failed");
@@ -304,8 +293,7 @@ pub async fn verify_checkpoint_range<S>(
         .last()
         .expect("Received empty checkpoint range");
     let final_checkpoint = store
-        .try_get_checkpoint_by_sequence_number(last)
-        .expect("Failed to fetch checkpoint")
+        .get_checkpoint_by_sequence_number(last)
         .expect("Expected end of checkpoint range to exist in store");
     store
         .try_update_highest_verified_checkpoint(&final_checkpoint)

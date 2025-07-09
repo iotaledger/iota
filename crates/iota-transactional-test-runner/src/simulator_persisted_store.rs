@@ -500,6 +500,7 @@ impl ModuleResolver for PersistedStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectStore for PersistedStore {
     fn try_get_object(
         &self,
@@ -517,6 +518,7 @@ impl ObjectStore for PersistedStore {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
@@ -549,6 +551,7 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_committee(
         &self,
@@ -648,12 +651,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.sync();
-
-        Ok(self
-            .inner
-            .effects
-            .get(tx_digest)
-            .expect("Fatal: DB read failed"))
+        self.inner.effects.get(tx_digest)
     }
 
     fn try_get_events(
@@ -661,12 +659,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.sync();
-
-        Ok(self
-            .inner
-            .events
-            .get(event_digest)
-            .expect("Fatal: DB read failed"))
+        self.inner.events.get(event_digest)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -705,12 +698,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_chain_identifier(
         &self,
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        Ok((*self
-            .try_get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap()
-            .digest())
-        .into())
+        Ok((*self.get_checkpoint_by_sequence_number(0).unwrap().digest()).into())
     }
 
     fn account_owned_objects_info_iter(

@@ -432,6 +432,7 @@ impl ValidatorKeypairProvider for CommitteeWithKeys<'_> {
     }
 }
 
+#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
     fn try_get_object(
         &self,
@@ -449,6 +450,7 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
     }
 }
 
+#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn try_get_committee(
         &self,

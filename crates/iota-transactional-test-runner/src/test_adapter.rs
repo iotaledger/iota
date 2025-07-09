@@ -2396,6 +2396,7 @@ async fn update_named_address_mapping(
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectStore for IotaTestAdapter {
     fn try_get_object(
         &self,
@@ -2413,6 +2414,7 @@ impl ObjectStore for IotaTestAdapter {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ReadStore for IotaTestAdapter {
     fn try_get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
         self.executor.try_get_latest_epoch_id()

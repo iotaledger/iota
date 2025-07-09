@@ -1141,9 +1141,7 @@ impl WritebackCache {
         // pending_consensus_transactions until after the transaction has executed.
         let Some((_, outputs)) = self.dirty.pending_transaction_writes.remove(tx) else {
             assert!(
-                !self
-                    .try_is_tx_already_executed(tx)
-                    .expect("read cannot fail"),
+                !self.try_is_tx_already_executed(tx)?,
                 "attempt to revert committed transaction"
             );
 
@@ -1197,6 +1195,7 @@ impl WritebackCache {
 
 impl ExecutionCacheAPI for WritebackCache {}
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ExecutionCacheCommit for WritebackCache {
     fn try_commit_transaction_outputs<'a>(
         &'a self,
@@ -1214,6 +1213,7 @@ impl ExecutionCacheCommit for WritebackCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectCacheRead for WritebackCache {
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.metrics
@@ -1656,6 +1656,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl TransactionCacheRead for WritebackCache {
     fn try_multi_get_transaction_blocks(
         &self,
@@ -1831,6 +1832,7 @@ impl TransactionCacheRead for WritebackCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("write to store failed")]
 impl ExecutionCacheWrite for WritebackCache {
     fn try_acquire_transaction_locks<'a>(
         &'a self,

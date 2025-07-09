@@ -89,6 +89,7 @@ impl PassthroughCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ObjectCacheRead for PassthroughCache {
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
@@ -195,6 +196,7 @@ impl ObjectCacheRead for PassthroughCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl TransactionCacheRead for PassthroughCache {
     fn try_multi_get_transaction_blocks(
         &self,
@@ -241,6 +243,7 @@ impl TransactionCacheRead for PassthroughCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ExecutionCacheWrite for PassthroughCache {
     #[instrument(level = "debug", skip_all)]
     fn try_write_transaction_outputs<'a>(
@@ -326,6 +329,7 @@ impl AccumulatorStore for PassthroughCache {
     }
 }
 
+#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl ExecutionCacheCommit for PassthroughCache {
     fn try_commit_transaction_outputs<'a>(
         &'a self,
@@ -337,10 +341,10 @@ impl ExecutionCacheCommit for PassthroughCache {
         async { Ok(()) }.boxed()
     }
 
-    fn try_persist_transactions(
-        &self,
-        _digests: &[TransactionDigest],
-    ) -> BoxFuture<'_, IotaResult> {
+    fn try_persist_transactions<'a>(
+        &'a self,
+        _digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
         async { Ok(()) }.boxed()

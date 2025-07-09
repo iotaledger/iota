@@ -549,6 +549,7 @@ pub struct FullCheckpointContents {
     user_signatures: Vec<Vec<GenericSignature>>,
 }
 
+#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
 impl FullCheckpointContents {
     pub fn new_with_causally_ordered_transactions<T>(contents: T) -> Self
     where
@@ -567,6 +568,7 @@ impl FullCheckpointContents {
             user_signatures,
         }
     }
+
     pub fn from_contents_and_execution_data(
         contents: CheckpointContents,
         execution_data: impl Iterator<Item = ExecutionData>,
@@ -577,7 +579,8 @@ impl FullCheckpointContents {
             user_signatures: contents.into_v1().user_signatures,
         }
     }
-    pub fn from_checkpoint_contents<S>(
+
+    pub fn try_from_checkpoint_contents<S>(
         store: S,
         contents: CheckpointContents,
     ) -> Result<Option<Self>, crate::storage::error::Error>
