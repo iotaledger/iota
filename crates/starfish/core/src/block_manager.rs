@@ -639,7 +639,6 @@ mod tests {
             context.clone(),
             dag_state,
             Arc::new(NoopBlockVerifier),
-            Arc::new(DashSet::new()),
         );
 
         // create a DAG
@@ -699,7 +698,6 @@ mod tests {
             context.clone(),
             dag_state,
             Arc::new(NoopBlockVerifier),
-            Arc::new(DashSet::new()),
         );
 
         // create a DAG
@@ -749,7 +747,6 @@ mod tests {
             context.clone(),
             dag_state,
             Arc::new(NoopBlockVerifier),
-            Arc::new(DashSet::new()),
         );
 
         // create a DAG of 2 rounds
@@ -817,7 +814,6 @@ mod tests {
                 context.clone(),
                 dag_state,
                 Arc::new(NoopBlockVerifier),
-                Arc::new(DashSet::new()),
             );
 
             // WHEN
@@ -911,7 +907,6 @@ mod tests {
             context.clone(),
             dag_state,
             Arc::new(test_verifier),
-            Arc::new(DashSet::new()),
         );
 
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
@@ -964,7 +959,6 @@ mod tests {
             context.clone(),
             dag_state,
             Arc::new(NoopBlockVerifier),
-            Arc::new(DashSet::new()),
         );
 
         // create a DAG

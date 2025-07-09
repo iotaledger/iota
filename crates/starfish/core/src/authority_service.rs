@@ -1288,7 +1288,6 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(DashSet::new()),
         ));
 
         // Test delaying blocks with time drift.
@@ -1352,7 +1351,6 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
-            Arc::new(DashSet::new()),
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well
@@ -1398,7 +1396,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(context.clone(), dag_state.clone(), block_verifier);
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
@@ -1412,7 +1410,7 @@ mod tests {
             context.clone(),
             CommitConsumer::new(sender.clone(), 0),
             dag_state.clone(),
-            store,
+            store.clone(),
             leader_schedule.clone(),
         );
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
@@ -1455,7 +1453,6 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
-            Arc::new(DashSet::new()),
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well

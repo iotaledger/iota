@@ -511,7 +511,6 @@ pub(crate) mod tests {
             context.clone(),
             dag_state.clone(),
             Arc::new(NoopBlockVerifier),
-            Arc::new(DashSet::new()),
         );
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());

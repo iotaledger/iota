@@ -215,7 +215,6 @@ fn authority_setup(num_authorities: usize, authority_index: u32) -> AuthorityTes
         context.clone(),
         dag_state.clone(),
         Arc::new(NoopBlockVerifier),
-        Arc::new(DashSet::new()),
     );
 
     AuthorityTestFixture {
