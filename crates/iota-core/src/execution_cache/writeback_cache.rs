@@ -1653,54 +1653,6 @@ impl ObjectCacheReadFallible for WritebackCache {
 }
 
 impl ObjectCacheReadNonFallible for WritebackCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        self.metrics
-            .record_cache_request("package", "package_cache");
-        if let Some(p) = self.packages.get(package_id) {
-            if cfg!(debug_assertions) {
-                if let Some(store_package) = self.store.try_get_object(package_id).unwrap() {
-                    assert_eq!(
-                        store_package.digest(),
-                        p.object().digest(),
-                        "Package object cache is inconsistent for package {:?}",
-                        package_id
-                    );
-                }
-            }
-            self.metrics.record_cache_hit("package", "package_cache");
-            return Ok(Some(p));
-        } else {
-            self.metrics.record_cache_miss("package", "package_cache");
-        }
-
-        // We try the dirty objects cache as well before going to the database. This is
-        // necessary because the package could be evicted from the package cache
-        // before it is committed to the database.
-        if let Some(p) = self
-            .get_object_impl("package", package_id)
-            .expect("db error")
-        {
-            if p.is_package() {
-                let p = PackageObject::new(p);
-                tracing::trace!(
-                    "caching package: {:?}",
-                    p.object().compute_object_reference()
-                );
-                self.metrics.record_cache_write("package");
-                self.packages.insert(*package_id, p.clone());
-                Ok(Some(p))
-            } else {
-                Err(IotaError::UserInput {
-                    error: UserInputError::MoveObjectAsPackage {
-                        object_id: *package_id,
-                    },
-                })
-            }
-        } else {
-            Ok(None)
-        }
-    }
-
     fn force_reload_system_packages(&self, _system_package_ids: &[ObjectID]) {
         // This is a no-op because all writes go through the cache, therefore it
         // can never be incoherent
@@ -1967,10 +1919,6 @@ impl ObjectCacheReadNonFallible for WritebackCache {
         )
     }
 
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
-        get_iota_system_state(self)
-    }
-
     fn get_marker_value(
         &self,
         object_id: &ObjectID,
@@ -2002,82 +1950,6 @@ impl ObjectCacheReadNonFallible for WritebackCache {
                 .get_latest_marker(object_id, epoch_id)
                 .expect("db error"),
         }
-    }
-
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
-        match self.get_object_by_id_cache_only("lock", &obj_ref.0) {
-            CacheResult::Hit((_, obj)) => {
-                let actual_objref = obj.compute_object_reference();
-                if obj_ref != actual_objref {
-                    Ok(ObjectLockStatus::LockedAtDifferentVersion {
-                        locked_ref: actual_objref,
-                    })
-                } else {
-                    // requested object ref is live, check if there is a lock
-                    Ok(
-                        match self
-                            .object_locks
-                            .get_transaction_lock(&obj_ref, epoch_store)?
-                        {
-                            Some(tx_digest) => ObjectLockStatus::LockedToTx {
-                                locked_by_tx: tx_digest,
-                            },
-                            None => ObjectLockStatus::Initialized,
-                        },
-                    )
-                }
-            }
-            CacheResult::NegativeHit => {
-                Err(IotaError::from(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
-                    // even though we know the requested version, we leave it as None to indicate
-                    // that the object does not exist at any version
-                    version: None,
-                }))
-            }
-            CacheResult::Miss => self.record_db_get("lock").get_lock(obj_ref, epoch_store),
-        }
-    }
-
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
-        let obj = self.get_object_impl("live_objref", &object_id)?.ok_or(
-            UserInputError::ObjectNotFound {
-                object_id,
-                version: None,
-            },
-        )?;
-        Ok(obj.compute_object_reference())
-    }
-
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        do_fallback_lookup_fallible(
-            owned_object_refs,
-            |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
-                CacheResult::Hit((version, obj)) => {
-                    if obj.compute_object_reference() != *obj_ref {
-                        Err(UserInputError::ObjectVersionUnavailableForConsumption {
-                            provided_obj_ref: *obj_ref,
-                            current_version: version,
-                        }
-                        .into())
-                    } else {
-                        Ok(CacheResult::Hit(()))
-                    }
-                }
-                CacheResult::NegativeHit => Err(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
-                    version: None,
-                }
-                .into()),
-                CacheResult::Miss => Ok(CacheResult::Miss),
-            },
-            |remaining| {
-                self.record_db_multi_get("object_is_live", remaining.len())
-                    .check_owned_objects_are_live(remaining)?;
-                Ok(vec![(); remaining.len()])
-            },
-        )?;
-        Ok(())
     }
 
     fn get_highest_pruned_checkpoint(&self) -> CheckpointSequenceNumber {

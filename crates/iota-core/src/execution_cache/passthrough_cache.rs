@@ -204,11 +204,6 @@ impl ObjectCacheReadFallible for PassthroughCache {
 }
 
 impl ObjectCacheReadNonFallible for PassthroughCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        self.package_cache
-            .get_package_object(package_id, &*self.store)
-    }
-
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
         self.package_cache
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
@@ -261,22 +256,6 @@ impl ObjectCacheReadNonFallible for PassthroughCache {
         self.store
             .find_object_lt_or_eq_version(object_id, version)
             .expect("db error")
-    }
-
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
-        self.store.get_lock(obj_ref, epoch_store)
-    }
-
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
-        self.store.get_latest_live_version_for_object_id(object_id)
-    }
-
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        self.store.check_owned_objects_are_live(owned_object_refs)
-    }
-
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
-        get_iota_system_state(self)
     }
 
     fn get_marker_value(

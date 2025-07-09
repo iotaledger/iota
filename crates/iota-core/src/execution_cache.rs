@@ -196,7 +196,6 @@ pub trait ExecutionCacheCommit: Send + Sync {
 pub trait ObjectCacheRead: ObjectCacheReadNonFallible + ObjectCacheReadFallible {}
 
 pub trait ObjectCacheReadNonFallible: Send + Sync {
-    fn get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
     fn get_object(&self, id: &ObjectID) -> Option<Object>;
@@ -223,47 +222,6 @@ pub trait ObjectCacheReadNonFallible: Send + Sync {
     fn object_exists_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> bool;
 
     fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> Vec<bool>;
-
-    /// Load a list of objects from the store by object reference.
-    /// If they exist in the store, they are returned directly.
-    /// If any object missing, we try to figure out the best error to return.
-    /// If the object we are asking is currently locked at a future version, we
-    /// know this transaction is out-of-date and we return a
-    /// ObjectVersionUnavailableForConsumption, which indicates this is not
-    /// retriable. Otherwise, we return a ObjectNotFound error, which
-    /// indicates this is retriable.
-    fn multi_get_objects_with_more_accurate_error_return(
-        &self,
-        object_refs: &[ObjectRef],
-    ) -> Result<Vec<Object>, IotaError> {
-        let objects = self
-            .multi_get_objects_by_key(&object_refs.iter().map(ObjectKey::from).collect::<Vec<_>>());
-        let mut result = Vec::new();
-        for (object_opt, object_ref) in objects.into_iter().zip(object_refs) {
-            match object_opt {
-                None => {
-                    let live_objref = self._get_live_objref(object_ref.0)?;
-                    let error = if live_objref.1 >= object_ref.1 {
-                        UserInputError::ObjectVersionUnavailableForConsumption {
-                            provided_obj_ref: *object_ref,
-                            current_version: live_objref.1,
-                        }
-                    } else {
-                        UserInputError::ObjectNotFound {
-                            object_id: object_ref.0,
-                            version: Some(object_ref.1),
-                        }
-                    };
-                    return Err(IotaError::UserInput { error });
-                }
-                Some(object) => {
-                    result.push(object);
-                }
-            }
-        }
-        assert_eq!(result.len(), object_refs.len());
-        Ok(result)
-    }
 
     /// Used by transaction manager to determine if input objects are ready.
     /// Distinct from multi_get_object_by_key because it also consults
@@ -352,7 +310,6 @@ pub trait ObjectCacheReadNonFallible: Send + Sync {
         results.sort_by_key(|(idx, _)| *idx);
         results.into_iter().map(|(_, result)| result).collect()
     }
-
     /// Return the object with version less then or eq to the provided seq
     /// number. This is used by indexer to find the correct version of
     /// dynamic field child object. We do not store the version of the child
@@ -363,19 +320,6 @@ pub trait ObjectCacheReadNonFallible: Send + Sync {
         object_id: ObjectID,
         version: SequenceNumber,
     ) -> Option<Object>;
-
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult;
-
-    // This method is considered "private" - only used by
-    // multi_get_objects_with_more_accurate_error_return
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef>;
-
-    // Check that the given set of objects are live at the given version. This is
-    // used as a safety check before execution, and could potentially be deleted
-    // or changed to a debug_assert
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
-
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
 
     // Marker methods
 

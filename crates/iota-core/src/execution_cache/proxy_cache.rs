@@ -207,10 +207,6 @@ impl ObjectCacheReadFallible for ProxyCache {
 }
 
 impl ObjectCacheReadNonFallible for ProxyCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        delegate_method!(self.get_package_object(package_id))
-    }
-
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
         delegate_method!(self.force_reload_system_packages(system_package_ids))
     }
@@ -252,22 +248,6 @@ impl ObjectCacheReadNonFallible for ProxyCache {
         version: SequenceNumber,
     ) -> Option<Object> {
         delegate_method!(self.find_object_lt_or_eq_version(object_id, version))
-    }
-
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
-        delegate_method!(self.get_lock(obj_ref, epoch_store))
-    }
-
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
-        delegate_method!(self._try_get_live_objref(object_id))
-    }
-
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        delegate_method!(self.check_owned_objects_are_live(owned_object_refs))
-    }
-
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
-        delegate_method!(self.get_iota_system_state_object_unsafe())
     }
 
     fn get_marker_value(

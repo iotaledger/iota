@@ -949,7 +949,7 @@ async fn test_invalidate_package_cache_on_revert() {
 
         assert!(
             s.cache()
-                .get_package_object(&s.obj_id(2))
+                .try_get_package_object(&s.obj_id(2))
                 .unwrap()
                 .is_none()
         );
