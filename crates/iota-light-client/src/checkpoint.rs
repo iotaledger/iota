@@ -390,51 +390,51 @@ impl WriteStore for CheckpointSummaryFileStore<'_> {
 }
 
 impl ReadStore for CheckpointSummaryFileStore<'_> {
-    fn get_committee(
+    fn try_get_committee(
         &self,
         _: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<Arc<Committee>>> {
         unimplemented!()
     }
 
-    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         unimplemented!()
     }
 
-    fn get_highest_verified_checkpoint(
+    fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         unimplemented!()
     }
 
-    fn get_highest_synced_checkpoint(
+    fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         unimplemented!()
     }
 
-    fn get_lowest_available_checkpoint(
+    fn try_get_lowest_available_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
     {
         unimplemented!()
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         _: &iota_types::digests::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         unimplemented!()
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         unimplemented!()
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         _: &iota_types::digests::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
@@ -443,7 +443,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
         unimplemented!()
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -452,7 +452,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
         unimplemented!()
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         _: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
@@ -460,21 +460,21 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
         unimplemented!()
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         _: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
         unimplemented!()
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         _: &iota_types::digests::TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -483,7 +483,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
         unimplemented!()
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         _: &iota_types::digests::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<

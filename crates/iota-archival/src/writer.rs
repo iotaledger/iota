@@ -441,11 +441,11 @@ impl ArchiveWriter {
 
         while kill.try_recv().is_err() {
             if let Some(checkpoint_summary) = store
-                .get_checkpoint_by_sequence_number(checkpoint_sequence_number)
+                .try_get_checkpoint_by_sequence_number(checkpoint_sequence_number)
                 .map_err(|_| anyhow!("Failed to read checkpoint summary from store"))?
             {
                 if let Some(checkpoint_contents) = store
-                    .get_full_checkpoint_contents(&checkpoint_summary.content_digest)
+                    .try_get_full_checkpoint_contents(&checkpoint_summary.content_digest)
                     .map_err(|_| anyhow!("Failed to read checkpoint content from store"))?
                 {
                     checkpoint_writer

@@ -52,7 +52,7 @@ async fn get_latest_committee(
     accept: AcceptFormat,
     State(state): State<StateReader>,
 ) -> Result<ResponseContent<ValidatorCommittee>> {
-    let current_epoch = state.inner().get_latest_checkpoint()?.epoch();
+    let current_epoch = state.inner().try_get_latest_checkpoint()?.epoch();
     let committee = state
         .get_committee(current_epoch)?
         .ok_or_else(|| CommitteeNotFoundError::new(current_epoch))?;
