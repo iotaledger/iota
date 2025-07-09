@@ -115,31 +115,26 @@ while [[ $(date +%s) -lt $end_time ]]; do
       case $act in
         "pause")
           d=$((RANDOM % 60 + 30))
-          pause_validator $v $d
+          ( pause_validator "$v" "$d" ) &
           ;;
         "restart")
-          restart_validator $v
+          ( restart_validator "$v" ) &
           ;;
         "netem")
           p=${loss_levels[RANDOM % ${#loss_levels[@]}]}
           d=$((RANDOM % 60 + 30))
-          netem_loss $v $p $d
+          ( netem_loss "$v" "$p" "$d" ) &
           ;;
         "iptables")
-          # build peers array excluding the current validator
+          # select a random peer
           peers=()
-          for p in "${validators[@]}"; do
-            if [[ "$p" != "$v" ]]; then
-              peers+=("$p")
-            fi
+          for p2 in "${validators[@]}"; do
+            [[ "$p2" != "$v" ]] && peers+=("$p2")
           done
-          # select a random peer to block
           b="${peers[RANDOM % ${#peers[@]}]}"
-          iptables_block "$v" "$b"
-          # block duration
           d=$((RANDOM % 60 + 60))
-          sleep "$d"
-          iptables_unblock "$v" "$b"
+          # run block/unblock in background
+          ( iptables_block "$v" "$b"; sleep "$d"; iptables_unblock "$v" "$b" ) &
           ;;
       esac
     done
