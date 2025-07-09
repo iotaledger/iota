@@ -1343,7 +1343,7 @@ async fn finalize_checkpoint(
     // TODO remove once we no longer need to support this table for read RPC
     state
         .get_checkpoint_cache()
-        .insert_finalized_transactions_perpetual_checkpoints(
+        .try_insert_finalized_transactions_perpetual_checkpoints(
             tx_digests,
             epoch_store.epoch(),
             checkpoint.sequence_number,

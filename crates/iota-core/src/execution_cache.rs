@@ -671,17 +671,17 @@ pub trait CheckpointCache: Send + Sync {
     // Currently, they are only used to implement `get_transaction_block`
     // for JSON RPC `ReadApi`.
 
-    fn get_transaction_perpetual_checkpoint(
+    fn try_get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>>;
 
-    fn multi_get_transactions_perpetual_checkpoints(
+    fn try_multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
 
-    fn insert_finalized_transactions_perpetual_checkpoints(
+    fn try_insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,

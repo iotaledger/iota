@@ -506,7 +506,7 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
         Ok(self
             .get_checkpoint_cache()
-            .multi_get_transactions_perpetual_checkpoints(digests)?)
+            .try_multi_get_transactions_perpetual_checkpoints(digests)?)
     }
 
     fn get_transaction_perpetual_checkpoint(
@@ -515,7 +515,7 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
         Ok(self
             .get_checkpoint_cache()
-            .get_transaction_perpetual_checkpoint(digest)?)
+            .try_get_transaction_perpetual_checkpoint(digest)?)
     }
 
     fn multi_get_checkpoint_by_sequence_number(

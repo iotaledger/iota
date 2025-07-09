@@ -5143,7 +5143,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         self.get_checkpoint_cache()
-            .get_transaction_perpetual_checkpoint(&digest)
+            .try_get_transaction_perpetual_checkpoint(&digest)
             .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
     }
 
@@ -5162,7 +5162,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let res = self
             .get_checkpoint_cache()
-            .multi_get_transactions_perpetual_checkpoints(digests)?;
+            .try_multi_get_transactions_perpetual_checkpoints(digests)?;
 
         Ok(res
             .into_iter()

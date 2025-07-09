@@ -313,28 +313,28 @@ impl ExecutionCacheCommit for ProxyCache {
 }
 
 impl CheckpointCache for ProxyCache {
-    fn get_transaction_perpetual_checkpoint(
+    fn try_get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        delegate_method!(self.get_transaction_perpetual_checkpoint(digest))
+        delegate_method!(self.try_get_transaction_perpetual_checkpoint(digest))
     }
 
-    fn multi_get_transactions_perpetual_checkpoints(
+    fn try_multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        delegate_method!(self.multi_get_transactions_perpetual_checkpoints(digests))
+        delegate_method!(self.try_multi_get_transactions_perpetual_checkpoints(digests))
     }
 
-    fn insert_finalized_transactions_perpetual_checkpoints(
+    fn try_insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
         delegate_method!(
-            self.insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+            self.try_insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
         )
     }
 }
