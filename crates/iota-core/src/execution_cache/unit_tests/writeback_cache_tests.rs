@@ -1047,7 +1047,7 @@ async fn test_concurrent_readers() {
                 println!("parent: {parent_ref:?}");
                 loop {
                     let parent = cache
-                        .get_object_by_key(&parent_ref.0, parent_ref.1)
+                        .try_get_object_by_key(&parent_ref.0, parent_ref.1)
                         .unwrap();
                     if parent.is_none() {
                         tokio::task::yield_now().await;

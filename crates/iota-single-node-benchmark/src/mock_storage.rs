@@ -63,7 +63,7 @@ impl InMemoryObjectStore {
             let obj: Option<Object> = match kind {
                 InputObjectKind::MovePackage(id) => self.get_package_object(id)?.map(|o| o.into()),
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.0, objref.1)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
@@ -82,7 +82,7 @@ impl InMemoryObjectStore {
                         panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
                     });
 
-                    self.get_object_by_key(id, *version)?
+                    self.try_get_object_by_key(id, *version)?
                 }
             };
 
@@ -109,7 +109,7 @@ impl InMemoryObjectStore {
 }
 
 impl ObjectStore for InMemoryObjectStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
@@ -117,12 +117,12 @@ impl ObjectStore for InMemoryObjectStore {
         Ok(self.objects.read().unwrap().get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(self.get_object(object_id).unwrap().and_then(|o| {
+        Ok(self.try_get_object(object_id).unwrap().and_then(|o| {
             if o.version() == version {
                 Some(o.clone())
             } else {
@@ -145,7 +145,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.get_object(child).unwrap().and_then(|o| {
+        Ok(self.try_get_object(child).unwrap().and_then(|o| {
             if o.version() <= child_version_upper_bound
                 && o.owner == Owner::ObjectOwner((*parent).into())
             {

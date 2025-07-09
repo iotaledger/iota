@@ -225,7 +225,7 @@ pub trait ReadStore: ObjectStore {
                 .collect::<Vec<_>>();
 
             let input_objects = self
-                .multi_get_objects_by_key(&input_object_keys)?
+                .try_multi_get_objects_by_key(&input_object_keys)?
                 .into_iter()
                 .enumerate()
                 .map(|(idx, maybe_object)| {
@@ -246,7 +246,7 @@ pub trait ReadStore: ObjectStore {
                 .collect::<Vec<_>>();
 
             let output_objects = self
-                .multi_get_objects_by_key(&output_object_keys)?
+                .try_multi_get_objects_by_key(&output_object_keys)?
                 .into_iter()
                 .enumerate()
                 .map(|(idx, maybe_object)| {

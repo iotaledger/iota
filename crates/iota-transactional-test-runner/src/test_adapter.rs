@@ -1749,9 +1749,9 @@ impl IotaTestAdapter {
 
     fn get_object(&self, id: &ObjectID, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
-            ObjectStore::get_object_by_key(&*self.executor, id, v)
+            ObjectStore::try_get_object_by_key(&*self.executor, id, v)
         } else {
-            ObjectStore::get_object(&*self.executor, id)
+            ObjectStore::try_get_object(&*self.executor, id)
         };
         match obj_res {
             Ok(Some(obj)) => Ok(obj),
@@ -2396,19 +2396,19 @@ async fn update_named_address_mapping(
 }
 
 impl ObjectStore for IotaTestAdapter {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        ObjectStore::get_object(&*self.executor, object_id)
+        ObjectStore::try_get_object(&*self.executor, object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        ObjectStore::get_object_by_key(&*self.executor, object_id, version)
+        ObjectStore::try_get_object_by_key(&*self.executor, object_id, version)
     }
 }
 

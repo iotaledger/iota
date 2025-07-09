@@ -164,14 +164,14 @@ impl ReadStore for SharedInMemoryStore {
 }
 
 impl ObjectStore for SharedInMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,
@@ -475,14 +475,14 @@ impl SingleCheckpointSharedInMemoryStore {
 }
 
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,

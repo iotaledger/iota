@@ -101,7 +101,7 @@ impl ObjectCacheRead for PassthroughCache {
     }
 
     fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.store.get_object(id).map_err(Into::into)
+        self.store.try_get_object(id).map_err(Into::into)
     }
 
     fn get_object_by_key(
@@ -109,14 +109,14 @@ impl ObjectCacheRead for PassthroughCache {
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.store.get_object_by_key(object_id, version)?)
+        Ok(self.store.try_get_object_by_key(object_id, version)?)
     }
 
     fn multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        Ok(self.store.multi_get_objects_by_key(object_keys)?)
+        Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
     }
 
     fn object_exists_by_key(

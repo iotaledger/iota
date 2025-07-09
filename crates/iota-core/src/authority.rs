@@ -2360,7 +2360,7 @@ impl AuthorityState {
                 // the old object must be present.
                 let Some(old_object) = self
                     .get_object_store()
-                    .get_object_by_key(id, *old_version)?
+                    .try_get_object_by_key(id, *old_version)?
                 else {
                     panic!(
                         "tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}"
@@ -2536,7 +2536,7 @@ impl AuthorityState {
                         // only allow to use it for genesis.
                         // reference: https://github.com/iotaledger/iota/issues/7267
                         self.get_object_store()
-                            .get_object(&object_id)?
+                            .try_get_object(&object_id)?
                             .ok_or_else(|| UserInputError::ObjectNotFound {
                                 object_id,
                                 version: Some(o.version()),
@@ -2544,7 +2544,7 @@ impl AuthorityState {
                     } else {
                         // Non-genesis object should be in the database with the given version.
                         self.get_object_store()
-                            .get_object_by_key(&object_id, o.version())?
+                            .try_get_object_by_key(&object_id, o.version())?
                             .ok_or_else(|| UserInputError::ObjectNotFound {
                                 object_id,
                                 version: Some(o.version()),
@@ -2709,7 +2709,7 @@ impl AuthorityState {
 
         let object = self
             .get_object_store()
-            .get_object_by_key(&request.object_id, requested_object_seq)?
+            .try_get_object_by_key(&request.object_id, requested_object_seq)?
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id: request.object_id,
@@ -3348,7 +3348,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub async fn get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
         self.get_object_store()
-            .get_object(object_id)
+            .try_get_object(object_id)
             .map_err(Into::into)
     }
 
@@ -3543,7 +3543,7 @@ impl AuthorityState {
         version: SequenceNumber,
     ) -> IotaResult<Owner> {
         self.get_object_store()
-            .get_object_by_key(object_id, version)?
+            .try_get_object_by_key(object_id, version)?
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id: *object_id,
@@ -3622,7 +3622,7 @@ impl AuthorityState {
 
         let objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&object_ids)?;
+            .try_multi_get_objects_by_key(&object_ids)?;
 
         for (o, id) in objects.into_iter().zip(object_ids) {
             let object = o.ok_or_else(|| {
@@ -3733,7 +3733,7 @@ impl AuthorityState {
 
         let input_objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&input_object_keys)?
+            .try_multi_get_objects_by_key(&input_object_keys)?
             .into_iter()
             .enumerate()
             .map(|(idx, maybe_object)| {
@@ -3761,7 +3761,7 @@ impl AuthorityState {
 
         let output_objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&output_object_keys)?
+            .try_multi_get_objects_by_key(&output_object_keys)?
             .into_iter()
             .enumerate()
             .map(|(idx, maybe_object)| {
@@ -5376,7 +5376,7 @@ impl NodeStateDump {
         // Record all system packages at this version
         let mut relevant_system_packages = Vec::new();
         for sys_package_id in BuiltInFramework::all_package_ids() {
-            if let Some(w) = object_store.get_object(&sys_package_id)? {
+            if let Some(w) = object_store.try_get_object(&sys_package_id)? {
                 relevant_system_packages.push(ObjDumpFormat::new(w))
             }
         }
@@ -5386,7 +5386,7 @@ impl NodeStateDump {
         for kind in effects.input_shared_objects() {
             match kind {
                 InputSharedObject::Mutate(obj_ref) | InputSharedObject::ReadOnly(obj_ref) => {
-                    if let Some(w) = object_store.get_object_by_key(&obj_ref.0, obj_ref.1)? {
+                    if let Some(w) = object_store.try_get_object_by_key(&obj_ref.0, obj_ref.1)? {
                         shared_objects.push(ObjDumpFormat::new(w))
                     }
                 }
@@ -5401,7 +5401,7 @@ impl NodeStateDump {
         // Child objects which are read but not mutated are not tracked anywhere else
         let mut loaded_child_objects = Vec::new();
         for (id, meta) in &inner_temporary_store.loaded_runtime_objects {
-            if let Some(w) = object_store.get_object_by_key(id, meta.version)? {
+            if let Some(w) = object_store.try_get_object_by_key(id, meta.version)? {
                 loaded_child_objects.push(ObjDumpFormat::new(w))
             }
         }
@@ -5409,7 +5409,7 @@ impl NodeStateDump {
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
         for (id, ver) in effects.modified_at_versions() {
-            if let Some(w) = object_store.get_object_by_key(&id, ver)? {
+            if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }
         }

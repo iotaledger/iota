@@ -32,7 +32,7 @@ impl StateReader {
 
     pub fn get_object(&self, object_id: ObjectId) -> crate::Result<Option<Object>> {
         self.inner
-            .get_object(&object_id.into())
+            .try_get_object(&object_id.into())
             .map_err(Into::into)
             .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
@@ -43,7 +43,7 @@ impl StateReader {
         version: Version,
     ) -> crate::Result<Option<Object>> {
         self.inner
-            .get_object_by_key(&object_id.into(), version.into())
+            .try_get_object_by_key(&object_id.into(), version.into())
             .map_err(Into::into)
             .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
