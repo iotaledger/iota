@@ -107,8 +107,8 @@ impl ObjectCacheReadFallible for ProxyCache {
         delegate_method!(self.try_get_package_object(package_id))
     }
 
-    fn try_force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
-        delegate_method!(self.try_force_reload_system_packages(system_package_ids))
+    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
+        delegate_method!(self.force_reload_system_packages(system_package_ids))
     }
 
     fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
@@ -207,10 +207,6 @@ impl ObjectCacheReadFallible for ProxyCache {
 }
 
 impl ObjectCacheReadNonFallible for ProxyCache {
-    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
-        delegate_method!(self.force_reload_system_packages(system_package_ids))
-    }
-
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
         delegate_method!(self.get_object(id))
     }

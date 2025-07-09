@@ -1253,7 +1253,7 @@ impl ObjectCacheReadFallible for WritebackCache {
         }
     }
 
-    fn try_force_reload_system_packages(&self, _system_package_ids: &[ObjectID]) {
+    fn force_reload_system_packages(&self, _system_package_ids: &[ObjectID]) {
         // This is a no-op because all writes go through the cache, therefore it
         // can never be incoherent
     }
@@ -1653,11 +1653,6 @@ impl ObjectCacheReadFallible for WritebackCache {
 }
 
 impl ObjectCacheReadNonFallible for WritebackCache {
-    fn force_reload_system_packages(&self, _system_package_ids: &[ObjectID]) {
-        // This is a no-op because all writes go through the cache, therefore it
-        // can never be incoherent
-    }
-
     // get_object and variants.
 
     fn get_object(&self, id: &ObjectID) -> Option<Object> {

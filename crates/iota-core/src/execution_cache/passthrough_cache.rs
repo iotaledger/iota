@@ -103,7 +103,7 @@ impl ObjectCacheReadFallible for PassthroughCache {
             .get_package_object(package_id, &*self.store)
     }
 
-    fn try_force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
+    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
         self.package_cache
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
@@ -204,11 +204,6 @@ impl ObjectCacheReadFallible for PassthroughCache {
 }
 
 impl ObjectCacheReadNonFallible for PassthroughCache {
-    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
-        self.package_cache
-            .force_reload_system_packages(system_package_ids.iter().cloned(), self);
-    }
-
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
         self.store.get_object(id)
     }

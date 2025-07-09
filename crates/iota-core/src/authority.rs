@@ -1496,7 +1496,7 @@ impl AuthorityState {
             // At the end of epoch, since system packages may have been upgraded, force
             // reload them in the cache.
             self.get_object_cache_reader()
-                .try_force_reload_system_packages(&BuiltInFramework::all_package_ids());
+                .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         }
 
         // commit_certificate finished, the tx is fully committed to the store.
@@ -4926,7 +4926,7 @@ impl AuthorityState {
     pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) -> IotaResult {
         self.get_reconfig_api().bulk_insert_genesis_objects(objects);
         self.get_object_cache_reader()
-            .try_force_reload_system_packages(&BuiltInFramework::all_package_ids());
+            .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         self.get_reconfig_api()
             .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
         Ok(())

@@ -196,8 +196,6 @@ pub trait ExecutionCacheCommit: Send + Sync {
 pub trait ObjectCacheRead: ObjectCacheReadNonFallible + ObjectCacheReadFallible {}
 
 pub trait ObjectCacheReadNonFallible: Send + Sync {
-    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
-
     fn get_object(&self, id: &ObjectID) -> Option<Object>;
 
     fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
@@ -397,7 +395,7 @@ pub trait ObjectCacheReadNonFallible: Send + Sync {
 pub trait ObjectCacheReadFallible: Send + Sync {
     fn try_get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
 
-    fn try_force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
+    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
     fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>>;
 
