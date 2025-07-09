@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{collections::VecDeque, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -11,7 +11,10 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{sync::broadcast, time::sleep};
+use tokio::{
+    sync::{Mutex, broadcast},
+    time::sleep,
+};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -38,6 +41,49 @@ use crate::{
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
+const MAX_FILTER_SIZE: u32 = 10000;
+
+struct FilterForHeaders {
+    header_digests: DashSet<BlockHeaderDigest>,
+    queue: Mutex<VecDeque<BlockHeaderDigest>>,
+}
+
+impl FilterForHeaders {
+    fn new() -> Self {
+        Self {
+            header_digests: DashSet::new(),
+            queue: Mutex::new(VecDeque::new()),
+        }
+    }
+    async fn add(&mut self, header_digest: BlockHeaderDigest) {
+        self.header_digests.insert(header_digest);
+        let mut queue = self.queue.lock().await;
+        queue.push_back(header_digest);
+        if queue.len() > MAX_FILTER_SIZE as usize {
+            if let Some(removed) = queue.pop_front() {
+                self.header_digests.remove(&removed);
+            }
+        }
+    }
+
+    async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) {
+        for digest in digests.iter() {
+            self.header_digests.insert(digest.clone());
+        }
+        let mut queue = self.queue.lock().await;
+        for digest in digests {
+            queue.push_back(digest);
+        }
+        while queue.len() > MAX_FILTER_SIZE as usize {
+            if let Some(removed) = queue.pop_front() {
+                self.header_digests.remove(&removed);
+            }
+        }
+    }
+    fn contains(&self, header_digest: &BlockHeaderDigest) -> bool {
+        self.header_digests.contains(header_digest)
+    }
+}
 
 /// Authority's network service implementation, agnostic to the actual
 /// networking stack used.
@@ -51,10 +97,11 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
-    /// A set contains BlockHeaderDigests for all received block headers.
-    /// Used to filter the headers if they are received multiple times.
-    /// Shared with BlockManager
-    received_block_headers: Arc<DashSet<BlockHeaderDigest>>,
+    /// A set contains BlockHeaderDigests for block headers, received from
+    /// streaming Used to filter the headers if they are received multiple
+    /// times. The size is limited by MAX_FILTER_SIZE, elements are evicted
+    /// when the threshold is exceeded/
+    received_block_headers: FilterForHeaders,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -67,7 +114,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
-        received_block_headers: Arc<DashSet<BlockHeaderDigest>>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -83,7 +129,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             subscription_counter,
             dag_state,
             store,
-            received_block_headers,
+            received_block_headers: FilterForHeaders::new(),
         }
     }
 }
@@ -558,6 +604,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .received_unique_headers_from_bundles
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
+
+        let mut digests_to_add_to_filter = vec![];
+        for block_header in additional_block_headers.iter() {
+            digests_to_add_to_filter.push(block_header.digest())
+        }
+        digests_to_add_to_filter.push(verified_block.digest());
+        self.received_block_headers
+            .add_batch(digests_to_add_to_filter)
+            .await;
 
         let mut missing_ancestors = self
             .core_dispatcher
@@ -1111,21 +1166,35 @@ mod tests {
     use async_trait::async_trait;
     use bytes::Bytes;
     use dashmap::DashSet;
+    use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::RwLock;
     use starfish_config::AuthorityIndex;
     use tokio::{sync::broadcast, time::sleep};
-    use iota_metrics::monitored_mpsc::unbounded_channel;
-    use crate::{Round, authority_service::AuthorityService, block_header::{
-        BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
-        VerifiedBlockHeader,
-    }, commit::CommitRange, commit_vote_monitor::CommitVoteMonitor, context::Context, core_thread::tests::MockCoreThreadDispatcher, dag_state::DagState, error::ConsensusResult, network::{BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock}, storage::mem_store::MemStore, synchronizer::Synchronizer, test_dag_builder::DagBuilder, TransactionClient, CommitConsumer};
-    use crate::block_manager::BlockManager;
-    use crate::block_verifier::{NoopBlockVerifier, SignedBlockVerifier};
-    use crate::commit_observer::CommitObserver;
-    use crate::core::{Core, CoreSignals};
-    use crate::core_thread::ChannelCoreThreadDispatcher;
-    use crate::leader_schedule::LeaderSchedule;
-    use crate::transaction::TransactionConsumer;
+
+    use crate::{
+        CommitConsumer, Round, TransactionClient,
+        authority_service::AuthorityService,
+        block_header::{
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
+            VerifiedBlockHeader,
+        },
+        block_manager::BlockManager,
+        block_verifier::{NoopBlockVerifier, SignedBlockVerifier},
+        commit::CommitRange,
+        commit_observer::CommitObserver,
+        commit_vote_monitor::CommitVoteMonitor,
+        context::Context,
+        core::{Core, CoreSignals},
+        core_thread::{ChannelCoreThreadDispatcher, tests::MockCoreThreadDispatcher},
+        dag_state::DagState,
+        error::ConsensusResult,
+        leader_schedule::LeaderSchedule,
+        network::{BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock},
+        storage::mem_store::MemStore,
+        synchronizer::Synchronizer,
+        test_dag_builder::DagBuilder,
+        transaction::TransactionConsumer,
+    };
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -1316,28 +1385,24 @@ mod tests {
         }
     }
 
-
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_handle_subscribe_bundle() {
         // GIVEN
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(SignedBlockVerifier::new(context.clone(), Arc::new(crate::block_verifier::test::TxnSizeVerifier {}));
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let received_block_headers = Arc::new(DashSet::new());
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            block_verifier,
-            received_block_headers.clone(),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone(), block_verifier);
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
-        //let _block_receiver = signal_receivers.block_broadcast_receiver();
+        // let _block_receiver = signal_receivers.block_broadcast_receiver();
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),

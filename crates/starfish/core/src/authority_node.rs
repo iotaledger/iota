@@ -128,14 +128,8 @@ impl ConsensusAuthority {
             transaction_verifier,
         ));
 
-        let received_block_headers = Arc::new(DashSet::new());
-
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            block_verifier.clone(),
-            received_block_headers.clone(),
-        );
+        let block_manager =
+            BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
 
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -207,7 +201,6 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store,
-            received_block_headers,
         ));
 
         let subscriber = Subscriber::new(
