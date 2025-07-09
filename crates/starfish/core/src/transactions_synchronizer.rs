@@ -336,13 +336,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 Some(command) = self.commands_receiver.recv() => {
                     match command {
                         Command::FetchTransactions{ missing_block_refs, result } => {
-                            // // Keep only the max allowed transactions to request. It is ok to reduce here as the scheduler
-                            // // task will take care of syncing whatever is leftover.
-                            // let missing_block_refs = missing_block_refs
-                            //     .into_iter()
-                            //     .take(MAX_TRANSACTIONS_PER_FETCH)
-                            //     .collect::<BTreeMap<_, _>>();
-
                             // Reorganize by authority - map from authority to the blocks they acknowledged
                             let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<BlockRef>> = BTreeMap::new();
                             for (block_ref, authorities) in &missing_block_refs {
@@ -354,59 +347,73 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                                 }
                             }
 
-                            let mut success = false;
+                            let mut assigned_block_refs = BTreeSet::new();
+
                             for (peer_index, authority_block_refs) in blocks_by_authority {
                                 if peer_index == self.context.own_index {
                                     continue;
                                 }
-                                // Keep only the max allowed transactions to request. It is ok to
-                                // reduce here as the scheduler
-                                // task will take care of syncing whatever is leftover.
-                                // We randomize the selected transactions to avoid asking different
-                                // nodes for exactly the same transactions.
-                                // Once sharding is implemented, we will need to always ask multiple
-                                // authorities for their shards of the same transactions, so probably
-                                // the randomization step will not be necessary.
-                                let authority_block_refs = authority_block_refs
-                                    .into_iter()
-                                    .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)
-                                    .into_iter()
-                                    .collect::<BTreeSet<_>>();
 
+                                // Remove block_refs already assigned to another peer
+                                let mut available_refs: BTreeSet<_> = authority_block_refs
+                                    .difference(&assigned_block_refs)
+                                    .cloned()
+                                    .collect();
 
-                                // Transaction locking guarantees that we are not fetching the same
-                                // transactions from too many authorities.
-                                let transactions_guard = self.inflight_transactions_map.lock_transactions(authority_block_refs, peer_index);
-                                let Some(transactions_guard) = transactions_guard else {
-                                    // TODO: if there are more missing transactions that we can
-                                    //  fetch from the authority then we could use them instead of
-                                    //  not fetching from the authority at all.
-                                    continue;
-                                };
+                                while !available_refs.is_empty() {
+                                    // Keep only the max allowed transactions to request. It is ok to
+                                    // reduce here as the scheduler
+                                    // task will take care of syncing whatever is leftover.
+                                    // We randomize the selected transactions to avoid asking different
+                                    // nodes for exactly the same transactions.
+                                    // Once sharding is implemented, we will need to always ask multiple
+                                    // authorities for their shards of the same transactions, so probably
+                                    // the randomization step will not be necessary.
+                                    let selected_block_refs = available_refs
+                                        .iter()
+                                        .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)
+                                        .into_iter()
+                                        .cloned()
+                                        .collect::<BTreeSet<_>>();
 
-                                match self
-                                    .fetch_transaction_senders
-                                    .get(&peer_index)
-                                    .expect("Fatal error, sender should be present")
-                                    .try_send(transactions_guard)
-                                {
-                                    Ok(_) => {
-                                        success = true;
-                                    },
-                                    Err(TrySendError::Full(_)) => {
-                                        warn!("Failed to send transactions to fetch from authority \
-                                            {peer_index}, the channel is full. This can happen if the transactions \
-                                            synchronizer is overloaded or the authority is not responding in time.");
-                                        continue;
-                                    },
-                                    Err(TrySendError::Closed(_)) => {
-                                        result.send(Err(ConsensusError::Shutdown)).ok();
-                                        return;
+                                    if selected_block_refs.is_empty() {
+                                        break;
+                                    }
+
+                                    // Mark these block_refs as assigned so no other peer gets them
+                                    assigned_block_refs.extend(&selected_block_refs);
+
+                                    if let Some(transactions_guard) = self.inflight_transactions_map.lock_transactions(selected_block_refs.clone(), peer_index) {
+                                        match self
+                                            .fetch_transaction_senders
+                                            .get(&peer_index)
+                                            .expect("Fatal error, sender should be present")
+                                            .try_send(transactions_guard)
+                                        {
+                                            Ok(_) => {},
+                                            Err(TrySendError::Full(_)) => {
+                                                warn!("Failed to send transactions to fetch from authority \
+                                                    {peer_index}, the channel is full. This can happen if the transactions \
+                                                    synchronizer is overloaded or the authority is not responding in time.");
+                                            },
+                                            Err(TrySendError::Closed(_)) => {
+                                                warn!("Failed to send transactions to fetch from authority \
+                                                    {peer_index}, the channel is closed.");
+                                            }
+                                        }
+                                        break;
+                                    } else {
+                                        // If the transactions guard could not be established for
+                                        // any transaction, remove attempted refs and try fetching
+                                        // different missing transactions from this peer.
+                                        available_refs.retain(|ref_to_remove| !selected_block_refs.contains(ref_to_remove));
+
+                                        // Loop continues if there are more candidates
                                     }
                                 }
                             }
 
-                                result.send(Ok(())).ok();
+                            result.send(Ok(())).ok();
                         }
                         Command::KickOffScheduler => {
                             // Reset the scheduler timeout timer to run immediately if not already running.
