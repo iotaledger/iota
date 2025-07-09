@@ -120,9 +120,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        backfill::pg_test_utils::{RowCount, database_url},
         db::get_pool_connection,
-        test_utils::TestDatabase,
+        test_utils::{RowCount, TestDatabase, test_database_url},
     };
 
     struct BackfillDummyTable;
@@ -169,7 +168,7 @@ mod tests {
     async fn ingestion_backfill_writes_to_db() {
         telemetry_subscribers::init_for_testing();
 
-        let mut db = TestDatabase::new(database_url("ingestion_backfill_test"));
+        let mut db = TestDatabase::new(test_database_url("ingestion_backfill_test"));
         db.recreate();
         db.reset_db();
 

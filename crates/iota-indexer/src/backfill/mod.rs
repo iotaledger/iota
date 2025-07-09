@@ -67,21 +67,3 @@ pub(crate) async fn get_backfill(kind: BackfillKind, _range_start: usize) -> Arc
         }
     }
 }
-
-#[cfg(feature = "pg_integration")]
-#[cfg(test)]
-mod pg_test_utils {
-    use diesel::{QueryableByName, sql_types::BigInt};
-
-    /// Returns the database URL for testing purposes.
-    pub(crate) fn database_url(db_name: &str) -> String {
-        format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
-    }
-
-    /// Counts how many rows exist in the target table.
-    #[derive(QueryableByName, Debug)]
-    pub(crate) struct RowCount {
-        #[diesel(sql_type = BigInt)]
-        pub(crate) cnt: i64,
-    }
-}

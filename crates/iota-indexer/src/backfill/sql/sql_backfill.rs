@@ -61,13 +61,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        backfill::{
-            BackfillKind,
-            pg_test_utils::{RowCount, database_url},
-            runner::BackfillRunner,
-        },
+        backfill::{BackfillKind, runner::BackfillRunner},
         config::BackfillConfig,
-        test_utils::TestDatabase,
+        test_utils::{RowCount, TestDatabase, test_database_url},
     };
 
     fn setup_source_and_target(pool: &ConnectionPool) {
@@ -126,7 +122,7 @@ mod tests {
     async fn insert_gap_fills_missing_ids() -> Result<(), IndexerError> {
         telemetry_subscribers::init_for_testing();
 
-        let mut database = TestDatabase::new(database_url("insert_gap_filler"));
+        let mut database = TestDatabase::new(test_database_url("insert_gap_filler"));
         database.recreate();
         database.reset_db();
 
@@ -169,7 +165,7 @@ mod tests {
     async fn skip_duplicates_allows_retry() -> Result<(), IndexerError> {
         telemetry_subscribers::init_for_testing();
 
-        let mut database = TestDatabase::new(database_url("skip_duplicates_retry"));
+        let mut database = TestDatabase::new(test_database_url("skip_duplicates_retry"));
         database.recreate();
         database.reset_db();
 
