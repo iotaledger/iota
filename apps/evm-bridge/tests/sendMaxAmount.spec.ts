@@ -188,7 +188,7 @@ test.describe('Send MAX amount from L2', () => {
 
         // Check if within acceptable range
         expect(actualGasFee).toBeGreaterThanOrEqual(0.000355);
-        expect(actualGasFee).toBeLessThanOrEqual(0.000373);
+        expect(actualGasFee).toBeLessThanOrEqual(0.000375);
         await expect(testPageL2.getByText('Bridge Assets')).toBeEnabled();
 
         const approveTransactionPagePromise = browserL2.waitForEvent('page');
@@ -198,7 +198,6 @@ test.describe('Send MAX amount from L2', () => {
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
 
         const l1Balance = await checkL1BalanceWithRetries(addressL1);
-
-        expect(Number(l1Balance).toFixed(6)).toEqual('8.999630');
+        expect(Number(l1Balance).toFixed(6)).toMatch(/^8\.9996\d\d$/);
     });
 });

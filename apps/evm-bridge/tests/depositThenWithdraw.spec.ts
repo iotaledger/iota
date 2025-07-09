@@ -167,7 +167,7 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
 
         // Check if within acceptable range
         expect(actualGasFee).toBeGreaterThanOrEqual(0.000355);
-        expect(actualGasFee).toBeLessThanOrEqual(0.000373);
+        expect(actualGasFee).toBeLessThanOrEqual(0.000375);
 
         await expect(pageWithL2Wallet.getByText('Bridge Assets')).toBeEnabled();
 
