@@ -10883,13 +10883,13 @@
     ]
   },
   "time": {
-    "from": "2025-07-07T17:01:52.180Z",
-    "to": "2025-07-07T18:46:35.336Z"
+    "from": "now-3h",
+    "to": "now"
   },
   "timepicker": {},
   "timezone": "Europe/Berlin",
   "title": "IOTA Consensus Overview",
-  "uid": "eeigyzrajocg0fconsensus2",
+  "uid": "consensusOverview",
   "version": 1,
   "weekStart": ""
 }
