@@ -729,13 +729,13 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 // sync implies that it is certified output, and can be immediately persisted to
 // the store.
 pub trait StateSyncAPI: Send + Sync {
-    fn insert_transaction_and_effects(
+    fn try_insert_transaction_and_effects(
         &self,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult;
 
-    fn multi_insert_transaction_and_effects(
+    fn try_multi_insert_transaction_and_effects(
         &self,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult;
@@ -926,7 +926,7 @@ macro_rules! implement_passthrough_traits {
         }
 
         impl StateSyncAPI for $implementor {
-            fn insert_transaction_and_effects(
+            fn try_insert_transaction_and_effects(
                 &self,
                 transaction: &VerifiedTransaction,
                 transaction_effects: &TransactionEffects,
@@ -936,7 +936,7 @@ macro_rules! implement_passthrough_traits {
                     .insert_transaction_and_effects(transaction, transaction_effects)?)
             }
 
-            fn multi_insert_transaction_and_effects(
+            fn try_multi_insert_transaction_and_effects(
                 &self,
                 transactions_and_effects: &[VerifiedExecutionData],
             ) -> IotaResult {

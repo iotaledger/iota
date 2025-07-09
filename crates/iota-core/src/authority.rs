@@ -4830,7 +4830,7 @@ impl AuthorityState {
         // able to deliver to the transaction to CheckpointExecutor after it is
         // included in a certified checkpoint.
         self.get_state_sync_store()
-            .insert_transaction_and_effects(&tx, &effects)
+            .try_insert_transaction_and_effects(&tx, &effects)
             .map_err(|err| {
                 let err: anyhow::Error = err.into();
                 err

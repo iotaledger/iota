@@ -394,19 +394,19 @@ impl ExecutionCacheReconfigAPI for ProxyCache {
 }
 
 impl StateSyncAPI for ProxyCache {
-    fn insert_transaction_and_effects(
+    fn try_insert_transaction_and_effects(
         &self,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
-        delegate_method!(self.insert_transaction_and_effects(transaction, transaction_effects))
+        delegate_method!(self.try_insert_transaction_and_effects(transaction, transaction_effects))
     }
 
-    fn multi_insert_transaction_and_effects(
+    fn try_multi_insert_transaction_and_effects(
         &self,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult {
-        delegate_method!(self.multi_insert_transaction_and_effects(transactions_and_effects))
+        delegate_method!(self.try_multi_insert_transaction_and_effects(transactions_and_effects))
     }
 }
 

@@ -415,7 +415,7 @@ impl BenchmarkContext {
                 .unwrap();
             state
                 .get_state_sync_store()
-                .multi_insert_transaction_and_effects(contents.transactions())
+                .try_multi_insert_transaction_and_effects(contents.transactions())
                 .unwrap();
             state
                 .get_checkpoint_store()

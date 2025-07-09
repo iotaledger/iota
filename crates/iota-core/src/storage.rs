@@ -345,7 +345,7 @@ impl WriteStore for RocksDbStore {
     ) -> Result<(), iota_types::storage::error::Error> {
         self.cache_traits
             .state_sync_store
-            .multi_insert_transaction_and_effects(contents.transactions())
+            .try_multi_insert_transaction_and_effects(contents.transactions())
             .map_err(iota_types::storage::error::Error::custom)?;
         self.checkpoint_store
             .insert_verified_checkpoint_contents(checkpoint, contents)
