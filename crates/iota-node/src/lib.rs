@@ -1753,7 +1753,7 @@ impl IotaNode {
             let latest_system_state = self
                 .state
                 .get_object_cache_reader()
-                .get_iota_system_state_object_unsafe()
+                .try_get_iota_system_state_object_unsafe()
                 .expect("Read IOTA System State object cannot fail");
 
             #[cfg(msim)]

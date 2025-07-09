@@ -100,102 +100,106 @@ impl ProxyCache {
 }
 
 impl ObjectCacheRead for ProxyCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        delegate_method!(self.get_package_object(package_id))
+    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+        delegate_method!(self.try_get_package_object(package_id))
     }
 
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
         delegate_method!(self.force_reload_system_packages(system_package_ids))
     }
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
-        delegate_method!(self.get_object(id))
+    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+        delegate_method!(self.try_get_object(id))
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        delegate_method!(self.get_object_by_key(object_id, version))
+        delegate_method!(self.try_get_object_by_key(object_id, version))
     }
 
-    fn multi_get_objects_by_key(
+    fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        delegate_method!(self.multi_get_objects_by_key(object_keys))
+        delegate_method!(self.try_multi_get_objects_by_key(object_keys))
     }
 
-    fn object_exists_by_key(
+    fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<bool> {
-        delegate_method!(self.object_exists_by_key(object_id, version))
+        delegate_method!(self.try_object_exists_by_key(object_id, version))
     }
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
-        delegate_method!(self.multi_object_exists_by_key(object_keys))
+    fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
+        delegate_method!(self.try_multi_object_exists_by_key(object_keys))
     }
 
-    fn get_latest_object_ref_or_tombstone(
+    fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
-        delegate_method!(self.get_latest_object_ref_or_tombstone(object_id))
+        delegate_method!(self.try_get_latest_object_ref_or_tombstone(object_id))
     }
 
-    fn get_latest_object_or_tombstone(
+    fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
-        delegate_method!(self.get_latest_object_or_tombstone(object_id))
+        delegate_method!(self.try_get_latest_object_or_tombstone(object_id))
     }
 
-    fn find_object_lt_or_eq_version(
+    fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        delegate_method!(self.find_object_lt_or_eq_version(object_id, version))
+        delegate_method!(self.try_find_object_lt_or_eq_version(object_id, version))
     }
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
-        delegate_method!(self.get_lock(obj_ref, epoch_store))
+    fn try_get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaLockResult {
+        delegate_method!(self.try_get_lock(obj_ref, epoch_store))
     }
 
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
-        delegate_method!(self._get_live_objref(object_id))
+    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+        delegate_method!(self._try_get_live_objref(object_id))
     }
 
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        delegate_method!(self.check_owned_objects_are_live(owned_object_refs))
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+        delegate_method!(self.try_check_owned_objects_are_live(owned_object_refs))
     }
 
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
-        delegate_method!(self.get_iota_system_state_object_unsafe())
+    fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+        delegate_method!(self.try_get_iota_system_state_object_unsafe())
     }
 
-    fn get_marker_value(
+    fn try_get_marker_value(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
-        delegate_method!(self.get_marker_value(object_id, version, epoch_id))
+        delegate_method!(self.try_get_marker_value(object_id, version, epoch_id))
     }
 
-    fn get_latest_marker(
+    fn try_get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        delegate_method!(self.get_latest_marker(object_id, epoch_id))
+        delegate_method!(self.try_get_latest_marker(object_id, epoch_id))
     }
 
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
-        delegate_method!(self.get_highest_pruned_checkpoint())
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+        delegate_method!(self.try_get_highest_pruned_checkpoint())
     }
 }
 

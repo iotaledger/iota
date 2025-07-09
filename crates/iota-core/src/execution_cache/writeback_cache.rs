@@ -1213,7 +1213,7 @@ impl ExecutionCacheCommit for WritebackCache {
 }
 
 impl ObjectCacheRead for WritebackCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.metrics
             .record_cache_request("package", "package_cache");
         if let Some(p) = self.packages.get(package_id) {
@@ -1264,11 +1264,11 @@ impl ObjectCacheRead for WritebackCache {
 
     // get_object and variants.
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
         self.get_object_impl("object_latest", id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -1282,7 +1282,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn multi_get_objects_by_key(
+    fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
@@ -1302,7 +1302,7 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
-    fn object_exists_by_key(
+    fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -1316,7 +1316,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
+    fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         do_fallback_lookup(
             object_keys,
             |key| {
@@ -1333,7 +1333,7 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
-    fn get_latest_object_ref_or_tombstone(
+    fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
@@ -1350,7 +1350,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn get_latest_object_or_tombstone(
+    fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
@@ -1385,7 +1385,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id, version_bound))]
-    fn find_object_lt_or_eq_version(
+    fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version_bound: SequenceNumber,
@@ -1534,11 +1534,11 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+    fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
     }
 
-    fn get_marker_value(
+    fn try_get_marker_value(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -1553,7 +1553,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn get_latest_marker(
+    fn try_get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
@@ -1569,7 +1569,11 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
+    fn try_get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaLockResult {
         match self.get_object_by_id_cache_only("lock", &obj_ref.0) {
             CacheResult::Hit((_, obj)) => {
                 let actual_objref = obj.compute_object_reference();
@@ -1604,7 +1608,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         let obj = self.get_object_impl("live_objref", &object_id)?.ok_or(
             UserInputError::ObjectNotFound {
                 object_id,
@@ -1614,7 +1618,7 @@ impl ObjectCacheRead for WritebackCache {
         Ok(obj.compute_object_reference())
     }
 
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         do_fallback_lookup(
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
@@ -1645,7 +1649,7 @@ impl ObjectCacheRead for WritebackCache {
         Ok(())
     }
 
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
         self.store.perpetual_tables.get_highest_pruned_checkpoint()
     }
 }

@@ -520,7 +520,7 @@ impl TransactionManager {
         // So missing objects' availability are checked again after acquiring TM lock.
         let cache_miss_availability = self
             .object_cache_read
-            .multi_input_objects_available(
+            .try_multi_input_objects_available(
                 &input_object_cache_misses,
                 receiving_objects,
                 epoch_store.epoch(),

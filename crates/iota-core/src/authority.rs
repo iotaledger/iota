@@ -1263,7 +1263,7 @@ impl AuthorityState {
 
     fn check_owned_locks(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         self.get_object_cache_reader()
-            .check_owned_objects_are_live(owned_object_refs)
+            .try_check_owned_objects_are_live(owned_object_refs)
     }
 
     /// This function captures the required state to debug a forked transaction.
@@ -3363,7 +3363,7 @@ impl AuthorityState {
     // This function is only used for testing.
     pub fn get_iota_system_state_object_for_testing(&self) -> IotaResult<IotaSystemState> {
         self.get_object_cache_reader()
-            .get_iota_system_state_object_unsafe()
+            .try_get_iota_system_state_object_unsafe()
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -3397,7 +3397,7 @@ impl AuthorityState {
         Ok(
             match self
                 .get_object_cache_reader()
-                .get_latest_object_or_tombstone(*object_id)?
+                .try_get_latest_object_or_tombstone(*object_id)?
             {
                 Some((_, ObjectOrTombstone::Object(object))) => {
                     let layout = self.get_object_layout(&object)?;
@@ -3458,7 +3458,7 @@ impl AuthorityState {
         // Firstly we see if the object ever existed by getting its latest data
         let Some(obj_ref) = self
             .get_object_cache_reader()
-            .get_latest_object_ref_or_tombstone(*object_id)?
+            .try_get_latest_object_ref_or_tombstone(*object_id)?
         else {
             return Ok(PastObjectRead::ObjectNotExists(*object_id));
         };
@@ -3511,7 +3511,7 @@ impl AuthorityState {
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
         let Some(object) = self
             .get_object_cache_reader()
-            .get_object_by_key(object_id, version)?
+            .try_get_object_by_key(object_id, version)?
         else {
             return Ok(None);
         };
@@ -4316,7 +4316,7 @@ impl AuthorityState {
     ) -> IotaResult<Option<VerifiedSignedTransaction>> {
         let lock_info = self
             .get_object_cache_reader()
-            .get_lock(*object_ref, epoch_store)?;
+            .try_get_lock(*object_ref, epoch_store)?;
         let lock_info = match lock_info {
             ObjectLockStatus::LockedAtDifferentVersion { locked_ref } => {
                 return Err(UserInputError::ObjectVersionUnavailableForConsumption {
@@ -4335,7 +4335,7 @@ impl AuthorityState {
     }
 
     pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
-        self.get_object_cache_reader().get_objects(objects)
+        self.get_object_cache_reader().try_get_objects(objects)
     }
 
     pub async fn get_object_or_tombstone(
@@ -4343,7 +4343,7 @@ impl AuthorityState {
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
         self.get_object_cache_reader()
-            .get_latest_object_ref_or_tombstone(object_id)
+            .try_get_latest_object_ref_or_tombstone(object_id)
     }
 
     /// Ordinarily, protocol upgrades occur when 2f + 1 + (f *
@@ -5153,7 +5153,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
         self.get_object_cache_reader()
-            .get_object_by_key(&object_id, version)
+            .try_get_object_by_key(&object_id, version)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(

@@ -412,7 +412,7 @@ impl StateRead for AuthorityState {
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
         Ok(self
             .get_cache_reader()
-            .get_iota_system_state_object_unsafe()?)
+            .try_get_iota_system_state_object_unsafe()?)
     }
 
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
@@ -569,7 +569,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
-            .find_object_lt_or_eq_version(*id, *version)?)
+            .try_find_object_lt_or_eq_version(*id, *version)?)
     }
 }
 
@@ -602,7 +602,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
         Ok(self
             .0
             .get_cache_reader()
-            .find_object_lt_or_eq_version(*id, *version)?)
+            .try_find_object_lt_or_eq_version(*id, *version)?)
     }
 }
 

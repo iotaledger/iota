@@ -399,13 +399,16 @@ impl Scenario {
             let version = expected.version();
             assert_eq!(
                 self.cache()
-                    .get_object_by_key(id, version)
+                    .try_get_object_by_key(id, version)
                     .unwrap()
                     .unwrap(),
                 *expected
             );
             assert_eq!(
-                self.cache().get_object(&expected.id()).unwrap().unwrap(),
+                self.cache()
+                    .try_get_object(&expected.id())
+                    .unwrap()
+                    .unwrap(),
                 *expected
             );
             // TODO: enable after lock caching is implemented
@@ -422,7 +425,7 @@ impl Scenario {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
             self.cache()
-                .get_package_object(id)
+                .try_get_package_object(id)
                 .expect("no such package");
         }
     }
@@ -486,14 +489,14 @@ impl Scenario {
             let object = self.objects.get(id).expect("no such object");
             assert_eq!(
                 self.cache()
-                    .get_object_by_key(id, object.version())
+                    .try_get_object_by_key(id, object.version())
                     .unwrap()
                     .unwrap(),
                 *object
             );
             assert!(
                 self.cache()
-                    .have_received_object_at_version(id, object.version(), 1)
+                    .try_have_received_object_at_version(id, object.version(), 1)
                     .unwrap()
             );
         }
@@ -504,7 +507,7 @@ impl Scenario {
             let id = self.id_map.get(short_id).expect("no such id");
 
             assert!(
-                self.cache().get_object(id).unwrap().is_none(),
+                self.cache().try_get_object(id).unwrap().is_none(),
                 "object exists in cache"
             );
         }
@@ -715,7 +718,7 @@ async fn test_lt_or_eq() {
                 let v = SequenceNumber::from_u64(i);
                 assert_eq!(
                     s.cache()
-                        .find_object_lt_or_eq_version(s.obj_id(1), v)
+                        .try_find_object_lt_or_eq_version(s.obj_id(1), v)
                         .unwrap()
                         .unwrap()
                         .version(),
@@ -768,7 +771,7 @@ async fn test_lt_or_eq_caching() {
             let expected_version = SequenceNumber::from_u64(expected_version);
             assert_eq!(
                 s.cache()
-                    .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
+                    .try_find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .unwrap()
                     .unwrap()
                     .version(),
@@ -782,7 +785,7 @@ async fn test_lt_or_eq_caching() {
         // version <= 0 does not exist
         assert!(
             s.cache()
-                .find_object_lt_or_eq_version(s.obj_id(1), 0.into())
+                .try_find_object_lt_or_eq_version(s.obj_id(1), 0.into())
                 .unwrap()
                 .is_none()
         );
@@ -831,7 +834,7 @@ async fn test_lt_or_eq_with_cached_tombstone() {
             let lookup_version = SequenceNumber::from_u64(lookup_version);
             assert_eq!(
                 s.cache()
-                    .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
+                    .try_find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .unwrap()
                     .map(|v| v.version()),
                 expected_version.map(SequenceNumber::from_u64)
@@ -936,7 +939,7 @@ async fn test_revert_state_update_mutated() {
             let tx = s.do_tx().await;
             s.commit(tx).await.unwrap();
             s.cache()
-                .get_object(&s.obj_id(1))
+                .try_get_object(&s.obj_id(1))
                 .unwrap()
                 .unwrap()
                 .version()
@@ -950,7 +953,7 @@ async fn test_revert_state_update_mutated() {
 
         let version_after_revert = s
             .cache()
-            .get_object(&s.obj_id(1))
+            .try_get_object(&s.obj_id(1))
             .unwrap()
             .unwrap()
             .version();
@@ -975,7 +978,7 @@ async fn test_invalidate_package_cache_on_revert() {
 
         assert!(
             s.cache()
-                .get_package_object(&s.obj_id(2))
+                .try_get_package_object(&s.obj_id(2))
                 .unwrap()
                 .is_none()
         );

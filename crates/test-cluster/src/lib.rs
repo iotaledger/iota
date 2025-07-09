@@ -278,7 +278,7 @@ impl TestCluster {
             .iota_node
             .state()
             .get_object_cache_reader()
-            .get_latest_object_ref_or_tombstone(object_id)
+            .try_get_latest_object_ref_or_tombstone(object_id)
             .unwrap()
             .unwrap()
     }
