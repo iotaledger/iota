@@ -575,7 +575,7 @@ impl IotaNode {
             // the expected_network_iota_amount table.
             cache_traits
                 .reconfig_api
-                .expensive_check_iota_conservation(&epoch_store, None)
+                .try_expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
         }
 

@@ -690,11 +690,11 @@ pub trait CheckpointCache: Send + Sync {
 }
 
 pub trait ExecutionCacheReconfigAPI: Send + Sync {
-    fn insert_genesis_object(&self, object: Object) -> IotaResult;
-    fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
+    fn try_insert_genesis_object(&self, object: Object) -> IotaResult;
+    fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
 
-    fn revert_state_update(&self, digest: &TransactionDigest) -> IotaResult;
-    fn set_epoch_start_configuration(
+    fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult;
+    fn try_set_epoch_start_configuration(
         &self,
         epoch_start_config: &EpochStartConfiguration,
     ) -> IotaResult;
@@ -703,13 +703,13 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 
     fn clear_state_end_of_epoch(&self, execution_guard: &ExecutionLockWriteGuard<'_>);
 
-    fn expensive_check_iota_conservation(
+    fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
         epoch_supply_change: Option<i64>,
     ) -> IotaResult;
 
-    fn checkpoint_db(&self, path: &Path) -> IotaResult;
+    fn try_checkpoint_db(&self, path: &Path) -> IotaResult;
 
     /// Reconfigure the cache itself.
     /// TODO: this is only needed for ProxyCache to switch between cache impls.
@@ -744,11 +744,11 @@ pub trait TestingAPI: Send + Sync {
 macro_rules! implement_storage_traits {
     ($implementor: ident) => {
         impl ObjectStore for $implementor {
-            fn get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+            fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
                 ObjectCacheRead::get_object(self, object_id).map_err(StorageError::custom)
             }
 
-            fn get_object_by_key(
+            fn try_get_object_by_key(
                 &self,
                 object_id: &ObjectID,
                 version: iota_types::base_types::VersionNumber,
@@ -835,22 +835,22 @@ macro_rules! implement_storage_traits {
 macro_rules! implement_passthrough_traits {
     ($implementor: ident) => {
         impl CheckpointCache for $implementor {
-            fn get_transaction_perpetual_checkpoint(
+            fn try_get_transaction_perpetual_checkpoint(
                 &self,
                 digest: &TransactionDigest,
             ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
                 self.store.get_transaction_perpetual_checkpoint(digest)
             }
 
-            fn multi_get_transactions_perpetual_checkpoints(
+            fn try_multi_get_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-                self.store
-                    .multi_get_transactions_perpetual_checkpoints(digests)
+                self.store.
+                    multi_get_transactions_perpetual_checkpoints(digests)
             }
 
-            fn insert_finalized_transactions_perpetual_checkpoints(
+            fn try_insert_finalized_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
                 epoch: EpochId,
@@ -862,19 +862,19 @@ macro_rules! implement_passthrough_traits {
         }
 
         impl ExecutionCacheReconfigAPI for $implementor {
-            fn insert_genesis_object(&self, object: Object) -> IotaResult {
+            fn try_insert_genesis_object(&self, object: Object) -> IotaResult {
                 self.insert_genesis_object_impl(object)
             }
 
-            fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
+            fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
                 self.bulk_insert_genesis_objects_impl(objects)
             }
 
-            fn revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
+            fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
                 self.revert_state_update_impl(digest)
             }
 
-            fn set_epoch_start_configuration(
+            fn try_set_epoch_start_configuration(
                 &self,
                 epoch_start_config: &EpochStartConfiguration,
             ) -> IotaResult {
@@ -889,7 +889,7 @@ macro_rules! implement_passthrough_traits {
                 self.clear_state_end_of_epoch_impl(execution_guard)
             }
 
-            fn expensive_check_iota_conservation(
+            fn try_expensive_check_iota_conservation(
                 &self,
                 old_epoch_store: &AuthorityPerEpochStore,
                 epoch_supply_change: Option<i64>,
@@ -901,7 +901,7 @@ macro_rules! implement_passthrough_traits {
                 )
             }
 
-            fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
+            fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
                 self.store.perpetual_tables.checkpoint_db(path)
             }
 

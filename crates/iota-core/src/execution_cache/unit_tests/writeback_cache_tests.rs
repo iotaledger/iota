@@ -890,7 +890,7 @@ async fn test_revert_committed_tx_panics() {
         s.with_created(&[1]);
         let tx1 = s.do_tx().await;
         s.commit(tx1).await.unwrap();
-        s.cache().revert_state_update(&tx1).unwrap();
+        s.cache().try_revert_state_update(&tx1).unwrap();
     })
     .await;
 }
@@ -905,7 +905,7 @@ async fn test_revert_unexecuted_tx() {
         let random_digest = TransactionDigest::random();
         // must not panic - pending_consensus_transactions is a super set of
         // executed but un-checkpointed transactions
-        s.cache().revert_state_update(&random_digest).unwrap();
+        s.cache().try_revert_state_update(&random_digest).unwrap();
     })
     .await;
 }
@@ -919,7 +919,7 @@ async fn test_revert_state_update_created() {
         let tx1 = s.do_tx().await;
         s.assert_live(&[1]);
 
-        s.cache().revert_state_update(&tx1).unwrap();
+        s.cache().try_revert_state_update(&tx1).unwrap();
         s.clear_state_end_of_epoch().await;
 
         s.assert_not_exists(&[1]);
@@ -945,7 +945,7 @@ async fn test_revert_state_update_mutated() {
         s.with_mutated(&[1]);
         let tx = s.do_tx().await;
 
-        s.cache().revert_state_update(&tx).unwrap();
+        s.cache().try_revert_state_update(&tx).unwrap();
         s.clear_state_end_of_epoch().await;
 
         let version_after_revert = s
@@ -970,7 +970,7 @@ async fn test_invalidate_package_cache_on_revert() {
         s.assert_live(&[1]);
         s.assert_packages(&[2]);
 
-        s.cache().revert_state_update(&tx1).unwrap();
+        s.cache().try_revert_state_update(&tx1).unwrap();
         s.clear_state_end_of_epoch().await;
 
         assert!(

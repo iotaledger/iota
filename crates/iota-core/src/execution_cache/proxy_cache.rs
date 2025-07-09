@@ -340,23 +340,23 @@ impl CheckpointCache for ProxyCache {
 }
 
 impl ExecutionCacheReconfigAPI for ProxyCache {
-    fn insert_genesis_object(&self, object: Object) -> IotaResult {
-        delegate_method!(self.insert_genesis_object(object))
+    fn try_insert_genesis_object(&self, object: Object) -> IotaResult {
+        delegate_method!(self.try_insert_genesis_object(object))
     }
 
-    fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
-        delegate_method!(self.bulk_insert_genesis_objects(objects))
+    fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
+        delegate_method!(self.try_bulk_insert_genesis_objects(objects))
     }
 
-    fn revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
-        delegate_method!(self.revert_state_update(digest))
+    fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
+        delegate_method!(self.try_revert_state_update(digest))
     }
 
-    fn set_epoch_start_configuration(
+    fn try_set_epoch_start_configuration(
         &self,
         epoch_start_config: &EpochStartConfiguration,
     ) -> IotaResult {
-        delegate_method!(self.set_epoch_start_configuration(epoch_start_config))
+        delegate_method!(self.try_set_epoch_start_configuration(epoch_start_config))
     }
 
     fn update_epoch_flags_metrics(&self, old: &[EpochFlag], new: &[EpochFlag]) {
@@ -367,18 +367,18 @@ impl ExecutionCacheReconfigAPI for ProxyCache {
         delegate_method!(self.clear_state_end_of_epoch(execution_guard))
     }
 
-    fn expensive_check_iota_conservation(
+    fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
         epoch_supply_change: Option<i64>,
     ) -> IotaResult {
         delegate_method!(
-            self.expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
+            self.try_expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
         )
     }
 
-    fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
-        delegate_method!(self.checkpoint_db(path))
+    fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
+        delegate_method!(self.try_checkpoint_db(path))
     }
 
     fn reconfigure_cache<'a>(

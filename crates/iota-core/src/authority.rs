@@ -3122,7 +3122,7 @@ impl AuthorityState {
             epoch_supply_change,
         )?;
         self.get_reconfig_api()
-            .set_epoch_start_configuration(&epoch_start_configuration)?;
+            .try_set_epoch_start_configuration(&epoch_start_configuration)?;
         if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
             if self
                 .db_checkpoint_config
@@ -3211,7 +3211,7 @@ impl AuthorityState {
         }
 
         self.get_reconfig_api()
-            .expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))?;
+            .try_expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))?;
 
         // check for root state hash consistency with live object set
         if expensive_safety_check_config.enable_state_consistency_check() {
@@ -3310,7 +3310,7 @@ impl AuthorityState {
             .checkpoint_db(&checkpoint_path_tmp.join("checkpoints"))?;
 
         self.get_reconfig_api()
-            .checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
+            .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
 
         self.committee_store
             .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
@@ -4124,7 +4124,7 @@ impl AuthorityState {
 
     pub async fn insert_genesis_object(&self, object: Object) {
         self.get_reconfig_api()
-            .insert_genesis_object(object)
+            .try_insert_genesis_object(object)
             .expect("Cannot insert genesis object")
     }
 
@@ -4885,7 +4885,7 @@ impl AuthorityState {
             }
             info!("Reverting {:?} at the end of epoch", digest);
             epoch_store.revert_executed_transaction(&digest)?;
-            self.get_reconfig_api().revert_state_update(&digest)?;
+            self.get_reconfig_api().try_revert_state_update(&digest)?;
         }
         info!("All uncommitted local transactions reverted");
         Ok(())
@@ -4941,7 +4941,7 @@ impl AuthorityState {
     /// use in prod
     pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) -> IotaResult {
         self.get_reconfig_api()
-            .bulk_insert_genesis_objects(objects)?;
+            .try_bulk_insert_genesis_objects(objects)?;
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         self.get_reconfig_api()

@@ -3598,7 +3598,7 @@ async fn test_store_revert_transfer_iota() {
     let cache = authority_state.get_object_cache_reader();
     let tx_cache = authority_state.get_transaction_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
-    reconfig_api.revert_state_update(&tx_digest).unwrap();
+    reconfig_api.try_revert_state_update(&tx_digest).unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
@@ -3681,7 +3681,7 @@ async fn test_store_revert_wrap_move_call() {
 
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
-    reconfig_api.revert_state_update(&wrap_digest).unwrap();
+    reconfig_api.try_revert_state_update(&wrap_digest).unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
@@ -3783,7 +3783,9 @@ async fn test_store_revert_unwrap_move_call() {
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
 
-    reconfig_api.revert_state_update(&unwrap_digest).unwrap();
+    reconfig_api
+        .try_revert_state_update(&unwrap_digest)
+        .unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
@@ -4069,7 +4071,7 @@ async fn test_store_revert_add_ofield() {
     assert_eq!(inner.version(), inner_v1.1);
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
 
-    reconfig_api.revert_state_update(&add_digest).unwrap();
+    reconfig_api.try_revert_state_update(&add_digest).unwrap();
 
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
@@ -4196,7 +4198,7 @@ async fn test_store_revert_remove_ofield() {
     assert_eq!(inner.version(), inner_v2.1);
 
     reconfig_api
-        .revert_state_update(&remove_ofield_digest)
+        .try_revert_state_update(&remove_ofield_digest)
         .unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
