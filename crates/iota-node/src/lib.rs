@@ -1606,7 +1606,7 @@ impl IotaNode {
             std::time::Duration::from_secs(timeout),
             state
                 .get_transaction_cache_reader()
-                .notify_read_executed_effects_digests(&digests),
+                .try_notify_read_executed_effects_digests(&digests),
         )
         .await
         .is_err()
@@ -1614,7 +1614,7 @@ impl IotaNode {
             // Log all the digests that were not executed to help debugging.
             if let Ok(executed_effects_digests) = state
                 .get_transaction_cache_reader()
-                .multi_get_executed_effects_digests(&digests)
+                .try_multi_get_executed_effects_digests(&digests)
             {
                 let pending_digests = digests
                     .iter()

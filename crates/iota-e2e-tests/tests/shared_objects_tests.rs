@@ -141,7 +141,7 @@ async fn shared_object_deletion_multiple_times() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .try_notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -198,7 +198,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .try_notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -314,7 +314,7 @@ async fn shared_object_deletion_multi_certs() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
+        .try_notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
         .await
         .unwrap();
 }

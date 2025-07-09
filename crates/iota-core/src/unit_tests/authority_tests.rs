@@ -3613,7 +3613,7 @@ async fn test_store_revert_transfer_iota() {
             .unwrap(),
         gas_object_ref
     );
-    assert!(!tx_cache.is_tx_already_executed(&tx_digest).unwrap());
+    assert!(!tx_cache.try_is_tx_already_executed(&tx_digest).unwrap());
 }
 
 #[tokio::test]
@@ -5215,7 +5215,7 @@ async fn test_consensus_message_processed() {
             authority2.try_execute_for_test(&certificate).await.unwrap();
             authority2
                 .get_transaction_cache_reader()
-                .get_executed_effects(transaction_digest)
+                .try_get_executed_effects(transaction_digest)
                 .unwrap()
                 .unwrap()
         };

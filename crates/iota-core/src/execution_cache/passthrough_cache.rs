@@ -196,7 +196,7 @@ impl ObjectCacheRead for PassthroughCache {
 }
 
 impl TransactionCacheRead for PassthroughCache {
-    fn multi_get_transaction_blocks(
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
@@ -208,32 +208,32 @@ impl TransactionCacheRead for PassthroughCache {
             .collect())
     }
 
-    fn multi_get_executed_effects_digests(
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         self.store.multi_get_executed_effects_digests(digests)
     }
 
-    fn multi_get_effects(
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
-                self.multi_get_executed_effects_digests(digests)
+                self.try_multi_get_executed_effects_digests(digests)
             })
             .boxed()
     }
 
-    fn multi_get_events(
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {

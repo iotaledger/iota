@@ -1141,7 +1141,9 @@ impl WritebackCache {
         // pending_consensus_transactions until after the transaction has executed.
         let Some((_, outputs)) = self.dirty.pending_transaction_writes.remove(tx) else {
             assert!(
-                !self.is_tx_already_executed(tx).expect("read cannot fail"),
+                !self
+                    .try_is_tx_already_executed(tx)
+                    .expect("read cannot fail"),
                 "attempt to revert committed transaction"
             );
 
@@ -1655,7 +1657,7 @@ impl ObjectCacheRead for WritebackCache {
 }
 
 impl TransactionCacheRead for WritebackCache {
-    fn multi_get_transaction_blocks(
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
@@ -1692,7 +1694,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn multi_get_executed_effects_digests(
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
@@ -1728,7 +1730,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn multi_get_effects(
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
@@ -1764,18 +1766,18 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
-                self.multi_get_executed_effects_digests(digests)
+                self.try_multi_get_executed_effects_digests(digests)
             })
             .boxed()
     }
 
-    fn multi_get_events(
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {

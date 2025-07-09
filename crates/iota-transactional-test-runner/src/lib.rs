@@ -358,7 +358,7 @@ impl ReadStore for ValidatorWithFullnode {
     {
         self.validator
             .get_transaction_cache_reader()
-            .get_transaction_block(tx_digest)
+            .try_get_transaction_block(tx_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
@@ -368,7 +368,7 @@ impl ReadStore for ValidatorWithFullnode {
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.validator
             .get_transaction_cache_reader()
-            .get_executed_effects(tx_digest)
+            .try_get_executed_effects(tx_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
@@ -378,7 +378,7 @@ impl ReadStore for ValidatorWithFullnode {
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.validator
             .get_transaction_cache_reader()
-            .get_events(event_digest)
+            .try_get_events(event_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 

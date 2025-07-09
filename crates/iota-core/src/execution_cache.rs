@@ -475,16 +475,16 @@ pub trait ObjectCacheRead: Send + Sync {
 }
 
 pub trait TransactionCacheRead: Send + Sync {
-    fn multi_get_transaction_blocks(
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>>;
 
-    fn get_transaction_block(
+    fn try_get_transaction_block(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<Arc<VerifiedTransaction>>> {
-        self.multi_get_transaction_blocks(&[*digest])
+        self.try_multi_get_transaction_blocks(&[*digest])
             .map(|mut blocks| {
                 blocks
                     .pop()
@@ -493,11 +493,11 @@ pub trait TransactionCacheRead: Send + Sync {
     }
 
     #[instrument(level = "trace", skip_all)]
-    fn get_transactions_and_serialized_sizes(
+    fn try_get_transactions_and_serialized_sizes(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(VerifiedTransaction, usize)>>> {
-        let txns = self.multi_get_transaction_blocks(digests)?;
+        let txns = self.try_multi_get_transaction_blocks(digests)?;
         txns.into_iter()
             .map(|txn| {
                 txn.map(|txn| {
@@ -515,13 +515,13 @@ pub trait TransactionCacheRead: Send + Sync {
             .collect::<Result<Vec<_>, _>>()
     }
 
-    fn multi_get_executed_effects_digests(
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>;
 
-    fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
-        self.multi_get_executed_effects_digests(&[*digest])
+    fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+        self.try_multi_get_executed_effects_digests(&[*digest])
             .map(|mut digests| {
                 digests
                     .pop()
@@ -530,11 +530,11 @@ pub trait TransactionCacheRead: Send + Sync {
             })
     }
 
-    fn multi_get_executed_effects(
+    fn try_multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        let effects_digests = self.multi_get_executed_effects_digests(digests)?;
+        let effects_digests = self.try_multi_get_executed_effects_digests(digests)?;
         assert_eq!(effects_digests.len(), digests.len());
 
         let mut results = vec![None; digests.len()];
@@ -548,7 +548,7 @@ pub trait TransactionCacheRead: Send + Sync {
             }
         }
 
-        let effects = self.multi_get_effects(&fetch_digests)?;
+        let effects = self.try_multi_get_effects(&fetch_digests)?;
         for (i, effects) in fetch_indices.into_iter().zip(effects.into_iter()) {
             results[i] = effects;
         }
@@ -556,11 +556,11 @@ pub trait TransactionCacheRead: Send + Sync {
         Ok(results)
     }
 
-    fn get_executed_effects(
+    fn try_get_executed_effects(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<TransactionEffects>> {
-        self.multi_get_executed_effects(&[*digest])
+        self.try_multi_get_executed_effects(&[*digest])
             .map(|mut effects| {
                 effects
                     .pop()
@@ -568,39 +568,39 @@ pub trait TransactionCacheRead: Send + Sync {
             })
     }
 
-    fn multi_get_effects(
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>>;
 
-    fn get_effects(
+    fn try_get_effects(
         &self,
         digest: &TransactionEffectsDigest,
     ) -> IotaResult<Option<TransactionEffects>> {
-        self.multi_get_effects(&[*digest]).map(|mut effects| {
+        self.try_multi_get_effects(&[*digest]).map(|mut effects| {
             effects
                 .pop()
                 .expect("multi-get must return correct number of items")
         })
     }
 
-    fn multi_get_events(
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 
-    fn get_events(
+    fn try_get_events(
         &self,
         digest: &TransactionEventsDigest,
     ) -> IotaResult<Option<TransactionEvents>> {
-        self.multi_get_events(&[*digest]).map(|mut events| {
+        self.try_multi_get_events(&[*digest]).map(|mut events| {
             events
                 .pop()
                 .expect("multi-get must return correct number of items")
         })
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
@@ -613,14 +613,16 @@ pub trait TransactionCacheRead: Send + Sync {
     /// ExecutionLockReadGuard would also prevent reconfig from happening while
     /// waiting, but this is very dangerous, as it could prevent
     /// reconfiguration from ever occurring!
-    fn notify_read_executed_effects<'a>(
+    fn try_notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
         async move {
-            let digests = self.notify_read_executed_effects_digests(digests).await?;
+            let digests = self
+                .try_notify_read_executed_effects_digests(digests)
+                .await?;
             // once digests are available, effects must be present as well
-            self.multi_get_effects(&digests).map(|effects| {
+            self.try_multi_get_effects(&digests).map(|effects| {
                 effects
                     .into_iter()
                     .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))

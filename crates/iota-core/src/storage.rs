@@ -169,7 +169,7 @@ impl ReadStore for RocksDbStore {
                         self.try_get_transaction(&tx.transaction)?,
                         self.cache_traits
                             .transaction_cache_reader
-                            .get_effects(&tx.effects)
+                            .try_get_effects(&tx.effects)
                             .map_err(iota_types::storage::error::Error::custom)?,
                     ) {
                         transactions.push(iota_types::base_types::ExecutionData::new(
@@ -208,7 +208,7 @@ impl ReadStore for RocksDbStore {
     ) -> Result<Option<Arc<VerifiedTransaction>>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
-            .get_transaction_block(digest)
+            .try_get_transaction_block(digest)
             .map_err(StorageError::custom)
     }
 
@@ -218,7 +218,7 @@ impl ReadStore for RocksDbStore {
     ) -> Result<Option<TransactionEffects>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
-            .get_executed_effects(digest)
+            .try_get_executed_effects(digest)
             .map_err(StorageError::custom)
     }
 
@@ -228,7 +228,7 @@ impl ReadStore for RocksDbStore {
     ) -> Result<Option<TransactionEvents>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
-            .get_events(digest)
+            .try_get_events(digest)
             .map_err(StorageError::custom)
     }
 
