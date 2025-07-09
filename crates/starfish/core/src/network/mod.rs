@@ -233,6 +233,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the request to fetch transactions by references from the peer.
     async fn handle_fetch_transactions(
         &self,
+        peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
@@ -394,4 +395,10 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
     fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
         SerializedBlockBundle::try_from(SerializedBlockAndHeaders::try_from(block_bundle)?)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedTransactions {
+    pub(crate) block_ref: BlockRef,
+    pub(crate) serialized_transactions: Bytes,
 }

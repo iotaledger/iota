@@ -132,6 +132,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
     pub(crate) synchronizer_requested_blocks_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
+    pub(crate) invalid_transactions: IntCounterVec,
     pub(crate) invalid_headers_in_bundles: IntCounterVec,
     pub(crate) valid_headers_in_bundles: IntCounterVec,
     pub(crate) filtered_headers_in_bundles: IntCounterVec,
@@ -522,6 +523,12 @@ impl NodeMetrics {
                 "quorum_receive_latency",
                 "The time it took to receive a new round quorum of blocks",
                 registry
+            ).unwrap(),
+            invalid_transactions: register_int_counter_vec_with_registry!(
+                "invalid_transactions",
+                "Number of invalid transactions per peer authority",
+                &["authority", "source", "error"],
+                registry,
             ).unwrap(),
             transaction_synchronizer_fetched_transactions_by_peer: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_fetched_transactions_by_peer",

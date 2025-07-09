@@ -29,6 +29,7 @@ use crate::{
     network::{
         BlockBundle, BlockBundleStream, BlockStream, NetworkService, SerializedBlock,
         SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
+        SerializedTransactions,
     },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -639,7 +640,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //    them
         // Normally, there should be no missing ancestors, as the headers are sent in
         // order of increasing rounds.
-        let mut missing_ancestors = self
+        let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
             .add_block_headers(additional_block_headers)
             .await
@@ -647,15 +648,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 9. Add block to dag, add its missing ancestors to the set
         // TODO:: consider possible optimization:
-        // first try to accept the block. If it fails, try to find missing ancestors
-        // among additional headers and from block_round-1 add only them. From the
-        // rounds < block_round-1 add all headers
-        missing_ancestors.extend(
-            self.core_dispatcher
-                .add_blocks(vec![verified_block])
-                .await
-                .map_err(|_| ConsensusError::Shutdown)?,
-        );
+        //  first try to accept the block. If it fails, try to find missing ancestors
+        //  among additional headers and from block_round-1 add only them. From the
+        //  rounds < block_round-1 add all headers
+        // TODO: handle missing transactions as well
+        let (missing_block_ancestors, missing_block_comitted_transactions) = self
+            .core_dispatcher
+            .add_blocks(vec![verified_block])
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
+
+        missing_ancestors.extend(missing_block_ancestors);
+        missing_committed_txns.extend(missing_block_comitted_transactions);
+
         if !missing_ancestors.is_empty() {
             // 10. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
@@ -664,6 +669,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .await
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
+            }
+        }
+
+        if !missing_committed_txns.is_empty() {
+            // Also, fetch missing committed transactions after adding the blocks.
+            if let Err(err) = self
+                .transactions_synchronizer
+                .fetch_transactions(missing_committed_txns)
+                .await
+            {
+                warn!(
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
+                );
             }
         }
         Ok(())
@@ -1011,12 +1029,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
     async fn handle_fetch_transactions(
         &self,
+        peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
         if block_refs.is_empty() {
             return Ok(Vec::new());
+        }
+
+        // TODO: add a new parameter for maximum number of transactions per fetch
+        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+            return Err(ConsensusError::TooManyFetchTransactionsRequested(peer));
         }
 
         // Some quick validation of the requested block refs
@@ -1039,7 +1063,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let result = transactions
             .into_iter()
             .flatten()
-            .map(|transaction| transaction.serialized().clone())
+            .map(|transaction| {
+                Bytes::from(
+                    bcs::to_bytes(&SerializedTransactions {
+                        block_ref: transaction.block_ref(),
+                        serialized_transactions: transaction.serialized().clone(),
+                    })
+                    .map_err(ConsensusError::SerializationFailure)
+                    .expect("serialization should succeed"),
+                )
+            })
             .collect::<Vec<_>>();
 
         Ok(result)

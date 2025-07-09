@@ -98,6 +98,9 @@ pub(crate) enum ConsensusError {
     #[error("Too many block headers have been requested from authority {0}")]
     TooManyFetchBlockHeadersRequested(AuthorityIndex),
 
+    #[error("Too many transaction bundles have been requested from authority {0}")]
+    TooManyFetchTransactionsRequested(AuthorityIndex),
+
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
 
@@ -210,9 +213,6 @@ pub(crate) enum ConsensusError {
 
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
-
-    #[error("Timeout while fetching transactions from authority {0}")]
-    FetchTransactionsTimeout(AuthorityIndex),
 
     #[error("Consensus has shut down!")]
     Shutdown,

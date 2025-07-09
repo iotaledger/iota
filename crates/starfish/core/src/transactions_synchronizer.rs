@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{StreamExt as _, stream::FuturesUnordered};
 use iota_macros::fail_point_async;
@@ -18,29 +17,31 @@ use iota_metrics::{
 };
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
-use rand::seq::IteratorRandom;
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom, rngs::ThreadRng};
-use serde::{Deserialize, Serialize};
+use rand::prelude::SliceRandom;
+use rand::{
+    SeedableRng,
+    rngs::{OsRng, StdRng},
+    seq::IteratorRandom,
+};
 use starfish_config::AuthorityIndex;
-use tap::TapFallible;
 use tokio::{
     runtime::Handle,
     sync::{mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
-    BlockHeaderAPI, CommitIndex, Round,
-    block_header::{BlockRef, VerifiedTransactions},
-    commit::CommitRange,
+    Transaction, VerifiedBlockHeader,
+    block_header::{BlockRef, TransactionsCommitment, VerifiedTransactions},
+    block_verifier::BlockVerifier,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{BlockStream, NetworkClient},
+    network::{NetworkClient, SerializedTransactions},
 };
 
 /// The number of concurrent fetch transactions requests per authority
@@ -236,7 +237,11 @@ impl TransactionsSynchronizerHandle {
 ///    periodic basis or is triggered immediately after explicit fetches
 ///    described in (1), ensuring continued transaction retrieval if gaps
 ///    persist.
-pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
+pub(crate) struct TransactionsSynchronizer<
+    C: NetworkClient,
+    V: BlockVerifier,
+    D: CoreThreadDispatcher,
+> {
     context: Arc<Context>,
     commands_receiver: Receiver<Command>,
     fetch_transaction_senders: BTreeMap<AuthorityIndex, Sender<TransactionsGuard>>,
@@ -244,12 +249,14 @@ pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispat
     dag_state: Arc<RwLock<DagState>>,
     fetch_transactions_scheduler_task: JoinSet<()>,
     network_client: Arc<C>,
-    // TODO: do we need external BlockVerifier?
+    block_verifier: Arc<V>,
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
 }
 
-impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
+impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
+    TransactionsSynchronizer<C, V, D>
+{
     /// Starts the transactions synchronizer, which is responsible for fetching
     /// transactions from other authorities and managing transaction
     /// synchronization tasks.
@@ -257,6 +264,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         network_client: Arc<C>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
+        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<TransactionsSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
@@ -282,6 +290,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 dag_state.clone(),
                 receiver,
                 commands_sender.clone(),
+                block_verifier.clone(),
             );
             tasks.spawn(monitored_future!(fetch_transactions_from_authority_async));
             fetch_transaction_senders.insert(index, sender);
@@ -298,6 +307,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 core_dispatcher,
                 fetch_transactions_scheduler_task: JoinSet::new(),
                 network_client,
+                block_verifier,
                 inflight_transactions_map,
                 commands_sender: commands_sender_clone,
                 dag_state,
@@ -319,7 +329,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
 
         tokio::pin!(scheduler_timeout);
-        let mut rng = rand::thread_rng();
+        let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
 
         loop {
             tokio::select! {
@@ -452,6 +462,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         dag_state: Arc<RwLock<DagState>>,
         mut receiver: Receiver<TransactionsGuard>,
         commands_sender: Sender<Command>,
+        block_verifier: Arc<V>,
     ) {
         const MAX_RETRIES: u32 = 5;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -472,7 +483,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                                 core_dispatcher.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
-                                "live"
+                                block_verifier.clone(),
+                                dag_state.clone(),
+                                "live",
                             ).await {
                                 warn!("Error while processing fetched transactions from peer {peer_index} {peer_hostname}: {err}");
                             }
@@ -506,6 +519,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         context: Arc<Context>,
         commands_sender: Sender<Command>,
+        block_verifier: Arc<V>,
+        dag_state: Arc<RwLock<DagState>>,
         sync_method: &str,
     ) -> ConsensusResult<()> {
         // Ensure that all the returned transactions do not go over the total max
@@ -516,19 +531,33 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             ));
         }
 
-        // Deserialize the transactions
+        // Deserialize and verify the transactions
         let transactions = Handle::current()
             .spawn_blocking({
+                // Use the block_refs from the requested_transactions_guard
+                let block_refs: Vec<BlockRef> = requested_transactions_guard
+                    .block_refs
+                    .iter()
+                    .cloned()
+                    .collect();
+                let block_headers_vec = dag_state.read().get_block_headers(&block_refs);
+                let mut block_headers_map = BTreeMap::new();
+                for block_header_opt in block_headers_vec.into_iter() {
+                    let block_header = block_header_opt
+                        .expect("block header for requested transactions must exist");
+                    block_headers_map.insert(block_header.reference(), block_header);
+                }
+
+                let block_verifier = block_verifier.clone();
+                let context = context.clone();
                 move || {
-                    // TODO: fix this, verify that the transactions are valid to correctly create
-                    // the verified transactions
-                    serialized_transactions
-                        .into_iter()
-                        .map(|serialized| {
-                            bcs::from_bytes::<VerifiedTransactions>(&serialized)
-                                .map_err(ConsensusError::MalformedTransactions)
-                        })
-                        .collect::<ConsensusResult<Vec<_>>>()
+                    Self::verify_transactions(
+                        serialized_transactions,
+                        block_verifier,
+                        &context,
+                        peer_index,
+                        block_headers_map,
+                    )
                 }
             })
             .await
@@ -576,6 +605,109 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .map_err(|_| ConsensusError::Shutdown)?;
 
         Ok(())
+    }
+
+    fn verify_transactions(
+        serialized_transactions_bytes: Vec<Bytes>,
+        block_verifier: Arc<V>,
+        context: &Context,
+        peer_index: AuthorityIndex,
+        block_headers_map: BTreeMap<BlockRef, VerifiedBlockHeader>,
+    ) -> ConsensusResult<Vec<VerifiedTransactions>> {
+        let mut collected_verified_transactions = Vec::new();
+
+        for serialized_transaction_bytes in &serialized_transactions_bytes {
+            // Step 1: Deserialize the outer SerializedTransactions wrapper to get the block
+            // reference and the inner serialized transactions bytes. This
+            // allows us to identify which block these transactions belong to
+            // and access their commitment in the block header.
+            let serialized_transactions: SerializedTransactions =
+                bcs::from_bytes(&serialized_transaction_bytes).map_err(|e| {
+                    let hostname = context.committee.authority(peer_index).hostname.clone();
+                    let err = ConsensusError::MalformedTransactions(e);
+                    context
+                        .metrics
+                        .node_metrics
+                        .invalid_transactions
+                        .with_label_values(&[
+                            hostname.as_str(),
+                            "transaction_synchronizer",
+                            err.name(),
+                        ])
+                        .inc();
+                    err
+                })?;
+
+            // Step 2: Get the block header and verify that the transactions commitment
+            // matches. This ensures the transactions we received are exactly
+            // the ones that were included in the block when it was created.
+            let block_header = block_headers_map
+                .get(&serialized_transactions.block_ref)
+                .expect("header for fetched transactions must exist");
+            if block_header.transactions_commitment()
+                != TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions.serialized_transactions,
+                )
+                .expect("correct computation of the transactions commitment should be successful")
+            {
+                let err = ConsensusError::TransactionCommitmentFailure {
+                    round: serialized_transactions.block_ref.round,
+                    author: serialized_transactions.block_ref.author,
+                    peer: peer_index,
+                };
+
+                let hostname = context.committee.authority(peer_index).hostname.clone();
+                context
+                    .metrics
+                    .node_metrics
+                    .invalid_transactions
+                    .with_label_values(&[hostname.as_str(), "transaction_synchronizer", err.name()])
+                    .inc();
+                return Err(err);
+            }
+
+            // Step 3: Deserialize and verify the actual transactions vector.
+            let transactions: Vec<Transaction> =
+                bcs::from_bytes(&serialized_transactions.serialized_transactions).map_err(|e| {
+                    let err = ConsensusError::MalformedTransactions(e);
+                    let hostname = context.committee.authority(peer_index).hostname.clone();
+                    context
+                        .metrics
+                        .node_metrics
+                        .invalid_transactions
+                        .with_label_values(&[
+                            hostname.as_str(),
+                            "transaction_synchronizer",
+                            err.name(),
+                        ])
+                        .inc();
+                    err
+                })?;
+
+            if let Err(e) = block_verifier.check_and_verify_transactions(&transactions) {
+                let hostname = context.committee.authority(peer_index).hostname.clone();
+                context
+                    .metrics
+                    .node_metrics
+                    .invalid_transactions
+                    .with_label_values(&[hostname.as_str(), "transaction_synchronizer", e.name()])
+                    .inc();
+                return Err(e);
+            }
+
+            // Step 4: Create a VerifiedTransactions instance containing both the verified
+            // transactions and their original serialized form for efficient re-sharing
+            let verified_transactions = VerifiedTransactions::new(
+                transactions,
+                serialized_transactions.block_ref,
+                block_header.transactions_commitment(),
+                serialized_transactions.serialized_transactions,
+            );
+
+            collected_verified_transactions.push(verified_transactions);
+        }
+
+        Ok(collected_verified_transactions)
     }
 
     async fn fetch_transactions_request(
@@ -642,6 +774,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let core_dispatcher = self.core_dispatcher.clone();
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let commands_sender = self.commands_sender.clone();
+        let block_verifier = self.block_verifier.clone();
+        let dag_state = self.dag_state.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
@@ -682,6 +816,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         core_dispatcher.clone(),
                         context.clone(),
                         commands_sender.clone(),
+                        block_verifier.clone(),
+                        dag_state.clone(),
                         "periodic",
                     )
                     .await
@@ -748,7 +884,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         // In test, the order is not randomized
         #[cfg(not(test))]
-        authorities.shuffle(&mut ThreadRng::default());
+        authorities.shuffle(&mut OsRng);
 
         let mut authorities = authorities.into_iter();
         let mut request_futures = FuturesUnordered::new();
@@ -856,13 +992,16 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
+    use async_trait::async_trait;
     use bytes::Bytes;
     use tokio::sync::Mutex;
 
     use super::*;
     use crate::{
+        Round,
         block_header::{BlockRef, VerifiedTransactions},
-        network::NetworkClient,
+        commit::CommitRange,
+        network::{BlockBundleStream, BlockStream, NetworkClient},
     };
 
     struct MockNetworkClient {
@@ -881,18 +1020,38 @@ mod tests {
             transactions: Vec<VerifiedTransactions>,
             peer: AuthorityIndex,
         ) {
-            let mut transactions_map = self.transactions.lock().await;
-            // FIXME:
-            for transaction in transactions {
-                let block_ref = transaction.block_ref();
-                let serialized = bcs::to_bytes(&transaction).unwrap();
-                transactions_map.insert((peer, block_ref), serialized.into());
-            }
+            // let mut transactions_map = self.transactions.lock().await;
+            // // FIXME:
+            // for transaction in transactions {
+            //     let block_ref = transaction.block_ref();
+            //     let serialized = bcs::to_bytes(&transaction).unwrap();
+            //     transactions_map.insert((peer, block_ref),
+            // serialized.into()); }
         }
     }
 
     #[async_trait]
     impl NetworkClient for MockNetworkClient {
+        async fn subscribe_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockStream> {
+            // Not needed for transactions synchronizer tests
+            unimplemented!("subscribe_blocks not implemented in mock")
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            peer: AuthorityIndex,
+            last_received: Round,
+            timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
+            // Not needed for transactions synchronizer tests
+            unimplemented!("fetch_latest_block_headers not implemented in mock")
+        }
+
         async fn fetch_transactions(
             &self,
             peer: AuthorityIndex,
@@ -907,16 +1066,6 @@ mod tests {
                 }
             }
             Ok(result)
-        }
-
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            // Not needed for transactions synchronizer tests
-            unimplemented!("subscribe_blocks not implemented in mock")
         }
 
         async fn fetch_blocks(

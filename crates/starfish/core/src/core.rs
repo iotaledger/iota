@@ -398,7 +398,7 @@ impl Core {
         //  try to create a committed subdag as soon as the data becomes available.
         let mut dag_state = self.dag_state.write();
         for transaction in transactions {
-            dag_state.add_transactions(transaction, false);
+            dag_state.add_transactions(transaction);
         }
 
         // After adding transactions, some pending subdags might be committable.

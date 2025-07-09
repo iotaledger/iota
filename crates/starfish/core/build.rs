@@ -103,6 +103,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .input_type("crate::network::tonic_network::FetchTransactionsRequest")
                 .output_type("crate::network::tonic_network::FetchTransactionsResponse")
                 .codec_path(codec_path)
+                .server_streaming()
                 .build(),
         )
         .build();
