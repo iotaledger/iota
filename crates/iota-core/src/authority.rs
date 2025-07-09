@@ -3350,9 +3350,10 @@ impl AuthorityState {
     }
 
     // This function is only used for testing.
-    pub fn get_iota_system_state_object_for_testing(&self) -> IotaResult<IotaSystemState> {
+    pub fn get_iota_system_state_object_for_testing(&self) -> IotaSystemState {
         self.get_object_cache_reader()
             .try_get_iota_system_state_object_unsafe()
+            .unwrap()
     }
 
     #[instrument(level = "trace", skip_all)]

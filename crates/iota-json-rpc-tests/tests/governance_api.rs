@@ -46,8 +46,7 @@ async fn execute_add_validator_transactions(
     let pending_active_count = test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_iota_system_state_object_for_testing()
-            .unwrap();
+            .get_iota_system_state_object_for_testing();
         system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap()
@@ -58,7 +57,6 @@ async fn execute_add_validator_transactions(
         let system_state = node
             .state()
             .get_iota_system_state_object_for_testing()
-            .unwrap()
             .into_iota_system_state_summary();
         match system_state {
             IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
@@ -87,7 +85,6 @@ async fn execute_add_validator_transactions(
         let system_state = node
             .state()
             .get_iota_system_state_object_for_testing()
-            .unwrap()
             .into_iota_system_state_summary();
         let validator_candidates_size = match system_state {
             IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
@@ -133,8 +130,7 @@ async fn execute_add_validator_transactions(
     test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_iota_system_state_object_for_testing()
-            .unwrap();
+            .get_iota_system_state_object_for_testing();
         let pending_active_validators = system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap();

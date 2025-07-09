@@ -3259,8 +3259,7 @@ async fn test_genesis_iota_system_state_object() {
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
     assert!(move_object.type_().is(&IotaSystemStateWrapper::type_()));
     let iota_system_state = authority_state
-        .get_iota_system_state_object_for_testing()
-        .unwrap();
+        .get_iota_system_state_object_for_testing();
     assert_eq!(
         &iota_system_state
             .get_current_epoch_committee()

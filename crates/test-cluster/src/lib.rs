@@ -400,7 +400,7 @@ impl TestCluster {
         timeout(timeout_dur, async {
             let epoch = handle.with(|node| node.state().epoch_store_for_testing().epoch());
             if Some(epoch) == target_epoch {
-                return handle.with(|node| node.state().get_iota_system_state_object_for_testing().unwrap());
+                return handle.with(|node| node.state().get_iota_system_state_object_for_testing());
             }
             while let Ok(system_state) = epoch_rx.recv().await {
                 info!("received epoch {}", system_state.epoch());

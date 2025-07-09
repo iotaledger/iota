@@ -133,7 +133,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         &self,
         _request: SystemStateRequest,
     ) -> Result<IotaSystemState, IotaError> {
-        self.state.get_iota_system_state_object_for_testing()
+        Ok(self.state.get_iota_system_state_object_for_testing())
     }
 }
 
