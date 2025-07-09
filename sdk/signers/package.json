@@ -35,7 +35,7 @@
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
-        "test": "vitest run"
+        "test": "echo 'No tests specified for sdk/signers package yet.'"
     },
     "repository": {
         "type": "git",
