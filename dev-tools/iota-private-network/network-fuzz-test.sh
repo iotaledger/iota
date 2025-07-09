@@ -11,11 +11,22 @@ end_time=$((start_time + duration_total))
 validators=(validator-1 validator-2 validator-3 validator-4)
 loss_levels=(10 30 50 70 90)
 sleep_min=60        # minimum wait between actions (seconds)
-sleep_max=600       # maximum wait between actions (seconds)
+sleep_max=400       # maximum wait between actions (seconds)
 
 log() {
   echo "$(date -Iseconds) $1"
 }
+
+cleanup_all() {
+  log "Cleaning up all validators"
+  for v in "${validators[@]}"; do
+    docker unpause $v 2>/dev/null || true
+    docker run --rm --privileged --net container:$v gaiadocker/iproute2 qdisc del dev eth0 root 2>/dev/null || true
+    docker run --rm --privileged --net container:$v nicolaka/netshoot sh -c "iptables -F" 2>/dev/null || true
+  done
+}
+
+trap 'echo "Interrupted! Cleaning up…"; cleanup_all; exit 1' INT TERM
 
 # === ACTION HELPERS ===
 
@@ -72,34 +83,59 @@ while [[ $(date +%s) -lt $end_time ]]; do
   log "Sleeping for ${wait_time}s"
   sleep $wait_time
 
-  # select a random action
-  action=$((RANDOM % 4))
-  # select a random validator
-  v=${validators[RANDOM % ${#validators[@]}]}
+  # 1) choose random subset of validators
+  selected_validators=()
+  for val in "${validators[@]}"; do
+    if (( RANDOM % 2 )); then
+      selected_validators+=("$val")
+    fi
+  done
+  # ensure at least one validator
+  if [ ${#selected_validators[@]} -eq 0 ]; then
+    selected_validators+=("${validators[RANDOM % ${#validators[@]}]}")
+  fi
 
-  case $action in
-    0)  # pause/unpause
-      d=$((RANDOM % 60 + 30))
-      pause_validator $v $d
-      ;;
-    1)  # restart
-      restart_validator $v
-      ;;
-    2)  # netem packet loss
-      p=${loss_levels[RANDOM % ${#loss_levels[@]}]}
-      d=$((RANDOM % 60 + 30))
-      netem_loss $v $p $d
-      ;;
-    3)  # iptables block/unblock with random peer
-      peers=("${validators[@]/$v}")
-      b=${peers[RANDOM % ${#peers[@]}]}
-      iptables_block $v $b
-      # block duration
-      d=$((RANDOM % 60 + 60))
-      sleep $d
-      iptables_unblock $v $b
-      ;;
-  esac
+  # 2) for each selected validator, choose random subset of actions and execute
+  for v in "${selected_validators[@]}"; do
+    # choose random subset of actions
+    actions=("pause" "restart" "netem" "iptables")
+    selected_actions=()
+    for act in "${actions[@]}"; do
+      if (( RANDOM % 2 )); then
+        selected_actions+=("$act")
+      fi
+    done
+    # ensure at least one action for this validator
+    if [ ${#selected_actions[@]} -eq 0 ]; then
+      selected_actions+=("${actions[RANDOM % ${#actions[@]}]}")
+    fi
+
+    # execute each selected action on validator $v
+    for act in "${selected_actions[@]}"; do
+      case $act in
+        "pause")
+          d=$((RANDOM % 60 + 30))
+          pause_validator $v $d
+          ;;
+        "restart")
+          restart_validator $v
+          ;;
+        "netem")
+          p=${loss_levels[RANDOM % ${#loss_levels[@]}]}
+          d=$((RANDOM % 60 + 30))
+          netem_loss $v $p $d
+          ;;
+        "iptables")
+          peers=("${validators[@]/$v}")
+          b=${peers[RANDOM % ${#peers[@]}]}
+          iptables_block $v $b
+          d=$((RANDOM % 60 + 60))
+          sleep $d
+          iptables_unblock $v $b
+          ;;
+      esac
+    done
+  done
 done
 
 # === CLEANUP ===
