@@ -1826,7 +1826,7 @@ impl TransactionCacheRead for WritebackCache {
 }
 
 impl ExecutionCacheWrite for WritebackCache {
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
@@ -1837,7 +1837,7 @@ impl ExecutionCacheWrite for WritebackCache {
             .boxed()
     }
 
-    fn write_transaction_outputs(
+    fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,

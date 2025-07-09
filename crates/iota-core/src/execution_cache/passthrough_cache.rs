@@ -239,7 +239,7 @@ impl TransactionCacheRead for PassthroughCache {
 
 impl ExecutionCacheWrite for PassthroughCache {
     #[instrument(level = "debug", skip_all)]
-    fn write_transaction_outputs<'a>(
+    fn try_write_transaction_outputs<'a>(
         &'a self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
@@ -279,7 +279,7 @@ impl ExecutionCacheWrite for PassthroughCache {
         .boxed()
     }
 
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],

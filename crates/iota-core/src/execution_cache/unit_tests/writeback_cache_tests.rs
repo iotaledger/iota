@@ -345,7 +345,7 @@ impl Scenario {
         assert!(self.transactions.insert(tx), "transaction is not unique");
 
         self.cache()
-            .write_transaction_outputs(1 /* epoch */, outputs.clone())
+            .try_write_transaction_outputs(1 /* epoch */, outputs.clone())
             .await
             .expect("write_transaction_outputs failed");
 
@@ -1113,7 +1113,7 @@ async fn test_concurrent_lockers() {
             for (tx1, _, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
                         .await,
                 );
                 barrier.wait().await;
@@ -1132,7 +1132,7 @@ async fn test_concurrent_lockers() {
             for (_, tx2, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx2)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx2)
                         .await,
                 );
                 barrier.wait().await;
@@ -1186,7 +1186,7 @@ async fn test_concurrent_lockers_same_tx() {
             for (tx1, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
                         .await,
                 );
                 barrier.wait().await;
@@ -1205,7 +1205,7 @@ async fn test_concurrent_lockers_same_tx() {
             for (tx1, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
                         .await,
                 );
                 barrier.wait().await;

@@ -648,14 +648,14 @@ pub trait ExecutionCacheWrite: Send + Sync {
     /// Any write performed by this method immediately notifies any waiter that
     /// has previously called notify_read_objects_for_execution or
     /// notify_read_objects_for_signing for the object in question.
-    fn write_transaction_outputs(
+    fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
     ) -> BoxFuture<'_, IotaResult>;
 
     /// Attempt to acquire object locks for all of the owned input locks.
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],

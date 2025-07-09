@@ -237,21 +237,21 @@ impl TransactionCacheRead for ProxyCache {
 }
 
 impl ExecutionCacheWrite for ProxyCache {
-    fn write_transaction_outputs(
+    fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
     ) -> BoxFuture<'_, IotaResult> {
-        delegate_method!(self.write_transaction_outputs(epoch_id, tx_outputs))
+        delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
     ) -> BoxFuture<'a, IotaResult> {
-        delegate_method!(self.acquire_transaction_locks(
+        delegate_method!(self.try_acquire_transaction_locks(
             epoch_store,
             owned_input_objects,
             transaction

@@ -915,7 +915,7 @@ impl AuthorityState {
         // and returns ConflictingTransaction error in case there is a lock on a
         // different existing transaction.
         self.get_cache_writer()
-            .acquire_transaction_locks(epoch_store, &owned_objects, signed_transaction.clone())
+            .try_acquire_transaction_locks(epoch_store, &owned_objects, signed_transaction.clone())
             .await?;
 
         Ok(signed_transaction)
@@ -1497,7 +1497,7 @@ impl AuthorityState {
             inner_temporary_store,
         );
         self.get_cache_writer()
-            .write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())
+            .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())
             .await?;
 
         if certificate.transaction_data().is_end_of_epoch_tx() {
