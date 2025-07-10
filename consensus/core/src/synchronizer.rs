@@ -486,6 +486,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
+                                context.metrics.update_scoring_metrics_on_block_receival(
+                                    peer_index,
+                                    peer_hostname,
+                                    err.clone(),
+                                    "process_fetched_blocks",
+                                );
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                             }
                         },

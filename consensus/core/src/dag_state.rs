@@ -715,13 +715,6 @@ impl DagState {
         blocks.into_iter().zip(equivocating_blocks).collect()
     }
 
-    /// Returns the evicted rounds vector. Used for testing of the scoring
-    /// metrics
-    #[cfg(test)]
-    pub(crate) fn get_evicted_rounds(&self) -> Vec<Round> {
-        self.evicted_rounds.clone()
-    }
-
     /// Checks whether a block exists in the slot. The method checks only
     /// against the cached data. If the user asks for a slot that is not
     /// within the cached data then a panic is thrown.
