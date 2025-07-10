@@ -3,14 +3,33 @@
 # Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
+nval=4  # default number of validators
+
 if [ ! -d "./data" ]; then
   echo "Please run './bootstrap.sh' first"
   exit
 fi
 
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -nval)
+      shift
+      nval=$1
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
 function start_services() {
   services="$1"
-  docker compose up -d validator-1 validator-2 validator-3 validator-4 $services
+  validators=""
+  for ((i=1; i<=nval; i++)); do
+    validators="$validators validator-$i"
+  done
+  docker compose up -d $validators $services
 }
 
 declare -A modes
