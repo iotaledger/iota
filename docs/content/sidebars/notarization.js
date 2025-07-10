@@ -62,6 +62,11 @@ const notarization = [
                         label: 'Rust',
                         href: 'https://iotaledger.github.io/notarization/notarization/index.html',
                     },
+                    {
+                        type: 'link',
+                        label: 'Wasm',
+                        href: 'developer/iota-notarization/references/wasm/api_ref',
+                    },
                 ],
             },
         ],
