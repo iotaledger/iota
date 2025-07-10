@@ -101,7 +101,6 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
                         'peer-[&:is(:checked,:indeterminate)]:checkbox-border-checked',
                         'peer-[&:is(:checked,:indeterminate)]:checkbox-bg-checked',
                         'peer-[&:is(:checked,:indeterminate)]:checkbox-text-checked',
-                        'peer-disabled:peer-[&:is(:checked,:indeterminate)]:[&_svg]:hidden',
                         'peer-disabled:peer-[&:not(:checked,:indeterminate)]:checkbox-border-color-disabled',
                         'peer-disabled:peer-[&:is(:checked,:indeterminate)]:checkbox-border-color-disabled-checked',
                         'peer-disabled:peer-[&:is(:checked,:indeterminate)]:checkbox-bg-color-disabled-checked',

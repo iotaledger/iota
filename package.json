@@ -15,6 +15,7 @@
 		"wallet": "turbo --filter ./apps/wallet",
 		"wallet-dashboard": "turbo --filter ./apps/wallet-dashboard",
 		"sdk": "turbo --filter ./sdk/typescript",
+		"signers": "turbo --filter ./sdk/signers",
 		"bcs": "turbo --filter ./sdk/bcs",
 		"isc-sdk": "turbo --filter ./sdk/isc-sdk",
 		"apps-backend": "turbo --filter apps-backend",

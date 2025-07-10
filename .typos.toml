@@ -17,6 +17,10 @@ extend-ignore-re = ["0x[a-f0-9]\\.{3}[a-f0-9]{3}"]
 extend-glob = ["hex.move"]
 extend-words = { ba = "ba" }
 
+[type.css]
+extend-glob = ["*.css"]
+extend-words = { wdth = "wdth" }
+
 [default.extend-words]
 # ordinal numbers (2nd, ...)
 nd = "nd"
