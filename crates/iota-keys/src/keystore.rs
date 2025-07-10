@@ -254,7 +254,7 @@ impl StoredKey {
         }
     }
 
-    pub fn try_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
+    pub fn as_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
         match self {
             StoredKey::KeyPair(keypair) => Ok(keypair),
             StoredKey::External { .. } => bail!("Cannot get key pair for External keys."),

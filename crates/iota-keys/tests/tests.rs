@@ -271,7 +271,7 @@ fn test_migrate_v1_to_v2_no_aliases() {
         *keystore
             .get_key(&IotaAddress::from(&keypair.public()))
             .unwrap()
-            .try_keypair()
+            .as_keypair()
             .unwrap(),
         keypair,
     );
@@ -315,7 +315,7 @@ fn test_migrate_v1_to_v2_with_aliases() {
         *keystore
             .get_key(&IotaAddress::from(&keypair.public()))
             .unwrap()
-            .try_keypair()
+            .as_keypair()
             .unwrap(),
         keypair,
     );

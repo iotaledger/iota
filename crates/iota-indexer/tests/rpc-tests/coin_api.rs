@@ -423,7 +423,7 @@ fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
             client,
             store,
             address,
-            address_kp.try_keypair().unwrap(),
+            address_kp.as_keypair().unwrap(),
         )
         .await
         .unwrap();
@@ -484,7 +484,7 @@ fn get_coin_metadata_with_native_coin_manager_coins() {
             client,
             store,
             address,
-            address_kp.try_keypair().unwrap(),
+            address_kp.as_keypair().unwrap(),
         )
         .await
         .unwrap();
@@ -571,7 +571,7 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
             client,
             store,
             address,
-            address_kp.try_keypair().unwrap(),
+            address_kp.as_keypair().unwrap(),
         )
         .await
         .unwrap();
@@ -613,7 +613,7 @@ fn get_total_supply_with_native_coin_manager_coins() {
             client,
             store,
             address,
-            address_kp.try_keypair().unwrap(),
+            address_kp.as_keypair().unwrap(),
         )
         .await
         .unwrap();
