@@ -194,7 +194,7 @@ async fn reconfig_with_revert_end_to_end_test() {
         .with_async(|node| async {
             let object = node
                 .state()
-                .try_get_objects(&[gas2.0])
+                .get_objects(&[gas2.0])
                 .await
                 .into_iter()
                 .next()
@@ -227,7 +227,7 @@ async fn reconfig_with_revert_end_to_end_test() {
             .with_async(|node| async {
                 let object = node
                     .state()
-                    .try_get_objects(&[gas1.0])
+                    .get_objects(&[gas1.0])
                     .await
                     .into_iter()
                     .next()
@@ -242,7 +242,7 @@ async fn reconfig_with_revert_end_to_end_test() {
                 // Note that previously test checked that object version == 2 on authority 0
                 let object = node
                     .state()
-                    .try_get_objects(&[gas2.0])
+                    .get_objects(&[gas2.0])
                     .await
                     .into_iter()
                     .next()
@@ -514,9 +514,7 @@ async fn test_validator_candidate_pool_read() {
         .await;
     add_validator_candidate(&test_cluster, &new_validator).await;
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         let system_state_summary = system_state.clone().into_iota_system_state_summary();
         let staking_pool_id = get_validator_from_table(
             node.state().get_object_store().as_ref(),
@@ -562,9 +560,7 @@ async fn test_inactive_validator_pool_read() {
             .staking_pool_id
     });
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         let system_state_summary = system_state.clone().into_iota_system_state_summary();
         // Validator is active. Check that we can find its summary by staking pool id.
         let validator = get_validator_by_pool_id(
@@ -592,9 +588,7 @@ async fn test_inactive_validator_pool_read() {
     // inactive_validators, and we can still deserialize it and get the inactive
     // staking pool.
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         assert_eq!(
             system_state
                 .get_current_epoch_committee()
@@ -1018,9 +1012,7 @@ async fn add_validator_candidate(
 
     // Check that the candidate can be found in the candidate table now.
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         let system_state_summary = system_state.into_iota_system_state_summary();
         let validator_candidates_size = match system_state_summary {
             IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
@@ -1063,9 +1055,7 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
 
     // Check that the validator can be found in the removal list now.
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         let pending_removals = match system_state.into_iota_system_state_summary() {
             IotaSystemStateSummary::V1(v1) => v1.pending_removals,
             IotaSystemStateSummary::V2(v2) => v2.pending_removals,
@@ -1083,9 +1073,7 @@ async fn execute_add_validator_transactions(
     new_validator: &ValidatorGenesisConfig,
 ) {
     let pending_active_count = test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap()
@@ -1127,9 +1115,7 @@ async fn execute_add_validator_transactions(
 
     // Check that we can get the pending validator from 0x5.
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         let pending_active_validators = system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap();

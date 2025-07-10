@@ -414,9 +414,7 @@ impl Scenario {
         self.assert_live(short_ids);
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
-            self.cache()
-                .try_get_package_object(id)
-                .expect("no such package");
+            self.cache().get_package_object(id);
         }
     }
 
@@ -947,12 +945,7 @@ async fn test_invalidate_package_cache_on_revert() {
         s.cache().revert_state_update(&tx1);
         s.clear_state_end_of_epoch().await;
 
-        assert!(
-            s.cache()
-                .try_get_package_object(&s.obj_id(2))
-                .unwrap()
-                .is_none()
-        );
+        assert!(s.cache().get_package_object(&s.obj_id(2)).is_none());
     })
     .await;
 }

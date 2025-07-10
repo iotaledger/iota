@@ -196,6 +196,8 @@ pub trait ExecutionCacheCommit: Send + Sync {
 pub trait ObjectCacheRead: ObjectCacheReadNonFallible + ObjectCacheReadFallible {}
 
 pub trait ObjectCacheReadNonFallible: Send + Sync {
+    fn get_package_object(&self, id: &ObjectID) -> Option<PackageObject>;
+
     fn get_object(&self, id: &ObjectID) -> Option<Object>;
 
     fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {

@@ -35,7 +35,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverResponse,
     },
-    storage::{ReadStoreFallible, ReadStoreNonFallible},
+    storage::{ReadStoreFallible, ObjectStoreNonFallible},
     transaction::{
         CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionKind,
@@ -603,7 +603,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_(&digests)
+        .notify_read_executed_effects(&digests)
         .await;
 }
 
@@ -1233,7 +1233,7 @@ async fn test_access_old_object_pruned() {
                 assert!(
                     state
                         .database_for_testing()
-                        .try_get_object_by_key(&gas_object.0, gas_object.1)?
+                        .get_object_by_key(&gas_object.0, gas_object.1)
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();

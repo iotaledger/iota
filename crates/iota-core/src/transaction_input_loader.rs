@@ -58,8 +58,7 @@ impl TransactionInputLoader {
             match kind {
                 // Packages are loaded one at a time via the cache
                 InputObjectKind::MovePackage(id) => {
-                    let Some(package) = self.cache.try_get_package_object(id)?.map(|o| o.into())
-                    else {
+                    let Some(package) = self.cache.get_package_object(id).map(|o| o.into()) else {
                         return Err(IotaError::from(kind.object_not_found_error()));
                     };
                     input_results[i] = Some(ObjectReadResult {
@@ -154,7 +153,7 @@ impl TransactionInputLoader {
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
                 InputObjectKind::MovePackage(id) => {
-                    let package = self.cache.try_get_package_object(id)?.unwrap_or_else(|| {
+                    let package = self.cache.get_package_object(id).unwrap_or_else(|| {
                         panic!("Executable transaction {tx_key:?} depends on non-existent package {id:?}")
                     });
 

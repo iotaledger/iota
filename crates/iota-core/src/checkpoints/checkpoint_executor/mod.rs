@@ -66,8 +66,8 @@ use crate::{
         },
     },
     execution_cache::{
-        ObjectCacheRead, ObjectCacheReadFallible, TransactionCacheRead,
-        TransactionCacheReadFallible,
+        ObjectCacheRead, ObjectCacheReadNonFallible, TransactionCacheRead,
+        TransactionCacheReadNonFallible,
     },
     state_accumulator::StateAccumulator,
     transaction_manager::TransactionManager,
@@ -829,7 +829,7 @@ async fn handle_execution_effects(
     all_tx_digests: Vec<TransactionDigest>,
     checkpoint: VerifiedCheckpoint,
     checkpoint_store: Arc<CheckpointStore>,
-    object_cache_reader: &dyn ObjectCacheReadFallible,
+    object_cache_reader: &dyn ObjectCacheReadNonFallible,
     transaction_cache_reader: &dyn TransactionCacheRead,
     epoch_store: Arc<AuthorityPerEpochStore>,
     transaction_manager: Arc<TransactionManager>,
@@ -956,12 +956,11 @@ fn assert_not_forked(
     tx_digest: &TransactionDigest,
     expected_digest: &TransactionEffectsDigest,
     actual_effects_digest: &TransactionEffectsDigest,
-    cache_reader: &dyn TransactionCacheReadFallible,
+    cache_reader: &dyn TransactionCacheReadNonFallible,
 ) {
     if *expected_digest != *actual_effects_digest {
         let actual_effects = cache_reader
-            .try_get_executed_effects(tx_digest)
-            .expect("get_executed_effects cannot fail")
+            .get_executed_effects(tx_digest)
             .expect("actual effects should exist");
 
         // log observed effects (too big for panic message) and then panic.
@@ -1321,8 +1320,8 @@ async fn execute_transactions(
 #[instrument(level = "info", skip_all, fields(seq = ?checkpoint.sequence_number(), epoch = ?epoch_store.epoch()))]
 async fn finalize_checkpoint(
     state: &AuthorityState,
-    object_cache_reader: &dyn ObjectCacheReadFallible,
-    transaction_cache_reader: &dyn TransactionCacheReadFallible,
+    object_cache_reader: &dyn ObjectCacheReadNonFallible,
+    transaction_cache_reader: &dyn TransactionCacheReadNonFallible,
     checkpoint_store: Arc<CheckpointStore>,
     tx_digests: &[TransactionDigest],
     epoch_store: &Arc<AuthorityPerEpochStore>,

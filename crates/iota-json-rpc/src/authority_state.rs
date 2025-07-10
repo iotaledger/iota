@@ -281,7 +281,7 @@ impl StateRead for AuthorityState {
     }
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {
-        &self.get_object_cache_reader()
+        self.get_object_cache_reader()
     }
 
     fn get_object_store(&self) -> &Arc<dyn ObjectStore + Send + Sync> {

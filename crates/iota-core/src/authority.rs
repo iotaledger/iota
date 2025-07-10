@@ -5135,9 +5135,8 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         object_id: ObjectID,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self
-            .get_object_cache_reader()
-            .try_get_object_by_key(&object_id, version)?)
+        self.get_object_cache_reader()
+            .try_get_object_by_key(&object_id, version)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(

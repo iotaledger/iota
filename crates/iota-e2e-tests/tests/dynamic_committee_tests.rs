@@ -23,7 +23,6 @@ use iota_types::{
     },
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectStoreFallible,
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
 };
 use move_core_types::ident_str;
@@ -117,7 +116,6 @@ impl StressTestRunner {
     pub fn system_state(&self) -> IotaSystemStateSummary {
         self.state()
             .get_iota_system_state_object_for_testing()
-            .unwrap()
             .into_iota_system_state_summary()
     }
 

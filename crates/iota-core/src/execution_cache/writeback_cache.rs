@@ -1653,6 +1653,48 @@ impl ObjectCacheReadFallible for WritebackCache {
 }
 
 impl ObjectCacheReadNonFallible for WritebackCache {
+    fn get_package_object(&self, package_id: &ObjectID) -> Option<PackageObject> {
+        self.metrics
+            .record_cache_request("package", "package_cache");
+        if let Some(p) = self.packages.get(package_id) {
+            if cfg!(debug_assertions) {
+                if let Some(store_package) = self.store.try_get_object(package_id).unwrap() {
+                    assert_eq!(
+                        store_package.digest(),
+                        p.object().digest(),
+                        "Package object cache is inconsistent for package {:?}",
+                        package_id
+                    );
+                }
+            }
+            self.metrics.record_cache_hit("package", "package_cache");
+            return Some(p);
+        } else {
+            self.metrics.record_cache_miss("package", "package_cache");
+        }
+
+        // We try the dirty objects cache as well before going to the database. This is
+        // necessary because the package could be evicted from the package cache
+        // before it is committed to the database.
+        if let Some(p) = self
+            .get_object_impl("package", package_id)
+            .expect("db error")
+        {
+            if p.is_package() {
+                let p = PackageObject::new(p);
+                tracing::trace!(
+                    "caching package: {:?}",
+                    p.object().compute_object_reference()
+                );
+                self.metrics.record_cache_write("package");
+                self.packages.insert(*package_id, p.clone());
+                return Some(p);
+            }
+        }
+
+        None
+    }
+
     // get_object and variants.
 
     fn get_object(&self, id: &ObjectID) -> Option<Object> {

@@ -22,7 +22,7 @@ use tracing::{debug, error, trace};
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     authority_aggregator::AuthorityAggregator, authority_client::AuthorityAPI,
-    execution_cache::TransactionCacheReadFallible,
+    execution_cache::TransactionCacheReadNonFallible,
 };
 
 struct ValidatorTxFinalizerMetrics {
@@ -179,7 +179,7 @@ where
 {
     pub async fn track_signed_tx(
         &self,
-        cache_read: Arc<dyn TransactionCacheReadFallible>,
+        cache_read: Arc<dyn TransactionCacheReadNonFallible>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         tx: VerifiedSignedTransaction,
     ) {
@@ -202,7 +202,7 @@ where
 
     async fn delay_and_finalize_tx(
         &self,
-        cache_read: Arc<dyn TransactionCacheReadFallible>,
+        cache_read: Arc<dyn TransactionCacheReadNonFallible>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         tx: VerifiedSignedTransaction,
     ) -> anyhow::Result<bool> {
@@ -215,7 +215,7 @@ where
             _ = tokio::time::sleep(tx_finalization_delay) => {
                 trace!(?tx_digest, "Waking up to finalize transaction");
             }
-            _ = cache_read.try_notify_read_executed_effects_digests(&digests) => {
+            _ = cache_read.notify_read_executed_effects_digests(&digests) => {
                 trace!(?tx_digest, "Transaction already finalized");
                 return Ok(false);
             }

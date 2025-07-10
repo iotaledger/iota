@@ -657,9 +657,8 @@ async fn test_txn_age_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .try_notify_read_executed_effects(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap();
     let (shared_counter_ref, owner) = create_counter_effects.created()[0];

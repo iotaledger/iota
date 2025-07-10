@@ -204,6 +204,12 @@ impl ObjectCacheReadFallible for PassthroughCache {
 }
 
 impl ObjectCacheReadNonFallible for PassthroughCache {
+    fn get_package_object(&self, package_id: &ObjectID) -> Option<PackageObject> {
+        self.package_cache
+            .get_package_object(package_id, &*self.store)
+            .expect("db error")
+    }
+
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
         self.store.get_object(id)
     }

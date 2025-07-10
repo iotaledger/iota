@@ -44,9 +44,7 @@ async fn execute_add_validator_transactions(
     new_validator: &ValidatorGenesisConfig,
 ) {
     let pending_active_count = test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap()
@@ -128,9 +126,7 @@ async fn execute_add_validator_transactions(
 
     // Check that we can get the pending validator from 0x5.
     test_cluster.fullnode_handle.iota_node.with(|node| {
-        let system_state = node
-            .state()
-            .get_iota_system_state_object_for_testing();
+        let system_state = node.state().get_iota_system_state_object_for_testing();
         let pending_active_validators = system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap();

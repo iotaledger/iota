@@ -207,6 +207,10 @@ impl ObjectCacheReadFallible for ProxyCache {
 }
 
 impl ObjectCacheReadNonFallible for ProxyCache {
+    fn get_package_object(&self, package_id: &ObjectID) -> Option<PackageObject> {
+        delegate_method!(self.get_package_object(package_id))
+    }
+
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
         delegate_method!(self.get_object(id))
     }
