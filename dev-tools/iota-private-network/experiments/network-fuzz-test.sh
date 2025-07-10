@@ -24,9 +24,6 @@ start_time=$(date +%s)
 end_time=$((start_time + duration_total))
 
 validators=(validator-1 validator-2 validator-3 validator-4)
-loss_levels=(10 30 50 70 90)
-sleep_min=60        # minimum wait between actions (seconds)
-sleep_max=400       # maximum wait between actions (seconds)
 
 log() {
   echo "$(date -Iseconds) $1"

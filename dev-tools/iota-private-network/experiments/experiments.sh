@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# List of validators to test
-validators=("validator-1")
-
 # Initial delay in seconds
 initial_delay=10
 
