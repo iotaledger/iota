@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
     IotaObjectResponseQuery, IotaTransactionBlockResponse,
 };
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, SubnameRegistration,
+    IotaNamesNft, NameRegistration, SubnameRegistration,
     config::IotaNamesConfig,
     name::Name,
     registry::{NameRecord, RegistryEntry, ReverseRegistryEntry},
@@ -262,7 +262,7 @@ impl NameCommand {
                 verbose,
                 opts,
             } => {
-                let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?;
+                let nft = get_owned_nft_by_name::<NameRegistration>(&name, context).await?;
 
                 if !nft.has_expired() {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
@@ -324,7 +324,7 @@ impl NameCommand {
             }
             Self::List { address } => {
                 let address = get_identity_address(address, context).await?;
-                let mut nfts = get_owned_nfts::<IotaNamesRegistration>(address, context).await?;
+                let mut nfts = get_owned_nfts::<NameRegistration>(address, context).await?;
                 let subname_nfts = get_owned_nfts::<SubnameRegistration>(address, context).await?;
                 nfts.extend(subname_nfts.into_iter().map(|nft| nft.into_inner()));
                 NameCommandResult::List(nfts)
@@ -427,7 +427,7 @@ impl NameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Register {
                         record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?,
+                        nft: get_owned_nft_by_name::<NameRegistration>(&name, context).await?,
                         digest: res.digest,
                     })
                 })
@@ -460,7 +460,7 @@ impl NameCommand {
                 let name_str = name.to_string();
                 let coin =
                     select_coin_arg_for_payment(name_str.as_str(), coin, price, context).await?;
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&name, context)
+                let nft_id = get_owned_nft_by_name::<NameRegistration>(&name, context)
                     .await?
                     .id();
                 let mut args = vec![
@@ -506,7 +506,7 @@ impl NameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Renew {
                         record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?,
+                        nft: get_owned_nft_by_name::<NameRegistration>(&name, context).await?,
                         digest: res.digest,
                     })
                 })
@@ -934,7 +934,7 @@ impl AuctionCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionClaim {
                         record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?,
+                        nft: get_owned_nft_by_name::<NameRegistration>(&name, context).await?,
                         digest: res.digest,
                     })
                 })
@@ -1284,7 +1284,7 @@ pub enum NameCommandResult {
     },
     AuctionClaim {
         record: NameRecord,
-        nft: IotaNamesRegistration,
+        nft: NameRegistration,
         digest: TransactionDigest,
     },
     AuctionMetadata(Auction),
@@ -1297,7 +1297,7 @@ pub enum NameCommandResult {
         price: Option<u64>,
     },
     Burn {
-        burned: IotaNamesRegistration,
+        burned: NameRegistration,
         digest: TransactionDigest,
     },
     CommandResult(Box<IotaClientCommandResult>),
@@ -1306,14 +1306,14 @@ pub enum NameCommandResult {
         nft: SubnameRegistration,
         digest: TransactionDigest,
     },
-    List(Vec<IotaNamesRegistration>),
+    List(Vec<NameRegistration>),
     Lookup {
         name: Name,
         target_address: Option<IotaAddress>,
     },
     Register {
         record: NameRecord,
-        nft: IotaNamesRegistration,
+        nft: NameRegistration,
         digest: TransactionDigest,
     },
     RegisterLeafSubname {
@@ -1327,7 +1327,7 @@ pub enum NameCommandResult {
     },
     Renew {
         record: NameRecord,
-        nft: IotaNamesRegistration,
+        nft: NameRegistration,
         digest: TransactionDigest,
     },
     ReverseLookup {
@@ -1717,7 +1717,7 @@ fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord
     }
 }
 
-fn format_nft(f: &mut std::fmt::Formatter, nft: &IotaNamesRegistration) -> std::fmt::Result {
+fn format_nft(f: &mut std::fmt::Formatter, nft: &NameRegistration) -> std::fmt::Result {
     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
         .format("%Y-%m-%d %H:%M:%S.%f UTC")
         .to_string();
@@ -1993,7 +1993,7 @@ where
 }
 
 pub enum IotaNamesNftProxy {
-    Name(IotaNamesRegistration),
+    Name(NameRegistration),
     Subname(SubnameRegistration),
 }
 
@@ -2017,7 +2017,7 @@ impl IotaNamesNftProxy {
 
     fn type_(&self, package_id: AccountAddress) -> StructTag {
         match self {
-            IotaNamesNftProxy::Name(_) => IotaNamesRegistration::type_(package_id),
+            IotaNamesNftProxy::Name(_) => NameRegistration::type_(package_id),
             IotaNamesNftProxy::Subname(_) => SubnameRegistration::type_(package_id),
         }
     }
@@ -2161,7 +2161,7 @@ pub struct Auction {
     pub end_timestamp_ms: u64,
     pub current_bidder: IotaAddress,
     pub current_bid: Coin,
-    pub nft: IotaNamesRegistration,
+    pub nft: NameRegistration,
 }
 
 impl Auction {

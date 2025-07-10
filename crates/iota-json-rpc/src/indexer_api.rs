@@ -21,8 +21,8 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, error::IotaNamesError,
-    name::Name, registry::NameRecord,
+    IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
+    registry::NameRecord,
 };
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
@@ -570,9 +570,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(
-                IotaNamesRegistration::type_(self.iota_names_config.package_address.into()),
-            )),
+            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
+                self.iota_names_config.package_address.into(),
+            ))),
             options,
         };
 
