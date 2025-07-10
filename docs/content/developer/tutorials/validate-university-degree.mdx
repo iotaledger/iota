@@ -12,28 +12,40 @@ This step-by-step tutorial demonstrates how to issue, present, and verify academ
 
 ```mermaid
 sequenceDiagram
-    participant University as University of Oslo (Issuer)
-    participant Alice as Alice (Holder)
-    participant IOTA as IOTA Foundation (Verifier)
+    participant Alice as Holder (Alice)
+    participant University as Issuer (University)
+    participant Verifier as Verifier (IOTA Foundation)
 
-    University->>University: Create DID
-    Alice->>Alice: Create DID
-
-    University->>University: Create VC for Alice
-    University->>University: Sign VC as JWT
+    Alice->>Alice: Step 1️⃣ Create DID (holder_doc.json)
+    University->>University: Step 2️⃣ Create DID (issuer_doc.json)
+    University->>University: Create VC & sign as JWT (vc.jwt)
     University-->>Alice: Send VC JWT
-
-    Alice->>Alice: Create VP using VC JWT
-    Alice->>Alice: Sign VP with challenge
-    Alice-->>IOTA: Send VP JWT
-
-    IOTA->>IOTA: Extract holder + issuer DIDs
-    IOTA->>University: Resolve DID
-    IOTA->>Alice: Resolve DID
-    IOTA->>IOTA: Validate VP signature
-    IOTA->>IOTA: Validate VC inside VP
-    IOTA-->>IOTA: Output "VP successfully validated"
+    Alice->>Alice: Step 3️⃣ Create VP containing VC & sign as JWT (vp.jwt)
+    Alice-->>Verifier: Send VP JWT
+    Verifier->>Verifier: Step 4️⃣ Resolve holder & issuer DIDs
+    Verifier->>Verifier: Validate VP + VC signatures & challenge
+    Verifier-->>Verifier: 🎉 All credentials valid
 ```
+
+## Requirements
+
+Before starting, make sure you have:
+
+## Rust Toolchain
+
+- Install via [rustup.rs](https://rustup.rs):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+## Local IOTA network
+
+You need a local IOTA environment so your DIDs and credentials can be anchored, this is because your code will publish DIDs and resolve them on-chain.
+
+:::info
+See how to set up a local [IOTA Network](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
+:::
 
 ## Understanding the Core Concepts Before We Code
 
@@ -92,12 +104,14 @@ In our project:
 - She then signs this VP with her own DID, proving that she is the legitimate holder of that degree.
 - The Verifier will check Alice's signature on the VP and then verify the VC inside against the University's DID.
 
+All communication happens via DIDs and JWT-based credentials published and resolved on the IOTA network.
+
 # Getting Started
 
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-name/digitally_validate_degree.git
+git clone https://github.com/iota-community/digitally-validate-a-degree.git
 cd digitally_validate_degree
 ```
 
@@ -106,6 +120,13 @@ cd digitally_validate_degree
 ```bash
 cargo build
 ```
+
+## Step 1: Holder creates their DID
+
+cargo run --bin holder
+
+
+
 ## Step 1: Issuer Creates a Verifiable Credential
 Run the following to simulate the university issuing a VC:
 
