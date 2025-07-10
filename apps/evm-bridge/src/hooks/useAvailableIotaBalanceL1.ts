@@ -1,10 +1,10 @@
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { useBalance as useBalanceL1 } from './useBalance';
 import { parseAmount } from '../lib/utils';
 import { useBuildDepositTransactionL1 } from './useBuildDepositTransactionL1';
 import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { useBalance } from '@iota/core';
 
 const GENERIC_EVM_ADDRESS = '0x1111111111111111111111111111111111111111';
 
@@ -13,7 +13,7 @@ export function useAvailableIotaBalanceL1(): {
     isLoading: boolean;
 } {
     const layer1Account = useCurrentAccount();
-    const { data: layer1BalanceData, isLoading: isLoadingL1 } = useBalanceL1(
+    const { data: layer1BalanceData, isLoading: isLoadingL1 } = useBalance(
         layer1Account?.address as `0x${string}`,
     );
 

@@ -1,4 +1,4 @@
-import { useAccount, useBalance as useBalanceL2 } from 'wagmi';
+import { useAccount, useBalance } from 'wagmi';
 import { useGasEstimateL2 } from './useGasEstimateL2';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { formatEther } from 'viem';
@@ -14,7 +14,7 @@ export function useAvailableIotaBalanceL2(): {
     const layer2Account = useAccount();
 
     // Fetch Layer 2 balance
-    const { data: layer2BalanceData, isLoading: isLoadingL2 } = useBalanceL2({
+    const { data: layer2BalanceData, isLoading: isLoadingL2 } = useBalance({
         address: layer2Account?.address as `0x${string}`,
         query: {
             refetchInterval: 2000,
