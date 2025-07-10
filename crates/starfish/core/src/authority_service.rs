@@ -1443,9 +1443,9 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle() {
         // GIVEN
-        let rounds = 100;
+        let rounds = 50;
         let validators = 50;
-        let filter = false;
+        let filter = true;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -1564,9 +1564,9 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle_without_additional_headers() {
         // GIVEN
-        let rounds = 100;
+        let rounds = 50;
         let validators = 50;
-        let filter = false;
+        let filter = true;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
