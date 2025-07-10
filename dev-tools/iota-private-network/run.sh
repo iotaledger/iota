@@ -3,25 +3,11 @@
 # Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-nval=4  # default number of validators
-
-if [ ! -d "./data" ]; then
-  echo "Please run './bootstrap.sh' first"
-  exit
+nval=4  # default
+if [[ $1 =~ ^[0-9]+$ ]]; then
+  nval=$1
+  shift
 fi
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -nval)
-      shift
-      nval=$1
-      shift
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
 
 function start_services() {
   services="$1"
@@ -32,7 +18,6 @@ function start_services() {
   docker compose up -d $validators $services
 }
 
-declare -A modes
 modes=(
   [faucet]="fullnode-1 faucet-1"
   [backup]="fullnode-2"
@@ -41,18 +26,24 @@ modes=(
 )
 
 services_to_start=""
-
-if [ $# -eq 0 ]; then
-  services_to_start="fullnode-1 fullnode-2 fullnode-3 fullnode-4 indexer-1 indexer-2 postgres_primary postgres_replica"
-else
-  for mode in "$@"; do
-    if [[ $mode == "all" ]]; then
+for mode in "$@"; do
+  case $mode in
+    all)
       services_to_start="fullnode-1 fullnode-2 fullnode-3 fullnode-4 indexer-1 indexer-2 postgres_primary postgres_replica"
-      break
-    else
-      services_to_start="$services_to_start ${modes[$mode]}"
-    fi
-  done
-fi
+      ;;
+    faucet)
+      services_to_start="$services_to_start fullnode-1 faucet-1"
+      ;;
+    backup)
+      services_to_start="$services_to_start fullnode-2"
+      ;;
+    indexer)
+      services_to_start="$services_to_start fullnode-3 indexer-1 postgres_primary"
+      ;;
+    indexer-cluster)
+      services_to_start="$services_to_start fullnode-3 indexer-1 postgres_primary fullnode-4 indexer-2 postgres_replica"
+      ;;
+  esac
+done
 
 start_services "$services_to_start"
