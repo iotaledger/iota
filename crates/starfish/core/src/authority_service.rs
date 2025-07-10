@@ -1560,4 +1560,123 @@ mod tests {
         }
         println!("Total time: {:?}", total_duration);
     }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribe_bundle_without_additional_headers() {
+        // GIVEN
+        let rounds = 100;
+        let validators = 50;
+        let filter = false;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager =
+            BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+        // we set sync_last_known_own_block to true and last known proposed round to
+        // rounds+5 so that core doesn't start to create its own new blocks,
+        // that would be different from the blocks created in dag builder
+        let mut core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+        core.set_last_known_proposed_round(rounds + 5);
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+        ));
+        let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
+        let mut dag_builder =
+            DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
+        dag_builder.layers(1..=rounds).build();
+        let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
+        for round in 0..=rounds {
+            all_headers.push(dag_builder.block_headers(round..=round));
+            all_transactions.push(dag_builder.transactions(round..=round));
+        }
+        let mut total_duration = Duration::ZERO;
+        for round in 2..=rounds {
+            core_dispatcher
+                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .await
+                .expect("blocks header is expected to be added successfully");
+            for peer in 1..validators {
+                let block = VerifiedBlock {
+                    verified_block_header: all_headers[round as usize][peer].clone(),
+                    verified_transactions: all_transactions[round as usize][peer].clone(),
+                };
+                let block_bundle = BlockBundle {
+                    verified_block: block,
+                    verified_headers: vec![],
+                };
+                let serialized_block_bundle = SerializedBlockBundle::try_from(
+                    SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
+                )
+                .unwrap();
+                let start = Instant::now();
+                authority_service
+                    .handle_subscribed_block_bundle(
+                        context.committee.to_authority_index(peer).unwrap(),
+                        serialized_block_bundle,
+                        filter,
+                    )
+                    .await
+                    .expect("bundle is expected to be processed successfully");
+                total_duration += start.elapsed();
+            }
+        }
+        println!("Total time: {:?}", total_duration);
+    }
 }
