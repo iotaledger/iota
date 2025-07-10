@@ -154,8 +154,9 @@ impl Metrics {
         // Update metrics according to the blocks from evicted rounds.
         let missing_blocks_from_evicted_rounds =
             evicted_blocks_per_round.extract_if(.., |x| x == &0).count() as u64;
-        let equivocations_from_evicted_rounds = evicted_blocks_per_round.iter().sum::<u32>() as u64
-            - evicted_blocks_per_round.len() as u64;
+        let equivocations_from_evicted_rounds = (evicted_blocks_per_round.iter().sum::<u32>()
+            as u64)
+            .saturating_sub(evicted_blocks_per_round.len() as u64);
 
         self.scoring_metrics.uncached_equivocations_by_authority[validator.value()]
             .fetch_add(equivocations_from_evicted_rounds, Ordering::Relaxed);
@@ -180,9 +181,10 @@ impl Metrics {
         block_rounds_in_cache.dedup();
         let unique_block_rounds_in_cache = block_rounds_in_cache.len();
         let equivocations_in_cache =
-            (number_of_blocks_in_cache - unique_block_rounds_in_cache) as u64;
-        let missing_blocks_in_cache = (threshold_clock_round - eviction_round - 1) as u64
-            - unique_block_rounds_in_cache as u64;
+            number_of_blocks_in_cache.saturating_sub(unique_block_rounds_in_cache) as u64;
+        let missing_blocks_in_cache = threshold_clock_round
+            .saturating_sub(eviction_round + unique_block_rounds_in_cache as u32 + 1)
+            as u64;
 
         self.scoring_metrics.equivocations_in_cache_by_authority[validator.value()]
             .store(equivocations_in_cache, Ordering::Relaxed);
@@ -217,13 +219,14 @@ impl Metrics {
         let unique_block_rounds_in_cache = block_rounds_in_cache.len();
         // The subtraction below cannot result in a negative value by construction
         let equivocations_in_cache =
-            (number_of_blocks_in_cache - unique_block_rounds_in_cache) as u64;
+            number_of_blocks_in_cache.saturating_sub(unique_block_rounds_in_cache) as u64;
         // eviction_round + 1 is the index of the first round that is loaded to cache.
         // eviction_round + 1 + unique_block_rounds_in_cache is at most
         // threshold_clock_round. Thus, the subtraction below cannot result in a
         // negative value.
-        let missing_blocks_in_cache = (threshold_clock_round - eviction_round - 1) as u64
-            - unique_block_rounds_in_cache as u64;
+        let missing_blocks_in_cache = threshold_clock_round
+            .saturating_sub(eviction_round + unique_block_rounds_in_cache as u32 + 1)
+            as u64;
 
         self.scoring_metrics.equivocations_in_cache_by_authority[validator.value()]
             .store(equivocations_in_cache, Ordering::Relaxed);
@@ -249,8 +252,9 @@ impl Metrics {
 
         // The subtraction below cannot result in a negative value by construction
         let uncached_equivocations =
-            (number_of_uncached_blocks - uncached_unique_block_rounds) as u64;
-        let uncached_missing_blocks = eviction_round as u64 - uncached_unique_block_rounds as u64;
+            number_of_uncached_blocks.saturating_sub(uncached_unique_block_rounds) as u64;
+        let uncached_missing_blocks =
+            (eviction_round as u64).saturating_sub(uncached_unique_block_rounds as u64);
 
         self.scoring_metrics.uncached_equivocations_by_authority[validator.value()]
             .store(uncached_equivocations, Ordering::Relaxed);
