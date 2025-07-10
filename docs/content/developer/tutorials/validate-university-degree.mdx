@@ -29,23 +29,16 @@ sequenceDiagram
 
 ## Requirements
 
-Before starting, make sure you have:
+Before you begin, make sure you have:
 
-## Rust Toolchain
-
-- Install via [rustup.rs](https://rustup.rs):
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-## Local IOTA network
-
-You need a local IOTA environment so your DIDs and credentials can be anchored, this is because your code will publish DIDs and resolve them on-chain.
+- Rust installed (stable)
+- Setup a local IOTA node and request test tokens from faucet
 
 :::info
-See how to set up a local [IOTA Network](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
+The holder and issuer will publish their DIDs to this local network, so it must be running first. See how to set up a local [IOTA Network](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
 :::
+
+- Deploy the IOTA [identity contract](https://github.com/iotaledger/identity) to your local node. See how to do this [here](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup#publish-the-iota-identity-package)
 
 ## Understanding the Core Concepts Before We Code
 
@@ -123,55 +116,69 @@ cargo build
 
 ## Step 1: Holder creates their DID
 
-cargo run --bin holder
-
-
-
-## Step 1: Issuer Creates a Verifiable Credential
-Run the following to simulate the university issuing a VC:
-
 ```bash
-cargo run --bin issuer
+IOTA_IDENTITY_PKG_ID=your-package-id cargo run --bin holder
 ```
 
 This will:
 
-- Create a DID for the University of Oslo
-- Create a credential for Alice (name, degree, GPA)
-- Sign it as a JWT
+- Generates a new Decentralized Identifier (DID) for the holder (Alice)
+- Publishes the DID Document to the local IOTA network (anchored on-chain)
+- Publishes the DID Document to the local IOTA network (anchored on-chain)
+- Generates & saves a fragment (private key reference) in holder_fragment.txt — used later to sign the VP
+
+## Step 2: Issuer creates their DID and Verifiable Credential (VC)
+
+Run the following to simulate the university issuing a VC:
+
+```bash
+IOTA_IDENTITY_PKG_ID=your-package-id cargo run --bin issuer
+```
+
+This will:
+
+- Generates a new DID for the Issuer (e.g., University of Oslo)
+- Publishes the Issuer’s DID Document on the local IOTA network
+- Creates a Verifiable Credential (VC) for Alice (e.g., degree, GPA)
+- Signs the VC as a JWT so it can later be presented and verified
 - Print the VC JWT (copy this for the next step)
 
-## Step 2: Holder Creates a Verifiable Presentation
+## Step 3: Holder Creates a Verifiable Presentation (VP)
 
 Alice receives the VC and creates a VP to send to the IOTA Foundation.
 
 ```bash
-cargo run --bin holder -- --vc "<PASTE_VC_JWT_HERE>"
+IOTA_IDENTITY_PKG_ID=your-package-id cargo run --bin holder -- --vc "<PASTE_VC_JWT_HERE>"
 ```
 
 This will:
 
-- Generate Alice’s DID
-- Wrap the VC in a presentation
-- Sign it with Alice’s key
+- Takes the VC JWT issued by the university
+- Wraps it into a Verifiable Presentation (VP)
+- Signs the VP with Alice’s DID & includes a challenge (to prevent replay attacks)
+- Saves the resulting VP JWT as vp.jwt
 - Print the VP JWT
 
-## Step 3: Verifier Validates the Verifiable Presentation
+## Step 4: Verifier Validates the Verifiable Presentation
 
 The IOTA Foundation (verifier) now checks the authenticity and validity of the VP.
 
 ```bash
-cargo run --bin verifier -- --vp "<PASTE_VP_JWT_HERE>"
+IOTA_IDENTITY_PKG_ID=your-package-id cargo run --bin verifier "<PASTE_VP_JWT_HERE>"
 ```
+
 This will:
 
-- Extract Alice’s DID from the VP
-- Validate the signature and challenge
-- Resolve all involved DIDs (holder + issuer)
-- Validate the original credential
+- Extracts holder’s DID and issuer’s DID from the VP JWT
+- Resolves both DID Documents from the local IOTA network
+- Verifies the VP JWT signature and checks the challenge matches
+- Validates the embedded VC inside the VP to ensure it was really issued by the trusted issuer
 
-If valid, the output will confirm a successful validation.
+If successful, you’ll see:
 
+```bash
+🎉 All credentials in the VP are valid!
+```
 
 ## References
 
