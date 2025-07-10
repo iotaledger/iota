@@ -1,6 +1,6 @@
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { CoinFormat, useFormatCoin } from '@iota/core';
-import { useSortedCoinsBalances } from './useSortedCoinsBalances';
+import { useSortedCoins } from './useSortedCoins';
 
 export function useAvailableBalance(
     coinType: string = IOTA_TYPE_ARG,
@@ -11,12 +11,11 @@ export function useAvailableBalance(
     formattedAvailableBalance: string;
     symbol: string;
 } {
-    const { sortedCoinsBalanceL1, sortedCoinsBalanceL2, isLoadingL1, isLoadingL2 } =
-        useSortedCoinsBalances();
+    const { sortedCoinsL1, sortedCoinsL2, isLoadingL1, isLoadingL2 } = useSortedCoins();
 
-    const sortedCoinsBalance = isFromLayer1 ? sortedCoinsBalanceL1 : sortedCoinsBalanceL2;
+    const sortedCoins = isFromLayer1 ? sortedCoinsL1 : sortedCoinsL2;
 
-    const selectedCoinData = sortedCoinsBalance?.find((token) => token.coinType === coinType);
+    const selectedCoinData = sortedCoins?.find((token) => token.coinType === coinType);
 
     const selectedCoinBalance = selectedCoinData?.totalBalance
         ? BigInt(selectedCoinData?.totalBalance)

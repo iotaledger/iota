@@ -8,7 +8,7 @@ import { useGetAllBalancesL2 } from './useGetAllBalancesL2';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useAccount } from 'wagmi';
 
-export const useSortedCoinsBalances = () => {
+export const useSortedCoins = () => {
     const addressL1 = useCurrentAccount()?.address as string;
     const addressL2 = useAccount().address as `0x${string}`;
 
@@ -24,10 +24,10 @@ export const useSortedCoinsBalances = () => {
         coinsBalanceL1 || [],
         knownEvmCoins,
     );
-    let sortedCoinsBalanceL1 = [...recognizedL1, ...pinnedL1];
+    let sortedCoinsL1 = [...recognizedL1, ...pinnedL1];
     // If the sorted coins array is empty, add IOTA with zero balance
-    if (sortedCoinsBalanceL1.length === 0) {
-        sortedCoinsBalanceL1 = [
+    if (sortedCoinsL1.length === 0) {
+        sortedCoinsL1 = [
             {
                 coinType: IOTA_TYPE_ARG,
                 totalBalance: '0',
@@ -46,7 +46,7 @@ export const useSortedCoinsBalances = () => {
         coinsBalancesL2 || [],
         knownEvmCoins,
     );
-    const sortedCoinsBalanceL2 = [...recognizedL2, ...pinnedL2];
+    const sortedCoinsL2 = [...recognizedL2, ...pinnedL2];
 
     // Function to adjust IOTA balance in the coins
     const adjustIotaBalance = (
@@ -63,18 +63,12 @@ export const useSortedCoinsBalances = () => {
         );
     };
     // Adjust the iota balances for both L1 and L2 balances. Add available iota instead of total balance
-    const updatedSortedCoinsBalanceL1 = adjustIotaBalance(
-        sortedCoinsBalanceL1,
-        availableIotaBalanceL1,
-    );
-    const updatedSortedCoinsBalanceL2 = adjustIotaBalance(
-        sortedCoinsBalanceL2,
-        availableIotaBalanceL2,
-    );
+    const adjustedSortedCoinsL1 = adjustIotaBalance(sortedCoinsL1, availableIotaBalanceL1);
+    const adjustedSortedCoinsL2 = adjustIotaBalance(sortedCoinsL2, availableIotaBalanceL2);
 
     return {
-        sortedCoinsBalanceL1: updatedSortedCoinsBalanceL1,
-        sortedCoinsBalanceL2: updatedSortedCoinsBalanceL2,
+        sortedCoinsL1: adjustedSortedCoinsL1,
+        sortedCoinsL2: adjustedSortedCoinsL2,
         isLoadingL1: isLoadingIotaL1 || isLoadingAllBalancesL1,
         isLoadingL2: isLoadingIotaL2 || isLoadingAllBalancesL2,
     };

@@ -7,23 +7,18 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCoinsMetadata } from '../../hooks/useCoinsMetadata';
 import { BridgeFormInputName } from '../../lib/enums';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useSortedCoinsBalances } from '../../hooks/useSortedCoinsBalances';
+import { useSortedCoins } from '../../hooks/useSortedCoins';
 
 export function Bridge() {
-    const { sortedCoinsBalanceL1, sortedCoinsBalanceL2 } = useSortedCoinsBalances();
+    const { sortedCoinsL1, sortedCoinsL2 } = useSortedCoins();
 
-    const { metadata: coinsMetadataL1 } = useCoinsMetadata(sortedCoinsBalanceL1);
-    const { metadata: coinsMetadataL2 } = useCoinsMetadata(sortedCoinsBalanceL2);
+    const { metadata: coinsMetadataL1 } = useCoinsMetadata(sortedCoinsL1);
+    const { metadata: coinsMetadataL2 } = useCoinsMetadata(sortedCoinsL2);
 
     const formSchema = useMemo(
         () =>
-            createBridgeFormSchema(
-                sortedCoinsBalanceL1,
-                sortedCoinsBalanceL2,
-                coinsMetadataL1,
-                coinsMetadataL2,
-            ),
-        [sortedCoinsBalanceL1, sortedCoinsBalanceL2, coinsMetadataL1, coinsMetadataL2],
+            createBridgeFormSchema(sortedCoinsL1, sortedCoinsL2, coinsMetadataL1, coinsMetadataL2),
+        [sortedCoinsL1, sortedCoinsL2, coinsMetadataL1, coinsMetadataL2],
     );
 
     const formMethods = useForm({
