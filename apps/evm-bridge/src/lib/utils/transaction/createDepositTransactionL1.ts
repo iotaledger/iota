@@ -21,7 +21,7 @@ interface Options {
     coins?: CoinStruct[];
 }
 
-export function createL1DepositTransaction({
+export function createDepositTransactionL1({
     amount,
     receivingAddress,
     coins = [],

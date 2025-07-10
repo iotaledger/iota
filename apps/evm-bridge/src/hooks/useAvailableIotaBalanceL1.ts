@@ -1,7 +1,7 @@
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useBalance as useBalanceL1 } from './useBalance';
 import { parseAmount } from '../lib/utils';
-import { useBuildL1DepositTransaction } from './useBuildL1DepositTransaction';
+import { useBuildDepositTransactionL1 } from './useBuildDepositTransactionL1';
 import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
@@ -23,7 +23,7 @@ export function useAvailableIotaBalanceL1(): {
 
     // Estimate gas costs for Layer 1 transactions
     const { data: maxAmountDataL1, isLoading: isLoadingL1Transaction } =
-        useBuildL1DepositTransaction({
+        useBuildDepositTransactionL1({
             receivingAddress: GENERIC_EVM_ADDRESS,
             amount: layer1TotalBalance - L1_BASE_GAS_BUDGET,
         });

@@ -6,7 +6,7 @@ import { DepositForm } from '../DepositForm';
 import toast from 'react-hot-toast';
 
 import { L1_USER_REJECTED_TX_ERROR_TEXT } from '../../../lib/constants';
-import { useBuildL1DepositTransaction } from '../../../hooks/useBuildL1DepositTransaction';
+import { useBuildDepositTransactionL1 } from '../../../hooks/useBuildDepositTransactionL1';
 import { formatIOTAFromNanos, parseAmount } from '../../../lib/utils';
 import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
@@ -36,7 +36,7 @@ export function DepositLayer1() {
     const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
 
     const { data: transactionData, isPending: isBuildingTransaction } =
-        useBuildL1DepositTransaction({
+        useBuildDepositTransactionL1({
             receivingAddress,
             amount,
             coins: selectedCoinObjects,
