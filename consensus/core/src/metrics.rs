@@ -210,11 +210,18 @@ impl Metrics {
         let mut block_rounds_in_cache = stored_block_rounds
             .extract_if(.., |round| *round > eviction_round)
             .collect::<Vec<u32>>();
+        // Filter out the rounds that are not below the threshold clock round.
+        block_rounds_in_cache.retain(|&round| round < threshold_clock_round);
         let number_of_blocks_in_cache = block_rounds_in_cache.len();
         block_rounds_in_cache.dedup();
         let unique_block_rounds_in_cache = block_rounds_in_cache.len();
+        // The subtraction below cannot result in a negative value by construction
         let equivocations_in_cache =
             (number_of_blocks_in_cache - unique_block_rounds_in_cache) as u64;
+        // eviction_round + 1 is the index of the first round that is loaded to cache.
+        // eviction_round + 1 + unique_block_rounds_in_cache is at most
+        // threshold_clock_round. Thus, the subtraction below cannot result in a
+        // negative value.
         let missing_blocks_in_cache = (threshold_clock_round - eviction_round - 1) as u64
             - unique_block_rounds_in_cache as u64;
 
@@ -231,10 +238,16 @@ impl Metrics {
             .with_label_values(&[hostname])
             .set(missing_blocks_in_cache as i64);
 
-        // Update metrics according to the blocks that are loaded not to cache.
+        // Update metrics according to the blocks that are not loaded to cache.
+        // We remove the genesis block, since it's never missing or equivocating.
+        // After removing the genesis, we can safely assume that all uncached rounds are
+        // greater than 0.
+        stored_block_rounds.retain(|&round| round > 0);
         let number_of_uncached_blocks = stored_block_rounds.len();
         stored_block_rounds.dedup();
         let uncached_unique_block_rounds = stored_block_rounds.len();
+
+        // The subtraction below cannot result in a negative value by construction
         let uncached_equivocations =
             (number_of_uncached_blocks - uncached_unique_block_rounds) as u64;
         let uncached_missing_blocks = eviction_round as u64 - uncached_unique_block_rounds as u64;
@@ -1420,7 +1433,6 @@ mod tests {
         );
 
         // Add blocks and commits from rounds 11 and 12 to the dag state.
-        println!("commit vec size {:?}", temp_commits.len());
         let second_temp_commits = temp_commits.split_off(2);
         dag_state.accept_blocks(dag_builder.blocks(11..=12));
         for commit in temp_commits.clone() {
@@ -1462,7 +1474,6 @@ mod tests {
         );
 
         // Accept all the rest of blocks and commits.
-        println!("commit vec size {:?}", second_temp_commits.len());
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
         for commit in second_temp_commits.clone() {
             dag_state.add_commit(commit);
@@ -1509,7 +1520,6 @@ mod tests {
         );
 
         // Now we accept those lost blocks again and flush the dag state
-        println!("commit vec size {:?}", second_temp_commits.len());
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
         for commit in second_temp_commits.clone() {
             dag_state.add_commit(commit);
