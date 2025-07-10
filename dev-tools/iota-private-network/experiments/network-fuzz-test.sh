@@ -128,23 +128,9 @@ while [[ $(date +%s) -lt $end_time ]]; do
   log "Recovery sleep for 60s"
   sleep 60
 
-  # Loop through validators
-  for v in "${validators[@]}"; do
-    duration=$((RANDOM % 30 + 30)) # between 30 and 60 seconds
-    # randomly decide to stop validator or not
-    if (( RANDOM % 10 )); then
-      # stop and restart validator for the generated duration
-      (restart_validator "$v" "$duration") &
-      # always apply random packet loss between 0-100%
-    fi
-    # apply random package loss
-    loss=$((RANDOM % 101))
-    log "Applying ${loss}% packet loss to $v for ${duration}s"
-    (netem_loss "$v" "$loss" "$duration") &
-  done
 
-  # 3) For each validator pair A-B, randomly apply one of five blocking actions with 1/20 probability each
-  duration=60
+  #  For each validator pair A-B, randomly apply one of five blocking actions with 1/20 probability each
+  duration=$((RANDOM % 30 + 30))
   for ((i=0; i<${#validators[@]}; i++)); do
     for ((j=i+1; j<${#validators[@]}; j++)); do
       A=${validators[i]}
@@ -176,6 +162,21 @@ while [[ $(date +%s) -lt $end_time ]]; do
       fi
     done
   done
+
+  # Loop through validators
+    for v in "${validators[@]}"; do
+      duration=$((RANDOM % 30 + 30)) # between 30 and 60 seconds
+      # randomly decide to stop validator or not
+       if (( RANDOM % 10 )); then
+         # stop and restart validator for the generated duration
+        (restart_validator "$v" "$duration") &
+        else
+          # apply random package loss
+          loss=$((RANDOM % 101))
+          log "Applying ${loss}% packet loss to $v for ${duration}s"
+           (netem_loss "$v" "$loss" "$duration") &
+        fi
+    done
 done
 
 # === CLEANUP ===
