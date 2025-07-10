@@ -148,6 +148,76 @@ mod coin_api_tests_isolated {
         (result_fullnode, result_indexer)
     }
 
+    #[tokio::test]
+    async fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("indexer_get_total_supply_with_migrated_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) =
+            create_migrated_coin_manager_coins(cluster, client, store, address, address_kp)
+                .await
+                .unwrap();
+
+        let (_, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        assert_eq!(result_indexer, Some(Supply { value: 100_000 }));
+
+        let (_, result_indexer) = get_total_supply_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+    }
+
+    #[tokio::test]
+    async fn get_total_supply_with_native_coin_manager_coins() {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("get_total_supply_with_native_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) =
+            create_native_coin_manager_coins(cluster, client, store, address, address_kp)
+                .await
+                .unwrap();
+
+        let (result_fullnode, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+        assert_eq!(result_fullnode, result_indexer);
+
+        let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+        assert_eq!(result_fullnode, result_indexer);
+    }
+
     async fn create_trusted_coins(
         cluster: &TestCluster,
         address: IotaAddress,
@@ -512,5 +582,19 @@ mod coin_api_tests_isolated {
             .unwrap()
             .data
             .unwrap()
+    }
+
+    async fn get_total_supply_fullnode_indexer(
+        cluster: &TestCluster,
+        client: &HttpClient,
+        coin_type: String,
+    ) -> (Option<Supply>, Option<Supply>) {
+        let result_fullnode = cluster
+            .rpc_client()
+            .get_total_supply(coin_type.clone())
+            .await
+            .ok();
+        let result_indexer = client.get_total_supply(coin_type).await.ok();
+        (result_fullnode, result_indexer)
     }
 }
