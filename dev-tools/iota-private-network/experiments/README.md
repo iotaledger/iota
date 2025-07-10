@@ -1,6 +1,6 @@
-# Network Disruption & Fuzz Testing Suite
+# Network Disruption & Fuzz Testing
 
-This suite of Bash scripts automates network perturbation experiments against an IOTA private validator network. Use them to simulate failures and measure system resilience.
+This collection of Bash scripts enables automated network perturbation experiments on an IOTA private validator network. Use these scripts to simulate various failure scenarios and measure system resilience.
 
 ## Prerequisites
 
@@ -11,87 +11,69 @@ This suite of Bash scripts automates network perturbation experiments against an
 
 ## Scripts Overview
 
-### 1. `experiments.sh`
+### 1. `network-disruption-experiments.sh`
 
-Simulate incremental validator downtime in three phases, with delays increasing from 10s to 90s:
-
-1. **Phase 1:** Stop `validator-1` for a delay that starts at 10s and increases by 30s each iteration up to 90s; restart and wait the same delay.
-
-2. **Phase 2:** Pause `validator-1` for the same series of delays, then unpause and wait.
-
-3. **Phase 3:** Disconnect `validator-1` for each delay, then reconnect, iterating delays from 10s to 90s.
+Apply controlled packet loss to a single validator (`validator-1`) with increasing percentages (20%, 40%, 60%, 80%, 100%), each for 60s, followed by 60s recovery.
 
 **Usage:**
 
 ```bash
-./experiments.sh
-```
-
-### 2. `network-disruption-experiments.sh`
-
-Apply controlled packet loss to **validator-1**, stepping through 20%, 40%, 60%, 80%, and 100% loss. Each loss phase runs for 60s, followed by 60s recovery.
-
-**Usage:**
-
-```bash
+chmod +x network-disruption-experiments.sh
 ./network-disruption-experiments.sh
 ```
 
-### 3. `network-disruption-experiments-all-validators.sh`
+### 2. `network-disruption-experiments-all-validators.sh`
 
-Run the same packet loss sequence concurrently on all validators.
+Same packet loss experiment, but executed on **all four validators** in parallel.
 
 **Usage:**
 
 ```bash
+chmod +x network-disruption-experiments-all-validators.sh
 ./network-disruption-experiments-all-validators.sh
 ```
 
-### 4. `network-filtering-experiments.sh`
+### 3. `network-filtering-experiments.sh`
 
-Simulate directed connection partitions in three phases via `iptables` (default duration: 60s per phase):
+Simulate selective peer isolation using `iptables`. Runs three phases:
 
-1. **Phase 1:** isolate `validator-1` from `validator-2`
+1. `validator-1` isolated from `validator-3` & `validator-4`
+2. `validator-2` isolated from `validator-3`
+3. `validator-4` isolated from `validator-2` & `validator-3`
 
-2. **Phase 2:** isolate `validator-1` from `validator-2` and isolate `validator-1` from `validator-3`
-
-3. **Phase 3 (Mixed):**
-   - isolate `validator-1` from `validator-2`
-   - isolate `validator-1` from `validator-3`
-   - isolate `validator-3` from `validator-4`
-   - isolate `validator-4` from `validator-1`
-
-Each phase lasts for the configured `duration` (default 60s) and is automatically restored afterward.
+Each phase lasts 60s with automatic cleanup.
 
 **Usage:**
 
 ```bash
+chmod +x network-filtering-experiments.sh
 ./network-filtering-experiments.sh
 ```
 
-### 5. `network-filtering-experiments-19.sh`
+### 4. `network-fuzz-test.sh`
 
-Same filtering experiment against a 19-validator network.
+A 24-hour “fuzz” test that randomly applies:
 
-### 6. `network-fuzz-test.sh`
+- Container **pause/unpause**
+- Container **restart**
+- **Packet loss** (random percent)
+- **iptables** block/unblock to random peers
 
-Execute a 24h randomized chaos test:
-
-- Default: 4 validators; specify up to 19 with `-n`.
-
-- Randomly selects validators to:
-  - Stop & restart
-  - Apply packet loss (20–100%)
-  - Block/unblock peer traffic via `iptables`
+Results are logged with timestamps. At the end of 24h, all rules are cleaned up.
 
 **Usage:**
 
 ```bash
-./network-fuzz-test.sh      # default (4 validators)
-./network-fuzz-test.sh -n 19  # run with 19 validators
+chmod +x network-fuzz-test.sh
+./network-fuzz-test.sh
 ```
 
-Results are logged to **fuzz.log** with timestamps for analysis.
+## How It Works
+
+- **Packet Loss**: uses `tc netem` via `gaiadocker/iproute2` in the target container’s network namespace.
+- **IPTables Filtering**: uses `nicolaka/netshoot` to run `iptables` commands against specific peer IPs.
+- **Pause/Restart**: uses `docker pause` / `unpause` and `docker restart`.
+- **Fuzz Testing**: randomizes timing and action types for long-duration robustness testing.
 
 ---
 

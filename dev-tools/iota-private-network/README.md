@@ -55,17 +55,16 @@ To bring up everything:
 ./run.sh all
 ```
 
-
 To bring up 4 validators, three full nodes (one with the backup feature enabled), one indexer, and one faucet, use the following command:
 
 ```
 ./run.sh faucet backup indexer
 ```
 
-To bring up a specific number of validators (e.g., 2), use the `-nval` flag followed by the number, along with the desired services. For example:
+To bring up a specific number of validators (max 19), provide the desired number as the first argument to `run.sh`, followed by the services you want to start. For example:
 
 ```bash
-./run.sh -nval 2 faucet
+./run.sh 2 faucet
 ```
 
 This command will start 2 validators and the faucet service.
