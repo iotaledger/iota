@@ -4,16 +4,16 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { useMemo } from 'react';
 import { createBridgeFormSchema } from '../../lib/schema/bridgeForm.schema';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useAllCoinsMetadata } from '../../hooks/useAllCoinsMetadata';
+import { useCoinsMetadata } from '../../hooks/useCoinsMetadata';
 import { BridgeFormInputName } from '../../lib/enums';
-import { useSortedCoinsBalances } from '../../hooks/useSortedCoinsBalances';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useSortedCoinsBalances } from '../../hooks/useSortedCoinsBalances';
 
 export function Bridge() {
     const { sortedCoinsBalanceL1, sortedCoinsBalanceL2 } = useSortedCoinsBalances();
 
-    const { metadata: coinsMetadataL1 } = useAllCoinsMetadata(sortedCoinsBalanceL1);
-    const { metadata: coinsMetadataL2 } = useAllCoinsMetadata(sortedCoinsBalanceL2);
+    const { metadata: coinsMetadataL1 } = useCoinsMetadata(sortedCoinsBalanceL1);
+    const { metadata: coinsMetadataL2 } = useCoinsMetadata(sortedCoinsBalanceL2);
 
     const formSchema = useMemo(
         () =>

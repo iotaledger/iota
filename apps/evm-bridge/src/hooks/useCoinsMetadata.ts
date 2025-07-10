@@ -15,7 +15,7 @@ const NAME_TRUNCATE_LENGTH = 10;
  * @param coins Array of coin balance objects that contain coinType
  * @returns A map of coinTypes to their metadata and loading states
  */
-export function useAllCoinsMetadata(coins: Array<{ coinType: string }>) {
+export function useCoinsMetadata(coins: Array<{ coinType: string }>) {
     const client = useIotaClient();
     const { iotaGraphQLClient } = useIotaGraphQLClientContext();
 
@@ -102,34 +102,17 @@ export function useAllCoinsMetadata(coins: Array<{ coinType: string }>) {
         })),
     });
 
-    // Create a map of coin types to their metadata
-    const metadataMap = useMemo(() => {
-        const result: Record<string, CoinMetadata | null> = {};
-
+    return useMemo(() => {
+        const metadata: Record<string, CoinMetadata | null> = {};
+        const isLoading: Record<string, boolean> = {};
         uniqueCoinTypes.forEach((coinType, index) => {
             const query = queriesResults[index];
-            result[coinType] = query.data || null;
+            metadata[coinType] = query.data || null;
+            isLoading[coinType] = query.isLoading;
         });
-
-        return result;
+        return {
+            metadata,
+            isLoading,
+        };
     }, [uniqueCoinTypes]);
-
-    // Create a loading status map
-    const loadingMap = useMemo(() => {
-        const result: Record<string, boolean> = {};
-
-        uniqueCoinTypes.forEach((coinType, index) => {
-            const query = queriesResults[index];
-            result[coinType] = query.isLoading;
-        });
-
-        return result;
-    }, [uniqueCoinTypes]);
-
-    return {
-        metadata: metadataMap,
-        isLoading: loadingMap,
-        isAnyLoading: queriesResults.some((query) => query.isLoading),
-        isAllLoaded: queriesResults.every((query) => query.isFetched),
-    };
 }
