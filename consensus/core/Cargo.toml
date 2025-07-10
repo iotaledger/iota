@@ -32,7 +32,6 @@ quinn-proto.workspace = true
 rand.workspace = true
 rustls.workspace = true
 serde.workspace = true
-strum.workspace = true
 strum_macros.workspace = true
 tap.workspace = true
 thiserror.workspace = true
