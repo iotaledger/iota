@@ -138,7 +138,7 @@ export function useIotaClientSuspenseQuery<
             params,
             options,
         });
-    }, [iotaContext.client, iotaContext.network, method, params, options]);
+    }, [iotaContext.network, method, params, options]);
 
     return useSuspenseQuery(query);
 }
