@@ -161,8 +161,6 @@ while [[ $(date +%s) -lt $end_time ]]; do
         (iptables_block_incoming "$B" "$A"; sleep $duration; iptables_unblock_incoming "$B" "$A") &
       fi
     done
-     log "Experiments running for 60s"
-      sleep 60
   done
 
   # Loop through validators
@@ -178,6 +176,8 @@ while [[ $(date +%s) -lt $end_time ]]; do
         (netem_loss "$v" "$loss" "$duration") &
       fi
     done
+    log "Experiments running for 60s"
+    sleep 60
 done
 
 # === CLEANUP ===
