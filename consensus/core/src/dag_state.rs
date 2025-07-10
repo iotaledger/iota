@@ -248,10 +248,9 @@ impl DagState {
 
         // Initialize the scoring metrics according to the stored blocks
         let threshold_clock_round = state.threshold_clock_round();
-        for index in 0..num_authorities {
-            let authority_index = state.context.committee.to_authority_index(index).unwrap();
-            let eviction_round = state.evicted_rounds[index];
-            let hostname = &state.context.committee.authority(authority_index).hostname;
+        for (authority_index, authority) in state.context.committee.authorities() {
+            let eviction_round = state.evicted_rounds[authority_index];
+            let hostname = &authority.hostname;
             let stored_block_rounds = state
                 .store
                 .scan_block_rounds_by_author(authority_index)
