@@ -161,21 +161,22 @@ while [[ $(date +%s) -lt $end_time ]]; do
         (iptables_block_incoming "$B" "$A"; sleep $duration; iptables_unblock_incoming "$B" "$A") &
       fi
     done
+     log "Experiments running for 60s"
+      sleep 60
   done
 
   # Loop through validators
     for v in "${validators[@]}"; do
       duration=$((RANDOM % 30 + 30)) # between 30 and 60 seconds
-      # randomly decide to stop validator or not
-       if (( RANDOM % 10 )); then
-         # stop and restart validator for the generated duration
+      # randomly decide to stop validator or apply packet loss (10% stop, 90% loss)
+      if (( RANDOM % 10 == 0 )); then
+        log "Stopping validator $v for ${duration}s"
         (restart_validator "$v" "$duration") &
-        else
-          # apply random package loss
-          loss=$((RANDOM % 101))
-          log "Applying ${loss}% packet loss to $v for ${duration}s"
-           (netem_loss "$v" "$loss" "$duration") &
-        fi
+      else
+        loss=$((RANDOM % 81 + 20))  # Random packet loss between 20% and 100%
+        log "Applying ${loss}% packet loss to $v for ${duration}s"
+        (netem_loss "$v" "$loss" "$duration") &
+      fi
     done
 done
 
