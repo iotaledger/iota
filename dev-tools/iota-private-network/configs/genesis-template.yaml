@@ -15,7 +15,7 @@ accounts:
       - 750000000000000000
 parameters:
   allow_insertion_of_extra_objects: false
-  epoch_duration_ms: 120000
+  epoch_duration_ms: 1200000
 validator_config_info:
   - commission_rate: 0
     gas_price: 1000
