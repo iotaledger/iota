@@ -194,7 +194,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block.clone())
+                            .handle_subscribed_block_bundle(peer, block.clone(), true)
                             .await;
                         if let Err(e) = result {
                             match e {

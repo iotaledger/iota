@@ -4,7 +4,6 @@
 
 use std::{sync::Arc, time::Instant};
 
-use dashmap::DashSet;
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;

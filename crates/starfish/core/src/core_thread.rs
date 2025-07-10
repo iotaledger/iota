@@ -388,7 +388,7 @@ pub(crate) mod tests {
 
     // TODO: complete the Mock for thread dispatcher to be used from several tests
     #[derive(Default)]
-    pub(crate) struct MockCoreThreadDispatcher {
+    pub struct MockCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
         missing_blocks: Mutex<BTreeSet<BlockRef>>,

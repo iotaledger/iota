@@ -331,6 +331,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        filter: bool,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 
@@ -471,7 +472,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let mut additional_block_headers = vec![];
         for serialized_header in serialized_block_and_headers.serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
-            if self.received_block_headers.contains(&digest) {
+            if filter && self.received_block_headers.contains(&digest) {
                 self.context
                     .metrics
                     .node_metrics
@@ -547,9 +548,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
         self.commit_vote_monitor.observe_block(&verified_block);
 
-        // TODO:: add filtering for already processed blocks/headers
-        // TODO:: add metric for filtered blocks/headers
-
         // 6. Reject blocks when local commit index is lagging too far from quorum
         //    commit
         // index.
@@ -605,14 +603,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
 
-        let mut digests_to_add_to_filter = vec![];
-        for block_header in additional_block_headers.iter() {
-            digests_to_add_to_filter.push(block_header.digest())
+        if filter {
+            let mut digests_to_add_to_filter = vec![];
+            for block_header in additional_block_headers.iter() {
+                digests_to_add_to_filter.push(block_header.digest())
+            }
+            digests_to_add_to_filter.push(verified_block.digest());
+            self.received_block_headers
+                .add_batch(digests_to_add_to_filter)
+                .await;
         }
-        digests_to_add_to_filter.push(verified_block.digest());
-        self.received_block_headers
-            .add_batch(digests_to_add_to_filter)
-            .await;
 
         let mut missing_ancestors = self
             .core_dispatcher
@@ -1161,35 +1161,52 @@ async fn make_recv_future<T: Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use async_trait::async_trait;
     use bytes::Bytes;
     use dashmap::DashSet;
     use iota_metrics::monitored_mpsc::unbounded_channel;
-    use parking_lot::RwLock;
-    use starfish_config::AuthorityIndex;
-    use tokio::{sync::broadcast, time::sleep};
+    use iota_protocol_config::ProtocolConfig;
+    use parking_lot::{Mutex, RwLock};
+    use prometheus::Registry;
+    use starfish_config::{AuthorityIndex, local_committee_and_keys};
+    use tempfile::TempDir;
+    use tokio::{
+        sync::broadcast,
+        time::{Instant, sleep, timeout},
+    };
+    use typed_store::DBMetrics;
 
     use crate::{
-        CommitConsumer, Round, TransactionClient,
+        CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::AuthorityService,
         block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader,
+            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
+            VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::{NoopBlockVerifier, SignedBlockVerifier},
-        commit::CommitRange,
+        commit::{CertifiedCommits, CommitRange},
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::{Core, CoreSignals},
-        core_thread::{ChannelCoreThreadDispatcher, tests::MockCoreThreadDispatcher},
+        core_thread::{
+            ChannelCoreThreadDispatcher, CoreError, CoreThreadDispatcher,
+            tests::MockCoreThreadDispatcher,
+        },
         dag_state::DagState,
         error::ConsensusResult,
         leader_schedule::LeaderSchedule,
-        network::{BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock},
+        network::{
+            BlockBundle, BlockBundleStream, BlockStream, NetworkClient, NetworkService,
+            SerializedBlock, SerializedBlockAndHeaders, SerializedBlockBundle,
+        },
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
@@ -1383,20 +1400,87 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    pub struct FakeCoreThreadDispatcher {
+        core: Mutex<Core>,
+    }
+
+    #[async_trait]
+    impl CoreThreadDispatcher for FakeCoreThreadDispatcher {
+        async fn add_blocks(
+            &self,
+            blocks: Vec<VerifiedBlock>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            let mut guard = self.core.lock();
+            guard.add_blocks(blocks);
+            Ok(BTreeSet::new())
+        }
+
+        async fn add_block_headers(
+            &self,
+            block_headers: Vec<VerifiedBlockHeader>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            let mut guard = self.core.lock();
+            guard.add_block_headers(block_headers);
+            Ok(BTreeSet::new())
+        }
+
+        async fn add_data(
+            &self,
+            _data: Vec<VerifiedTransactions>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn add_certified_commits(
+            &self,
+            _commits: CertifiedCommits,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
+            unimplemented!("Unimplemented")
+        }
+    }
+    #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle() {
         // GIVEN
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let rounds = 5;
+        let validators = 5;
+        let filter = false;
+        let (context, mut key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(SignedBlockVerifier::new(
-            context.clone(),
-            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-        ));
+        // let block_verifier = Arc::new(SignedBlockVerifier::new(
+        //    context.clone(),
+        //    Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        //));
+        let block_verifier = Arc::new(NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
+        let block_manager =
+            BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
@@ -1417,7 +1501,7 @@ mod tests {
             context.clone(),
             dag_state.clone(),
         ));
-        let core = Core::new(
+        let mut core = Core::new(
             context.clone(),
             leader_schedule,
             transaction_consumer,
@@ -1425,13 +1509,14 @@ mod tests {
             true,
             commit_observer,
             signals,
-            key_pairs.remove(context.own_index.value()).1,
+            key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
-            false,
+            true,
         );
-        let (core_dispatcher, core_thread_handle) =
-            ChannelCoreThreadDispatcher::start(context.clone(), &dag_state, core);
-        let core_dispatcher = Arc::new(core_dispatcher);
+        core.set_last_known_proposed_round(rounds + 5);
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -1442,7 +1527,7 @@ mod tests {
             commit_vote_monitor.clone(),
             block_verifier.clone(),
             dag_state.clone(),
-            true,
+            false,
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -1455,33 +1540,45 @@ mod tests {
             store,
         ));
 
-        // Create some blocks for a few authorities. Create some equivocations as well
-        // and store in dag state.
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder
-            .layers(1..=10)
-            .authorities(vec![AuthorityIndex::new_for_test(2)])
-            .equivocate(1)
-            .build()
-            .persist_layers(dag_state);
-
-        // WHEN
-        let authorities_to_request = vec![
-            AuthorityIndex::new_for_test(1),
-            AuthorityIndex::new_for_test(2),
-        ];
-        let results = authority_service
-            .handle_fetch_latest_blocks(AuthorityIndex::new_for_test(1), authorities_to_request)
-            .await;
-
-        // THEN
-        let serialised_blocks = results.unwrap();
-        for serialised_block in serialised_blocks {
-            let signed_block: SignedBlockHeader =
-                bcs::from_bytes(&serialised_block).expect("Error while deserialising block");
-            let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialised_block);
-
-            assert_eq!(verified_block.round(), 10);
+        let mut dag_builder = DagBuilder::new(context.clone())
+            .set_protocol_keypair(key_pairs[context.own_index.value()].1.clone());
+        dag_builder.layers(1..=rounds).build();
+        let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
+        for round in 0..=rounds {
+            all_headers.push(dag_builder.block_headers(round..=round));
+            all_transactions.push(dag_builder.transactions(round..=round));
         }
+        let mut total_duration = Duration::ZERO;
+        for round in 2..=rounds {
+            core_dispatcher.add_block_headers(vec![all_headers[round as usize][0].clone()]);
+            for peer in 1..validators {
+                let mut headers = all_headers[round as usize - 1].clone();
+                let block = VerifiedBlock {
+                    verified_block_header: all_headers[round as usize][peer].clone(),
+                    verified_transactions: all_transactions[round as usize][peer].clone(),
+                };
+                headers.remove(peer);
+                let block_bundle = BlockBundle {
+                    verified_block: block,
+                    verified_headers: headers,
+                };
+                let serialized_block_bundle = SerializedBlockBundle::try_from(
+                    SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
+                )
+                .unwrap();
+                let start = Instant::now();
+                authority_service
+                    .handle_subscribed_block_bundle(
+                        context.committee.to_authority_index(peer).unwrap(),
+                        serialized_block_bundle,
+                        filter,
+                    )
+                    .await
+                    .expect("we expect no error");
+                total_duration += start.elapsed();
+            }
+        }
+        println!("Total time: {:?}", total_duration);
     }
 }

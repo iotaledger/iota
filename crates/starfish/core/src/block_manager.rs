@@ -8,7 +8,6 @@ use std::{
     time::Instant,
 };
 
-use dashmap::DashSet;
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -16,9 +15,7 @@ use tracing::{debug, warn};
 
 use crate::{
     Round,
-    block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlock, VerifiedBlockHeader,
-    },
+    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlock, VerifiedBlockHeader},
     block_verifier::BlockVerifier,
     context::Context,
     dag_state::DagState,
@@ -635,11 +632,8 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager = BlockManager::new(
-            context.clone(),
-            dag_state,
-            Arc::new(NoopBlockVerifier),
-        );
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -694,11 +688,8 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager = BlockManager::new(
-            context.clone(),
-            dag_state,
-            Arc::new(NoopBlockVerifier),
-        );
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -743,11 +734,8 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager = BlockManager::new(
-            context.clone(),
-            dag_state,
-            Arc::new(NoopBlockVerifier),
-        );
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 2 rounds
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -810,11 +798,8 @@ mod tests {
             let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-            let mut block_manager = BlockManager::new(
-                context.clone(),
-                dag_state,
-                Arc::new(NoopBlockVerifier),
-            );
+            let mut block_manager =
+                BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
             // WHEN
             let mut all_accepted_block_headers = vec![];
@@ -903,11 +888,8 @@ mod tests {
         // Create BlockManager.
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let mut block_manager = BlockManager::new(
-            context.clone(),
-            dag_state,
-            Arc::new(test_verifier),
-        );
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(test_verifier));
 
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
         // be suspended.
@@ -955,11 +937,8 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager = BlockManager::new(
-            context.clone(),
-            dag_state,
-            Arc::new(NoopBlockVerifier),
-        );
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG
         let mut dag_builder = DagBuilder::new(context.clone());

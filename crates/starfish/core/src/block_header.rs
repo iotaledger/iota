@@ -594,6 +594,23 @@ impl VerifiedBlockHeader {
         }
     }
 
+    #[cfg(test)]
+    pub fn new_from_header_with_signature(
+        block_header: BlockHeader,
+        protocol_keypair: &ProtocolKeyPair,
+    ) -> Self {
+        let signed_block_header = SignedBlockHeader::new(block_header, protocol_keypair).unwrap();
+        let serialized: Bytes = bcs::to_bytes(&signed_block_header)
+            .expect("Serialization should not fail")
+            .into();
+        let digest = Self::compute_digest(&serialized);
+        VerifiedBlockHeader {
+            signed_block_header: Arc::new(signed_block_header),
+            digest,
+            serialized,
+        }
+    }
+
     /// Returns reference to the block.
     pub fn reference(&self) -> BlockRef {
         BlockRef {
