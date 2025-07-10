@@ -4,8 +4,6 @@
 
 use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
 
-#[cfg(test)]
-use dashmap::DashSet;
 use iota_macros::fail_point;
 #[cfg(test)]
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
@@ -1177,7 +1175,6 @@ impl CoreTextFixture {
 mod test {
     use std::{collections::BTreeSet, time::Duration};
 
-    use dashmap::DashSet;
     use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;

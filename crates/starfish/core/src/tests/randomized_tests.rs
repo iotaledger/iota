@@ -4,7 +4,6 @@
 
 use std::{env, sync::Arc};
 
-use dashmap::DashSet;
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::AuthorityIndex;

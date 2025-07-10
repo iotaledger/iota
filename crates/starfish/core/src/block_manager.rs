@@ -607,7 +607,6 @@ enum TryAcceptResult {
 mod tests {
     use std::{collections::BTreeSet, sync::Arc};
 
-    use dashmap::DashSet;
     use parking_lot::RwLock;
     use rand::{SeedableRng, prelude::StdRng, seq::SliceRandom};
     use starfish_config::AuthorityIndex;

@@ -367,7 +367,6 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use dashmap::DashSet;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use tokio::time::Instant;

@@ -55,16 +55,6 @@ impl FilterForHeaders {
             queue: Mutex::new(VecDeque::new()),
         }
     }
-    async fn add(&mut self, header_digest: BlockHeaderDigest) {
-        self.header_digests.insert(header_digest);
-        let mut queue = self.queue.lock().await;
-        queue.push_back(header_digest);
-        if queue.len() > MAX_FILTER_SIZE as usize {
-            if let Some(removed) = queue.pop_front() {
-                self.header_digests.remove(&removed);
-            }
-        }
-    }
 
     async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) {
         for digest in digests.iter() {
@@ -1161,45 +1151,33 @@ async fn make_recv_future<T: Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::{BTreeMap, BTreeSet},
-        sync::Arc,
-        time::Duration,
-    };
+    use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use dashmap::DashSet;
     use iota_metrics::monitored_mpsc::unbounded_channel;
-    use iota_protocol_config::ProtocolConfig;
     use parking_lot::{Mutex, RwLock};
-    use prometheus::Registry;
-    use starfish_config::{AuthorityIndex, local_committee_and_keys};
-    use tempfile::TempDir;
+    use starfish_config::AuthorityIndex;
     use tokio::{
         sync::broadcast,
-        time::{Instant, sleep, timeout},
+        time::{Instant, sleep},
     };
-    use typed_store::DBMetrics;
 
     use crate::{
-        CommitConsumer, Round, Transaction, TransactionClient,
+        CommitConsumer, Round, TransactionClient,
         authority_service::AuthorityService,
         block_header::{
-            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
-            VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedTransactions,
         },
         block_manager::BlockManager,
-        block_verifier::{NoopBlockVerifier, SignedBlockVerifier},
+        block_verifier::SignedBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::{Core, CoreSignals},
-        core_thread::{
-            ChannelCoreThreadDispatcher, CoreError, CoreThreadDispatcher,
-            tests::MockCoreThreadDispatcher,
-        },
+        core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::DagState,
         error::ConsensusResult,
         leader_schedule::LeaderSchedule,
@@ -1411,7 +1389,7 @@ mod tests {
             blocks: Vec<VerifiedBlock>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             let mut guard = self.core.lock();
-            guard.add_blocks(blocks);
+            let _ = guard.add_blocks(blocks);
             Ok(BTreeSet::new())
         }
 
@@ -1420,7 +1398,7 @@ mod tests {
             block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             let mut guard = self.core.lock();
-            guard.add_block_headers(block_headers);
+            let _ = guard.add_block_headers(block_headers);
             Ok(BTreeSet::new())
         }
 
@@ -1442,7 +1420,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
+        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -1454,7 +1432,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError> {
+        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -1465,16 +1443,15 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle() {
         // GIVEN
-        let rounds = 5;
-        let validators = 5;
+        let rounds = 100;
+        let validators = 50;
         let filter = false;
-        let (context, mut key_pairs) = Context::new_for_test(validators);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
-        // let block_verifier = Arc::new(SignedBlockVerifier::new(
-        //    context.clone(),
-        //    Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-        //));
-        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1483,8 +1460,7 @@ mod tests {
             BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
-        let (signals, signal_receivers) = CoreSignals::new(context.clone());
-        // let _block_receiver = signal_receivers.block_broadcast_receiver();
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
@@ -1497,10 +1473,9 @@ mod tests {
             store.clone(),
             leader_schedule.clone(),
         );
-        let leader_schedule = Arc::new(LeaderSchedule::from_store(
-            context.clone(),
-            dag_state.clone(),
-        ));
+        // we set sync_last_known_own_block to true and last known proposed round to
+        // rounds+5 so that core doesn't start to create its own new blocks,
+        // that would be different from the blocks created in dag builder
         let mut core = Core::new(
             context.clone(),
             leader_schedule,
@@ -1514,6 +1489,7 @@ mod tests {
             true,
         );
         core.set_last_known_proposed_round(rounds + 5);
+
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
         });
@@ -1539,9 +1515,9 @@ mod tests {
             dag_state.clone(),
             store,
         ));
-
-        let mut dag_builder = DagBuilder::new(context.clone())
-            .set_protocol_keypair(key_pairs[context.own_index.value()].1.clone());
+        let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
+        let mut dag_builder =
+            DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
         dag_builder.layers(1..=rounds).build();
         let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
         let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
@@ -1551,7 +1527,10 @@ mod tests {
         }
         let mut total_duration = Duration::ZERO;
         for round in 2..=rounds {
-            core_dispatcher.add_block_headers(vec![all_headers[round as usize][0].clone()]);
+            core_dispatcher
+                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .await
+                .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
                 let mut headers = all_headers[round as usize - 1].clone();
                 let block = VerifiedBlock {
@@ -1575,7 +1554,7 @@ mod tests {
                         filter,
                     )
                     .await
-                    .expect("we expect no error");
+                    .expect("bundle is expected to be processed successfully");
                 total_duration += start.elapsed();
             }
         }

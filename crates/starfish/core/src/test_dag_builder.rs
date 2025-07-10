@@ -96,9 +96,9 @@ pub(crate) struct DagBuilder {
     wave_length: Round,
     number_of_leaders: u32,
     pipeline: bool,
-    // Protocol keypair is used to compute signature for headers. If it is None, then the Default
+    // Protocol keypairs are used to compute signature for headers. If it is None, then the Default
     // signature is used
-    protocol_keypair: Option<ProtocolKeyPair>,
+    protocol_keypair: Option<Vec<ProtocolKeyPair>>,
 }
 
 impl DagBuilder {
@@ -126,8 +126,8 @@ impl DagBuilder {
         }
     }
 
-    pub(crate) fn set_protocol_keypair(mut self, protocol_keypair: ProtocolKeyPair) -> Self {
-        self.protocol_keypair = Some(protocol_keypair);
+    pub(crate) fn set_protocol_keypair(mut self, protocol_keypairs: Vec<ProtocolKeyPair>) -> Self {
+        self.protocol_keypair = Some(protocol_keypairs);
         self
     }
 
@@ -622,6 +622,8 @@ impl<'a> LayerBuilder<'a> {
             if self.random_weak_links {
                 connections.append(&mut self.configure_random_weak_links());
             }
+            // reorder ancestors such that the own previous block is referenced first
+            self.reorder_ancestors(&mut connections);
 
             self.create_blocks(round, connections, acknowledgments);
         }
@@ -816,7 +818,7 @@ impl<'a> LayerBuilder<'a> {
                     if let Some(protocol_keypair) = self.dag_builder.protocol_keypair.as_ref() {
                         VerifiedBlockHeader::new_from_header_with_signature(
                             test_block_header,
-                            protocol_keypair,
+                            &protocol_keypair[author as usize],
                         )
                     } else {
                         VerifiedBlockHeader::new_for_test(test_block_header)
@@ -894,6 +896,17 @@ impl<'a> LayerBuilder<'a> {
             }
         }
         false
+    }
+
+    // reorder ancestors in connections such that the reference to own block is
+    // first
+    fn reorder_ancestors(&self, connections: &mut Vec<(AuthorityIndex, Vec<BlockRef>)>) {
+        for (author, ancestors) in connections.iter_mut() {
+            if let Some(pos) = ancestors.iter().position(|b| b.author == *author) {
+                let own_block_ref = ancestors.remove(pos);
+                ancestors.insert(0, own_block_ref);
+            }
+        }
     }
 }
 
