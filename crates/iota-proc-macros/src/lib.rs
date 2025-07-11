@@ -708,14 +708,18 @@ fn parse_expect_message(attr: TokenStream, default_msg: &str) -> String {
 /// Helper function to determine if a return type represents a Future
 fn is_future_return_type(ty: &syn::Type) -> bool {
     match ty {
-        syn::Type::Path(type_path) => type_path.path.segments.last().is_some_and(|seg| {
-            seg.ident == "Future" || seg.ident == "BoxFuture"
-        }),
+        syn::Type::Path(type_path) => type_path
+            .path
+            .segments
+            .last()
+            .is_some_and(|seg| seg.ident == "Future" || seg.ident == "BoxFuture"),
         syn::Type::ImplTrait(impl_trait) => impl_trait.bounds.iter().any(|bound| {
             if let syn::TypeParamBound::Trait(trait_bound) = bound {
-                trait_bound.path.segments.last().is_some_and(|seg| {
-                    seg.ident == "Future" || seg.ident == "BoxFuture"
-                })
+                trait_bound
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|seg| seg.ident == "Future" || seg.ident == "BoxFuture")
             } else {
                 false
             }
@@ -1234,9 +1238,9 @@ pub fn extend_impl_with_non_fallible(attr: TokenStream, item: TokenStream) -> To
                     &arg_identifiers,
                     &expect_msg,
                     method_info.has_self,
-                    is_async_fn,                      // Use .await only for async fn
-                    trait_path,                       /* This will ensure we generate <Self as
-                                                       * Trait>::method calls */
+                    is_async_fn, // Use .await only for async fn
+                    trait_path,  /* This will ensure we generate <Self as
+                                  * Trait>::method calls */
                     Some(item_impl.self_ty.as_ref()), /* Pass the concrete self type for macro
                                                        * contexts */
                 );

@@ -770,7 +770,8 @@ macro_rules! implement_storage_traits {
                     .map_err(StorageError::custom)
             }
 
-            // Non-fallible implementations we need to provide manually to avoid type ambiguity.
+            // Non-fallible implementations we need to provide manually to avoid type
+            // ambiguity.
             fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
                 ObjectCacheRead::try_get_object(self, object_id).expect("read from store failed")
             }

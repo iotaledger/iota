@@ -260,15 +260,15 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
     }
 }
 
-pub fn get_deny_list_obj_initial_shared_version(
-    object_store: &dyn ObjectStore,
-) -> SequenceNumber {
-    get_deny_list_root_object(object_store).map(|obj| match obj.owner {
-        Owner::Shared {
-            initial_shared_version,
-        } => initial_shared_version,
-        _ => unreachable!("Deny list object must be shared"),
-    }).expect("Deny list object must exist")
+pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
+    get_deny_list_root_object(object_store)
+        .map(|obj| match obj.owner {
+            Owner::Shared {
+                initial_shared_version,
+            } => initial_shared_version,
+            _ => unreachable!("Deny list object must be shared"),
+        })
+        .expect("Deny list object must exist")
 }
 
 /// Fetches the setting from a particular config.

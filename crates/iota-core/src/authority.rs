@@ -3348,7 +3348,9 @@ impl AuthorityState {
 
     #[instrument(level = "trace", skip_all)]
     pub async fn try_get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.get_object_store().try_get_object(object_id).map_err(Into::into)
+        self.get_object_store()
+            .try_get_object(object_id)
+            .map_err(Into::into)
     }
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
