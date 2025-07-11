@@ -614,17 +614,18 @@ fn extract_inner_type_from_result_or_future(ty: &syn::Type) -> Option<proc_macro
                 }
             }
 
-            // Handle Future<Output = Result<T, E>>, Future<Output = IotaResult<T, E>>, 
+            // Handle Future<Output = Result<T, E>>, Future<Output = IotaResult<T, E>>,
             // BoxFuture<'_, Result<T, E>>, BoxFuture<'_, IotaResult<T, E>>
             if segment.ident == "Future" || segment.ident == "BoxFuture" {
                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                     // For BoxFuture<'_, T>, the second argument is the type
                     if segment.ident == "BoxFuture" {
                         if let Some(syn::GenericArgument::Type(inner)) = args.args.iter().nth(1) {
-                            return extract_inner_from_result_type(inner).or_else(|| Some(quote! { #inner }));
+                            return extract_inner_from_result_type(inner)
+                                .or_else(|| Some(quote! { #inner }));
                         }
                     }
-                    
+
                     // For Future<Output = T>, look for the Output associated type
                     for arg in &args.args {
                         if let syn::GenericArgument::AssocType(assoc_type) = arg {
@@ -707,14 +708,12 @@ fn parse_expect_message(attr: TokenStream, default_msg: &str) -> String {
 /// Helper function to determine if a return type represents a Future
 fn is_future_return_type(ty: &syn::Type) -> bool {
     match ty {
-        syn::Type::Path(type_path) => {
-            type_path.path.segments.last().map_or(false, |seg| {
-                seg.ident == "Future" || seg.ident == "BoxFuture"
-            })
-        }
+        syn::Type::Path(type_path) => type_path.path.segments.last().is_some_and(|seg| {
+            seg.ident == "Future" || seg.ident == "BoxFuture"
+        }),
         syn::Type::ImplTrait(impl_trait) => impl_trait.bounds.iter().any(|bound| {
             if let syn::TypeParamBound::Trait(trait_bound) = bound {
-                trait_bound.path.segments.last().map_or(false, |seg| {
+                trait_bound.path.segments.last().is_some_and(|seg| {
                     seg.ident == "Future" || seg.ident == "BoxFuture"
                 })
             } else {
@@ -727,12 +726,16 @@ fn is_future_return_type(ty: &syn::Type) -> bool {
 
 /// Helper function to check if a function signature has a self parameter
 fn has_self_parameter(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>) -> bool {
-    inputs.iter().any(|arg| matches!(arg, syn::FnArg::Receiver(_)))
+    inputs
+        .iter()
+        .any(|arg| matches!(arg, syn::FnArg::Receiver(_)))
 }
 
 /// Helper function to generate argument identifiers for method calls
 /// This converts patterns like `_` to usable identifiers in function calls
-fn generate_arg_identifiers(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>) -> Vec<syn::Ident> {
+fn generate_arg_identifiers(
+    inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
+) -> Vec<syn::Ident> {
     let mut arg_counter = 0usize;
     inputs
         .iter()
@@ -761,10 +764,12 @@ fn generate_arg_identifiers(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn
 
 /// Helper function to generate proper function parameters for the new signature
 /// This converts wildcard patterns to named parameters
-fn generate_function_inputs(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>) -> syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma> {
+fn generate_function_inputs(
+    inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
+) -> syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma> {
     let mut arg_counter = 0usize;
     let mut new_inputs = syn::punctuated::Punctuated::new();
-    
+
     for arg in inputs {
         match arg {
             syn::FnArg::Receiver(receiver) => {
@@ -798,7 +803,7 @@ fn generate_function_inputs(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn
                         }))
                     }
                 };
-                
+
                 new_inputs.push(syn::FnArg::Typed(syn::PatType {
                     attrs: pat_ty.attrs.clone(),
                     pat: new_pat,
@@ -808,7 +813,7 @@ fn generate_function_inputs(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn
             }
         }
     }
-    
+
     new_inputs
 }
 
@@ -871,7 +876,9 @@ struct TryMethodInfo {
     pub generics: syn::Generics,
 }
 
-/// Helper function to analyze a try_ method signature and extract relevant information
+/// Helper function to analyze a try_ method signature and extract relevant
+/// information Works with just a signature, but can't extract visibility
+/// information without the full function item
 fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
     let method_name = &sig.ident;
     let method_name_str = method_name.to_string();
@@ -890,8 +897,8 @@ fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
     };
 
     // Extract inner return type from Result<...> or Future<...>
-    let inner_ty = extract_inner_type_from_result_or_future(&**output)?;
-    let is_future = is_future_return_type(&**output);
+    let inner_ty = extract_inner_type_from_result_or_future(output)?;
+    let is_future = is_future_return_type(output);
     let has_self = has_self_parameter(&sig.inputs);
 
     Some(TryMethodInfo {
@@ -901,7 +908,7 @@ fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
         inner_return_type: inner_ty,
         is_future,
         has_self,
-        generics: sig.generics.clone(),
+        generics: sig.generics.clone(), // Default to inherited visibility
     })
 }
 
@@ -927,14 +934,14 @@ fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
 #[proc_macro_attribute]
 pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as syn::ItemFn);
-    
+
     // Analyze the try_ method
     let method_info = match analyze_try_method(&input_fn.sig) {
         Some(info) => info,
         None => {
             return syn::Error::new_spanned(
-                &input_fn.sig.ident, 
-                "Function name must start with `try_` and return a Result type"
+                &input_fn.sig.ident,
+                "Function name must start with `try_` and return a Result type",
             )
             .to_compile_error()
             .into();
@@ -942,7 +949,8 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
     };
 
     // Get the error message for .expect()
-    let expect_msg = parse_expect_message(attr, "Unwrapped failed in generated non-fallible function");
+    let expect_msg =
+        parse_expect_message(attr, "Unwrapped failed in generated non-fallible function");
 
     // Check if the function is async or returns a Future
     let is_async_fn = input_fn.sig.asyncness.is_some();
@@ -952,7 +960,8 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
     let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
     let new_inputs = generate_function_inputs(&method_info.inputs);
 
-    // Generate the non-fallible function call (for free functions, we don't use Self::)
+    // Generate the non-fallible function call (for free functions, we don't use
+    // Self::)
     let original_name = &method_info.original_name;
     let call = if is_async_fn || returns_future {
         quote! {
@@ -992,7 +1001,7 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
 
 /// This macro extends an existing trait with non-fallible versions of its
 /// `try_` methods. It adds the non-fallible methods directly to the original
-/// trait. For methods with default implementations, it generates default 
+/// trait. For methods with default implementations, it generates default
 /// implementations that call the `try_` method and use `.expect()`.
 ///
 /// Example:
@@ -1015,7 +1024,7 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
 #[proc_macro_attribute]
 pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input_trait = parse_macro_input!(item as ItemTrait);
-    
+
     let expect_msg = parse_expect_message(attr, "Unwrapped failed in non-fallible method");
     let mut non_fallible_methods = Vec::new();
 
@@ -1037,7 +1046,8 @@ pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> T
                 // Generate a default implementation that calls the try_ method with expect
                 let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
                 let call = if returns_future && has_default_impl {
-                    // For trait default implementations that return BoxFuture, we need to return the boxed future
+                    // For trait default implementations that return BoxFuture, we need to return
+                    // the boxed future
                     let original_name = &method_info.original_name;
                     quote! {
                         Box::pin(async move {
@@ -1049,9 +1059,10 @@ pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> T
                         &method_info.original_name,
                         &arg_identifiers,
                         &expect_msg,
-                        true, // traits always use self
+                        true,        // traits always use self
                         is_async_fn, // Use .await only for async fn (not for BoxFuture returns)
-                        None, // No trait qualification needed for trait default implementations
+                        None,        /* No trait qualification needed for trait default
+                                      * implementations */
                         None, // No concrete self type needed for trait implementations
                     )
                 };
@@ -1075,7 +1086,8 @@ pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> T
                 let generics = &method_info.generics;
                 let where_clause = &method_info.generics.where_clause;
 
-                // Generate non-async methods to maintain object safety (BoxFuture instead of async)
+                // Generate non-async methods to maintain object safety (BoxFuture instead of
+                // async)
                 quote! {
                     fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
                         #call
@@ -1146,10 +1158,11 @@ pub fn extend_impl_with_non_fallible(attr: TokenStream, item: TokenStream) -> To
     let mut item_impl = parse_macro_input!(item as ItemImpl);
 
     let expect_msg = parse_expect_message(attr, "Unwrapped failed in non-fallible method");
-    
-    // Extract trait path for explicit qualification - we'll always use this when available
+
+    // Extract trait path for explicit qualification - we'll always use this when
+    // available
     let trait_path = item_impl.trait_.as_ref().map(|(_, path, _)| path);
-    
+
     let mut non_fallible_methods = Vec::new();
 
     for item in &item_impl.items {
@@ -1182,9 +1195,10 @@ pub fn extend_impl_with_non_fallible(attr: TokenStream, item: TokenStream) -> To
             };
             let generics = &method_info.generics;
             let where_clause = &method_info.generics.where_clause;
-            
+
             let method_sig = if returns_future {
-                // For BoxFuture returns, we need to generate a special call that awaits and expects
+                // For BoxFuture returns, we need to generate a special call that awaits and
+                // expects
                 let original_name = &method_info.original_name;
                 let call_with_await_expect = if method_info.has_self {
                     if let Some(trait_path) = trait_path {
@@ -1202,7 +1216,7 @@ pub fn extend_impl_with_non_fallible(attr: TokenStream, item: TokenStream) -> To
                         #original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
                     }
                 };
-                
+
                 let boxed_call = quote! {
                     Box::pin(async move {
                         #call_with_await_expect
@@ -1220,22 +1234,39 @@ pub fn extend_impl_with_non_fallible(attr: TokenStream, item: TokenStream) -> To
                     &arg_identifiers,
                     &expect_msg,
                     method_info.has_self,
-                    is_async_fn, // Use .await only for async fn
-                    trait_path, // This will ensure we generate <Self as Trait>::method calls
-                    Some(item_impl.self_ty.as_ref()), // Pass the concrete self type for macro contexts
+                    is_async_fn,                      // Use .await only for async fn
+                    trait_path,                       /* This will ensure we generate <Self as
+                                                       * Trait>::method calls */
+                    Some(item_impl.self_ty.as_ref()), /* Pass the concrete self type for macro
+                                                       * contexts */
                 );
-                
+
+                // Check if there's a visibility modifier (pub) in the original method
+                let visibility = if let ImplItem::Fn(ImplItemFn { vis, .. }) = item {
+                    // If this function has explicit visibility, use it
+                    if matches!(vis, syn::Visibility::Public(_))
+                        || matches!(vis, syn::Visibility::Restricted(_))
+                    {
+                        vis.clone()
+                    } else {
+                        // Otherwise use the default inherited visibility
+                        syn::Visibility::Inherited
+                    }
+                } else {
+                    syn::Visibility::Inherited
+                };
+
                 if is_async_fn {
                     // For async fn, generate async method
                     quote! {
-                        async fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
+                        #visibility async fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
                             #call
                         }
                     }
                 } else {
                     // For regular sync methods
                     quote! {
-                        fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
+                        #visibility fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
                             #call
                         }
                     }
