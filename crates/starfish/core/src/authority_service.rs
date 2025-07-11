@@ -330,7 +330,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        filter: bool,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 
@@ -471,7 +470,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let mut additional_block_headers = vec![];
         for serialized_header in serialized_block_and_headers.serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
-            if filter && self.received_block_headers.contains(&digest) {
+            if self.received_block_headers.contains(&digest) {
                 self.context
                     .metrics
                     .node_metrics
@@ -590,11 +589,28 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 7. Add additional headers from bundle to dag, receive missing ancestors for
-        //    them
-        // Normally, there should be no missing ancestors, as the headers are sent in
-        // order of increasing rounds.
-
+        // 7. Add digests to filter. Exclude for the vector those that are already
+        //    inserted
+        let mut digests_to_add_to_filter = vec![];
+        for block_header in additional_block_headers.iter() {
+            digests_to_add_to_filter.push(block_header.digest())
+        }
+        digests_to_add_to_filter.push(verified_block.digest());
+        let digests_to_exclude = self
+            .received_block_headers
+            .add_batch(digests_to_add_to_filter)
+            .await;
+        let mut index = 0;
+        additional_block_headers.retain(|block_header| {
+            if index < digests_to_exclude.len()
+                && block_header.digest() == digests_to_exclude[index]
+            {
+                index += 1;
+                false
+            } else {
+                true
+            }
+        });
         self.context
             .metrics
             .node_metrics
@@ -602,36 +618,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
 
-        if filter {
-            let mut digests_to_add_to_filter = vec![];
-            for block_header in additional_block_headers.iter() {
-                digests_to_add_to_filter.push(block_header.digest())
-            }
-            digests_to_add_to_filter.push(verified_block.digest());
-            let digests_to_exclude = self
-                .received_block_headers
-                .add_batch(digests_to_add_to_filter)
-                .await;
-            let mut index = 0;
-            additional_block_headers.retain(|block_header| {
-                if index < digests_to_exclude.len()
-                    && block_header.digest() == digests_to_exclude[index]
-                {
-                    index += 1;
-                    false
-                } else {
-                    true
-                }
-            });
-        }
-
+        // 8. Add additional headers from bundle to dag, receive missing ancestors for
+        //    them
+        // Normally, there should be no missing ancestors, as the headers are sent in
+        // order of increasing rounds.
         let mut missing_ancestors = self
             .core_dispatcher
             .add_block_headers(additional_block_headers)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
-        // 8. Add block to dag, add its missing ancestors to the set
+        // 9. Add block to dag, add its missing ancestors to the set
         // TODO:: consider possible optimization:
         // first try to accept the block. If it fails, try to find missing ancestors
         // among additional headers and from block_round-1 add only them. From the
@@ -643,7 +640,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .map_err(|_| ConsensusError::Shutdown)?,
         );
         if !missing_ancestors.is_empty() {
-            // 9. schedule the fetching of missing ancestors from this peer
+            // 10. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
                 .synchronizer
                 .fetch_block_headers(missing_ancestors, peer)
@@ -1179,10 +1176,7 @@ mod tests {
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use starfish_config::AuthorityIndex;
-    use tokio::{
-        sync::broadcast,
-        time::{Instant, sleep},
-    };
+    use tokio::{sync::broadcast, time::sleep};
 
     use crate::{
         CommitConsumer, Round, TransactionClient,
@@ -1467,7 +1461,6 @@ mod tests {
         // GIVEN
         let rounds = 50;
         let validators = 50;
-        let filter = true;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -1547,7 +1540,6 @@ mod tests {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
         }
-        let mut total_duration = Duration::ZERO;
         for round in 1..=rounds {
             core_dispatcher
                 .add_block_headers(vec![all_headers[round as usize][0].clone()])
@@ -1574,16 +1566,13 @@ mod tests {
                     SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
                 )
                 .unwrap();
-                let start = Instant::now();
                 authority_service
                     .handle_subscribed_block_bundle(
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
-                        filter,
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");
-                total_duration += start.elapsed();
             }
             for (authority_index, _) in context.committee.authorities() {
                 let block = dag_state
@@ -1597,7 +1586,6 @@ mod tests {
                 validators * round as usize - 1
             )
         }
-        println!("Total time: {:?}", total_duration);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -1605,7 +1593,6 @@ mod tests {
         // GIVEN
         let rounds = 50;
         let validators = 50;
-        let filter = true;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -1685,7 +1672,6 @@ mod tests {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
         }
-        let mut total_duration = Duration::ZERO;
         for round in 1..=rounds {
             core_dispatcher
                 .add_block_headers(vec![all_headers[round as usize][0].clone()])
@@ -1704,16 +1690,13 @@ mod tests {
                     SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
                 )
                 .unwrap();
-                let start = Instant::now();
                 authority_service
                     .handle_subscribed_block_bundle(
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
-                        filter,
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");
-                total_duration += start.elapsed();
             }
             for (authority_index, _) in context.committee.authorities() {
                 let block = dag_state
@@ -1723,6 +1706,5 @@ mod tests {
                 assert_eq!(block.round(), round);
             }
         }
-        println!("Total time: {:?}", total_duration);
     }
 }

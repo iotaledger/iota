@@ -160,7 +160,6 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        filter: bool,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.

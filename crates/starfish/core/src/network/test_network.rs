@@ -61,7 +61,6 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _serialized_block_bundle: SerializedBlockBundle,
-        _filter: bool,
     ) -> ConsensusResult<()> {
         unimplemented!("Unimplemented")
     }
