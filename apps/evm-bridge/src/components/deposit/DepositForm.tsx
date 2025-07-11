@@ -146,6 +146,7 @@ export function DepositForm({
                 }}
                 caption={caption}
                 maxLength={MAX_DEPOSIT_INPUT_LENGTH}
+                thousandSeparator
                 trailingElement={
                     <ButtonPill onClick={handleMaxAmountClick} disabled={isMaxButtonDisabled}>
                         Max
