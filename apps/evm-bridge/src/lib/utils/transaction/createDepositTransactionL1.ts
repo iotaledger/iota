@@ -69,13 +69,9 @@ export function createDepositTransactionL1({
         });
     }
 
-    const transfers: [string, bigint][] = [[IOTA_TYPE_ARG, amount]];
-    if (!isIotaCoinType) {
-        transfers.push([coinType, amount]);
-    }
     iscTx.createAndSendToEvm({
         bag,
-        transfers,
+        transfers: [[coinType, amount]],
         address: receivingAddress,
         accountsContract: getHname(CoreContract.Accounts),
         accountsFunction: getHname(AccountsContractMethod.TransferAllowanceTo),
