@@ -786,7 +786,7 @@ impl CheckpointStore {
             let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
             let txns = cache
                 .try_multi_get_transaction_blocks(&tx_digests)
-                .expect("multi_get_transaction_blocks should not fail");
+                .expect("try_multi_get_transaction_blocks should not fail");
             for (tx, digest) in txns.iter().zip(tx_digests.iter()) {
                 if tx.is_none() {
                     panic!("transaction {digest:?} not found");
@@ -1702,7 +1702,7 @@ impl CheckpointBuilder {
         let root_txs = self
             .state
             .get_transaction_cache_reader()
-            .multi_get_transaction_blocks(root_digests)
+            .try_multi_get_transaction_blocks(root_digests)
             .unwrap();
         let ccps = root_txs
             .iter()
@@ -1724,7 +1724,7 @@ impl CheckpointBuilder {
         let txs = self
             .state
             .get_transaction_cache_reader()
-            .multi_get_transaction_blocks(
+            .try_multi_get_transaction_blocks(
                 &sorted
                     .iter()
                     .map(|tx| *tx.transaction_digest())
