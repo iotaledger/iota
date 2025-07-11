@@ -56,6 +56,11 @@ impl FilterForHeaders {
         }
     }
 
+    #[cfg(test)]
+    fn size(&self) -> usize {
+        self.header_digests.len()
+    }
+
     async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) -> Vec<BlockHeaderDigest> {
         let mut already_inserted = vec![];
         for digest in digests.iter() {
@@ -607,17 +612,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .received_block_headers
                 .add_batch(digests_to_add_to_filter)
                 .await;
-            let mut block_headers_for_dispatcher = vec![];
-            let index = 0;
-            for block_header in additional_block_headers {
+            let mut index = 0;
+            additional_block_headers.retain(|block_header| {
                 if index < digests_to_exclude.len()
                     && block_header.digest() == digests_to_exclude[index]
                 {
-                    continue;
+                    index += 1;
+                    false
+                } else {
+                    true
                 }
-                block_headers_for_dispatcher.push(block_header);
-            }
-            additional_block_headers = block_headers_for_dispatcher;
+            });
         }
 
         let mut missing_ancestors = self
@@ -1441,7 +1446,8 @@ mod tests {
         }
 
         async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            unimplemented!("Unimplemented")
+            // do nothing
+            Ok(BTreeSet::new())
         }
 
         fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
@@ -1542,18 +1548,24 @@ mod tests {
             all_transactions.push(dag_builder.transactions(round..=round));
         }
         let mut total_duration = Duration::ZERO;
-        for round in 2..=rounds {
+        for round in 1..=rounds {
             core_dispatcher
                 .add_block_headers(vec![all_headers[round as usize][0].clone()])
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
-                let mut headers = all_headers[round as usize - 1].clone();
+                let mut headers = if round > 1 {
+                    all_headers[round as usize - 1].clone()
+                } else {
+                    vec![]
+                };
                 let block = VerifiedBlock {
                     verified_block_header: all_headers[round as usize][peer].clone(),
                     verified_transactions: all_transactions[round as usize][peer].clone(),
                 };
-                headers.remove(peer);
+                if round > 1 {
+                    headers.remove(peer);
+                }
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: headers,
@@ -1573,6 +1585,17 @@ mod tests {
                     .expect("bundle is expected to be processed successfully");
                 total_duration += start.elapsed();
             }
+            for (authority_index, _) in context.committee.authorities() {
+                let block = dag_state
+                    .read()
+                    .get_last_block_header_for_authority(authority_index);
+
+                assert_eq!(block.round(), round);
+            }
+            assert_eq!(
+                authority_service.received_block_headers.size(),
+                validators * round as usize - 1
+            )
         }
         println!("Total time: {:?}", total_duration);
     }
@@ -1663,7 +1686,7 @@ mod tests {
             all_transactions.push(dag_builder.transactions(round..=round));
         }
         let mut total_duration = Duration::ZERO;
-        for round in 2..=rounds {
+        for round in 1..=rounds {
             core_dispatcher
                 .add_block_headers(vec![all_headers[round as usize][0].clone()])
                 .await
@@ -1691,6 +1714,13 @@ mod tests {
                     .await
                     .expect("bundle is expected to be processed successfully");
                 total_duration += start.elapsed();
+            }
+            for (authority_index, _) in context.committee.authorities() {
+                let block = dag_state
+                    .read()
+                    .get_last_block_header_for_authority(authority_index);
+
+                assert_eq!(block.round(), round);
             }
         }
         println!("Total time: {:?}", total_duration);
