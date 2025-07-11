@@ -56,9 +56,12 @@ impl FilterForHeaders {
         }
     }
 
-    async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) {
+    async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) -> Vec<BlockHeaderDigest> {
+        let mut already_inserted = vec![];
         for digest in digests.iter() {
-            self.header_digests.insert(*digest);
+            if !self.header_digests.insert(*digest) {
+                already_inserted.push(*digest);
+            }
         }
         let mut queue = self.queue.lock().await;
         for digest in digests {
@@ -69,6 +72,7 @@ impl FilterForHeaders {
                 self.header_digests.remove(&removed);
             }
         }
+        already_inserted
     }
     fn contains(&self, header_digest: &BlockHeaderDigest) -> bool {
         self.header_digests.contains(header_digest)
@@ -599,9 +603,21 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 digests_to_add_to_filter.push(block_header.digest())
             }
             digests_to_add_to_filter.push(verified_block.digest());
-            self.received_block_headers
+            let digests_to_exclude = self
+                .received_block_headers
                 .add_batch(digests_to_add_to_filter)
                 .await;
+            let mut block_headers_for_dispatcher = vec![];
+            let index = 0;
+            for block_header in additional_block_headers {
+                if index < digests_to_exclude.len()
+                    && block_header.digest() == digests_to_exclude[index]
+                {
+                    continue;
+                }
+                block_headers_for_dispatcher.push(block_header);
+            }
+            additional_block_headers = block_headers_for_dispatcher;
         }
 
         let mut missing_ancestors = self
