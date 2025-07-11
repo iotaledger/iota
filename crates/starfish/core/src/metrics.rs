@@ -156,11 +156,15 @@ pub(crate) struct NodeMetrics {
     pub(crate) missing_blocks_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
-    pub(crate) transaction_synchronizer_fetched_transactions_by_peer: IntCounterVec,
-    pub(crate) transaction_synchronizer_fetched_transactions_by_authority: IntCounterVec,
+    pub(crate) transactions_synchronizer_fetched_transactions_by_peer: IntCounterVec,
+    pub(crate) transactions_synchronizer_fetched_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_current_missing_transactions_by_authority: IntGaugeVec,
-    pub(crate) fetch_transactions_scheduler_inflight: IntGauge,
+    pub(crate) transactions_synchronizer_scheduler_inflight: IntGauge,
+    pub(crate) transactions_synchronizer_fetch_latency: HistogramVec,
+    pub(crate) transactions_synchronizer_success_by_peer: IntCounterVec,
+    pub(crate) transactions_synchronizer_failure_by_peer: IntCounterVec,
+    pub(crate) transactions_synchronizer_inflight_requests: IntGauge,
     pub(crate) reputation_scores: IntGaugeVec,
     pub(crate) scope_processing_time: HistogramVec,
     pub(crate) sub_dags_per_commit_count: Histogram,
@@ -530,13 +534,13 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            transaction_synchronizer_fetched_transactions_by_peer: register_int_counter_vec_with_registry!(
+            transactions_synchronizer_fetched_transactions_by_peer: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_fetched_transactions_by_peer",
                 "Number of fetched transactions per peer authority via the transaction synchronizer",
                 &["peer", "type"],
                 registry,
             ).unwrap(),
-            transaction_synchronizer_fetched_transactions_by_authority: register_int_counter_vec_with_registry!(
+            transactions_synchronizer_fetched_transactions_by_authority: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_fetched_transactions_by_authority",
                 "Number of fetched transactions per block author via the transaction synchronizer",
                 &["authority", "type"],
@@ -554,7 +558,7 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            fetch_transactions_scheduler_inflight: register_int_gauge_with_registry!(
+            transactions_synchronizer_scheduler_inflight: register_int_gauge_with_registry!(
                 "fetch_transactions_scheduler_inflight",
                 "Designates whether the transaction synchronizer scheduler task to fetch transactions is currently running",
                 registry,
@@ -734,6 +738,31 @@ impl NodeMetrics {
                 "uptime",
                 "Total node uptime",
                 LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            // New metrics for transaction synchronizer
+            transactions_synchronizer_fetch_latency: register_histogram_vec_with_registry!(
+                "transaction_synchronizer_fetch_latency",
+                "The time taken to fetch transactions from a peer",
+                &["peer", "type"],
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            transactions_synchronizer_success_by_peer: register_int_counter_vec_with_registry!(
+                "transaction_synchronizer_success_by_peer",
+                "Number of successful transaction fetches per peer",
+                &["peer", "type"],
+                registry,
+            ).unwrap(),
+            transactions_synchronizer_failure_by_peer: register_int_counter_vec_with_registry!(
+                "transaction_synchronizer_failure_by_peer",
+                "Number of failed transaction fetches per peer",
+                &["peer", "type", "error"],
+                registry,
+            ).unwrap(),
+            transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
+                "transaction_synchronizer_concurrent_requests",
+                "Number of concurrent transaction fetch requests",
                 registry,
             ).unwrap(),
         }

@@ -1657,6 +1657,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1718,6 +1719,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1791,6 +1793,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
         // Create some test blocks
@@ -1870,6 +1873,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0. Create some
@@ -1966,6 +1970,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0. Create blocks
@@ -2096,6 +2101,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
         // Create some test blocks
