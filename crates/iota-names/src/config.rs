@@ -98,15 +98,15 @@ impl IotaNamesConfig {
     // Create a config based on the package and object ids published on devnet.
     pub fn devnet() -> Self {
         const PACKAGE_ADDRESS: &str =
-            "0xe1284870018484a7a12255aebb737b6b98b47d652b842ea2f324499ff163a648";
+            "0xb9d617f24c84826bf660a2f4031951678cc80c264aebc4413459fb2a95ada9ba";
         const OBJECT_ID: &str =
-            "0xa92a67ae8a8c644acfa6dd5a4d8098a20b07b6061cbf36aff8daef3ba892913f";
+            "0x07c59b37bd7d036bf78fa30561a2ab9f7a970837487656ec29466e817f879342";
         const PAYMENTS_PACKAGE_ADDRESS: &str =
-            "0x1efac8bf200acca64b62ce75557cd7232310fc8c4ea90960487d2908055fc94f";
+            "0x98b9b33b7c2347a8f4e8b8716fb4c7e6e1af846ec2ea063a47bba81ffe03b440";
         const REGISTRY_ID: &str =
-            "0x88fa01b1f2462f2f33b593eb205b88158e1f51594102b9748b73f134388a3f2d";
+            "0xe00b2f2400c33b4dbd3081c4dcf2e289d0544caba23a3d130b264bd756403c07";
         const REVERSE_REGISTRY_ID: &str =
-            "0x1b3840a267efdc30d11b2b7ad2e574cf8483cd4e06bdf7b39c61ee5717ac3fe6";
+            "0x1c1da17843cc453ad4079b05ce55e103b7a8cdd4db6ab42dc367b47ed6d8994d";
 
         let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectID::from_str(OBJECT_ID).unwrap();
