@@ -58,7 +58,7 @@ impl FilterForHeaders {
 
     async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) {
         for digest in digests.iter() {
-            self.header_digests.insert(digest.clone());
+            self.header_digests.insert(*digest);
         }
         let mut queue = self.queue.lock().await;
         for digest in digests {
@@ -90,7 +90,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// A set contains BlockHeaderDigests for block headers, received from
     /// streaming Used to filter the headers if they are received multiple
     /// times. The size is limited by MAX_FILTER_SIZE, elements are evicted
-    /// when the threshold is exceeded/
+    /// when the threshold is exceeded
     received_block_headers: FilterForHeaders,
 }
 

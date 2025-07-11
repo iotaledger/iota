@@ -900,7 +900,7 @@ impl<'a> LayerBuilder<'a> {
 
     // reorder ancestors in connections such that the reference to own block is
     // first
-    fn reorder_ancestors(&self, connections: &mut Vec<(AuthorityIndex, Vec<BlockRef>)>) {
+    fn reorder_ancestors(&self, connections: &mut [(AuthorityIndex, Vec<BlockRef>)]) {
         for (author, ancestors) in connections.iter_mut() {
             if let Some(pos) = ancestors.iter().position(|b| b.author == *author) {
                 let own_block_ref = ancestors.remove(pos);
