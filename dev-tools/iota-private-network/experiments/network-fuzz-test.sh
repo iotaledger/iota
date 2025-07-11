@@ -166,15 +166,17 @@ while [[ $(date +%s) -lt $end_time ]]; do
   # Loop through validators
     for v in "${validators[@]}"; do
       duration=$((RANDOM % 120 + 60)) # between 120 and 180 seconds
-      # randomly decide to stop validator or apply packet loss (10% stop, 90% loss)
-      if (( RANDOM % 15 == 0 )); then
-        log "Stopping validator $v for ${duration}s"
-        (restart_validator "$v" "$duration") &
-      else
-        loss=$((RANDOM % 81 + 20))  # Random packet loss between 20% and 100%
-        log "Applying ${loss}% packet loss to $v for ${duration}s"
-        (netem_loss "$v" "$loss" "$duration") &
-      fi
+      loss=$((RANDOM % 41 + 10))       # 10–50% loss
+      r=$((RANDOM % 100))
+        if   (( r < 10 )); then
+          log "Stopping $v for ${duration}s"
+          (restart_validator "$v" "$duration") &
+        elif (( r < 25 )); then
+          log "Applying ${loss}% packet loss to $v for ${duration}s"
+          (netem_loss "$v" "$loss" "$duration") &
+        else
+          log "No disruption on $v"
+        fi
     done
   sleep 1
   log "Experiments running for 180s"
