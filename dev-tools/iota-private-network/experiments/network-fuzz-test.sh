@@ -136,27 +136,27 @@ while [[ $(date +%s) -lt $end_time ]]; do
       A=${validators[i]}
       B=${validators[j]}
       # bidirectional block
-      if (( RANDOM % 20 == 0 )); then
+      if (( RANDOM % 50 == 0 )); then
         log "Blocking bidirectional traffic between $A and $B for ${duration}s"
         (iptables_block_bidirectional "$A" "$B"; sleep $duration; iptables_unblock_bidirectional "$A" "$B") &
       fi
       # outgoing from A to B
-      if (( RANDOM % 20 == 1 )); then
+      if (( RANDOM % 50 == 1 )); then
         log "Blocking outgoing traffic from $A to $B for ${duration}s"
         (iptables_block "$A" "$B"; sleep $duration; iptables_unblock "$A" "$B") &
       fi
       # incoming to A from B
-      if (( RANDOM % 20 == 2 )); then
+      if (( RANDOM % 50 == 2 )); then
         log "Blocking incoming traffic to $A from $B for ${duration}s"
         (iptables_block_incoming "$A" "$B"; sleep $duration; iptables_unblock_incoming "$A" "$B") &
       fi
       # outgoing from B to A
-      if (( RANDOM % 20 == 3 )); then
+      if (( RANDOM % 50 == 3 )); then
         log "Blocking outgoing traffic from $B to $A for ${duration}s"
         (iptables_block "$B" "$A"; sleep $duration; iptables_unblock "$B" "$A") &
       fi
       # incoming to B from A
-      if (( RANDOM % 20 == 4 )); then
+      if (( RANDOM % 50 == 4 )); then
         log "Blocking incoming traffic to $B from $A for ${duration}s"
         (iptables_block_incoming "$B" "$A"; sleep $duration; iptables_unblock_incoming "$B" "$A") &
       fi
@@ -167,7 +167,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
     for v in "${validators[@]}"; do
       duration=$((RANDOM % 120 + 60)) # between 120 and 180 seconds
       # randomly decide to stop validator or apply packet loss (10% stop, 90% loss)
-      if (( RANDOM % 10 == 0 )); then
+      if (( RANDOM % 15 == 0 )); then
         log "Stopping validator $v for ${duration}s"
         (restart_validator "$v" "$duration") &
       else
