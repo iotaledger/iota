@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Array of durations for each run (seconds)
-durations=(30 60 90 120)
+durations=(30 60 90 120 240)
 # Cool-down between runs
 cooldown=30
 
@@ -123,7 +123,7 @@ done
 echo "=== Experiment Completed ==="
 
 
-echo "=== Phase 1 - blocking incoming ==="
+echo "=== Phase 2 - blocking outgoing ==="
 
 for duration in "${durations[@]}"; do
   echo "=== Run with duration: ${duration}s ==="
@@ -131,14 +131,14 @@ for duration in "${durations[@]}"; do
   #
   # Test 1:
   #
-  # validator-14 only accepts incoming from validator-15
+  # validator-14 only accepts outgoing from validator-15
   for i in $(seq 1 19); do
     if [ "$i" -ne 15 ]; then
       block_outgoing_between validator-14 validator-"$i"
     fi
   done
 
-  # validator-15 only accepts incoming from validator-16
+  # validator-15 only accepts outgoing from validator-16
   for i in $(seq 1 19); do
     if [ "$i" -ne 16 ]; then
       block_outgoing_between validator-15 validator-"$i"
@@ -146,7 +146,7 @@ for duration in "${durations[@]}"; do
   done
 
 
-  # validator-16 only accepts incoming from 17, 18, 19
+  # validator-16 only accepts outgoing from 17, 18, 19
   for i in $(seq 1 16); do
     if ! echo "17 18 19" | grep -qw "$i"; then
       block_outgoing_between validator-16 validator-"$i"
@@ -154,7 +154,7 @@ for duration in "${durations[@]}"; do
   done
 
 
-  #  validator-17 only accepts incoming from 18, 19
+  #  validator-17 only accepts outgoing from 18, 19
   for i in $(seq 1 17); do
     if ! echo "18 19" | grep -qw "$i"; then
       block_outgoing_between validator-17 validator-"$i"
@@ -162,7 +162,7 @@ for duration in "${durations[@]}"; do
   done
 
 
-  # validator-18 only accepts incoming from 19
+  # validator-18 only accepts outgoing from 19
   for i in $(seq 1 18); do
     if [ "$i" -ne 19 ]; then
       block_outgoing_between validator-18 validator-"$i"
@@ -170,7 +170,7 @@ for duration in "${durations[@]}"; do
   done
 
 
-  #  validator-19 accepts no incoming
+  #  validator-19 accepts no outgoing
   for i in $(seq 1 19); do
     block_outgoing_between validator-19 validator-"$i"
   done

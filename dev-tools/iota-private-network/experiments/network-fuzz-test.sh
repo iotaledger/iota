@@ -23,7 +23,7 @@ duration_total=$((24 * 60 * 60))  # 24 hours
 start_time=$(date +%s)
 end_time=$((start_time + duration_total))
 
-validators=(validator-1 validator-2 validator-3 validator-4)
+validators=(validator-1 validator-2 validator-3 validator-4 validator-5 validator-6 validator-7 validator-8 validator-9 validator-10 validator-11 validator-12 validator-13 validator-14 validator-15 validator-16 validator-17 validator-18 validator-19)
 
 log() {
   echo "$(date -Iseconds) $1"
@@ -130,7 +130,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
 
 
   #  For each validator pair A-B, randomly apply one of five blocking actions with 1/20 probability each
-  duration=$((RANDOM % 30 + 30))
+  duration=$((RANDOM % 120 + 60))
   for ((i=0; i<${#validators[@]}; i++)); do
     for ((j=i+1; j<${#validators[@]}; j++)); do
       A=${validators[i]}
@@ -165,7 +165,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
 
   # Loop through validators
     for v in "${validators[@]}"; do
-      duration=$((RANDOM % 30 + 30)) # between 30 and 60 seconds
+      duration=$((RANDOM % 120 + 60)) # between 120 and 180 seconds
       # randomly decide to stop validator or apply packet loss (10% stop, 90% loss)
       if (( RANDOM % 10 == 0 )); then
         log "Stopping validator $v for ${duration}s"
@@ -176,10 +176,9 @@ while [[ $(date +%s) -lt $end_time ]]; do
         (netem_loss "$v" "$loss" "$duration") &
       fi
     done
-    # (Experiments running for 60s moved below)
   sleep 1
-  log "Experiments running for 60s"
-  sleep 60
+  log "Experiments running for 180s"
+  sleep 180
 done
 
 # === CLEANUP ===
