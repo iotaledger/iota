@@ -84,7 +84,7 @@ const SIZE_BUCKETS: &[f64] = &[
     10_000_000.0,
 ]; // size in bytes
 
-const ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION: [&'static str; 6] = [
+const ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION: [&str; 6] = [
     "WrongEpoch",
     "UnexpectedGenesisBlock",
     "InvalidAuthorityIndex",
@@ -93,7 +93,7 @@ const ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION: [&'static str; 6] = [
     "SignatureVerificationFailure",
 ];
 
-const ERRORS_FROM_SIGNED_BLOCK_VERIFICATION: [&'static str; 11] = [
+const ERRORS_FROM_SIGNED_BLOCK_VERIFICATION: [&str; 11] = [
     "TooManyAncestors",
     "InsufficientParentStakes",
     "InvalidAuthorityIndex",
@@ -107,7 +107,7 @@ const ERRORS_FROM_SIGNED_BLOCK_VERIFICATION: [&'static str; 11] = [
     "InvalidTransaction",
 ];
 
-const UNPROVABLE_ERRORS_FROM_COMMIT_SYNCER: [&'static str; 8] = [
+const UNPROVABLE_ERRORS_FROM_COMMIT_SYNCER: [&str; 8] = [
     "MalformedCommit",
     "UnexpectedStartCommit",
     "UnexpectedCommitSequence",
@@ -118,11 +118,9 @@ const UNPROVABLE_ERRORS_FROM_COMMIT_SYNCER: [&'static str; 8] = [
     "UnexpectedBlockForCommit",
 ];
 
-const UNPROVABLE_ERRORS_FROM_SUBSCRIBER: [&'static str; 2] =
-    ["MalformedBlock", "UnexpectedAuthority"];
+const UNPROVABLE_ERRORS_FROM_SUBSCRIBER: [&str; 2] = ["MalformedBlock", "UnexpectedAuthority"];
 
-const PROVABLE_ERRORS_FROM_SUBSCRIBER: [&'static str; 2] =
-    ["BlockRejected", "MalformedAncestorBlock"];
+const PROVABLE_ERRORS_FROM_SUBSCRIBER: [&str; 2] = ["BlockRejected", "MalformedAncestorBlock"];
 
 pub(crate) struct Metrics {
     pub(crate) node_metrics: NodeMetrics,
@@ -315,18 +313,17 @@ impl Metrics {
             }
         }
         // Errors from the synchronizer
-        else if source == "process_fetched_blocks" {
-            if ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION.contains(&error.name())
+        else if source == "process_fetched_blocks"
+            && (ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION.contains(&error.name())
                 || ERRORS_FROM_SIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || error.name() == "MalformedBlock"
-            {
-                self.scoring_metrics.faulty_blocks_unprovable_by_authority[index.value()]
-                    .fetch_add(1, Ordering::Relaxed);
-                self.node_metrics
-                    .faulty_blocks_unprovable_by_authority
-                    .with_label_values(&[hostname, source, error.name()])
-                    .inc();
-            }
+                || error.name() == "MalformedBlock")
+        {
+            self.scoring_metrics.faulty_blocks_unprovable_by_authority[index.value()]
+                .fetch_add(1, Ordering::Relaxed);
+            self.node_metrics
+                .faulty_blocks_unprovable_by_authority
+                .with_label_values(&[hostname, source, error.name()])
+                .inc();
         }
     }
 }
@@ -1279,7 +1276,7 @@ mod tests {
         (keys, context, core_dispatcher, authority_service)
     }
 
-    fn integer_vec(vec_of_atomics: &Vec<AtomicU64>) -> Vec<u64> {
+    fn integer_vec(vec_of_atomics: &[AtomicU64]) -> Vec<u64> {
         vec_of_atomics
             .iter()
             .map(|x| x.load(Ordering::Relaxed))
@@ -1585,7 +1582,7 @@ mod tests {
         // Metrics should not be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 ignored_error.clone(),
                 source,
@@ -1603,7 +1600,7 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 parsing_error.clone(),
                 source,
@@ -1621,7 +1618,7 @@ mod tests {
         // Only provable metrics should be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 block_verification_error.clone(),
                 source,
@@ -1657,7 +1654,7 @@ mod tests {
         // Metrics should not be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 ignored_error.clone(),
                 source,
@@ -1675,7 +1672,7 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 parsing_error.clone(),
                 source,
@@ -1695,7 +1692,7 @@ mod tests {
         // sent this block. Only unprovable metrics should be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 block_verification_error.clone(),
                 source,
@@ -1731,7 +1728,7 @@ mod tests {
         // Metrics should not be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 ignored_error.clone(),
                 source,
@@ -1749,7 +1746,7 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 parsing_error.clone(),
                 source,
@@ -1769,7 +1766,7 @@ mod tests {
         // sent this block. Only unprovable metrics should be updated for this error.
         for authority in authorities.iter() {
             context.metrics.update_scoring_metrics_on_block_receival(
-                authority.clone(),
+                *authority,
                 hostname,
                 block_verification_error.clone(),
                 source,

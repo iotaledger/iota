@@ -1022,7 +1022,7 @@ impl DagState {
             let last_evicted_round = self.evicted_rounds[authority_index];
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
             let mut evicted_blocks_per_round =
-                vec![0 as u32; (eviction_round - last_evicted_round) as usize];
+                vec![0_u32; (eviction_round - last_evicted_round) as usize];
             while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
                 let block_round = block_ref.round;
                 if block_round <= eviction_round {
