@@ -72,7 +72,7 @@ pub trait IotaNamesNft {
 }
 
 impl IotaNamesNft for NameRegistration {
-    const MODULE: &IdentStr = ident_str!("iota_names_registration");
+    const MODULE: &IdentStr = ident_str!("name_registration");
     const TYPE_NAME: &IdentStr = ident_str!("NameRegistration");
 
     fn name(&self) -> &Name {
