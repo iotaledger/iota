@@ -2,27 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 const identity = [
-    'iota-identity/index',
+    'developer/iota-identity/index',
     {
         type: 'category',
         label: 'Getting Started',
         collapsed: false,
         items: [
-            'iota-identity/getting-started/rust',
-            'iota-identity/getting-started/wasm',
-            'iota-identity/getting-started/local-network-setup',
-            'iota-identity/getting-started/universal-resolver'
+            'developer/iota-identity/getting-started/rust',
+            'developer/iota-identity/getting-started/wasm',
+            'developer/iota-identity/getting-started/local-network-setup',
+            'developer/iota-identity/getting-started/universal-resolver'
         ],
     },
     {
         type: 'category',
         label: 'Explanations',
         items: [
-            'iota-identity/explanations/decentralized-identifiers',
-            'iota-identity/explanations/verifiable-credentials',
-            'iota-identity/explanations/verifiable-presentations',
-            'iota-identity/explanations/about-identity-objects',
-            'iota-identity/explanations/authenticated-assets',
+            'developer/iota-identity/explanations/decentralized-identifiers',
+            'developer/iota-identity/explanations/verifiable-credentials',
+            'developer/iota-identity/explanations/verifiable-presentations',
+            'developer/iota-identity/explanations/about-identity-objects',
+            'developer/iota-identity/explanations/authenticated-assets',
         ],
     },
     {
@@ -33,33 +33,33 @@ const identity = [
                 type: 'category',
                 label: 'Decentralized Identifiers (DID)',
                 items: [
-                    'iota-identity/how-tos/decentralized-identifiers/create',
-                    'iota-identity/how-tos/decentralized-identifiers/update',
-                    'iota-identity/how-tos/decentralized-identifiers/resolve',
-                    'iota-identity/how-tos/decentralized-identifiers/delete',
+                    'developer/iota-identity/how-tos/decentralized-identifiers/create',
+                    'developer/iota-identity/how-tos/decentralized-identifiers/update',
+                    'developer/iota-identity/how-tos/decentralized-identifiers/resolve',
+                    'developer/iota-identity/how-tos/decentralized-identifiers/delete',
                 ],
             },
             {
                 type: 'category',
                 label: 'Verifiable Credentials',
                 items: [
-                    'iota-identity/how-tos/verifiable-credentials/create',
-                    'iota-identity/how-tos/verifiable-credentials/revocation',
-                    'iota-identity/how-tos/verifiable-credentials/selective-disclosure',
-                    'iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure',
+                    'developer/iota-identity/how-tos/verifiable-credentials/create',
+                    'developer/iota-identity/how-tos/verifiable-credentials/revocation',
+                    'developer/iota-identity/how-tos/verifiable-credentials/selective-disclosure',
+                    'developer/iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure',
                 ],
             },
             {
                 type: 'category',
                 label: 'Verifiable Presentations',
-                items: ['iota-identity/how-tos/verifiable-presentations/create-and-validate'],
+                items: ['developer/iota-identity/how-tos/verifiable-presentations/create-and-validate'],
             },
             {
                 type: 'category',
                 label: 'Domain Linkage',
-                items: ['iota-identity/how-tos/domain-linkage/create-and-verify'],
+                items: ['developer/iota-identity/how-tos/domain-linkage/create-and-verify'],
             },
-            'iota-identity/how-tos/key-storage',
+            'developer/iota-identity/how-tos/key-storage',
         ],
     },
     {
@@ -79,7 +79,7 @@ const identity = [
                     {
                         type: 'link',
                         label: 'Wasm',
-                        href: '/references/iota-identity/wasm/api_ref',
+                        href: 'developer/iota-identity/references/wasm/api_ref',
                     },
                 ],
             },
@@ -87,15 +87,15 @@ const identity = [
                 type: 'category',
                 label: 'Specifications',
                 items: [
-                    'references/iota-identity/overview',
-                    'references/iota-identity/iota-did-method-spec',
-                    'references/iota-identity/revocation-bitmap-2022',
-                    'references/iota-identity/revocation-timeframe-2024',
+                    'developer/iota-identity/references/overview',
+                    'developer/iota-identity/references/iota-did-method-spec',
+                    'developer/iota-identity/references/revocation-bitmap-2022',
+                    'developer/iota-identity/references/revocation-timeframe-2024',
                 ],
             },
         ],
     },
-    'iota-identity/contribute',
+    'developer/iota-identity/contribute',
 ];
 
 module.exports = identity;

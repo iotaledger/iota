@@ -1,5 +1,5 @@
 {
-  resolveIotaNamesAddress(domain: "example.iota") {
+  resolveIotaNamesAddress(name: "example.iota") {
     address
   }
   address(

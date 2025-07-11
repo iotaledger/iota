@@ -7,7 +7,7 @@ use std::str::FromStr;
 use async_graphql::{connection::Connection, *};
 use iota_indexer::models::objects::StoredHistoryObject;
 use iota_names::{
-    IotaNamesNft, config::IotaNamesConfig, domain::Domain as NativeDomain, error::IotaNamesError,
+    IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
 use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
@@ -47,13 +47,13 @@ use crate::{
 /// based on the `IotaNamesConfig`.
 pub(crate) struct IotaNames;
 
-/// Wrap IOTA-Names Domain type to expose as a string scalar in GraphQL.
+/// Wrap IOTA-Names Name type to expose as a string scalar in GraphQL.
 #[derive(Debug)]
-pub(crate) struct Domain(NativeDomain);
+pub(crate) struct Name(NativeName);
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
-#[graphql(remote = "iota_names::domain::DomainFormat")]
-pub enum DomainFormat {
+#[graphql(remote = "iota_names::name::NameFormat")]
+pub enum NameFormat {
     At,
     Dot,
 }
@@ -61,8 +61,8 @@ pub enum DomainFormat {
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct NativeIotaNamesRegistration {
     pub id: UID,
-    pub domain: NativeDomain,
-    pub domain_name: String,
+    pub name: NativeName,
+    pub name_str: String,
     pub expiration_timestamp_ms: u64,
 }
 
@@ -75,14 +75,14 @@ pub(crate) struct IotaNamesRegistration {
     pub native: NativeIotaNamesRegistration,
 }
 
-/// Represents the results of a query for a domain's `NameRecord` and its
+/// Represents the results of a query for a name's `NameRecord` and its
 /// parent's `NameRecord`. The `expiration_timestamp_ms` on the name records are
-/// compared to the checkpoint's timestamp to check that the domain is not
+/// compared to the checkpoint's timestamp to check that the name is not
 /// expired.
-pub(crate) struct DomainExpiration {
-    /// The domain's `NameRecord`.
+pub(crate) struct NameExpiration {
+    /// The name's `NameRecord`.
     pub name_record: Option<NameRecord>,
-    /// The parent's `NameRecord`, populated only if the domain is a subdomain.
+    /// The parent's `NameRecord`, populated only if the name is a subname.
     pub parent_name_record: Option<NameRecord>,
     /// The timestamp of the checkpoint at which the query was made. This is
     /// used to check if the `expiration_timestamp_ms` on the name records
@@ -174,12 +174,12 @@ impl IotaNamesRegistration {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this
+    /// The name explicitly configured as the default name pointing to this
     /// object.
     pub(crate) async fn iota_names_default_name(
         &self,
         ctx: &Context<'_>,
-        format: Option<DomainFormat>,
+        format: Option<NameFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_.super_)
             .iota_names_default_name(ctx, format)
@@ -187,7 +187,7 @@ impl IotaNamesRegistration {
     }
 
     /// The IotaNamesRegistration NFTs owned by this object. These grant the
-    /// owner the capability to manage the associated domain.
+    /// owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
         ctx: &Context<'_>,
@@ -371,15 +371,15 @@ impl IotaNamesRegistration {
             .await
     }
 
-    /// Domain name of the IotaNamesRegistration object
-    async fn domain(&self) -> &str {
-        &self.native.domain_name
+    /// Name of the IotaNamesRegistration object
+    async fn name(&self) -> &str {
+        &self.native.name_str
     }
 }
 
 impl IotaNames {
-    /// Lookup the IOTA-Names NameRecord for the given `domain` name. `config`
-    /// specifies where to find the domain name registry, and its type.
+    /// Lookup the IOTA-Names NameRecord for the given `name`. `config`
+    /// specifies where to find the name registry, and its type.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
     /// which this was queried for.
@@ -387,32 +387,32 @@ impl IotaNames {
     /// The `NameRecord` is returned only if it has not expired as of the
     /// `checkpoint_viewed_at` or latest checkpoint's timestamp.
     ///
-    /// For leaf domains, the `NameRecord` is returned only if its parent is
+    /// For leaf names, the `NameRecord` is returned only if its parent is
     /// valid and not expired.
     pub(crate) async fn resolve_to_record(
         ctx: &Context<'_>,
-        domain: &Domain,
+        name: &Name,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<NameRecord>, Error> {
-        // Query for the domain's NameRecord and parent NameRecord if applicable. The
+        // Query for the name's NameRecord and parent NameRecord if applicable. The
         // checkpoint's timestamp is also fetched. These values are used to
-        // determine if the domain is expired.
-        let Some(domain_expiration) =
-            Self::query_domain_expiration(ctx, domain, checkpoint_viewed_at).await?
+        // determine if the name is expired.
+        let Some(name_expiration) =
+            Self::query_name_expiration(ctx, name, checkpoint_viewed_at).await?
         else {
             return Ok(None);
         };
 
         // Get the name_record from the query. If we didn't find it, we return as it
         // means that the requested name is not registered.
-        let Some(name_record) = domain_expiration.name_record else {
+        let Some(name_record) = name_expiration.name_record else {
             return Ok(None);
         };
 
-        // If name record is SLD, or Node subdomain, we can check the expiration and
+        // If name record is SLN, or Node subname, we can check the expiration and
         // return the record if not expired.
         if !name_record.is_leaf_record() {
-            return if !name_record.is_node_expired(domain_expiration.checkpoint_timestamp_ms) {
+            return if !name_record.is_node_expired(name_expiration.checkpoint_timestamp_ms) {
                 Ok(Some(name_record))
             } else {
                 Err(Error::IotaNames(IotaNamesError::NameExpired))
@@ -420,14 +420,14 @@ impl IotaNames {
         }
 
         // If we cannot find the parent, then the name is expired.
-        let Some(parent_name_record) = domain_expiration.parent_name_record else {
+        let Some(parent_name_record) = name_expiration.parent_name_record else {
             return Err(Error::IotaNames(IotaNamesError::NameExpired));
         };
 
         // If the parent is valid for this leaf, and not expired, then we can return the
         // name record. Otherwise, the name is expired.
         if parent_name_record.is_valid_leaf_parent(&name_record)
-            && !parent_name_record.is_node_expired(domain_expiration.checkpoint_timestamp_ms)
+            && !parent_name_record.is_node_expired(name_expiration.checkpoint_timestamp_ms)
         {
             Ok(Some(name_record))
         } else {
@@ -435,8 +435,8 @@ impl IotaNames {
         }
     }
 
-    /// Lookup the IOTA-Names Domain for the given `address`. `config` specifies
-    /// where to find the domain name registry, and its type.
+    /// Lookup the IOTA-Names Name for the given `address`. `config` specifies
+    /// where to find the name registry, and its type.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
     /// which this was queried for.
@@ -444,7 +444,7 @@ impl IotaNames {
         ctx: &Context<'_>,
         address: IotaAddress,
         checkpoint_viewed_at: u64,
-    ) -> Result<Option<NativeDomain>, Error> {
+    ) -> Result<Option<NativeName>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
         let native_address = NativeIotaAddress::from(address);
         let reverse_record_id = config.reverse_record_field_id(&native_address);
@@ -459,39 +459,39 @@ impl IotaNames {
             return Ok(None);
         };
 
-        let field: Field<NativeIotaAddress, NativeDomain> = object
+        let field: Field<NativeIotaAddress, NativeName> = object
             .native
             .to_rust()
-            .ok_or_else(|| Error::Internal("Malformed IOTA-Names Domain".to_string()))?;
+            .ok_or_else(|| Error::Internal("Malformed IOTA-Names Name".to_string()))?;
 
-        let domain = Domain(field.value);
+        let name = Name(field.value);
 
-        // We attempt to resolve the domain to a record, and if it fails, we return
+        // We attempt to resolve the name to a record, and if it fails, we return
         // None. That way we can validate that the name has not expired and is
         // still valid.
-        let Some(_) = Self::resolve_to_record(ctx, &domain, checkpoint_viewed_at).await? else {
+        let Some(_) = Self::resolve_to_record(ctx, &name, checkpoint_viewed_at).await? else {
             return Ok(None);
         };
 
-        Ok(Some(domain.0))
+        Ok(Some(name.0))
     }
 
-    /// Query for a domain's NameRecord, its parent's NameRecord if supplied,
+    /// Query for a name's NameRecord, its parent's NameRecord if supplied,
     /// and the timestamp of the checkpoint bound.
-    async fn query_domain_expiration(
+    async fn query_name_expiration(
         ctx: &Context<'_>,
-        domain: &Domain,
+        name: &Name,
         checkpoint_viewed_at: u64,
-    ) -> Result<Option<DomainExpiration>, Error> {
+    ) -> Result<Option<NameExpiration>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
         let db: &Db = ctx.data_unchecked();
         // Construct the list of `object_id`s to look up. The first element is the
-        // domain's `NameRecord`. If the domain is a subdomain, there will be a
+        // name's `NameRecord`. If the name is a subname, there will be a
         // second element for the parent's `NameRecord`.
-        let mut object_ids = vec![IotaAddress::from(config.record_field_id(&domain.0))];
-        if domain.0.is_subdomain() {
-            let parent = domain.0.parent().ok_or(Error::Internal(
-                "Subdomain does not have a parent domain".to_string(),
+        let mut object_ids = vec![IotaAddress::from(config.record_field_id(&name.0))];
+        if name.0.is_subname() {
+            let parent = name.0.parent().ok_or(Error::Internal(
+                "Subname does not have a parent name".to_string(),
             ))?;
             object_ids.push(IotaAddress::from(config.record_field_id(&parent)));
         }
@@ -543,7 +543,7 @@ impl IotaNames {
             ));
         };
 
-        let mut domain_expiration = DomainExpiration {
+        let mut name_expiration = NameExpiration {
             parent_name_record: None,
             name_record: None,
             checkpoint_timestamp_ms,
@@ -551,7 +551,7 @@ impl IotaNames {
 
         // Max size of results is 2. We loop through them, convert to objects, and then
         // parse name_record. We then assign it to the correct field on
-        // `domain_expiration` based on the address.
+        // `name_expiration` based on the address.
         for result in results {
             let object =
                 Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
@@ -565,13 +565,13 @@ impl IotaNames {
             let record = NameRecord::try_from(move_object.native)?;
 
             if object.address == object_ids[0] {
-                domain_expiration.name_record = Some(record);
+                name_expiration.name_record = Some(record);
             } else if Some(&object.address) == object_ids.get(1) {
-                domain_expiration.parent_name_record = Some(record);
+                name_expiration.parent_name_record = Some(record);
             }
         }
 
-        Ok(Some(domain_expiration))
+        Ok(Some(name_expiration))
     }
 }
 
@@ -579,7 +579,7 @@ impl IotaNamesRegistration {
     /// Query the database for a `page` of IOTA-Names registrations. The page
     /// uses the same cursor type as is used for `Object`, and is further
     /// filtered to a particular `owner`. `config` specifies where to find
-    /// the domain name registry and its type.
+    /// the name registry and its type.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
     /// which this page was queried for. Each entity returned in the
@@ -641,12 +641,12 @@ impl IotaNamesRegistration {
     }
 }
 
-impl_string_input!(Domain);
+impl_string_input!(Name);
 
-impl FromStr for Domain {
-    type Err = <NativeDomain as FromStr>::Err;
+impl FromStr for Name {
+    type Err = <NativeName as FromStr>::Err;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Domain(NativeDomain::from_str(s)?))
+        Ok(Name(NativeName::from_str(s)?))
     }
 }

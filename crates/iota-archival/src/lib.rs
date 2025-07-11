@@ -550,8 +550,7 @@ where
                     cloned_counter.load(Ordering::Relaxed) as f64 / instant.elapsed().as_secs_f64();
                 cloned_progress_bar.set_position(latest_checkpoint + total_checkpoints_loaded);
                 cloned_progress_bar.set_message(format!(
-                    "checkpoints/s: {}, txns/s: {}",
-                    total_checkpoints_per_sec, total_txns_per_sec
+                    "checkpoints/s: {total_checkpoints_per_sec}, txns/s: {total_txns_per_sec}"
                 ));
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }

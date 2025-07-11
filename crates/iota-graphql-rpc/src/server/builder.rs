@@ -138,7 +138,7 @@ impl Server {
                 axum::serve(
                     TcpListener::bind(address)
                         .await
-                        .map_err(|e| Error::Internal(format!("listener bind failed: {}", e)))?,
+                        .map_err(|e| Error::Internal(format!("listener bind failed: {e}")))?,
                     router.into_make_service_with_connect_info::<SocketAddr>(),
                 )
                 .with_graceful_shutdown(async move {
@@ -146,7 +146,7 @@ impl Server {
                     info!("Shutdown signal received, terminating graphql service");
                 })
                 .await
-                .map_err(|e| Error::Internal(format!("Server run failed: {}", e)))
+                .map_err(|e| Error::Internal(format!("Server run failed: {e}")))
             })
         };
 
@@ -377,7 +377,7 @@ impl ServerBuilder {
             router,
             address: address
                 .parse()
-                .map_err(|_| Error::Internal(format!("Failed to parse address {}", address)))?,
+                .map_err(|_| Error::Internal(format!("Failed to parse address {address}")))?,
             watermark_task,
             system_package_task,
             trigger_exchange_rates_task,
@@ -438,7 +438,7 @@ impl ServerBuilder {
             // time).
             config.service.limits.request_timeout_ms.into(),
         )
-        .map_err(|e| Error::Internal(format!("Failed to create pg connection pool: {}", e)))?;
+        .map_err(|e| Error::Internal(format!("Failed to create pg connection pool: {e}")))?;
 
         // DB
         let db = Db::new(
@@ -1108,7 +1108,7 @@ pub mod tests {
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::OK);
 
-        let url_with_param = format!("{}?max_checkpoint_lag_ms=1", url);
+        let url_with_param = format!("{url}?max_checkpoint_lag_ms=1");
         let resp = reqwest::get(&url_with_param).await.unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::GATEWAY_TIMEOUT);
     }
