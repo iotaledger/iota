@@ -587,9 +587,9 @@ impl NameCommand {
                         "cannot set target address for leaf subname; try removing and recreating the subname instead."
                     );
                 }
+                let sender = opts.rest.sender;
                 let new_address =
-                    get_identity_address(new_address.or(opts.rest.sender.map(Into::into)), context)
-                        .await?;
+                    get_identity_address(new_address.or(sender.map(Into::into)), context).await?;
                 if entry
                     .name_record
                     .target_address
@@ -598,7 +598,6 @@ impl NameCommand {
                     bail!("target address is already set to the given value");
                 }
 
-                let sender = opts.rest.sender;
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
