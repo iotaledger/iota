@@ -31,7 +31,7 @@ use tracing::{debug, info};
 use crate::{
     key_derive::{derive_key_pair_from_path, generate_new_key},
     random_names::{random_name, random_names},
-    serde_iota_keypair, serde_publickey,
+    serde_iota_keypair, serde_public_key,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -214,7 +214,7 @@ pub enum StoredKey {
         #[serde_as(as = "Option<DisplayFromStr>")]
         #[serde(skip_serializing_if = "Option::is_none")]
         derivation_path: Option<DerivationPath>,
-        #[serde(rename = "public_key_base64_with_flag", with = "serde_publickey")]
+        #[serde(rename = "public_key_base64_with_flag", with = "serde_public_key")]
         public_key: PublicKey,
     },
 }
