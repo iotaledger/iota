@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter,
+    sync::Arc,
+    time::Duration,
+    vec,
+};
 
 use iota_macros::fail_point;
 #[cfg(test)]
@@ -790,7 +796,7 @@ impl Core {
         Ok(committed_sub_dags)
     }
 
-    pub(crate) fn get_missing_blocks(&self) -> BTreeSet<BlockRef> {
+    pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
     }

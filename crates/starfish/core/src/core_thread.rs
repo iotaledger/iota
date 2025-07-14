@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     sync::{
         Arc,
@@ -17,6 +17,7 @@ use iota_metrics::{
     monitored_scope, spawn_logged_monitored_task,
 };
 use parking_lot::RwLock;
+use starfish_config::AuthorityIndex;
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 use tracing::warn;
@@ -50,8 +51,9 @@ enum CoreThreadCommand {
     /// any checks (ex leader existence of previous round). More information can
     /// be found on the `Core` component.
     NewBlock(Round, oneshot::Sender<()>, bool),
-    /// Request missing blocks that need to be synced.
-    GetMissing(oneshot::Sender<BTreeSet<BlockRef>>),
+    /// Request missing blocks that need to be synced together with authorities
+    /// that have these blocks.
+    GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
 
 #[derive(Error, Debug)]
@@ -66,6 +68,11 @@ pub enum CoreError {
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
     -> Result<BTreeSet<BlockRef>, CoreError>;
+
+    async fn check_block_refs(
+        &self,
+        block_refs: Vec<BlockRef>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn add_block_headers(
         &self,
@@ -93,7 +100,9 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError>;
 
-    async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn get_missing_blocks(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     /// Informs the core whether consumer of produced blocks exists.
     /// This is only used by core to decide if it should propose new blocks.
@@ -160,8 +169,8 @@ impl CoreThread {
                             self.core.new_block(round, force)?;
                             sender.send(()).ok();
                         }
-                        CoreThreadCommand::GetMissing(sender) => {
-                            let _scope = monitored_scope("CoreThread::loop::get_missing");
+                        CoreThreadCommand::GetMissingBlocks(sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
                         }
                     }
@@ -292,6 +301,13 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(missing_block_refs)
     }
 
+    async fn check_block_refs(
+        &self,
+        block_refs: Vec<BlockRef>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        unimplemented!("check_block_refs is not implemented in ChannelCoreThreadDispatcher");
+    }
+
     async fn add_block_headers(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
@@ -339,9 +355,11 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+    async fn get_missing_blocks(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::GetMissing(sender)).await;
+        self.send(CoreThreadCommand::GetMissingBlocks(sender)).await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
@@ -390,7 +408,7 @@ pub(crate) mod tests {
     pub(crate) struct MockCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
-        missing_blocks: Mutex<BTreeSet<BlockRef>>,
+        missing_blocks: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
     }
@@ -417,7 +435,9 @@ pub(crate) mod tests {
 
         pub(crate) async fn stub_missing_blocks(&self, block_refs: BTreeSet<BlockRef>) {
             let mut missing_blocks = self.missing_blocks.lock();
-            missing_blocks.extend(block_refs);
+            for block_ref in &block_refs {
+                missing_blocks.insert(*block_ref, BTreeSet::from([block_ref.author]));
+            }
         }
 
         pub(crate) async fn get_last_own_proposed_round(&self) -> Vec<Round> {
@@ -477,7 +497,9 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             let mut missing_blocks = self.missing_blocks.lock();
             let result = missing_blocks.clone();
             missing_blocks.clear();
