@@ -16,7 +16,7 @@ use crate::{
         cursor::Page,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
-        iota_names_registration::{IotaNames, IotaNamesRegistration, NameFormat},
+        iota_names_registration::{IotaNames, NameFormat, NameRegistration},
         move_object::MoveObject,
         move_package::MovePackage,
         object::{self, Object, ObjectFilter},
@@ -125,8 +125,8 @@ pub(crate) struct OwnerImpl {
         arg(name = "after", ty = "Option<object::Cursor>"),
         arg(name = "last", ty = "Option<u64>"),
         arg(name = "before", ty = "Option<object::Cursor>"),
-        ty = "Connection<String, IotaNamesRegistration>",
-        desc = "The IotaNamesRegistration NFTs owned by this object or address. These grant the owner \
+        ty = "Connection<String, NameRegistration>",
+        desc = "The NameRegistration NFTs owned by this object or address. These grant the owner \
                     the capability to manage the associated name."
     )
 )]
@@ -139,7 +139,7 @@ pub(crate) enum IOwner {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNamesRegistration(IotaNamesRegistration),
+    NameRegistration(NameRegistration),
 }
 
 /// An Owner is an entity that can own an object. Each Owner is identified by a
@@ -236,7 +236,7 @@ impl Owner {
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this object or address. These
+    /// The NameRegistration NFTs owned by this object or address. These
     /// grant the owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
@@ -245,7 +245,7 @@ impl Owner {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(self)
             .iota_names_registrations(ctx, first, after, last, before)
             .await
@@ -454,9 +454,9 @@ impl OwnerImpl {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        IotaNamesRegistration::paginate(
+        NameRegistration::paginate(
             ctx.data_unchecked::<Db>(),
             ctx.data_unchecked::<IotaNamesConfig>(),
             page,

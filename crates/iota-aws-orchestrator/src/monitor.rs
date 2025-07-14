@@ -252,7 +252,7 @@ impl LocalGrafana {
         // Create the new datasources.
         for (i, instance) in instances.into_iter().enumerate() {
             let mut file = path.clone();
-            file.push(format!("instance-{}.yml", i));
+            file.push(format!("instance-{i}.yml"));
             fs::write(&file, Self::datasource(&instance, i)).map_err(|e| {
                 MonitorError::Grafana(format!("Failed to write grafana datasource ({e})"))
             })?;

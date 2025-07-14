@@ -190,7 +190,7 @@ impl BuildConfig {
                 .resolution_graph_for_package(path, chain_id, &mut std::io::sink())
         }
         .map_err(|err| IotaError::ModuleBuildFailure {
-            error: format!("{:?}", err),
+            error: format!("{err:?}"),
         })
     }
 }
@@ -256,8 +256,7 @@ pub fn build_from_resolution_graph(
             pkg.get_bytecodes_bytes()
                 .map_err(|error| IotaError::ModuleDeserializationFailure {
                     error: format!(
-                        "Deserializing bytecode dependency for package {}: {:?}",
-                        name, error
+                        "Deserializing bytecode dependency for package {name}: {error:?}"
                     ),
                 })?;
         for module in modules {
@@ -265,8 +264,7 @@ pub fn build_from_resolution_graph(
                 CompiledModule::deserialize_with_defaults(module.as_ref()).map_err(|error| {
                     IotaError::ModuleDeserializationFailure {
                         error: format!(
-                            "Deserializing bytecode dependency for package {}: {:?}",
-                            name, error
+                            "Deserializing bytecode dependency for package {name}: {error:?}"
                         ),
                     }
                 })?;
@@ -284,7 +282,7 @@ pub fn build_from_resolution_graph(
     let (package, fn_info) = match result {
         Err(error) => {
             return Err(IotaError::ModuleBuildFailure {
-                error: format!("{:?}", error),
+                error: format!("{error:?}"),
             });
         }
         Ok((package, fn_info)) => (package, fn_info),

@@ -124,7 +124,7 @@ async fn run_task(
             "[{}/{}] Replaying transaction {:?}...",
             index, total_count, digest
         );
-        let sandbox_persist_path = persist_path.map(|path| path.join(format!("{}.json", digest,)));
+        let sandbox_persist_path = persist_path.map(|path| path.join(format!("{digest}.json",)));
         if let Some(p) = sandbox_persist_path.as_ref() {
             if p.exists() {
                 info!(

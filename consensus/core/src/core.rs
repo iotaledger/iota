@@ -939,7 +939,7 @@ impl Core {
         Ok(committed_sub_dags)
     }
 
-    pub(crate) fn get_missing_blocks(&self) -> BTreeSet<BlockRef> {
+    pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
     }
@@ -1151,8 +1151,7 @@ impl Core {
         }
         assert!(
             quorum.reached_threshold(&self.context.committee),
-            "Fatal error, quorum not reached for parent round when proposing for round {}. Possible mismatch between DagState and Core.",
-            clock_round
+            "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core."
         );
 
         ancestors
@@ -2513,7 +2512,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -2624,7 +2623,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -2659,7 +2658,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -3517,7 +3516,7 @@ mod test {
                 expected_commit_index: 5,
                 commit_index: 6,
             } => (),
-            _ => panic!("Unexpected error: {:?}", err),
+            _ => panic!("Unexpected error: {err:?}"),
         }
     }
 

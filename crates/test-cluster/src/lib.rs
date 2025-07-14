@@ -89,7 +89,7 @@ pub struct FullNodeHandle {
 
 impl FullNodeHandle {
     pub async fn new(iota_node: IotaNodeHandle, json_rpc_address: SocketAddr) -> Self {
-        let rpc_url = format!("http://{}", json_rpc_address);
+        let rpc_url = format!("http://{json_rpc_address}");
         let rpc_client = HttpClientBuilder::default().build(&rpc_url).unwrap();
 
         let iota_client = IotaClientBuilder::default().build(&rpc_url).await.unwrap();
@@ -539,7 +539,7 @@ impl TestCluster {
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
                             TransactionKind::AuthenticatorStateUpdateV1(_) => break,
-                            _ => panic!("{:?}", tx),
+                            _ => panic!("{tx:?}"),
                         }
                     }
                 }),

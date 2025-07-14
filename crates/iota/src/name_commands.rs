@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
     IotaObjectResponseQuery, IotaTransactionBlockResponse,
 };
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, SubnameRegistration,
+    IotaNamesNft, NameRegistration, SubnameRegistration,
     config::IotaNamesConfig,
     name::Name,
     registry::{NameRecord, RegistryEntry, ReverseRegistryEntry},
@@ -86,7 +86,7 @@ pub enum NameCommand {
         key: Option<String>,
     },
     /// List the names owned by the given address, or the active address
-    List { address: Option<IotaAddress> },
+    List { address: Option<KeyIdentity> },
     /// Lookup the address of a name
     Lookup { name: Name },
     /// Register a name
@@ -98,8 +98,8 @@ pub enum NameCommand {
         coin: Option<ObjectID>,
         /// The address or alias to which the name will point. If the flag is
         /// specified without a value, the current active address will be used.
-        #[arg(long, require_equals = true, default_missing_value = "", num_args = 0..=1)]
-        set_target_address: Option<String>,
+        #[arg(long)]
+        set_target_address: Option<Option<KeyIdentity>>,
         /// Set the reverse lookup for the name. This will fail if the
         /// `set-target-address` flag is provided with an address other than the
         /// sender or if no target address is set.
@@ -137,7 +137,7 @@ pub enum NameCommand {
     ReverseLookup {
         /// The address for which to look up its name. Defaults to the active
         /// address.
-        address: Option<IotaAddress>,
+        address: Option<KeyIdentity>,
     },
     /// Set the reverse lookup of the name to the transaction sender address
     SetReverseLookup {
@@ -155,7 +155,7 @@ pub enum NameCommand {
         name: Name,
         /// The address to which the name will point. Defaults to the current
         /// active address.
-        new_address: Option<IotaAddress>,
+        new_address: Option<KeyIdentity>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -184,7 +184,7 @@ pub enum NameCommand {
         /// The name. Ex. my-name.iota
         name: Name,
         /// The address to which the name will be transferred
-        address: IotaAddress,
+        address: KeyIdentity,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -262,7 +262,7 @@ impl NameCommand {
                 verbose,
                 opts,
             } => {
-                let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?;
+                let nft = get_owned_nft_by_name::<NameRegistration>(&name, context).await?;
 
                 if !nft.has_expired() {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
@@ -323,7 +323,8 @@ impl NameCommand {
                 }
             }
             Self::List { address } => {
-                let mut nfts = get_owned_nfts::<IotaNamesRegistration>(address, context).await?;
+                let address = get_identity_address(address, context).await?;
+                let mut nfts = get_owned_nfts::<NameRegistration>(address, context).await?;
                 let subname_nfts = get_owned_nfts::<SubnameRegistration>(address, context).await?;
                 nfts.extend(subname_nfts.into_iter().map(|nft| nft.into_inner()));
                 NameCommandResult::List(nfts)
@@ -398,10 +399,7 @@ impl NameCommand {
                 ]);
 
                 if let Some(identity) = &set_target_address {
-                    let identity = (!identity.is_empty())
-                        .then(|| identity.parse::<KeyIdentity>())
-                        .transpose()?;
-                    let address = get_identity_address(identity, context)?;
+                    let address = get_identity_address(identity.clone(), context).await?;
                     if set_reverse_lookup && address != context.active_address()? {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
@@ -429,7 +427,7 @@ impl NameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Register {
                         record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?,
+                        nft: get_owned_nft_by_name::<NameRegistration>(&name, context).await?,
                         digest: res.digest,
                     })
                 })
@@ -462,7 +460,7 @@ impl NameCommand {
                 let name_str = name.to_string();
                 let coin =
                     select_coin_arg_for_payment(name_str.as_str(), coin, price, context).await?;
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&name, context)
+                let nft_id = get_owned_nft_by_name::<NameRegistration>(&name, context)
                     .await?
                     .id();
                 let mut args = vec![
@@ -508,14 +506,14 @@ impl NameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Renew {
                         record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?,
+                        nft: get_owned_nft_by_name::<NameRegistration>(&name, context).await?,
                         digest: res.digest,
                     })
                 })
                 .await?
             }
             Self::ReverseLookup { address } => {
-                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+                let address = get_identity_address(address, context).await?;
                 let entry = get_reverse_registry_entry(address, &iota_client).await?;
 
                 NameCommandResult::ReverseLookup {
@@ -549,7 +547,7 @@ impl NameCommand {
 
                 handle_transaction_result(res, verbose, async |res| {
                     let Some(entry) = get_reverse_registry_entry(
-                        get_identity_address(None, context)?,
+                        get_identity_address(None, context).await?,
                         &iota_client,
                     )
                     .await?
@@ -577,8 +575,7 @@ impl NameCommand {
                         "cannot set target address for leaf subname; try removing and recreating the subname instead."
                     );
                 }
-                let new_address =
-                    get_identity_address(new_address.map(KeyIdentity::Address), context)?;
+                let new_address = get_identity_address(new_address, context).await?;
                 if entry
                     .name_record
                     .target_address
@@ -660,6 +657,7 @@ impl NameCommand {
                 verbose,
                 opts,
             } => {
+                let address = get_identity_address(Some(address), context).await?;
                 let nft = get_proxy_nft_by_name(&name, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -689,7 +687,7 @@ impl NameCommand {
             }
             Self::UnsetReverseLookup { verbose, opts } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
-                let address = get_identity_address(None, context)?;
+                let address = get_identity_address(None, context).await?;
 
                 let res = IotaClientCommands::Call {
                     package: iota_names_config.package_address.into(),
@@ -936,7 +934,7 @@ impl AuctionCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionClaim {
                         record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&name, context).await?,
+                        nft: get_owned_nft_by_name::<NameRegistration>(&name, context).await?,
                         digest: res.digest,
                     })
                 })
@@ -1010,7 +1008,7 @@ pub enum SubnameCommand {
         name: Name,
         /// The address to which the subname will point. Defaults to the
         /// active address.
-        target_address: Option<IotaAddress>,
+        target_address: Option<KeyIdentity>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -1098,13 +1096,7 @@ impl SubnameCommand {
                 let package_id = parent.subname_package_id(&iota_client).await?;
                 let module_name = parent.subname_module_name();
 
-                let target_address = if let Some(target_address) = target_address {
-                    target_address
-                } else {
-                    context.active_address().map_err(|_| {
-                        anyhow::anyhow!("no active address or target-address specified")
-                    })?
-                };
+                let target_address = get_identity_address(target_address, context).await?;
 
                 let res = IotaClientCommands::Call {
                     package: package_id,
@@ -1292,7 +1284,7 @@ pub enum NameCommandResult {
     },
     AuctionClaim {
         record: NameRecord,
-        nft: IotaNamesRegistration,
+        nft: NameRegistration,
         digest: TransactionDigest,
     },
     AuctionMetadata(Auction),
@@ -1305,7 +1297,7 @@ pub enum NameCommandResult {
         price: Option<u64>,
     },
     Burn {
-        burned: IotaNamesRegistration,
+        burned: NameRegistration,
         digest: TransactionDigest,
     },
     CommandResult(Box<IotaClientCommandResult>),
@@ -1314,14 +1306,14 @@ pub enum NameCommandResult {
         nft: SubnameRegistration,
         digest: TransactionDigest,
     },
-    List(Vec<IotaNamesRegistration>),
+    List(Vec<NameRegistration>),
     Lookup {
         name: Name,
         target_address: Option<IotaAddress>,
     },
     Register {
         record: NameRecord,
-        nft: IotaNamesRegistration,
+        nft: NameRegistration,
         digest: TransactionDigest,
     },
     RegisterLeafSubname {
@@ -1335,7 +1327,7 @@ pub enum NameCommandResult {
     },
     Renew {
         record: NameRecord,
-        nft: IotaNamesRegistration,
+        nft: NameRegistration,
         digest: TransactionDigest,
     },
     ReverseLookup {
@@ -1725,7 +1717,7 @@ fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord
     }
 }
 
-fn format_nft(f: &mut std::fmt::Formatter, nft: &IotaNamesRegistration) -> std::fmt::Result {
+fn format_nft(f: &mut std::fmt::Formatter, nft: &NameRegistration) -> std::fmt::Result {
     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
         .format("%Y-%m-%d %H:%M:%S.%f UTC")
         .to_string();
@@ -1787,12 +1779,11 @@ impl std::fmt::Debug for NameCommandResult {
 impl PrintableResult for NameCommandResult {}
 
 async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
-    address: Option<IotaAddress>,
+    address: IotaAddress,
     context: &mut WalletContext,
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
     let nft_type = T::type_(iota_names_config.package_address.into());
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
@@ -1861,8 +1852,9 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
     context: &mut WalletContext,
 ) -> anyhow::Result<T> {
     let name = name.to_string();
+    let address = get_identity_address(None, context).await?;
 
-    for nft in get_owned_nfts::<T>(None, context).await? {
+    for nft in get_owned_nfts::<T>(address, context).await? {
         if nft.name_str() == name {
             return Ok(nft);
         }
@@ -1882,7 +1874,10 @@ async fn get_proxy_nft_by_name(
     })
 }
 
-async fn get_registry_entry(name: &Name, client: &IotaClient) -> Result<RegistryEntry, RpcError> {
+pub async fn get_registry_entry(
+    name: &Name,
+    client: &IotaClient,
+) -> Result<RegistryEntry, RpcError> {
     let iota_names_config = get_iota_names_config(client).await?;
     let object_id = iota_names_config.record_field_id(name);
 
@@ -1998,7 +1993,7 @@ where
 }
 
 pub enum IotaNamesNftProxy {
-    Name(IotaNamesRegistration),
+    Name(NameRegistration),
     Subname(SubnameRegistration),
 }
 
@@ -2022,7 +2017,7 @@ impl IotaNamesNftProxy {
 
     fn type_(&self, package_id: AccountAddress) -> StructTag {
         match self {
-            IotaNamesNftProxy::Name(_) => IotaNamesRegistration::type_(package_id),
+            IotaNamesNftProxy::Name(_) => NameRegistration::type_(package_id),
             IotaNamesNftProxy::Subname(_) => SubnameRegistration::type_(package_id),
         }
     }
@@ -2166,7 +2161,7 @@ pub struct Auction {
     pub end_timestamp_ms: u64,
     pub current_bidder: IotaAddress,
     pub current_bid: Coin,
-    pub nft: IotaNamesRegistration,
+    pub nft: NameRegistration,
 }
 
 impl Auction {
@@ -2317,7 +2312,7 @@ async fn get_auction_house_id(
 }
 
 #[derive(thiserror::Error, Debug)]
-enum RpcError {
+pub enum RpcError {
     #[error("{0}")]
     Any(#[from] anyhow::Error),
     #[error("{0}")]

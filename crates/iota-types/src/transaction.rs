@@ -1395,7 +1395,7 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : End of Epoch Transaction")?;
             }
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -2700,10 +2700,10 @@ impl std::fmt::Debug for ObjectReadResultKind {
                 write!(f, "Object({:?})", obj.compute_object_reference())
             }
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
-                write!(f, "DeletedSharedObject({}, {:?})", seq, digest)
+                write!(f, "DeletedSharedObject({seq}, {digest:?})")
             }
             ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
-                write!(f, "CancelledTransactionSharedObject({})", seq)
+                write!(f, "CancelledTransactionSharedObject({seq})")
             }
         }
     }
@@ -3160,7 +3160,7 @@ impl Display for CertifiedTransaction {
             self.auth_sig().signers_map
         )?;
         write!(writer, "{}", &self.data().intent_message().value.kind())?;
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 

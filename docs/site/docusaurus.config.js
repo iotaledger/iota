@@ -171,6 +171,18 @@ const config = {
             {
               from: '/ts-sdk',
               to: '/developer/ts-sdk',
+            },
+            {
+              from: '/about-iota/wallets',
+              to: '/users/wallets',
+            },
+            {
+              from: '/about-iota/iota-wallet',
+              to: '/users/iota-wallet',
+            },
+            {
+              from: '/about-iota/wallet-dashboard',
+              to: '/users/iota-wallet-dashboard',
             }
           ];
           let paths = [];
@@ -201,7 +213,14 @@ const config = {
           }
         }
       }
-    ]
+    ],
+    [
+      '@docusaurus/plugin-google-gtag',
+      {
+        trackingID: 'G-SEE2W8WK21',
+        anonymizeIP: true,
+      },
+    ],
   ],
   presets: [
     [

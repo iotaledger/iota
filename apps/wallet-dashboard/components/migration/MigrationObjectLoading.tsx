@@ -10,15 +10,15 @@ export function MigrationObjectLoading() {
                 <Card key={index}>
                     <CardImage shape={ImageShape.SquareRounded}>
                         <div className="h-10 w-10 animate-pulse bg-iota-neutral-90 dark:bg-iota-neutral-12" />
-                        <Skeleton widthClass="w-10" heightClass="h-10" isRounded={false} />
+                        <Skeleton className="h-10 w-10 rounded-none" />
                     </CardImage>
                     <div className="flex flex-col gap-y-xs">
-                        <Skeleton widthClass="w-40" heightClass="h-3.5" />
-                        <Skeleton widthClass="w-32" heightClass="h-3" hasSecondaryColors />
+                        <Skeleton className="h-3.5 w-40" />
+                        <Skeleton className="h-3 w-32" hasSecondaryColors />
                     </div>
                     <div className="ml-auto flex flex-col gap-y-xs">
-                        <Skeleton widthClass="w-20" heightClass="h-3.5" />
-                        <Skeleton widthClass="w-16" heightClass="h-3" hasSecondaryColors />
+                        <Skeleton className="h-3.5 w-20" />
+                        <Skeleton className="h-3 w-16" hasSecondaryColors />
                     </div>
                 </Card>
             ))}
