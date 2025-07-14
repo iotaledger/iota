@@ -43,6 +43,7 @@ let signed_transaction = signer.sign_transaction(&transaction_data, &address).aw
 ### LedgerSigner
 
 The main struct that combines:
+
 - A `Ledger` instance for hardware communication
 - A BIP32 derivation path for key derivation
 - An optional `IotaClient` for network operations
@@ -57,6 +58,7 @@ The main struct that combines:
 ## Error Handling
 
 The crate defines `LedgerSignerError` which wraps:
+
 - `iota_ledger::LedgerError`: Low-level Ledger communication errors
 - `iota_sdk` errors: SDK-related errors
 - Custom validation errors

@@ -65,6 +65,7 @@ The crate includes several examples in the `examples/` directory:
 - `ledger_apps.rs`: Manage IOTA app lifecycle
 
 Run examples with:
+
 ```bash
 cargo run --example ledger_get_public_key -- --path "m/44'/4218'/0'/0'/0'"
 ```
