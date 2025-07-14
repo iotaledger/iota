@@ -1,5 +1,6 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 export { default as Activity } from './Activity';
 export { default as Add } from './Add';
 export { default as Apps } from './Apps';
@@ -18,6 +19,7 @@ export { default as CheckmarkFilled } from './CheckmarkFilled';
 export { default as CircleEmitter } from './CircleEmitter';
 export { default as Clock } from './Clock';
 export { default as Close } from './Close';
+export { default as CloseFilled } from './CloseFilled';
 export { default as Copy } from './Copy';
 export { default as Create } from './Create';
 export { default as DarkMode } from './DarkMode';
@@ -51,6 +53,7 @@ export { default as ListViewLarge } from './ListViewLarge';
 export { default as ListViewMedium } from './ListViewMedium';
 export { default as ListViewSmall } from './ListViewSmall';
 export { default as Loader } from './Loader';
+export { default as Loader2 } from './Loader2';
 export { default as LockLocked } from './LockLocked';
 export { default as LockUnlocked } from './LockUnlocked';
 export { default as Logout } from './Logout';
@@ -58,13 +61,16 @@ export { default as MenuIcon } from './MenuIcon';
 export { default as Migration } from './Migration';
 export { default as MoreHoriz } from './MoreHoriz';
 export { default as MoreVert } from './MoreVert';
+export { default as Notifications } from './Notifications';
 export { default as OutboundLink } from './OutboundLink';
 export { default as Pause } from './Pause';
 export { default as Person } from './Person';
 export { default as Pined } from './Pined';
 export { default as PlaceholderReplace } from './PlaceholderReplace';
 export { default as Play } from './Play';
+export { default as Profile } from './Profile';
 export { default as QrCode } from './QrCode';
+export { default as QuestionMarkFilled } from './QuestionMarkFilled';
 export { default as RadioOff } from './RadioOff';
 export { default as RadioOn } from './RadioOn';
 export { default as RecognizedBadge } from './RecognizedBadge';

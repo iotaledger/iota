@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { SVGProps } from 'react';
-export default function SvgArrowUp(props: SVGProps<SVGSVGElement>) {
+export default function SvgProfile(props: SVGProps<SVGSVGElement>) {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -14,8 +14,11 @@ export default function SvgArrowUp(props: SVGProps<SVGSVGElement>) {
         >
             <path
                 fill="currentColor"
-                d="m6.293 13.793 5-5a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1-1.414 1.414L12 10.914l-4.293 4.293a1 1 0 0 1-1.414-1.414"
+                fillRule="evenodd"
+                d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2m0 2a8 8 0 0 0-5.809 13.498 8 8 0 0 1 11.617 0A7.97 7.97 0 0 0 20 12a8 8 0 0 0-8-8"
+                clipRule="evenodd"
             />
+            <path fill="currentColor" d="M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
         </svg>
     );
 }
