@@ -16,7 +16,7 @@ use iota_types::{
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage};
 
-use crate::api::{exit, get_public_key, sign_transaction};
+use crate::api::{bolos, exit, get_public_key, sign_transaction};
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
 
 /// Get Ledger by transport_type
@@ -58,20 +58,20 @@ impl Ledger {
     /// Get currently opened app
     /// If "BOLOS" is returned, the dashboard is open
     pub fn is_app_open(&self) -> Result<bool, LedgerError> {
-        let app = crate::api::bolos_app_get_name::exec(&self.transport)?;
+        let app = bolos::app_get_name::exec(&self.transport)?;
         Ok(app.app == "IOTA")
     }
 
     /// Open app on the nano s/x
     /// Only works if dashboard is open
     pub fn bolos_open_app(&self) -> Result<(), LedgerError> {
-        crate::api::bolos_app_open::exec(&self.transport, "IOTA".to_string())
+        bolos::app_open::exec(&self.transport, "IOTA".to_string())
     }
 
     /// Close current opened app on the nano s/x
     /// Only works if an app is open
     pub fn bolos_exit_app(&self) -> Result<(), LedgerError> {
-        crate::api::bolos_app_exit::exec(&self.transport)
+        bolos::app_exit::exec(&self.transport)
     }
 
     fn transport(&self) -> &Transport {

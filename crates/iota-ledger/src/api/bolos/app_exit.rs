@@ -5,13 +5,13 @@ use ledger_transport::APDUCommand;
 
 use crate::{
     Transport,
-    api::{constants, errors, helpers},
+    api::{bolos, errors, helpers},
 };
 
 pub fn exec(transport: &Transport) -> Result<(), errors::LedgerError> {
     let cmd = APDUCommand {
-        cla: constants::APDU_BOLOS_CLA_B0,
-        ins: constants::APDUInstructionsBolos::AppExitB0 as u8,
+        cla: bolos::APDU_CLA_B0,
+        ins: bolos::APDUInstructions::AppExitB0 as u8,
         p1: 0,
         p2: 0,
         data: Vec::new(),

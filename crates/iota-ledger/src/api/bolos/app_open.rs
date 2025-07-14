@@ -6,7 +6,7 @@ use ledger_transport::APDUCommand;
 use crate::{
     Transport,
     api::{
-        constants, errors, helpers,
+        bolos, errors, helpers,
         packable::{Error as PackableError, Packable, Write},
     },
 };
@@ -39,8 +39,8 @@ pub fn exec(transport: &Transport, app: String) -> Result<(), errors::LedgerErro
     buf.remove(0);
 
     let cmd = APDUCommand {
-        cla: constants::APDU_BOLOS_CLA_E0,
-        ins: constants::APDUInstructionsBolos::OpenAppE0 as u8,
+        cla: bolos::APDU_CLA_E0,
+        ins: bolos::APDUInstructions::OpenAppE0 as u8,
         p1: 0,
         p2: 0,
         data: buf,
