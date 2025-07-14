@@ -211,7 +211,6 @@ pub enum StoredKey {
     KeyPair(IotaKeyPair),
     External {
         source: String,
-
         #[serde_as(as = "Option<DisplayFromStr>")]
         #[serde(skip_serializing_if = "Option::is_none")]
         derivation_path: Option<DerivationPath>,

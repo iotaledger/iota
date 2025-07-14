@@ -200,7 +200,7 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
 /// rosetta-cli config file for testing.
 fn read_prefunded_account(path: &PathBuf) -> Result<Vec<PrefundedAccount>, anyhow::Error> {
     let key_store =
-        FileBasedKeystore::new(path).map_err(|e| anyhow!("Failed to open keystore file: {}", e))?;
+        FileBasedKeystore::new(path).map_err(|e| anyhow!("Failed to open keystore file: {e}"))?;
 
     Ok(key_store
         .addresses_with_alias()
