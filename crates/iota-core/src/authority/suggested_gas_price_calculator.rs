@@ -1,15 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 
 use iota_types::{
     base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction,
     transaction::TransactionDataAPI,
 };
-use rayon::iter::{
-    IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator,
-};
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
@@ -21,56 +19,24 @@ struct ScheduledTransactionCongestionInfo {
     /// Gas price of a scheduled shared-object transaction.
     gas_price: u64,
 
-    /// Execution start time of scheduled shared-object transaction.
-    execution_start_time: ExecutionTime,
-
     /// Estimated execution duration of a scheduled shared-object transaction.
     estimated_execution_duration: ExecutionTime,
 }
 
 impl ScheduledTransactionCongestionInfo {
     /// Create a new congestion info for scheduled shared-object transaction
-    /// with gas price `gas_price` execution start time `execution_start_time`,
-    /// and estimated execution duration `estimated_execution_duration`.
-    fn new(
-        gas_price: u64,
-        execution_start_time: ExecutionTime,
-        estimated_execution_duration: ExecutionTime,
-    ) -> Self {
+    /// with `gas_price` and `estimated_execution_duration`.
+    fn new(gas_price: u64, estimated_execution_duration: ExecutionTime) -> Self {
         Self {
             gas_price,
-            execution_start_time,
             estimated_execution_duration,
         }
     }
 }
 
-/// Holds shared object congestion info for a single shared object.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PerObjectCongestionInfo {
-    /// Congestion info for scheduled transactions that touch this object.
-    txs_congestion_info: Vec<ScheduledTransactionCongestionInfo>,
-
-    /// Whether the order of start times for this object is ascending
-    /// (like it always is for gas prices) or not.
-    ///
-    /// Transactions are processed in the descending order of gas price.
-    /// However, in the new sequencer, the order of start times for an
-    /// object might not necessary be ascending since transactions with
-    /// a lower gas price might be scheduled at earlier start times.
-    is_start_time_ordering_ascending: bool,
-}
-
-impl PerObjectCongestionInfo {
-    /// Create a new `PerObjectCongestionInfo` from congestion info for
-    /// a single scheduled transaction.
-    pub fn new(tx_congestion_info: ScheduledTransactionCongestionInfo) -> Self {
-        Self {
-            txs_congestion_info: Vec::from([tx_congestion_info]),
-            is_start_time_ordering_ascending: true,
-        }
-    }
-}
+/// Holds shared object congestion info for a single shared object,
+/// keyed by transaction execution start time.
+type PerObjectCongestionInfo = BTreeMap<ExecutionTime, ScheduledTransactionCongestionInfo>;
 
 /// Holds shared object congestion data for a single consensus commit round.
 type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
@@ -85,12 +51,6 @@ pub(crate) struct SuggestedGasPriceCalculator {
 
     /// Maximum execution duration per shared object per commit.
     max_execution_duration_per_commit: Option<ExecutionTime>,
-
-    /// Flag indicating where the minimum free execution slot to schedule
-    /// execution of a transaction is assigned in the shared object congestion
-    /// tracker (sequencer). If `false`, this corresponds to the old Sui's
-    /// canonical sequencer logic.
-    min_free_execution_slot_assigned: bool,
 
     /// The reference gas price, which will be suggested if
     /// `max_execution_duration_per_commit` is set to `None`.
@@ -107,14 +67,12 @@ impl SuggestedGasPriceCalculator {
     /// object congestion data.
     pub fn new(
         max_execution_duration_per_commit: Option<ExecutionTime>,
-        min_free_execution_slot_assigned: bool,
         reference_gas_price: u64,
         max_gas_price: u64,
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
             max_execution_duration_per_commit,
-            min_free_execution_slot_assigned,
             reference_gas_price,
             max_gas_price,
         }
@@ -139,7 +97,6 @@ impl SuggestedGasPriceCalculator {
 
         let scheduled_transaction_congestion_info = ScheduledTransactionCongestionInfo::new(
             certificate.transaction_data().gas_price(),
-            execution_start_time,
             estimated_execution_duration,
         );
 
@@ -152,31 +109,13 @@ impl SuggestedGasPriceCalculator {
                 self.congestion_info
                     .entry(object.id)
                     .and_modify(|per_object_congestion_info| {
-                        let last_execution_start_time = per_object_congestion_info
-                            .txs_congestion_info
-                            .last()
-                            .expect(
-                                "There must already be at least one entry of scheduled \
-                                    transaction congestion info for this object.",
-                            )
-                            .execution_start_time;
-
-                        if per_object_congestion_info.is_start_time_ordering_ascending
-                            && execution_start_time < last_execution_start_time
-                        {
-                            // This means that a transaction with a lower gas price is
-                            // scheduled at a lower start time, and the order of execution
-                            // start times for this object is not ascending anymore.
-                            per_object_congestion_info.is_start_time_ordering_ascending = false;
-                        }
-
                         per_object_congestion_info
-                            .txs_congestion_info
-                            .push(scheduled_transaction_congestion_info);
+                            .insert(execution_start_time, scheduled_transaction_congestion_info);
                     })
-                    .or_insert(PerObjectCongestionInfo::new(
+                    .or_insert(PerObjectCongestionInfo::from([(
+                        execution_start_time,
                         scheduled_transaction_congestion_info,
-                    ));
+                    )]));
             });
     }
 
@@ -201,79 +140,13 @@ impl SuggestedGasPriceCalculator {
                 such that a commit cannot accommodate a single certificate."
             );
 
-            let possible_start_times = self.find_possible_start_times(
+            let clearing_gas_price = self.find_clearing_gas_price(
                 certificate,
                 estimated_execution_duration,
                 max_execution_duration_per_commit,
             );
 
-            let clearing_gas_price = if self.min_free_execution_slot_assigned {
-                // ^ This corresponds to the new sequencer's logic.
-
-                if certificate
-                    .shared_input_objects()
-                    .par_bridge()
-                    .filter_map(|object| {
-                        self.congestion_info
-                            .get(&object.id)
-                            .map(|per_object_congestion_info| {
-                                per_object_congestion_info.is_start_time_ordering_ascending
-                            })
-                    })
-                    .all(|b| b)
-                {
-                    // ^ If `is_start_time_ordering_ascending` is `true` for all input
-                    // shared objects, we will not find a lower gas price at lower execution
-                    // start times, so the clearing gas price is one for the last execution
-                    // start time at which the certificate would be scheduled by the sequencer.
-                    let start_time = *possible_start_times
-                        .last()
-                        .expect("There must be at least one possible start time.");
-
-                    self.find_clearing_gas_price_at_start_time(
-                        certificate,
-                        start_time,
-                        estimated_execution_duration,
-                    )
-                } else {
-                    possible_start_times
-                        .into_par_iter()
-                        .map(|start_time| {
-                            self.find_clearing_gas_price_at_start_time(
-                                certificate,
-                                start_time,
-                                estimated_execution_duration,
-                            )
-                        })
-                        // Take the minimum across possible start times, since the new sequencer
-                        // might schedule a certificate with lower gas prices at lower execution
-                        // start times.
-                        .min()
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "This certificate alone has estimated execution duration of \
-                            {estimated_execution_duration}, which is larger than the maximum \
-                            execution duration per commit {max_execution_duration_per_commit}, \
-                            so the certificate cannot be scheduled regardless of suggested gas \
-                            price."
-                            );
-                        })
-                }
-            } else {
-                // ^ This corresponds to the old Sui's canonical sequencer logic.
-
-                let start_time = *possible_start_times
-                    .last()
-                    .expect("There must be at least one possible start time.");
-
-                self.find_clearing_gas_price_at_start_time(
-                    certificate,
-                    start_time,
-                    estimated_execution_duration,
-                )
-            };
-
-            // Suggested gas price equals clearing_gas_price + 1. We add 1 to make this
+            // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
             // transaction would be scheduled if the same commit structure was repeated.
             let suggested_gas_price = clearing_gas_price + 1;
 
@@ -287,58 +160,15 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Find execution start times at which this deferred/cancelled certificate
-    /// could be scheduled with its estimated execution duration.
-    fn find_possible_start_times(
+    /// Find the gas price for which a deferred/scheduled certificate would be
+    /// scheduled if that gas price was paid.
+    fn find_clearing_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
         max_execution_duration_per_commit: ExecutionTime,
-    ) -> BTreeSet<ExecutionTime> {
-        let max_possible_start_time =
-            max_execution_duration_per_commit - estimated_execution_duration;
-
-        let mut possible_start_times = BTreeSet::new();
-        possible_start_times.par_extend(
-            certificate
-                .shared_input_objects()
-                .par_bridge()
-                .filter_map(|object| {
-                    self.congestion_info
-                        .get(&object.id)
-                        .map(|per_object_congestion_info| {
-                            per_object_congestion_info
-                                .txs_congestion_info
-                                .par_iter()
-                                .flat_map(|tx| {
-                                    let end_time =
-                                        tx.execution_start_time + tx.estimated_execution_duration;
-
-                                    if end_time <= max_possible_start_time {
-                                        vec![tx.execution_start_time, end_time]
-                                    } else if tx.execution_start_time <= max_possible_start_time {
-                                        vec![tx.execution_start_time]
-                                    } else {
-                                        vec![]
-                                    }
-                                })
-                        })
-                })
-                .flatten(),
-        );
-
-        possible_start_times
-    }
-
-    /// Find the gas price for which a deferred/scheduled certificate would be
-    /// scheduled at execution `start_time` if that gas price was paid.
-    fn find_clearing_gas_price_at_start_time(
-        &self,
-        certificate: &VerifiedExecutableTransaction,
-        start_time: ExecutionTime,
-        estimated_execution_duration: ExecutionTime,
     ) -> u64 {
-        let end_time = start_time + estimated_execution_duration;
+        let start_time = max_execution_duration_per_commit - estimated_execution_duration;
 
         certificate
             .shared_input_objects()
@@ -348,18 +178,13 @@ impl SuggestedGasPriceCalculator {
                     .get(&object.id)
                     .map(|per_object_congestion_info| {
                         per_object_congestion_info
-                            .txs_congestion_info
                             .par_iter()
-                            .filter_map(|tx| {
-                                if (tx.execution_start_time >= start_time
-                                    && tx.execution_start_time < end_time)
-                                    || (tx.execution_start_time + tx.estimated_execution_duration
-                                        > start_time
-                                        && tx.execution_start_time
-                                            + tx.estimated_execution_duration
-                                            <= end_time)
+                            .filter_map(|(execution_start_time, tx_congestion_info)| {
+                                if execution_start_time
+                                    + tx_congestion_info.estimated_execution_duration
+                                    > start_time
                                 {
-                                    Some(tx.gas_price)
+                                    Some(tx_congestion_info.gas_price)
                                 } else {
                                     None
                                 }
@@ -372,8 +197,9 @@ impl SuggestedGasPriceCalculator {
             .unwrap_or_else(|| {
                 panic!(
                     "At least one of the shared input objects should have appeared in between \
-                    execution start time of {start_time} and execution end time of {end_time}; \
-                    otherwise, this deferred certificate would be scheduled by the sequencer."
+                    execution start time of {start_time} and execution end time of \
+                    {max_execution_duration_per_commit}; otherwise, this deferred certificate \
+                    would be scheduled by the sequencer."
                 );
             })
     }
@@ -402,7 +228,6 @@ pub mod suggested_gas_price_calculator_test_utils {
     ) -> SuggestedGasPriceCalculator {
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             max_execution_duration_per_commit,
-            min_free_execution_slot_assigned,
             reference_gas_price,
             max_gas_price,
         );
@@ -535,18 +360,16 @@ mod tests {
     }
 
     #[rstest]
-    fn update_congestion_info_test(
+    fn update_congestion_info(
         #[values(
             None,
             Some(10), // the value is not important in this test
         )]
         max_execution_duration_per_commit: Option<ExecutionTime>,
-        #[values(false, true)] min_free_execution_slot_assigned: bool,
     ) {
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             max_execution_duration_per_commit,
-            min_free_execution_slot_assigned,
             REFERENCE_GAS_PRICE,
             max_gas_price,
         );
@@ -575,12 +398,13 @@ mod tests {
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_2` should not appear because it is accessed immutably.
-            let object_1_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_1,
-                    execution_start_time: execution_start_time_1,
-                    estimated_execution_duration: estimated_execution_duration_1,
-                });
+            let object_1_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_1,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_1,
+                    estimated_execution_duration_1,
+                ),
+            )]);
             assert_eq!(
                 suggested_gas_price_calculator.congestion_info,
                 PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
@@ -613,24 +437,27 @@ mod tests {
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
-            let object_1_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_1,
-                    execution_start_time: execution_start_time_1,
-                    estimated_execution_duration: estimated_execution_duration_1,
-                });
-            let object_2_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_2,
-                    execution_start_time: execution_start_time_2,
-                    estimated_execution_duration: estimated_execution_duration_2,
-                });
-            let object_4_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_2,
-                    execution_start_time: execution_start_time_2,
-                    estimated_execution_duration: estimated_execution_duration_2,
-                });
+            let object_1_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_1,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_1,
+                    estimated_execution_duration_1,
+                ),
+            )]);
+            let object_2_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_2,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_2,
+                    estimated_execution_duration_2,
+                ),
+            )]);
+            let object_4_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_2,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_2,
+                    estimated_execution_duration_2,
+                ),
+            )]);
             assert_eq!(
                 suggested_gas_price_calculator.congestion_info,
                 PerCommitCongestionInfo::from([
@@ -666,30 +493,34 @@ mod tests {
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
-            let object_1_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_1,
-                    execution_start_time: execution_start_time_1,
-                    estimated_execution_duration: estimated_execution_duration_1,
-                });
-            let object_2_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_2,
-                    execution_start_time: execution_start_time_2,
-                    estimated_execution_duration: estimated_execution_duration_2,
-                });
-            let object_4_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_2,
-                    execution_start_time: execution_start_time_2,
-                    estimated_execution_duration: estimated_execution_duration_2,
-                });
-            let object_5_expected_congestion_info =
-                PerObjectCongestionInfo::new(ScheduledTransactionCongestionInfo {
-                    gas_price: gas_price_3,
-                    execution_start_time: execution_start_time_3,
-                    estimated_execution_duration: estimated_execution_duration_3,
-                });
+            let object_1_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_1,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_1,
+                    estimated_execution_duration_1,
+                ),
+            )]);
+            let object_2_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_2,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_2,
+                    estimated_execution_duration_2,
+                ),
+            )]);
+            let object_4_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_2,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_2,
+                    estimated_execution_duration_2,
+                ),
+            )]);
+            let object_5_expected_congestion_info = PerObjectCongestionInfo::from([(
+                execution_start_time_3,
+                ScheduledTransactionCongestionInfo::new(
+                    gas_price_3,
+                    estimated_execution_duration_3,
+                ),
+            )]);
             assert_eq!(
                 suggested_gas_price_calculator.congestion_info,
                 PerCommitCongestionInfo::from([
@@ -710,7 +541,7 @@ mod tests {
     }
 
     #[rstest]
-    fn calculate_suggested_gas_price_test(
+    fn calculate_suggested_gas_price(
         #[values(
             PerObjectCongestionControlMode::TotalTxCount,
             PerObjectCongestionControlMode::TotalGasBudget
@@ -734,7 +565,6 @@ mod tests {
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             Some(max_execution_duration_per_commit),
-            min_free_execution_slot_assigned,
             REFERENCE_GAS_PRICE,
             max_gas_price,
         );

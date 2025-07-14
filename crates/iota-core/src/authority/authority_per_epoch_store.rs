@@ -3123,8 +3123,6 @@ impl AuthorityPerEpochStore {
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             self.get_max_execution_duration_per_commit(),
-            self.protocol_config()
-                .congestion_control_min_free_execution_slot(),
             self.reference_gas_price(),
             self.protocol_config().max_gas_price(),
         );
