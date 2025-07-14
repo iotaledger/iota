@@ -169,9 +169,10 @@ pub struct DeferredTransaction {
     transaction: VerifiedSequencedConsensusTransaction,
 
     /// Suggested gas price is `Some(u64)` for transactions deferred due
-    /// to shared object congestion, and it is `None` for transactions
-    /// deferred due to "randomness not available".
-    suggested_gas_price_as_opt: Option<u64>,
+    /// to shared object congestion if gas price feedback is enabled, and
+    /// it is `None` otherwise and for transactions deferred due to
+    /// "randomness not available".
+    suggested_gas_price: Option<u64>,
 }
 
 impl DeferredTransaction {
@@ -180,11 +181,11 @@ impl DeferredTransaction {
     /// gas price for that transaction.
     pub fn new(
         transaction: VerifiedSequencedConsensusTransaction,
-        suggested_gas_price_as_opt: Option<u64>,
+        suggested_gas_price: Option<u64>,
     ) -> Self {
         Self {
             transaction,
-            suggested_gas_price_as_opt,
+            suggested_gas_price,
         }
     }
 }
@@ -204,7 +205,7 @@ enum SchedulingResult {
 pub enum CancelConsensusCertificateReason {
     CongestionOnObjects {
         congested_objects: Vec<ObjectID>,
-        suggested_gas_price: u64,
+        suggested_gas_price: Option<u64>,
     },
     DkgFailed,
 }
@@ -227,13 +228,15 @@ pub enum ConsensusCertificateResult {
         start_time: ExecutionTime,
     },
     /// The transaction should be re-processed at a future commit, specified by
-    /// `deferral_key`. `suggested_gas_price_as_opt` indicates a gas price that
-    /// the certificate would need to pay to be scheduled in a consensus commit.
-    /// For certificates deferred due to "randomness not available", the
-    /// `suggested_gas_price_as_opt` price field will be set to `None`.
+    /// `deferral_key`. If the gas price feedback is enabled,
+    /// `suggested_gas_price` is `Some(...)` and indicates a gas price that
+    /// the certificate would need to pay to be scheduled in a consensus
+    /// commit. If the feedback mechanism is not enabled and for
+    /// certificates deferred due to "randomness not available",
+    /// the `suggested_gas_price` price field will be set to `None`.
     Deferred {
         deferral_key: DeferralKey,
-        suggested_gas_price_as_opt: Option<u64>,
+        suggested_gas_price: Option<u64>,
     },
     /// A message was processed which updates randomness state.
     RandomnessConsensusMessage,
@@ -656,7 +659,12 @@ pub struct AuthorityEpochTables {
     active_jwks: DBMap<(u64, (JwkId, JWK)), ()>,
 
     /// Transactions that are being deferred until some future time
-    deferred_transactions: DBMap<DeferralKey, Vec<DeferredTransaction>>,
+    deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
+
+    /// Transactions that are being deferred until some future time.
+    /// V2 additionally includes suggested gas price for transactions
+    /// deferred due to congestion.
+    deferred_transactions_v2: DBMap<DeferralKey, Vec<DeferredTransaction>>,
 
     // Tables for recording state for RandomnessManager.
 
@@ -1734,7 +1742,7 @@ impl AuthorityPerEpochStore {
                     .map(|tx| match tx.transaction.0.transaction.key() {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
-                        ) => (digest, (*deferral_key, tx.suggested_gas_price_as_opt)),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price)),
                         _ => {
                             panic!(
                                 "deferred randomness transaction was not a user certificate: {tx:?}"
@@ -1770,22 +1778,50 @@ impl AuthorityPerEpochStore {
         debug!("Query epoch store to load deferred txn {:?} {:?}", min, max);
         let mut keys = Vec::new();
         let mut txns = Vec::new();
-        self.tables()?
-            .deferred_transactions
-            .safe_iter_with_bounds(Some(min), Some(max))
-            .try_for_each(|result| match result {
-                Ok((key, txs)) => {
-                    debug!(
-                        "Loaded {:?} deferred txn with deferral key {:?}",
-                        txs.len(),
-                        key
-                    );
-                    keys.push(key);
-                    txns.push((key, txs));
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            })?;
+
+        if self
+            .protocol_config
+            .congested_objects_gas_price_feedback_mechanism()
+        {
+            self.tables()?
+                .deferred_transactions_v2
+                .safe_iter_with_bounds(Some(min), Some(max))
+                .try_for_each(|result| match result {
+                    Ok((key, txs)) => {
+                        debug!(
+                            "Loaded {:?} deferred txn with deferral key {:?}",
+                            txs.len(),
+                            key
+                        );
+                        keys.push(key);
+                        txns.push((key, txs));
+                        Ok(())
+                    }
+                    Err(err) => Err(err),
+                })?;
+        } else {
+            self.tables()?
+                .deferred_transactions
+                .safe_iter_with_bounds(Some(min), Some(max))
+                .try_for_each(|result| match result {
+                    Ok((key, txs)) => {
+                        debug!(
+                            "Loaded {:?} deferred txn with deferral key {:?}",
+                            txs.len(),
+                            key
+                        );
+                        keys.push(key);
+                        txns.push((
+                            key,
+                            txs.into_iter()
+                                .map(|tx| DeferredTransaction::new(tx, None))
+                                .collect(),
+                        ));
+                        Ok(())
+                    }
+                    Err(err) => Err(err),
+                })?;
+        }
 
         // verify that there are no duplicates - should be impossible due to
         // is_consensus_message_processed
@@ -1809,7 +1845,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Vec<(DeferralKey, Vec<DeferredTransaction>)>> {
         Ok(self
             .tables()?
-            .deferred_transactions
+            .deferred_transactions_v2
             .safe_iter()
             .collect::<Result<Vec<_>, _>>()?)
     }
@@ -1968,10 +2004,20 @@ impl AuthorityPerEpochStore {
     }
 
     pub fn deferred_transactions_empty(&self) -> bool {
-        self.tables()
-            .expect("deferred transactions should not be read past end of epoch")
-            .deferred_transactions
-            .is_empty()
+        if self
+            .protocol_config
+            .congested_objects_gas_price_feedback_mechanism()
+        {
+            self.tables()
+                .expect("deferred transactions should not be read past end of epoch")
+                .deferred_transactions_v2
+                .is_empty()
+        } else {
+            self.tables()
+                .expect("deferred transactions should not be read past end of epoch")
+                .deferred_transactions
+                .is_empty()
+        }
     }
 
     /// Check whether certificate was processed by consensus.
@@ -2673,7 +2719,7 @@ impl AuthorityPerEpochStore {
                     .map(|tx| match tx.transaction.0.transaction.key() {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
-                        ) => (digest, (*deferral_key, tx.suggested_gas_price_as_opt)),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price)),
                         _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
                     })
             })
@@ -3204,17 +3250,14 @@ impl AuthorityPerEpochStore {
                 }
                 ConsensusCertificateResult::Deferred {
                     deferral_key,
-                    suggested_gas_price_as_opt,
+                    suggested_gas_price,
                 } => {
                     // Note: record_consensus_message_processed() must be called for this
                     // cert even though we are not processing it now!
                     deferred_txns
                         .entry(deferral_key)
                         .or_default()
-                        .push(DeferredTransaction::new(
-                            tx.clone(),
-                            suggested_gas_price_as_opt,
-                        ));
+                        .push(DeferredTransaction::new(tx.clone(), suggested_gas_price));
                     filter_roots = true;
                     if tx.0.transaction.is_executable_transaction() {
                         // Notify consensus adapter that the consensus handler has received the
@@ -3540,7 +3583,7 @@ impl AuthorityPerEpochStore {
                                 // Always defer transaction due to randomness not ready.
                                 ConsensusCertificateResult::Deferred {
                                     deferral_key,
-                                    suggested_gas_price_as_opt: None,
+                                    suggested_gas_price: None,
                                 }
                             }
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
@@ -3548,18 +3591,33 @@ impl AuthorityPerEpochStore {
                                     .consensus_handler_congested_transactions
                                     .inc();
 
-                                let current_commit_suggested_gas_price = self.reference_gas_price();
-                                let suggested_gas_price = previously_deferred_tx_digests
-                                    .get(certificate.digest())
-                                    .map_or_else(
-                                        || current_commit_suggested_gas_price,
-                                        |deferral_key_suggested_gas_price_pair| {
-                                            deferral_key_suggested_gas_price_pair.1.expect(
-                                                "Suggested gas price for transaction previously \
-                                                    deferred due to congestion must not be None",
-                                            ).min(current_commit_suggested_gas_price)
-                                        },
-                                    );
+                                let suggested_gas_price = if self
+                                    .protocol_config
+                                    .congested_objects_gas_price_feedback_mechanism()
+                                {
+                                    let current_commit_suggested_gas_price =
+                                        self.reference_gas_price();
+                                    let suggested_gas_price = previously_deferred_tx_digests
+                                        .get(certificate.digest())
+                                        .map_or_else(
+                                            || current_commit_suggested_gas_price,
+                                            |deferral_key_suggested_gas_price_pair| {
+                                                deferral_key_suggested_gas_price_pair
+                                                    .1
+                                                    .expect(
+                                                        "Suggested gas price for transactions \
+                                                        previously deferred due to congestion must \
+                                                        not be None if the gas price feedback is \
+                                                        enabled.",
+                                                    )
+                                                    .min(current_commit_suggested_gas_price)
+                                            },
+                                        );
+
+                                    Some(suggested_gas_price)
+                                } else {
+                                    None
+                                };
 
                                 if transaction_deferral_within_limit(
                                     &deferral_key,
@@ -3568,7 +3626,7 @@ impl AuthorityPerEpochStore {
                                 ) {
                                     ConsensusCertificateResult::Deferred {
                                         deferral_key,
-                                        suggested_gas_price_as_opt: Some(suggested_gas_price),
+                                        suggested_gas_price,
                                     }
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
@@ -3578,7 +3636,7 @@ impl AuthorityPerEpochStore {
                                             with deferral key {deferral_key:?} due to congestion \
                                             on objects {congested_objects:?}: actual gas price: \
                                             {}, suggested gas price: \
-                                        {suggested_gas_price}",
+                                        {suggested_gas_price:?}",
                                         certificate.digest(),
                                         certificate.transaction_data().gas_price(),
                                     );
@@ -4257,8 +4315,31 @@ impl ConsensusCommitOutput {
             batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
         }
 
-        batch.delete_batch(&tables.deferred_transactions, self.deleted_deferred_txns)?;
-        batch.insert_batch(&tables.deferred_transactions, self.deferred_txns)?;
+        if epoch_store
+            .protocol_config
+            .congested_objects_gas_price_feedback_mechanism()
+        {
+            batch.delete_batch(&tables.deferred_transactions_v2, self.deleted_deferred_txns)?;
+            batch.insert_batch(&tables.deferred_transactions_v2, self.deferred_txns)?;
+        } else {
+            batch.delete_batch(&tables.deferred_transactions, self.deleted_deferred_txns)?;
+            batch.insert_batch(
+                &tables.deferred_transactions,
+                self.deferred_txns
+                    .into_iter()
+                    .map(|entry| {
+                        (
+                            entry.0,
+                            entry
+                                .1
+                                .into_iter()
+                                .map(|tx| tx.transaction)
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )?;
+        }
 
         batch.insert_batch(
             &tables.user_signatures_for_checkpoints,
