@@ -13,7 +13,13 @@ pub(crate) mod ingestion;
 pub mod runner;
 pub(crate) mod sql;
 
-/// Encapsulates the logic to process and persist data for a range.
+/// Encapsulates the logic to fetch, process, and persist data for a given
+/// numeric range.
+///
+/// The provided `range` is an inclusive numeric interval specifying the subset
+/// of data to handle. Specific semantics of the numeric values (e.g.,
+/// checkpoint sequence numbers, transaction sequence numbers, or other ordered
+/// identifiers) depend on each implementation.
 #[async_trait]
 pub(crate) trait Backfill: Send + Sync {
     async fn backfill_range(
