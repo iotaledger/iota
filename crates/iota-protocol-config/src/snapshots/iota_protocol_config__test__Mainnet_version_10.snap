@@ -13,7 +13,11 @@ feature_flags:
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
   convert_type_argument_error: true
+  consensus_round_prober: true
+  consensus_distributed_vote_scoring_strategy: true
+  consensus_linearize_subdag_v2: true
   variant_nodes: true
+  consensus_round_prober_probe_accepted_rounds: true
   consensus_zstd_compression: true
   congestion_control_min_free_execution_slot: true
 max_tx_size_bytes: 131072
@@ -285,3 +289,4 @@ checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 80
+consensus_gc_depth: 60
