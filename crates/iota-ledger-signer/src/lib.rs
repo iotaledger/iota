@@ -18,9 +18,9 @@ pub use errors::LedgerSignerError;
 mod utils;
 
 pub struct LedgerSigner {
-    pub path: bip32::DerivationPath,
-    pub ledger: Ledger,
-    pub client: Option<IotaClient>,
+    path: bip32::DerivationPath,
+    ledger: Ledger,
+    client: Option<IotaClient>,
 }
 
 impl LedgerSigner {
