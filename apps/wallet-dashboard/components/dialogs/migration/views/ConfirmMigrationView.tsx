@@ -165,14 +165,14 @@ export function ConfirmMigrationView({
                         <>
                             <Panel hasBorder>
                                 <div className="flex flex-col gap-y-sm p-md">
-                                    <Skeleton widthClass="w-40" heightClass="h-3.5" />
+                                    <Skeleton className="h-3.5 w-40" />
                                     <MigrationObjectLoading />
                                 </div>
                             </Panel>
                             <Panel hasBorder>
                                 <div className="flex flex-col gap-y-md p-md">
-                                    <Skeleton widthClass="w-full" heightClass="h-3.5" />
-                                    <Skeleton widthClass="w-full" heightClass="h-3.5" />
+                                    <Skeleton className="h-3.5 w-full" />
+                                    <Skeleton className="h-3.5 w-full" />
                                 </div>
                             </Panel>
                         </>

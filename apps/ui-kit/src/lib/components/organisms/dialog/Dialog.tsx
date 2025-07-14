@@ -41,18 +41,29 @@ const DialogOverlay = React.forwardRef<
 >(({ showCloseIcon, position, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
-        className={cx('dialog-overlay-bg inset-0 z-[99998] backdrop-blur-md', {
-            fixed: position === DialogPosition.Right,
-            absolute: position === DialogPosition.Center,
-        })}
+        className={cx(
+            ' dialog-overlay-bg absolute h-full w-full backdrop-blur-md names:backdrop-blur-lg',
+        )}
         {...props}
     >
         <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
-            <Close />
+            <Close className="button-text-color-neutral" />
         </DialogClose>
     </RadixDialog.Overlay>
 ));
 DialogOverlay.displayName = RadixDialog.Overlay.displayName;
+
+const DialogContainer = React.forwardRef<
+    HTMLDivElement,
+    React.PropsWithChildren<{ isFixedPosition: boolean }>
+>((props, ref) => (
+    <div
+        className={cx('inset-0 z-[99999]', props.isFixedPosition ? 'fixed' : 'absolute')}
+        ref={ref}
+    >
+        <div className="relative h-full w-full">{props.children}</div>
+    </div>
+));
 
 const DialogContent = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Content>,
@@ -61,6 +72,7 @@ const DialogContent = React.forwardRef<
         showCloseOnOverlay?: boolean;
         position?: DialogPosition;
         customWidth?: string;
+        isFixedPosition?: boolean;
     }
 >(
     (
@@ -71,6 +83,7 @@ const DialogContent = React.forwardRef<
             children,
             position = DialogPosition.Center,
             customWidth = 'w-80 max-w-[85vw] md:w-96',
+            isFixedPosition = position === DialogPosition.Right,
             ...props
         },
         ref,
@@ -85,7 +98,7 @@ const DialogContent = React.forwardRef<
             const element = containerId ? document.getElementById(containerId) : undefined;
             setContainerElement(element ?? undefined);
         }, [containerId]);
-        const positionClass =
+        const dialogPositioning =
             position === DialogPosition.Right
                 ? 'overflow-hidden right-0 h-screen top-0 w-full'
                 : 'overflow-y-auto overflow-x-hidden left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
@@ -94,22 +107,24 @@ const DialogContent = React.forwardRef<
         const heightClass = position === DialogPosition.Right ? 'h-screen' : 'max-h-[80vh] h-full';
         return (
             <RadixDialog.Portal container={containerElement}>
-                <DialogOverlay showCloseIcon={showCloseOnOverlay} position={position} />
-                <RadixDialog.Content
-                    ref={ref}
-                    className={cx(
-                        'dialog-content-bg dialog-outline fixed z-[99999] flex flex-col justify-center',
-                        positionClass,
-                        widthClass,
-                    )}
-                    {...props}
-                >
-                    <VisuallyHidden.Root>
-                        <RadixDialog.Title />
-                        <RadixDialog.Description />
-                    </VisuallyHidden.Root>
-                    <div className={cx('flex flex-1 flex-col', heightClass)}>{children}</div>
-                </RadixDialog.Content>
+                <DialogContainer isFixedPosition={isFixedPosition}>
+                    <DialogOverlay showCloseIcon={showCloseOnOverlay} position={position} />
+                    <RadixDialog.Content
+                        ref={ref}
+                        className={cx(
+                            'dialog-content-bg dialog-outline absolute flex flex-col justify-center',
+                            dialogPositioning,
+                            widthClass,
+                        )}
+                        {...props}
+                    >
+                        <VisuallyHidden.Root>
+                            <RadixDialog.Title />
+                            <RadixDialog.Description />
+                        </VisuallyHidden.Root>
+                        <div className={cx('flex flex-1 flex-col', heightClass)}>{children}</div>
+                    </RadixDialog.Content>
+                </DialogContainer>
             </RadixDialog.Portal>
         );
     },
