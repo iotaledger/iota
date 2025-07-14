@@ -749,6 +749,7 @@ mod tests {
             // ^ This corresponds the old sequencer's logic
             if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
                 assert_eq!(congested_objects, vec![object_2]);
+
                 let suggested_gas_price = suggested_gas_price_calculator
                     .calculate_suggested_gas_price(
                         &certificate,
@@ -792,10 +793,6 @@ mod tests {
         // |----------------------------------------------------
         // That is, this certificate must be deferred in both new and old sequencers.
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
-            );
             if min_free_execution_slot_assigned {
                 // ^ this corresponds the new sequencer's logic
                 assert_eq!(
@@ -805,18 +802,19 @@ mod tests {
                         .map(|(id, _)| id)
                         .collect::<Vec<_>>()
                 );
-                assert_eq!(
-                    suggested_gas_price,
-                    txs_gas_data.get(3).unwrap().gas_price + 1
-                );
             } else {
                 // ^ this corresponds the old sequencer's logic
                 assert_eq!(congested_objects, vec![object_2]);
-                assert_eq!(
-                    suggested_gas_price,
-                    txs_gas_data.get(2).unwrap().gas_price + 1
-                );
             }
+
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
+            assert_eq!(
+                suggested_gas_price,
+                txs_gas_data.get(2).unwrap().gas_price + 1
+            );
         } else {
             panic!(
                 "Certificate {} must be deferred",
@@ -849,10 +847,6 @@ mod tests {
         // |----------------------------------------------------
         // That is, this certificate must be deferred in both new and old sequencers.
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
-            );
             if min_free_execution_slot_assigned {
                 // ^ this corresponds the new sequencer's logic
                 assert_eq!(
@@ -862,30 +856,19 @@ mod tests {
                         .map(|(id, _)| id)
                         .collect::<Vec<_>>()
                 );
-
-                match mode {
-                    PerObjectCongestionControlMode::None => unreachable!(),
-                    PerObjectCongestionControlMode::TotalTxCount => {
-                        assert_eq!(
-                            suggested_gas_price,
-                            txs_gas_data.get(3).unwrap().gas_price + 1
-                        );
-                    }
-                    PerObjectCongestionControlMode::TotalGasBudget => {
-                        assert_eq!(
-                            suggested_gas_price,
-                            txs_gas_data.get(2).unwrap().gas_price + 1
-                        );
-                    }
-                }
             } else {
                 // ^ this corresponds the old sequencer's logic
                 assert_eq!(congested_objects, vec![object_2]);
-                assert_eq!(
-                    suggested_gas_price,
-                    txs_gas_data.get(2).unwrap().gas_price + 1
-                );
             }
+
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
+            assert_eq!(
+                suggested_gas_price,
+                txs_gas_data.get(2).unwrap().gas_price + 1
+            );
         } else {
             panic!(
                 "Certificate {} must be deferred",
@@ -918,11 +901,6 @@ mod tests {
         // |----------------------------------------------------
         // That is, this certificate must be deferred in both new and old sequencers.
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
-            );
-
             if min_free_execution_slot_assigned {
                 // ^ this corresponds the new sequencer's logic
                 assert_eq!(
@@ -937,6 +915,10 @@ mod tests {
                 assert_eq!(congested_objects, vec![object_2]);
             }
 
+            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
+                &certificate,
+                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+            );
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
@@ -1144,7 +1126,6 @@ mod tests {
                 &certificate,
                 shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
-
             assert_eq!(
                 suggested_gas_price,
                 txs_gas_data.get(2).unwrap().gas_price + 1
@@ -1193,7 +1174,6 @@ mod tests {
                 &certificate,
                 shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
-
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
@@ -1253,7 +1233,6 @@ mod tests {
                 &certificate,
                 shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
-
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
