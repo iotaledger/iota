@@ -500,7 +500,7 @@ impl ModuleResolver for PersistedStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for PersistedStore {
     fn try_get_object(
         &self,
@@ -518,7 +518,7 @@ impl ObjectStore for PersistedStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
@@ -551,7 +551,7 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_committee(
         &self,

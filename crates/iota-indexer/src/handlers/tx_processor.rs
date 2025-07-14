@@ -196,7 +196,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
     fn try_get_object(
         &self,

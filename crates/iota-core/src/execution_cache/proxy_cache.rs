@@ -99,7 +99,7 @@ impl ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectCacheRead for ProxyCache {
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         delegate_method!(self.try_get_package_object(package_id))
@@ -204,7 +204,7 @@ impl ObjectCacheRead for ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl TransactionCacheRead for ProxyCache {
     fn try_multi_get_transaction_blocks(
         &self,
@@ -242,7 +242,7 @@ impl TransactionCacheRead for ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ExecutionCacheWrite for ProxyCache {
     fn try_write_transaction_outputs(
         &self,
@@ -302,7 +302,7 @@ impl AccumulatorStore for ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ExecutionCacheCommit for ProxyCache {
     fn try_commit_transaction_outputs<'a>(
         &'a self,
@@ -320,7 +320,7 @@ impl ExecutionCacheCommit for ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl CheckpointCache for ProxyCache {
     fn try_get_transaction_perpetual_checkpoint(
         &self,
@@ -348,7 +348,7 @@ impl CheckpointCache for ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ExecutionCacheReconfigAPI for ProxyCache {
     fn try_insert_genesis_object(&self, object: Object) -> IotaResult {
         delegate_method!(self.try_insert_genesis_object(object))
@@ -399,7 +399,7 @@ impl ExecutionCacheReconfigAPI for ProxyCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl StateSyncAPI for ProxyCache {
     fn try_insert_transaction_and_effects(
         &self,

@@ -1195,7 +1195,7 @@ impl WritebackCache {
 
 impl ExecutionCacheAPI for WritebackCache {}
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ExecutionCacheCommit for WritebackCache {
     fn try_commit_transaction_outputs<'a>(
         &'a self,
@@ -1213,7 +1213,7 @@ impl ExecutionCacheCommit for WritebackCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectCacheRead for WritebackCache {
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.metrics
@@ -1656,7 +1656,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl TransactionCacheRead for WritebackCache {
     fn try_multi_get_transaction_blocks(
         &self,
@@ -1832,7 +1832,7 @@ impl TransactionCacheRead for WritebackCache {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("write to store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ExecutionCacheWrite for WritebackCache {
     fn try_acquire_transaction_locks<'a>(
         &'a self,

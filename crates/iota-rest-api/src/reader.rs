@@ -21,7 +21,7 @@ pub struct StateReader {
     inner: Arc<dyn RestStateReader>,
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl StateReader {
     pub fn new(inner: Arc<dyn RestStateReader>) -> Self {
         Self { inner }

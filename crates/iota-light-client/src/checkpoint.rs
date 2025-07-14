@@ -345,7 +345,7 @@ impl<'a> CheckpointSummaryFileStore<'a> {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("write to store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl WriteStore for CheckpointSummaryFileStore<'_> {
     fn try_insert_checkpoint(
         &self,
@@ -390,7 +390,7 @@ impl WriteStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ReadStore for CheckpointSummaryFileStore<'_> {
     fn try_get_committee(
         &self,
@@ -495,7 +495,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for CheckpointSummaryFileStore<'_> {
     fn try_get_object(
         &self,

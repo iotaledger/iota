@@ -549,7 +549,7 @@ pub struct FullCheckpointContents {
     user_signatures: Vec<Vec<GenericSignature>>,
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl FullCheckpointContents {
     pub fn new_with_causally_ordered_transactions<T>(contents: T) -> Self
     where

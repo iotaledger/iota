@@ -11,7 +11,7 @@ use crate::{
     storage::ReadStore,
 };
 
-#[::iota_macros::extend_trait_with_non_fallible("write to store failed")]
+#[iota_macros::extend_trait_with_non_fallible("storage access failed")]
 pub trait WriteStore: ReadStore {
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
     fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
@@ -26,7 +26,7 @@ pub trait WriteStore: ReadStore {
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()>;
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("write to store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: WriteStore + ?Sized> WriteStore for &T {
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         (*self).try_insert_checkpoint(checkpoint)
@@ -56,7 +56,7 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("write to store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         (**self).try_insert_checkpoint(checkpoint)
@@ -86,7 +86,7 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("write to store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         (**self).try_insert_checkpoint(checkpoint)

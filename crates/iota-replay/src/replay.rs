@@ -2051,7 +2051,7 @@ impl ModuleResolver for &mut LocalExec {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for LocalExec {
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
@@ -2110,7 +2110,7 @@ impl ObjectStore for LocalExec {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for &mut LocalExec {
     fn try_get_object(
         &self,

@@ -118,7 +118,6 @@ pprof = { version = "0.14", features = ["cpp", "frame-pointer"] }
 test-fuzz.workspace = true
 
 # internal dependencies
-iota-macros.workspace = true
 iota-protocol-config.workspace = true
 
 # moka uses `quanta` by default for timing, which is not compatible with the simulator

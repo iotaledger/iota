@@ -12,7 +12,6 @@ async-trait.workspace = true
 axum = { workspace = true, features = ["matched-path"] }
 bcs.workspace = true
 fastcrypto.workspace = true
-iota-macros.workspace = true
 iota-sdk2.workspace = true
 itertools.workspace = true
 mime = "0.3"
@@ -31,6 +30,7 @@ tokio.workspace = true
 url.workspace = true
 
 # internal dependencies
+iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true

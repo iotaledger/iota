@@ -108,7 +108,7 @@ impl InMemoryObjectStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for InMemoryObjectStore {
     fn try_get_object(
         &self,

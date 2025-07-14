@@ -1851,7 +1851,7 @@ impl AccumulatorStore for AuthorityStore {
     }
 }
 
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for AuthorityStore {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(

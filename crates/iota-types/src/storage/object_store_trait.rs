@@ -11,7 +11,7 @@ use crate::{
     storage::WriteKind,
 };
 
-#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
+#[iota_macros::extend_trait_with_non_fallible("storage access failed")]
 pub trait ObjectStore {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
 
@@ -39,7 +39,7 @@ pub trait ObjectStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: ObjectStore + ?Sized> ObjectStore for &T {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         (*self).try_get_object(object_id)
@@ -65,7 +65,7 @@ impl<T: ObjectStore + ?Sized> ObjectStore for &T {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         (**self).try_get_object(object_id)
@@ -91,7 +91,7 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         (**self).try_get_object(object_id)
@@ -117,7 +117,7 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for &[Object] {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.iter().find(|o| o.id() == *object_id).cloned())
@@ -135,7 +135,7 @@ impl ObjectStore for &[Object] {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.get(object_id).map(|(_, obj, _)| obj).cloned())
@@ -159,7 +159,7 @@ impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for BTreeMap<ObjectID, Object> {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
         Ok(self.get(object_id).cloned())

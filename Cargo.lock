@@ -7094,6 +7094,7 @@ dependencies = [
 name = "iota-proc-macros"
 version = "1.4.0-alpha"
 dependencies = [
+ "futures",
  "msim-macros",
  "proc-macro2",
  "quote",

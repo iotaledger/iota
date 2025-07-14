@@ -34,7 +34,7 @@ impl SharedInMemoryStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ReadStore for SharedInMemoryStore {
     fn try_get_checkpoint_by_digest(
         &self,
@@ -167,7 +167,7 @@ impl ReadStore for SharedInMemoryStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for SharedInMemoryStore {
     fn try_get_object(
         &self,
@@ -185,7 +185,7 @@ impl ObjectStore for SharedInMemoryStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl WriteStore for SharedInMemoryStore {
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         self.inner_mut().insert_checkpoint(checkpoint);
@@ -483,7 +483,7 @@ impl SingleCheckpointSharedInMemoryStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
     fn try_get_object(
         &self,
@@ -501,7 +501,7 @@ impl ObjectStore for SingleCheckpointSharedInMemoryStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ReadStore for SingleCheckpointSharedInMemoryStore {
     fn try_get_checkpoint_by_digest(
         &self,
@@ -589,7 +589,7 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl WriteStore for SingleCheckpointSharedInMemoryStore {
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         {

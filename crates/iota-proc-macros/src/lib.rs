@@ -2,12 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! IOTA Procedural Macros
+//!
+//! This crate provides various procedural macros used throughout the IOTA
+//! project, including test infrastructure, arithmetic overflow protection,
+//! and trait/impl extension macros for non-fallible method generation.
+
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, ImplItem,
     ImplItemFn, Item, ItemImpl, ItemMacro, ItemTrait, LitStr, ReturnType, Stmt, StmtMacro, Token,
-    TraitItem, TraitItemFn, UnOp,
+    TraitItem, ItemFn, TraitItemFn, UnOp,
     fold::{Fold, fold_expr, fold_item_macro, fold_stmt},
     parse::Parser,
     parse_macro_input, parse2,
@@ -15,6 +21,13 @@ use syn::{
     spanned::Spanned,
 };
 
+// ============================================================================
+// Test Infrastructure Macros
+// ============================================================================
+
+/// Initialize static state for deterministic testing in the simulator.
+/// This macro ensures that lazy static variables are initialized before tests
+/// run to maintain deterministic behavior across test iterations.
 #[proc_macro_attribute]
 pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as syn::ItemFn);
@@ -173,7 +186,7 @@ pub fn iota_test(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let result = quote! {
         #header
-        #[::iota_macros::init_static_initializers]
+        #[iota_macros::init_static_initializers]
         #input
     };
 
@@ -208,7 +221,7 @@ pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
         let body = &input.block;
         quote! {
             #[::iota_simulator::sim_test(crate = "iota_simulator", #(#args),*)]
-            #[::iota_macros::init_static_initializers]
+            #[iota_macros::init_static_initializers]
             #ignore
             #sig {
                 async fn body_fn() #return_type { #body }
@@ -266,6 +279,12 @@ pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
     result.into()
 }
 
+// ============================================================================
+// Arithmetic Overflow Protection Macros
+// ============================================================================
+
+/// Transform arithmetic operations to use checked variants for overflow
+/// protection.
 #[proc_macro]
 pub fn checked_arithmetic(input: TokenStream) -> TokenStream {
     let input_file = CheckArithmetic.fold_file(parse_macro_input!(input));
@@ -279,6 +298,7 @@ pub fn checked_arithmetic(input: TokenStream) -> TokenStream {
     TokenStream::from(output)
 }
 
+/// Apply checked arithmetic transformation to a specific item.
 #[proc_macro_attribute]
 pub fn with_checked_arithmetic(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_item = parse_macro_input!(item as Item);
@@ -298,9 +318,12 @@ pub fn with_checked_arithmetic(_attr: TokenStream, item: TokenStream) -> TokenSt
     }
 }
 
+/// AST transformer for arithmetic overflow checking
 struct CheckArithmetic;
 
 impl CheckArithmetic {
+    /// Check if an attribute list contains skip_checked_arithmetic and remove
+    /// it
     fn maybe_skip_macro(&self, attrs: &mut Vec<Attribute>) -> bool {
         if let Some(idx) = attrs
             .iter()
@@ -315,6 +338,7 @@ impl CheckArithmetic {
         }
     }
 
+    /// Process macro contents by transforming expressions within
     fn process_macro_contents(
         &mut self,
         tokens: proc_macro2::TokenStream,
@@ -542,6 +566,10 @@ impl Fold for CheckArithmetic {
     }
 }
 
+// ============================================================================
+// Utility Derive Macros
+// ============================================================================
+
 /// This proc macro generates a function `order_to_variant_map` which returns a
 /// map of the position of each variant to the name of the variant.
 /// It is intended to catch changes in enum order when backward compat is
@@ -592,108 +620,11 @@ pub fn enum_variant_order_derive(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Helper function to extract inner type from Result<T, E>, IotaResult<T, E>,
-/// Future<Output = Result<T, E>>, impl Future<Output = Result<T, E>>, etc.
-/// Returns None if the type doesn't match any of these patterns
-/// For Future<Output = Result<(), E>> or Future<Output = IotaResult<(), E>>,
-/// returns ()
-fn extract_inner_type_from_result_or_future(ty: &syn::Type) -> Option<proc_macro2::TokenStream> {
-    match ty {
-        syn::Type::Path(type_path) => {
-            let segment = type_path.path.segments.last()?;
+// ============================================================================
+// Non-Fallible Method Generation Framework
+// ============================================================================
 
-            // Handle direct Result<T, E> or IotaResult<T, E>
-            if segment.ident == "Result" || segment.ident == "IotaResult" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        return Some(quote! { #inner });
-                    } else {
-                        // Handle IotaResult without explicit type arguments (defaults to ())
-                        return Some(quote! { () });
-                    }
-                }
-            }
-
-            // Handle Future<Output = Result<T, E>>, Future<Output = IotaResult<T, E>>,
-            // BoxFuture<'_, Result<T, E>>, BoxFuture<'_, IotaResult<T, E>>
-            if segment.ident == "Future" || segment.ident == "BoxFuture" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    // For BoxFuture<'_, T>, the second argument is the type
-                    if segment.ident == "BoxFuture" {
-                        if let Some(syn::GenericArgument::Type(inner)) = args.args.iter().nth(1) {
-                            return extract_inner_from_result_type(inner)
-                                .or_else(|| Some(quote! { #inner }));
-                        }
-                    }
-
-                    // For Future<Output = T>, look for the Output associated type
-                    for arg in &args.args {
-                        if let syn::GenericArgument::AssocType(assoc_type) = arg {
-                            if assoc_type.ident == "Output" {
-                                return extract_inner_from_result_type(&assoc_type.ty);
-                            }
-                        }
-                    }
-                }
-            }
-
-            None
-        }
-        syn::Type::ImplTrait(impl_trait) => {
-            // Handle impl Future<Output = Result<T, E>> or impl Future<Output =
-            // IotaResult<T, E>>
-            for bound in &impl_trait.bounds {
-                if let syn::TypeParamBound::Trait(trait_bound) = bound {
-                    let path = &trait_bound.path;
-                    if let Some(segment) = path.segments.last() {
-                        if segment.ident == "Future" || segment.ident == "BoxFuture" {
-                            if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                                for arg in &args.args {
-                                    if let syn::GenericArgument::AssocType(assoc_type) = arg {
-                                        if assoc_type.ident == "Output" {
-                                            return extract_inner_from_result_type(&assoc_type.ty);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
-/// Helper function to extract inner type from Result<T, E> or IotaResult<T, E>
-fn extract_inner_from_result_type(ty: &syn::Type) -> Option<proc_macro2::TokenStream> {
-    if let syn::Type::Path(type_path) = ty {
-        let segment = type_path.path.segments.last()?;
-        if segment.ident == "Result" || segment.ident == "IotaResult" {
-            if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                    // Check if the inner type is () - if so, return ()
-                    if let syn::Type::Tuple(tuple) = inner {
-                        if tuple.elems.is_empty() {
-                            return Some(quote! { () });
-                        }
-                    }
-                    return Some(quote! { #inner });
-                } else {
-                    // Handle IotaResult without explicit type arguments (defaults to ())
-                    return Some(quote! { () });
-                }
-            } else {
-                // Handle IotaResult without any angle brackets (defaults to ())
-                return Some(quote! { () });
-            }
-        }
-    }
-    None
-}
-
-/// Helper function to parse the expect message from macro attributes
+/// Parse the expect message from macro attributes
 fn parse_expect_message(attr: TokenStream, default_msg: &str) -> String {
     if attr.is_empty() {
         default_msg.to_string()
@@ -705,21 +636,164 @@ fn parse_expect_message(attr: TokenStream, default_msg: &str) -> String {
     }
 }
 
-/// Helper function to determine if a return type represents a Future
+/// Helper function to check if a type name is a Result-like type
+fn is_result_type(type_name: &str) -> bool {
+    type_name == "Result" || type_name == "IotaResult"
+}
+
+/// Helper function to check if a type name is a Future-like type
+fn is_future_type(type_name: &str) -> bool {
+    type_name == "Future" || type_name == "BoxFuture"
+}
+
+/// Helper function to extract the last segment name from a type path
+fn get_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(type_path) => type_path
+            .path
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string()),
+        _ => None,
+    }
+}
+
+/// Extract inner type from Result<T, E> or IotaResult<T, E>
+fn extract_inner_from_result_type(ty: &syn::Type) -> Option<proc_macro2::TokenStream> {
+    if let syn::Type::Path(type_path) = ty {
+        let segment = type_path.path.segments.last()?;
+        let segment_name = segment.ident.to_string();
+
+        if is_result_type(&segment_name) {
+            return extract_result_inner_type(&segment.arguments, &segment_name);
+        }
+    }
+    None
+}
+
+/// Extract the inner type from Result/IotaResult arguments
+fn extract_result_inner_type(
+    args: &syn::PathArguments,
+    type_name: &str,
+) -> Option<proc_macro2::TokenStream> {
+    match args {
+        syn::PathArguments::AngleBracketed(args) => {
+            if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
+                // Check if the inner type is () - if so, return ()
+                if let syn::Type::Tuple(tuple) = inner {
+                    if tuple.elems.is_empty() {
+                        return Some(quote! { () });
+                    }
+                }
+                Some(quote! { #inner })
+            } else {
+                // Handle IotaResult without explicit type arguments (defaults to ())
+                Some(quote! { () })
+            }
+        }
+        _ => {
+            // Handle IotaResult without any angle brackets (defaults to ())
+            if type_name == "IotaResult" {
+                Some(quote! { () })
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Extract type from Future arguments
+fn extract_future_inner_type(segment: &syn::PathSegment) -> Option<proc_macro2::TokenStream> {
+    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+        // For BoxFuture<'_, T>, the second argument is the type
+        if segment.ident == "BoxFuture" {
+            if let Some(syn::GenericArgument::Type(inner)) = args.args.iter().nth(1) {
+                return extract_inner_from_result_type(inner).or_else(|| Some(quote! { #inner }));
+            }
+        }
+
+        // For Future<Output = T>, look for the Output associated type
+        for arg in &args.args {
+            if let syn::GenericArgument::AssocType(assoc_type) = arg {
+                if assoc_type.ident == "Output" {
+                    return extract_inner_from_result_type(&assoc_type.ty);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract inner type from impl Future bounds
+fn extract_impl_future_inner_type(
+    impl_trait: &syn::TypeImplTrait,
+) -> Option<proc_macro2::TokenStream> {
+    for bound in &impl_trait.bounds {
+        if let syn::TypeParamBound::Trait(trait_bound) = bound {
+            let path = &trait_bound.path;
+            if let Some(segment) = path.segments.last() {
+                if is_future_type(&segment.ident.to_string()) {
+                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                        for arg in &args.args {
+                            if let syn::GenericArgument::AssocType(assoc_type) = arg {
+                                if assoc_type.ident == "Output" {
+                                    return extract_inner_from_result_type(&assoc_type.ty);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract inner type from Result<T, E>, IotaResult<T, E>, Future<Output =
+/// Result<T, E>>, etc.
+fn extract_inner_type_from_result_or_future(ty: &syn::Type) -> Option<proc_macro2::TokenStream> {
+    match ty {
+        syn::Type::Path(type_path) => {
+            let segment = type_path.path.segments.last()?;
+            let segment_name = segment.ident.to_string();
+
+            // Handle direct Result<T, E> or IotaResult<T, E>
+            if is_result_type(&segment_name) {
+                return extract_result_inner_type(&segment.arguments, &segment_name);
+            }
+
+            // Handle Future<Output = Result<T, E>>, BoxFuture<'_, Result<T, E>>
+            if is_future_type(&segment_name) {
+                return extract_future_inner_type(segment);
+            }
+
+            None
+        }
+        syn::Type::ImplTrait(impl_trait) => {
+            // Handle impl Future<Output = Result<T, E>>
+            extract_impl_future_inner_type(impl_trait)
+        }
+        _ => None,
+    }
+}
+
+/// Determine if a return type represents a Future
 fn is_future_return_type(ty: &syn::Type) -> bool {
     match ty {
         syn::Type::Path(type_path) => type_path
             .path
             .segments
             .last()
-            .is_some_and(|seg| seg.ident == "Future" || seg.ident == "BoxFuture"),
+            .map(|seg| is_future_type(&seg.ident.to_string()))
+            .unwrap_or(false),
         syn::Type::ImplTrait(impl_trait) => impl_trait.bounds.iter().any(|bound| {
             if let syn::TypeParamBound::Trait(trait_bound) = bound {
                 trait_bound
                     .path
                     .segments
                     .last()
-                    .is_some_and(|seg| seg.ident == "Future" || seg.ident == "BoxFuture")
+                    .map(|seg| is_future_type(&seg.ident.to_string()))
+                    .unwrap_or(false)
             } else {
                 false
             }
@@ -728,14 +802,21 @@ fn is_future_return_type(ty: &syn::Type) -> bool {
     }
 }
 
-/// Helper function to check if a function signature has a self parameter
+/// Determine if a return type is specifically BoxFuture (not impl Future)
+fn is_boxfuture_return_type(ty: &syn::Type) -> bool {
+    get_type_name(ty)
+        .map(|name| name == "BoxFuture")
+        .unwrap_or(false)
+}
+
+/// Check if a function signature has a self parameter
 fn has_self_parameter(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>) -> bool {
     inputs
         .iter()
         .any(|arg| matches!(arg, syn::FnArg::Receiver(_)))
 }
 
-/// Helper function to generate argument identifiers for method calls
+/// Generate argument identifiers for method calls (handles wildcard patterns).
 /// This converts patterns like `_` to usable identifiers in function calls
 fn generate_arg_identifiers(
     inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
@@ -748,14 +829,8 @@ fn generate_arg_identifiers(
             syn::FnArg::Typed(pat_ty) => {
                 Some(match &*pat_ty.pat {
                     syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
-                    syn::Pat::Wild(_) => {
-                        // Generate a unique parameter name for wildcard patterns
-                        let ident = format_ident!("__arg_{}", arg_counter);
-                        arg_counter += 1;
-                        ident
-                    }
-                    _ => {
-                        // For other complex patterns, generate a parameter name
+                    syn::Pat::Wild(_) | _ => {
+                        // Generate a unique parameter name for wildcard or complex patterns
                         let ident = format_ident!("__arg_{}", arg_counter);
                         arg_counter += 1;
                         ident
@@ -766,8 +841,8 @@ fn generate_arg_identifiers(
         .collect()
 }
 
-/// Helper function to generate proper function parameters for the new signature
-/// This converts wildcard patterns to named parameters
+/// Generate proper function parameters (converts wildcard patterns to named
+/// parameters)
 fn generate_function_inputs(
     inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
 ) -> syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma> {
@@ -782,20 +857,8 @@ fn generate_function_inputs(
             syn::FnArg::Typed(pat_ty) => {
                 let new_pat = match &*pat_ty.pat {
                     syn::Pat::Ident(_) => pat_ty.pat.clone(),
-                    syn::Pat::Wild(_) => {
-                        // Replace wildcard with a named parameter
-                        let ident = format_ident!("__arg_{}", arg_counter);
-                        arg_counter += 1;
-                        Box::new(syn::Pat::Ident(syn::PatIdent {
-                            attrs: vec![],
-                            by_ref: None,
-                            mutability: None,
-                            ident,
-                            subpat: None,
-                        }))
-                    }
-                    _ => {
-                        // For other complex patterns, replace with a named parameter
+                    syn::Pat::Wild(_) | _ => {
+                        // Replace wildcard/complex patterns with named parameters
                         let ident = format_ident!("__arg_{}", arg_counter);
                         arg_counter += 1;
                         Box::new(syn::Pat::Ident(syn::PatIdent {
@@ -821,7 +884,137 @@ fn generate_function_inputs(
     new_inputs
 }
 
-/// Helper function to generate a non-fallible method call
+/// Generate the return type for a non-fallible method
+fn generate_return_type(method_info: &TryMethodInfo) -> proc_macro2::TokenStream {
+    if method_info.is_boxfuture {
+        // For BoxFuture returns, preserve the BoxFuture structure with proper lifetimes
+        let inner_type = &method_info.inner_return_type;
+        if method_info.generics.lt_token.is_some() {
+            quote! { BoxFuture<'a, #inner_type> }
+        } else {
+            quote! { BoxFuture<'_, #inner_type> }
+        }
+    } else if method_info.is_future {
+        // For impl Future returns, preserve the impl Future structure
+        let inner_type = &method_info.inner_return_type;
+        quote! { impl Future<Output = #inner_type> }
+    } else {
+        method_info.inner_return_type.clone()
+    }
+}
+
+/// Generate a method call for BoxFuture returns in trait contexts
+fn generate_boxfuture_trait_call(
+    method_info: &TryMethodInfo,
+    expect_msg: &str,
+) -> proc_macro2::TokenStream {
+    let original_name = &method_info.original_name;
+    let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
+
+    quote! {
+        Box::pin(async move {
+            self.#original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
+        })
+    }
+}
+
+/// Generate a method call for impl Future returns in trait contexts
+fn generate_impl_future_trait_call(
+    method_info: &TryMethodInfo,
+    expect_msg: &str,
+) -> proc_macro2::TokenStream {
+    let original_name = &method_info.original_name;
+    let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
+
+    quote! {
+        async move {
+            self.#original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
+        }
+    }
+}
+
+/// Generate a method call for BoxFuture returns in impl contexts
+fn generate_boxfuture_impl_call(
+    method_info: &TryMethodInfo,
+    expect_msg: &str,
+    trait_path: Option<&syn::Path>,
+) -> proc_macro2::TokenStream {
+    let original_name = &method_info.original_name;
+    let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
+
+    let call_with_await_expect = if method_info.has_self {
+        if let Some(trait_path) = trait_path {
+            quote! {
+                <Self as #trait_path>::#original_name(self, #(#arg_identifiers),*).await.expect(#expect_msg)
+            }
+        } else {
+            quote! {
+                self.#original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
+            }
+        }
+    } else {
+        quote! {
+            #original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
+        }
+    };
+
+    quote! {
+        Box::pin(async move {
+            #call_with_await_expect
+        })
+    }
+}
+
+/// Generate a complete method signature (trait or impl)
+fn generate_method_signature(
+    method_info: &TryMethodInfo,
+    call_body: Option<proc_macro2::TokenStream>,
+    is_trait_method: bool,
+    is_async: bool,
+) -> proc_macro2::TokenStream {
+    let new_name = &method_info.new_name;
+    let new_inputs = generate_function_inputs(&method_info.inputs);
+    let return_type = generate_return_type(method_info);
+    let generics = &method_info.generics;
+    let where_clause = &method_info.generics.where_clause;
+
+    let async_keyword = if is_async {
+        quote! { async }
+    } else {
+        quote! {}
+    };
+
+    if is_trait_method {
+        // Trait methods don't have explicit visibility
+        match call_body {
+            Some(body) => {
+                // Method with default implementation
+                quote! {
+                    #async_keyword fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
+                        #body
+                    }
+                }
+            }
+            None => {
+                // Just a method signature without body
+                quote! {
+                    #async_keyword fn #new_name #generics(#new_inputs) -> #return_type #where_clause;
+                }
+            }
+        }
+    } else {
+        // Impl methods use the visibility from the method info and always have a body
+        let vis = &method_info.visibility;
+        let body = call_body.expect("Impl methods must have a body");
+        quote! {
+            #vis #async_keyword fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
+                #body
+            }
+        }
+    }
+}
+
+/// Generate a non-fallible method call with proper trait qualification
 fn generate_non_fallible_call(
     method_name: &syn::Ident,
     arg_identifiers: &[syn::Ident],
@@ -869,21 +1062,42 @@ fn generate_non_fallible_call(
     }
 }
 
-/// Helper struct to hold information about a try_ method
+/// Information about a try_ method for non-fallible method generation
+#[derive(Debug, Clone)]
 struct TryMethodInfo {
     pub original_name: syn::Ident,
     pub new_name: syn::Ident,
     pub inputs: syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
     pub inner_return_type: proc_macro2::TokenStream,
     pub is_future: bool,
+    pub is_boxfuture: bool,
     pub has_self: bool,
     pub generics: syn::Generics,
+    pub visibility: syn::Visibility,
 }
 
-/// Helper function to analyze a try_ method signature and extract relevant
-/// information Works with just a signature, but can't extract visibility
-/// information without the full function item
-fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
+/// Analyze a try_ method from a function item
+fn analyze_try_method_from_fn_item(fn_item: &ItemFn) -> Option<TryMethodInfo> {
+    analyze_try_method_with_visibility(&fn_item.sig, fn_item.vis.clone())
+}
+
+/// Analyze a try_ method from a trait item
+fn analyze_try_method_from_trait_item(trait_item: &TraitItemFn) -> Option<TryMethodInfo> {
+    // Trait methods don't have explicit visibility (they inherit from the trait)
+    analyze_try_method_with_visibility(&trait_item.sig, syn::Visibility::Inherited)
+}
+
+/// Analyze a try_ method from an impl item
+fn analyze_try_method_from_impl_item(impl_item: &ImplItemFn) -> Option<TryMethodInfo> {
+    analyze_try_method_with_visibility(&impl_item.sig, impl_item.vis.clone())
+}
+
+/// Analyze a try_ method signature with visibility and extract relevant
+/// information
+fn analyze_try_method_with_visibility(
+    sig: &syn::Signature,
+    visibility: syn::Visibility,
+) -> Option<TryMethodInfo> {
     let method_name = &sig.ident;
     let method_name_str = method_name.to_string();
 
@@ -903,6 +1117,7 @@ fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
     // Extract inner return type from Result<...> or Future<...>
     let inner_ty = extract_inner_type_from_result_or_future(output)?;
     let is_future = is_future_return_type(output);
+    let is_boxfuture = is_boxfuture_return_type(output);
     let has_self = has_self_parameter(&sig.inputs);
 
     Some(TryMethodInfo {
@@ -911,10 +1126,16 @@ fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
         inputs: sig.inputs.clone(),
         inner_return_type: inner_ty,
         is_future,
+        is_boxfuture,
         has_self,
-        generics: sig.generics.clone(), // Default to inherited visibility
+        generics: sig.generics.clone(),
+        visibility,
     })
 }
+
+// ============================================================================
+// Non-Fallible Method Generation Macros
+// ============================================================================
 
 /// This macro generates a non-fallible version of a function that returns
 /// Result or IotaResult. For a function named `try_foo` returning `Result<T,
@@ -924,7 +1145,7 @@ fn analyze_try_method(sig: &syn::Signature) -> Option<TryMethodInfo> {
 /// It also works with async functions that return Future<Output = Result<T, E>>
 /// or similar.
 ///
-/// Example:
+/// # Example
 /// ```rust,ignore
 /// #[generate_non_fallible_fn("Error message")]
 /// fn try_get_value(key: &str) -> Result<String, Error> {
@@ -940,7 +1161,7 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
     let input_fn = parse_macro_input!(item as syn::ItemFn);
 
     // Analyze the try_ method
-    let method_info = match analyze_try_method(&input_fn.sig) {
+    let method_info = match analyze_try_method_from_fn_item(&input_fn) {
         Some(info) => info,
         None => {
             return syn::Error::new_spanned(
@@ -962,53 +1183,36 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
 
     // Generate identifiers for function call and parameters for new signature
     let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
-    let new_inputs = generate_function_inputs(&method_info.inputs);
 
-    // Generate the non-fallible function call (for free functions, we don't use
-    // Self::)
-    let original_name = &method_info.original_name;
-    let call = if is_async_fn || returns_future {
-        quote! {
-            #original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
-        }
-    } else {
-        quote! {
-            #original_name(#(#arg_identifiers),*).expect(#expect_msg)
-        }
-    };
+    // Generate the non-fallible function call (for free functions, we don't use trait qualification)
+    let call = generate_non_fallible_call(
+        &method_info.original_name,
+        &arg_identifiers,
+        &expect_msg,
+        method_info.has_self,
+        is_async_fn || returns_future,
+        None, // No trait qualification for free functions
+        None, // No concrete self type for free functions
+    );
 
-    // Generate the new function with visibility, attributes, and generics preserved
-    let vis = &input_fn.vis;
-    let generics = &input_fn.sig.generics;
-    let where_clause = &input_fn.sig.generics.where_clause;
-    let new_fn_name = &method_info.new_name;
-    let inner_ty_tokens = &method_info.inner_return_type;
-
-    let new_fn_sig_asyncness = if is_async_fn && !returns_future {
-        // Only add async if it's an async fn and not returning BoxFuture
-        // BoxFuture returns should not be async to maintain object safety
-        quote! { async }
-    } else {
-        quote! {}
-    };
+    let is_async = is_async_fn && !returns_future;
+    let new_fn_signature = generate_method_signature(&method_info, Some(call), false, is_async);
 
     let generated = quote! {
         #input_fn
 
-        #vis #new_fn_sig_asyncness fn #new_fn_name #generics(#new_inputs) -> #inner_ty_tokens #where_clause {
-            #call
-        }
+        #new_fn_signature
     };
 
     generated.into()
 }
 
-/// This macro extends an existing trait with non-fallible versions of its
-/// `try_` methods. It adds the non-fallible methods directly to the original
+/// Extend an existing trait with non-fallible versions of its `try_` methods.
+/// It adds the non-fallible methods directly to the original
 /// trait. For methods with default implementations, it generates default
 /// implementations that call the `try_` method and use `.expect()`.
 ///
-/// Example:
+/// # Example
 /// ```rust,ignore
 /// #[extend_trait_with_non_fallible("Operation failed")]
 /// pub trait MyService {
@@ -1033,32 +1237,23 @@ pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> T
     let mut non_fallible_methods = Vec::new();
 
     for item in &input_trait.items {
-        if let TraitItem::Fn(TraitItemFn { sig, default, .. }) = item {
-            let method_info = match analyze_try_method(sig) {
+        if let TraitItem::Fn(trait_fn) = item {
+            let method_info = match analyze_try_method_from_trait_item(trait_fn) {
                 Some(info) => info,
                 None => continue,
             };
 
-            // Split into two separate flags for better control
-            let is_async_fn = sig.asyncness.is_some();
-            let returns_future = method_info.is_future;
-
-            // Check if the method has a default implementation
-            let has_default_impl = default.is_some();
+            let is_async_fn = trait_fn.sig.asyncness.is_some();
+            let has_default_impl = trait_fn.default.is_some();
 
             let method_item = if has_default_impl {
                 // Generate a default implementation that calls the try_ method with expect
-                let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
-                let call = if returns_future && has_default_impl {
-                    // For trait default implementations that return BoxFuture, we need to return
-                    // the boxed future
-                    let original_name = &method_info.original_name;
-                    quote! {
-                        Box::pin(async move {
-                            self.#original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
-                        })
-                    }
+                let call = if method_info.is_boxfuture {
+                    generate_boxfuture_trait_call(&method_info, &expect_msg)
+                } else if method_info.is_future {
+                    generate_impl_future_trait_call(&method_info, &expect_msg)
                 } else {
+                    let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
                     generate_non_fallible_call(
                         &method_info.original_name,
                         &arg_identifiers,
@@ -1071,57 +1266,10 @@ pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> T
                     )
                 };
 
-                let new_name = &method_info.new_name;
-                let new_inputs = generate_function_inputs(&method_info.inputs);
-                let return_type = if returns_future {
-                    // For BoxFuture returns, preserve the BoxFuture structure with proper lifetimes
-                    let inner_type = &method_info.inner_return_type;
-                    // Use the same lifetime structure as the original method
-                    if method_info.generics.lt_token.is_some() {
-                        // Method has explicit lifetime parameters, use 'a
-                        quote! { BoxFuture<'a, #inner_type> }
-                    } else {
-                        // Method uses elided lifetimes, use '_'
-                        quote! { BoxFuture<'_, #inner_type> }
-                    }
-                } else {
-                    method_info.inner_return_type.clone()
-                };
-                let generics = &method_info.generics;
-                let where_clause = &method_info.generics.where_clause;
-
-                // Generate non-async methods to maintain object safety (BoxFuture instead of
-                // async)
-                quote! {
-                    fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
-                        #call
-                    }
-                }
+                generate_method_signature(&method_info, Some(call), true, false)
             } else {
                 // Generate just a signature for methods without default implementations
-                let new_name = &method_info.new_name;
-                let new_inputs = generate_function_inputs(&method_info.inputs);
-                let return_type = if returns_future {
-                    // For BoxFuture returns, preserve the BoxFuture structure with proper lifetimes
-                    let inner_type = &method_info.inner_return_type;
-                    // Use the same lifetime structure as the original method
-                    if method_info.generics.lt_token.is_some() {
-                        // Method has explicit lifetime parameters, use 'a
-                        quote! { BoxFuture<'a, #inner_type> }
-                    } else {
-                        // Method uses elided lifetimes, use '_'
-                        quote! { BoxFuture<'_, #inner_type> }
-                    }
-                } else {
-                    method_info.inner_return_type.clone()
-                };
-                let generics = &method_info.generics;
-                let where_clause = &method_info.generics.where_clause;
-
-                // Generate non-async method signatures to maintain object safety
-                quote! {
-                    fn #new_name #generics(#new_inputs) -> #return_type #where_clause;
-                }
+                generate_method_signature(&method_info, None, true, false)
             };
 
             non_fallible_methods.push(method_item);
@@ -1133,18 +1281,18 @@ pub fn extend_trait_with_non_fallible(attr: TokenStream, item: TokenStream) -> T
         input_trait.items.push(syn::parse2(method).unwrap());
     }
 
-    let expanded = quote! {
+    let generated = quote! {
         #input_trait
     };
 
-    expanded.into()
+    generated.into()
 }
 
-/// This macro extends an existing trait implementation with non-fallible
-/// versions of its `try_` methods. It adds the non-fallible methods
-/// directly to the original implementation.
+/// Extend an existing trait implementation with non-fallible versions of its
+/// `try_` methods. It adds the non-fallible methods directly to the original
+/// implementation.
 ///
-/// Example:
+/// # Example
 /// ```rust,ignore
 /// #[extend_impl_with_non_fallible("Operation failed")]
 /// impl MyService for MyServiceImpl {
@@ -1163,119 +1311,51 @@ pub fn extend_impl_with_non_fallible(attr: TokenStream, item: TokenStream) -> To
 
     let expect_msg = parse_expect_message(attr, "Unwrapped failed in non-fallible method");
 
-    // Extract trait path for explicit qualification - we'll always use this when
-    // available
+    // Extract trait path for explicit qualification
     let trait_path = item_impl.trait_.as_ref().map(|(_, path, _)| path);
 
     let mut non_fallible_methods = Vec::new();
 
     for item in &item_impl.items {
-        if let ImplItem::Fn(ImplItemFn { sig, .. }) = item {
-            let method_info = match analyze_try_method(sig) {
+        if let ImplItem::Fn(impl_fn) = item {
+            let method_info = match analyze_try_method_from_impl_item(impl_fn) {
                 Some(info) => info,
                 None => continue,
             };
 
-            // Split into two separate flags for better control
-            let is_async_fn = sig.asyncness.is_some();
-            let returns_future = method_info.is_future;
-
+            let is_async_fn = impl_fn.sig.asyncness.is_some();
             let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
-            let new_name = &method_info.new_name;
-            let new_inputs = generate_function_inputs(&method_info.inputs);
-            let return_type = if returns_future {
-                // For BoxFuture returns, preserve the BoxFuture structure with proper lifetimes
-                let inner_type = &method_info.inner_return_type;
-                // Use the same lifetime structure as the original method
-                if method_info.generics.lt_token.is_some() {
-                    // Method has explicit lifetime parameters, use 'a
-                    quote! { BoxFuture<'a, #inner_type> }
-                } else {
-                    // Method uses elided lifetimes, use '_'
-                    quote! { BoxFuture<'_, #inner_type> }
-                }
-            } else {
-                method_info.inner_return_type.clone()
-            };
-            let generics = &method_info.generics;
-            let where_clause = &method_info.generics.where_clause;
 
-            let method_sig = if returns_future {
-                // For BoxFuture returns, we need to generate a special call that awaits and
-                // expects
-                let original_name = &method_info.original_name;
-                let call_with_await_expect = if method_info.has_self {
-                    if let Some(trait_path) = trait_path {
-                        // Use explicit trait qualification - need to pass self explicitly
-                        quote! {
-                            <Self as #trait_path>::#original_name(self, #(#arg_identifiers),*).await.expect(#expect_msg)
-                        }
-                    } else {
-                        quote! {
-                            self.#original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
-                        }
-                    }
-                } else {
-                    quote! {
-                        #original_name(#(#arg_identifiers),*).await.expect(#expect_msg)
-                    }
-                };
-
-                let boxed_call = quote! {
-                    Box::pin(async move {
-                        #call_with_await_expect
-                    })
-                };
-                quote! {
-                    fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
-                        #boxed_call
-                    }
-                }
+            // Generate the appropriate call based on the method type
+            let call = if method_info.is_boxfuture {
+                generate_boxfuture_impl_call(&method_info, &expect_msg, trait_path)
             } else {
-                // For non-BoxFuture methods, use the normal call generation
-                let call = generate_non_fallible_call(
+                // For futures and regular methods, use the normal call generation
+                let inner_call = generate_non_fallible_call(
                     &method_info.original_name,
                     &arg_identifiers,
                     &expect_msg,
                     method_info.has_self,
-                    is_async_fn, // Use .await only for async fn
-                    trait_path,  /* This will ensure we generate <Self as
-                                  * Trait>::method calls */
-                    Some(item_impl.self_ty.as_ref()), /* Pass the concrete self type for macro
-                                                       * contexts */
+                    is_async_fn || method_info.is_future,
+                    trait_path,
+                    Some(item_impl.self_ty.as_ref()),
                 );
 
-                // Check if there's a visibility modifier (pub) in the original method
-                let visibility = if let ImplItem::Fn(ImplItemFn { vis, .. }) = item {
-                    // If this function has explicit visibility, use it
-                    if matches!(vis, syn::Visibility::Public(_))
-                        || matches!(vis, syn::Visibility::Restricted(_))
-                    {
-                        vis.clone()
-                    } else {
-                        // Otherwise use the default inherited visibility
-                        syn::Visibility::Inherited
-                    }
-                } else {
-                    syn::Visibility::Inherited
-                };
-
-                if is_async_fn {
-                    // For async fn, generate async method
+                if method_info.is_future {
+                    // For impl Future returns, generate an async block that returns the awaited
+                    // result
                     quote! {
-                        #visibility async fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
-                            #call
+                        async move {
+                            #inner_call
                         }
                     }
                 } else {
-                    // For regular sync methods
-                    quote! {
-                        #visibility fn #new_name #generics(#new_inputs) -> #return_type #where_clause {
-                            #call
-                        }
-                    }
+                    inner_call
                 }
             };
+
+            let method_sig =
+                generate_method_signature(&method_info, Some(call), false, is_async_fn);
 
             non_fallible_methods.push(syn::parse2(method_sig).unwrap());
         }

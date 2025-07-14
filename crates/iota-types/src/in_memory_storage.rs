@@ -103,7 +103,7 @@ impl ModuleResolver for &mut InMemoryStorage {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for InMemoryStorage {
     fn try_get_object(
         &self,
@@ -131,7 +131,7 @@ impl ObjectStore for InMemoryStorage {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl ObjectStore for &mut InMemoryStorage {
     fn try_get_object(
         &self,

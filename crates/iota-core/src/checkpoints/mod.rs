@@ -1723,7 +1723,7 @@ impl CheckpointBuilder {
         let txs = self
             .state
             .get_transaction_cache_reader()
-            .try_multi_get_transaction_blocks(
+            .multi_get_transaction_blocks(
                 &sorted
                     .iter()
                     .map(|tx| *tx.transaction_digest())
@@ -2709,7 +2709,7 @@ mod tests {
         assert_eq!(c2sc.sequence_number, 1);
     }
 
-    #[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+    #[iota_macros::extend_impl_with_non_fallible("storage access failed")]
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
         fn try_notify_read_executed_effects(
             &self,

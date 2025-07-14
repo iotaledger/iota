@@ -818,7 +818,7 @@ pub struct AuthorityState {
 /// lock.
 ///
 /// Repeating valid commands should produce no changes and return no error.
-#[iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl AuthorityState {
     pub fn is_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
         epoch_store.committee().authority_exists(&self.name)

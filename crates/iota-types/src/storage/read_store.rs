@@ -24,7 +24,7 @@ use crate::{
     transaction::VerifiedTransaction,
 };
 
-#[::iota_macros::extend_trait_with_non_fallible("read from store failed")]
+#[iota_macros::extend_trait_with_non_fallible("storage access failed")]
 pub trait ReadStore: ObjectStore {
     // Committee Getters
     //
@@ -282,7 +282,7 @@ pub trait ReadStore: ObjectStore {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: ReadStore + ?Sized> ReadStore for &T {
     fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
         (*self).try_get_committee(epoch)
@@ -405,7 +405,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
     fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
         (**self).try_get_committee(epoch)
@@ -528,7 +528,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
     }
 }
 
-#[::iota_macros::extend_impl_with_non_fallible("read from store failed")]
+#[iota_macros::extend_impl_with_non_fallible("storage access failed")]
 impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
     fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
         (**self).try_get_committee(epoch)
