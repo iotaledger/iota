@@ -16,13 +16,14 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
 };
 use jsonrpsee::http_client::HttpClient;
-use test_cluster::TestCluster;
 
-use crate::common::{ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object};
+use crate::common::{
+    ApiTestSetup, execute_tx_and_wait_for_indexer,
+    rpc_tests::{create_coins_and_wait_for_indexer, get_validator},
+};
 
 const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
 
@@ -496,34 +497,4 @@ async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress)
         .iter()
         .map(|coin| coin.balance)
         .collect()
-}
-
-async fn create_coins_and_wait_for_indexer(
-    cluster: &TestCluster,
-    indexer_client: &HttpClient,
-    address: IotaAddress,
-    objects_count: u32,
-) -> Vec<ObjectID> {
-    let mut coins: Vec<ObjectID> = Vec::new();
-    for _ in 0..objects_count {
-        let coin = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(FUNDED_BALANCE_PER_COIN),
-                address,
-            )
-            .await;
-        indexer_wait_for_object(indexer_client, coin.0, coin.1).await;
-        coins.push(coin.0);
-    }
-    coins
-}
-
-async fn get_validator(client: &HttpClient) -> IotaAddress {
-    let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-    match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    }
 }

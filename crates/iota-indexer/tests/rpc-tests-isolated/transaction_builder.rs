@@ -23,7 +23,6 @@ mod transaction_builder_tests_isolated {
         crypto::{AccountKeyPair, get_key_pair},
         digests::TransactionDigest,
         id::UID,
-        iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
         object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
         timelock::{
             label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
@@ -35,11 +34,10 @@ mod transaction_builder_tests_isolated {
 
     use crate::common::{
         execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-        indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
+        indexer_wait_for_latest_checkpoint,
+        rpc_tests::{FUNDED_BALANCE_PER_COIN, create_coins_and_wait_for_indexer, get_validator},
         start_test_cluster_with_read_write_indexer,
     };
-
-    const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
 
     #[tokio::test]
     async fn request_add_stake() {
@@ -265,36 +263,6 @@ mod transaction_builder_tests_isolated {
 
         let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
         assert!(staked_iota.is_empty());
-    }
-
-    async fn get_validator(client: &HttpClient) -> IotaAddress {
-        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-        match iota_system_state {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        }
-    }
-
-    async fn create_coins_and_wait_for_indexer(
-        cluster: &TestCluster,
-        indexer_client: &HttpClient,
-        address: IotaAddress,
-        objects_count: u32,
-    ) -> Vec<ObjectID> {
-        let mut coins: Vec<ObjectID> = Vec::new();
-        for _ in 0..objects_count {
-            let coin = cluster
-                .fund_address_and_return_gas(
-                    cluster.get_reference_gas_price().await,
-                    Some(FUNDED_BALANCE_PER_COIN),
-                    address,
-                )
-                .await;
-            indexer_wait_for_object(indexer_client, coin.0, coin.1).await;
-            coins.push(coin.0);
-        }
-        coins
     }
 
     async fn create_cluster_with_timelocked_iota(

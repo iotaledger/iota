@@ -121,7 +121,7 @@ The crate provides following tests currently:
 - unit tests for the DB query filters, which test the conversion of filters to the correct SQL queries.
 - integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
 - rpc tests (see [rpc-tests](tests/rpc-tests/main.rs))
-- rpc tests isolated (see rpc-tests-isolated), which require a custom cluster setup or must run in a separate process to avoid conflicts with the shared test environment or other tests.
+- rpc tests isolated (see [rpc-tests](tests/rpc-tests-isolated/)), which require a custom cluster setup or must run in a separate process to avoid conflicts with the shared test environment or other tests.
 
 > [!NOTE]
 > rpc tests which relies on postgres for every test it applies migrations, we need to run tests sequentially to avoid errors

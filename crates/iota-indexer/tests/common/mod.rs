@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod rpc_tests;
+
 use std::{
     net::SocketAddr,
     path::PathBuf,
