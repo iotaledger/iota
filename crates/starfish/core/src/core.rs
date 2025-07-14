@@ -403,7 +403,7 @@ impl Core {
 
         // After adding transactions, some pending subdags might be committable.
         // We collect any newly missing refs to be picked up by the periodic fetcher.
-        // let (_, newly_missing_txns) = self.try_commit()?;
+        // Let (_, newly_missing_txns) = self.try_commit()?;
         // self.missing_transaction_data.extend(newly_missing_txns);
 
         Ok(())
@@ -833,7 +833,13 @@ impl Core {
             let (subdags, missing_transactions_refs) =
                 self.commit_observer.handle_commit(sequenced_leaders)?;
 
-            // TODO: Should we check for duplicates here?
+            // Check for duplicates before extending
+            assert!(
+                !missing_transactions_refs
+                    .keys()
+                    .any(|k| all_missing_committed_txns.contains_key(k)),
+                "duplicate committed missing transactions reference found"
+            );
             all_missing_committed_txns.extend(missing_transactions_refs);
 
             // Both pending and solid sub DAGs should be added to scoring subdags.

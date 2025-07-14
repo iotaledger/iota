@@ -1407,7 +1407,6 @@ pub(crate) struct GetLatestRoundsResponse {
     highest_accepted: Vec<u32>,
 }
 
-// TODO: are these correct?
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchTransactionsRequest {
     #[prost(bytes = "vec", repeated, tag = "1")]

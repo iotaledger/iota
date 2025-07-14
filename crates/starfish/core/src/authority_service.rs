@@ -317,7 +317,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // schedule the fetching of them from this peer
             if let Err(err) = self
                 .synchronizer
-                .fetch_block_headers(missing_ancestors.clone(), peer)
+                .fetch_block_headers(missing_ancestors, peer)
                 .await
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
@@ -652,14 +652,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //  among additional headers and from block_round-1 add only them. From the
         //  rounds < block_round-1 add all headers
         // TODO: handle missing transactions as well
-        let (missing_block_ancestors, missing_block_comitted_transactions) = self
+        let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
         missing_ancestors.extend(missing_block_ancestors);
-        missing_committed_txns.extend(missing_block_comitted_transactions);
+        missing_committed_txns.extend(missing_block_committed_transactions);
 
         if !missing_ancestors.is_empty() {
             // 10. schedule the fetching of missing ancestors from this peer
@@ -1038,8 +1038,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        // TODO: add a new parameter for maximum number of transactions per fetch
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+        if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
             return Err(ConsensusError::TooManyFetchTransactionsRequested(peer));
         }
 
