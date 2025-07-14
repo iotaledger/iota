@@ -297,5 +297,5 @@ min_checkpoint_interval_ms: 200
 checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
-max_committee_members_count: 50
+max_committee_members_count: 80
 consensus_gc_depth: 60

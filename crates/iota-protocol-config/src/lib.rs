@@ -57,6 +57,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //             Remove the iota-bridge from the framework.
 // Version 10: Enable min_free_execution_slot for the shared object congestion
 //             tracker in all networks.
+//             Increase the committee size to 80 on all networks.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2000,6 +2001,9 @@ impl ProtocolConfig {
                     // Enable min_free_execution_slot for the shared object congestion tracker in
                     // all networks.
                     cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+
+                    // Increase the committee size to 80 on all networks.
+                    cfg.max_committee_members_count = Some(80);
                 }
                 // Use this template when making changes:
                 //
