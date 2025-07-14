@@ -714,6 +714,9 @@ impl OptsWithGas {
         if self.rest.serialize_unsigned_transaction {
             args.push("--serialize-unsigned-transaction".to_string());
         }
+        if let Some(sender) = self.rest.sender {
+            args.push(format!("--sender @{sender}"));
+        }
         args
     }
 }

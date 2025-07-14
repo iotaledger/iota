@@ -405,7 +405,11 @@ impl NameCommand {
                 if let Some(identity) = &set_target_address {
                     let sender =
                         get_identity_address(opts.rest.sender.map(Into::into), context).await?;
-                    let target_address = get_identity_address(identity.clone(), context).await?;
+                    let target_address = get_identity_address(
+                        identity.clone().or(opts.rest.sender.map(Into::into)),
+                        context,
+                    )
+                    .await?;
                     if set_reverse_lookup && target_address != sender {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
