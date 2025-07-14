@@ -2,6 +2,9 @@
     "name": "iota-evm-bridge",
     "version": "0.1.0",
     "private": true,
+    "config": {
+        "metamaskVersion": "12.20.0"
+    },
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
@@ -19,10 +22,13 @@
         "test:e2e": "playwright test"
     },
     "dependencies": {
+        "@growthbook/growthbook": "^1.0.0",
+        "@growthbook/growthbook-react": "^1.0.0",
         "@hookform/resolvers": "^3.9.0",
         "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/bcs": "workspace:*",
+        "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
         "@iota/isc-sdk": "workspace:*",

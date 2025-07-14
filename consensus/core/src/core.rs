@@ -939,7 +939,7 @@ impl Core {
         Ok(committed_sub_dags)
     }
 
-    pub(crate) fn get_missing_blocks(&self) -> BTreeSet<BlockRef> {
+    pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
     }

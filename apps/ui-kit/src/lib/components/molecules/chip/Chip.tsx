@@ -1,18 +1,22 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ButtonUnstyled } from '@/components/atoms/button';
+import { Close } from '@iota/apps-ui-icons';
 import cx from 'classnames';
-import { ChipSize, ChipState } from './chip.enums';
 import {
-    BORDER_CLASSES,
     BACKGROUND_CLASSES,
+    BG_SELECTED_OUTLINE,
+    BG_SELECTED_OVERLAY,
+    BORDER_CLASSES,
+    CLOSE_ICON_INTERACTIVE,
+    FOCUS_CLASSES,
     ROUNDED_CLASS,
     STATE_LAYER_CLASSES,
     TEXT_COLOR,
-    FOCUS_CLASSES,
+    TEXT_COLOR_SELECTED_OUTLINE,
 } from './chip.classes';
-import { ButtonUnstyled } from '@/components/atoms/button';
-import { Close } from '@iota/apps-ui-icons';
+import { ChipSize, ChipType } from './chip.enums';
 
 interface ChipProps {
     /**
@@ -52,6 +56,10 @@ interface ChipProps {
      */
     disabled?: boolean;
     /**
+     * The type of the Chip
+     */
+    type?: ChipType;
+    /**
      * The size of the chip.
      */
     size?: ChipSize;
@@ -59,8 +67,9 @@ interface ChipProps {
 
 export function Chip({
     label,
-    showClose,
+    type = ChipType.Outline,
     selected,
+    showClose,
     onClose,
     onClick,
     avatar,
@@ -69,16 +78,30 @@ export function Chip({
     disabled,
     size = ChipSize.Default,
 }: ChipProps) {
-    const chipState = selected ? ChipState.Selected : ChipState.Default;
+    const isOutlineSelected = type === ChipType.Outline && selected;
+    const outlineStyle = selected
+        ? type === ChipType.Outline
+            ? 'outline-transparent names:outline-names-neutral-20'
+            : 'chip-outline-color'
+        : 'outline-transparent';
+
+    const focusOutlineStyle = cx(
+        'group-focus:chip-outline-color-active',
+        type === ChipType.Outline && 'names:group-focus:outline-transparent',
+    );
+    const selectedOverlayBg =
+        selected && !disabled && type !== ChipType.Outline ? BG_SELECTED_OVERLAY : '';
+
     return (
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
-                'border transition-all duration-500 ease-in-out disabled:opacity-40',
+                'group border disabled:opacity-40',
                 ROUNDED_CLASS,
-                BACKGROUND_CLASSES[chipState],
-                BORDER_CLASSES[chipState],
-                FOCUS_CLASSES,
+                isOutlineSelected
+                    ? BG_SELECTED_OUTLINE[ChipType.Outline]
+                    : BACKGROUND_CLASSES[type],
+                selected ? 'border-transparent' : BORDER_CLASSES[type],
             )}
             disabled={disabled}
         >
@@ -87,10 +110,16 @@ export function Chip({
                     'flex h-full w-full flex-row items-center gap-x-2',
                     avatar ? 'py-xxs' : 'py-[6px]',
                     avatar ? 'pl-xxs' : leadingElement ? 'pl-xs' : 'pl-sm',
-                    ROUNDED_CLASS,
-                    !disabled && STATE_LAYER_CLASSES,
                     showClose ? 'pr-xs' : 'pr-sm',
-                    TEXT_COLOR[chipState],
+                    ROUNDED_CLASS,
+                    isOutlineSelected
+                        ? TEXT_COLOR_SELECTED_OUTLINE[ChipType.Outline]
+                        : TEXT_COLOR[type],
+                    outlineStyle,
+                    !disabled && focusOutlineStyle,
+                    !disabled && STATE_LAYER_CLASSES,
+                    FOCUS_CLASSES,
+                    selectedOverlayBg,
                 )}
             >
                 {avatar ?? leadingElement}
@@ -99,12 +128,17 @@ export function Chip({
                 </span>
                 {trailingElement}
                 {showClose && (
-                    <ButtonUnstyled
+                    <div
                         onClick={onClose}
-                        className="cursor-pointer [&_svg]:h-4 [&_svg]:w-4"
+                        className={cx(disabled ? 'cursor-default' : 'cursor-pointer')}
                     >
-                        <Close />
-                    </ButtonUnstyled>
+                        <Close
+                            className={cx(
+                                'h-4 w-4 transition-opacity duration-150',
+                                disabled ? '' : selected ? 'opacity-100' : CLOSE_ICON_INTERACTIVE,
+                            )}
+                        />
+                    </div>
                 )}
             </span>
         </ButtonUnstyled>
