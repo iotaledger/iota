@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, bail};
 use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
