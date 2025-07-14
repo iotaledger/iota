@@ -79,8 +79,9 @@ export function Button({
     const textSizes = TEXT_CLASSES[size];
     const backgroundColors = disabled ? DISABLED_BACKGROUND_COLORS[type] : BACKGROUND_COLORS[type];
     const textColors = disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type];
-    const disabledClass =
-        disabled && !isOutlined ? 'opacity-40 cursor-not-allowed' : 'cursor-not-allowed';
+    const disabledClass = !isOutlined
+        ? 'disabled:opacity-40 disabled:cursor-not-allowed'
+        : 'disabled:cursor-not-allowed';
 
     const button = (
         <button
@@ -106,7 +107,7 @@ export function Button({
     return isOutlined ? (
         <div
             className={cx(
-                'button-border-color-outline inline-flex rounded-full',
+                'button-border-color-outline inline-flex rounded-full p-[1px]',
                 fullWidth && 'w-full',
                 disabled && 'opacity-40',
             )}
