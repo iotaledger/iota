@@ -4,7 +4,6 @@
 
 use std::{
     cmp,
-    collections::BTreeSet,
     ops::RangeInclusive,
     sync::{
         Arc,
@@ -14,7 +13,6 @@ use std::{
 };
 
 use futures::{StreamExt, TryStreamExt, stream::unfold};
-use tokio::sync::Mutex;
 use tokio_stream::Stream;
 use tracing::{error, info};
 
@@ -52,9 +50,6 @@ impl BackfillRunner {
     ) -> Result<(), IndexerError> {
         let timer = Instant::now();
         let processed_counter = Arc::new(AtomicUsize::new(0));
-        // Keeps track of the ranges (using starting range number)
-        // that are in progress.
-        let in_progress = Arc::new(Mutex::new(BTreeSet::new()));
 
         // Generate chunks
         let chunk_stream = chunk_range_stream(total_range, config.chunk_size);
@@ -64,37 +59,20 @@ impl BackfillRunner {
             .map(|range| {
                 let pool = pool.clone();
                 let backfill = backfill.clone();
-                let in_progress = in_progress.clone();
                 let counter = processed_counter.clone();
 
                 async move {
-                    let start_cp = *range.start();
-                    let end_cp = *range.end();
-
-                    // Mark this chunk as in-progress
-                    in_progress.lock().await.insert(start_cp);
+                    let start = *range.start();
+                    let end = *range.end();
 
                     // Execute backfill for the range
                     if let Err(e) = backfill.backfill_range(pool, &range).await {
-                        let min_range_restart_num = {
-                            let mut guard = in_progress.lock().await;
-                            guard.remove(&start_cp);
-                            guard.iter().next().cloned().unwrap_or(start_cp)
-                        };
-                        error!("Chunk {start_cp}-{end_cp} failed. Minimum range restart number: {min_range_restart_num}. Error: {e}", );
+                        error!("Chunk {start}-{end} failed. Error: {e}",);
                         return Err(e);
                     }
 
-                    // Get the minimum range start
-                    let min_range_start = {
-                        let mut guard = in_progress.lock().await;
-                        // Remove processed chunk from in-progress
-                        guard.remove(&start_cp);
-                        guard.iter().next().cloned()
-                    };
-
                     // Update metrics
-                    let count = end_cp - start_cp + 1;
+                    let count = end - start + 1;
                     let total = counter.fetch_add(count, Ordering::Relaxed) + count;
                     let elapsed = timer.elapsed().as_secs_f64();
                     let avg_rate = total as f64 / elapsed;
@@ -102,7 +80,6 @@ impl BackfillRunner {
                         processed = total,
                         secs = elapsed,
                         rate = avg_rate,
-                        min_range_start,
                         "Avg backfill speed"
                     );
 
