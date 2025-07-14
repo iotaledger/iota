@@ -38,12 +38,10 @@ impl LedgerTransport {
             apdu_command.serialize().encode_hex::<String>()
         );
         match self {
-            LedgerTransport::TCP(t) => t
-                .exchange(apdu_command)
-                .map_err(|_| LedgerError::TransportError),
-            LedgerTransport::NativeHID(h) => h
-                .exchange(apdu_command)
-                .map_err(|_| LedgerError::TransportError),
+            LedgerTransport::TCP(t) => t.exchange(apdu_command).map_err(|_| LedgerError::Transport),
+            LedgerTransport::NativeHID(h) => {
+                h.exchange(apdu_command).map_err(|_| LedgerError::Transport)
+            }
         }
     }
 }
@@ -55,12 +53,12 @@ pub(crate) fn create_transport(transport_type: TransportTypes) -> Result<Transpo
             transport: LedgerTransport::TCP(TransportTCP::new("127.0.0.1", 9999)),
         },
         TransportTypes::NativeHID => {
-            let api = hidapi::HidApi::new().map_err(|_| LedgerError::TransportError)?;
+            let api = hidapi::HidApi::new().map_err(|_| LedgerError::Transport)?;
             Transport {
                 transport: LedgerTransport::NativeHID(TransportNativeHID::new(&api).map_err(
                     |e| match e {
                         LedgerHIDError::DeviceNotFound => LedgerError::DeviceNotFound,
-                        _ => LedgerError::TransportError,
+                        _ => LedgerError::Transport,
                     },
                 )?),
             }

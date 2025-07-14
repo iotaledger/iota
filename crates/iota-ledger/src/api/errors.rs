@@ -118,7 +118,7 @@ pub enum LedgerError {
     BlocksProtocolFailed,
 
     #[error("Transport error")]
-    TransportError,
+    Transport,
 
     #[error("Serialization error")]
     Serialization,

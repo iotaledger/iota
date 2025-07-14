@@ -8,11 +8,11 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum LedgerSignerError {
     #[error("Ledger error: {0}")]
-    LedgerError(#[from] LedgerError),
+    Ledger(#[from] LedgerError),
 
     #[error("IotaSdk error: {0}")]
-    SdkError(#[from] IotaSdkError),
+    Sdk(#[from] IotaSdkError),
 
     #[error("UserInputError error: {0}")]
-    UserInputError(#[from] UserInputError),
+    UserInput(#[from] UserInputError),
 }

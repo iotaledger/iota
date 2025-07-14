@@ -12,9 +12,9 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum LedgerTCPError {
     #[error("Ledger connect error")]
-    ConnectError,
-    #[error("TCP response error")]
-    ResponseError,
+    ConnectFailed,
+    #[error("Invalid TCP response error")]
+    InvalidResponse,
     #[error("Ledger inner error")]
     Inner,
 }
@@ -59,12 +59,13 @@ impl TransportTCP {
     ) -> Result<APDUAnswer<Vec<u8>>, LedgerTCPError> {
         let raw_command = command.serialize();
 
-        let mut stream = TcpStream::connect(&self.url).map_err(|_| LedgerTCPError::ConnectError)?;
+        let mut stream =
+            TcpStream::connect(&self.url).map_err(|_| LedgerTCPError::ConnectFailed)?;
 
         let raw_answer =
             TransportTCP::request(&raw_command, &mut stream).map_err(|_| LedgerTCPError::Inner)?;
         let answer =
-            APDUAnswer::from_answer(raw_answer).map_err(|_| LedgerTCPError::ResponseError)?;
+            APDUAnswer::from_answer(raw_answer).map_err(|_| LedgerTCPError::InvalidResponse)?;
 
         Ok(answer)
     }
