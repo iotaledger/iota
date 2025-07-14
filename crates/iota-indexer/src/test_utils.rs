@@ -374,7 +374,7 @@ impl<'a> IotaTransactionBlockResponseBuilder<'a> {
 /// Returns a database URL for testing purposes.
 /// It uses a default user and password, and connects to a local PostgreSQL
 /// instance.
-pub fn test_database_url(db_name: &str) -> String {
+pub fn db_url(db_name: &str) -> String {
     format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
 }
 

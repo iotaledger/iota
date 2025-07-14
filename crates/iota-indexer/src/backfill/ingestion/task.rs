@@ -121,7 +121,7 @@ mod tests {
     use super::*;
     use crate::{
         db::get_pool_connection,
-        test_utils::{RowCount, TestDatabase, test_database_url},
+        test_utils::{RowCount, TestDatabase, db_url},
     };
 
     struct BackfillDummyTable;
@@ -168,7 +168,7 @@ mod tests {
     async fn ingestion_backfill_writes_to_db() {
         telemetry_subscribers::init_for_testing();
 
-        let mut db = TestDatabase::new(test_database_url("ingestion_backfill_test"));
+        let mut db = TestDatabase::new(db_url("ingestion_backfill_test"));
         db.recreate();
         db.reset_db();
 
