@@ -6706,13 +6706,17 @@ dependencies = [
 name = "iota-ledger-signer"
 version = "1.4.0-alpha"
 dependencies = [
+ "anyhow",
+ "base64 0.21.7",
  "bcs",
  "bip32",
+ "clap",
  "iota-ledger",
  "iota-sdk 1.4.0-alpha",
  "serde",
  "shared-crypto",
  "thiserror 1.0.64",
+ "tokio",
  "tracing",
 ]
 
