@@ -128,16 +128,16 @@ impl LedgerError {
     pub fn get_error(rc: u16) -> Option<LedgerError> {
         // First try to match APDU error codes (including ledger SDK standard codes)
         if let Ok(apdu_error) = APDUErrorCode::try_from(rc) {
-            match apdu_error {
-                APDUErrorCode::Ok => return None, // No error, return None
-                APDUErrorCode::DeviceLocked => return Some(LedgerError::DeviceLocked),
-                APDUErrorCode::Panic => return Some(LedgerError::DevicePanic),
-                APDUErrorCode::UserCancelled => return Some(LedgerError::UserCancelled),
+            return match apdu_error {
+                APDUErrorCode::Ok => None, // No error, return None
+                APDUErrorCode::DeviceLocked => Some(LedgerError::DeviceLocked),
+                APDUErrorCode::Panic => Some(LedgerError::DevicePanic),
+                APDUErrorCode::UserCancelled => Some(LedgerError::UserCancelled),
                 APDUErrorCode::BadCla | APDUErrorCode::BadIns | APDUErrorCode::BadP1P2 => {
-                    return Some(LedgerError::DeviceNotReady);
+                    Some(LedgerError::DeviceNotReady)
                 }
-                _ => return Some(LedgerError::APDUError(apdu_error)),
-            }
+                _ => Some(LedgerError::APDUError(apdu_error)),
+            };
         }
 
         // Handle syscall errors range in the APDU error codes

@@ -37,7 +37,7 @@ impl TransportTCP {
         // first read number of bytes
         stream.read_exact(&mut rcv_length_bytes)?;
 
-        // convert bytes to big endian (+2 for return code)
+        // convert bytes from big endian (+2 for return code)
         let rcv_length = u32::from_be_bytes(rcv_length_bytes) + 2;
 
         let mut buf = vec![0u8; rcv_length as usize];
