@@ -129,20 +129,6 @@ mod coin_api_tests_isolated {
         assert!(result_indexer.unwrap().id.is_none()); // Immutable data is stored in struct that doesn't have ID
     }
 
-    async fn get_coin_metadata_fullnode_indexer(
-        cluster: &TestCluster,
-        client: &HttpClient,
-        coin_type: String,
-    ) -> (Option<IotaCoinMetadata>, Option<IotaCoinMetadata>) {
-        let result_fullnode = cluster
-            .rpc_client()
-            .get_coin_metadata(coin_type.clone())
-            .await
-            .unwrap();
-        let result_indexer = client.get_coin_metadata(coin_type).await.unwrap();
-        (result_fullnode, result_indexer)
-    }
-
     #[tokio::test]
     async fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
@@ -221,6 +207,20 @@ mod coin_api_tests_isolated {
         .await;
         assert_eq!(result_indexer, Some(Supply { value: 0 }));
         assert_eq!(result_fullnode, result_indexer);
+    }
+
+    async fn get_coin_metadata_fullnode_indexer(
+        cluster: &TestCluster,
+        client: &HttpClient,
+        coin_type: String,
+    ) -> (Option<IotaCoinMetadata>, Option<IotaCoinMetadata>) {
+        let result_fullnode = cluster
+            .rpc_client()
+            .get_coin_metadata(coin_type.clone())
+            .await
+            .unwrap();
+        let result_indexer = client.get_coin_metadata(coin_type).await.unwrap();
+        (result_fullnode, result_indexer)
     }
 
     async fn create_native_coin_manager_coins(
