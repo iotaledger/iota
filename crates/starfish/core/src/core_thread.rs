@@ -522,19 +522,31 @@ pub(crate) mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
-        ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
-            Ok((block_refs, BTreeSet::new()))
+            Ok((block_refs, BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
-        ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let block_refs = block_headers.iter().map(|b| b.reference()).collect();
             self.block_headers.lock().extend(block_headers);
-            Ok((block_refs, BTreeSet::new()))
+            Ok((block_refs, BTreeMap::new()))
         }
 
         async fn add_transactions(
@@ -544,14 +556,22 @@ pub(crate) mod tests {
             unimplemented!()
         }
 
-        async fn get_missing_transaction_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            unimplemented!()
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            Ok(BTreeMap::new())
         }
 
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
-        ) -> Result<(BTreeSet<BlockRef>, BTreeSet<BlockRef>), CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             unimplemented!()
         }
 
@@ -559,11 +579,11 @@ pub(crate) mod tests {
             &self,
             round: Round,
             force: bool,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             self.new_block_calls
                 .lock()
                 .push((round, force, Instant::now()));
-            Ok(BTreeSet::new())
+            Ok(BTreeMap::new())
         }
 
         async fn get_missing_blocks(

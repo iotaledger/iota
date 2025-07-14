@@ -194,8 +194,16 @@ impl TransactionsSynchronizerHandle {
         let mut tasks = self.tasks.lock().await;
         tasks.abort_all();
         while let Some(result) = tasks.join_next().await {
-            result?
+            match result {
+                // task finished successfully
+                Ok(_) => (),
+                // task was cancelled, which is expected on shutdown
+                Err(e) if e.is_cancelled() => (),
+                // propagate other errors (e.g. panics)
+                Err(e) => return Err(e),
+            }
         }
+
         Ok(())
     }
 }
@@ -399,12 +407,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                         debug!("No results returned while requesting missing transactions");
                         continue;
                     }
-                    let mut total_fetched = 0;
-                    let mut total_requested= 0 ;
                     // Add process_fetched_transactions futures to the FuturesUnordered collection
                     for (transactions_guard, fetched_transactions, peer) in result {
-                       total_fetched += fetched_transactions.len();
-                       total_requested += transactions_guard.block_refs.len();
 
                        if let Err(err) = Self::process_fetched_transactions(
                             fetched_transactions,
@@ -423,12 +427,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                                "Error occurred while processing fetched blocks from peer {peer}: {err}"
                            );
                        }
-                    }
-
-                    debug!(
-                        "Total blocks requested to live fetch: {}, total fetched: {}",
-                        total_requested, total_fetched
-                    );
+                    };
                 },
                 else => {
                     info!("Live fetcher task will now abort.");
@@ -525,7 +524,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         }
 
         debug!(
-            "Synced {} missing transactions from peer {peer_index} {peer_hostname}: {}",
+            "[{sync_method}] Synced {} missing transactions from peer {peer_index} {peer_hostname}: {}",
             transactions.len(),
             transactions
                 .iter()
@@ -822,7 +821,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             }
         }
 
-        let mut assigned_block_refs = BTreeSet::new();
+        // let mut assigned_block_refs = BTreeSet::new();
         let mut request_futures = FuturesUnordered::new();
 
         // For each authority, randomize and try to lock up to
@@ -830,11 +829,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         for (authority, authority_block_refs) in blocks_by_authority {
             let peer_hostname = &context.committee.authority(authority).hostname;
             // Remove block_refs already assigned to another peer
-            let mut available_refs: BTreeSet<_> = authority_block_refs
-                .difference(&assigned_block_refs)
-                .cloned()
-                .collect();
+            let mut available_refs: BTreeSet<_> = authority_block_refs.clone();
+            // .difference(&assigned_block_refs)
+            // .cloned()
+            // .collect();
             while !available_refs.is_empty() {
+                // TODO: remove this and use inflight_transactions_map to choose transactions
+                // randomly
                 let selected_block_refs = available_refs
                     .iter()
                     .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)
@@ -849,8 +850,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 if let Some(transactions_guard) = inflight_transactions_map
                     .lock_transactions(selected_block_refs.clone(), authority)
                 {
-                    info!(
-                        "Syncing {} missing committed transactions from authority {} {}: {}",
+                    debug!(
+                        "[{sync_method}] Syncing {} missing committed transactions from authority {} {}: {}",
                         selected_block_refs.len(),
                         authority,
                         peer_hostname,
@@ -860,7 +861,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             .collect::<Vec<_>>()
                             .join(", ")
                     );
-                    assigned_block_refs.extend(&selected_block_refs);
+                    // assigned_block_refs.extend(&selected_block_refs);
                     // TODO: we need to measure how many requests are sent in each run and possibly
                     //  limit that. This can be limited after we implement Starfish with shards as
                     //  there will definitely be more requests perform.
@@ -899,7 +900,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_blocks) => {
-                            debug!("Fetched {} blocks from peer {}", fetched_blocks.len(), peer_hostname);
                             results.push((transactions_guard, fetched_blocks, peer_index));
 
                             // Update concurrent requests metric
@@ -935,28 +935,865 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use tokio::sync::Mutex;
+    use rand::{Rng, thread_rng};
+    use tokio::{sync::Mutex, time::sleep};
 
     use super::*;
     use crate::{
-        Round,
-        block_header::{BlockRef, VerifiedTransactions},
-        commit::CommitRange,
-        network::{BlockBundleStream, BlockStream, NetworkClient},
+        Round, TestBlockHeader,
+        block_header::{
+            BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedTransactions,
+        },
+        block_verifier::NoopBlockVerifier,
+        commit::{CertifiedCommits, CommitRange},
+        context::Context,
+        core_thread::CoreError,
+        dag_state::DagState,
+        network::{BlockBundleStream, BlockStream, NetworkClient, SerializedTransactions},
+        storage::mem_store::MemStore,
     };
+
+    #[tokio::test]
+    async fn successful_live_syncing() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let transaction_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create some test transactions
+        let block_round_author: Vec<(Round, u32)> = vec![(1, 1), (2, 1), (3, 2)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+        // Create verified transactions
+        let transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment =
+                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.reference(),
+                    commitment,
+                    Bytes::from(serialized),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1));
+            authorities.insert(AuthorityIndex::new_for_test(2));
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Stub the transactions in the network client
+        for transaction in &transactions {
+            network_client
+                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(1))
+                .await;
+        }
+
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Request the transactions
+        let result = transaction_synchronizer
+            .fetch_transactions(missing_transactions)
+            .await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(1000)).await;
+
+        // Verify that the transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), transactions.len());
+
+        // Verify that each transaction was fetched
+        for transaction in &transactions {
+            assert!(
+                fetched_transactions
+                    .iter()
+                    .any(|t| t.block_ref() == transaction.block_ref())
+            );
+        }
+
+        // Clean up
+        transaction_synchronizer.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_with_saturated_tasks() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create block round author pairs
+        let block_round_authors = (1..FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
+            .map(|i| (i as Round, 1u32))
+            .collect::<Vec<_>>();
+
+        let mut block_headers = Vec::with_capacity(block_round_authors.len());
+        let mut verified_transactions = Vec::with_capacity(block_round_authors.len());
+        let mut rng = thread_rng();
+
+        // Create verified transactions with high latency to ensure saturation
+        for (round, author) in &block_round_authors {
+            // Create a dummy transaction
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let serialized_vec = bcs::to_bytes(&transactions).unwrap();
+            let serialized = Bytes::from(serialized_vec);
+            let commitment =
+                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+            // Create a test block header with the correct commitment
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(*round, *author)
+                    .set_commitment(commitment)
+                    .build(),
+            );
+
+            block_headers.push(header.clone());
+
+            let verified_transaction = VerifiedTransactions::new(
+                transactions,
+                header.reference(),
+                commitment,
+                Bytes::from(serialized),
+            );
+
+            verified_transactions.push(verified_transaction);
+        }
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1));
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Delay fetch transactions response to simulate saturation deterministically.
+        network_client
+            .set_timeout_peer(AuthorityIndex::new_for_test(1))
+            .await;
+
+        // Add block headers to the dag state
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Send many requests to saturate the tasks
+        let mut results = Vec::new();
+        for _ in 0..FETCH_TRANSACTIONS_CONCURRENCY * 3 {
+            results.push(
+                handle
+                    .fetch_transactions(missing_transactions.clone())
+                    .await,
+            );
+        }
+
+        // THEN
+        // FETCH_TRANSACTIONS_CONCURRENCY tasks will start processing, another set of
+        // FETCH_TRANSACTIONS_CONCURRENCY tasks will be stuck in the queue, and the last
+        // FETCH_TRANSACTIONS_CONCURRENCY tasks will be returned with
+        // TransactionSynchronizerSaturated error.
+        // The test should be deterministic because the responses will timeout, so all
+        // tasks should be sent to the queue before the first request is processed.
+        let successes = results.iter().filter(|r| r.is_ok()).count();
+        let saturated = results
+            .iter()
+            .filter(|r| matches!(r, Err(ConsensusError::TransactionSynchronizerSaturated)))
+            .count();
+
+        assert_eq!(
+            successes,
+            FETCH_TRANSACTIONS_CONCURRENCY * 2,
+            "Expected {} requests to succeed",
+            FETCH_TRANSACTIONS_CONCURRENCY * 2
+        );
+        assert_eq!(
+            saturated, FETCH_TRANSACTIONS_CONCURRENCY,
+            "Expected {FETCH_TRANSACTIONS_CONCURRENCY} requests to be saturated"
+        );
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_with_timeout_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create some test transactions
+        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        let transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment =
+                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.reference(),
+                    commitment,
+                    Bytes::from(serialized),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
+            authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Set peer 1 to timeout
+        network_client
+            .set_timeout_peer(AuthorityIndex::new_for_test(1))
+            .await;
+
+        // Stub the transactions for peer 2
+        for transaction in &transactions {
+            network_client
+                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .await;
+        }
+
+        // Stub the missing transactions in the core dispatcher
+        core_dispatcher
+            .stub_missing_transactions(missing_transactions.clone())
+            .await;
+
+        // Add block headers to the dag state
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        sleep(Duration::from_millis(100)).await; // Wait shorter than the timeout to ensure the requests are still being processed.
+
+        // Verify that the transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched_transactions.is_empty(),
+            "Expected no transactions to be fetched due to timeout"
+        );
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(11_000)).await; // Wait longer than the timeout to ensure the request is processed.
+
+        // Verify that the transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), transactions.len());
+
+        // Verify that each transaction was fetched
+        for transaction in &transactions {
+            assert!(
+                fetched_transactions
+                    .iter()
+                    .any(|t| t.block_ref() == transaction.block_ref())
+            );
+        }
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_with_error_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create some test transactions
+        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        let transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment =
+                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.reference(),
+                    commitment,
+                    Bytes::from(serialized),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return an error
+            authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Set peer 1 to return an error
+        network_client
+            .set_error_peer(
+                AuthorityIndex::new_for_test(1),
+                ConsensusError::NetworkRequest("Test error".to_string()),
+            )
+            .await;
+
+        // Stub the transactions for peer 2
+        for transaction in &transactions {
+            network_client
+                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .await;
+        }
+
+        // Add block headers to the dag state
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify that the transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), transactions.len());
+
+        // Verify that each transaction was fetched
+        for transaction in &transactions {
+            assert!(
+                fetched_transactions
+                    .iter()
+                    .any(|t| t.block_ref() == transaction.block_ref())
+            );
+        }
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_with_empty_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create some test transactions
+        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        let transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment =
+                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.reference(),
+                    commitment,
+                    Bytes::from(serialized),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return empty results
+            authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Set peer 1 to return empty results
+        network_client
+            .set_empty_peer(AuthorityIndex::new_for_test(1))
+            .await;
+
+        // Stub the transactions for peer 2
+        for transaction in &transactions {
+            network_client
+                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .await;
+        }
+
+        // Stub the missing transactions in the core dispatcher
+        core_dispatcher
+            .stub_missing_transactions(missing_transactions.clone())
+            .await;
+
+        // Add block headers to the dag state
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify that the transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), transactions.len());
+
+        // Verify that each transaction was fetched
+        for transaction in &transactions {
+            assert!(
+                fetched_transactions
+                    .iter()
+                    .any(|t| t.block_ref() == transaction.block_ref())
+            );
+        }
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_with_corrupted_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create some test transactions
+        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        let transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment =
+                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.reference(),
+                    commitment,
+                    Bytes::from(serialized),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return corrupted data
+            authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Set peer 1 to return corrupted data
+        network_client
+            .set_corrupted_peer(AuthorityIndex::new_for_test(1))
+            .await;
+
+        // Stub the transactions for peer 2
+        for transaction in &transactions {
+            network_client
+                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .await;
+        }
+
+        // Stub the missing transactions in the core dispatcher
+        core_dispatcher
+            .stub_missing_transactions(missing_transactions.clone())
+            .await;
+
+        // Add block headers to the dag state
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify that the transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), transactions.len());
+
+        // Verify that each transaction was fetched
+        for transaction in &transactions {
+            assert!(
+                fetched_transactions
+                    .iter()
+                    .any(|t| t.block_ref() == transaction.block_ref())
+            );
+        }
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_with_all_peers_failing() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        // Create some test transactions
+        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        for (round, author) in &block_round_author {
+            // Create a dummy transaction
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+            let commitment =
+                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+
+            // Create a test block header with the correct commitment
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(*round, *author)
+                    .set_commitment(commitment)
+                    .build(),
+            );
+
+            block_headers.push(header);
+        }
+
+        // Create a map of block refs to authorities that have them
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
+            authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will return an error
+            missing_transactions.insert(header.reference(), authorities);
+        }
+
+        // Set peer 1 to timeout
+        network_client
+            .set_timeout_peer(AuthorityIndex::new_for_test(1))
+            .await;
+
+        // Set peer 2 to return an error
+        network_client
+            .set_error_peer(
+                AuthorityIndex::new_for_test(2),
+                ConsensusError::NetworkRequest("Test error".to_string()),
+            )
+            .await;
+
+        // Stub the missing transactions in the core dispatcher
+        core_dispatcher
+            .stub_missing_transactions(missing_transactions.clone())
+            .await;
+
+        // Add block headers to the dag state
+        dag_state.write().accept_block_headers(block_headers);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify that no transactions were added to the core
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), 0);
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[test]
+    fn inflight_transactions_map() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let map = InflightTransactionsMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // Lock & unlock transactions
+        {
+            let mut all_guards = Vec::new();
+
+            // Try to acquire the transaction locks for authorities 1 & 2
+            for i in 1..=2 {
+                let authority = AuthorityIndex::new_for_test(i);
+
+                let guard = map.lock_transactions(missing_block_refs.clone(), authority);
+                let guard = guard.expect("Guard should be created");
+                assert_eq!(guard.block_refs.len(), 4);
+
+                all_guards.push(guard);
+
+                // trying to acquire any of them again will not succeed
+                let guard = map.lock_transactions(missing_block_refs.clone(), authority);
+                assert!(guard.is_none());
+            }
+
+            // Trying to acquire for authority 3 it will fail - as we have maxed out the
+            // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 2)
+            let authority_3 = AuthorityIndex::new_for_test(3);
+
+            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3);
+            assert!(guard.is_none());
+
+            // Explicitly drop the guard of authority 1 and try for authority 3 again - it
+            // will now succeed
+            drop(all_guards.remove(0));
+
+            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3);
+            let guard = guard.expect("Guard should be successfully acquired");
+
+            assert_eq!(guard.block_refs, missing_block_refs);
+
+            // Dropping all guards should unlock on the block refs
+            drop(guard);
+            drop(all_guards);
+
+            assert_eq!(map.num_of_locked_transactions(), 0);
+        }
+    }
 
     struct MockNetworkClient {
         transactions: Arc<Mutex<HashMap<(AuthorityIndex, BlockRef), Bytes>>>,
+        error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
+        timeout_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
+        empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
+        corrupted_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
     }
 
     impl MockNetworkClient {
         fn new() -> Self {
             Self {
                 transactions: Arc::new(Mutex::new(HashMap::new())),
+                error_peers: Arc::new(Mutex::new(HashMap::new())),
+                timeout_peers: Arc::new(Mutex::new(BTreeSet::new())),
+                empty_peers: Arc::new(Mutex::new(BTreeSet::new())),
+                corrupted_peers: Arc::new(Mutex::new(BTreeSet::new())),
             }
         }
 
@@ -965,13 +1802,182 @@ mod tests {
             transactions: Vec<VerifiedTransactions>,
             peer: AuthorityIndex,
         ) {
-            // let mut transactions_map = self.transactions.lock().await;
-            // // FIXME:
-            // for transaction in transactions {
-            //     let block_ref = transaction.block_ref();
-            //     let serialized = bcs::to_bytes(&transaction).unwrap();
-            //     transactions_map.insert((peer, block_ref),
-            // serialized.into()); }
+            let mut transactions_map = self.transactions.lock().await;
+            for transaction in transactions {
+                let block_ref = transaction.block_ref();
+
+                // Create a SerializedTransactions struct
+                let serialized_transactions = SerializedTransactions {
+                    block_ref,
+                    serialized_transactions: transaction.serialized().clone(),
+                };
+
+                // Serialize the SerializedTransactions struct
+                let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                transactions_map.insert((peer, block_ref), serialized.into());
+            }
+        }
+
+        // Set a peer to return an error
+        async fn set_error_peer(&self, peer: AuthorityIndex, error: ConsensusError) {
+            let mut error_peers = self.error_peers.lock().await;
+            error_peers.insert(peer, error);
+        }
+
+        // Set a peer to timeout
+        async fn set_timeout_peer(&self, peer: AuthorityIndex) {
+            let mut timeout_peers = self.timeout_peers.lock().await;
+            timeout_peers.insert(peer);
+        }
+
+        // Set a peer to return empty results
+        async fn set_empty_peer(&self, peer: AuthorityIndex) {
+            let mut empty_peers = self.empty_peers.lock().await;
+            empty_peers.insert(peer);
+        }
+
+        // Set a peer to return corrupted data
+        async fn set_corrupted_peer(&self, peer: AuthorityIndex) {
+            let mut corrupted_peers = self.corrupted_peers.lock().await;
+            corrupted_peers.insert(peer);
+        }
+    }
+
+    // Extended MockCoreThreadDispatcher that implements the methods needed for
+    // TransactionsSynchronizer tests
+    #[derive(Default)]
+    struct MockCoreThreadDispatcher {
+        transactions: Mutex<Vec<VerifiedTransactions>>,
+        missing_transactions: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+    }
+
+    impl MockCoreThreadDispatcher {
+        fn new() -> Self {
+            Self {
+                transactions: Mutex::new(Vec::new()),
+                missing_transactions: Mutex::new(BTreeMap::new()),
+            }
+        }
+
+        async fn get_and_drain_transactions(&self) -> Vec<VerifiedTransactions> {
+            let mut transactions = self.transactions.lock().await;
+            transactions.drain(0..).collect()
+        }
+
+        async fn stub_missing_transactions(
+            &self,
+            missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ) {
+            let mut missing = self.missing_transactions.lock().await;
+            *missing = missing_transactions;
+        }
+    }
+
+    #[async_trait]
+    impl CoreThreadDispatcher for MockCoreThreadDispatcher {
+        async fn add_blocks(
+            &self,
+            _blocks: Vec<VerifiedBlock>,
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
+            unimplemented!()
+        }
+
+        async fn add_block_headers(
+            &self,
+            _block_headers: Vec<VerifiedBlockHeader>,
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
+            unimplemented!()
+        }
+
+        async fn add_transactions(
+            &self,
+            transactions: Vec<VerifiedTransactions>,
+        ) -> Result<(), CoreError> {
+            let mut txns = self.transactions.lock().await;
+
+            // Add unique transactions to avoid duplicates
+            let mut seen = BTreeSet::new();
+            // Populate with txns
+            for transaction in txns.iter() {
+                seen.insert(transaction.block_ref());
+            }
+            for transaction in transactions {
+                if !seen.contains(&transaction.block_ref()) {
+                    seen.insert(transaction.block_ref());
+                    txns.push(transaction);
+                }
+            }
+            Ok(())
+        }
+
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            let missing = self.missing_transactions.lock().await;
+
+            // Lock transactions once, outside the loop
+            let transactions = self.transactions.lock().await;
+
+            let mut filtered: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> = BTreeMap::new();
+
+            for (block_ref, authority_set) in missing.iter() {
+                let exists = transactions.iter().any(|txn| txn.block_ref() == *block_ref);
+
+                if !exists {
+                    filtered.insert(block_ref.clone(), authority_set.clone());
+                }
+            }
+
+            Ok(filtered)
+        }
+
+        async fn add_certified_commits(
+            &self,
+            _commits: CertifiedCommits,
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
+            unimplemented!()
+        }
+
+        async fn new_block(
+            &self,
+            _round: Round,
+            _force: bool,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            unimplemented!()
+        }
+
+        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            unimplemented!()
+        }
+
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
+            unimplemented!()
         }
     }
 
@@ -989,9 +1995,9 @@ mod tests {
 
         async fn subscribe_block_bundles(
             &self,
-            peer: AuthorityIndex,
-            last_received: Round,
-            timeout: Duration,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
             // Not needed for transactions synchronizer tests
             unimplemented!("fetch_latest_block_headers not implemented in mock")
@@ -1003,6 +2009,39 @@ mod tests {
             block_refs: Vec<BlockRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            // Check if this peer is set to timeout
+            let timeout_peers = self.timeout_peers.lock().await;
+            if timeout_peers.contains(&peer) {
+                // Sleep for a long time to simulate timeout
+                // The actual timeout will be handled by the caller
+                sleep(Duration::from_secs(10)).await;
+                return Ok(Vec::new());
+            }
+
+            // Check if this peer is set to return an error
+            let error_peers = self.error_peers.lock().await;
+            if let Some(error) = error_peers.get(&peer) {
+                return Err(error.clone());
+            }
+
+            // Check if this peer is set to return empty results
+            let empty_peers = self.empty_peers.lock().await;
+            if empty_peers.contains(&peer) {
+                return Ok(Vec::new());
+            }
+
+            // Check if this peer is set to return corrupted data
+            let corrupted_peers = self.corrupted_peers.lock().await;
+            if corrupted_peers.contains(&peer) {
+                // Return corrupted data (invalid bytes that can't be deserialized)
+                let mut result = Vec::new();
+                for _ in 0..block_refs.len() {
+                    result.push(Bytes::from(vec![0, 1, 2, 3])); // Invalid serialized data
+                }
+                return Ok(result);
+            }
+
+            // Normal case - return transactions from the map
             let transactions_map = self.transactions.lock().await;
             let mut result = Vec::new();
             for block_ref in block_refs {

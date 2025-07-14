@@ -183,6 +183,7 @@ mod tests {
 
     use crate::{
         BlockRef, Round,
+        block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         context::Context,
         core::CoreSignals,
@@ -190,7 +191,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusResult,
         leader_timeout::LeaderTimeoutTask,
-        network::{BlockStream, NetworkClient},
+        network::{BlockBundleStream, BlockStream, NetworkClient},
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
@@ -206,6 +207,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
             unimplemented!("Unimplemented")
         }
 
@@ -273,11 +283,12 @@ mod tests {
         let start = Instant::now();
 
         let (mut signals, signal_receivers) = CoreSignals::new(context.clone());
-
+        let block_verifier = Arc::new(NoopBlockVerifier {});
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
             context.clone(),
             dispatcher.clone(),
+            block_verifier,
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(MemStore::new()),
@@ -345,11 +356,13 @@ mod tests {
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
             context.clone(),
             dispatcher.clone(),
+            block_verifier.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(MemStore::new()),

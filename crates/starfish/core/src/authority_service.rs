@@ -1426,6 +1426,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1499,6 +1500,7 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
+            block_verifier.clone(),
             dag_state.clone(),
         );
 
