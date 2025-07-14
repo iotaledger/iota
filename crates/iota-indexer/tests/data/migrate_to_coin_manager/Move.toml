@@ -1,0 +1,9 @@
+[package]
+name = "Migrate to coin manager"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+migrate_coin = "0x0"

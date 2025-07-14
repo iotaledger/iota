@@ -30,3 +30,13 @@ export interface AccountFromFinder {
      */
     addresses: Array<Array<AddressFromFinder>>;
 }
+
+export class AccountTooManyAttemptsError extends Error {
+    constructor() {
+        super('too-many-attempts');
+    }
+
+    static is(error: Error) {
+        return error.message === 'too-many-attempts';
+    }
+}

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
@@ -129,16 +129,10 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
                     Committee::new(summary.epoch().checked_add(1).unwrap(), next_committee_data);
 
                 if new_committee != *committee {
-                    return Err(anyhow!(
-                        "Given committee does not match the end of epoch committee"
-                    ));
+                    bail!("Given committee does not match the end of epoch committee");
                 }
             }
-            None => {
-                return Err(anyhow!(
-                    "No end of epoch committee in the checkpoint summary"
-                ));
-            }
+            None => bail!("No end of epoch committee in the checkpoint summary"),
         }
     }
 
@@ -150,7 +144,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
     if (!proof.targets.objects.is_empty() || !proof.targets.events.is_empty())
         && proof.contents_proof.is_none()
     {
-        return Err(anyhow!("Contents proof is missing"));
+        bail!("Contents proof is missing");
     }
 
     // MILESTONE 3: contents proof is present if required
@@ -159,9 +153,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         // Extract Transaction Digests and check they are in contents
         let digests = contents_proof.effects.execution_digests();
         if contents_proof.transaction.digest() != &digests.transaction {
-            return Err(anyhow!(
-                "Transaction digest does not match the execution digest"
-            ));
+            bail!("Transaction digest does not match the execution digest");
         }
 
         // Ensure the digests are in the checkpoint contents
@@ -171,9 +163,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
             .any(|x| x.1 == &digests)
         {
             // Could not find the digest in the checkpoint contents
-            return Err(anyhow!(
-                "Transaction digest not found in the checkpoint contents"
-            ));
+            bail!("Transaction digest not found in the checkpoint contents");
         }
 
         // MILESTONE 4: Transaction & Effect correct and in contents
@@ -181,12 +171,12 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         if contents_proof.effects.events_digest()
             != contents_proof.events.as_ref().map(|e| e.digest()).as_ref()
         {
-            return Err(anyhow!("Events digest does not match the execution digest"));
+            bail!("Events digest does not match the execution digest");
         }
 
         // If the target includes any events ensure the events digest is not None
         if !proof.targets.events.is_empty() && contents_proof.events.is_none() {
-            return Err(anyhow!("Events digest is missing"));
+            bail!("Events digest is missing");
         }
 
         // MILESTONE 5: Events digest & Events are correct and present if required
@@ -196,18 +186,18 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         for (event_id, event) in &proof.targets.events {
             // Check the event corresponds to the transaction
             if event_id.tx_digest != digests.transaction {
-                return Err(anyhow!("Event does not belong to the transaction"));
+                bail!("Event does not belong to the transaction");
             }
 
             // The sequence number must be a valid index
             // Note: safe to unwrap as we have checked that its not None above
             if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().data.len() {
-                return Err(anyhow!("Event sequence number out of bounds"));
+                bail!("Event sequence number out of bounds");
             }
 
             // Now check that the contents of the event are the same
             if &contents_proof.events.as_ref().unwrap().data[event_id.event_seq as usize] != event {
-                return Err(anyhow!("Event contents do not match"));
+                bail!("Event contents do not match");
             }
         }
 
@@ -219,14 +209,14 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         for (object_ref, object) in &proof.targets.objects {
             // Is the given reference correct?
             if object_ref != &object.compute_object_reference() {
-                return Err(anyhow!("Object reference does not match the object"));
+                bail!("Object reference does not match the object");
             }
 
             // Has this object been created in these effects?
             changed_objects
                 .iter()
                 .find(|effects_object_ref| &effects_object_ref.0 == object_ref)
-                .ok_or(anyhow!("Object not found"))?;
+                .ok_or_else(|| anyhow!("Object not found"))?;
         }
 
         // MILESTONE 7: Object references are correct and in the effects

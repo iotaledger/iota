@@ -4,8 +4,6 @@
 
 #![allow(dead_code)]
 
-pub mod indexes;
-
 use std::{
     fs,
     fs::File,
@@ -24,7 +22,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::StreamExt;
-pub use indexes::{IndexStore, IndexStoreTables};
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{

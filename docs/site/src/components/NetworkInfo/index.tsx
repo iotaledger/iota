@@ -38,6 +38,7 @@ function L1(props: NetworkProps) {
           <th>JSON RPC URL</th>
             <td>
               <CodeBlock>{props.rpc.json.core}</CodeBlock>
+              <CodeBlock>{props.rpc.json.monochain}</CodeBlock>
               <tr>
                 <th>Websocket</th>
                 <td>
@@ -110,28 +111,6 @@ function Evm(props: NetworkProps) {
             </th>
             <td>
               {props.evmCustom?.ankrApiUrls.map((object, index) =>
-                typeof object === 'string' ? (
-                  <CodeBlock key={index}> {object as string} </CodeBlock>
-                ) : (
-                  <CodeBlock title={Object.keys(object)[0]} key={index}>
-                    {' '}
-                    {Object.values(object)[0]}{' '}
-                  </CodeBlock>
-                ),
-              )}
-            </td>
-          </tr>
-        )}
-        {props.evmCustom?.blastApiUrls && (
-          <tr>
-            <th>
-              <Admonition type='tip' title='Blast API URLs'>
-                <a href={'/build/blastAPI/'}>Blast API</a> provides highly
-                scalable fault-tolerant API endpoints.
-              </Admonition>
-            </th>
-            <td>
-              {props.evmCustom?.blastApiUrls.map((object, index) =>
                 typeof object === 'string' ? (
                   <CodeBlock key={index}> {object as string} </CodeBlock>
                 ) : (

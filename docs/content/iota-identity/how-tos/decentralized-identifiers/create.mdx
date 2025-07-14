@@ -42,14 +42,14 @@ you will need an an address with actual IOTA funds to create a new Identity.
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/utils/utils.rs#L100
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/utils/utils.rs#L103-L111
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/util.ts#L68-L71
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/util.ts#L66-L78
 ```
 
 </TabItem>
@@ -74,14 +74,14 @@ the DID inside the document.
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/utils/utils.rs#L49-L58
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/utils/utils.rs#L48-L57
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/util.ts#L30-L38
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/util.ts#L33-L41
 ```
 
 </TabItem>
@@ -95,23 +95,30 @@ DID Document.
 The created `Identity` contains an encoded version of the DID Document, and has a single controller that is represented by a newly
 created `ControllerCap`.
 
-:::info Controller Capability
-When a new `Identity` is created the transaction's sender is assumed to be its controller and thus a `ControllerCap` is sent to its address.
+:::info Identity Creation Arguments
+When creating a new Identity, if no arguments are provided - other than the mandatory DID Document - the following defaults will be used:
+- the transaction's sender address will become the Identity's single controller, with voting power `1`;
+- Identity's AC threshold set to `1`;
 :::
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/utils/utils.rs#L60-L64
+```rust 
+let identity = identity_client
+  .create_identity(unpublished)
+  .finish()
+  .build_and_execute(&identity_client)
+  .await?
+  .output;
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts#L24-L27
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts#L24-L27
 ```
 
 </TabItem>
@@ -124,14 +131,14 @@ https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/i
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/0_create_did.rs
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/0_basic/0_create_did.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
 ```
 
 </TabItem>

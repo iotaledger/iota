@@ -100,7 +100,7 @@ impl TransactionBuilder {
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
                 Owner::ObjectOwner(_) => {
-                    return Err(anyhow::anyhow!("Upgrade capability controlled by object"));
+                    bail!("Upgrade capability controlled by object");
                 }
             };
             builder.obj(capability_arg).unwrap();

@@ -48,8 +48,8 @@ impl From<anyhow::Error> for RestError {
     }
 }
 
-impl From<iota_types::iota_sdk2_conversions::SdkTypeConversionError> for RestError {
-    fn from(value: iota_types::iota_sdk2_conversions::SdkTypeConversionError) -> Self {
+impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for RestError {
+    fn from(value: iota_types::iota_sdk_types_conversions::SdkTypeConversionError) -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: Some(value.to_string()),
@@ -86,11 +86,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
             QuorumDriverInternal(err) => {
                 RestError::new(StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
             }
-            ObjectsDoubleUsed {
-                conflicting_txes,
-                retried_tx,
-                retried_tx_success,
-            } => {
+            ObjectsDoubleUsed { conflicting_txes } => {
                 let new_map = conflicting_txes
                     .into_iter()
                     .map(|(digest, (pairs, _))| {
@@ -102,8 +98,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
                     .collect::<std::collections::BTreeMap<_, Vec<_>>>();
 
                 let message = format!(
-                    "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}. Conflicting Transactions:\n{:#?}",
-                    retried_tx, retried_tx_success, new_map,
+                    "Failed to sign transaction by a quorum of validators because of locked objects. Conflicting Transactions:\n{new_map:#?}",
                 );
 
                 RestError::new(StatusCode::CONFLICT, message)

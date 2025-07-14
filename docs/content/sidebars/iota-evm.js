@@ -32,77 +32,58 @@ const iotaEvm = [
     },
     {
         type: 'category',
-        label: 'Tools',
+        label: 'Explanations',
         items: [
             {
-                type: 'category',
-                label: 'IOTA EVM',
-                collapsed: false,
-                link: {
-                    type: 'generated-index',
-                    title: 'IOTA EVM Tools',
-                    slug: '/iota-evm/tools/iota',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.iota.org',
-                    },
-                    {
-                        label: 'IOTA EVM Bridge',
-                        type: 'link',
-                        href: 'https://evm-bridge.iota.org',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'IOTA EVM Testnet',
-                collapsed: false,
-                link: {
-                    type: 'generated-index',
-                    title: 'IOTA Testnet EVM Tools',
-                    slug: '/iota-evm/tools/iota-testnet',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.testnet.iota.org',
-                    },
-                    {
-                        label: 'IOTA EVM Bridge & Faucet',
-                        type: 'link',
-                        href: 'https://testnet.evm-bridge.iota.org',
-                    },
-                ],
-            },
-            {
-                label: 'RPC Providers',
                 type: 'doc',
-                id: 'iota-evm/tools/rpcProviders',
+                label: 'Anatomy of a Smart Contract',
+                id: 'iota-evm/explanations/smart-contract-anatomy',
             },
             {
-                label: 'Oracles',
                 type: 'doc',
-                id: 'iota-evm/tools/oracles',
+                label: 'Sandbox Interface',
+                id: 'iota-evm/explanations/sandbox',
             },
             {
-                label: 'Subgraphs',
                 type: 'doc',
-                id: 'iota-evm/tools/subgraphs',
+                label: 'Calling a Smart Contract',
+                id: 'iota-evm/explanations/invocation',
             },
             {
-                label: 'IOTA Safe Wallet',
                 type: 'doc',
-                id: 'iota-evm/tools/safe',
+                label: 'State, Transitions and State Anchoring',
+                id: 'iota-evm/explanations/states',
             },
             {
-                label: 'Multicall3',
                 type: 'doc',
-                id: 'iota-evm/tools/multicall',
-            }
+                label: 'State manager',
+                id: 'iota-evm/explanations/state_manager',
+            },
+            {
+                type: 'doc',
+                label: 'Validators and Access Nodes',
+                id: 'iota-evm/explanations/validators',
+            },
+            {
+                type: 'doc',
+                label: 'Consensus',
+                id: 'iota-evm/explanations/consensus',
+            },
+            {
+                type: 'doc',
+                label: 'How Accounts Work',
+                id: 'iota-evm/explanations/how-accounts-work',
+            },
+            {
+                type: 'doc',
+                label: 'Move Packages',
+                id: 'iota-evm/explanations/move-anchor',
+            },
+            {
+                type: 'link',
+                label: 'Core Contracts',
+                href: '/iota-evm/references/core-contracts/overview',
+            },
         ],
     },
     {
@@ -261,58 +242,77 @@ const iotaEvm = [
     },
     {
         type: 'category',
-        label: 'Explanations',
+        label: 'Tools',
         items: [
             {
-                type: 'doc',
-                label: 'Anatomy of a Smart Contract',
-                id: 'iota-evm/explanations/smart-contract-anatomy',
+                type: 'category',
+                label: 'IOTA EVM',
+                collapsed: false,
+                link: {
+                    type: 'generated-index',
+                    title: 'IOTA EVM Tools',
+                    slug: '/iota-evm/tools/iota',
+                },
+                items: [
+                    {
+                        label: 'Explorer',
+                        type: 'link',
+                        href: 'https://explorer.evm.iota.org',
+                    },
+                    {
+                        label: 'Toolkit',
+                        type: 'link',
+                        href: 'https://evm-toolkit.evm.iotaledger.net',
+                    },
+                ],
             },
             {
-                type: 'doc',
-                label: 'Sandbox Interface',
-                id: 'iota-evm/explanations/sandbox',
+                type: 'category',
+                label: 'IOTA EVM Testnet',
+                collapsed: false,
+                link: {
+                    type: 'generated-index',
+                    title: 'IOTA Testnet EVM Tools',
+                    slug: '/iota-evm/tools/iota-testnet',
+                },
+                items: [
+                    {
+                        label: 'Explorer',
+                        type: 'link',
+                        href: 'https://explorer.evm.testnet.iota.org',
+                    },
+                    {
+                        label: 'Toolkit & Faucet',
+                        type: 'link',
+                        href: 'https://evm-toolkit.evm.testnet.iotaledger.net',
+                    },
+                ],
             },
             {
+                label: 'RPC Providers',
                 type: 'doc',
-                label: 'Calling a Smart Contract',
-                id: 'iota-evm/explanations/invocation',
+                id: 'iota-evm/tools/rpcProviders',
             },
             {
+                label: 'Oracles',
                 type: 'doc',
-                label: 'State, Transitions and State Anchoring',
-                id: 'iota-evm/explanations/states',
+                id: 'iota-evm/tools/oracles',
             },
             {
+                label: 'Subgraphs',
                 type: 'doc',
-                label: 'State manager',
-                id: 'iota-evm/explanations/state_manager',
+                id: 'iota-evm/tools/subgraphs',
             },
             {
+                label: 'IOTA Safe Wallet',
                 type: 'doc',
-                label: 'Validators and Access Nodes',
-                id: 'iota-evm/explanations/validators',
+                id: 'iota-evm/tools/safe',
             },
             {
+                label: 'Multicall3',
                 type: 'doc',
-                label: 'Consensus',
-                id: 'iota-evm/explanations/consensus',
-            },
-            {
-                type: 'doc',
-                label: 'How Accounts Work',
-                id: 'iota-evm/explanations/how-accounts-work',
-            },
-            {
-                type: 'doc',
-                label: 'Move Packages',
-                id: 'iota-evm/explanations/move-anchor',
-            },
-            {
-                type: 'link',
-                label: 'Core Contracts',
-                href: '/iota-evm/references/core-contracts/overview',
-            },
+                id: 'iota-evm/tools/multicall',
+            }
         ],
     },
     {

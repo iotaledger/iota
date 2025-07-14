@@ -884,7 +884,7 @@ async fn test_epoch_flag_upgrade() {
         .with_epoch_duration_ms(30000)
         .build()
         .await;
-    let any_not_empty = test_cluster.all_node_handles().iter().any(|node| {
+    let any_non_empty = test_cluster.all_node_handles().iter().any(|node| {
         node.with(|node| {
             !node
                 .state()
@@ -894,7 +894,7 @@ async fn test_epoch_flag_upgrade() {
                 .is_empty()
         })
     });
-    assert!(any_not_empty);
+    assert!(any_non_empty);
 
     // When the epoch changes, flags on some nodes should be re-initialized to be
     // empty.

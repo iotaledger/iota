@@ -4,7 +4,6 @@
 export * from './DAppInfoCard';
 export * from './DAppPermissionList';
 export * from './HideShowDisplayBox';
-export * from './NoData';
 export * from './Overlay';
 export * from './PageTemplate';
 export * from './PasswordInputDialog';

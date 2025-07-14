@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
-use iota_types::effects::TransactionEffectsAPI;
+use anyhow::{anyhow, bail};
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+};
 
 use crate::proof::{Proof, ProofTarget, TransactionProof};
 
@@ -27,12 +29,12 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
     if let Some(committee) = &this_proof.targets.committee {
         // Check we have the correct epoch
         if this_proof.checkpoint_summary.epoch() + 1 != committee.epoch {
-            return Err(anyhow!("Epoch mismatch between checkpoint and committee"));
+            bail!("Epoch mismatch between checkpoint and committee");
         }
 
         // Check its an end of epoch checkpoint
         if this_proof.checkpoint_summary.end_of_epoch_data.is_none() {
-            return Err(anyhow!("Expected end of epoch checkpoint"));
+            bail!("Expected end of epoch checkpoint");
         }
     }
 
@@ -61,7 +63,7 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
 
     // Basic check that all targets refer to the same transaction
     if !all_tx.all(|tx| tx == target_tx_id) {
-        return Err(anyhow!("All targets must refer to the same transaction"));
+        bail!("All targets must refer to the same transaction");
     }
 
     // Find the transaction in the checkpoint data
@@ -69,7 +71,7 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
         .transactions
         .iter()
         .find(|t| t.effects.transaction_digest() == &target_tx_id)
-        .ok_or(anyhow!("Transaction not found in checkpoint data"))?
+        .ok_or_else(|| anyhow!("Transaction not found in checkpoint data"))?
         .clone();
 
     let CheckpointTransaction {

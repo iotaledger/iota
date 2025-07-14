@@ -96,6 +96,9 @@
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/iota-indexer-monitoring/ @iotaledger/infrastructure
+/dev-tools/iota-data-ingestion/ @iotaledger/infrastructure
+/dev-tools/iota-rest-kv/ @iotaledger/infrastructure
+/dev-tools/pg-services-local/ @iotaledger/infrastructure
 /setups/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
@@ -136,7 +139,7 @@ vercel.json @iotaledger/tooling
 
 # Scripts
 /scripts/cargo_sort/ @muXxer
-/scripts/ci_tests/ @nmrshll
+/scripts/ci_tests/ @iotaledger/node
 /scripts/codesearch/ @muXxer
 /scripts/generate_files/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
@@ -149,10 +152,3 @@ vercel.json @iotaledger/tooling
 # Disable code ownership for these auto-generated files
 /Cargo.lock
 /pnpm-lock.yaml
-
-# TODO
-# Bridge related stuff will be skipped for now
-# /crates/iota-bridge/
-# /crates/iota-bridge-cli/
-# /crates/iota-bridge-indexer/
-# /bridge/
