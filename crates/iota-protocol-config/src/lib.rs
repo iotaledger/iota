@@ -58,7 +58,12 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 // Version 10: Enable min_free_execution_slot for the shared object congestion
 //             tracker in all networks.
 //             Increase the committee size to 80 on all networks.
-
+//             Enable round prober in consensus for mainnet.
+//             Enable probing for accepted rounds in round prober for mainnet.
+//             Switch to distributed vote scoring in consensus for mainnet.
+//             Enable the new consensus commit rule for mainnet.
+//             Enable consensus garbage collection for mainnet with GC depth set
+//             to 60 rounds
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2004,6 +2009,23 @@ impl ProtocolConfig {
 
                     // Increase the committee size to 80 on all networks.
                     cfg.max_committee_members_count = Some(80);
+
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
+                    // Enable probing for accepted rounds in round.
+                    cfg.feature_flags
+                        .consensus_round_prober_probe_accepted_rounds = true;
+                    // Enable distributed vote scoring.
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
+                    // Enable the new consensus commit rule.
+                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+
+                    // Enable consensus garbage collection
+                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                    // blocks within a window of ~4 seconds
+                    // to be included before be considered garbage collected.
+                    cfg.consensus_gc_depth = Some(60);
                 }
                 // Use this template when making changes:
                 //
