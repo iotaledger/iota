@@ -206,29 +206,24 @@ fn read_prefunded_account(path: &PathBuf) -> Result<Vec<PrefundedAccount>, anyho
         .addresses_with_alias()
         .into_iter()
         .filter_map(|(address, _)| {
-            let key = key_store.get_key(address).ok()?;
-            match key.as_keypair() {
-                Ok(keypair) => {
-                    let (privkey, curve_type) = match keypair.clone() {
-                        IotaKeyPair::Ed25519(k) => {
-                            (Hex::encode(k.private().as_bytes()), CurveType::Edwards25519)
-                        }
-                        IotaKeyPair::Secp256k1(k) => {
-                            (Hex::encode(k.private().as_bytes()), CurveType::Secp256k1)
-                        }
-                        IotaKeyPair::Secp256r1(k) => {
-                            (Hex::encode(k.private().as_bytes()), CurveType::Secp256r1)
-                        }
-                    };
-                    Some(PrefundedAccount {
-                        privkey,
-                        account_identifier: (*address).into(),
-                        curve_type,
-                        currency: IOTA.clone(),
-                    })
+            let keypair = key_store.get_key(address).ok()?.as_keypair().ok()?;
+            let (privkey, curve_type) = match keypair.clone() {
+                IotaKeyPair::Ed25519(k) => {
+                    (Hex::encode(k.private().as_bytes()), CurveType::Edwards25519)
                 }
-                Err(_) => None,
-            }
+                IotaKeyPair::Secp256k1(k) => {
+                    (Hex::encode(k.private().as_bytes()), CurveType::Secp256k1)
+                }
+                IotaKeyPair::Secp256r1(k) => {
+                    (Hex::encode(k.private().as_bytes()), CurveType::Secp256r1)
+                }
+            };
+            Some(PrefundedAccount {
+                privkey,
+                account_identifier: (*address).into(),
+                curve_type,
+                currency: IOTA.clone(),
+            })
         })
         .collect())
 }
