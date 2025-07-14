@@ -12,8 +12,8 @@ use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, ImplItem,
-    ImplItemFn, Item, ItemImpl, ItemMacro, ItemTrait, LitStr, ReturnType, Stmt, StmtMacro, Token,
-    TraitItem, ItemFn, TraitItemFn, UnOp,
+    ImplItemFn, Item, ItemFn, ItemImpl, ItemMacro, ItemTrait, LitStr, ReturnType, Stmt, StmtMacro,
+    Token, TraitItem, TraitItemFn, UnOp,
     fold::{Fold, fold_expr, fold_item_macro, fold_stmt},
     parse::Parser,
     parse_macro_input, parse2,
@@ -1184,7 +1184,8 @@ pub fn generate_non_fallible_fn(attr: TokenStream, item: TokenStream) -> TokenSt
     // Generate identifiers for function call and parameters for new signature
     let arg_identifiers = generate_arg_identifiers(&method_info.inputs);
 
-    // Generate the non-fallible function call (for free functions, we don't use trait qualification)
+    // Generate the non-fallible function call (for free functions, we don't use
+    // trait qualification)
     let call = generate_non_fallible_call(
         &method_info.original_name,
         &arg_identifiers,
