@@ -363,9 +363,11 @@ impl NameCommand {
                         .await?;
                 }
 
+                let sender = opts.rest.sender;
                 let name_str = name.to_string();
                 let coin =
-                    select_coin_arg_for_payment(name_str.as_str(), coin, price, context).await?;
+                    select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
+                        .await?;
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
@@ -403,13 +405,10 @@ impl NameCommand {
                 let sender = opts.rest.sender;
 
                 if let Some(identity) = &set_target_address {
-                    let sender =
-                        get_identity_address(opts.rest.sender.map(Into::into), context).await?;
-                    let target_address = get_identity_address(
-                        identity.clone().or(opts.rest.sender.map(Into::into)),
-                        context,
-                    )
-                    .await?;
+                    let target_address =
+                        get_identity_address(identity.clone().or(sender.map(Into::into)), context)
+                            .await?;
+                    let sender = get_identity_address(sender.map(Into::into), context).await?;
                     if set_reverse_lookup && target_address != sender {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
@@ -468,9 +467,11 @@ impl NameCommand {
                         .await?;
                 }
 
+                let sender = opts.rest.sender;
                 let name_str = name.to_string();
                 let coin =
-                    select_coin_arg_for_payment(name_str.as_str(), coin, price, context).await?;
+                    select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
+                        .await?;
                 let nft_id =
                     get_owned_nft_by_name::<NameRegistration>(&name, opts.rest.sender, context)
                         .await?
@@ -495,8 +496,6 @@ impl NameCommand {
                         ));
                     }
                 }
-
-                let sender = opts.rest.sender;
 
                 args.extend_from_slice(&[
                     format!(
@@ -899,8 +898,10 @@ impl AuctionCommand {
                     amount >= min_price,
                     "bid amount must be at least {min_price} for this name"
                 );
+                let sender = opts.rest.sender;
                 let coin =
-                    select_coin_arg_for_payment(&name.to_string(), coin, amount, context).await?;
+                    select_coin_arg_for_payment(&name.to_string(), coin, amount, sender, context)
+                        .await?;
 
                 let mut args = vec![
                     format!("--split-coins {coin} [{amount}]"),
@@ -990,8 +991,10 @@ impl AuctionCommand {
                     amount >= min_price,
                     "bid amount must be at least {min_price} for this name"
                 );
+                let sender = opts.rest.sender;
                 let coin =
-                    select_coin_arg_for_payment(&name.to_string(), coin, amount, context).await?;
+                    select_coin_arg_for_payment(&name.to_string(), coin, amount, sender, context)
+                        .await?;
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -2164,14 +2167,17 @@ async fn select_coin_arg_for_payment(
     name: &str,
     coin: Option<ObjectID>,
     price: u64,
+    sender: Option<IotaAddress>,
     context: &mut WalletContext,
 ) -> anyhow::Result<String> {
     Ok(match coin {
         Some(coin) => format!("@{coin}"),
         None => {
-            let gas_result = IotaClientCommands::Gas { address: None }
-                .execute(context)
-                .await?;
+            let gas_result = IotaClientCommands::Gas {
+                address: sender.map(Into::into),
+            }
+            .execute(context)
+            .await?;
             let mut balance = 0;
             if let IotaClientCommandResult::Gas(coins) = gas_result {
                 if coins.len() == 1 {
