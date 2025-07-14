@@ -27,7 +27,6 @@ tracing.workspace = true
 
 # internal dependencies
 iota-types.workspace = true
-ledger-transport-tcp.workspace = true
 shared-crypto.workspace = true
 
 [dev-dependencies]

@@ -4,10 +4,12 @@
 use hex::ToHex;
 use ledger_transport::{APDUAnswer, APDUCommand};
 use ledger_transport_hid::{LedgerHIDError, TransportNativeHID};
-use ledger_transport_tcp::TransportTCP;
 use tracing::debug;
 
 use crate::LedgerError;
+
+mod tcp;
+use tcp::TransportTCP;
 
 #[derive(Copy, Clone)]
 #[allow(clippy::upper_case_acronyms)]

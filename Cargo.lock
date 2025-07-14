@@ -6696,7 +6696,6 @@ dependencies = [
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
- "ledger-transport-tcp",
  "serde",
  "shared-crypto",
  "thiserror 1.0.64",
@@ -8552,14 +8551,6 @@ dependencies = [
  "ledger-transport",
  "libc",
  "log",
- "thiserror 1.0.64",
-]
-
-[[package]]
-name = "ledger-transport-tcp"
-version = "1.4.0-alpha"
-dependencies = [
- "ledger-transport",
  "thiserror 1.0.64",
 ]
 

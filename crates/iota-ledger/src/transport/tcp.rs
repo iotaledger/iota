@@ -7,9 +7,17 @@ use std::{
 };
 
 use ledger_transport::{APDUAnswer, APDUCommand};
+use thiserror::Error;
 
-mod errors;
-pub use errors::LedgerTCPError;
+#[derive(Error, Debug)]
+pub enum LedgerTCPError {
+    #[error("Ledger connect error")]
+    ConnectError,
+    #[error("TCP response error")]
+    ResponseError,
+    #[error("Ledger inner error")]
+    Inner,
+}
 
 pub struct TransportTCP {
     url: String,
@@ -53,8 +61,8 @@ impl TransportTCP {
 
         let mut stream = TcpStream::connect(&self.url).map_err(|_| LedgerTCPError::ConnectError)?;
 
-        let raw_answer = TransportTCP::request(&raw_command, &mut stream)
-            .map_err(|_| LedgerTCPError::InnerError)?;
+        let raw_answer =
+            TransportTCP::request(&raw_command, &mut stream).map_err(|_| LedgerTCPError::Inner)?;
         let answer =
             APDUAnswer::from_answer(raw_answer).map_err(|_| LedgerTCPError::ResponseError)?;
 

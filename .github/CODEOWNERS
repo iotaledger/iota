@@ -83,7 +83,6 @@
 /crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
-/crates/ledger-transport-tcp/ @iotaledger/dev-tools @alexsporn
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/shared-crypto/ @iotaledger/core-protocol
 /crates/simulacrum/ @iotaledger/vm-language
