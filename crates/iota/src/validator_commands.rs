@@ -216,15 +216,13 @@ impl IotaValidatorCommand {
 
                 let account_key = context.config().keystore().get_key(&iota_address)?;
 
+                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                    bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
+                }
+
                 if let StoredKey::KeyPair(keypair) = account_key {
-                    let account_keypair = match keypair {
-                        IotaKeyPair::Ed25519(pair) => IotaKeyPair::Ed25519(pair.copy()),
-                        _ => panic!(
-                            "Only Ed25519 accounts are supported, please use Ed25519 keys for now."
-                        ),
-                    };
                     let account_key_file_name = dir.join("account.key");
-                    make_key_files(account_key_file_name.clone(), false, Some(account_keypair))?;
+                    make_key_files(account_key_file_name.clone(), false, Some(keypair.clone()))?;
                 }
 
                 let network_key_file_name = dir.join("network.key");
