@@ -56,7 +56,7 @@ export function VirtualList<T>({
         const el = containerRef.current;
         if (!el) return;
 
-        const resizeObserver = new ResizeObserver((entries) => {
+        const resizeObserver = new ResizeObserver((_entries) => {
             virtualizer.measure();
         });
 

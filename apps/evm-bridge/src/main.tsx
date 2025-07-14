@@ -26,6 +26,11 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
+import { IotaGraphQLClientProvider } from '@iota/core';
+import { growthbook } from './lib/utils/index.ts';
+import { GrowthBookProvider } from '@growthbook/growthbook-react';
+
+growthbook.init();
 
 const queryClient = new QueryClient();
 
@@ -37,34 +42,38 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 chains: [L2_CHAIN_CONFIG as Chain],
             })}
         >
-            <EvmRpcClientProvider baseUrl={L2_CHAIN_CONFIG.evmRpcUrl}>
-                <QueryClientProvider client={queryClient}>
-                    <IotaClientProvider
-                        networks={networkConfig}
-                        defaultNetwork={getDefaultNetwork()}
-                    >
-                        <WalletProvider
-                            autoConnect
-                            theme={[
-                                {
-                                    variables: lightTheme,
-                                },
-                                {
-                                    selector: '.dark',
-                                    variables: darkTheme,
-                                },
-                            ]}
+            <GrowthBookProvider growthbook={growthbook}>
+                <EvmRpcClientProvider baseUrl={L2_CHAIN_CONFIG.evmRpcUrl}>
+                    <QueryClientProvider client={queryClient}>
+                        <IotaClientProvider
+                            networks={networkConfig}
+                            defaultNetwork={getDefaultNetwork()}
                         >
-                            <ThemeProvider appId="IOTA-evm-bridge">
-                                <RainbowKit>
-                                    <App />
-                                    <Toaster />
-                                </RainbowKit>
-                            </ThemeProvider>
-                        </WalletProvider>
-                    </IotaClientProvider>
-                </QueryClientProvider>
-            </EvmRpcClientProvider>
+                            <IotaGraphQLClientProvider>
+                                <WalletProvider
+                                    autoConnect
+                                    theme={[
+                                        {
+                                            variables: lightTheme,
+                                        },
+                                        {
+                                            selector: '.dark',
+                                            variables: darkTheme,
+                                        },
+                                    ]}
+                                >
+                                    <ThemeProvider appId="IOTA-evm-bridge">
+                                        <RainbowKit>
+                                            <App />
+                                            <Toaster />
+                                        </RainbowKit>
+                                    </ThemeProvider>
+                                </WalletProvider>
+                            </IotaGraphQLClientProvider>
+                        </IotaClientProvider>
+                    </QueryClientProvider>
+                </EvmRpcClientProvider>
+            </GrowthBookProvider>
         </WagmiProvider>
     </React.StrictMode>,
 );

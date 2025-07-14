@@ -10,6 +10,7 @@
 		"wallet-dev": "turbo --filter ./apps/wallet --filter apps-backend dev",
 		"wallet-dashboard-dev": "turbo --filter ./apps/wallet-dashboard --filter apps-backend dev",
 		"evm-bridge": "turbo --filter ./apps/evm-bridge",
+		"evm-bridge-dev": "turbo --filter ./apps/evm-bridge --filter apps-backend dev",
 		"ui-kit": "turbo --filter ./apps/ui-kit",
 		"explorer": "turbo --filter iota-explorer",
 		"wallet": "turbo --filter ./apps/wallet",
