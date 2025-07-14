@@ -3,25 +3,41 @@ import { buildDepositL2Parameters } from '../lib/utils';
 import { L2Chain } from '../config';
 import { useAccount, usePublicClient } from 'wagmi';
 import { iscAbi } from '../lib/constants';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface UseL2GasEstimateProps {
     address: string;
-    amount: string;
+    amount: bigint;
+    coinType?: string;
+    refetchInterval?: number;
 }
 
-export function useGasEstimateL2({ address, amount }: UseL2GasEstimateProps) {
+export function useGasEstimateL2({
+    address,
+    amount,
+    coinType = IOTA_TYPE_ARG,
+    refetchInterval,
+}: UseL2GasEstimateProps) {
     const layer2Account = useAccount();
     const iscContractAddress = (layer2Account?.chain as L2Chain)?.iscContractAddress;
     const client = usePublicClient();
 
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['l2-deposit-transaction-gas-estimate', address, iscContractAddress, amount],
+        queryKey: [
+            'l2-deposit-transaction-gas-estimate',
+            address,
+            iscContractAddress,
+            amount.toString(),
+            coinType,
+        ],
         async queryFn() {
             if (!address || !amount || !iscContractAddress) {
                 return null;
             }
-            const params = buildDepositL2Parameters(address, amount);
+
+            const params = buildDepositL2Parameters(address, amount, coinType);
+
             const gas = await client?.estimateContractGas({
                 address: iscContractAddress,
                 abi: iscAbi,
@@ -36,6 +52,6 @@ export function useGasEstimateL2({ address, amount }: UseL2GasEstimateProps) {
             }
             return gas ? gas * gasPrice : null;
         },
-        refetchInterval: 2000,
+        refetchInterval,
     });
 }

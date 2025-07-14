@@ -168,13 +168,15 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
                 .config()
                 .keystore()
                 .get_key(&sender)
-                .unwrap(),
+                .unwrap()
+                .as_keypair()?,
             test_cluster
                 .wallet
                 .config()
                 .keystore()
                 .get_key(&sponsor)
-                .unwrap(),
+                .unwrap()
+                .as_keypair()?,
         ],
     );
 
@@ -1169,7 +1171,12 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     .unwrap();
     let tx = to_sender_signed_transaction(
         tx_data,
-        context.config().keystore().get_key(&sender).unwrap(),
+        context
+            .config()
+            .keystore()
+            .get_key(&sender)
+            .unwrap()
+            .as_keypair()?,
     );
 
     let digest = *tx.digest();

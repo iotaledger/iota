@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::AccountKeystore;
+use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
@@ -3057,11 +3057,20 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             tx_data,
         ))
     } else {
-        let signature = context.config().keystore().sign_secure(
-            &tx_data.sender(),
-            &tx_data,
-            Intent::iota_transaction(),
-        )?;
+        let signature = {
+            let key = context.config().keystore().get_key(&tx_data.sender())?;
+
+            match key {
+                StoredKey::KeyPair(_) => context.config().keystore().sign_secure(
+                    &tx_data.sender(),
+                    &tx_data,
+                    Intent::iota_transaction(),
+                )?,
+                StoredKey::External { source, .. } => {
+                    bail!("External signing is not supported for source: {source}")
+                }
+            }
+        };
         let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
         if serialize_signed_transaction {
             Ok(IotaClientCommandResult::SerializedSignedTransaction(

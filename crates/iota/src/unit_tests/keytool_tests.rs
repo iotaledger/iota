@@ -10,7 +10,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     traits::ToFromBytes,
 };
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
@@ -60,9 +60,13 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
     keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
 
-    for pk in keystore.keys() {
-        let pk1 = pk.clone();
-        let sig = keystore.sign_secure(&(&pk).into(), b"hello", Intent::iota_transaction())?;
+    for key in keystore
+        .keys()
+        .into_iter()
+        .filter(|k| matches!(k, StoredKey::KeyPair(_)))
+    {
+        let pk = key.public();
+        let sig = keystore.sign_secure(&key.address(), b"hello", Intent::iota_transaction())?;
         match sig {
             Signature::Ed25519IotaSignature(_) => {
                 // signature contains corresponding flag
@@ -71,21 +75,21 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
                     Ed25519IotaSignature::SCHEME.flag()
                 );
                 // keystore stores pubkey with corresponding flag
-                assert!(pk1.flag() == Ed25519IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == Ed25519IotaSignature::SCHEME.flag())
             }
             Signature::Secp256k1IotaSignature(_) => {
                 assert_eq!(
                     *sig.as_ref().first().unwrap(),
                     Secp256k1IotaSignature::SCHEME.flag()
                 );
-                assert!(pk1.flag() == Secp256k1IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == Secp256k1IotaSignature::SCHEME.flag())
             }
             Signature::Secp256r1IotaSignature(_) => {
                 assert_eq!(
                     *sig.as_ref().first().unwrap(),
                     Secp256r1IotaSignature::SCHEME.flag()
                 );
-                assert!(pk1.flag() == Secp256r1IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == Secp256r1IotaSignature::SCHEME.flag())
             }
         }
     }

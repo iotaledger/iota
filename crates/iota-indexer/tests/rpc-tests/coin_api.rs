@@ -385,6 +385,115 @@ fn fullnode_get_coin_metadata_with_migrated_coin_manager_coins() {
 }
 
 #[test]
+fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("indexer_get_coin_metadata_with_migrated_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let (_, result_indexer) =
+            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+
+        assert!(result_indexer.is_some());
+        let result_indexer = result_indexer.unwrap();
+        assert_eq!(result_indexer.decimals, 2);
+        assert_eq!(result_indexer.name, "Trusted Coin");
+        assert_eq!(result_indexer.symbol, "TRUSTED");
+        assert_eq!(result_indexer.description, "Trusted Coin for test");
+        assert_eq!(result_indexer.icon_url, None);
+        assert!(result_indexer.id.is_some());
+
+        let (_, result_indexer) = get_coin_metadata_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+
+        assert!(result_indexer.is_some());
+        let result_indexer = result_indexer.unwrap();
+        assert_eq!(result_indexer.decimals, 2);
+        assert_eq!(result_indexer.name, "Immutable Metadata Trusted Coin");
+        assert_eq!(result_indexer.symbol, "IMM_META_TRUSTED");
+        assert_eq!(
+            result_indexer.description,
+            "Immutable Metadata Trusted Coin for test"
+        );
+        assert_eq!(result_indexer.icon_url, None);
+        assert!(result_indexer.id.is_none()); // Immutable data is stored in struct that doesn't have ID
+    });
+}
+
+#[test]
+fn get_coin_metadata_with_native_coin_manager_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("get_coin_metadata_with_native_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let (result_fullnode, result_indexer) =
+            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+
+        assert!(result_indexer.is_some());
+        assert_eq!(result_fullnode, result_indexer);
+        assert!(result_indexer.unwrap().id.is_some());
+
+        let (result_fullnode, result_indexer) = get_coin_metadata_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+
+        assert!(result_indexer.is_some());
+        assert_eq!(result_fullnode, result_indexer);
+        assert!(result_indexer.unwrap().id.is_none()); // Immutable data is stored in struct that doesn't have ID
+    });
+}
+
+#[test]
 fn get_coin_metadata_with_nonexistent_coin() {
     let ApiTestSetup {
         runtime,
@@ -419,6 +528,92 @@ fn get_total_supply() {
             get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
 
         assert!(result_indexer.is_some());
+        assert_eq!(result_fullnode, result_indexer);
+    });
+}
+
+#[test]
+fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("indexer_get_total_supply_with_migrated_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let (_, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        assert_eq!(result_indexer, Some(Supply { value: 100_000 }));
+
+        let (_, result_indexer) = get_total_supply_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+    });
+}
+
+#[test]
+fn get_total_supply_with_native_coin_manager_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("get_total_supply_with_native_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let (result_fullnode, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+        assert_eq!(result_fullnode, result_indexer);
+
+        let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
         assert_eq!(result_fullnode, result_indexer);
     });
 }
