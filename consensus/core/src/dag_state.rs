@@ -246,22 +246,38 @@ impl DagState {
             );
         }
 
-        // Initialize the scoring metrics according to the stored blocks
+        // Load the stored metrics relative to rounds that were not loaded to cache.
+        let metrics = state.store.scan_metrics().expect("Database error");
+        let hostnames = &state
+            .context
+            .committee
+            .authorities()
+            .map(|(_, x)| x.hostname.as_str())
+            .collect();
+        state
+            .context
+            .metrics
+            .load_scoring_metrics_from_storage(metrics, hostnames);
+
+        // Initialize the scoring metrics relative to rounds that were loaded to cache.
         let threshold_clock_round = state.threshold_clock_round();
         for (authority_index, authority) in state.context.committee.authorities() {
+            let hostname = authority.hostname.as_str();
             let eviction_round = state.evicted_rounds[authority_index];
-            let hostname = &authority.hostname;
-            let stored_block_rounds = state
-                .store
-                .scan_block_rounds_by_author(authority_index)
-                .expect("Database error");
-            state.context.metrics.load_scoring_metrics_from_storage(
-                authority_index,
-                hostname,
-                stored_block_rounds,
-                threshold_clock_round,
-                eviction_round,
-            );
+            let block_rounds_in_cache = state.recent_refs_by_authority[authority_index]
+                .iter()
+                .map(|block_ref| block_ref.round)
+                .collect();
+            state
+                .context
+                .metrics
+                .calculate_scoring_metrics_from_storage(
+                    authority_index,
+                    hostname,
+                    block_rounds_in_cache,
+                    threshold_clock_round,
+                    eviction_round,
+                );
         }
 
         if state.gc_enabled() {
@@ -1006,8 +1022,34 @@ impl DagState {
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
         );
+
+        // Update the scoring metrics accordingly to the flushed blocks.
+        let mut metrics_to_write = vec![];
+        let threshold_clock_round = self.threshold_clock_round();
+        for (authority_index, authority) in self.context.committee.authorities() {
+            let last_evicted_round = self.evicted_rounds[authority_index];
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let metrics_to_write_from_authority =
+                self.context.metrics.update_scoring_metrics_on_eviction(
+                    authority_index,
+                    authority.hostname.as_str(),
+                    eviction_round,
+                    last_evicted_round,
+                    &self.recent_refs_by_authority[authority_index],
+                    threshold_clock_round,
+                );
+            if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
+                metrics_to_write.push((authority_index, metrics_to_write_from_authority));
+            }
+        }
+
         self.store
-            .write(WriteBatch::new(blocks, commits, commit_info_to_write))
+            .write(WriteBatch::new(
+                blocks,
+                commits,
+                commit_info_to_write,
+                metrics_to_write,
+            ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context
             .metrics
@@ -1019,36 +1061,17 @@ impl DagState {
         // be persisted. This clean up also triggers some of the scoring metrics
         // updates.
         for (authority_index, _) in self.context.committee.authorities() {
-            let last_evicted_round = self.evicted_rounds[authority_index];
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let mut evicted_blocks_per_round =
-                vec![0_u32; (eviction_round - last_evicted_round) as usize];
             while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
                 let block_round = block_ref.round;
                 if block_round <= eviction_round {
                     self.recent_blocks.remove(block_ref);
                     self.recent_refs_by_authority[authority_index].pop_first();
-                    if block_round > last_evicted_round {
-                        evicted_blocks_per_round
-                            [(block_round - last_evicted_round - 1) as usize] += 1;
-                    }
                 } else {
                     break;
                 }
             }
             self.evicted_rounds[authority_index] = eviction_round;
-
-            // Update the scoring metrics.
-            let threshold_clock_round = self.threshold_clock_round();
-            let hostname = &self.context.committee.authority(authority_index).hostname;
-            self.context.metrics.update_scoring_metrics_after_eviction(
-                authority_index,
-                hostname,
-                &self.recent_refs_by_authority[authority_index],
-                evicted_blocks_per_round,
-                threshold_clock_round,
-                eviction_round,
-            );
         }
 
         let metrics = &self.context.metrics.node_metrics;

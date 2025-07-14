@@ -16,8 +16,8 @@ use crate::{
     block::{BlockRef, Round, VerifiedBlock},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
+    metrics::StoredScoreMetricsU64,
 };
-
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
@@ -40,10 +40,9 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
-    // The method reads all blocks in storage for a certain authority and returns a
-    // vector with all the round numbers of those blocks. Used for restoring the
+    // The method reads and returns all metrics stored. Used for restoring the
     // scoring metrics in case of DagState initialization from storage
-    fn scan_block_rounds_by_author(&self, author: AuthorityIndex) -> ConsensusResult<Vec<u32>>;
+    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoreMetricsU64)>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
@@ -76,6 +75,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
+    pub(crate) scoring_metrics: Vec<(AuthorityIndex, StoredScoreMetricsU64)>,
 }
 
 impl WriteBatch {
@@ -83,11 +83,13 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
+        scoring_metrics: Vec<(AuthorityIndex, StoredScoreMetricsU64)>,
     ) -> Self {
         WriteBatch {
             blocks,
             commits,
             commit_info,
+            scoring_metrics,
         }
     }
 
