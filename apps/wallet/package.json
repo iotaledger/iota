@@ -98,6 +98,7 @@
         "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@iota/ledgerjs-hw-app-iota": "workspace:*",
+        "@iota/signers": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
         "@ledgerhq/errors": "^6.12.4",
         "@ledgerhq/hw-transport": "^6.31.0",

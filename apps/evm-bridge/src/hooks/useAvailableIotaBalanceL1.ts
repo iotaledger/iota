@@ -1,21 +1,19 @@
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { useBalance as useBalanceL1 } from './useBalance';
-import { formatIOTAFromNanos, parseAmount } from '../lib/utils';
-import { useBuildL1DepositTransaction } from './useBuildL1DepositTransaction';
+import { parseAmount } from '../lib/utils';
+import { useBuildDepositTransactionL1 } from './useBuildDepositTransactionL1';
 import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { useBalance } from '@iota/core';
 
 const GENERIC_EVM_ADDRESS = '0x1111111111111111111111111111111111111111';
 
-export function useAvailableBalanceL1(): {
+export function useAvailableIotaBalanceL1(): {
     availableBalance: bigint;
     isLoading: boolean;
-    formattedAvailableBalance: string;
 } {
     const layer1Account = useCurrentAccount();
-
-    const { data: layer1BalanceData, isLoading: isLoadingL1 } = useBalanceL1(
+    const { data: layer1BalanceData, isLoading: isLoadingL1 } = useBalance(
         layer1Account?.address as `0x${string}`,
     );
 
@@ -24,17 +22,17 @@ export function useAvailableBalanceL1(): {
         : 0n;
 
     // Estimate gas costs for Layer 1 transactions
-    const { data: maxAmountDataL1, isLoading: isLoadingL1Transaction } =
-        useBuildL1DepositTransaction({
+    const minAmount = parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS) || 0n;
+    const { data: minAmountDataL1, isLoading: isLoadingL1Transaction } =
+        useBuildDepositTransactionL1({
             receivingAddress: GENERIC_EVM_ADDRESS,
-            amount: layer1TotalBalance - L1_BASE_GAS_BUDGET,
+            amount: minAmount,
         });
 
-    const gasEstimationIOTA = BigInt(maxAmountDataL1?.gasSummary?.budget || 0);
+    const gasEstimationIOTA = BigInt(minAmountDataL1?.gasSummary?.budget || L1_BASE_GAS_BUDGET);
 
     // Check if the available amount is larger than the minimum send amount
-    const isLayer1BalanceLargerThanMinimumSendAmount =
-        layer1TotalBalance > (parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS) ?? 0n);
+    const isLayer1BalanceLargerThanMinimumSendAmount = layer1TotalBalance > minAmount;
 
     // Calculate the Layer 1 available balance, subtracting gas costs if the amount is valid
     const availableBalance = isLayer1BalanceLargerThanMinimumSendAmount
@@ -44,6 +42,5 @@ export function useAvailableBalanceL1(): {
     return {
         availableBalance,
         isLoading: isLoadingL1 || isLoadingL1Transaction,
-        formattedAvailableBalance: formatIOTAFromNanos(availableBalance),
     };
 }

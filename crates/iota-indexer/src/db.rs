@@ -314,19 +314,14 @@ pub mod setup_postgres {
 
         use crate::{
             db::setup_postgres::{self, MIGRATIONS},
-            test_utils::TestDatabase,
+            test_utils::{TestDatabase, db_url},
         };
-
-        fn database_url(db_name: &str) -> String {
-            format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
-        }
 
         // Check that the migration records in the database created from the local
         // schema pass the consistency check.
         #[test]
         fn db_migration_consistency_smoke_test() {
-            let mut database =
-                TestDatabase::new(database_url("db_migration_consistency_smoke_test"));
+            let mut database = TestDatabase::new(db_url("db_migration_consistency_smoke_test"));
             database.recreate();
             database.reset_db();
             {
@@ -340,7 +335,7 @@ pub mod setup_postgres {
         #[test]
         fn db_migration_consistency_non_prefix_test() {
             let mut database =
-                TestDatabase::new(database_url("db_migration_consistency_non_prefix_test"));
+                TestDatabase::new(db_url("db_migration_consistency_non_prefix_test"));
             database.recreate();
             database.reset_db();
             {
@@ -361,8 +356,7 @@ pub mod setup_postgres {
 
         #[test]
         fn db_migration_consistency_prefix_test() {
-            let mut database =
-                TestDatabase::new(database_url("db_migration_consistency_prefix_test"));
+            let mut database = TestDatabase::new(db_url("db_migration_consistency_prefix_test"));
             database.recreate();
             database.reset_db();
             {

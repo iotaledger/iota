@@ -235,21 +235,18 @@ impl NameCommand {
             Self::Availability { name } => {
                 let name_str = name.to_string();
 
-                let price = if iota_client
-                    .read_api()
-                    .iota_names_lookup(&name_str)
-                    .await?
-                    .is_some()
-                {
-                    None
-                } else {
-                    Some(if name.is_subname() {
+                let price = match get_registry_entry(&name, &iota_client).await {
+                    Ok(_) => None,
+                    Err(RpcError::IotaObjectResponse(IotaObjectResponseError::NotExists {
+                        ..
+                    })) => Some(if name.is_subname() {
                         0
                     } else {
                         fetch_pricing_config(&iota_client)
                             .await?
                             .get_price(name.label(1).unwrap())?
-                    })
+                    }),
+                    Err(e) => return Err(e.into()),
                 };
 
                 NameCommandResult::Availability {
