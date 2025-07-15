@@ -7,7 +7,8 @@ High-level IOTA Ledger signer implementation for transaction signing and key man
 This crate provides a convenient, high-level interface for using Ledger hardware wallets with the IOTA network. It wraps the lower-level `iota-ledger` crate and integrates with the IOTA SDK to provide seamless transaction signing and key management capabilities.
 
 ## Examples
-This crate provides a sample transaction signing implementation in `examples/ledger_signer.rs`.  
+
+This crate provides a sample transaction signing implementation in `examples/ledger_signer.rs`.\
 To run the example, use:
 
 ```bash
