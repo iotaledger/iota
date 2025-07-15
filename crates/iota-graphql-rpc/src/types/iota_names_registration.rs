@@ -59,7 +59,7 @@ pub enum NameFormat {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct NativeIotaNamesRegistration {
+pub(crate) struct NativeNameRegistration {
     pub id: UID,
     pub name: NativeName,
     pub name_str: String,
@@ -67,12 +67,12 @@ pub(crate) struct NativeIotaNamesRegistration {
 }
 
 #[derive(Clone)]
-pub(crate) struct IotaNamesRegistration {
-    /// Representation of this IotaNamesRegistration as a generic Move object.
+pub(crate) struct NameRegistration {
+    /// Representation of this NameRegistration as a generic Move object.
     pub super_: MoveObject,
 
     /// The deserialized representation of the Move object's contents.
-    pub native: NativeIotaNamesRegistration,
+    pub native: NativeNameRegistration,
 }
 
 /// Represents the results of a query for a name's `NameRecord` and its
@@ -90,13 +90,13 @@ pub(crate) struct NameExpiration {
     pub checkpoint_timestamp_ms: u64,
 }
 
-pub(crate) enum IotaNamesRegistrationDowncastError {
-    NotAnIotaNamesRegistration,
+pub(crate) enum NameRegistrationDowncastError {
+    NotAnNameRegistration,
     Bcs(bcs::Error),
 }
 
 #[Object]
-impl IotaNamesRegistration {
+impl NameRegistration {
     pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_.super_).address().await
     }
@@ -186,7 +186,7 @@ impl IotaNamesRegistration {
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this object. These grant the
+    /// The NameRegistration NFTs owned by this object. These grant the
     /// owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
@@ -195,7 +195,7 @@ impl IotaNamesRegistration {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(&self.super_.super_)
             .iota_names_registrations(ctx, first, after, last, before)
             .await
@@ -371,7 +371,7 @@ impl IotaNamesRegistration {
             .await
     }
 
-    /// Name of the IotaNamesRegistration object
+    /// Name of the NameRegistration object
     async fn name(&self) -> &str {
         &self.native.name_str
     }
@@ -575,7 +575,7 @@ impl IotaNames {
     }
 }
 
-impl IotaNamesRegistration {
+impl NameRegistration {
     /// Query the database for a `page` of IOTA-Names registrations. The page
     /// uses the same cursor type as is used for `Object`, and is further
     /// filtered to a particular `owner`. `config` specifies where to find
@@ -591,8 +591,8 @@ impl IotaNamesRegistration {
         page: Page<object::Cursor>,
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
-    ) -> Result<Connection<String, IotaNamesRegistration>, Error> {
-        let type_ = IotaNamesRegistration::type_(config.package_address.into());
+    ) -> Result<Connection<String, NameRegistration>, Error> {
+        let type_ = NameRegistration::type_(config.package_address.into());
 
         let filter = ObjectFilter {
             type_: Some(type_.clone().into()),
@@ -604,39 +604,39 @@ impl IotaNamesRegistration {
             let address = object.address;
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
-                    "Expected {address} to be a IotaNamesRegistration, but it's not a Move Object.",
+                    "Expected {address} to be a NameRegistration, but it's not a Move Object.",
                 ))
             })?;
 
-            IotaNamesRegistration::try_from(&move_object, &type_).map_err(|_| {
+            NameRegistration::try_from(&move_object, &type_).map_err(|_| {
                 Error::Internal(format!(
-                    "Expected {address} to be a IotaNamesRegistration, but it is not."
+                    "Expected {address} to be a NameRegistration, but it is not."
                 ))
             })
         })
         .await
     }
 
-    /// Return the type representing a `IotaNamesRegistration` on chain. This
+    /// Return the type representing a `NameRegistration` on chain. This
     /// can change from chain to chain (mainnet, testnet, devnet etc).
     pub(crate) fn type_(package: IotaAddress) -> StructTag {
-        iota_names::IotaNamesRegistration::type_(package.into())
+        iota_names::NameRegistration::type_(package.into())
     }
 
-    // Because the type of the IotaNamesRegistration object is not constant,
+    // Because the type of the NameRegistration object is not constant,
     // we need to take it in as a param.
     pub(crate) fn try_from(
         move_object: &MoveObject,
         tag: &StructTag,
-    ) -> Result<Self, IotaNamesRegistrationDowncastError> {
+    ) -> Result<Self, NameRegistrationDowncastError> {
         if !move_object.native.is_type(tag) {
-            return Err(IotaNamesRegistrationDowncastError::NotAnIotaNamesRegistration);
+            return Err(NameRegistrationDowncastError::NotAnNameRegistration);
         }
 
         Ok(Self {
             super_: move_object.clone(),
             native: bcs::from_bytes(move_object.native.contents())
-                .map_err(IotaNamesRegistrationDowncastError::Bcs)?,
+                .map_err(NameRegistrationDowncastError::Bcs)?,
         })
     }
 }

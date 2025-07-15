@@ -105,7 +105,10 @@ async fn test_get_staked_iota() {
         )
         .await
         .unwrap();
-    let tx = to_sender_signed_transaction(delegation_tx, keystore.get_key(&address).unwrap());
+    let tx = to_sender_signed_transaction(
+        delegation_tx,
+        keystore.get_key(&address).unwrap().as_keypair().unwrap(),
+    );
     client
         .quorum_driver_api()
         .execute_transaction_block(

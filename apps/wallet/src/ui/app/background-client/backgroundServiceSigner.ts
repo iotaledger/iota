@@ -3,10 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
+import { bcs } from '@iota/iota-sdk/bcs';
 import { type IotaClient } from '@iota/iota-sdk/client';
+import { messageWithIntent } from '@iota/iota-sdk/cryptography';
+import { toB64 } from '@iota/iota-sdk/utils';
 
 import type { BackgroundClient } from '.';
-import { WalletSigner } from '../walletSigner';
+import { type SignedMessage, type SignedTransaction, WalletSigner } from '../walletSigner';
 
 export class BackgroundServiceSigner extends WalletSigner {
     readonly #account: SerializedUIAccount;
@@ -26,8 +29,31 @@ export class BackgroundServiceSigner extends WalletSigner {
         return this.#account.address;
     }
 
-    signData(data: Uint8Array): Promise<string> {
-        return this.#backgroundClient.signData(this.#account.id, data);
+    async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
+        const signature = await this.#backgroundClient.signData(
+            this.#account.id,
+            messageWithIntent(
+                'PersonalMessage',
+                bcs.vector(bcs.u8()).serialize(input.message).toBytes(),
+            ),
+        );
+
+        return {
+            bytes: toB64(input.message),
+            signature,
+        };
+    }
+
+    async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
+        const signature = await this.#backgroundClient.signData(
+            this.#account.id,
+            messageWithIntent('TransactionData', bytes),
+        );
+
+        return {
+            bytes: toB64(bytes),
+            signature,
+        };
     }
 
     connect(client: IotaClient) {

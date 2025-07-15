@@ -25,10 +25,10 @@ use iota_json_rpc_types::{
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+        read_authority_keypair_from_file, read_network_keypair_from_file,
         write_authority_keypair_to_file, write_keypair_to_file,
     },
-    keystore::AccountKeystore,
+    keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
@@ -213,37 +213,40 @@ impl IotaValidatorCommand {
             } => {
                 let dir = std::env::current_dir()?;
                 let authority_key_file_name = dir.join("authority.key");
-                let account_key = match context.config().keystore().get_key(&iota_address)? {
-                    IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
-                    _ => panic!(
-                        "Other account key types supported yet, please use Ed25519 keys for now."
-                    ),
-                };
-                let account_key_file_name = dir.join("account.key");
+
+                let account_key = context.config().keystore().get_key(&iota_address)?;
+
+                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                    bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
+                }
+
+                if let StoredKey::KeyPair(keypair) = account_key {
+                    let account_key_file_name = dir.join("account.key");
+                    make_key_files(account_key_file_name.clone(), false, Some(keypair.clone()))?;
+                }
+
                 let network_key_file_name = dir.join("network.key");
                 let protocol_key_file_name = dir.join("protocol.key");
                 make_key_files(authority_key_file_name.clone(), true, None)?;
-                make_key_files(account_key_file_name.clone(), false, Some(account_key))?;
                 make_key_files(network_key_file_name.clone(), false, None)?;
                 make_key_files(protocol_key_file_name.clone(), false, None)?;
 
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
-                let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file_name)?;
                 let protocol_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(protocol_key_file_name)?;
                 let network_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(network_key_file_name)?;
-                let pop = generate_proof_of_possession(
-                    &authority_keypair,
-                    (&account_keypair.public()).into(),
-                );
+
+                let account_address = IotaAddress::from(&account_key.public());
+
+                let pop = generate_proof_of_possession(&authority_keypair, account_address);
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         authority_key: authority_keypair.public().into(),
                         protocol_key: protocol_keypair.public().clone(),
-                        account_address: IotaAddress::from(&account_keypair.public()),
+                        account_address,
                         network_key: network_keypair.public().clone(),
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,

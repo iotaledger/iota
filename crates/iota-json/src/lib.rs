@@ -140,47 +140,21 @@ impl IotaJsonValue {
         layout: Option<&MoveTypeLayout>,
         bytes: &[u8],
     ) -> Result<Self, anyhow::Error> {
-        let json = if let Some(layout) = layout {
-            // Try to convert Vec<u8> inputs into string
-            fn try_parse_string(layout: &MoveTypeLayout, bytes: &[u8]) -> Option<String> {
-                if let MoveTypeLayout::Vector(t) = layout {
-                    if let MoveTypeLayout::U8 = **t {
-                        return bcs::from_bytes::<String>(bytes).ok();
-                    }
-                }
-                None
-            }
-            if let Some(s) = try_parse_string(layout, bytes) {
-                json!(s)
-            } else {
-                let result = BoundedVisitor::deserialize_value(bytes, layout).map_or_else(
-                    |_| {
-                        // fallback to array[u8] if fail to convert to json.
-                        JsonValue::Array(
-                            bytes
-                                .iter()
-                                .map(|b| JsonValue::Number(Number::from(*b)))
-                                .collect(),
-                        )
-                    },
-                    |move_value| {
-                        move_value_to_json(&move_value).unwrap_or_else(|| {
-                            // fallback to array[u8] if fail to convert to json.
-                            JsonValue::Array(
-                                bytes
-                                    .iter()
-                                    .map(|b| JsonValue::Number(Number::from(*b)))
-                                    .collect(),
-                            )
-                        })
-                    },
-                );
-                result
-            }
-        } else {
-            json!(bytes)
+        let Some(layout) = layout else {
+            return IotaJsonValue::new(json!(bytes));
         };
-        IotaJsonValue::new(json)
+        if let Ok(Some(value)) = BoundedVisitor::deserialize_value(bytes, layout)
+            .map(|move_value| move_value_to_json(&move_value))
+        {
+            return IotaJsonValue::new(value);
+        }
+        let value = JsonValue::Array(
+            bytes
+                .iter()
+                .map(|b| JsonValue::Number(Number::from(*b)))
+                .collect(),
+        );
+        IotaJsonValue::new(value)
     }
 
     pub fn to_json_value(&self) -> JsonValue {
