@@ -487,7 +487,7 @@ mod execution_slot_tests {
     use super::ExecutionSlot;
 
     #[test]
-    fn execution_slot_new_and_duration_test() {
+    fn new_with_non_zero_duration() {
         // Creating a slot with `start_time`  < `end_time`
         let slot = ExecutionSlot::new(1, 3);
         assert_eq!(slot.duration(), 2);
@@ -495,20 +495,20 @@ mod execution_slot_tests {
 
     #[test]
     #[should_panic]
-    fn execution_slot_new_zero_duration_test() {
+    fn new_with_zero_duration() {
         // Creating a slot with `start_time`  == `end_time` should panic.
         ExecutionSlot::new(1, 1);
     }
 
     #[test]
     #[should_panic]
-    fn execution_slot_new_negative_duration_test() {
+    fn new_with_negative_duration() {
         // Creating a slot with `start_time`  > `end_time` should panic.
         ExecutionSlot::new(3, 1);
     }
 
     #[test]
-    fn execution_slot_intersection_test() {
+    fn intersection() {
         // Test intersection of two identical slots
         let slot_1 = ExecutionSlot::new(1, 3);
         let slot_2 = ExecutionSlot::new(1, 3);
@@ -573,7 +573,7 @@ mod execution_slot_tests {
     }
 
     #[test]
-    fn execution_slot_contains_test() {
+    fn contains() {
         // Test case where slot_1 contains slot_2
         let slot_1 = ExecutionSlot::new(1, 5);
         let slot_2 = ExecutionSlot::new(2, 3);
