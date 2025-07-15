@@ -16,7 +16,7 @@ fun init(witness: TEST, ctx: &mut TxContext) {
         b"TEST",
         b"Test Coin",
         b"Test coin metadata",
-        option::some(url::new_unsafe_from_bytes(b"http://iota.io")),
+        option::some(url::new_unsafe_from_bytes(b"http://iota.org")),
         ctx,
     );
 
