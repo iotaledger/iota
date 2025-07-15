@@ -69,22 +69,22 @@ pub(crate) async fn sign_transaction(
             } => {
                 match ExternalKeySource::from(source.as_str()) {
                     ExternalKeySource::Ledger => {
-                        if let Some(derivation_path) = derivation_path {
-                            let signer = LedgerSigner::new_with_default(
-                                derivation_path.clone(),
-                                Some(iota_client.clone()),
-                            )?;
-                            // pass the transaction sender to the signer to ensure the correct
-                            // key is used
-                            signer
-                                .sign_transaction(tx_data, sender)
-                                .await
-                                .map(|s| s.signature)?
-                        } else {
+                        let Some(derivation_path) = derivation_path else {
                             bail!(
                                 "Derivation path is required for Ledger signing. Please specify it in the keystore."
                             );
-                        }
+                        };
+
+                        let signer = LedgerSigner::new_with_default(
+                            derivation_path.clone(),
+                            Some(iota_client.clone()),
+                        )?;
+                        // pass the transaction sender to the signer to ensure the correct
+                        // key is used
+                        signer
+                            .sign_transaction(tx_data, sender)
+                            .await
+                            .map(|s| s.signature)?
                     }
                     ExternalKeySource::Unknown(name) => {
                         bail!("External signing is not supported for source: {name}")
@@ -115,18 +115,18 @@ where
         } => {
             match ExternalKeySource::from(source.as_str()) {
                 ExternalKeySource::Ledger => {
-                    if let Some(derivation_path) = derivation_path {
-                        let ledger = Ledger::new_with_default()?;
-                        // Pass the expected address to the ledger to ensure the signature is for
-                        // the correct address.
-                        ledger
-                            .sign_intent(derivation_path, address, intent, &msg, vec![])?
-                            .signature
-                    } else {
+                    let Some(derivation_path) = derivation_path else {
                         bail!(
                             "Derivation path is required for Ledger signing. Please specify it in the keystore."
                         );
-                    }
+                    };
+
+                    let ledger = Ledger::new_with_default()?;
+                    // Pass the expected address to the ledger to ensure the signature is for
+                    // the correct address.
+                    ledger
+                        .sign_intent(derivation_path, address, intent, &msg, vec![])?
+                        .signature
                 }
                 ExternalKeySource::Unknown(name) => {
                     bail!("External signing is not supported for source: {name}")

@@ -63,10 +63,7 @@ impl LedgerSigner {
             match utils::load_objects_with_client(client, transaction).await {
                 Ok(objects) => objects,
                 Err(e) => {
-                    warn!(
-                        "Failed to load objects: {}. Falling back to blind-signing.",
-                        e
-                    );
+                    warn!("Failed to load objects: {e}. Falling back to blind-signing.");
                     vec![]
                 }
             }
