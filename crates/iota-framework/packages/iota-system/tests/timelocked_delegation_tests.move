@@ -653,7 +653,7 @@ fun test_unlock_expired() {
     scenario.next_tx(STAKER_ADDR_1);
     {
         let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
-        // The `timelocked_staked_iota` is expired so it sfould be unlocked.
+        // The `timelocked_staked_iota` is expired so it should be unlocked.
         let staked_iota = timelocked_staked_iota.unlock(scenario.ctx());
 
         assert_eq(staked_iota.amount(), 2 * NANOS_PER_IOTA);
