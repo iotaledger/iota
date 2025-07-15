@@ -89,6 +89,10 @@ impl Ledger {
     /// If another app is open, it will close it first
     /// This will re-create the transport after closing the app
     pub fn ensure_app_is_open(&mut self) -> Result<(), LedgerError> {
+        if self.transport.is_simulator() {
+            return Ok(());
+        }
+
         match bolos::app_get_name::exec(&self.transport)?.app.as_str() {
             IOTA_APP_NAME => {
                 // App is already open

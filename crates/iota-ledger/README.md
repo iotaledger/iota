@@ -38,11 +38,6 @@ println!("Address: {}", public_key_result.address);
 // Verify address on device (shows on screen for user confirmation)
 let verified = ledger.verify_address(&path)?;
 
-// Check if IOTA app is open
-if !ledger.is_app_open()? {
-    ledger.bolos_open_app()?;
-}
-
 // Sign a transaction using intent-based signing
 let signed_tx = ledger.sign_intent(&path, &address, intent, &transaction_data, objects)?;
 ```

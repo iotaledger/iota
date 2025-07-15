@@ -678,7 +678,8 @@ impl KeyToolCommand {
                 derivation_path,
             } => {
                 info!("Importing Ledger to keystore");
-                let ledger = Ledger::new_with_default()?;
+                let mut ledger = Ledger::new_with_default()?;
+                ledger.ensure_app_is_open()?;
                 let response = ledger.get_public_key(&derivation_path)?;
                 keystore.import_from_external(
                     ExternalKeySource::Ledger.as_str(),

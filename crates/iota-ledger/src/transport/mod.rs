@@ -46,6 +46,10 @@ impl Transport {
         }
     }
 
+    pub(crate) fn is_simulator(&self) -> bool {
+        matches!(self.type_, TransportType::TCP)
+    }
+
     pub(crate) fn recreate(&mut self) -> Result<(), LedgerError> {
         self.transport = create_ledger_transport(self.type_)?;
         Ok(())
