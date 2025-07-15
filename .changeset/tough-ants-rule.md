@@ -2,4 +2,4 @@
 '@iota/apps-ui-kit': patch
 ---
 
-add gradient border to names theme
+add gradient border to outline button
