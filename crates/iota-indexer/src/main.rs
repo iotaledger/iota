@@ -6,6 +6,7 @@ use std::env;
 
 use clap::{CommandFactory, FromArgMatches, Parser};
 use iota_indexer::{
+    backfill::runner::BackfillRunner,
     config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
     db::{
         get_pool_connection, new_connection_pool, reset_database,
@@ -106,6 +107,15 @@ async fn main() -> Result<(), IndexerError> {
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
         Command::HelpDeprecated => unreachable!("This case is handled earlier"),
+        Command::RunBackfill {
+            start,
+            end,
+            runner_kind,
+            backfill_config,
+        } => {
+            let total_range = start..=end;
+            BackfillRunner::run(runner_kind, connection_pool, backfill_config, total_range).await?;
+        }
     }
 
     Ok(())

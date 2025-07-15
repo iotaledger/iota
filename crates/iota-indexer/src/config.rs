@@ -9,7 +9,7 @@ use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use url::Url;
 
-use crate::db::ConnectionPoolConfig;
+use crate::{backfill::BackfillKind, db::ConnectionPoolConfig};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -165,6 +165,27 @@ impl Default for IngestionConfig {
     }
 }
 
+#[derive(Args, Debug, Clone)]
+pub struct BackfillConfig {
+    /// Maximum number of concurrent tasks to run.
+    #[arg(
+    long,
+    default_value_t = Self::DEFAULT_MAX_CONCURRENCY,
+    )]
+    pub max_concurrency: usize,
+    /// Number of checkpoints to backfill in a single SQL command.
+    #[arg(
+    long,
+    default_value_t = Self::DEFAULT_CHUNK_SIZE,
+    )]
+    pub chunk_size: usize,
+}
+
+impl BackfillConfig {
+    const DEFAULT_MAX_CONCURRENCY: usize = 10;
+    const DEFAULT_CHUNK_SIZE: usize = 1000;
+}
+
 #[derive(Subcommand, Clone, Debug)]
 pub enum Command {
     Indexer {
@@ -181,6 +202,24 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
+    /// Backfill DB tables for some ID range [start, end].
+    /// The tool will automatically slice it into smaller ranges and for each
+    /// range, it first makes a read query to the DB to get data needed for
+    /// backfil if needed, which then can be processed and written back to
+    /// the DB. To add a new backfill, add a new module and implement the
+    /// `BackfillTask` trait.
+    RunBackfill {
+        /// Start of the range to backfill, inclusive.
+        /// It can be a checkpoint number or an epoch or any other identifier
+        /// that can be used to slice the backfill range.
+        start: usize,
+        /// End of the range to backfill, inclusive.
+        end: usize,
+        #[command(subcommand)]
+        runner_kind: BackfillKind,
+        #[command(flatten)]
+        backfill_config: BackfillConfig,
+    },
 }
 
 #[derive(Args, Default, Debug, Clone)]
