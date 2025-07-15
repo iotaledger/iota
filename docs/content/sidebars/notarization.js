@@ -65,7 +65,7 @@ const notarization = [
                     {
                         type: 'link',
                         label: 'Wasm',
-                        href: 'iota-notarization/references/wasm/api_ref',
+                        href: '/developer/iota-notarization/references/wasm/api_ref',
                     },
                 ],
             },
