@@ -79,10 +79,12 @@ mod tests {
             Ok(())
         }
 
+        #[allow(clippy::manual_async_fn)]
         fn try_get_async(&self, _key: &str) -> impl Future<Output = Result<String, String>> {
             async { Ok("async_value".to_string()) }
         }
 
+        #[allow(clippy::manual_async_fn)]
         fn try_put_async(
             &self,
             _key: &str,
