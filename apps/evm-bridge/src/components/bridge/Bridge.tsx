@@ -2,30 +2,35 @@ import { DepositLayer1, DepositLayer2 } from '..';
 import { Header } from '@iota/apps-ui-kit';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useMemo } from 'react';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { createBridgeFormSchema } from '../../lib/schema/bridgeForm.schema';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useBridgeStore } from '../../lib/stores';
-import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
-import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
+import { useCoinsMetadata } from '../../hooks/useCoinsMetadata';
+import { BridgeFormInputName } from '../../lib/enums';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useSortedCoins } from '../../hooks/useSortedCoins';
 
 export function Bridge() {
-    const isFromLayer1 = useBridgeStore((state) => state.isFromLayer1);
-    const { availableBalance: availableBalanceL1 } = useAvailableBalanceL1();
-    const { availableBalance: availableBalanceL2 } = useAvailableBalanceL2();
+    const { sortedCoinsL1, sortedCoinsL2 } = useSortedCoins();
 
-    const availableBalance = isFromLayer1 ? availableBalanceL1 : availableBalanceL2;
+    const { metadata: coinsMetadataL1 } = useCoinsMetadata(sortedCoinsL1);
+    const { metadata: coinsMetadataL2 } = useCoinsMetadata(sortedCoinsL2);
 
     const formSchema = useMemo(
-        () => createBridgeFormSchema(availableBalance, IOTA_DECIMALS, isFromLayer1),
-        [availableBalance, isFromLayer1],
+        () =>
+            createBridgeFormSchema(sortedCoinsL1, sortedCoinsL2, coinsMetadataL1, coinsMetadataL2),
+        [sortedCoinsL1, sortedCoinsL2, coinsMetadataL1, coinsMetadataL2],
     );
 
     const formMethods = useForm({
         mode: 'all',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolver: zodResolver(formSchema as any),
+        defaultValues: {
+            [BridgeFormInputName.IsFromLayer1]: true,
+            [BridgeFormInputName.CoinType]: IOTA_TYPE_ARG,
+        },
     });
+    const isFromLayer1 = formMethods.watch(BridgeFormInputName.IsFromLayer1);
 
     return (
         <FormProvider {...formMethods}>

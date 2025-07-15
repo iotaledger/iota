@@ -25,6 +25,16 @@ on:
         type: string
         required: false
         default: ""
+      rustTestsOnly:
+        description: "Run only Rust tests"
+        type: boolean
+        required: false
+        default: false
+      simTestsOnly:
+        description: "Run only simulation tests"
+        type: boolean
+        required: false
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -55,9 +65,11 @@ env:
 
 jobs:
   examples:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rust_examples.yml
 
   tests:
+    if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rust_tests.yml
     with:
       isRust: true
@@ -69,23 +81,29 @@ jobs:
       testOnlyChangedCrates: false
 
   deny:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_cargo_deny.yml
 
   deny-external:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_cargo_deny.yml
     with:
       manifest-path: external-crates/move/Cargo.toml
 
   execution-cut:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_execution_cut.yml
 
   split-cluster:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
 
   rosetta:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rosetta.yml
 
   simtest:
+    if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
     timeout-minutes: 600
     runs-on: [self-hosted-x64]
 
@@ -93,5 +111,9 @@ jobs:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ env.IOTA_REF }}
+      - name: Get latest simtest script from commit that triggered this workflow
+        run: |
+          git fetch origin ${{ github.sha }}
+          git checkout ${{ github.sha }} -- scripts/simtest/simtest-run.sh
       - name: Run simtest
         run: scripts/simtest/simtest-run.sh

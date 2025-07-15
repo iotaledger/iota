@@ -141,8 +141,8 @@ impl HistogramVec {
         registry: &Registry,
         percentiles: Vec<usize>,
     ) -> Self {
-        let sum_name = format!("{}_sum", name);
-        let count_name = format!("{}_count", name);
+        let sum_name = format!("{name}_sum");
+        let count_name = format!("{name}_count");
         let sum =
             register_int_counter_vec_with_registry!(sum_name, desc, labels, registry).unwrap();
         let count =

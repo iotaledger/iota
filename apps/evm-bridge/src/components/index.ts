@@ -6,3 +6,4 @@ export * from './bridge';
 export * from './svgs';
 export * from './toaster';
 export * from './wallet-connect-input';
+export * from './CoinSelector';

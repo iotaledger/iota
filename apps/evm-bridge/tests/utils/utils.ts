@@ -145,27 +145,6 @@ export async function closeBrowserTabsExceptLast(browserContext: BrowserContext)
     }
 }
 
-/**
- * Utility function to close a modal if it exists and is visible.
- * @param page - The Playwright page instance.
- * @param modalSelector - The selector for the modal container.
- * @param selector - The modal close button selector (e.g., aria-label="Close").
- */
-export async function closeMetaMaskModalIfExists(
-    page: Page,
-    modalSelector: string,
-    buttonSelector: string,
-): Promise<void> {
-    await page.waitForTimeout(500);
-    const modal = page.locator(modalSelector);
-    if (await modal.isVisible()) {
-        const closeButton = modal.locator(buttonSelector);
-        if (await closeButton.isVisible()) {
-            await closeButton.click();
-        }
-    }
-}
-
 export async function getExtensionUrl(browserContext: BrowserContext): Promise<string> {
     let [background] = browserContext.serviceWorkers();
 
@@ -178,13 +157,19 @@ export async function getExtensionUrl(browserContext: BrowserContext): Promise<s
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
-    await closeMetaMaskModalIfExists(
-        l2WalletPage,
-        '.mm-box.mm-modal-content',
-        'button[aria-label="Close"]',
-    );
-    await l2WalletPage.click('[data-testid="network-display"]');
-    await l2WalletPage.getByText('Add a custom network').click();
+    await l2WalletPage.click('[data-testid="network-display"]', { force: true });
+    const popoverCloseButton = l2WalletPage.locator('.page-container__header-close');
+
+    if (await popoverCloseButton.isVisible()) {
+        await popoverCloseButton.click();
+    }
+    const addCustomNetworkButton = await l2WalletPage.getByText('Add a custom network');
+
+    if (await addCustomNetworkButton.isHidden()) {
+        await l2WalletPage.click('[data-testid="network-display"]');
+    }
+
+    await addCustomNetworkButton.click();
 
     await l2WalletPage.getByTestId('network-form-network-name').fill(CONFIG.L2.chainName);
     await l2WalletPage.getByTestId('test-add-rpc-drop-down').click();
@@ -202,9 +187,60 @@ export async function addNetworkToMetaMask(l2WalletPage: Page) {
 }
 
 export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserContext) {
-    // Add funds to L1
-    await page.getByTestId('request-l1-funds-button').click();
-    await expect(page.getByText('Funds successfully sent.')).toBeVisible();
+    const maxRetries = 3; // Maximum number of retry attempts
+    let attempt = 1;
+    let success = false;
+
+    while (attempt <= maxRetries && !success) {
+        try {
+            console.log(`Attempt ${attempt}/${maxRetries} to add funds through bridge UI`);
+
+            // Add funds to L1
+            await page.getByTestId('request-l1-funds-button').click();
+
+            // Wait for transaction completion - look for either success or error message
+            const successPromise = page
+                .getByText('Funds successfully sent.')
+                .waitFor({ timeout: 30000 })
+                .then(() => 'success')
+                .catch(() => 'timeout');
+
+            const errorPromise = page
+                .getByText('Something went wrong while requesting funds.')
+                .waitFor({ timeout: 30000 })
+                .then(() => 'error')
+                .catch(() => 'timeout');
+
+            // Wait for either message to appear
+            const result = await Promise.race([successPromise, errorPromise]);
+
+            if (result === 'success') {
+                console.log('✅ Bridge funding transaction successful: Funds sent from faucet!');
+                success = true;
+            } else if (result === 'error') {
+                console.log(
+                    `❌ Bridge funding transaction failed on attempt ${attempt}/${maxRetries}, retrying...`,
+                );
+                await page.pause();
+                // Wait a bit before retrying
+                await page.waitForTimeout(3000);
+            } else {
+                console.log(
+                    '⏱️ Bridge funding transaction timed out on attempt ${attempt}/${maxRetries}, retrying...',
+                );
+                await page.waitForTimeout(3000);
+            }
+        } catch (error) {
+            console.error(`Error during attempt ${attempt}:`, error);
+        }
+
+        attempt++;
+    }
+
+    if (!success) {
+        throw new Error(`Failed to add funds trough bridge UI after ${maxRetries} attempts`);
+    }
+
     // Check the funds arrived (ui)
     const l1WalletExtension = await browser.newPage();
     const l1ExtensionUrl = await getExtensionUrl(browser);

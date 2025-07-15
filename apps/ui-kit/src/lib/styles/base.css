@@ -39,6 +39,46 @@
         font-variant-alternates: 'ss01';
     }
 
+    :root.names {
+        --roboto-flex-variation-settings: 'GRAD' 0, 'XOPQ' 96, 'XTRA' 468, 'YOPQ' 79, 'YTAS' 750,
+            'YTDE' -203, 'YTFI' 738, 'YTLC' 514, 'YTUC' 640, 'slnt' 0, 'wdth' 130;
+
+        .text-display-lg,
+        .text-display-md,
+        .text-display-sm {
+            font-family: var(--font-family-heading);
+            font-variation-settings: var(--roboto-flex-variation-settings);
+        }
+
+        .text-headline-lg,
+        .text-headline-md,
+        .text-headline-sm,
+        .text-title-lg,
+        .text-title-md,
+        .text-title-sm,
+        .text-body-lg,
+        .text-body-md,
+        .text-body-sm,
+        .text-body-ds-lg,
+        .text-body-ds-md,
+        .text-body-ds-sm,
+        .text-label-lg,
+        .text-label-md,
+        .text-label-sm {
+            font-family: var(--font-family-text);
+        }
+
+        .text-headline-sm,
+        .text-headline-md,
+        .text-headline-lg {
+            font-feature-settings: 'ss01' on;
+        }
+
+        .font-roboto-flex {
+            font-variation-settings: var(--roboto-flex-variation-settings);
+        }
+    }
+
     input:-webkit-autofill,
     input:-webkit-autofill:enabled,
     input:-webkit-autofill:hover,

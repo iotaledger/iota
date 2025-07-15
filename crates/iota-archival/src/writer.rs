@@ -96,7 +96,7 @@ impl CheckpointWriter {
     ) -> Result<Self> {
         let epoch_num = manifest.epoch_num();
         let checkpoint_sequence_num = manifest.next_checkpoint_seq_num();
-        let epoch_dir = root_dir_path.join(format!("{}{epoch_num}", EPOCH_DIR_PREFIX));
+        let epoch_dir = root_dir_path.join(format!("{EPOCH_DIR_PREFIX}{epoch_num}"));
         if epoch_dir.exists() {
             fs::remove_dir_all(&epoch_dir)?;
         }

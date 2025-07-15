@@ -91,7 +91,7 @@ pub enum ConsensusTransactionKey {
 impl Debug for ConsensusTransactionKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Certificate(digest) => write!(f, "Certificate({:?})", digest),
+            Self::Certificate(digest) => write!(f, "Certificate({digest:?})"),
             Self::CheckpointSignature(name, seq) => {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }

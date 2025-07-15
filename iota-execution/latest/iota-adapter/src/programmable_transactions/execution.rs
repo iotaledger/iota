@@ -824,7 +824,7 @@ mod checked {
                     "Missing dependencies: {}",
                     missing_deps
                         .into_iter()
-                        .map(|dep| format!("{}", dep))
+                        .map(|dep| format!("{dep}"))
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
@@ -1254,7 +1254,7 @@ mod checked {
         if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
-                format!("Cannot directly call functions in iota::{}", EVENT_MODULE),
+                format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
@@ -1262,10 +1262,8 @@ mod checked {
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
-                "Cannot directly call iota::{m}::{f}. \
-                Use the public variant instead, iota::{m}::public_{f}",
-                m = TRANSFER_MODULE,
-                f = function
+                "Cannot directly call iota::{TRANSFER_MODULE}::{function}. \
+                Use the public variant instead, iota::{TRANSFER_MODULE}::public_{function}"
             );
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
@@ -1413,9 +1411,8 @@ mod checked {
             Value::Raw(RawValueType::Any, bytes) => {
                 let Some(layout) = primitive_serialization_layout(context, param_ty)? else {
                     let msg = format!(
-                        "Non-primitive argument at index {}. If it is an object, it must be \
+                        "Non-primitive argument at index {idx}. If it is an object, it must be \
                         populated by an object",
-                        idx,
                     );
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::command_argument_error(

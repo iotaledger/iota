@@ -16,14 +16,15 @@ import { type ComponentProps, forwardRef, useCallback, useEffect } from 'react';
 import { type SubmitHandler, useFormContext } from 'react-hook-form';
 import { WalletConnectInput } from '..';
 import { DepositFormData } from '../../lib/schema/bridgeForm.schema';
-import BigNumber from 'bignumber.js';
 import { useAccount } from 'wagmi';
-import { useBridgeStore } from '../../lib/stores';
 import { BridgeFormInputName } from '../../lib/enums';
 import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/constants';
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
-import { useAvailableBalanceL1 } from '../../hooks/useAvailableBalanceL1';
-import { useAvailableBalanceL2 } from '../../hooks/useAvailableBalanceL2';
+import { CoinSelector } from '../CoinSelector';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useCoinMetadata } from '@iota/core';
+import { parseAmount } from '../../lib/utils';
+import { useAvailableBalance } from '../../hooks/useAvailableBalance';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -43,24 +44,6 @@ export function DepositForm({
     const layer2Account = useAccount();
     const isLayer1WalletConnected = !!layer1Account?.address;
     const isLayer2WalletConnected = layer2Account.isConnected;
-
-    const toggleBridgeDirection = useBridgeStore((state) => state.toggleBridgeDirection);
-    const isFromLayer1 = useBridgeStore((state) => state.isFromLayer1);
-
-    const {
-        formattedAvailableBalance: formattedAvailableBalanceL1,
-        isLoading: isLoadingBalanceL1,
-    } = useAvailableBalanceL1();
-    const {
-        formattedAvailableBalance: formattedAvailableBalanceL2,
-        isLoading: isLoadingBalanceL2,
-    } = useAvailableBalanceL2();
-
-    const formattedAvailableBalance = isFromLayer1
-        ? formattedAvailableBalanceL1
-        : formattedAvailableBalanceL2;
-    const isLoadingBalance = isFromLayer1 ? isLoadingBalanceL1 : isLoadingBalanceL2;
-
     const formMethods = useFormContext<DepositFormData>();
 
     const {
@@ -74,11 +57,19 @@ export function DepositForm({
     } = formMethods;
     const values = watch();
 
-    const { depositAmount, receivingAddress } = values;
+    const { depositAmount, receivingAddress, isFromLayer1, coinType: selectedCoinType } = values;
 
-    const isPayingAllBalance = new BigNumber(depositAmount).isEqualTo(
-        new BigNumber(formattedAvailableBalance),
-    );
+    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
+
+    const {
+        availableBalance,
+        formattedAvailableBalance,
+        isLoading: isLoadingBalance,
+        symbol,
+    } = useAvailableBalance(selectedCoinType, isFromLayer1);
+
+    const isPayingAllBalance =
+        parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) === availableBalance;
 
     useEffect(() => {
         const isFormIncomplete = Object.values(getValues()).some(
@@ -127,7 +118,7 @@ export function DepositForm({
 
     const caption =
         formattedAvailableBalance && !isLoadingBalance
-            ? `${formattedAvailableBalance} IOTA Available`
+            ? `${formattedAvailableBalance} ${symbol} Available`
             : '--';
     const {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -138,10 +129,11 @@ export function DepositForm({
     } = register(BridgeFormInputName.DepositAmount);
     return (
         <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
+            <CoinSelector />
             <Input
                 label="Amount"
                 type={InputType.NumericFormat}
-                prefix={isPayingAllBalance ? '~ ' : undefined}
+                prefix={isPayingAllBalance && selectedCoinType === IOTA_TYPE_ARG ? '~ ' : undefined}
                 value={depositAmount}
                 errorMessage={depositAmountErrorMessage}
                 {...registerDepositAmount}
@@ -154,6 +146,7 @@ export function DepositForm({
                 }}
                 caption={caption}
                 maxLength={MAX_DEPOSIT_INPUT_LENGTH}
+                thousandSeparator
                 trailingElement={
                     <ButtonPill onClick={handleMaxAmountClick} disabled={isMaxButtonDisabled}>
                         Max
@@ -178,7 +171,9 @@ export function DepositForm({
                     <Button
                         type={ButtonType.Primary}
                         icon={<SwapAccount className="rotate-90 -scale-x-100" />}
-                        onClick={toggleBridgeDirection}
+                        onClick={() => {
+                            setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1);
+                        }}
                         testId="toggle-bridge-direction"
                     />
                 </div>
@@ -236,15 +231,17 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
     { ...props },
     ref,
 ) {
-    const { setValue } = useFormContext<DepositFormData>();
+    const { setValue, watch } = useFormContext<DepositFormData>();
+    const { isFromLayer1, isDepositAddressManualInput: isManualInput } = watch();
+
     const layer1Account = useCurrentAccount();
     const layer2Account = useAccount();
 
-    const isFromLayer1 = useBridgeStore((state) => state.isFromLayer1);
-    const toggleIsDepositAddressManualInput = useBridgeStore(
-        (state) => state.toggleIsDepositAddressManualInput,
-    );
-    const isManualInput = useBridgeStore((state) => state.isDepositAddressManualInput);
+    const toggleIsDepositAddressManualInput = useCallback(() => {
+        setValue(BridgeFormInputName.IsDepositAddressManualInput, !isManualInput, {
+            shouldValidate: true,
+        });
+    }, [isManualInput, setValue]);
 
     const isLayer1WalletConnected = !!layer1Account?.address;
     const isLayer2WalletConnected = layer2Account.isConnected;

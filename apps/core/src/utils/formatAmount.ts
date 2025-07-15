@@ -87,5 +87,8 @@ export const formatWithSubscript = (
     const [, decimals] = input.toString().split('.');
     const remainder = decimals.slice(zeroCount);
 
-    return `0.0${SUBSCRIPTS[zeroCount]}${remainder}`;
+    const digits = zeroCount.toString().split('');
+    const suscripts = digits.map((n) => SUBSCRIPTS[Number(n)]).join('');
+
+    return `0.0${suscripts}${remainder}`;
 };

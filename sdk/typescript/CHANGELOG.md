@@ -1,5 +1,22 @@
 # @iota/iota-sdk
 
+## 1.4.0
+
+### Minor Changes
+
+-   f04033d: Export Owner BCS type
+-   ecea738: Improved logic around `fallbackMethods` in graphql-transport Introduced
+    `unsupportedMethods` in graphql-transport Improved IotaClient compatibility with
+    graphql-transport
+
+### Patch Changes
+
+-   59342b2: Renamed all instances of 'domain' to 'name' for IOTA-Names.
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+    -   @iota/bcs@1.1.0
+
 ## 1.3.0
 
 ### Minor Changes

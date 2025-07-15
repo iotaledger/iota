@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "A CLI for creating new IOTA dApps",
     "homepage": "https://docs.iota.org/ts-sdk/typescript/",
-    "version": "0.3.9",
+    "version": "0.3.10",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",
@@ -20,7 +20,6 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "tsc --build",
-        "prepublishOnly": "pnpm build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",

@@ -180,7 +180,7 @@ impl Event {
                             // to `RawQuery` here.
                             let query_string = ev_lookups.iter()
                                 .map(|&(tx, ev)| {
-                                    format!("SELECT * FROM events WHERE tx_sequence_number = {} AND event_sequence_number = {}", tx, ev)
+                                    format!("SELECT * FROM events WHERE tx_sequence_number = {tx} AND event_sequence_number = {ev}")
                                 })
                                 .collect::<Vec<String>>()
                                 .join(" UNION ALL ");
