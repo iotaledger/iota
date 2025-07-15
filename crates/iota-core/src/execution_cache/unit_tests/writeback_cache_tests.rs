@@ -947,11 +947,7 @@ async fn test_invalidate_package_cache_on_revert() {
         s.cache().revert_state_update(&tx1);
         s.clear_state_end_of_epoch().await;
 
-        assert!(
-            s.cache()
-                .get_package_object(&s.obj_id(2))
-                .is_none()
-        );
+        assert!(s.cache().get_package_object(&s.obj_id(2)).is_none());
     })
     .await;
 }

@@ -421,7 +421,7 @@ impl TransactionManager {
                     .transaction_cache_read
                     .try_is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
-                        fatal!("Failed to check if tx is already executed: {:?}", err)
+                        fatal!("Failed to check if tx {digest:?} is already executed: {err:?}")
                     })
                 {
                     self.metrics

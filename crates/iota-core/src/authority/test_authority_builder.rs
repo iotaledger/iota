@@ -378,8 +378,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         if let Some(starting_objects) = self.starting_objects {
             state
                 .insert_objects_unsafe_for_testing_only(starting_objects)
-                .await
-                .unwrap();
+                .await;
         };
         state
     }

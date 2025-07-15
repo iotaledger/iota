@@ -880,8 +880,7 @@ async fn handle_execution_effects(
                 // Only log details when the checkpoint is next to execute, but has not finished
                 // execution within log_timeout_sec.
                 let missing_digests: Vec<TransactionDigest> = transaction_cache_reader
-                    .try_multi_get_executed_effects_digests(&all_tx_digests)
-                    .expect("multi_get_executed_effects cannot fail")
+                    .multi_get_executed_effects_digests(&all_tx_digests)
                     .iter()
                     .zip(all_tx_digests.clone())
                     .filter_map(
@@ -962,8 +961,7 @@ fn assert_not_forked(
 ) {
     if *expected_digest != *actual_effects_digest {
         let actual_effects = cache_reader
-            .try_get_executed_effects(tx_digest)
-            .expect("get_executed_effects cannot fail")
+            .get_executed_effects(tx_digest)
             .expect("actual effects should exist");
 
         // log observed effects (too big for panic message) and then panic.
@@ -1013,9 +1011,7 @@ fn extract_end_of_epoch_tx(
         .last()
         .expect("Final checkpoint must have at least one transaction");
 
-    let change_epoch_tx = cache_reader
-        .try_get_transaction_block(&digests.transaction)
-        .expect("read cannot fail");
+    let change_epoch_tx = cache_reader.get_transaction_block(&digests.transaction);
 
     let change_epoch_tx = VerifiedExecutableTransaction::new_from_checkpoint(
         (*change_epoch_tx.unwrap_or_else(||
@@ -1087,8 +1083,7 @@ fn get_unexecuted_transactions(
             .expect("Final checkpoint must have at least one transaction");
 
         let change_epoch_tx = cache_reader
-            .try_get_transaction_block(&digests.transaction)
-            .expect("read cannot fail")
+            .get_transaction_block(&digests.transaction)
             .unwrap_or_else(||
                 panic!(
                     "state-sync should have ensured that transaction with digests {digests:?} exists for checkpoint: {}",
@@ -1118,8 +1113,7 @@ fn get_unexecuted_transactions(
                 .unwrap_or_default(),
         );
         if let Some(first_digest) = execution_digests.first() {
-            let maybe_randomness_tx = cache_reader.try_get_transaction_block(&first_digest.transaction)
-            .expect("read cannot fail")
+            let maybe_randomness_tx = cache_reader.get_transaction_block(&first_digest.transaction)
             .unwrap_or_else(||
                 panic!(
                     "state-sync should have ensured that transaction with digests {first_digest:?} exists for checkpoint: {}",

@@ -4986,8 +4986,7 @@ async fn test_consensus_message_processed() {
 
         // on authority1, we always sequence via consensus
         send_consensus(&authority1, &certificate).await;
-        let (effects1, _execution_error_opt) =
-            authority1.execute_for_test(&certificate).await;
+        let (effects1, _execution_error_opt) = authority1.execute_for_test(&certificate).await;
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
         // sequence and execute via effects or via handle_certificate_v1, then

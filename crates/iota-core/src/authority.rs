@@ -1195,8 +1195,8 @@ impl AuthorityState {
         // perhaps after restarting with a new binary. In this situation, if
         // we have published an effects signature, we must be sure not to
         // equivocate. TODO: read from cache instead of DB
-        let expected_effects_digest = expected_effects_digest
-            .or(epoch_store.get_signed_effects_digest(tx_digest)?);
+        let expected_effects_digest =
+            expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
         self.process_certificate(
             tx_guard,
@@ -4939,14 +4939,12 @@ impl AuthorityState {
 
     /// NOTE: this function is only to be used for fuzzing and testing. Never
     /// use in prod
-    pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) -> IotaResult {
-        self.get_reconfig_api()
-            .try_bulk_insert_genesis_objects(objects)?;
+    pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) {
+        self.get_reconfig_api().bulk_insert_genesis_objects(objects);
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         self.get_reconfig_api()
             .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
-        Ok(())
     }
 }
 
