@@ -946,19 +946,60 @@ mod tests {
     async fn test_skip_acknowledgments() {
         let context = Arc::new(Context::new_for_test(4).0);
         let mut dag_builder = DagBuilder::new(context);
-        dag_builder.layer(1).build(); // Round 1 is fully connected with parents by default.
+        let authorities_to_skip = vec![
+            AuthorityIndex::new_for_test(1),
+            AuthorityIndex::new_for_test(2),
+        ];
+        dag_builder.layers(1..=5).build();
+        // Round 6 and above should skip acknowledgments from authorities to skip
         dag_builder
-            .layers(2..=10)
-            .skip_acknowledgements(vec![
-                AuthorityIndex::new_for_test(1),
-                AuthorityIndex::new_for_test(2),
-            ])
+            .layers(6..=10)
+            .skip_acknowledgements(authorities_to_skip.clone())
             .build();
         for (block_ref, block_header) in dag_builder.block_headers {
             if block_ref.round <= 1 {
-                assert!(block_header.acknowledgments().is_empty())
+                assert!(block_header.acknowledgments().is_empty());
+            } else if block_ref.round <= 5 {
+                assert_eq!(block_header.acknowledgments().len(), 4);
             } else {
-                assert_eq!(block_header.acknowledgments().len(), 2)
+                // Round 6 and above should not have acknowledgments from authorities to skip
+                assert_eq!(block_header.acknowledgments().len(), 2);
+                // Check that acknowledgments from authorities to skip are not present
+                for ack in block_header.acknowledgments() {
+                    assert!(!authorities_to_skip.contains(&ack.author));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_only_acknowledge() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut dag_builder = DagBuilder::new(context);
+        let only_acknowledge = vec![
+            AuthorityIndex::new_for_test(1),
+            AuthorityIndex::new_for_test(2),
+        ];
+        dag_builder.layers(1..=5).build();
+        // Round 6 and above should only acknowledge blocks from authorities to
+        // acknowledge
+        dag_builder
+            .layers(6..=10)
+            .only_acknowledge(only_acknowledge.clone())
+            .build();
+        for (block_ref, block_header) in dag_builder.block_headers {
+            if block_ref.round <= 1 {
+                assert!(block_header.acknowledgments().is_empty());
+            } else if block_ref.round <= 5 {
+                assert_eq!(block_header.acknowledgments().len(), 4);
+            } else {
+                // Round 6 and above should only have acknowledgments from authorities to
+                // acknowledge
+                assert_eq!(block_header.acknowledgments().len(), 2);
+                // Check that acknowledgments are only from authorities to acknowledge
+                for ack in block_header.acknowledgments() {
+                    assert!(only_acknowledge.contains(&ack.author));
+                }
             }
         }
     }
