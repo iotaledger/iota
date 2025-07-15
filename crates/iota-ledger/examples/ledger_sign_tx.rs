@@ -1,8 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{error::Error, str::FromStr};
+use std::str::FromStr;
 
+use anyhow::Result;
 use clap::{Arg, Command};
 use iota_types::{crypto::EncodeDecodeBase64, object::Object, transaction::TransactionData};
 use shared_crypto::intent::Intent;
@@ -19,7 +20,7 @@ fn object_from_base64(b64: &str) -> Object {
     bcs::from_bytes(&bytes).expect("Invalid bcs in object")
 }
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<()> {
     let matches = Command::new("sign_tx")
         .version("1.0")
         .arg(

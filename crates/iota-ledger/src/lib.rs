@@ -1,10 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::vec;
+use std::{thread, time, vec};
 
 mod transport;
-use transport::{Transport, TransportTypes, create_transport};
+use transport::{Transport, TransportType, create_transport};
 
 pub use crate::api::errors::LedgerError;
 mod api;
@@ -19,12 +19,6 @@ use shared_crypto::intent::{Intent, IntentMessage};
 use crate::api::{bolos, exit, get_public_key, sign_transaction};
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
 
-/// Get Ledger by transport_type
-fn get_ledger_by_type(transport_type: TransportTypes) -> Result<Ledger, LedgerError> {
-    let transport = create_transport(transport_type)?;
-    Ok(crate::Ledger::new(transport))
-}
-
 pub struct Ledger {
     transport: Transport,
 }
@@ -34,44 +28,83 @@ pub struct SignedTransaction {
     pub address: IotaAddress,
 }
 
+const IOTA_APP_NAME: &str = "IOTA";
+const DASHBOARD_APP_NAME: &str = "BOLOS";
+
 impl Ledger {
     pub fn new_with_default() -> Result<Ledger, LedgerError> {
-        if std::env::var("LEDGER_SIMULATOR").is_ok() {
-            get_ledger_by_type(TransportTypes::TCP)
+        let transport = if std::env::var("LEDGER_SIMULATOR").is_ok() {
+            create_transport(TransportType::TCP)?
         } else {
-            get_ledger_by_type(TransportTypes::NativeHID)
-        }
+            create_transport(TransportType::NativeHID)?
+        };
+        Ok(crate::Ledger::new(transport))
     }
 
     pub fn new_with_native_hid() -> Result<Ledger, LedgerError> {
-        get_ledger_by_type(TransportTypes::NativeHID)
+        Ok(crate::Ledger::new(create_transport(
+            TransportType::NativeHID,
+        )?))
     }
 
     pub fn new_with_simulator() -> Result<Ledger, LedgerError> {
-        get_ledger_by_type(TransportTypes::TCP)
+        Ok(crate::Ledger::new(create_transport(TransportType::TCP)?))
     }
 
     fn new(transport: Transport) -> Self {
         Ledger { transport }
     }
 
-    /// Get currently opened app
-    /// If "BOLOS" is returned, the dashboard is open
+    fn recreate_transport(&mut self) -> Result<(), LedgerError> {
+        thread::sleep(time::Duration::from_secs(3));
+        self.transport.recreate()
+    }
+
+    /// Check if the IOTA app is open on the Ledger device
     pub fn is_app_open(&self) -> Result<bool, LedgerError> {
         let app = bolos::app_get_name::exec(&self.transport)?;
-        Ok(app.app == "IOTA")
+        Ok(app.app == IOTA_APP_NAME)
     }
 
-    /// Open app on the nano s/x
     /// Only works if dashboard is open
-    pub fn bolos_open_app(&self) -> Result<(), LedgerError> {
-        bolos::app_open::exec(&self.transport, "IOTA".to_string())
+    /// This will re-create the transport after opening the app
+    fn bolos_open_app(&mut self) -> Result<(), LedgerError> {
+        if self.is_app_open()? {
+            return Ok(());
+        }
+        bolos::app_open::exec(&self.transport, IOTA_APP_NAME.to_string())?;
+        self.recreate_transport()
     }
 
-    /// Close current opened app on the nano s/x
+    /// Close current opened app
     /// Only works if an app is open
-    pub fn bolos_exit_app(&self) -> Result<(), LedgerError> {
-        bolos::app_exit::exec(&self.transport)
+    /// This will re-create the transport after closing the app
+    fn bolos_exit_app(&mut self) -> Result<(), LedgerError> {
+        bolos::app_exit::exec(&self.transport)?;
+        self.recreate_transport()
+    }
+
+    /// Ensure the IOTA app is open
+    /// If the app is not open, it will open it
+    /// If another app is open, it will close it first
+    /// This will re-create the transport after closing the app
+    pub fn ensure_app_is_open(&mut self) -> Result<(), LedgerError> {
+        match bolos::app_get_name::exec(&self.transport)?.app.as_str() {
+            IOTA_APP_NAME => {
+                // App is already open
+                return Ok(());
+            }
+            DASHBOARD_APP_NAME => {
+                // Dashboard is open, we need to open the IOTA app
+                self.bolos_open_app()?;
+            }
+            _ => {
+                // Some other app is open, we need to close it first
+                self.bolos_exit_app()?;
+                self.bolos_open_app()?;
+            }
+        }
+        Ok(())
     }
 
     fn transport(&self) -> &Transport {
@@ -144,7 +177,10 @@ impl Ledger {
         })
     }
 
-    pub fn exit_app(&self) -> Result<(), LedgerError> {
-        exit::exec(&self.transport)
+    /// Close the IOTA app from within
+    /// This will re-create the transport after closing the app
+    pub fn exit_app(&mut self) -> Result<(), LedgerError> {
+        exit::exec(&self.transport)?;
+        self.recreate_transport()
     }
 }

@@ -41,6 +41,8 @@ pub enum APDUErrorCode {
     Panic = 0xe000,
     /// Device locked
     DeviceLocked = 0x5515,
+    /// User denied the request
+    UserDenied = 0x5501,
 }
 
 impl TryFrom<u16> for APDUErrorCode {
@@ -65,12 +67,13 @@ impl TryFrom<u16> for APDUErrorCode {
             0x6e03 => Ok(APDUErrorCode::BadLen),
             0xe000 => Ok(APDUErrorCode::Panic),
             0x5515 => Ok(APDUErrorCode::DeviceLocked),
+            0x5501 => Ok(APDUErrorCode::UserDenied),
             _ => Err(()),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 #[repr(u8)]
 pub enum SyscallError {
     InvalidParameter = 2,
@@ -85,9 +88,11 @@ pub enum SyscallError {
     Unspecified,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, PartialEq, Debug)]
 pub enum LedgerError {
-    #[error("Address mismatch - connect the correct Ledger device")]
+    #[error(
+        "Address mismatch - connect the correct Ledger device or select the correct bip32 path"
+    )]
     AddressMismatch,
 
     #[error("Device not ready - ensure the IOTA app is open on the Ledger device")]
@@ -99,11 +104,14 @@ pub enum LedgerError {
     #[error("Device locked - unlock the Ledger device")]
     DeviceLocked,
 
-    #[error("User cancelled the operation")]
-    UserCancelled,
+    #[error("User refused the operation")]
+    UserRefused,
 
     #[error("Device panic")]
     DevicePanic,
+
+    #[error("App not found - ensure the IOTA app is installed on the Ledger device")]
+    AppNotFound,
 
     #[error("Syscall error: {0:?}")]
     Syscall(SyscallError),
@@ -132,7 +140,9 @@ impl LedgerError {
                 APDUErrorCode::Ok => None, // No error, return None
                 APDUErrorCode::DeviceLocked => Some(LedgerError::DeviceLocked),
                 APDUErrorCode::Panic => Some(LedgerError::DevicePanic),
-                APDUErrorCode::UserCancelled => Some(LedgerError::UserCancelled),
+                APDUErrorCode::UserCancelled | APDUErrorCode::UserDenied => {
+                    Some(LedgerError::UserRefused)
+                }
                 APDUErrorCode::BadCla | APDUErrorCode::BadIns | APDUErrorCode::BadP1P2 => {
                     Some(LedgerError::DeviceNotReady)
                 }

@@ -13,13 +13,14 @@ use tcp::TransportTCP;
 
 #[derive(Copy, Clone)]
 #[allow(clippy::upper_case_acronyms)]
-pub(crate) enum TransportTypes {
+pub(crate) enum TransportType {
     TCP,
     NativeHID,
 }
 
 pub(crate) struct Transport {
-    pub transport: LedgerTransport,
+    transport: LedgerTransport,
+    type_: TransportType,
 }
 
 #[allow(clippy::upper_case_acronyms)]
@@ -28,7 +29,7 @@ pub(crate) enum LedgerTransport {
     NativeHID(TransportNativeHID),
 }
 
-impl LedgerTransport {
+impl Transport {
     pub(crate) fn exchange(
         &self,
         apdu_command: &APDUCommand<Vec<u8>>,
@@ -37,32 +38,37 @@ impl LedgerTransport {
             "Exchanging APDU command: {}",
             apdu_command.serialize().encode_hex::<String>()
         );
-        match self {
+        match &self.transport {
             LedgerTransport::TCP(t) => t.exchange(apdu_command).map_err(|_| LedgerError::Transport),
             LedgerTransport::NativeHID(h) => {
                 h.exchange(apdu_command).map_err(|_| LedgerError::Transport)
             }
         }
     }
+
+    pub(crate) fn recreate(&mut self) -> Result<(), LedgerError> {
+        self.transport = create_ledger_transport(self.type_)?;
+        Ok(())
+    }
 }
 
-// only create transport without IOTA specific calls
-pub(crate) fn create_transport(transport_type: TransportTypes) -> Result<Transport, LedgerError> {
+fn create_ledger_transport(transport_type: TransportType) -> Result<LedgerTransport, LedgerError> {
     let transport = match transport_type {
-        TransportTypes::TCP => Transport {
-            transport: LedgerTransport::TCP(TransportTCP::new("127.0.0.1", 9999)),
-        },
-        TransportTypes::NativeHID => {
+        TransportType::TCP => LedgerTransport::TCP(TransportTCP::new("127.0.0.1", 9999)),
+        TransportType::NativeHID => {
             let api = hidapi::HidApi::new().map_err(|_| LedgerError::Transport)?;
-            Transport {
-                transport: LedgerTransport::NativeHID(TransportNativeHID::new(&api).map_err(
-                    |e| match e {
-                        LedgerHIDError::DeviceNotFound => LedgerError::DeviceNotFound,
-                        _ => LedgerError::Transport,
-                    },
-                )?),
-            }
+            LedgerTransport::NativeHID(TransportNativeHID::new(&api).map_err(|e| match e {
+                LedgerHIDError::DeviceNotFound => LedgerError::DeviceNotFound,
+                _ => LedgerError::Transport,
+            })?)
         }
     };
     Ok(transport)
+}
+
+pub(crate) fn create_transport(transport_type: TransportType) -> Result<Transport, LedgerError> {
+    Ok(Transport {
+        transport: create_ledger_transport(transport_type)?,
+        type_: transport_type,
+    })
 }

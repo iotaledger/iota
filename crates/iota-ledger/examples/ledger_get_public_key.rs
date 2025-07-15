@@ -1,11 +1,12 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{error::Error, str::FromStr};
+use std::str::FromStr;
 
+use anyhow::Result;
 use clap::{Arg, Command};
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<()> {
     let matches = Command::new("get_public_key")
         .version("1.0")
         .arg(

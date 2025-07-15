@@ -62,7 +62,7 @@ The crate includes several examples in the `examples/` directory:
 
 - `ledger_get_public_key.rs`: Retrieve public keys and addresses
 - `ledger_sign_tx.rs`: Sign transactions with the Ledger device
-- `ledger_apps.rs`: Manage IOTA app lifecycle
+- `ledger_open_app.rs`: Ensure the IOTA app is open and read the version
 
 Run examples with:
 

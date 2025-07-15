@@ -45,5 +45,11 @@ pub fn exec(transport: &Transport, app: String) -> Result<(), errors::LedgerErro
         p2: 0,
         data: buf,
     };
-    helpers::exec::<()>(transport, cmd)
+    helpers::exec::<()>(transport, cmd).map_err(|e| {
+        if e == errors::LedgerError::Syscall(errors::SyscallError::InvalidCounter) {
+            errors::LedgerError::AppNotFound
+        } else {
+            e
+        }
+    })
 }

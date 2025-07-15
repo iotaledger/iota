@@ -30,4 +30,5 @@ iota-types.workspace = true
 shared-crypto.workspace = true
 
 [dev-dependencies]
+anyhow.workspace = true
 clap.workspace = true

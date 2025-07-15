@@ -217,7 +217,7 @@ pub(crate) fn exec<T: Unpackable>(
     transport: &Transport,
     cmd: APDUCommand<Vec<u8>>,
 ) -> Result<T, errors::LedgerError> {
-    transport.transport.exchange(&cmd).and_then(|resp| {
+    transport.exchange(&cmd).and_then(|resp| {
         let api_error = errors::LedgerError::get_error(resp.retcode());
         match api_error {
             None => {
