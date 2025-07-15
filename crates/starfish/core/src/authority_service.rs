@@ -144,11 +144,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
-        let serialized_block_and_transactions =
-            SerializedHeaderAndTransactions::try_from(serialized_block)?;
-        let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block_and_transactions.serialized_block_header)
-                .map_err(ConsensusError::MalformedBlockHeader)?;
+        let SerializedHeaderAndTransactions {
+            serialized_block_header,
+            serialized_transactions,
+        } = SerializedHeaderAndTransactions::try_from(serialized_block)?;
+        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+            .map_err(ConsensusError::MalformedBlockHeader)?;
 
         // Reject blocks not produced by the peer.
         if peer != signed_block_header.author() {
@@ -183,10 +184,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if signed_block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(
-                &serialized_block_and_transactions.serialized_transactions,
-            )
-            .expect("we should expect correct computation of the transactions commitment")
+            != TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                .expect("we should expect correct computation of the transactions commitment")
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -195,22 +194,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        let verified_block_header = VerifiedBlockHeader::new_verified(
-            signed_block_header,
-            serialized_block_and_transactions
-                .serialized_block_header
-                .clone(),
-        );
-        let transactions: Vec<Transaction> =
-            bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
-                .map_err(ConsensusError::MalformedTransactions)?;
+        let verified_block_header =
+            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+        let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+            .map_err(ConsensusError::MalformedTransactions)?;
         self.block_verifier
             .check_and_verify_transactions(&transactions)?;
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
             verified_block_header.transactions_commitment(),
-            serialized_block_and_transactions.serialized_transactions,
+            serialized_transactions,
         );
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
@@ -337,14 +331,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 1. Create a verified block and make some preliminary checks
         let serialized_block_and_headers =
             SerializedBlockAndHeaders::try_from(serialized_block_bundle)?;
-        let serialized_block_and_transactions =
-            SerializedHeaderAndTransactions::try_from(SerializedBlock {
-                serialized_block: serialized_block_and_headers.serialized_block,
-            })?;
+        let SerializedHeaderAndTransactions {
+            serialized_block_header,
+            serialized_transactions,
+        } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
+            serialized_block: serialized_block_and_headers.serialized_block,
+        })?;
 
-        let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block_and_transactions.serialized_block_header)
-                .map_err(ConsensusError::MalformedBlockHeader)?;
+        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+            .map_err(ConsensusError::MalformedBlockHeader)?;
 
         // Reject blocks not produced by the peer.
         if peer != signed_block_header.author() {
@@ -379,10 +374,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if signed_block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(
-                &serialized_block_and_transactions.serialized_transactions,
-            )
-            .expect("we should expect correct computation of the transactions commitment")
+            != TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                .expect("we should expect correct computation of the transactions commitment")
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -391,13 +384,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        let verified_block_header = VerifiedBlockHeader::new_verified(
-            signed_block_header,
-            serialized_block_and_transactions.serialized_block_header,
-        );
-        let transactions: Vec<Transaction> =
-            bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
-                .map_err(ConsensusError::MalformedTransactions)?;
+        let verified_block_header =
+            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+        let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+            .map_err(ConsensusError::MalformedTransactions)?;
 
         self.block_verifier
             .check_and_verify_transactions(&transactions)?;
@@ -406,7 +396,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             transactions,
             verified_block_header.reference(),
             verified_block_header.transactions_commitment(),
-            serialized_block_and_transactions.serialized_transactions,
+            serialized_transactions,
         );
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
