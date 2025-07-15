@@ -20,7 +20,7 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
         return null;
     }
     if (isLedgerAccountSerializedUI(account)) {
-        return new LedgerSigner(connectToLedger, account.derivationPath, api);
+        return new LedgerSigner(connectToLedger, account.derivationPath, account.address, api);
     }
     return walletApiProvider.getSignerInstance(account, background);
 }

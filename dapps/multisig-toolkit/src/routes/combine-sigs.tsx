@@ -120,23 +120,25 @@ export default function MultiSigCombineSignatureGenerator() {
                     </div>
                     <div className="flex gap-0 border-b">
                         <div className="flex-1 break-all border-r p-2">
-                            ACaY7TW0MnPu+fr/Z2qH5YRybHsj80qfwfqiuduT4czi
+                            AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l
                         </div>
                         <div className="flex-1 border-r p-2">1</div>
                         <div className="flex-1 break-all p-2">
-                            AIYbCXAhPmILpWq6xsEY/Nu310Kednlb60Qcd/nD+u2WCXE/FvSXNRUQW9OQKGqt2CeskPyv2SEhaKMZ8gLkdQ8mmO01tDJz7vn6/2dqh+WEcmx7I/NKn8H6ornbk+HM4g==
+                            AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==
                         </div>
                     </div>
                     <div className="flex gap-0 border-b">
                         <div className="flex-1 break-all border-r p-2">
-                            ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq
+                            AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI
                         </div>
                         <div className="flex-1 border-r p-2">1</div>
-                        <div className="flex-1 p-2"></div>
+                        <div className="flex-1 break-all p-2">
+                            AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==
+                        </div>
                     </div>
                     <div className="flex gap-0">
                         <div className="flex-1 break-all border-r p-2">
-                            ALDE3sq5JZOj3Hmo/UeUv14zi4TFQMFq/xCTaSH+swMS
+                            APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4
                         </div>
                         <div className="flex-1 border-r p-2">1</div>
                         <div className="flex-1 p-2"></div>
@@ -187,6 +189,34 @@ export default function MultiSigCombineSignatureGenerator() {
                         }}
                     >
                         New PubKey
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                            replacePubKeysArray([
+                                {
+                                    pubKey: 'AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l',
+                                    weight: '1',
+                                    signature:
+                                        'AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==',
+                                },
+                                {
+                                    pubKey: 'AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI',
+                                    weight: '1',
+                                    signature:
+                                        'AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==',
+                                },
+                                {
+                                    pubKey: 'APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4',
+                                    weight: '1',
+                                    signature: '',
+                                },
+                            ]);
+                            setValue('threshold', 2);
+                        }}
+                    >
+                        Set to example values
                     </Button>
                 </section>
                 <section>
@@ -247,7 +277,7 @@ export default function MultiSigCombineSignatureGenerator() {
             {msSignature && (
                 <Card key={msSignature}>
                     <CardHeader>
-                        <CardTitle>IOTA MultiSig Combined Address</CardTitle>
+                        <CardTitle>IOTA MultiSig Combined Signature</CardTitle>
                         <CardDescription>
                             https://docs.iota.org/developer/cryptography/transaction-auth/multisig
                         </CardDescription>
@@ -266,26 +296,64 @@ export default function MultiSigCombineSignatureGenerator() {
 }
 
 /*
+# Keys from comment in multisig-address.tsx
+
+# Prepared tx bytes to send 1000000000 from 0x9c3d1202a483f33cc340183df29ae9ffa55697947be431c963be78917e7fc538 to itself
+TX_BYTES="AAACAAgAypo7AAAAAAAgnD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTgCAgABAQAAAQEDAAAAAAEBAJw9EgKkg/M8w0AYPfKa6f+lVpeUe+QxyWO+eJF+f8U4AoMDJiR7kcSFDFoZ7UzCU6MoBn73fgTOMBOAOs+IILIrDTcAAAAAAAAgs5nazsoEocwG689hghNgpFaWiJOU/9DHN7Yq2maiwTnlODl+LFe++RM9vcUs9iAPRQHml+BB8ZCOGHgM+7ngnww3AAAAAAAAIAnVjkdkzUTZiGSLgaE9098I5CjfgJ2GcvBqXYpqsRkynD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTjoAwAAAAAAAOBvPAAAAAAAAA=="
+
+# Sign with first address
+iota keytool sign --address address-0-for-multisig --data $TX_BYTES
+# ╭───────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+# │ iotaAddress   │ 0x12149b7f1a386833615b3f8d07349020bc27517a02f5e0d242625d8bf2b8aa95                                                                                               │
+# │ rawTxData     │ AAACAAgAypo7AAAAAAAgnD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTgCAgABAQAAAQEDAAAAAAEBAJw9EgKkg/M8w0AYPfKa6f+lVpeUe+QxyWO+eJF+f8U4AoMDJiR7kcSFDFoZ7UzCU6MoBn73fgTO │
+# │               │ MBOAOs+IILIrDTcAAAAAAAAgs5nazsoEocwG689hghNgpFaWiJOU/9DHN7Yq2maiwTnlODl+LFe++RM9vcUs9iAPRQHml+BB8ZCOGHgM+7ngnww3AAAAAAAAIAnVjkdkzUTZiGSLgaE9098I5CjfgJ2GcvBqXYpq │
+# │               │ sRkynD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTjoAwAAAAAAAOBvPAAAAAAAAA==                                                                                         │
+# │ intent        │ ╭─────────┬─────╮                                                                                                                                                │
+# │               │ │ scope   │  0  │                                                                                                                                                │
+# │               │ │ version │  0  │                                                                                                                                                │
+# │               │ │ app_id  │  0  │                                                                                                                                                │
+# │               │ ╰─────────┴─────╯                                                                                                                                                │
+# │ rawIntentMsg  │ AAAAAAACAAgAypo7AAAAAAAgnD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTgCAgABAQAAAQEDAAAAAAEBAJw9EgKkg/M8w0AYPfKa6f+lVpeUe+QxyWO+eJF+f8U4AoMDJiR7kcSFDFoZ7UzCU6MoBn73 │
+# │               │ fgTOMBOAOs+IILIrDTcAAAAAAAAgs5nazsoEocwG689hghNgpFaWiJOU/9DHN7Yq2maiwTnlODl+LFe++RM9vcUs9iAPRQHml+BB8ZCOGHgM+7ngnww3AAAAAAAAIAnVjkdkzUTZiGSLgaE9098I5CjfgJ2GcvBq │
+# │               │ XYpqsRkynD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTjoAwAAAAAAAOBvPAAAAAAAAA==                                                                                     │
+# │ digest        │ pV79fMCpxkNW5Ow8D7wr6XFK8i4D+xEjsmLp8S5HPqg=                                                                                                                     │
+# │ iotaSignature │ AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==                             │
+# ╰───────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+# Sign with second address
+iota keytool sign --address address-1-for-multisig --data $TX_BYTES
+# ╭───────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+# │ iotaAddress   │ 0x3db2c2d98a492d42fccc19d232963ba8e675ab83173e7b5574268fe2676a0b73                                                                                               │
+# │ rawTxData     │ AAACAAgAypo7AAAAAAAgnD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTgCAgABAQAAAQEDAAAAAAEBAJw9EgKkg/M8w0AYPfKa6f+lVpeUe+QxyWO+eJF+f8U4AoMDJiR7kcSFDFoZ7UzCU6MoBn73fgTO │
+# │               │ MBOAOs+IILIrDTcAAAAAAAAgs5nazsoEocwG689hghNgpFaWiJOU/9DHN7Yq2maiwTnlODl+LFe++RM9vcUs9iAPRQHml+BB8ZCOGHgM+7ngnww3AAAAAAAAIAnVjkdkzUTZiGSLgaE9098I5CjfgJ2GcvBqXYpq │
+# │               │ sRkynD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTjoAwAAAAAAAOBvPAAAAAAAAA==                                                                                         │
+# │ intent        │ ╭─────────┬─────╮                                                                                                                                                │
+# │               │ │ scope   │  0  │                                                                                                                                                │
+# │               │ │ version │  0  │                                                                                                                                                │
+# │               │ │ app_id  │  0  │                                                                                                                                                │
+# │               │ ╰─────────┴─────╯                                                                                                                                                │
+# │ rawIntentMsg  │ AAAAAAACAAgAypo7AAAAAAAgnD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTgCAgABAQAAAQEDAAAAAAEBAJw9EgKkg/M8w0AYPfKa6f+lVpeUe+QxyWO+eJF+f8U4AoMDJiR7kcSFDFoZ7UzCU6MoBn73 │
+# │               │ fgTOMBOAOs+IILIrDTcAAAAAAAAgs5nazsoEocwG689hghNgpFaWiJOU/9DHN7Yq2maiwTnlODl+LFe++RM9vcUs9iAPRQHml+BB8ZCOGHgM+7ngnww3AAAAAAAAIAnVjkdkzUTZiGSLgaE9098I5CjfgJ2GcvBq │
+# │               │ XYpqsRkynD0SAqSD8zzDQBg98prp/6VWl5R75DHJY754kX5/xTjoAwAAAAAAAOBvPAAAAAAAAA==                                                                                     │
+# │ digest        │ pV79fMCpxkNW5Ow8D7wr6XFK8i4D+xEjsmLp8S5HPqg=                                                                                                                     │
+# │ iotaSignature │ AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==                             │
+# ╰───────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
 iota keytool multi-sig-combine-partial-sig \
 --pks \
-ACaY7TW0MnPu+fr/Z2qH5YRybHsj80qfwfqiuduT4czi \
-ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq \
-ALDE3sq5JZOj3Hmo/UeUv14zi4TFQMFq/xCTaSH+swMS \
+AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l \
+AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI \
+APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4 \
 --weights 1 1 1 \
---threshold 1 \
+--threshold 2 \
 --sigs \
-AIYbCXAhPmILpWq6xsEY/Nu310Kednlb60Qcd/nD+u2WCXE/FvSXNRUQW9OQKGqt2CeskPyv2SEhaKMZ8gLkdQ8mmO01tDJz7vn6/2dqh+WEcmx7I/NKn8H6ornbk+HM4g==
- */
+AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q== \
+AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==
 
-/*
-weights + threshold = 1
-const pubKeys: string[] = [
-  "ACaY7TW0MnPu+fr/Z2qH5YRybHsj80qfwfqiuduT4czi",
-  "ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq",
-  "ALDE3sq5JZOj3Hmo/UeUv14zi4TFQMFq/xCTaSH+swMS",
-];
-
-const sigs: SerializedSignature[] = [
-  "AIYbCXAhPmILpWq6xsEY/Nu310Kednlb60Qcd/nD+u2WCXE/FvSXNRUQW9OQKGqt2CeskPyv2SEhaKMZ8gLkdQ8mmO01tDJz7vn6/2dqh+WEcmx7I/NKn8H6ornbk+HM4g=="
-];
+# multisigParsed and multisigSerialized are the same: https://github.com/iotaledger/iota/issues/7668
+# ╭────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+# │ multisigAddress    │  0x9c3d1202a483f33cc340183df29ae9ffa55697947be431c963be78917e7fc538                                                                                                                                                                                                                                                                │
+# │ multisigParsed     │  AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA=  │
+# │ multisigSerialized │  AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA=  │
+# ╰────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 */
