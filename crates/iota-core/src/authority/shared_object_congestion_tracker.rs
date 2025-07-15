@@ -766,7 +766,7 @@ mod object_cost_tests {
     use super::{shared_object_test_utils::*, *};
 
     #[rstest]
-    fn compute_tx_start_at_time_test(#[values(true, false)] assign_min_free_execution_slot: bool) {
+    fn test_compute_tx_start_at_time(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -942,7 +942,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn try_schedule_return_correct_congested_objects_test(
+    fn test_try_schedule_return_correct_congested_objects(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -1093,7 +1093,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn try_schedule_return_correct_deferral_key_test(
+    fn test_try_schedule_return_correct_deferral_key(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -1197,7 +1197,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn bump_object_execution_slots_test(
+    fn test_bump_object_execution_slots(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -1362,7 +1362,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn slots_overflow_test(#[values(true, false)] assign_min_free_execution_slot: bool) {
+    fn test_slots_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
