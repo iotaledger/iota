@@ -2132,7 +2132,7 @@ async fn select_coin_arg_for_payment(
                 .await?;
             let mut balance = 0;
             if let IotaClientCommandResult::Gas(coins) = gas_result {
-                // Ignore coins > 0.009 IOTA (9_000_000 NANOs), because they are probably not
+                // Ignore coins < 0.009 IOTA (9_000_000 NANOs), because they are probably not
                 // sufficient for the gas payment
                 let eligible_coins = coins.iter().filter(|c| c.value() >= 9_000_000);
                 if eligible_coins.clone().count() == 1 {
