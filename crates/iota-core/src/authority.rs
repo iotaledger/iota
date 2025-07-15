@@ -1159,7 +1159,7 @@ impl AuthorityState {
     pub async fn try_execute_immediately(
         &self,
         certificate: &VerifiedExecutableTransaction,
-        mut expected_effects_digest: Option<TransactionEffectsDigest>,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let _scope = monitored_scope("Execution::try_execute_immediately");
@@ -1176,10 +1176,10 @@ impl AuthorityState {
             .get_transaction_cache_reader()
             .try_get_executed_effects(tx_digest)?
         {
-            if let Some(expected_effects_digest) = expected_effects_digest {
+            if let Some(expected_effects_digest_inner) = expected_effects_digest {
                 assert_eq!(
                     effects.digest(),
-                    expected_effects_digest,
+                    expected_effects_digest_inner,
                     "Unexpected effects digest for transaction {:?}",
                     tx_digest
                 );
@@ -1190,13 +1190,13 @@ impl AuthorityState {
         let input_objects =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
 
-        if expected_effects_digest.is_none() {
-            // We could be re-executing a previously executed but uncommitted transaction,
-            // perhaps after restarting with a new binary. In this situation, if
-            // we have published an effects signature, we must be sure not to
-            // equivocate. TODO: read from cache instead of DB
-            expected_effects_digest = epoch_store.get_signed_effects_digest(tx_digest)?;
-        }
+        // If no expected_effects_digest was provided, try to get it from storage.
+        // We could be re-executing a previously executed but uncommitted transaction,
+        // perhaps after restarting with a new binary. In this situation, if
+        // we have published an effects signature, we must be sure not to
+        // equivocate. TODO: read from cache instead of DB
+        let expected_effects_digest = expected_effects_digest
+            .or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
         self.process_certificate(
             tx_guard,
