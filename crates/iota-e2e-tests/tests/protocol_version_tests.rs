@@ -661,7 +661,10 @@ mod sim_only_tests {
 
         node_handle
             .with_async(|node| async {
-                node.state().get_object_cache_reader().get_object(object_id)
+                node.state()
+                    .get_object_cache_reader()
+                    .get_object(object_id)
+                    .unwrap()
             })
             .await
     }
