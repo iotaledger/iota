@@ -20,6 +20,7 @@
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node
 /crates/iota-core/ @iotaledger/node @iotaledger/consensus
+/crates/iota-core/src/authority/ @iotaledger/node @iotaledger/consensus @iotaledger/research
 /crates/iota-cost/ @iotaledger/vm-language
 /crates/iota-data-ingestion*/ @iotaledger/infrastructure
 /crates/iota-e2e-tests/ @iotaledger/node @iotaledger/vm-language
