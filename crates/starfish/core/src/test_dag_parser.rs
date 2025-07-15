@@ -10,7 +10,7 @@ use std::{
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{tag, take_while_m_n, take_while1},
+    bytes::complete::{tag, take_until, take_while_m_n, take_while1},
     character::complete::{char, digit1, multispace0, multispace1, space0, space1},
     combinator::{map_res, opt},
     multi::{many0, separated_list0},
@@ -78,7 +78,15 @@ pub(crate) fn parse_dag(dag_string: &str) -> IResult<&str, DagBuilder> {
 
     Ok((input, dag_builder))
 }
-
+fn parse_round_number<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Round)> {
+    let (input, _) = tuple((multispace0, tag("Round"), space1))(input)?;
+    let (input, round_num): (&'a str, Round) = map_res(digit1, str::parse::<Round>)(input)?;
+    // Capture everything before the `{` to get the round number
+    let (input, _) = take_until("{")(input)?;
+    // Capture everything between `{` and `}`
+    let (input, content) = delimited(tag("{"), take_until("}"), tag("}"))(input)?;
+    Ok((input, (content, round_num)))
+}
 fn parse_round<'a>(
     input: &'a str,
     dag_builder: &DagBuilder,
@@ -90,13 +98,13 @@ fn parse_round<'a>(
         HashMap<AuthorityIndex, Vec<BlockRef>>,
     ),
 > {
-    let (input, _) = tuple((multispace0, tag("Round"), space1))(input)?;
-    let (input, round) = take_while1(|c: char| c.is_ascii_digit())(input)?;
-
-    let (input, connections) = alt((
+    let (input, (content, round)) = parse_round_number(input)?;
+    let (_, connections) = alt((
         |input| parse_fully_connected(input, dag_builder),
         |input| parse_specified_connections(input, dag_builder),
-    ))(input)?;
+    ))(content)?;
+    // remove trailing comma if present
+    let (input, _) = opt(char(','))(input)?;
 
     // TODO: extend DAG parser with transaction acknowledgments. For now it's
     //  assumed that transactions are available together with the block headers and
@@ -104,36 +112,20 @@ fn parse_round<'a>(
 
     //  If the round is "1", we assume no transactions in Round 0 (genesis) are
     // acknowledged.
-    let transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>> = if round == "1" {
-        HashMap::new()
-    } else {
-        connections.clone().into_iter().collect()
-    };
-    Ok((
-        input,
-        (
-            round.parse().unwrap(),
-            connections,
-            transactions_acknowledgments,
-        ),
-    ))
+    let transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>> =
+        if round == 1 as Round {
+            HashMap::new()
+        } else {
+            connections.clone().into_iter().collect()
+        };
+    Ok((input, (round, connections, transactions_acknowledgments)))
 }
 
 fn parse_fully_connected<'a>(
     input: &'a str,
     dag_builder: &DagBuilder,
 ) -> IResult<&'a str, Vec<(AuthorityIndex, Vec<BlockRef>)>> {
-    let (input, _) = tuple((
-        space0,
-        char(':'),
-        space0,
-        char('{'),
-        space0,
-        char('*'),
-        space0,
-        char('}'),
-        opt(char(',')),
-    ))(input)?;
+    let (input, _) = tuple((space0, char('*'), space0))(input)?;
 
     let ancestors = dag_builder.last_ancestors.clone();
     let connections = dag_builder
@@ -150,8 +142,6 @@ fn parse_specified_connections<'a>(
     input: &'a str,
     dag_builder: &DagBuilder,
 ) -> IResult<&'a str, Vec<(AuthorityIndex, Vec<BlockRef>)>> {
-    let (input, _) = tuple((space0, char(':'), space0, char('{'), multispace0))(input)?;
-
     // parse specified connections
     // case 1: all authorities; [*]
     // case 2: specific included authorities; [A0, B0, C0]
@@ -184,8 +174,6 @@ fn parse_specified_connections<'a>(
         }
         output.push((author, block_refs.into_iter().collect()));
     }
-
-    let (input, _) = tuple((multispace0, char('}'), opt(char(','))))(input)?;
 
     Ok((input, output))
 }
@@ -549,5 +537,27 @@ mod tests {
         assert_eq!(str_to_authority_index("0"), None);
         assert_eq!(str_to_authority_index(" "), None);
         assert_eq!(str_to_authority_index("!"), None);
+    }
+    #[tokio::test]
+    async fn test_parse_round_number() {
+        let dag_str = r"Round 199 : {
+    A -> [A0, B0, C0, D0],
+    B -> [*, A0],
+    C -> [-A0],
+},
+Round 200 : {";
+        let result = parse_round_number(dag_str);
+        assert!(result.is_ok());
+        let (input, (content, round)) = result.unwrap();
+        assert_eq!(round, 199);
+        assert_eq!(
+            content,
+            r"
+    A -> [A0, B0, C0, D0],
+    B -> [*, A0],
+    C -> [-A0],
+"
+        );
+        assert_eq!(input, ",\nRound 200 : {");
     }
 }
