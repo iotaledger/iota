@@ -316,6 +316,12 @@ importers:
 
   apps/evm-bridge:
     dependencies:
+      '@growthbook/growthbook':
+        specifier: ^1.0.0
+        version: 1.2.0
+      '@growthbook/growthbook-react':
+        specifier: ^1.0.0
+        version: 1.2.0(react@18.3.1)
       '@hookform/resolvers':
         specifier: ^3.9.0
         version: 3.9.0(react-hook-form@7.57.0(react@18.3.1))
@@ -328,6 +334,9 @@ importers:
       '@iota/bcs':
         specifier: workspace:*
         version: link:../../sdk/bcs
+      '@iota/core':
+        specifier: workspace:*
+        version: link:../core
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
