@@ -18,12 +18,14 @@ describe('coinWithBalance', () => {
     let publishToolbox: TestToolbox;
     let packageId: string;
     let testType: string;
+    let testTypeZero: string;
 
     beforeAll(async () => {
         [toolbox, publishToolbox] = await Promise.all([setup(), setup()]);
         const packagePath = resolve(__dirname, './data/coin_metadata');
         packageId = await publishToolbox.getPackage(packagePath);
         testType = normalizeIotaAddress(packageId) + '::test::TEST';
+        testTypeZero = normalizeIotaAddress(packageId) + '::test_zero::TEST_ZERO';
     });
 
     it('works with iota', async () => {
@@ -323,6 +325,141 @@ describe('coinWithBalance', () => {
         });
     });
 
+    it('works with zero balance coin', async () => {
+        const tx = new Transaction();
+        const receiver = new Ed25519Keypair();
+
+        tx.transferObjects(
+            [
+                coinWithBalance({
+                    type: testTypeZero,
+                    balance: 0n,
+                }),
+            ],
+            receiver.toIotaAddress(),
+        );
+        tx.setSender(publishToolbox.keypair.toIotaAddress());
+
+        expect(
+            JSON.parse(
+                await tx.toJSON({
+                    supportedIntents: ['CoinWithBalance'],
+                }),
+            ),
+        ).toEqual({
+            expiration: null,
+            gasData: {
+                budget: null,
+                owner: null,
+                payment: null,
+                price: null,
+            },
+            inputs: [
+                {
+                    Pure: {
+                        bytes: toBase64(fromHex(receiver.toIotaAddress())),
+                    },
+                },
+            ],
+            sender: publishToolbox.keypair.toIotaAddress(),
+            commands: [
+                {
+                    $Intent: {
+                        data: {
+                            balance: '0',
+                            type: testTypeZero,
+                        },
+                        inputs: {},
+                        name: 'CoinWithBalance',
+                    },
+                },
+                {
+                    TransferObjects: {
+                        objects: [
+                            {
+                                Result: 0,
+                            },
+                        ],
+                        address: {
+                            Input: 0,
+                        },
+                    },
+                },
+            ],
+            version: 2,
+        });
+
+        expect(
+            JSON.parse(
+                await tx.toJSON({
+                    supportedIntents: [],
+                    client: publishToolbox.client,
+                }),
+            ),
+        ).toEqual({
+            expiration: null,
+            gasData: {
+                budget: null,
+                owner: null,
+                payment: null,
+                price: null,
+            },
+            inputs: [
+                {
+                    Pure: {
+                        bytes: toBase64(fromHex(receiver.toIotaAddress())),
+                    },
+                },
+            ],
+            sender: publishToolbox.keypair.toIotaAddress(),
+            commands: [
+                {
+                    MoveCall: {
+                        arguments: [],
+                        function: 'zero',
+                        module: 'coin',
+                        package:
+                            '0x0000000000000000000000000000000000000000000000000000000000000002',
+                        typeArguments: [testTypeZero],
+                    },
+                },
+                {
+                    TransferObjects: {
+                        objects: [{ Result: 0 }],
+                        address: {
+                            Input: 0,
+                        },
+                    },
+                },
+            ],
+            version: 2,
+        });
+
+        const { digest } = await toolbox.client.signAndExecuteTransaction({
+            transaction: tx,
+            signer: publishToolbox.keypair,
+        });
+
+        const result = await toolbox.client.waitForTransaction({
+            digest,
+            options: { showEffects: true, showBalanceChanges: true, showObjectChanges: true },
+        });
+
+        expect(result.effects?.status.status).toBe('success');
+        expect(
+            result.objectChanges?.filter((change) => {
+                if (change.type !== 'created') return false;
+                if (typeof change.owner !== 'object' || !('AddressOwner' in change.owner))
+                    return false;
+
+                return (
+                    change.objectType === `0x2::coin::Coin<${testTypeZero}>` &&
+                    change.owner.AddressOwner === receiver.toIotaAddress()
+                );
+            }).length,
+        ).toEqual(1);
+    });
+
     it('works with multiple coins', async () => {
         const tx = new Transaction();
         const receiver = new Ed25519Keypair();
@@ -333,6 +470,7 @@ describe('coinWithBalance', () => {
                 coinWithBalance({ type: testType, balance: 2n }),
                 coinWithBalance({ type: 'gas', balance: 3n }),
                 coinWithBalance({ type: 'gas', balance: 4n }),
+                coinWithBalance({ type: testTypeZero, balance: 0n }),
             ],
             receiver.toIotaAddress(),
         );
@@ -403,6 +541,16 @@ describe('coinWithBalance', () => {
                     },
                 },
                 {
+                    $Intent: {
+                        data: {
+                            balance: '0',
+                            type: testTypeZero,
+                        },
+                        inputs: {},
+                        name: 'CoinWithBalance',
+                    },
+                },
+                {
                     TransferObjects: {
                         objects: [
                             {
@@ -416,6 +564,9 @@ describe('coinWithBalance', () => {
                             },
                             {
                                 Result: 3,
+                            },
+                            {
+                                Result: 4,
                             },
                         ],
                         address: {
@@ -525,12 +676,23 @@ describe('coinWithBalance', () => {
                     },
                 },
                 {
+                    MoveCall: {
+                        arguments: [],
+                        function: 'zero',
+                        module: 'coin',
+                        package:
+                            '0x0000000000000000000000000000000000000000000000000000000000000002',
+                        typeArguments: [testTypeZero],
+                    },
+                },
+                {
                     TransferObjects: {
                         objects: [
                             { NestedResult: [0, 0] },
                             { NestedResult: [1, 0] },
                             { NestedResult: [2, 0] },
                             { NestedResult: [3, 0] },
+                            { Result: 4 },
                         ],
                         address: {
                             Input: 0,
@@ -548,7 +710,7 @@ describe('coinWithBalance', () => {
 
         const result = await toolbox.client.waitForTransaction({
             digest,
-            options: { showEffects: true, showBalanceChanges: true },
+            options: { showEffects: true, showBalanceChanges: true, showObjectChanges: true },
         });
 
         expect(result.effects?.status.status).toBe('success');
@@ -575,5 +737,17 @@ describe('coinWithBalance', () => {
                 },
             },
         ]);
+        expect(
+            result.objectChanges?.filter((change) => {
+                if (change.type !== 'created') return false;
+                if (typeof change.owner !== 'object' || !('AddressOwner' in change.owner))
+                    return false;
+
+                return (
+                    change.objectType === `0x2::coin::Coin<${testTypeZero}>` &&
+                    change.owner.AddressOwner === receiver.toIotaAddress()
+                );
+            }).length,
+        ).toEqual(1);
     });
 });
