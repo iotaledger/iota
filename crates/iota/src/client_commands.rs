@@ -691,7 +691,7 @@ impl OptsWithGas {
         }
     }
 
-    // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
+    // `--display` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
     /// Output the options as a vec of strings that can be provided as args to
     /// the PTB CLI.
     pub fn into_args(self) -> Vec<String> {
