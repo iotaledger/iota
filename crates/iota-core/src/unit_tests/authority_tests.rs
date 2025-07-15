@@ -2808,7 +2808,7 @@ async fn test_authority_store_init() {
             false,
         )
         .await;
-        let package_obj = authority.get_object(&package.0).await.unwrap().unwrap();
+        let package_obj = authority.get_object(&package.0).await.unwrap();
 
         // Create a parent.
         let effects = call_move(
@@ -2826,7 +2826,7 @@ async fn test_authority_store_init() {
         .unwrap();
         assert!(effects.status().is_ok());
         let parent = effects.created()[0].0;
-        let parent_obj = authority.get_object(&parent.0).await.unwrap().unwrap();
+        let parent_obj = authority.get_object(&parent.0).await.unwrap();
 
         // Create a child.
         let effects = call_move(
@@ -2844,7 +2844,7 @@ async fn test_authority_store_init() {
         .unwrap();
         assert!(effects.status().is_ok());
         let child = effects.created()[0].0;
-        let child_obj = authority.get_object(&child.0).await.unwrap().unwrap();
+        let child_obj = authority.get_object(&child.0).await.unwrap();
 
         // Add the child to the parent.
         let effects = call_move(
@@ -2872,7 +2872,7 @@ async fn test_authority_store_init() {
             Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
         };
         // This is the object that we need to trigger the failure code path.
-        let field_obj = authority.get_object(&field_id).await.unwrap().unwrap();
+        let field_obj = authority.get_object(&field_id).await.unwrap();
         assert_eq!(field_obj.owner, parent.0);
 
         (package_obj, parent_obj, child_obj, field_obj)
@@ -3448,7 +3448,7 @@ async fn test_store_revert_wrap_move_call() {
 
     authority_state
         .get_cache_commit()
-        .try_commit_transaction_outputs(
+        .commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[*create_effects.transaction_digest()],
         )
@@ -3544,7 +3544,7 @@ async fn test_store_revert_unwrap_move_call() {
 
     authority_state
         .get_cache_commit()
-        .try_commit_transaction_outputs(
+        .commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_effects.transaction_digest(),
@@ -3687,9 +3687,8 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
     let add_cert = init_certified_transaction(add_txn, &authority_state);
 
     let add_effects = authority_state
-        .try_execute_for_test(&add_cert)
+        .execute_for_test(&add_cert)
         .await
-        .unwrap()
         .0
         .into_message();
 
@@ -3822,7 +3821,7 @@ async fn test_store_revert_add_ofield() {
 
     authority_state
         .get_cache_commit()
-        .try_commit_transaction_outputs(
+        .commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_outer_effects.transaction_digest(),
@@ -3948,7 +3947,7 @@ async fn test_store_revert_remove_ofield() {
 
     authority_state
         .get_cache_commit()
-        .try_commit_transaction_outputs(
+        .commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_outer_effects.transaction_digest(),
@@ -4776,7 +4775,7 @@ async fn test_shared_object_transaction_shared_locks_not_set() {
 
     // Executing the certificate now panics since it was not sequenced and shared
     // locks are not set
-    let _ = authority.try_execute_for_test(&certificate).await;
+    let _ = authority.execute_for_test(&certificate).await;
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -4805,7 +4804,7 @@ async fn test_shared_object_transaction_ok() {
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
-    authority.try_execute_for_test(&certificate).await.unwrap();
+    authority.execute_for_test(&certificate).await;
 
     // Ensure transaction effects are available.
     authority.notify_read_effects(&certificate).await.unwrap();
@@ -4988,7 +4987,7 @@ async fn test_consensus_message_processed() {
         // on authority1, we always sequence via consensus
         send_consensus(&authority1, &certificate).await;
         let (effects1, _execution_error_opt) =
-            authority1.try_execute_for_test(&certificate).await.unwrap();
+            authority1.execute_for_test(&certificate).await;
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
         // sequence and execute via effects or via handle_certificate_v1, then
@@ -5000,9 +4999,8 @@ async fn test_consensus_message_processed() {
 
         let effects2 = if send_first && rng.gen_bool(0.5) {
             authority2
-                .try_execute_for_test(&certificate)
+                .execute_for_test(&certificate)
                 .await
-                .unwrap()
                 .0
                 .into_message()
         } else {
@@ -5015,10 +5013,10 @@ async fn test_consensus_message_processed() {
                 )
                 .await
                 .unwrap();
-            authority2.try_execute_for_test(&certificate).await.unwrap();
+            authority2.execute_for_test(&certificate).await;
             authority2
                 .get_transaction_cache_reader()
-                .try_get_executed_effects(transaction_digest)
+                .get_executed_effects(transaction_digest)
                 .unwrap()
         };
 

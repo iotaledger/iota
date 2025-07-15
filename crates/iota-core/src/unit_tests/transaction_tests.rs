@@ -2189,12 +2189,10 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .unwrap()
                 .compute_object_reference();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
-                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let sender = &senders[i];

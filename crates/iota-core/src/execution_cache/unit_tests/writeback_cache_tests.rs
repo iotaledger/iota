@@ -353,10 +353,9 @@ impl Scenario {
     }
 
     // commit a transaction to the database
-    pub async fn commit(&mut self, tx: TransactionDigest) -> IotaResult {
-        let res = self.cache().try_commit_transaction_outputs(1, &[tx]).await;
+    pub async fn commit(&mut self, tx: TransactionDigest) {
+        self.cache().commit_transaction_outputs(1, &[tx]).await;
         self.count_action();
-        res
     }
 
     pub async fn clear_state_end_of_epoch(&self) {
@@ -639,7 +638,7 @@ async fn test_extra_outputs() {
         let events_digest = fx.events_digest().unwrap();
         s.cache.get_events(events_digest).unwrap();
 
-        s.commit(tx).await.unwrap();
+        s.commit(tx).await;
 
         s.cache.get_transaction_block(&tx).unwrap();
         s.cache.get_executed_effects(&tx).unwrap();
@@ -663,7 +662,7 @@ async fn test_extra_outputs() {
             "empty events should be none"
         );
 
-        s.commit(tx).await.unwrap();
+        s.commit(tx).await;
         assert!(
             s.cache.get_events(events_digest).is_none(),
             "empty events should be none"
@@ -689,7 +688,7 @@ async fn test_out_of_order_commit() {
         s.with_mutated(&[1, 2]);
         let tx2 = s.do_tx().await;
 
-        s.commit(tx2).await.unwrap_err();
+        s.commit(tx2).await;
     })
     .await;
 }
@@ -703,7 +702,7 @@ async fn test_lt_or_eq() {
                 let v = SequenceNumber::from_u64(i);
                 assert_eq!(
                     s.cache()
-                        .try_find_object_lt_or_eq_version(s.obj_id(1), v)
+                        .find_object_lt_or_eq_version(s.obj_id(1), v)
                         .unwrap()
                         .version(),
                     v
@@ -723,11 +722,11 @@ async fn test_lt_or_eq() {
         // txns are committed vs uncommitted. Scenario::iterate repeats
         // the test with cache eviction at each possible point.
         check_all_versions(&s);
-        s.commit(tx1).await.unwrap();
+        s.commit(tx1).await;
         check_all_versions(&s);
-        s.commit(tx2).await.unwrap();
+        s.commit(tx2).await;
         check_all_versions(&s);
-        s.commit(tx3).await.unwrap();
+        s.commit(tx3).await;
         check_all_versions(&s);
     })
     .await;
@@ -744,9 +743,9 @@ async fn test_lt_or_eq_caching() {
         let tx2 = s.do_tx().await;
         s.with_mutated_version_delta(&[1], 2);
         let tx3 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.commit(tx2).await.unwrap();
-        s.commit(tx3).await.unwrap();
+        s.commit(tx1).await;
+        s.commit(tx2).await;
+        s.commit(tx3).await;
 
         s.reset_cache();
 
@@ -755,7 +754,7 @@ async fn test_lt_or_eq_caching() {
             let expected_version = SequenceNumber::from_u64(expected_version);
             assert_eq!(
                 s.cache()
-                    .try_find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
+                    .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .unwrap()
                     .version(),
                 expected_version
@@ -807,8 +806,8 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         let tx1 = s.do_tx().await;
         s.with_deleted(&[1]);
         let tx2 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.commit(tx2).await.unwrap();
+        s.commit(tx1).await;
+        s.commit(tx2).await;
 
         s.reset_cache();
 
@@ -848,6 +847,7 @@ async fn test_write_transaction_outputs_is_sync() {
         s.cache
             .write_transaction_outputs(1, outputs)
             .now_or_never()
+            .unwrap()
             .unwrap();
     })
     .await;
@@ -872,7 +872,7 @@ async fn test_revert_committed_tx_panics() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
         let tx1 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
+        s.commit(tx1).await;
         s.cache().revert_state_update(&tx1);
     })
     .await;
@@ -884,7 +884,7 @@ async fn test_revert_unexecuted_tx() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
         let tx1 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
+        s.commit(tx1).await;
         let random_digest = TransactionDigest::random();
         // must not panic - pending_consensus_transactions is a super set of
         // executed but un-checkpointed transactions
@@ -917,7 +917,7 @@ async fn test_revert_state_update_mutated() {
         let v1 = {
             s.with_created(&[1]);
             let tx = s.do_tx().await;
-            s.commit(tx).await.unwrap();
+            s.commit(tx).await;
             s.cache().get_object(&s.obj_id(1)).unwrap().version()
         };
 
@@ -949,8 +949,7 @@ async fn test_invalidate_package_cache_on_revert() {
 
         assert!(
             s.cache()
-                .try_get_package_object(&s.obj_id(2))
-                .unwrap()
+                .get_package_object(&s.obj_id(2))
                 .is_none()
         );
     })
@@ -1001,11 +1000,11 @@ async fn test_concurrent_readers() {
         tokio::task::spawn(async move {
             for (tx1, tx2, _, _) in txns {
                 println!("writing tx1");
-                cache.write_transaction_outputs(1, tx1).await;
+                cache.write_transaction_outputs(1, tx1).await.unwrap();
 
                 barrier.wait().await;
                 println!("writing tx2");
-                cache.write_transaction_outputs(1, tx2).await;
+                cache.write_transaction_outputs(1, tx2).await.unwrap();
             }
         })
     };

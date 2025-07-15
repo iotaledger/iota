@@ -2711,10 +2711,10 @@ mod tests {
 
     #[iota_macros::extend_impl_with_non_fallible("storage access failed")]
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
-        fn try_notify_read_executed_effects(
-            &self,
-            digests: &[TransactionDigest],
-        ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffects>>> {
+        fn try_notify_read_executed_effects<'a>(
+            &'a self,
+            digests: &'a [TransactionDigest],
+        ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
             std::future::ready(Ok(digests
                 .iter()
                 .map(|d| self.get(d).expect("effects not found").clone())
@@ -2722,10 +2722,10 @@ mod tests {
             .boxed()
         }
 
-        fn try_notify_read_executed_effects_digests(
-            &self,
-            digests: &[TransactionDigest],
-        ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffectsDigest>>> {
+        fn try_notify_read_executed_effects_digests<'a>(
+            &'a self,
+            digests: &'a [TransactionDigest],
+        ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
             std::future::ready(Ok(digests
                 .iter()
                 .map(|d| {

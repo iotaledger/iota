@@ -113,7 +113,7 @@ impl TestRunner {
     pub fn get_object_latest_version(&mut self, obj_id: ObjectID) -> SequenceNumber {
         self.authority_state
             .get_object_cache_reader()
-            .try_get_latest_object_ref_or_tombstone(obj_id)
+            .get_latest_object_ref_or_tombstone(obj_id)
             .unwrap()
             .1
     }
