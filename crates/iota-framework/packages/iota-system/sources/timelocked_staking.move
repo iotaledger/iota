@@ -16,8 +16,9 @@ use std::string::String;
 const ETimeLockShouldNotBeExpired: u64 = 0;
 /// Incompatible objects when joining `TimelockedStakedIota`.
 const EIncompatibleTimelockedStakedIota: u64 = 1;
-/// For when trying to unlock a not-expired `TimelockedStakedIota`.
-const ETimelockedStakedIotaShouldBeExpired: u64 = 2;
+
+#[error(code = 2)]
+const ETimelockedStakedIotaShouldBeExpired: vector<u8> = b"TimelockedStakedIota is not expired.";
 
 /// A self-custodial object holding the timelocked staked IOTA tokens.
 public struct TimelockedStakedIota has key {
