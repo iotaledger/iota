@@ -476,7 +476,7 @@ function isReceivingType(type: OpenMoveTypeSignature): boolean {
 export function getClient(options: BuildTransactionOptions): IotaClient {
     if (!options.client) {
         throw new Error(
-            `No provider passed to Transaction#build, but transaction data was not sufficient to build offline.`,
+            `No iota client passed to Transaction#build, but transaction data was not sufficient to build offline.`,
         );
     }
 
