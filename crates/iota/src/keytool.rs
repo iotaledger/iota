@@ -141,14 +141,14 @@ pub enum KeyToolCommand {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
     },
-    /// Import a key from Ledger hardware wallet. The derivation path is
-    /// required. Example "m/44'/4218'/0'/0'/0'"
+    /// Import a key from Ledger hardware wallet.
     ImportLedger {
         /// Sets an alias for this address. The alias must start with a letter
         /// and can contain only letters, digits, dots, hyphens (-), or
         /// underscores (_).
         #[arg(long)]
         alias: Option<String>,
+        #[arg(default_value = "m/44'/4218'/0'/0'/0'")]
         derivation_path: DerivationPath,
     },
     /// List all keys by its IOTA address, Base64 encoded public key, key scheme
