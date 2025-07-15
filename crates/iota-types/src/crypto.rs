@@ -167,8 +167,10 @@ impl IotaKeyPair {
             IotaKeyPair::Secp256r1(kp) => PublicKey::Secp256r1(kp.public().into()),
         }
     }
+}
 
-    pub fn copy(&self) -> Self {
+impl Clone for IotaKeyPair {
+    fn clone(&self) -> Self {
         match self {
             IotaKeyPair::Ed25519(kp) => kp.copy().into(),
             IotaKeyPair::Secp256k1(kp) => kp.copy().into(),
