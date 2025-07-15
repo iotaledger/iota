@@ -57,8 +57,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         ledger.get_public_key(&derivation_path)?
     };
 
-    println!("Public Key: {}", hex::encode(&addresses.public_key));
-    println!("Address: {}", hex::encode(addresses.address));
+    println!("Public Key: 0x{}", hex::encode(&addresses.public_key));
+    println!("Address: 0x{}", hex::encode(addresses.address));
 
     Ok(())
 }
