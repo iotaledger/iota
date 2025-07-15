@@ -695,36 +695,36 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     .execute(&mut keystore)
     .await?;
 
-    match output {
-        CommandOutput::MultiSigCombinePartialSig(data) => {
-            assert_eq!(
-                data.multisig_address.to_string(),
-                "0x9c3d1202a483f33cc340183df29ae9ffa55697947be431c963be78917e7fc538"
-            );
-            // Check parsed structure
-            let parsed_json = serde_json::to_value(&data.multisig_parsed).unwrap();
-            let expected_json = serde_json::json!({
-                "sigs": [
-                    {"Ed25519": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
-                    {"Ed25519": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
-                ],
-                "bitmap": 3,
-                "multisig_pk": {
-                    "pk_map": [
-                        [{"Ed25519": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, 1],
-                        [{"Ed25519": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, 1],
-                        [{"Ed25519": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, 1]
-                    ],
-                    "threshold": 2
-                }
-            });
-            assert_eq!(parsed_json, expected_json);
-            assert_eq!(
-                data.multisig_serialized,
-                "AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA="
-            );
+    let CommandOutput::MultiSigCombinePartialSig(data) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+
+    assert_eq!(
+        data.multisig_address.to_string(),
+        "0x9c3d1202a483f33cc340183df29ae9ffa55697947be431c963be78917e7fc538"
+    );
+    // Check parsed structure
+    let parsed_json = serde_json::to_value(&data.multisig_parsed).unwrap();
+    let expected_json = serde_json::json!({
+        "sigs": [
+            {"Ed25519": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
+            {"Ed25519": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
+        ],
+        "bitmap": 3,
+        "multisig_pk": {
+            "pk_map": [
+                [{"Ed25519": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, 1],
+                [{"Ed25519": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, 1],
+                [{"Ed25519": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, 1]
+            ],
+            "threshold": 2
         }
-        _ => panic!("unexpected output: {output:?}"),
-    }
+    });
+    assert_eq!(parsed_json, expected_json);
+    assert_eq!(
+        data.multisig_serialized,
+        "AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA="
+    );
+
     Ok(())
 }
