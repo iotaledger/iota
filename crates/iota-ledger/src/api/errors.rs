@@ -111,7 +111,7 @@ pub enum LedgerError {
     #[error("APDU error: {0:?}")]
     APDUError(APDUErrorCode),
 
-    #[error("Unknown error {0:?}")]
+    #[error("Unknown APDU error {0:?}")]
     UnknownAPDUError(u16),
 
     #[error("Blocks protocol failed")]
