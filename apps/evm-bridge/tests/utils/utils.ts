@@ -17,6 +17,8 @@ const THREE_MINUTES = 180_000;
 const MNEMONIC =
     'mom program scrap easily doctor seed slender secret mad flat foam hospital cherry seek river you obscure column blood reflect arch pencil cat burst';
 const TOOL_COIN_OBJECT_ID = '0xf7662ffd9cb079d8e75ab4805ba78fdb0e0fb78cf49aa0fa01ecb7ebdf15d04e';
+export const TOOL_COIN_TYPE =
+    '0xe1e88f4962b3ea96cfad19aee42f666b04bbce4dc4327c3cd63f1b8ff16e13b2::tool_coin::TOOL_COIN';
 
 export function generate24WordMnemonic() {
     const entropy = ethers.randomBytes(32);
@@ -83,6 +85,24 @@ export async function checkL2IotaBalanceWithRetries(address: string) {
     return await checkBalanceWithRetries(address, getEVMBalanceForAddress, 'L2');
 }
 
+export async function checkL1CoinBalanceForAddress(
+    address: string,
+    coinType: string,
+): Promise<string> {
+    const { L1 } = CONFIG;
+
+    const client = new IotaClient({
+        url: L1.rpcUrl,
+    });
+
+    const balance = await client.getAllBalances({ owner: address });
+    const coinBalance = balance.find((coin) => coin.coinType === coinType);
+    if (!coinBalance) {
+        throw new Error(`Coin type ${coinType} not found in balance.`);
+    }
+    return coinBalance.totalBalance;
+}
+
 export async function checkL2CoinBalanceForAddress(
     address: string,
     coinType: string,
@@ -90,11 +110,10 @@ export async function checkL2CoinBalanceForAddress(
     const { L2 } = CONFIG;
     const evmRpcClient = new EvmRpcClient(L2.evmRpcUrl);
     const balance = await evmRpcClient.getBalanceBaseToken(address);
-
     if (coinType === IOTA_TYPE_ARG) {
         return balance.baseTokens;
     }
-    const nativeToken = balance?.nativeTokens.find((token) => token.coinType === coinType);
+    const nativeToken = balance?.nativeTokens?.find((token) => token.coinType === coinType);
     return nativeToken ? nativeToken.balance : '0';
 }
 
@@ -114,7 +133,6 @@ export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: st
 export async function fundL2AddressWithIscClient(
     addressL2: string,
     amount: number,
-    coins: CoinStruct[] = [],
     coinType = IOTA_TYPE_ARG,
 ) {
     const { L1 } = CONFIG;
@@ -132,14 +150,21 @@ export async function fundL2AddressWithIscClient(
         coinData?.decimals ?? IOTA_DECIMALS,
     ) as bigint;
 
-    const keypair = new Ed25519Keypair();
+    const keypair = Ed25519Keypair.deriveKeypair(MNEMONIC);
     const address = keypair.toIotaAddress();
+    let coins: CoinStruct[] = [];
 
     if (coinType === IOTA_TYPE_ARG) {
         await requestIotaFromFaucetV0({
             host: L1.faucetUrl!,
             recipient: address,
         });
+    } else {
+        const { data: toolCoins } = await client.getCoins({
+            coinType: TOOL_COIN_TYPE,
+            owner: address,
+        });
+        coins = toolCoins;
     }
 
     const transaction = createDepositTransactionL1({
