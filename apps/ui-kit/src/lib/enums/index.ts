@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './screenSize.enums';
+export * from './theme.enums';

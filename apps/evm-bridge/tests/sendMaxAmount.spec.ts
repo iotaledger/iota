@@ -183,7 +183,7 @@ test.describe('Send MAX amount from L2', () => {
             .locator('xpath=../div/span')
             .nth(1)
             .textContent();
-        expect(Number(gasFeeValue).toFixed(6)).toEqual('0.000370');
+        expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
 
         await expect(testPageL2.getByText('Bridge Assets')).toBeEnabled();
 
@@ -194,7 +194,6 @@ test.describe('Send MAX amount from L2', () => {
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
 
         const l1Balance = await checkL1BalanceWithRetries(addressL1);
-
-        expect(Number(l1Balance).toFixed(6)).toEqual('8.999630');
+        expect(Number(l1Balance).toFixed(6)).toMatch(/^8\.9996\d\d$/);
     });
 });

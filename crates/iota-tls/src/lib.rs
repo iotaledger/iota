@@ -31,7 +31,7 @@ pub fn create_rustls_server_config<A: Allower + 'static>(
     let tls_private_key = self_signed_cert.rustls_private_key();
     let mut tls_config = verifier
         .rustls_server_config(vec![tls_cert], tls_private_key)
-        .unwrap_or_else(|e| panic!("Failed to create TLS server config: {:?}", e));
+        .unwrap_or_else(|e| panic!("Failed to create TLS server config: {e:?}"));
     tls_config.alpn_protocols = vec![b"h2".to_vec()];
     tls_config
 }

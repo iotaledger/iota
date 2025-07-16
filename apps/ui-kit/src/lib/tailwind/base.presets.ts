@@ -17,6 +17,7 @@ import {
 } from './constants';
 import { THEMED_CUSTOM_COLORS } from './constants/customColors.constants';
 import { firefoxPlugin, namesVariant } from './plugins';
+import { NAMES_GRADIENTS } from './constants/gradients.constants';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
@@ -49,6 +50,9 @@ export const BASE_CONFIG: Config = {
                 ...THEMED_CUSTOM_COLORS,
             },
             fontFamily: FONT_FAMILIES,
+            backgroundImage: {
+                ...NAMES_GRADIENTS,
+            },
         },
     },
 };

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { CoinFormat, formatBalance } from '../useFormatCoin';
 
 const IOTA_DECIMALS = 9;
+const LONGER_THAN_IOTA_DECIMALS = 19;
 
 function toNano(iota: string) {
     return new BigNumber(iota).shiftedBy(IOTA_DECIMALS).toString();
@@ -37,6 +38,8 @@ describe('formatBalance', () => {
         expect(formatBalance('123', IOTA_DECIMALS)).toEqual('0.0₆123');
         expect(formatBalance('12', IOTA_DECIMALS)).toEqual('0.0₇12');
         expect(formatBalance('1', IOTA_DECIMALS)).toEqual('0.0₈1');
+        expect(formatBalance('12', LONGER_THAN_IOTA_DECIMALS)).toEqual('0.0₁₇12');
+        expect(formatBalance('1', LONGER_THAN_IOTA_DECIMALS)).toEqual('0.0₁₈1');
     });
 
     it('formats integer amounts correctly', () => {

@@ -587,8 +587,7 @@ async fn test_dev_inspect_dynamic_field() {
     let err = error.unwrap();
     assert!(
         err.contains("kind: CircularObjectOwnership"),
-        "unexpected error: {}",
-        err
+        "unexpected error: {err}"
     );
 
     // add a dynamic field to an object
@@ -1943,7 +1942,7 @@ async fn test_package_size_limit() {
         let mut module = file_format::empty_module();
         // generate unique name
         module.identifiers[0] =
-            Identifier::new(format!("TestModule{:0>21000?}", modules_size)).unwrap();
+            Identifier::new(format!("TestModule{modules_size:0>21000?}")).unwrap();
         let module_bytes = {
             let mut bytes = Vec::new();
             module
@@ -3388,8 +3387,7 @@ async fn test_invalid_object_ownership() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::IncorrectUserSignature {
             error: format!(
-                "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
-                invalid_ownership_object_id, invalid_owner, sender
+                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner:?}, but given owner/signer address is {sender:?}"
             )
         }
     );
@@ -3837,8 +3835,7 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
 
     assert!(
         create_outer_effects.status().is_ok(),
-        "{:?}",
-        create_outer_effects
+        "{create_outer_effects:?}"
     );
     assert_eq!(create_outer_effects.created().len(), 1);
 
@@ -5888,7 +5885,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .into_data()
         .into_status();
 
-    assert!(status.is_ok(), "Transaction failed: {:?}", status);
+    assert!(status.is_ok(), "Transaction failed: {status:?}");
 }
 
 #[tokio::test]
@@ -6202,10 +6199,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         DeferralKey::Randomness {
             deferred_from_round,
         } => {
-            panic!(
-                "Expected ConsensusRound, got RandomnessDkg: {:?}",
-                deferred_from_round
-            );
+            panic!("Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}");
         }
     }
 
@@ -6265,10 +6259,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         DeferralKey::Randomness {
             deferred_from_round,
         } => {
-            panic!(
-                "Expected ConsensusRound, got RandomnessDkg: {:?}",
-                deferred_from_round
-            );
+            panic!("Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}");
         }
     }
 

@@ -32,7 +32,6 @@ pub const IOTA_NETWORK_CONFIG: &str = "network.yaml";
 pub const IOTA_FULLNODE_CONFIG: &str = "fullnode.yaml";
 pub const IOTA_CLIENT_CONFIG: &str = "client.yaml";
 pub const IOTA_KEYSTORE_FILENAME: &str = "iota.keystore";
-pub const IOTA_KEYSTORE_ALIASES_FILENAME: &str = "iota.aliases";
 pub const IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
 pub const IOTA_GENESIS_FILENAME: &str = "genesis.blob";
 pub const IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME: &str = "migration.blob";
@@ -76,17 +75,17 @@ pub fn genesis_blob_exists(config_dir: Option<PathBuf>) -> bool {
 }
 
 pub fn validator_config_file(address: Multiaddr, i: usize) -> String {
-    multiaddr_to_filename(address).unwrap_or(format!("validator-config-{}.yaml", i))
+    multiaddr_to_filename(address).unwrap_or(format!("validator-config-{i}.yaml"))
 }
 
 pub fn ssfn_config_file(address: Multiaddr, i: usize) -> String {
-    multiaddr_to_filename(address).unwrap_or(format!("ssfn-config-{}.yaml", i))
+    multiaddr_to_filename(address).unwrap_or(format!("ssfn-config-{i}.yaml"))
 }
 
 fn multiaddr_to_filename(address: Multiaddr) -> Option<String> {
     if let Some(hostname) = address.hostname() {
         if let Some(port) = address.port() {
-            return Some(format!("{}-{}.yaml", hostname, port));
+            return Some(format!("{hostname}-{port}.yaml"));
         }
     }
     None

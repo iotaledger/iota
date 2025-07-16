@@ -632,7 +632,7 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         for i in 0..5 {
             let response = policy.handle_tally(alice.clone());
-            assert_eq!(response.block_client, None, "Blocked at i = {}", i);
+            assert_eq!(response.block_client, None, "Blocked at i = {i}");
             assert_eq!(response.block_proxied_client, None);
         }
 
@@ -652,7 +652,7 @@ mod tests {
         // spam through charlie to block connection
         for i in 0..2 {
             let response = policy.handle_tally(charlie.clone());
-            assert_eq!(response.block_client, None, "Blocked at i = {}", i);
+            assert_eq!(response.block_client, None, "Blocked at i = {i}");
             assert_eq!(response.block_proxied_client, None);
         }
         // Now we block connection IP
@@ -666,7 +666,7 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         for i in 0..3 {
             let response = policy.handle_tally(charlie.clone());
-            assert_eq!(response.block_client, None, "Blocked at i = {}", i);
+            assert_eq!(response.block_client, None, "Blocked at i = {i}");
             assert_eq!(response.block_proxied_client, None);
         }
 

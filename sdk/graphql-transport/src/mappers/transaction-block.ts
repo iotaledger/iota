@@ -65,7 +65,7 @@ export function mapGraphQLTransactionBlockToRpcTransactionBlock(
                     txDigest: '', // TODO
                 },
                 packageId: event.sendingModule?.package.address!,
-                parsedJson: event.json ? JSON.parse(event.json) : undefined,
+                parsedJson: event.json,
                 sender: event.sender?.address,
                 timestampMs: new Date(event.timestamp).getTime().toString(),
                 transactionModule: `${event.sendingModule?.package.address}::${event.sendingModule?.name}`,
@@ -220,7 +220,7 @@ function mapTransactionInput(input: typeof bcs.CallArg.$inferType): IotaCallArg 
     if (input.Pure) {
         return {
             type: 'pure',
-            value: fromB64(input.Pure.bytes),
+            value: bcs.string().parse(fromB64(input.Pure.bytes)),
         };
     }
 

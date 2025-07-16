@@ -73,7 +73,12 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         ledgerClient
             .signTransaction(
                 `m/44'/4218'/0'/0'/0'`,
-                '0000000000020008e803000000000000002021c22f952c8742b3156dfca5fc8278bd3ba7b209c81e26c4f44a9944259b03b50202000101000001010200000101006fb21feead027da4873295affd6c4f3618fe176fa2fbf3e7b5ef1d9463b31e2101cad8ac9d85be1fcb1ec3f5870a50004549f4f892856b70499ed1654201c4399984470b000000000020ec2f226e6647a523608dc52ccb9976720c51d60ebfeadc524ee870cdfd1f6b8c6fb21feead027da4873295affd6c4f3618fe176fa2fbf3e7b5ef1d9463b31e21e803000000000000404b4c000000000000',
+                Uint8Array.from(
+                    Buffer.from(
+                        '0000000000020008e803000000000000002021c22f952c8742b3156dfca5fc8278bd3ba7b209c81e26c4f44a9944259b03b50202000101000001010200000101006fb21feead027da4873295affd6c4f3618fe176fa2fbf3e7b5ef1d9463b31e2101cad8ac9d85be1fcb1ec3f5870a50004549f4f892856b70499ed1654201c4399984470b000000000020ec2f226e6647a523608dc52ccb9976720c51d60ebfeadc524ee870cdfd1f6b8c6fb21feead027da4873295affd6c4f3618fe176fa2fbf3e7b5ef1d9463b31e21e803000000000000404b4c000000000000',
+                        'hex',
+                    ),
+                ),
             )
             .then(({ signature }) => {
                 expect(Buffer.from(signature).toString('hex')).toBe(
@@ -111,7 +116,12 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         ledgerClient
             .signTransaction(
                 `m/44'/4218'/0'/0'/0'`,
-                '0000000000000000000000000000000000000000000000000000000000000000',
+                Uint8Array.from(
+                    Buffer.from(
+                        '0000000000000000000000000000000000000000000000000000000000000000',
+                        'hex',
+                    ),
+                ),
             )
             .then(({ signature }) => {
                 expect(Buffer.from(signature).toString('hex')).toBe(

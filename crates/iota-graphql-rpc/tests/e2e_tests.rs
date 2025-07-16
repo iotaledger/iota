@@ -87,11 +87,8 @@ mod tests {
             .await
             .unwrap();
 
-        let exp = format!(
-            "{{\"data\":{{\"chainIdentifier\":\"{}\"}}}}",
-            chain_id_actual
-        );
-        assert_eq!(&format!("{}", res), &exp);
+        let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
+        assert_eq!(&format!("{res}"), &exp);
         cluster.cleanup_resources().await
     }
 
@@ -113,10 +110,7 @@ mod tests {
             .digest();
 
         let chain_id_actual = format!("{}", ChainIdentifier::from(genesis_checkpoint_digest1));
-        let exp = format!(
-            "{{\"data\":{{\"chainIdentifier\":\"{}\"}}}}",
-            chain_id_actual
-        );
+        let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
         let cluster = iota_graphql_rpc::test_infra::cluster::serve_executor(
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
@@ -141,7 +135,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(&format!("{}", res), &exp);
+        assert_eq!(&format!("{res}"), &exp);
     }
 
     #[tokio::test]

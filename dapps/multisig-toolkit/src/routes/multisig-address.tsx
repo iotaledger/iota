@@ -14,15 +14,9 @@ import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-/*
-Pubkeys for playing with
-ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq
-ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP
-*/
-
 export default function MultiSigAddressGenerator() {
     const [msAddress, setMSAddress] = useState('');
-    const { register, control, handleSubmit } = useForm({
+    const { register, control, handleSubmit, setValue } = useForm({
         defaultValues: {
             pubKeys: [{ pubKey: '', weight: '' }],
             threshold: 1,
@@ -67,10 +61,43 @@ export default function MultiSigAddressGenerator() {
 
             <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
                 <p>The following demo allow you to create IOTA MultiSig addresses.</p>
+
+                <div className="flex gap-2 items-center">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            // Clear existing fields first
+                            remove();
+                            // Add the three example public keys
+                            append({
+                                pubKey: 'AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l',
+                                weight: '1',
+                            });
+                            append({
+                                pubKey: 'AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI',
+                                weight: '1',
+                            });
+                            append({
+                                pubKey: 'APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4',
+                                weight: '1',
+                            });
+                            setValue('threshold', 2);
+                        }}
+                    >
+                        Example 2 out of 3
+                    </Button>
+                </div>
+
                 <code className="overflow-x-auto">
-                    IOTA Pubkeys for playing with
-                    <p>ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq</p>
-                    <p>ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP</p>
+                    <details>
+                        <summary>Mnemonic for the example keys:</summary>
+                        <p>
+                            can escape fee use fabric ill brief park doll reflect bus skirt fury leg
+                            brown toast diet two skull tornado name soda cave junk
+                        </p>
+                    </details>
                 </code>
                 <ul className="grid w-full gap-1.5">
                     {fields.map((item, index) => {
@@ -154,25 +181,70 @@ export default function MultiSigAddressGenerator() {
 }
 
 /*
-➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ iota keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 2 --threshold 2
-MultiSig address: 0x27b17213bc702893bb3e92ba84071589a6331f35f066ad15b666b9527a288c16
-Participating parties:
-                IOTA Address                 |                Public Key (Base64)                 | Weight
-----------------------------------------------------------------------------------------------------
- 0x504f656b7bc467f6eb1d05dc26447477921f05e5ea88c5715682ad28835268ce | ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq  |   1
- 0x611f6a023c5d1c98b4de96e9da64daffaeb372fed0176536168908e50f6e07c0 | ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP  |   2
-➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ iota keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 1 --threshold 2
-MultiSig address: 0x9134bd58a25a6b48811d1c65770dd1d01e113931ed35c13f1a3c26ed7eccf9bc
-Participating parties:
-                IOTA Address                 |                Public Key (Base64)                 | Weight
-----------------------------------------------------------------------------------------------------
- 0x504f656b7bc467f6eb1d05dc26447477921f05e5ea88c5715682ad28835268ce | ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq  |   1
- 0x611f6a023c5d1c98b4de96e9da64daffaeb372fed0176536168908e50f6e07c0 | ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP  |   1
-➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ iota keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 1 --threshold 1
-MultiSig address: 0xda3f8c1ba647d63b89a396a64eeac835d25a59323a1b8fd4697424f62374b0de
-Participating parties:
-                IOTA Address                 |                Public Key (Base64)                 | Weight
-----------------------------------------------------------------------------------------------------
- 0x504f656b7bc467f6eb1d05dc26447477921f05e5ea88c5715682ad28835268ce | ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq  |   1
- 0x611f6a023c5d1c98b4de96e9da64daffaeb372fed0176536168908e50f6e07c0 | ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP  |   1
- */
+# Examples values generated with the iota keytool:
+
+#!/bin/bash
+EXAMPLE_MNEMONIC="can escape fee use fabric ill brief park doll reflect bus skirt fury leg brown toast diet two skull tornado name soda cave junk"
+iota keytool import $EXAMPLE_MNEMONIC ed25519 "m/44'/4218'/0'/0'/0'" --alias address-0-for-multisig
+iota keytool import $EXAMPLE_MNEMONIC ed25519 "m/44'/4218'/0'/0'/1'" --alias address-1-for-multisig
+iota keytool import $EXAMPLE_MNEMONIC ed25519 "m/44'/4218'/0'/0'/2'" --alias address-2-for-multisig
+json_output=$(iota keytool list --json)
+
+PUB_KEY_0=$(echo "$json_output" | jq -r '.[] | select(.alias == "address-0-for-multisig") | .publicBase64KeyWithFlag')
+PUB_KEY_1=$(echo "$json_output" | jq -r '.[] | select(.alias == "address-1-for-multisig") | .publicBase64KeyWithFlag')
+PUB_KEY_2=$(echo "$json_output" | jq -r '.[] | select(.alias == "address-2-for-multisig") | .publicBase64KeyWithFlag')
+
+echo "Public key 0 with flag: $PUB_KEY_0"
+echo "Public key 1 with flag: $PUB_KEY_1"
+echo "Public key 2 with flag: $PUB_KEY_2"
+
+# Expected output:
+# Public key 0 with flag: AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l
+# Public key 1 with flag: AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI
+# Public key 2 with flag: APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4
+
+# 2 out of 2
+iota keytool multi-sig-address --pks $PUB_KEY_0 $PUB_KEY_1 --weights 1 1 --threshold 2
+# Expected output:
+# ╭─────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+# │ multisigAddress │  0x71e0a341931b7a2751cef71190b81e88784019f7e16162c795ffa4907e50192a                                    │
+# │ multisig        │ ╭────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+# │                 │ │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮ │ │
+# │                 │ │ │ address                 │  0x12149b7f1a386833615b3f8d07349020bc27517a02f5e0d242625d8bf2b8aa95  │ │ │
+# │                 │ │ │ publicBase64KeyWithFlag │  AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l                        │ │ │
+# │                 │ │ │ weight                  │  1                                                                   │ │ │
+# │                 │ │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │ │
+# │                 │ │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮ │ │
+# │                 │ │ │ address                 │  0x3db2c2d98a492d42fccc19d232963ba8e675ab83173e7b5574268fe2676a0b73  │ │ │
+# │                 │ │ │ publicBase64KeyWithFlag │  AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI                        │ │ │
+# │                 │ │ │ weight                  │  1                                                                   │ │ │
+# │                 │ │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │ │
+# │                 │ ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+# │ threshold       │  2                                                                                                     │
+# ╰─────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+# 2 out of 3
+iota keytool multi-sig-address --pks $PUB_KEY_0 $PUB_KEY_1 $PUB_KEY_2 --weights 1 1 1 --threshold 2
+# Expected output:
+# ╭─────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+# │ multisigAddress │  0x9c3d1202a483f33cc340183df29ae9ffa55697947be431c963be78917e7fc538                                    │
+# │ multisig        │ ╭────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+# │                 │ │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮ │ │
+# │                 │ │ │ address                 │  0x12149b7f1a386833615b3f8d07349020bc27517a02f5e0d242625d8bf2b8aa95  │ │ │
+# │                 │ │ │ publicBase64KeyWithFlag │  AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l                        │ │ │
+# │                 │ │ │ weight                  │  1                                                                   │ │ │
+# │                 │ │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │ │
+# │                 │ │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮ │ │
+# │                 │ │ │ address                 │  0x3db2c2d98a492d42fccc19d232963ba8e675ab83173e7b5574268fe2676a0b73  │ │ │
+# │                 │ │ │ publicBase64KeyWithFlag │  AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI                        │ │ │
+# │                 │ │ │ weight                  │  1                                                                   │ │ │
+# │                 │ │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │ │
+# │                 │ │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮ │ │
+# │                 │ │ │ address                 │  0x8203b574ae9291fbceb5dfd42b12bc2708e2f013a75db6e1958e79ac3de61a4b  │ │ │
+# │                 │ │ │ publicBase64KeyWithFlag │  APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4                        │ │ │
+# │                 │ │ │ weight                  │  1                                                                   │ │ │
+# │                 │ │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │ │
+# │                 │ ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+# │ threshold       │  2                                                                                                     │
+# ╰─────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+*/

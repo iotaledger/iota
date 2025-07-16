@@ -321,8 +321,7 @@ impl<I> Drop for SwapSplitIterator<I> {
             self.swap_split_map.validate_successful_swap_split()
         {
             panic!(
-                "For at least one address, the SwapSplit operation was not fully performed. Origin: {}, destination: {}, tokens left: {}, timelocked tokens left: {}",
-                origin, destination, tokens_target, tokens_timelocked_target
+                "For at least one address, the SwapSplit operation was not fully performed. Origin: {origin}, destination: {destination}, tokens left: {tokens_target}, timelocked tokens left: {tokens_timelocked_target}"
             )
         }
         debug!(

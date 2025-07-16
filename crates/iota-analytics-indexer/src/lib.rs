@@ -188,7 +188,7 @@ impl SnowflakeMaxCheckpointReader {
         )
         .expect("Failed to build sf api client");
         Ok(SnowflakeMaxCheckpointReader {
-            query: format!("SELECT max({}) from {}", col_id, table_id),
+            query: format!("SELECT max({col_id}) from {table_id}"),
             api,
         })
     }
@@ -232,10 +232,7 @@ impl BQMaxCheckpointReader {
         col_id: &str,
     ) -> anyhow::Result<Self> {
         Ok(BQMaxCheckpointReader {
-            query: format!(
-                "SELECT max({}) from `{}.{}.{}`",
-                col_id, project_id, dataset_id, table_id
-            ),
+            query: format!("SELECT max({col_id}) from `{project_id}.{dataset_id}.{table_id}`"),
             client: Client::from_service_account_key_file(key_path).await?,
             project_id: project_id.to_string(),
         })
@@ -346,7 +343,7 @@ impl FileType {
         checkpoint_range: Range<u64>,
     ) -> Path {
         self.dir_prefix()
-            .child(format!("{}{}", EPOCH_DIR_PREFIX, epoch_num))
+            .child(format!("{EPOCH_DIR_PREFIX}{epoch_num}"))
             .child(format!(
                 "{}_{}.{}",
                 checkpoint_range.start,
@@ -549,7 +546,7 @@ pub async fn read_store_for_checkpoint(
     let prefix = join_paths(dir_prefix, &file_type_prefix);
     let epoch_dirs = find_all_dirs_with_epoch_prefix(&remote_object_store, Some(&prefix)).await?;
     let epoch = epoch_dirs.last_key_value().map(|(k, _v)| *k).unwrap_or(0);
-    let epoch_prefix = prefix.child(format!("epoch_{}", epoch));
+    let epoch_prefix = prefix.child(format!("epoch_{epoch}"));
     let checkpoints =
         find_all_files_with_epoch_prefix(&remote_object_store, Some(&epoch_prefix)).await?;
     let next_checkpoint_seq_num = checkpoints
