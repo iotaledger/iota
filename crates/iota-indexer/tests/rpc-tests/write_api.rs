@@ -47,6 +47,10 @@ use crate::{
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
 
+// Specifies the number of attempts for test cases that may fail
+// nondeterministically, such as those affected by race conditions. Increasing
+// this value improves the likelihood of catching errors but also increases test
+// execution time.
 const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
 
 async fn prepare_and_sign_object_transfer_tx(
@@ -77,14 +81,14 @@ fn dry_run_transaction_block() {
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(NANOS_PER_IOTA),
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let object_to_transfer = cluster
             .fund_address_and_return_gas(
@@ -100,7 +104,7 @@ fn dry_run_transaction_block() {
             key_pair,
             receiver,
             object_to_transfer,
-            gas,
+            gas_ref,
         )
         .await;
 
@@ -158,7 +162,7 @@ fn dev_inspect_transaction_block() {
         let (sender, _): (_, AccountKeyPair) = get_key_pair();
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
@@ -166,7 +170,7 @@ fn dev_inspect_transaction_block() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let (obj_id, seq_num, digest) = cluster
             .fund_address_and_return_gas(
@@ -252,14 +256,14 @@ fn execute_transaction_block() {
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(NANOS_PER_IOTA),
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let object_to_transfer = cluster
             .fund_address_and_return_gas(
@@ -277,7 +281,7 @@ fn execute_transaction_block() {
             key_pair,
             receiver,
             object_to_transfer,
-            gas,
+            gas_ref,
         )
         .await;
 
@@ -397,14 +401,14 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
 
@@ -439,7 +443,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                 .collect::<Vec<_>>();
             assert_eq!(
                 objects,
-                vec![wrapped_obj_id, *upgrade_cap, gas.0]
+                vec![wrapped_obj_id, *upgrade_cap, gas_ref.0]
                     .into_iter()
                     .sorted()
                     .collect::<Vec<_>>()
@@ -460,7 +464,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                 .collect::<Vec<_>>();
             assert_eq!(
                 objects,
-                vec![basic_obj, *upgrade_cap, gas.0]
+                vec![basic_obj, *upgrade_cap, gas_ref.0]
                     .into_iter()
                     .sorted()
                     .collect::<Vec<_>>()
@@ -484,7 +488,7 @@ fn test_execute_transactions_with_shared_objects() {
 
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
@@ -492,7 +496,7 @@ fn test_execute_transactions_with_shared_objects() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
 
@@ -645,14 +649,14 @@ fn test_repeated_tx_execution() {
 
             let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
-            let gas = cluster
+            let gas_ref = cluster
                 .fund_address_and_return_gas(
                     cluster.get_reference_gas_price().await,
                     Some(10_000_000_000),
                     sender,
                 )
                 .await;
-            indexer_wait_for_object(client, gas.0, gas.1).await;
+            indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
             assert_eq!(res.status_ok(), Some(true));
@@ -669,7 +673,7 @@ fn test_repeated_tx_execution() {
                     "increment".to_string(),
                     type_args![].unwrap(),
                     call_args!(counter_obj).unwrap(),
-                    Some(gas.0),
+                    Some(gas_ref.0),
                     10_000_000.into(),
                     None,
                 )
@@ -723,14 +727,14 @@ fn test_parallel_repeated_tx_execution() {
 
             let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
-            let gas = cluster
+            let gas_ref = cluster
                 .fund_address_and_return_gas(
                     cluster.get_reference_gas_price().await,
                     Some(10_000_000_000),
                     sender,
                 )
                 .await;
-            indexer_wait_for_object(client, gas.0, gas.1).await;
+            indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
             assert_eq!(res.status_ok(), Some(true));
@@ -747,7 +751,7 @@ fn test_parallel_repeated_tx_execution() {
                     "increment".to_string(),
                     type_args![].unwrap(),
                     call_args!(counter_obj).unwrap(),
-                    Some(gas.0),
+                    Some(gas_ref.0),
                     10_000_000.into(),
                     None,
                 )
@@ -804,14 +808,14 @@ fn test_repeatedly_update_display() {
 
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
         let display_obj_id = ObjectID::from_hex_literal(
