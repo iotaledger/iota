@@ -974,7 +974,7 @@ impl ValidatorService {
         let response = self
             .state
             .get_object_cache_reader()
-            .get_iota_system_state_object_unsafe()?;
+            .try_get_iota_system_state_object_unsafe()?;
         Ok((tonic::Response::new(response), Weight::one()))
     }
 

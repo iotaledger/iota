@@ -448,9 +448,9 @@ impl IotaValue {
             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
         };
         let obj_res = if let Some(v) = version {
-            iota_types::storage::ObjectStore::get_object_by_key(&*test_adapter.executor, &id, v)
+            iota_types::storage::ObjectStore::try_get_object_by_key(&*test_adapter.executor, &id, v)
         } else {
-            iota_types::storage::ObjectStore::get_object(&*test_adapter.executor, &id)
+            iota_types::storage::ObjectStore::try_get_object(&*test_adapter.executor, &id)
         };
         let obj = match obj_res {
             Ok(Some(obj)) => obj,

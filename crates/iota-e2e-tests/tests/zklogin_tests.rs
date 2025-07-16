@@ -224,7 +224,7 @@ async fn test_zklogin_create_authenticator_state_object() {
             assert!(
                 node.state()
                     .get_object_cache_reader()
-                    .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                    .try_get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
                     .unwrap()
                     .is_none()
             );
@@ -241,7 +241,7 @@ async fn test_zklogin_create_authenticator_state_object() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                .try_get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
                 .unwrap()
                 .expect("auth state object should exist");
         });
@@ -287,7 +287,7 @@ async fn test_zklogin_conflicting_jwks() {
                 let digest = *tx.transaction_digest();
                 let tx = state
                     .get_transaction_cache_reader()
-                    .get_transaction_block(&digest)
+                    .try_get_transaction_block(&digest)
                     .unwrap()
                     .unwrap();
                 match &tx.data().intent_message().value.kind() {

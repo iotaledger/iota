@@ -756,7 +756,7 @@ fn start_summary_sync(
                         .get_checkpoint_by_sequence_number(*epoch_last_cp_seq_num)?
                         .ok_or(anyhow!("Failed to read checkpoint"))?;
                     let committee = state_sync_store
-                        .get_committee(cp_epoch as u64)
+                        .try_get_committee(cp_epoch as u64)
                         .expect("store operation should not fail")
                         .expect(
                             "Expected committee to exist after syncing all end of epoch checkpoints",
@@ -1160,7 +1160,7 @@ pub async fn dump_checkpoints_from_archive(
     {
         let mut content = serde_json::to_string(
             &store
-                .get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
+                .try_get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
                 .unwrap(),
         )?;
         content.truncate(max_content_length);

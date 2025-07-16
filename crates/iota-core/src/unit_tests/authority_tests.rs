@@ -3598,22 +3598,22 @@ async fn test_store_revert_transfer_iota() {
     let cache = authority_state.get_object_cache_reader();
     let tx_cache = authority_state.get_transaction_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
-    reconfig_api.revert_state_update(&tx_digest).unwrap();
+    reconfig_api.try_revert_state_update(&tx_digest).unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     assert_eq!(
-        cache.get_object(&gas_object_id).unwrap().unwrap().owner,
+        cache.try_get_object(&gas_object_id).unwrap().unwrap().owner,
         Owner::AddressOwner(sender),
     );
     assert_eq!(
         cache
-            .get_latest_object_ref_or_tombstone(gas_object_id)
+            .try_get_latest_object_ref_or_tombstone(gas_object_id)
             .unwrap()
             .unwrap(),
         gas_object_ref
     );
-    assert!(!tx_cache.is_tx_already_executed(&tx_digest).unwrap());
+    assert!(!tx_cache.try_is_tx_already_executed(&tx_digest).unwrap());
 }
 
 #[tokio::test]
@@ -3636,7 +3636,7 @@ async fn test_store_revert_wrap_move_call() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[*create_effects.transaction_digest()],
         )
@@ -3681,19 +3681,19 @@ async fn test_store_revert_wrap_move_call() {
 
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
-    reconfig_api.revert_state_update(&wrap_digest).unwrap();
+    reconfig_api.try_revert_state_update(&wrap_digest).unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     // The wrapped object is unwrapped once again (accessible from storage).
-    let object = cache.get_object(&object_v0.0).unwrap().unwrap();
+    let object = cache.try_get_object(&object_v0.0).unwrap().unwrap();
     assert_eq!(object.version(), object_v0.1);
 
     // The wrapper doesn't exist
-    assert!(cache.get_object(&wrapper_v0.0).unwrap().is_none());
+    assert!(cache.try_get_object(&wrapper_v0.0).unwrap().is_none());
 
     // The gas is uncharged
-    let gas = cache.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = cache.try_get_object(&gas_object_id).unwrap().unwrap();
     assert_eq!(gas.version(), create_effects.gas_object().0.1);
 }
 
@@ -3733,7 +3733,7 @@ async fn test_store_revert_unwrap_move_call() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_effects.transaction_digest(),
@@ -3783,19 +3783,21 @@ async fn test_store_revert_unwrap_move_call() {
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
 
-    reconfig_api.revert_state_update(&unwrap_digest).unwrap();
+    reconfig_api
+        .try_revert_state_update(&unwrap_digest)
+        .unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     // The unwrapped object is wrapped once again
-    assert!(cache.get_object(&object_v0.0).unwrap().is_none());
+    assert!(cache.try_get_object(&object_v0.0).unwrap().is_none());
 
     // The wrapper exists
-    let wrapper = cache.get_object(&wrapper_v0.0).unwrap().unwrap();
+    let wrapper = cache.try_get_object(&wrapper_v0.0).unwrap().unwrap();
     assert_eq!(wrapper.version(), wrapper_v0.1);
 
     // The gas is uncharged
-    let gas = cache.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = cache.try_get_object(&gas_object_id).unwrap().unwrap();
     assert_eq!(gas.version(), wrap_effects.gas_object().0.1);
 }
 
@@ -4012,7 +4014,7 @@ async fn test_store_revert_add_ofield() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_outer_effects.transaction_digest(),
@@ -4059,28 +4061,28 @@ async fn test_store_revert_add_ofield() {
     let cache = authority_state.get_object_cache_reader();
     let reconfig_api = &authority_state.get_reconfig_api();
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.try_get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = cache.get_object(&field_v0.0).unwrap().unwrap();
+    let field = cache.try_get_object(&field_v0.0).unwrap().unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.try_get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.version(), inner_v1.1);
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
 
-    reconfig_api.revert_state_update(&add_digest).unwrap();
+    reconfig_api.try_revert_state_update(&add_digest).unwrap();
 
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.try_get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v0.1);
 
     // Field no longer exists
-    assert!(cache.get_object(&field_v0.0).unwrap().is_none());
+    assert!(cache.try_get_object(&field_v0.0).unwrap().is_none());
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.try_get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.version(), inner_v0.1);
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
 }
@@ -4139,7 +4141,7 @@ async fn test_store_revert_remove_ofield() {
 
     authority_state
         .get_cache_commit()
-        .commit_transaction_outputs(
+        .try_commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[
                 *create_outer_effects.transaction_digest(),
@@ -4188,26 +4190,26 @@ async fn test_store_revert_remove_ofield() {
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = &authority_state.get_reconfig_api();
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.try_get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v2.1);
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.try_get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
     assert_eq!(inner.version(), inner_v2.1);
 
     reconfig_api
-        .revert_state_update(&remove_ofield_digest)
+        .try_revert_state_update(&remove_ofield_digest)
         .unwrap();
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.try_get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = cache.get_object(&field_v0.0).unwrap().unwrap();
+    let field = cache.try_get_object(&field_v0.0).unwrap().unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.try_get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
     assert_eq!(inner.version(), inner_v1.1);
 }
@@ -5213,7 +5215,7 @@ async fn test_consensus_message_processed() {
             authority2.try_execute_for_test(&certificate).await.unwrap();
             authority2
                 .get_transaction_cache_reader()
-                .get_executed_effects(transaction_digest)
+                .try_get_executed_effects(transaction_digest)
                 .unwrap()
                 .unwrap()
         };

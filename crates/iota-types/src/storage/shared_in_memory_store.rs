@@ -35,7 +35,7 @@ impl SharedInMemoryStore {
 }
 
 impl ReadStore for SharedInMemoryStore {
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>> {
@@ -45,7 +45,7 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<VerifiedCheckpoint>> {
@@ -55,7 +55,7 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint> {
+    fn try_get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         self.inner()
             .get_highest_verified_checkpoint()
             .cloned()
@@ -63,7 +63,7 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
+    fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         self.inner()
             .get_highest_synced_checkpoint()
             .cloned()
@@ -71,11 +71,11 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
         Ok(self.inner().get_lowest_available_checkpoint())
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>> {
@@ -86,7 +86,7 @@ impl ReadStore for SharedInMemoryStore {
             .cloned())
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>> {
@@ -109,7 +109,7 @@ impl ReadStore for SharedInMemoryStore {
             .map(|contents| contents.flatten())
     }
 
-    fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
+    fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
         self.inner()
             .get_committee_by_epoch(epoch)
             .cloned()
@@ -117,7 +117,7 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<Arc<VerifiedTransaction>>> {
@@ -127,7 +127,7 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEffects>> {
@@ -137,25 +137,28 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn get_events(&self, digest: &TransactionEventsDigest) -> Result<Option<TransactionEvents>> {
+    fn try_get_events(
+        &self,
+        digest: &TransactionEventsDigest,
+    ) -> Result<Option<TransactionEvents>> {
         self.inner()
             .get_transaction_events(digest)
             .cloned()
             .pipe(Ok)
     }
 
-    fn get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint> {
+    fn try_get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         todo!()
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         _digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>> {
         todo!()
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<CheckpointContents>> {
@@ -164,14 +167,14 @@ impl ReadStore for SharedInMemoryStore {
 }
 
 impl ObjectStore for SharedInMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,
@@ -181,24 +184,27 @@ impl ObjectStore for SharedInMemoryStore {
 }
 
 impl WriteStore for SharedInMemoryStore {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         self.inner_mut().insert_checkpoint(checkpoint);
         Ok(())
     }
 
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         self.inner_mut()
             .update_highest_synced_checkpoint(checkpoint);
         Ok(())
     }
 
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
         self.inner_mut()
             .update_highest_verified_checkpoint(checkpoint);
         Ok(())
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
@@ -208,7 +214,7 @@ impl WriteStore for SharedInMemoryStore {
         Ok(())
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         self.inner_mut().insert_committee(new_committee);
         Ok(())
     }
@@ -475,14 +481,14 @@ impl SingleCheckpointSharedInMemoryStore {
 }
 
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         _object_id: &crate::base_types::ObjectID,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         _object_id: &crate::base_types::ObjectID,
         _version: crate::base_types::VersionNumber,
@@ -492,81 +498,85 @@ impl ObjectStore for SingleCheckpointSharedInMemoryStore {
 }
 
 impl ReadStore for SingleCheckpointSharedInMemoryStore {
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>> {
-        self.0.get_checkpoint_by_digest(digest)
+        self.0.try_get_checkpoint_by_digest(digest)
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<VerifiedCheckpoint>> {
-        self.0.get_checkpoint_by_sequence_number(sequence_number)
+        self.0
+            .try_get_checkpoint_by_sequence_number(sequence_number)
     }
 
-    fn get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint> {
-        self.0.get_highest_verified_checkpoint()
+    fn try_get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint> {
+        self.0.try_get_highest_verified_checkpoint()
     }
 
-    fn get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
-        self.0.get_highest_synced_checkpoint()
+    fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
+        self.0.try_get_highest_synced_checkpoint()
     }
 
-    fn get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
-        self.0.get_lowest_available_checkpoint()
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+        self.0.try_get_lowest_available_checkpoint()
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>> {
         self.0
-            .get_full_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>> {
-        self.0.get_full_checkpoint_contents(digest)
+        self.0.try_get_full_checkpoint_contents(digest)
     }
 
-    fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
-        self.0.get_committee(epoch)
+    fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
+        self.0.try_get_committee(epoch)
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<Arc<VerifiedTransaction>>> {
-        self.0.get_transaction(digest)
+        self.0.try_get_transaction(digest)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEffects>> {
-        self.0.get_transaction_effects(digest)
+        self.0.try_get_transaction_effects(digest)
     }
 
-    fn get_events(&self, digest: &TransactionEventsDigest) -> Result<Option<TransactionEvents>> {
-        self.0.get_events(digest)
+    fn try_get_events(
+        &self,
+        digest: &TransactionEventsDigest,
+    ) -> Result<Option<TransactionEvents>> {
+        self.0.try_get_events(digest)
     }
 
-    fn get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint> {
+    fn try_get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         todo!()
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         _digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>> {
         todo!()
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<CheckpointContents>> {
@@ -575,27 +585,30 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 }
 
 impl WriteStore for SingleCheckpointSharedInMemoryStore {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         {
             let mut locked = self.0.0.write().unwrap();
             locked.checkpoints.clear();
             locked.sequence_number_to_digest.clear();
         }
-        self.0.insert_checkpoint(checkpoint)?;
+        self.0.try_insert_checkpoint(checkpoint)?;
         Ok(())
     }
 
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.update_highest_synced_checkpoint(checkpoint)?;
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
         Ok(())
     }
 
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.update_highest_verified_checkpoint(checkpoint)?;
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
+        self.0.try_update_highest_verified_checkpoint(checkpoint)?;
         Ok(())
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
@@ -608,11 +621,12 @@ impl WriteStore for SingleCheckpointSharedInMemoryStore {
             locked.full_checkpoint_contents.clear();
             locked.checkpoint_contents.clear();
         }
-        self.0.insert_checkpoint_contents(checkpoint, contents)?;
+        self.0
+            .try_insert_checkpoint_contents(checkpoint, contents)?;
         Ok(())
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
-        self.0.insert_committee(new_committee)
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
+        self.0.try_insert_committee(new_committee)
     }
 }

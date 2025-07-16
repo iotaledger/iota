@@ -440,7 +440,7 @@ impl CheckpointExecutor {
         let cache_commit = self.state.get_cache_commit();
         debug!("committing checkpoint transactions to disk");
         cache_commit
-            .commit_transaction_outputs(epoch_store.epoch(), all_tx_digests)
+            .try_commit_transaction_outputs(epoch_store.epoch(), all_tx_digests)
             .await
             .expect("commit_transaction_outputs cannot fail");
 
@@ -603,7 +603,7 @@ impl CheckpointExecutor {
     ) {
         let change_epoch_fx = self
             .transaction_cache_reader
-            .get_effects(&execution_digests.effects)
+            .try_get_effects(&execution_digests.effects)
             .expect("Fetching effects for change_epoch tx cannot fail")
             .expect("Change_epoch tx effects must exist");
 
@@ -678,7 +678,7 @@ impl CheckpointExecutor {
 
                     let cache_commit = self.state.get_cache_commit();
                     cache_commit
-                        .commit_transaction_outputs(cur_epoch, &[change_epoch_tx_digest])
+                        .try_commit_transaction_outputs(cur_epoch, &[change_epoch_tx_digest])
                         .await
                         .expect("commit_transaction_outputs cannot fail");
                     fail_point_async!("prune-and-compact");
@@ -699,7 +699,7 @@ impl CheckpointExecutor {
 
                     let effects = self
                         .transaction_cache_reader
-                        .notify_read_executed_effects(&all_tx_digests)
+                        .try_notify_read_executed_effects(&all_tx_digests)
                         .await
                         .expect("Failed to get executed effects for finalizing checkpoint");
 
@@ -844,7 +844,8 @@ async fn handle_execution_effects(
     // Whether the checkpoint is next to execute and blocking additional executions.
     let mut blocking_execution = false;
     loop {
-        let effects_future = transaction_cache_reader.notify_read_executed_effects(&all_tx_digests);
+        let effects_future =
+            transaction_cache_reader.try_notify_read_executed_effects(&all_tx_digests);
 
         match timeout(log_timeout_sec, effects_future).await {
             Err(_elapsed) => {
@@ -879,7 +880,7 @@ async fn handle_execution_effects(
                 // Only log details when the checkpoint is next to execute, but has not finished
                 // execution within log_timeout_sec.
                 let missing_digests: Vec<TransactionDigest> = transaction_cache_reader
-                    .multi_get_executed_effects_digests(&all_tx_digests)
+                    .try_multi_get_executed_effects_digests(&all_tx_digests)
                     .expect("multi_get_executed_effects cannot fail")
                     .iter()
                     .zip(all_tx_digests.clone())
@@ -961,7 +962,7 @@ fn assert_not_forked(
 ) {
     if *expected_digest != *actual_effects_digest {
         let actual_effects = cache_reader
-            .get_executed_effects(tx_digest)
+            .try_get_executed_effects(tx_digest)
             .expect("get_executed_effects cannot fail")
             .expect("actual effects should exist");
 
@@ -1013,7 +1014,7 @@ fn extract_end_of_epoch_tx(
         .expect("Final checkpoint must have at least one transaction");
 
     let change_epoch_tx = cache_reader
-        .get_transaction_block(&digests.transaction)
+        .try_get_transaction_block(&digests.transaction)
         .expect("read cannot fail");
 
     let change_epoch_tx = VerifiedExecutableTransaction::new_from_checkpoint(
@@ -1086,7 +1087,7 @@ fn get_unexecuted_transactions(
             .expect("Final checkpoint must have at least one transaction");
 
         let change_epoch_tx = cache_reader
-            .get_transaction_block(&digests.transaction)
+            .try_get_transaction_block(&digests.transaction)
             .expect("read cannot fail")
             .unwrap_or_else(||
                 panic!(
@@ -1117,7 +1118,7 @@ fn get_unexecuted_transactions(
                 .unwrap_or_default(),
         );
         if let Some(first_digest) = execution_digests.first() {
-            let maybe_randomness_tx = cache_reader.get_transaction_block(&first_digest.transaction)
+            let maybe_randomness_tx = cache_reader.try_get_transaction_block(&first_digest.transaction)
             .expect("read cannot fail")
             .unwrap_or_else(||
                 panic!(
@@ -1141,7 +1142,7 @@ fn get_unexecuted_transactions(
         execution_digests.iter().map(|tx| tx.transaction).collect();
 
     let executed_effects_digests = cache_reader
-        .multi_get_executed_effects_digests(&all_tx_digests)
+        .try_multi_get_executed_effects_digests(&all_tx_digests)
         .expect("failed to read executed_effects from store");
 
     let (unexecuted_txns, expected_effects_digests): (Vec<_>, Vec<_>) =
@@ -1186,7 +1187,7 @@ fn get_unexecuted_transactions(
             .collect()
     } else {
         cache_reader
-            .multi_get_transaction_blocks(&unexecuted_txns)
+            .try_multi_get_transaction_blocks(&unexecuted_txns)
             .expect("Failed to get checkpoint txes from store")
             .into_iter()
             .zip(expected_effects_digests)
@@ -1257,7 +1258,7 @@ async fn execute_transactions(
 
     let digest_to_effects: HashMap<TransactionDigest, TransactionEffects> =
         transaction_cache_reader
-            .multi_get_effects(&shared_effects_digests)?
+            .try_multi_get_effects(&shared_effects_digests)?
             .into_iter()
             .zip(shared_effects_digests)
             .map(|(fx, fx_digest)| {
@@ -1343,7 +1344,7 @@ async fn finalize_checkpoint(
     // TODO remove once we no longer need to support this table for read RPC
     state
         .get_checkpoint_cache()
-        .insert_finalized_transactions_perpetual_checkpoints(
+        .try_insert_finalized_transactions_perpetual_checkpoints(
             tx_digests,
             epoch_store.epoch(),
             checkpoint.sequence_number,

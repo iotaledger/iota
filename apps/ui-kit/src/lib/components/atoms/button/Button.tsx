@@ -73,16 +73,23 @@ export function Button({
     tabIndex = 0,
     testId,
 }: ButtonProps): React.JSX.Element {
+    const isOutlined = type === ButtonType.Outlined;
+
     const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
     const textSizes = TEXT_CLASSES[size];
     const backgroundColors = disabled ? DISABLED_BACKGROUND_COLORS[type] : BACKGROUND_COLORS[type];
     const textColors = disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type];
-    return (
+    const disabledClass = !isOutlined
+        ? 'disabled:opacity-40 disabled:cursor-not-allowed'
+        : 'disabled:cursor-not-allowed';
+
+    const button = (
         <button
             onClick={onClick}
             type={htmlType}
             className={cx(
-                'state-layer relative flex items-center justify-center gap-2 rounded-full transition-all duration-150 ease-in disabled:cursor-not-allowed disabled:opacity-40',
+                'state-layer relative flex items-center justify-center gap-2 rounded-full transition-all duration-150 ease-in',
+                disabledClass,
                 paddingClasses,
                 backgroundColors,
                 fullWidth && 'w-full',
@@ -95,5 +102,19 @@ export function Button({
             {icon && <span className={cx(textColors)}>{icon}</span>}
             {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
         </button>
+    );
+
+    return isOutlined ? (
+        <div
+            className={cx(
+                'button-border-color-outline inline-flex rounded-full p-[1px]',
+                fullWidth && 'w-full',
+                disabled && 'opacity-40',
+            )}
+        >
+            {button}
+        </div>
+    ) : (
+        button
     );
 }

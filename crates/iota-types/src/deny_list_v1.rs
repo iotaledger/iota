@@ -253,7 +253,7 @@ pub fn check_global_pause(
 }
 
 pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<Object> {
-    match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
+    match object_store.try_get_object(&IOTA_DENY_LIST_OBJECT_ID) {
         Ok(Some(obj)) => Ok(obj),
         Ok(None) => {
             error!("Deny list object not found");

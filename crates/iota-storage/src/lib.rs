@@ -238,7 +238,7 @@ where
     S: WriteStore,
 {
     let committee = store
-        .get_committee(checkpoint.epoch())
+        .try_get_committee(checkpoint.epoch())
         .expect("store operation should not fail")
         .unwrap_or_else(|| {
             panic!(
@@ -263,7 +263,7 @@ pub async fn verify_checkpoint_range<S>(
     futures::stream::iter(range_clone.into_iter().tuple_windows())
         .map(|(a, b)| {
             let current = store
-                .get_checkpoint_by_sequence_number(a)
+                .try_get_checkpoint_by_sequence_number(a)
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
@@ -271,7 +271,7 @@ pub async fn verify_checkpoint_range<S>(
                     );
                 });
             let next = store
-                .get_checkpoint_by_sequence_number(b)
+                .try_get_checkpoint_by_sequence_number(b)
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
@@ -279,7 +279,7 @@ pub async fn verify_checkpoint_range<S>(
                     );
                 });
             let committee = store
-                .get_committee(next.epoch())
+                .try_get_committee(next.epoch())
                 .expect("store operation should not fail")
                 .unwrap_or_else(|| {
                     panic!(
@@ -304,11 +304,11 @@ pub async fn verify_checkpoint_range<S>(
         .last()
         .expect("Received empty checkpoint range");
     let final_checkpoint = store
-        .get_checkpoint_by_sequence_number(last)
+        .try_get_checkpoint_by_sequence_number(last)
         .expect("Failed to fetch checkpoint")
         .expect("Expected end of checkpoint range to exist in store");
     store
-        .update_highest_verified_checkpoint(&final_checkpoint)
+        .try_update_highest_verified_checkpoint(&final_checkpoint)
         .expect("Failed to update highest verified checkpoint");
 }
 

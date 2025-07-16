@@ -10,6 +10,7 @@ import {
     useBalance,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
+    useNewStakeTransaction,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
@@ -60,15 +61,23 @@ export function StakeDialog({
     const coinSymbol = metadata?.symbol ?? '';
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), coinDecimals);
 
+    const { data: minAmountTransactionData } = useNewStakeTransaction(
+        selectedValidator,
+        minimumStake,
+        senderAddress,
+    );
+    const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const availableBalance = coinBalance - minAmountTxGasBudget;
+
     const validationSchema = useMemo(
         () =>
             createValidationSchema(
-                maxStakableTimelockedAmount ?? coinBalance,
+                maxStakableTimelockedAmount ?? availableBalance,
                 coinSymbol,
                 coinDecimals,
                 minimumStake,
             ),
-        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, minimumStake],
+        [maxStakableTimelockedAmount, availableBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
     const formik = useFormik({
@@ -85,9 +94,6 @@ export function StakeDialog({
             name: validator.name,
         };
     });
-
-    const amount = formik.values.amount;
-    const amountWithoutDecimals = parseAmount(amount, coinDecimals);
 
     function handleBack(): void {
         setView(StakeDialogView.SelectValidator);
@@ -154,7 +160,7 @@ export function StakeDialog({
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
-                            amountWithoutDecimals={amountWithoutDecimals}
+                            availableBalance={availableBalance}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
                         />
@@ -167,7 +173,6 @@ export function StakeDialog({
                             onBack={handleBack}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
-                            amountWithoutDecimals={amountWithoutDecimals}
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (

@@ -278,7 +278,7 @@ impl TestCluster {
             .iota_node
             .state()
             .get_object_cache_reader()
-            .get_latest_object_ref_or_tombstone(object_id)
+            .try_get_latest_object_ref_or_tombstone(object_id)
             .unwrap()
             .unwrap()
     }
@@ -533,7 +533,7 @@ impl TestCluster {
                         let digest = *tx.transaction_digest();
                         let tx = state
                             .get_transaction_cache_reader()
-                            .get_transaction_block(&digest)
+                            .try_get_transaction_block(&digest)
                             .unwrap()
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {

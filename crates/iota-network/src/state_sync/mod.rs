@@ -553,7 +553,7 @@ where
     fn handle_checkpoint_from_consensus(&mut self, checkpoint: Box<VerifiedCheckpoint>) {
         // Always check previous_digest matches in case there is a gap between
         // state sync and consensus.
-        let prev_digest = *self.store.get_checkpoint_by_sequence_number(checkpoint.sequence_number() - 1)
+        let prev_digest = *self.store.try_get_checkpoint_by_sequence_number(checkpoint.sequence_number() - 1)
             .expect("store operation should not fail")
             .unwrap_or_else(|| panic!("Got checkpoint {} from consensus but cannot find checkpoint {} in certified_checkpoints", checkpoint.sequence_number(), checkpoint.sequence_number() - 1))
             .digest();
@@ -568,7 +568,7 @@ where
 
         let latest_checkpoint = self
             .store
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .expect("store operation should not fail");
 
         // If this is an older checkpoint, just ignore it
@@ -595,11 +595,11 @@ where
                 .map(|n| {
                     let checkpoint = self
                         .store
-                        .get_checkpoint_by_sequence_number(n)
+                        .try_get_checkpoint_by_sequence_number(n)
                         .expect("store operation should not fail")
                         .unwrap_or_else(|| panic!("store should contain checkpoint {n}"));
                     self.store
-                        .get_full_checkpoint_contents(&checkpoint.content_digest)
+                        .try_get_full_checkpoint_contents(&checkpoint.content_digest)
                         .expect("store operation should not fail")
                         .unwrap_or_else(|| {
                             panic!(
@@ -626,15 +626,15 @@ where
             let committee =
                 Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
             self.store
-                .insert_committee(committee)
+                .try_insert_committee(committee)
                 .expect("store operation should not fail");
         }
 
         self.store
-            .update_highest_verified_checkpoint(&checkpoint)
+            .try_update_highest_verified_checkpoint(&checkpoint)
             .expect("store operation should not fail");
         self.store
-            .update_highest_synced_checkpoint(&checkpoint)
+            .try_update_highest_synced_checkpoint(&checkpoint)
             .expect("store operation should not fail");
 
         // We don't care if no one is listening as this is a broadcast channel
@@ -672,7 +672,7 @@ where
         if let Some(peer) = self.network.peer(peer_id) {
             let genesis_checkpoint_digest = *self
                 .store
-                .get_checkpoint_by_sequence_number(0)
+                .try_get_checkpoint_by_sequence_number(0)
                 .expect("store operation should not fail")
                 .expect("store should contain genesis checkpoint")
                 .digest();
@@ -711,7 +711,7 @@ where
 
         let highest_processed_checkpoint = self
             .store
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .expect("store operation should not fail");
 
         let highest_known_checkpoint = self
@@ -759,11 +759,11 @@ where
     ) {
         let highest_verified_checkpoint = self
             .store
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .expect("store operation should not fail");
         let highest_synced_checkpoint = self
             .store
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .expect("store operation should not fail");
 
         if highest_verified_checkpoint.sequence_number()
@@ -1028,7 +1028,7 @@ where
     metrics.set_highest_known_checkpoint(*checkpoint.sequence_number());
 
     let mut current = store
-        .get_highest_verified_checkpoint()
+        .try_get_highest_verified_checkpoint()
         .expect("store operation should not fail");
     if current.sequence_number() >= checkpoint.sequence_number() {
         bail!(
@@ -1158,7 +1158,7 @@ where
         // Insert the newly verified checkpoint into our store, which will bump our
         // highest verified checkpoint watermark as well.
         store
-            .insert_checkpoint(&checkpoint)
+            .try_insert_checkpoint(&checkpoint)
             .expect("store operation should not fail");
     }
 
@@ -1195,7 +1195,7 @@ async fn sync_checkpoint_contents_from_archive<S>(
             .map(|(_p, state_sync_info)| state_sync_info.lowest)
             .min();
         let highest_synced = store
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .expect("store operation should not fail")
             .sequence_number;
         let sync_from_archive = if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers
@@ -1264,7 +1264,7 @@ async fn sync_checkpoint_contents<S>(
     S: WriteStore + Clone,
 {
     let mut highest_synced = store
-        .get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint()
         .expect("store operation should not fail");
 
     let mut current_sequence = highest_synced.sequence_number().checked_add(1).unwrap();
@@ -1293,7 +1293,7 @@ async fn sync_checkpoint_contents<S>(
                         let _: &VerifiedCheckpoint = &checkpoint;  // type hint
 
                         store
-                            .update_highest_synced_checkpoint(&checkpoint)
+                            .try_update_highest_synced_checkpoint(&checkpoint)
                             .expect("store operation should not fail");
                         // We don't care if no one is listening as this is a broadcast channel
                         let _ = checkpoint_event_sender.send(checkpoint.clone());
@@ -1330,7 +1330,7 @@ async fn sync_checkpoint_contents<S>(
             && checkpoint_contents_tasks.len() < checkpoint_content_download_concurrency
         {
             let next_checkpoint = store
-                .get_checkpoint_by_sequence_number(current_sequence)
+                .try_get_checkpoint_by_sequence_number(current_sequence)
                 .expect("store operation should not fail")
                 .expect(
                     "BUG: store should have all checkpoints older than highest_verified_checkpoint",
@@ -1386,7 +1386,7 @@ where
     // Check if we already have produced this checkpoint locally. If so, we don't
     // need to get it from peers anymore.
     if store
-        .get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint()
         .expect("store operation should not fail")
         .sequence_number()
         >= checkpoint.sequence_number()
@@ -1437,11 +1437,11 @@ where
 {
     let digest = checkpoint.content_digest;
     if let Some(contents) = store
-        .get_full_checkpoint_contents_by_sequence_number(*checkpoint.sequence_number())
+        .try_get_full_checkpoint_contents_by_sequence_number(*checkpoint.sequence_number())
         .expect("store operation should not fail")
         .or_else(|| {
             store
-                .get_full_checkpoint_contents(&digest)
+                .try_get_full_checkpoint_contents(&digest)
                 .expect("store operation should not fail")
         })
     {
@@ -1469,7 +1469,7 @@ where
             if contents.verify_digests(digest).is_ok() {
                 let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
                 store
-                    .insert_checkpoint_contents(checkpoint, verified_contents)
+                    .try_insert_checkpoint_contents(checkpoint, verified_contents)
                     .expect("store operation should not fail");
                 return Some(contents);
             }
@@ -1491,10 +1491,10 @@ where
     loop {
         tokio::select! {
              _now = interval.tick() => {
-                let highest_verified_checkpoint = store.get_highest_verified_checkpoint()
+                let highest_verified_checkpoint = store.try_get_highest_verified_checkpoint()
                     .expect("store operation should not fail");
                 metrics.set_highest_verified_checkpoint(highest_verified_checkpoint.sequence_number);
-                let highest_synced_checkpoint = store.get_highest_synced_checkpoint()
+                let highest_synced_checkpoint = store.try_get_highest_synced_checkpoint()
                     .expect("store operation should not fail");
                 metrics.set_highest_synced_checkpoint(highest_synced_checkpoint.sequence_number);
              },

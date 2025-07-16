@@ -367,7 +367,7 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         state
             .get_cache_commit()
-            .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+            .try_commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
             .await
             .unwrap();
 

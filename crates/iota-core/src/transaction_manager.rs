@@ -419,7 +419,7 @@ impl TransactionManager {
                 // skip already executed txes
                 if self
                     .transaction_cache_read
-                    .is_tx_already_executed(&digest)
+                    .try_is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
                         fatal!("Failed to check if tx is already executed: {:?}", err)
                     })
@@ -458,7 +458,7 @@ impl TransactionManager {
                             // remove the race.
                             if self
                                 .transaction_cache_read
-                                .is_tx_already_executed(cert.digest())
+                                .try_is_tx_already_executed(cert.digest())
                                 .expect("is_tx_already_executed cannot fail")
                             {
                                 return None;
@@ -520,7 +520,7 @@ impl TransactionManager {
         // So missing objects' availability are checked again after acquiring TM lock.
         let cache_miss_availability = self
             .object_cache_read
-            .multi_input_objects_available(
+            .try_multi_input_objects_available(
                 &input_object_cache_misses,
                 receiving_objects,
                 epoch_store.epoch(),
@@ -618,7 +618,7 @@ impl TransactionManager {
             // skip already executed txes
             let is_tx_already_executed = self
                 .transaction_cache_read
-                .is_tx_already_executed(&digest)
+                .try_is_tx_already_executed(&digest)
                 .expect("Check if tx is already executed should not fail");
             if is_tx_already_executed {
                 self.metrics

@@ -59,7 +59,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     handle
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .try_notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 

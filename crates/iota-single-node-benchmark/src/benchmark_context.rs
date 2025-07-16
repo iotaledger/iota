@@ -120,7 +120,7 @@ impl BenchmarkContext {
             self.validator()
                 .get_validator()
                 .get_cache_commit()
-                .commit_transaction_outputs(
+                .try_commit_transaction_outputs(
                     effects.executed_epoch(),
                     &[*effects.transaction_digest()],
                 )
@@ -195,7 +195,7 @@ impl BenchmarkContext {
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
             cache_commit
-                .commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()])
+                .try_commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()])
                 .await
                 .unwrap();
         }
@@ -415,7 +415,7 @@ impl BenchmarkContext {
                 .unwrap();
             state
                 .get_state_sync_store()
-                .multi_insert_transaction_and_effects(contents.transactions())
+                .try_multi_insert_transaction_and_effects(contents.transactions())
                 .unwrap();
             state
                 .get_checkpoint_store()
