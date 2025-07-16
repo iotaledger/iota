@@ -20,10 +20,8 @@ use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
 use rand::prelude::SliceRandom;
-use rand::{
-    SeedableRng,
-    prelude::{IteratorRandom, StdRng},
-};
+use rand::prelude::{IteratorRandom, StdRng};
+use rand::SeedableRng;
 use starfish_config::AuthorityIndex;
 use tap::TapFallible;
 use tokio::{
@@ -1353,7 +1351,8 @@ mod tests {
         BlockHeaderAPI, CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
-            BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock, VerifiedBlockHeader,
+            BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -2151,15 +2150,6 @@ mod tests {
         }
 
         // Stub out the remaining CoreThreadDispatcher methods with defaults:
-
-        async fn check_block_refs(
-            &self,
-            block_refs: Vec<BlockRef>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            // Echo back the requested refs by default
-            Ok(block_refs.into_iter().collect())
-        }
-
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
@@ -2176,21 +2166,30 @@ mod tests {
             Ok(())
         }
 
-        fn set_propagation_delay_and_quorum_rounds(
-            &self,
-            _delay: Round,
-            _received_quorum_rounds: Vec<QuorumRound>,
-            _accepted_quorum_rounds: Vec<QuorumRound>,
-        ) -> Result<(), CoreError> {
-            Ok(())
-        }
-
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
             Ok(())
         }
 
         fn highest_received_rounds(&self) -> Vec<Round> {
             Vec::new()
+        }
+
+        async fn add_block_headers(
+            &self,
+            blocks: Vec<VerifiedBlockHeader>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn add_data(
+            &self,
+            data: Vec<VerifiedTransactions>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
         }
     }
 
@@ -2202,10 +2201,10 @@ mod tests {
             let context = Arc::new(ctx);
             let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-            let inflight = InflightBlocksMap::new();
+            let inflight = InflightBlockHeadersMap::new();
 
             // 2) One missing block
-            let missing_vb = VerifiedBlock::new_for_test(TestBlock::new(100, 3).build());
+            let missing_vb = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(100, 3).build());
             let missing_ref = missing_vb.reference();
             let missing_blocks = BTreeMap::from([(
                 missing_ref,
@@ -2273,7 +2272,7 @@ mod tests {
         use parking_lot::RwLock;
 
         use crate::{
-            block_header::{Round, TestBlockHeader, VerifiedBlock},
+            block_header::{Round, TestBlockHeader},
             context::Context,
         };
 
@@ -2286,25 +2285,27 @@ mod tests {
         let network_client = Arc::new(MockNetworkClient::default());
 
         // 2) Create 1000 missing blocks known by authorities 0, 2, and 3
-        let mut missing_blocks = BTreeMap::new();
-        let mut missing_vbs = Vec::new();
-        let known_number_blocks = 10;
+        let mut missing_block_headers = BTreeMap::new();
+        let mut missing_verified_block_headers = Vec::new();
+        let known_number_block_headers = 10;
         for i in 0..1000 {
-            let vb = VerifiedBlock::new_for_test(TestBlock::new(1000 + i as Round, 0).build());
-            let r = vb.reference();
-            if i < known_number_blocks {
+            let verified_block_header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(1000 + i as Round, 0).build(),
+            );
+            let block_ref = verified_block_header.reference();
+            if i < known_number_block_headers {
                 // First 10 blocks are known by authorities 0, 2
-                missing_blocks.insert(
-                    r,
+                missing_block_headers.insert(
+                    block_ref,
                     BTreeSet::from([
                         AuthorityIndex::new_for_test(0),
                         AuthorityIndex::new_for_test(2),
                     ]),
                 );
-            } else if i >= known_number_blocks && i < 2 * known_number_blocks {
+            } else if i >= known_number_block_headers && i < 2 * known_number_block_headers {
                 // Second 10 blocks are known by authorities 0, 3
-                missing_blocks.insert(
-                    r,
+                missing_block_headers.insert(
+                    block_ref,
                     BTreeSet::from([
                         AuthorityIndex::new_for_test(0),
                         AuthorityIndex::new_for_test(3),
@@ -2312,38 +2313,52 @@ mod tests {
                 );
             } else {
                 // The rest are only known by authority 0
-                missing_blocks.insert(r, BTreeSet::from([AuthorityIndex::new_for_test(0)]));
+                missing_block_headers
+                    .insert(block_ref, BTreeSet::from([AuthorityIndex::new_for_test(0)]));
             }
-            missing_vbs.push(vb);
+            missing_verified_block_headers.push(verified_block_header);
         }
 
         // 3) Stub fetches for knowledge-based peers (2 and 3)
         let known_peers = [2, 3].map(AuthorityIndex::new_for_test);
-        let known_vbs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlock>)> = known_peers
+        let known_vbs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlockHeader>)> = known_peers
             .iter()
             .map(|&peer| {
-                let vbs = missing_vbs
+                let verified_block_headers = missing_verified_block_headers
                     .iter()
-                    .filter(|vb| missing_blocks.get(&vb.reference()).unwrap().contains(&peer))
+                    .filter(|verified_block_header| {
+                        missing_block_headers
+                            .get(&verified_block_header.reference())
+                            .unwrap()
+                            .contains(&peer)
+                    })
                     .take(MAX_BLOCKS_PER_FETCH)
                     .cloned()
                     .collect::<Vec<_>>();
-                (peer, vbs)
+                (peer, verified_block_headers)
             })
             .collect();
 
-        for (peer, vbs) in known_vbs_by_peer {
+        for (peer, verified_block_headers) in known_vbs_by_peer {
             if peer == AuthorityIndex::new_for_test(2) {
                 // Simulate timeout for peer 2, then fallback to peer 5
                 network_client
-                    .stub_fetch_block_headers(vbs.clone(), peer, Some(2 * FETCH_REQUEST_TIMEOUT))
+                    .stub_fetch_block_headers(
+                        verified_block_headers.clone(),
+                        peer,
+                        Some(2 * FETCH_REQUEST_TIMEOUT),
+                    )
                     .await;
                 network_client
-                    .stub_fetch_block_headers(vbs.clone(), AuthorityIndex::new_for_test(5), None)
+                    .stub_fetch_block_headers(
+                        verified_block_headers.clone(),
+                        AuthorityIndex::new_for_test(5),
+                        None,
+                    )
                     .await;
             } else {
                 network_client
-                    .stub_fetch_block_headers(vbs.clone(), peer, None)
+                    .stub_fetch_block_headers(verified_block_headers.clone(), peer, None)
                     .await;
             }
         }
@@ -2351,7 +2366,7 @@ mod tests {
         // 4) Stub fetches from periodic path peers (1 and 4)
         network_client
             .stub_fetch_block_headers(
-                missing_vbs[0..MAX_BLOCKS_PER_FETCH].to_vec(),
+                missing_verified_block_headers[0..MAX_BLOCKS_PER_FETCH].to_vec(),
                 AuthorityIndex::new_for_test(1),
                 None,
             )
@@ -2359,7 +2374,8 @@ mod tests {
 
         network_client
             .stub_fetch_block_headers(
-                missing_vbs[MAX_BLOCKS_PER_FETCH..2 * MAX_BLOCKS_PER_FETCH].to_vec(),
+                missing_verified_block_headers[MAX_BLOCKS_PER_FETCH..2 * MAX_BLOCKS_PER_FETCH]
+                    .to_vec(),
                 AuthorityIndex::new_for_test(4),
                 None,
             )
@@ -2374,7 +2390,7 @@ mod tests {
             context.clone(),
             inflight.clone(),
             network_client.clone(),
-            missing_blocks,
+            missing_block_headers,
             dag_state.clone(),
         )
             .await;
@@ -2386,7 +2402,8 @@ mod tests {
         // 7) First fetch from peer 3 (knowledge-based)
         let (_guard3, bytes3, peer3) = &results[0];
         assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
-        let expected2 = missing_vbs[known_number_blocks..2 * known_number_blocks]
+        let expected2 = missing_verified_block_headers
+            [known_number_block_headers..2 * known_number_block_headers]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
@@ -2395,7 +2412,7 @@ mod tests {
         // 8) Second fetch from peer 1 (periodic)
         let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
-        let expected1 = missing_vbs[0..MAX_BLOCKS_PER_FETCH]
+        let expected1 = missing_verified_block_headers[0..MAX_BLOCKS_PER_FETCH]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
@@ -2404,7 +2421,8 @@ mod tests {
         // 9) Third fetch from peer 4 (periodic)
         let (_guard4, bytes4, peer4) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
-        let expected4 = missing_vbs[MAX_BLOCKS_PER_FETCH..2 * MAX_BLOCKS_PER_FETCH]
+        let expected4 = missing_verified_block_headers
+            [MAX_BLOCKS_PER_FETCH..2 * MAX_BLOCKS_PER_FETCH]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
@@ -2413,7 +2431,7 @@ mod tests {
         // 10) Fourth fetch from peer 5 (fallback after peer 2 timeout)
         let (_guard5, bytes5, peer5) = &results[3];
         assert_eq!(*peer5, AuthorityIndex::new_for_test(5));
-        let expected5 = missing_vbs[0..known_number_blocks]
+        let expected5 = missing_verified_block_headers[0..known_number_block_headers]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();

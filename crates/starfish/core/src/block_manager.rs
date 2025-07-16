@@ -251,7 +251,11 @@ impl BlockManager {
             }
             // Fetches the block if it is not in dag state or suspended.
             missing_blocks.insert(*block_ref);
-            if self.missing_blocks.insert(*block_ref) {
+            if self
+                .missing_blocks
+                .insert(*block_ref, BTreeSet::from([block_ref.author]))
+                .is_none()
+            {
                 // We want to report this as a missing ancestor even if there is no block that
                 // is actually references it right now.
                 self.missing_ancestors.entry(*block_ref).or_default();
@@ -689,7 +693,7 @@ mod tests {
         // AND the missing blocks are the parents of the round 2 blocks. Since this is a
         // fully connected DAG taking the ancestors of the first element
         // suffices.
-        assert_eq!(block_manager.missing_blocks_refs(), missing_block_refs);
+        assert_eq!(block_manager.missing_block_refs(), missing_block_refs);
 
         // AND suspended blocks should return the round_2_blocks
         assert_eq!(
@@ -872,7 +876,7 @@ mod tests {
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=3).build();
 
-        let all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
+        let all_blocks = dag_builder.block_headers.values().cloned().collect::<Vec<_>>();
 
         let blocks_round_2 = all_blocks
             .iter()
@@ -892,7 +896,7 @@ mod tests {
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
-        let (_, missing_blocks) = block_manager.try_accept_blocks(vec![blocks_round_2[0].clone()]);
+        let (_, missing_blocks) = block_manager.try_accept_block_headers(vec![blocks_round_2[0].clone()]);
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
@@ -924,7 +928,7 @@ mod tests {
 
         // Add a new block from round 2 from authority 1, which updates the set of
         // authorities that are aware of the missing blocks
-        block_manager.try_accept_blocks(vec![blocks_round_2[1].clone()]);
+        block_manager.try_accept_block_headers(vec![blocks_round_2[1].clone()]);
         let missing_blocks_with_authorities = block_manager.missing_blocks();
         assert_eq!(
             missing_blocks_with_authorities[&block_round_1_authority_0],
@@ -1038,7 +1042,7 @@ mod tests {
 
         // Other blocks should be rejected and there should be no remaining suspended
         // block.
-        assert!(block_manager.suspended_blocks().is_empty());
+        assert!(block_manager.suspended_blocks_refs().is_empty());
     }
 
     #[tokio::test]
