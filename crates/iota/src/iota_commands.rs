@@ -701,7 +701,9 @@ async fn start(
 
         let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
         if fullnode_config_path.exists() {
-            info!("Loading fullnode config file from {fullnode_config_path:?}");
+            info!(
+                "Loading iota-names options from fullnode config file at {fullnode_config_path:?}"
+            );
 
             let NodeConfig {
                 iota_names_config, ..
