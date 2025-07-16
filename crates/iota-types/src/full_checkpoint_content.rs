@@ -71,6 +71,8 @@ impl CheckpointData {
                 checkpoint_input_objects.insert(id, obj);
             }
             for obj in tx.output_objects.iter() {
+                // We want to track input objects that are not output objects
+                // in the previous transactions.
                 output_objects_seen.insert(obj.id());
             }
         }
