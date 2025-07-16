@@ -399,8 +399,6 @@ impl NameCommand {
                     "--assign nft".to_string(),
                 ]);
 
-                let sender = opts.rest.sender;
-
                 if let Some(identity) = &set_target_address {
                     let target_address =
                         get_identity_address(identity.clone().or(sender.map(Into::into)), context)
@@ -469,10 +467,9 @@ impl NameCommand {
                 let coin =
                     select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
                         .await?;
-                let nft_id =
-                    get_owned_nft_by_name::<NameRegistration>(&name, opts.rest.sender, context)
-                        .await?
-                        .id();
+                let nft_id = get_owned_nft_by_name::<NameRegistration>(&name, sender, context)
+                    .await?
+                    .id();
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
@@ -1122,11 +1119,9 @@ impl SubnameCommand {
                 let package_id = parent.subname_package_id(&iota_client).await?;
                 let module_name = parent.subname_module_name();
 
-                let target_address = get_identity_address(
-                    target_address.or(opts.rest.sender.map(Into::into)),
-                    context,
-                )
-                .await?;
+                let target_address =
+                    get_identity_address(target_address.or(sender.map(Into::into)), context)
+                        .await?;
 
                 let res = IotaClientCommands::Call {
                     package: package_id,
