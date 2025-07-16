@@ -14,17 +14,35 @@ use crate::{
 pub trait ObjectStore {
     fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
 
+    /// Non-fallible version of `try_get_object`.
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.try_get_object(object_id)
+            .expect("storage access failed")
+    }
+
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>>;
 
+    /// Non-fallible version of `try_get_object_by_key`.
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.try_get_object_by_key(object_id, version)
+            .expect("storage access failed")
+    }
+
     fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
         object_ids
             .iter()
             .map(|digest| self.try_get_object(digest))
             .collect::<Result<Vec<_>, _>>()
+    }
+
+    /// Non-fallible version of `try_multi_get_objects`.
+    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
+        self.try_multi_get_objects(object_ids)
+            .expect("storage access failed")
     }
 
     fn try_multi_get_objects_by_key(
@@ -35,6 +53,12 @@ pub trait ObjectStore {
             .iter()
             .map(|k| self.try_get_object_by_key(&k.0, k.1))
             .collect::<Result<Vec<_>, _>>()
+    }
+
+    /// Non-fallible version of `try_multi_get_objects_by_key`.
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        self.try_multi_get_objects_by_key(object_keys)
+            .expect("storage access failed")
     }
 }
 

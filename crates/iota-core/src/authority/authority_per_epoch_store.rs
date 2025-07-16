@@ -1591,7 +1591,7 @@ impl AuthorityPerEpochStore {
                     // Note: we don't actually need to read from the transaction here, as no writer
                     // can update object_store until after get_or_init_next_object_versions
                     // completes.
-                    match cache_reader.try_get_object(id).expect("read cannot fail") {
+                    match cache_reader.get_object(id) {
                         Some(obj) => (*id, obj.version()),
                         None => (*id, *initial_version),
                     }

@@ -222,11 +222,11 @@ mod tests {
 
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.create_checkpoint();
-        let checkpoint_data = sim.try_get_checkpoint_data(
+        let checkpoint_data = sim.get_checkpoint_data(
             checkpoint.clone(),
-            sim.try_get_checkpoint_contents_by_digest(&checkpoint.content_digest)?
+            sim.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
                 .unwrap(),
-        )?;
+        );
         let shared_checkpoint_data = Arc::new(checkpoint_data);
         let txn_handler = TransactionHandler::new();
         txn_handler

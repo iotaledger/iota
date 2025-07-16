@@ -1158,7 +1158,7 @@ impl AuthorityState {
     pub async fn try_execute_immediately(
         &self,
         certificate: &VerifiedExecutableTransaction,
-        mut expected_effects_digest: Option<TransactionEffectsDigest>,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let _scope = monitored_scope("Execution::try_execute_immediately");
@@ -1175,10 +1175,10 @@ impl AuthorityState {
             .get_transaction_cache_reader()
             .try_get_executed_effects(tx_digest)?
         {
-            if let Some(expected_effects_digest) = expected_effects_digest {
+            if let Some(expected_effects_digest_inner) = expected_effects_digest {
                 assert_eq!(
                     effects.digest(),
-                    expected_effects_digest,
+                    expected_effects_digest_inner,
                     "Unexpected effects digest for transaction {:?}",
                     tx_digest
                 );
@@ -1189,13 +1189,13 @@ impl AuthorityState {
         let input_objects =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
 
-        if expected_effects_digest.is_none() {
-            // We could be re-executing a previously executed but uncommitted transaction,
-            // perhaps after restarting with a new binary. In this situation, if
-            // we have published an effects signature, we must be sure not to
-            // equivocate. TODO: read from cache instead of DB
-            expected_effects_digest = epoch_store.get_signed_effects_digest(tx_digest)?;
-        }
+        // If no expected_effects_digest was provided, try to get it from storage.
+        // We could be re-executing a previously executed but uncommitted transaction,
+        // perhaps after restarting with a new binary. In this situation, if
+        // we have published an effects signature, we must be sure not to
+        // equivocate. TODO: read from cache instead of DB
+        let expected_effects_digest =
+            expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
         self.process_certificate(
             tx_guard,
@@ -1249,6 +1249,16 @@ impl AuthorityState {
             .await?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
         Ok((signed_effects, execution_error_opt))
+    }
+
+    /// Non-fallible version of `try_execute_for_test()`.
+    pub async fn execute_for_test(
+        &self,
+        certificate: &VerifiedCertificate,
+    ) -> (VerifiedSignedTransactionEffects, Option<ExecutionError>) {
+        self.try_execute_for_test(certificate)
+            .await
+            .expect("try_execute_for_test should not fail")
     }
 
     pub async fn notify_read_effects(
@@ -2220,9 +2230,15 @@ impl AuthorityState {
         Ok(epoch_store.reference_gas_price())
     }
 
-    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+    pub fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.get_transaction_cache_reader()
             .try_is_tx_already_executed(digest)
+    }
+
+    /// Non-fallible version of `try_is_tx_already_executed`.
+    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> bool {
+        self.try_is_tx_already_executed(digest)
+            .expect("storage access failed")
     }
 
     /// Indexes a transaction by updating various indexes in the `IndexStore`.
@@ -2694,7 +2710,7 @@ impl AuthorityState {
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
                 let (_, seq, _) = self
-                    .get_object_or_tombstone(request.object_id)
+                    .try_get_object_or_tombstone(request.object_id)
                     .await?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
@@ -3346,15 +3362,22 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
+    pub async fn try_get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
         self.get_object_store()
             .try_get_object(object_id)
             .map_err(Into::into)
     }
 
+    /// Non-fallible version of `try_get_object`.
+    pub async fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.try_get_object(object_id)
+            .await
+            .expect("storage access failed")
+    }
+
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .get_object(&IOTA_SYSTEM_ADDRESS.into())
+            .try_get_object(&IOTA_SYSTEM_ADDRESS.into())
             .await?
             .expect("framework object should always exist")
             .compute_object_reference())
@@ -4334,16 +4357,30 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    pub async fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
-    pub async fn get_object_or_tombstone(
+    /// Non-fallible version of `try_get_objects`.
+    pub async fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
+        self.try_get_objects(objects)
+            .await
+            .expect("storage access failed")
+    }
+
+    pub async fn try_get_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
         self.get_object_cache_reader()
             .try_get_latest_object_ref_or_tombstone(object_id)
+    }
+
+    /// Non-fallible version of `try_get_object_or_tombstone`.
+    pub async fn get_object_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+        self.try_get_object_or_tombstone(object_id)
+            .await
+            .expect("storage access failed")
     }
 
     /// Ordinarily, protocol upgrades occur when 2f + 1 + (f *
@@ -4451,7 +4488,7 @@ impl AuthorityState {
         binary_config: &BinaryConfig,
     ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
         let ids: Vec<_> = system_packages.iter().map(|(id, _, _)| *id).collect();
-        let objects = self.get_objects(&ids).await.expect("read cannot fail");
+        let objects = self.get_objects(&ids).await;
 
         let mut res = Vec::with_capacity(system_packages.len());
         for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
@@ -4787,8 +4824,7 @@ impl AuthorityState {
         // reconfiguration anyway.
         if self
             .get_transaction_cache_reader()
-            .try_is_tx_already_executed(tx_digest)
-            .expect("read cannot fail")
+            .try_is_tx_already_executed(tx_digest)?
         {
             warn!("change epoch tx has already been executed via state sync");
             bail!("change epoch tx has already been executed via state sync",);
@@ -4939,14 +4975,12 @@ impl AuthorityState {
 
     /// NOTE: this function is only to be used for fuzzing and testing. Never
     /// use in prod
-    pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) -> IotaResult {
-        self.get_reconfig_api()
-            .try_bulk_insert_genesis_objects(objects)?;
+    pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) {
+        self.get_reconfig_api().bulk_insert_genesis_objects(objects);
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         self.get_reconfig_api()
             .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
-        Ok(())
     }
 }
 

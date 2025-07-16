@@ -145,7 +145,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.try_get_object(child).unwrap().and_then(|o| {
+        Ok(self.try_get_object(child)?.and_then(|o| {
             if o.version() <= child_version_upper_bound
                 && o.owner == Owner::ObjectOwner((*parent).into())
             {

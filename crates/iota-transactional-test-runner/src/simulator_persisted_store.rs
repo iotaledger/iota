@@ -705,12 +705,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_chain_identifier(
         &self,
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        Ok((*self
-            .try_get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap()
-            .digest())
-        .into())
+        Ok((*self.get_checkpoint_by_sequence_number(0).unwrap().digest()).into())
     }
 
     fn account_owned_objects_info_iter(

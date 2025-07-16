@@ -367,9 +367,8 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         state
             .get_cache_commit()
-            .try_commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
-            .await
-            .unwrap();
+            .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+            .await;
 
         // We want to insert these objects directly instead of relying on genesis
         // because genesis process would set the previous transaction field for
@@ -379,8 +378,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         if let Some(starting_objects) = self.starting_objects {
             state
                 .insert_objects_unsafe_for_testing_only(starting_objects)
-                .await
-                .unwrap();
+                .await;
         };
         state
     }

@@ -29,7 +29,7 @@ use crate::{
     authority::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store::{ExecutionLockWriteGuard, IotaLockResult},
+        authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     state_accumulator::AccumulatorStore,
@@ -179,6 +179,19 @@ pub trait ExecutionCacheCommit: Send + Sync {
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult>;
 
+    /// Non-fallible version of `try_commit_transaction_outputs`.
+    fn commit_transaction_outputs<'a>(
+        &'a self,
+        epoch: EpochId,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            self.try_commit_transaction_outputs(epoch, digests)
+                .await
+                .expect("storage access failed")
+        })
+    }
+
     /// Durably commit transactions (but not their outputs) to the database.
     /// Called before writing a locally built checkpoint to the CheckpointStore,
     /// so that the inputs of the checkpoint cannot be lost.
@@ -194,13 +207,34 @@ pub trait ExecutionCacheCommit: Send + Sync {
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult>;
+
+    /// Non-fallible version of `try_persist_transactions`.
+    fn persist_transactions<'a>(&'a self, digests: &'a [TransactionDigest]) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            self.try_persist_transactions(digests)
+                .await
+                .expect("storage access failed")
+        })
+    }
 }
 
 pub trait ObjectCacheRead: Send + Sync {
     fn try_get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
+
+    /// Non-fallible version of `try_get_package_object`.
+    fn get_package_object(&self, id: &ObjectID) -> Option<PackageObject> {
+        self.try_get_package_object(id)
+            .expect("storage access failed")
+    }
+
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
     fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>>;
+
+    /// Non-fallible version of `try_get_object`.
+    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+        self.try_get_object(id).expect("storage access failed")
+    }
 
     fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
         let mut ret = Vec::with_capacity(objects.len());
@@ -210,15 +244,36 @@ pub trait ObjectCacheRead: Send + Sync {
         Ok(ret)
     }
 
+    /// Non-fallible version of `try_get_objects`.
+    fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
+        self.try_get_objects(objects)
+            .expect("storage access failed")
+    }
+
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>>;
 
+    /// Non-fallible version of `try_get_latest_object_ref_or_tombstone`.
+    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+        self.try_get_latest_object_ref_or_tombstone(object_id)
+            .expect("storage access failed")
+    }
+
     fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<(ObjectKey, ObjectOrTombstone)>>;
+
+    /// Non-fallible version of `try_get_latest_object_or_tombstone`.
+    fn get_latest_object_or_tombstone(
+        &self,
+        object_id: ObjectID,
+    ) -> Option<(ObjectKey, ObjectOrTombstone)> {
+        self.try_get_latest_object_or_tombstone(object_id)
+            .expect("storage access failed")
+    }
 
     fn try_get_object_by_key(
         &self,
@@ -226,10 +281,22 @@ pub trait ObjectCacheRead: Send + Sync {
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
+    /// Non-fallible version of `try_get_object_by_key`.
+    fn get_object_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+        self.try_get_object_by_key(object_id, version)
+            .expect("storage access failed")
+    }
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>>;
+
+    /// Non-fallible version of `try_multi_get_objects_by_key`.
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        self.try_multi_get_objects_by_key(object_keys)
+            .expect("storage access failed")
+    }
 
     fn try_object_exists_by_key(
         &self,
@@ -237,7 +304,19 @@ pub trait ObjectCacheRead: Send + Sync {
         version: SequenceNumber,
     ) -> IotaResult<bool>;
 
+    /// Non-fallible version of `try_object_exists_by_key`.
+    fn object_exists_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> bool {
+        self.try_object_exists_by_key(object_id, version)
+            .expect("storage access failed")
+    }
+
     fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>>;
+
+    /// Non-fallible version of `try_multi_object_exists_by_key`.
+    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> Vec<bool> {
+        self.try_multi_object_exists_by_key(object_keys)
+            .expect("storage access failed")
+    }
 
     /// Load a list of objects from the store by object reference.
     /// If they exist in the store, they are returned directly.
@@ -279,6 +358,16 @@ pub trait ObjectCacheRead: Send + Sync {
         }
         assert_eq!(result.len(), object_refs.len());
         Ok(result)
+    }
+
+    /// Non-fallible version of
+    /// `try_multi_get_objects_with_more_accurate_error_return`.
+    fn multi_get_objects_with_more_accurate_error_return(
+        &self,
+        object_refs: &[ObjectRef],
+    ) -> Vec<Object> {
+        self.try_multi_get_objects_with_more_accurate_error_return(object_refs)
+            .expect("storage access failed")
     }
 
     /// Used by transaction manager to determine if input objects are ready.
@@ -371,6 +460,17 @@ pub trait ObjectCacheRead: Send + Sync {
         Ok(results.into_iter().map(|(_, result)| result).collect())
     }
 
+    /// Non-fallible version of `try_multi_input_objects_available`.
+    fn multi_input_objects_available(
+        &self,
+        keys: &[InputKey],
+        receiving_objects: HashSet<InputKey>,
+        epoch: EpochId,
+    ) -> Vec<bool> {
+        self.try_multi_input_objects_available(keys, receiving_objects, epoch)
+            .expect("storage access failed")
+    }
+
     /// Return the object with version less then or eq to the provided seq
     /// number. This is used by indexer to find the correct version of
     /// dynamic field child object. We do not store the version of the child
@@ -382,11 +482,31 @@ pub trait ObjectCacheRead: Send + Sync {
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
+    /// Non-fallible version of `try_find_object_lt_or_eq_version`.
+    fn find_object_lt_or_eq_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> Option<Object> {
+        self.try_find_object_lt_or_eq_version(object_id, version)
+            .expect("storage access failed")
+    }
+
     fn try_get_lock(
         &self,
         obj_ref: ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult;
+
+    /// Non-fallible version of `try_get_lock`.
+    fn get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> ObjectLockStatus {
+        self.try_get_lock(obj_ref, epoch_store)
+            .expect("storage access failed")
+    }
 
     // This method is considered "private" - only used by
     // multi_get_objects_with_more_accurate_error_return
@@ -397,7 +517,19 @@ pub trait ObjectCacheRead: Send + Sync {
     // or changed to a debug_assert
     fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
 
+    /// Non-fallible version of `try_check_owned_objects_are_live`.
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) {
+        self.try_check_owned_objects_are_live(owned_object_refs)
+            .expect("storage access failed")
+    }
+
     fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
+
+    /// Non-fallible version of `try_get_iota_system_state_object_unsafe`.
+    fn get_iota_system_state_object_unsafe(&self) -> IotaSystemState {
+        self.try_get_iota_system_state_object_unsafe()
+            .expect("storage access failed")
+    }
 
     // Marker methods
 
@@ -409,12 +541,33 @@ pub trait ObjectCacheRead: Send + Sync {
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>>;
 
+    /// Non-fallible version of `try_get_marker_value`.
+    fn get_marker_value(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> Option<MarkerValue> {
+        self.try_get_marker_value(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
     /// Get the latest marker for a given object.
     fn try_get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>>;
+
+    /// Non-fallible version of `try_get_latest_marker`.
+    fn get_latest_marker(
+        &self,
+        object_id: &ObjectID,
+        epoch_id: EpochId,
+    ) -> Option<(SequenceNumber, MarkerValue)> {
+        self.try_get_latest_marker(object_id, epoch_id)
+            .expect("storage access failed")
+    }
 
     /// If the shared object was deleted, return deletion info for the current
     /// live version
@@ -427,6 +580,16 @@ pub trait ObjectCacheRead: Send + Sync {
             Some((version, MarkerValue::SharedDeleted(digest))) => Ok(Some((version, digest))),
             _ => Ok(None),
         }
+    }
+
+    /// Non-fallible version of `try_get_last_shared_object_deletion_info`.
+    fn get_last_shared_object_deletion_info(
+        &self,
+        object_id: &ObjectID,
+        epoch_id: EpochId,
+    ) -> Option<(SequenceNumber, TransactionDigest)> {
+        self.try_get_last_shared_object_deletion_info(object_id, epoch_id)
+            .expect("storage access failed")
     }
 
     /// If the shared object was deleted, return deletion info for the specified
@@ -443,6 +606,18 @@ pub trait ObjectCacheRead: Send + Sync {
         }
     }
 
+    /// Non-fallible version of
+    /// `try_get_deleted_shared_object_previous_tx_digest`.
+    fn get_deleted_shared_object_previous_tx_digest(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> Option<TransactionDigest> {
+        self.try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
     fn try_have_received_object_at_version(
         &self,
         object_id: &ObjectID,
@@ -453,6 +628,17 @@ pub trait ObjectCacheRead: Send + Sync {
             Some(MarkerValue::Received) => Ok(true),
             _ => Ok(false),
         }
+    }
+
+    /// Non-fallible version of `try_have_received_object_at_version`.
+    fn have_received_object_at_version(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> bool {
+        self.try_have_received_object_at_version(object_id, version, epoch_id)
+            .expect("storage access failed")
     }
 
     fn try_have_deleted_owned_object_at_version_or_after(
@@ -469,9 +655,27 @@ pub trait ObjectCacheRead: Send + Sync {
         }
     }
 
+    /// Non-fallible version of
+    /// `try_have_deleted_owned_object_at_version_or_after`.
+    fn have_deleted_owned_object_at_version_or_after(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> bool {
+        self.try_have_deleted_owned_object_at_version_or_after(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
     /// Return the watermark for the highest checkpoint for which we've pruned
     /// objects.
     fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber>;
+
+    /// Non-fallible version of `try_get_highest_pruned_checkpoint`.
+    fn get_highest_pruned_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.try_get_highest_pruned_checkpoint()
+            .expect("storage access failed")
+    }
 }
 
 pub trait TransactionCacheRead: Send + Sync {
@@ -479,6 +683,15 @@ pub trait TransactionCacheRead: Send + Sync {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>>;
+
+    /// Non-fallible version of `try_multi_get_transaction_blocks`.
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+        self.try_multi_get_transaction_blocks(digests)
+            .expect("storage access failed")
+    }
 
     fn try_get_transaction_block(
         &self,
@@ -490,6 +703,15 @@ pub trait TransactionCacheRead: Send + Sync {
                     .pop()
                     .expect("multi-get must return correct number of items")
             })
+    }
+
+    /// Non-fallible version of `try_get_transaction_block`.
+    fn get_transaction_block(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Arc<VerifiedTransaction>> {
+        self.try_get_transaction_block(digest)
+            .expect("storage access failed")
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -515,10 +737,28 @@ pub trait TransactionCacheRead: Send + Sync {
             .collect::<Result<Vec<_>, _>>()
     }
 
+    /// Non-fallible version of `try_get_transactions_and_serialized_sizes`.
+    fn get_transactions_and_serialized_sizes(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<(VerifiedTransaction, usize)>> {
+        self.try_get_transactions_and_serialized_sizes(digests)
+            .expect("storage access failed")
+    }
+
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>;
+
+    /// Non-fallible version of `try_multi_get_executed_effects_digests`.
+    fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        self.try_multi_get_executed_effects_digests(digests)
+            .expect("storage access failed")
+    }
 
     fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.try_multi_get_executed_effects_digests(&[*digest])
@@ -528,6 +768,12 @@ pub trait TransactionCacheRead: Send + Sync {
                     .expect("multi-get must return correct number of items")
                     .is_some()
             })
+    }
+
+    /// Non-fallible version of `try_is_tx_already_executed`.
+    fn is_tx_already_executed(&self, digest: &TransactionDigest) -> bool {
+        self.try_is_tx_already_executed(digest)
+            .expect("storage access failed")
     }
 
     fn try_multi_get_executed_effects(
@@ -556,6 +802,15 @@ pub trait TransactionCacheRead: Send + Sync {
         Ok(results)
     }
 
+    /// Non-fallible version of `try_multi_get_executed_effects`.
+    fn multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        self.try_multi_get_executed_effects(digests)
+            .expect("storage access failed")
+    }
+
     fn try_get_executed_effects(
         &self,
         digest: &TransactionDigest,
@@ -568,10 +823,25 @@ pub trait TransactionCacheRead: Send + Sync {
             })
     }
 
+    /// Non-fallible version of `try_get_executed_effects`.
+    fn get_executed_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.try_get_executed_effects(digest)
+            .expect("storage access failed")
+    }
+
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>>;
+
+    /// Non-fallible version of `try_multi_get_effects`.
+    fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        self.try_multi_get_effects(digests)
+            .expect("storage access failed")
+    }
 
     fn try_get_effects(
         &self,
@@ -584,10 +854,24 @@ pub trait TransactionCacheRead: Send + Sync {
         })
     }
 
+    /// Non-fallible version of `try_get_effects`.
+    fn get_effects(&self, digest: &TransactionEffectsDigest) -> Option<TransactionEffects> {
+        self.try_get_effects(digest).expect("storage access failed")
+    }
+
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+
+    /// Non-fallible version of `try_multi_get_events`.
+    fn multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(event_digests)
+            .expect("storage access failed")
+    }
 
     fn try_get_events(
         &self,
@@ -600,10 +884,27 @@ pub trait TransactionCacheRead: Send + Sync {
         })
     }
 
+    /// Non-fallible version of `try_get_events`.
+    fn get_events(&self, digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.try_get_events(digest).expect("storage access failed")
+    }
+
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
+
+    /// Non-fallible version of `try_notify_read_executed_effects_digests`.
+    fn notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
+        Box::pin(async move {
+            self.try_notify_read_executed_effects_digests(digests)
+                .await
+                .expect("storage access failed")
+        })
+    }
 
     /// Wait until the effects of the given transactions are available and
     /// return them. WARNING: If calling this on a transaction that could be
@@ -630,6 +931,18 @@ pub trait TransactionCacheRead: Send + Sync {
             })
         }
         .boxed()
+    }
+
+    /// Non-fallible version of `try_notify_read_executed_effects`.
+    fn notify_read_executed_effects<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, Vec<TransactionEffects>> {
+        Box::pin(async move {
+            self.try_notify_read_executed_effects(digests)
+                .await
+                .expect("storage access failed")
+        })
     }
 }
 
@@ -660,6 +973,19 @@ pub trait ExecutionCacheWrite: Send + Sync {
         tx_outputs: Arc<TransactionOutputs>,
     ) -> BoxFuture<'_, IotaResult>;
 
+    /// Non-fallible version of `try_write_transaction_outputs`.
+    fn write_transaction_outputs(
+        &self,
+        epoch_id: EpochId,
+        tx_outputs: Arc<TransactionOutputs>,
+    ) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.try_write_transaction_outputs(epoch_id, tx_outputs)
+                .await
+                .expect("storage access failed")
+        })
+    }
+
     /// Attempt to acquire object locks for all of the owned input locks.
     fn try_acquire_transaction_locks<'a>(
         &'a self,
@@ -667,6 +993,20 @@ pub trait ExecutionCacheWrite: Send + Sync {
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
     ) -> BoxFuture<'a, IotaResult>;
+
+    /// Non-fallible version of `try_acquire_transaction_locks`.
+    fn acquire_transaction_locks<'a>(
+        &'a self,
+        epoch_store: &'a AuthorityPerEpochStore,
+        owned_input_objects: &'a [ObjectRef],
+        transaction: VerifiedSignedTransaction,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
+                .await
+                .expect("storage access failed")
+        })
+    }
 }
 
 pub trait CheckpointCache: Send + Sync {
@@ -682,10 +1022,29 @@ pub trait CheckpointCache: Send + Sync {
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>>;
 
+    /// Non-fallible version of `try_get_transaction_perpetual_checkpoint`.
+    fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<(EpochId, CheckpointSequenceNumber)> {
+        self.try_get_transaction_perpetual_checkpoint(digest)
+            .expect("storage access failed")
+    }
+
     fn try_multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
+
+    /// Non-fallible version of
+    /// `try_multi_get_transactions_perpetual_checkpoints`.
+    fn multi_get_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<(EpochId, CheckpointSequenceNumber)>> {
+        self.try_multi_get_transactions_perpetual_checkpoints(digests)
+            .expect("storage access failed")
+    }
 
     fn try_insert_finalized_transactions_perpetual_checkpoints(
         &self,
@@ -693,17 +1052,55 @@ pub trait CheckpointCache: Send + Sync {
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult;
+
+    /// Non-fallible version of
+    /// `try_insert_finalized_transactions_perpetual_checkpoints`.
+    fn insert_finalized_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+        epoch: EpochId,
+        sequence: CheckpointSequenceNumber,
+    ) {
+        self.try_insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+            .expect("storage access failed")
+    }
 }
 
 pub trait ExecutionCacheReconfigAPI: Send + Sync {
     fn try_insert_genesis_object(&self, object: Object) -> IotaResult;
+
+    /// Non-fallible version of `try_insert_genesis_object`.
+    fn insert_genesis_object(&self, object: Object) {
+        self.try_insert_genesis_object(object)
+            .expect("storage access failed")
+    }
+
     fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
 
+    /// Non-fallible version of `try_bulk_insert_genesis_objects`.
+    fn bulk_insert_genesis_objects(&self, objects: &[Object]) {
+        self.try_bulk_insert_genesis_objects(objects)
+            .expect("storage access failed")
+    }
+
     fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult;
+
+    /// Non-fallible version of `try_revert_state_update`.
+    fn revert_state_update(&self, digest: &TransactionDigest) {
+        self.try_revert_state_update(digest)
+            .expect("storage access failed")
+    }
+
     fn try_set_epoch_start_configuration(
         &self,
         epoch_start_config: &EpochStartConfiguration,
     ) -> IotaResult;
+
+    /// Non-fallible version of `try_set_epoch_start_configuration`.
+    fn set_epoch_start_configuration(&self, epoch_start_config: &EpochStartConfiguration) {
+        self.try_set_epoch_start_configuration(epoch_start_config)
+            .expect("storage access failed")
+    }
 
     fn update_epoch_flags_metrics(&self, old: &[EpochFlag], new: &[EpochFlag]);
 
@@ -715,7 +1112,22 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
         epoch_supply_change: Option<i64>,
     ) -> IotaResult;
 
+    /// Non-fallible version of `try_expensive_check_iota_conservation`.
+    fn expensive_check_iota_conservation(
+        &self,
+        old_epoch_store: &AuthorityPerEpochStore,
+        epoch_supply_change: Option<i64>,
+    ) {
+        self.try_expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
+            .expect("storage access failed")
+    }
+
     fn try_checkpoint_db(&self, path: &Path) -> IotaResult;
+
+    /// Non-fallible version of `try_checkpoint_db`.
+    fn checkpoint_db(&self, path: &Path) {
+        self.try_checkpoint_db(path).expect("storage access failed")
+    }
 
     /// Reconfigure the cache itself.
     /// TODO: this is only needed for ProxyCache to switch between cache impls.
@@ -737,10 +1149,29 @@ pub trait StateSyncAPI: Send + Sync {
         transaction_effects: &TransactionEffects,
     ) -> IotaResult;
 
+    /// Non-fallible version of `try_insert_transaction_and_effects`.
+    fn insert_transaction_and_effects(
+        &self,
+        transaction: &VerifiedTransaction,
+        transaction_effects: &TransactionEffects,
+    ) {
+        self.try_insert_transaction_and_effects(transaction, transaction_effects)
+            .expect("storage access failed")
+    }
+
     fn try_multi_insert_transaction_and_effects(
         &self,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult;
+
+    /// Non-fallible version of `try_multi_insert_transaction_and_effects`.
+    fn multi_insert_transaction_and_effects(
+        &self,
+        transactions_and_effects: &[VerifiedExecutionData],
+    ) {
+        self.try_multi_insert_transaction_and_effects(transactions_and_effects)
+            .expect("storage access failed");
+    }
 }
 
 pub trait TestingAPI: Send + Sync {
@@ -933,18 +1364,18 @@ macro_rules! implement_passthrough_traits {
                 transaction: &VerifiedTransaction,
                 transaction_effects: &TransactionEffects,
             ) -> IotaResult {
-                Ok(self
-                    .store
-                    .insert_transaction_and_effects(transaction, transaction_effects)?)
+                self.store
+                    .insert_transaction_and_effects(transaction, transaction_effects)
+                    .map_err(IotaError::from)
             }
 
             fn try_multi_insert_transaction_and_effects(
                 &self,
                 transactions_and_effects: &[VerifiedExecutionData],
             ) -> IotaResult {
-                Ok(self
-                    .store
-                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())?)
+                self.store
+                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())
+                    .map_err(IotaError::from)
             }
         }
 

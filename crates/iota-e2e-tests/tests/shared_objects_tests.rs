@@ -141,9 +141,8 @@ async fn shared_object_deletion_multiple_times() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .try_notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .notify_read_executed_effects(&digests)
+        .await;
 }
 
 #[sim_test]
@@ -198,9 +197,8 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .try_notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .notify_read_executed_effects(&digests)
+        .await;
 }
 
 /// Test for execution of shared object certs that are sequenced after a shared
@@ -314,9 +312,8 @@ async fn shared_object_deletion_multi_certs() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .try_notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
-        .await
-        .unwrap();
+        .notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
+        .await;
 }
 
 /// End-to-end shared transaction test for an IOTA validator. It does not test

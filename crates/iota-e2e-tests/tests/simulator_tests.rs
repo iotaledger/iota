@@ -139,7 +139,6 @@ async fn test_net_determinism() {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .try_notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .notify_read_executed_effects(&[digest])
+        .await;
 }

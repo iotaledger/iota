@@ -324,8 +324,7 @@ async fn test_upgrade_package_happy_path() {
     let package = runner
         .authority_state
         .get_object_cache_reader()
-        .try_get_package_object(&runner.package.0)
-        .unwrap()
+        .get_package_object(&runner.package.0)
         .unwrap();
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let binary_config = to_binary_config(&config);
@@ -411,8 +410,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let b = runner
         .authority_state
         .get_object_store()
-        .try_get_object_by_key(&created.0, created.1)
-        .unwrap()
+        .get_object_by_key(&created.0, created.1)
         .unwrap();
 
     assert_eq!(
@@ -999,8 +997,7 @@ async fn test_publish_override_happy_path() {
     let package = runner
         .authority_state
         .get_object_cache_reader()
-        .try_get_package_object(&new_package.0)
-        .unwrap()
+        .get_package_object(&new_package.0)
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1053,8 +1050,7 @@ async fn test_publish_transitive_happy_path() {
     let root_move_package = runner
         .authority_state
         .get_object_cache_reader()
-        .try_get_package_object(&root_package.0)
-        .unwrap()
+        .get_package_object(&root_package.0)
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1145,8 +1141,7 @@ async fn test_publish_transitive_override_happy_path() {
     let root_move_package = runner
         .authority_state
         .get_object_cache_reader()
-        .try_get_package_object(&root_package.0)
-        .unwrap()
+        .get_package_object(&root_package.0)
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!

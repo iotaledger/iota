@@ -1141,9 +1141,7 @@ impl WritebackCache {
         // pending_consensus_transactions until after the transaction has executed.
         let Some((_, outputs)) = self.dirty.pending_transaction_writes.remove(tx) else {
             assert!(
-                !self
-                    .try_is_tx_already_executed(tx)
-                    .expect("read cannot fail"),
+                !self.try_is_tx_already_executed(tx)?,
                 "attempt to revert committed transaction"
             );
 

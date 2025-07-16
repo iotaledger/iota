@@ -259,7 +259,7 @@ impl TestCluster {
     pub async fn get_object_from_fullnode_store(&self, object_id: &ObjectID) -> Option<Object> {
         self.fullnode_handle
             .iota_node
-            .with_async(|node| async { node.state().get_object(object_id).await.unwrap() })
+            .with_async(|node| async { node.state().get_object(object_id).await })
             .await
     }
 
@@ -278,8 +278,7 @@ impl TestCluster {
             .iota_node
             .state()
             .get_object_cache_reader()
-            .try_get_latest_object_ref_or_tombstone(object_id)
-            .unwrap()
+            .get_latest_object_ref_or_tombstone(object_id)
             .unwrap()
     }
 
@@ -533,8 +532,7 @@ impl TestCluster {
                         let digest = *tx.transaction_digest();
                         let tx = state
                             .get_transaction_cache_reader()
-                            .try_get_transaction_block(&digest)
-                            .unwrap()
+                            .get_transaction_block(&digest)
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
