@@ -10,6 +10,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import { bcs } from '@iota/iota-sdk/bcs';
 import { createDepositTransactionL1 } from '../../src/lib/utils/transaction/createDepositTransactionL1';
 import { parseAmount } from '../../src/lib/utils/parseAmount';
+import { EvmRpcClient } from '@iota/isc-sdk';
 
 const THREE_MINUTES = 180_000;
 
@@ -74,12 +75,27 @@ export async function getEVMBalanceForAddress(address: string): Promise<string> 
     return ethers.formatEther(balanceWei);
 }
 
-export async function checkL1BalanceWithRetries(address: string) {
+export async function checkL1IotaBalanceWithRetries(address: string) {
     return await checkBalanceWithRetries(address, getL1BalanceForAddress, 'L1');
 }
 
-export async function checkL2BalanceWithRetries(address: string) {
+export async function checkL2IotaBalanceWithRetries(address: string) {
     return await checkBalanceWithRetries(address, getEVMBalanceForAddress, 'L2');
+}
+
+export async function checkL2CoinBalanceForAddress(
+    address: string,
+    coinType: string,
+): Promise<string> {
+    const { L2 } = CONFIG;
+    const evmRpcClient = new EvmRpcClient(L2.evmRpcUrl);
+    const balance = await evmRpcClient.getBalanceBaseToken(address);
+
+    if (coinType === IOTA_TYPE_ARG) {
+        return balance.baseTokens;
+    }
+    const nativeToken = balance?.nativeTokens.find((token) => token.coinType === coinType);
+    return nativeToken ? nativeToken.balance : '0';
 }
 
 export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: string } {
@@ -228,7 +244,6 @@ export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserCont
                 console.log(
                     `❌ Bridge funding transaction failed on attempt ${attempt}/${maxRetries}, retrying...`,
                 );
-                await page.pause();
                 // Wait a bit before retrying
                 await page.waitForTimeout(3000);
             } else {
