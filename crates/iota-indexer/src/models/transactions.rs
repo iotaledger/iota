@@ -357,7 +357,8 @@ impl StoredTransaction {
             let timestamp = self.timestamp_ms as u64;
             let tx_events = TransactionEvents { data: events };
 
-            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp).await?
+            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, Some(timestamp))
+                .await?
         } else {
             None
         };
@@ -477,7 +478,7 @@ pub async fn tx_events_to_iota_tx_events(
     tx_events: TransactionEvents,
     package_resolver: Arc<Resolver<impl PackageStore>>,
     tx_digest: TransactionDigest,
-    timestamp: u64,
+    timestamp: Option<u64>,
 ) -> Result<Option<IotaTransactionBlockEvents>, IndexerError> {
     let mut iota_event_futures = vec![];
     let tx_events_data_len = tx_events.data.len();
@@ -520,7 +521,7 @@ pub async fn tx_events_to_iota_tx_events(
                 tx_event,
                 tx_digest,
                 seq as u64,
-                Some(timestamp),
+                timestamp,
                 move_datatype_layout,
             )
         })

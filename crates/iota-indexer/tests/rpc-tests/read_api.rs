@@ -25,10 +25,14 @@ use iota_types::{
 };
 use serde_json::Value;
 
-use crate::common::{
-    ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, get_indexer_db_url,
-    indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+use crate::{
+    common::{
+        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, get_indexer_db_url,
+        indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
+        indexer_wait_for_transaction, rpc_call_error_msg_matches,
+        start_test_cluster_with_read_write_indexer,
+    },
+    write_api::{create_basic_object, deploy_basics_pkg, update_basic_object},
 };
 
 /// Utility function to convert hex strings in JSON values to byte arrays.
@@ -252,7 +256,7 @@ fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockRespon
 async fn wait_for_objects_history() {
     // Objects history is not filled by optimistic indexing, this method waits a few
     // seconds so that checkpoint indexing has a chance to kick in
-    tokio::time::sleep(Duration::from_secs(3)).await
+    tokio::time::sleep(Duration::from_secs(3)).await;
 }
 
 #[test]
@@ -902,6 +906,81 @@ fn get_events() {
 
         assert!(!events.is_empty());
     });
+}
+
+#[test]
+fn get_fresh_event() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+
+        let (res, event_id) = update_basic_object(
+            sender,
+            &sender_kp,
+            client,
+            &package_id,
+            &basic_obj_1,
+            &basic_obj_2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.status_ok(), Some(true));
+
+        // despite the naming, there is no 100% guarantee that the result here comes
+        // from optimistic indexing, but it's very likely
+        let result_optimistic = client.get_events(res.digest).await.unwrap();
+        assert_eq!(result_optimistic.len(), 1);
+        assert_eq!(result_optimistic[0].id, event_id);
+        let event_data_to_compare_opt = (
+            &result_optimistic[0].id,
+            &result_optimistic[0].package_id,
+            &result_optimistic[0].transaction_module,
+            &result_optimistic[0].sender,
+            &result_optimistic[0].type_,
+            &result_optimistic[0].parsed_json,
+            &result_optimistic[0].bcs,
+        );
+
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let result_checkpointed = client.get_events(res.digest).await.unwrap();
+        assert_eq!(result_checkpointed.len(), 1);
+        assert_eq!(result_checkpointed[0].id, event_id);
+        let event_data_to_compare_ckpt = (
+            &result_checkpointed[0].id,
+            &result_checkpointed[0].package_id,
+            &result_checkpointed[0].transaction_module,
+            &result_checkpointed[0].sender,
+            &result_checkpointed[0].type_,
+            &result_checkpointed[0].parsed_json,
+            &result_checkpointed[0].bcs,
+        );
+
+        assert_eq!(event_data_to_compare_opt, event_data_to_compare_ckpt);
+        // comparing only selected fields, because timestamp_ms changes from None to
+        // Some after checkpoint indexing kicks in
+
+        Ok(())
+    })
 }
 
 #[test]

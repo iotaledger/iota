@@ -29,6 +29,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
+    event::EventID,
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -876,7 +877,7 @@ fn test_repeatedly_update_display() {
     });
 }
 
-async fn create_basic_object(
+pub(crate) async fn create_basic_object(
     address: IotaAddress,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
@@ -937,6 +938,40 @@ async fn wrap_basic_object(
         .object_id();
 
     Ok((res, wrapped_obj_id))
+}
+
+pub(crate) async fn update_basic_object(
+    address: IotaAddress,
+    address_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+    object_id_1: &ObjectID,
+    object_id_2: &ObjectID,
+) -> Result<(IotaTransactionBlockResponse, EventID), anyhow::Error> {
+    let res = execute_move_call(
+        client,
+        address,
+        address_kp,
+        *package_id,
+        "object_basics".to_string(),
+        "update".to_string(),
+        type_args![].unwrap(),
+        call_args!(object_id_1, object_id_2).unwrap(),
+        None,
+    )
+    .await?;
+
+    let event_id = res
+        .events
+        .as_ref()
+        .unwrap()
+        .data
+        .iter()
+        .exactly_one()
+        .unwrap()
+        .id;
+
+    Ok((res, event_id))
 }
 
 async fn unwrap_basic_object(
@@ -1121,7 +1156,7 @@ async fn create_new_bear(
     Ok((res, bear_id))
 }
 
-async fn deploy_basics_pkg(
+pub(crate) async fn deploy_basics_pkg(
     address: IotaAddress,
     address_kp: &AccountKeyPair,
     client: &HttpClient,

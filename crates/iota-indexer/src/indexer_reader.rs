@@ -1250,8 +1250,30 @@ impl IndexerReader {
         &self,
         digest: TransactionDigest,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
+        let checkpointed_events = self.try_get_checkpointed_transaction_events(digest).await?;
+
+        let (timestamp_ms, serialized_events) = match checkpointed_events {
+            Some((timestamp_ms, serialized_events)) => {
+                (Some(timestamp_ms as u64), serialized_events)
+            }
+            None => (None, self.get_optimistic_transaction_events(digest).await?),
+        };
+
+        let events = stored_events_to_events(serialized_events)?;
+        let tx_events = TransactionEvents { data: events };
+
+        let iota_tx_events =
+            tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
+                .await?;
+        Ok(iota_tx_events.map_or(vec![], |ste| ste.data))
+    }
+
+    pub async fn try_get_checkpointed_transaction_events(
+        &self,
+        digest: TransactionDigest,
+    ) -> Result<Option<(i64, StoredTransactionEvents)>, IndexerError> {
         let pool = self.get_pool();
-        let (timestamp_ms, serialized_events) = run_query_async!(&pool, move |conn| {
+        run_query_async!(&pool, move |conn| {
             transactions::table
                 .filter(
                     transactions::tx_sequence_number
@@ -1265,19 +1287,27 @@ impl IndexerReader {
                 )
                 .select((transactions::timestamp_ms, transactions::events))
                 .first::<(i64, StoredTransactionEvents)>(conn)
-        })?;
+                .optional()
+        })
+    }
 
-        let events = stored_events_to_events(serialized_events)?;
-        let tx_events = TransactionEvents { data: events };
-
-        let iota_tx_events = tx_events_to_iota_tx_events(
-            tx_events,
-            self.package_resolver(),
-            digest,
-            timestamp_ms as u64,
-        )
-        .await?;
-        Ok(iota_tx_events.map_or(vec![], |ste| ste.data))
+    pub async fn get_optimistic_transaction_events(
+        &self,
+        digest: TransactionDigest,
+    ) -> Result<StoredTransactionEvents, IndexerError> {
+        let pool = self.get_pool();
+        run_query_async!(&pool, move |conn| {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_global_order::table.on(optimistic_transactions::sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
+                )
+                // we filter the `tx_global_order` table because it is indexed by digest,
+                // optimistic_transactions table is not
+                .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
+                .select(optimistic_transactions::events)
+                .first::<StoredTransactionEvents>(conn)
+        })
     }
 
     async fn query_events_by_tx_digest(
