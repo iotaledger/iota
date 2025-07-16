@@ -1,20 +1,15 @@
 import { ethers, Wallet, HDNodeWallet, JsonRpcProvider } from 'ethers';
 import { BrowserContext, Page } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import {
-    AccountsContractMethod,
-    CoreContract,
-    getHname,
-    IscTransaction,
-    L2_FROM_L1_GAS_BUDGET,
-} from '@iota/isc-sdk';
-import { IotaClient } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinStruct, IotaClient } from '@iota/iota-sdk/client';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { CONFIG } from '../config/config';
 import { expect } from './fixtures';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { bcs } from '@iota/iota-sdk/bcs';
+import { createDepositTransactionL1 } from '../../src/lib/utils/transaction/createDepositTransactionL1';
+import { parseAmount } from '../../src/lib/utils/parseAmount';
 
 const THREE_MINUTES = 180_000;
 
@@ -100,38 +95,44 @@ export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: st
     };
 }
 
-export async function fundL2AddressWithIscClient(addressL2: string, amount: number) {
+export async function fundL2AddressWithIscClient(
+    addressL2: string,
+    amount: number,
+    coins: CoinStruct[] = [],
+    coinType = IOTA_TYPE_ARG,
+) {
     const { L1 } = CONFIG;
+    const chain = {
+        chainId: L1.chainId,
+        packageId: L1.packageId,
+    };
 
     const client = new IotaClient({
         url: L1.rpcUrl,
     });
+    const coinData = await client.getCoinMetadata({ coinType });
+    const amountToSend = parseAmount(
+        amount.toString(),
+        coinData?.decimals ?? IOTA_DECIMALS,
+    ) as bigint;
 
     const keypair = new Ed25519Keypair();
     const address = keypair.toIotaAddress();
 
-    await requestIotaFromFaucetV0({
-        host: L1.faucetUrl!,
-        recipient: address,
+    if (coinType === IOTA_TYPE_ARG) {
+        await requestIotaFromFaucetV0({
+            host: L1.faucetUrl!,
+            recipient: address,
+        });
+    }
+
+    const transaction = createDepositTransactionL1({
+        amount: amountToSend,
+        receivingAddress: addressL2,
+        coins,
+        coinType,
+        chain,
     });
-
-    const amountToSend = BigInt(amount * 1000000000);
-    const amountToPlace = amountToSend + L2_FROM_L1_GAS_BUDGET;
-
-    const iscTx = new IscTransaction(L1);
-
-    const bag = iscTx.newBag();
-    const coin = iscTx.coinFromAmount({ amount: amountToPlace });
-    iscTx.placeCoinInBag({ coin, bag });
-    iscTx.createAndSendToEvm({
-        bag,
-        transfers: [[IOTA_TYPE_ARG, amountToSend]],
-        address: addressL2,
-        accountsContract: getHname(CoreContract.Accounts),
-        accountsFunction: getHname(AccountsContractMethod.TransferAllowanceTo),
-    });
-
-    const transaction = iscTx.build();
     transaction.setSender(address);
     await transaction.build({ client });
 
