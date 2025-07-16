@@ -122,6 +122,7 @@ pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheCo
 }
 
 pub fn build_execution_cache(
+    cache_config: &ExecutionCacheConfig,
     epoch_start_config: &EpochStartConfiguration,
     prometheus_registry: &Registry,
     store: &Arc<AuthorityStore>,
@@ -129,7 +130,13 @@ pub fn build_execution_cache(
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
     ExecutionCacheTraitPointers::new(
-        ProxyCache::new(epoch_start_config, store.clone(), execution_cache_metrics).into(),
+        ProxyCache::new(
+            cache_config,
+            epoch_start_config,
+            store.clone(),
+            execution_cache_metrics,
+        )
+        .into(),
     )
 }
 
@@ -148,7 +155,7 @@ pub fn build_execution_cache_from_env(
         )
     } else {
         ExecutionCacheTraitPointers::new(
-            WritebackCache::new(store.clone(), execution_cache_metrics).into(),
+            WritebackCache::new(&Default::default(), store.clone(), execution_cache_metrics).into(),
         )
     }
 }

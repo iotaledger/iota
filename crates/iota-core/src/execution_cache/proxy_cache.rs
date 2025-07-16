@@ -20,9 +20,9 @@ use iota_types::{
 use parking_lot::RwLock;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfigType, ExecutionCacheMetrics,
-    ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, PassthroughCache,
-    StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheConfigType,
+    ExecutionCacheMetrics, ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead,
+    PassthroughCache, StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
 use crate::{
     authority::{
@@ -58,6 +58,7 @@ pub struct ProxyCache {
 
 impl ProxyCache {
     pub fn new(
+        cache_config: &ExecutionCacheConfig,
         epoch_start_config: &EpochStartConfiguration,
         store: Arc<AuthorityStore>,
         metrics: Arc<ExecutionCacheMetrics>,
@@ -65,7 +66,7 @@ impl ProxyCache {
         let cache_type = epoch_start_config.execution_cache_type();
         tracing::info!("using cache impl {:?}", cache_type);
         let passthrough_cache = PassthroughCache::new(store.clone(), metrics.clone());
-        let writeback_cache = WritebackCache::new(store.clone(), metrics.clone());
+        let writeback_cache = WritebackCache::new(cache_config, store.clone(), metrics.clone());
 
         Self {
             passthrough_cache,
