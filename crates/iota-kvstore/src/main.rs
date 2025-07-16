@@ -73,8 +73,15 @@ async fn main() -> Result<()> {
 }
 
 async fn run_ingestion(instance_id: String, network: Network) -> Result<()> {
-    let client =
-        BigTableClient::new_remote(instance_id, false, None, "ingestion".to_string(), None).await?;
+    let client = BigTableClient::new_remote(
+        instance_id,
+        false,
+        None,
+        "ingestion".to_string(),
+        "iota",
+        None,
+    )
+    .await?;
 
     let progress_store = FileProgressStore::new("./kvstore_progress.json").await?;
 
@@ -94,7 +101,7 @@ async fn run_ingestion(instance_id: String, network: Network) -> Result<()> {
     executor.register(worker_pool).await?;
     let config = CheckpointReaderConfig {
         remote_store_url: Some(RemoteUrl::HybridHistoricalStore {
-            historical_url: format!("https://checkpoints.{network}.iota.cafe"),
+            historical_url: format!("https://checkpoints.{network}.iota.cafe/ingestion/historical"),
             live_url: Some(format!(
                 "https://checkpoints.{network}.iota.cafe/ingestion/live"
             )),
@@ -107,7 +114,8 @@ async fn run_ingestion(instance_id: String, network: Network) -> Result<()> {
 
 async fn run_fetch(instance_id: String, entry: Entry) -> Result<()> {
     let mut client =
-        BigTableClient::new_remote(instance_id, true, None, "cli".to_string(), None).await?;
+        BigTableClient::new_remote(instance_id, true, None, "cli".to_string(), "iota", None)
+            .await?;
 
     let result = match entry {
         Entry::Object { id, version } => {

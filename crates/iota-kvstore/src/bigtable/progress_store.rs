@@ -11,8 +11,8 @@ use crate::{BigTableClient, KeyValueStoreReader, KeyValueStoreWriter};
 
 /// Manages persistent progress information stored in BigTableDB.
 ///
-/// This struct encapsulates operations for reading, writing, and
-/// synchronizing watermark progress data to DB.
+/// Encapsulates operations for reading, writing, and synchronizing watermark
+/// progress data to DB.
 pub struct BigTableProgressStore {
     client: BigTableClient,
 }

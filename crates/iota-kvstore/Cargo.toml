@@ -10,25 +10,16 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
-base64.workspace = true
 bcs.workspace = true
 clap.workspace = true
-gcp_auth = "0.12.3"
-http.workspace = true
+iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "60f2bc6655300cae5cadcb0ce231f6fdd9c99f42" }
 prometheus.workspace = true
-prost.workspace = true
-prost-types = "0.13"
 serde.workspace = true
 strum.workspace = true
-tempfile.workspace = true
 tokio.workspace = true
-tonic = { workspace = true, features = ["tls-webpki-roots"] }
 tracing.workspace = true
 
 # internal dependencies
 iota-data-ingestion-core.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
-
-[build-dependencies]
-tonic-build.workspace = true

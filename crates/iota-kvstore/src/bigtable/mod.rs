@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Implementation of the BigTableDB client and its R&W operations.
+/// Implementation of key-value store reader and writer traits for the BigTable
+/// client.
 pub(crate) mod client;
-/// KV operations metrics.
-mod metrics;
-/// Data ingestion core ~ProgressStore` implementation.
+/// Data ingestion core `ProgressStore` implementation.
 pub(crate) mod progress_store;
-/// Proto definition for BigTableDB communication through GRPC.
-mod proto;
 /// Data ingestion core `Worker` implementation.
 pub(crate) mod worker;
+
+pub use iota_bigtable::BigTableClient;
