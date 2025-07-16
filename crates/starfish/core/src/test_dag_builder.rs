@@ -388,7 +388,6 @@ impl DagBuilder {
         &mut self,
         connections: Vec<(AuthorityIndex, Vec<BlockRef>)>,
         transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
-
         round: Round,
     ) {
         let mut references = Vec::new();
@@ -1092,6 +1091,12 @@ impl<'a> LayerBuilder<'a> {
             }
         }
     }
+}
+
+pub enum ConnectionSpec {
+    All,
+    Only(Vec<Slot>),
+    Skip(Vec<Slot>),
 }
 
 // TODO: add more unit tests
