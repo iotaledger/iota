@@ -286,7 +286,7 @@ impl DagState {
             );
         }
         self.update_block_metadata(&block_header);
-        info!(
+        debug!(
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
         );
@@ -321,7 +321,7 @@ impl DagState {
     }
 
     pub fn update_last_available_commit_leader_round(&mut self, round: Round) {
-        info!(
+        debug!(
             "Last commit with available transactions has leader at round {}",
             round
         );

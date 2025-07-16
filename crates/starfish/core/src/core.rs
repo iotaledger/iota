@@ -624,7 +624,7 @@ impl Core {
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // TODO: remove this info debug when transaction consumption is ensured to be
         // aligned with expectation
-        info!("{} transaction are consumed by a block", transactions.len());
+        debug!("{} transaction are consumed by a block", transactions.len());
         // Serialize the transaction
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
