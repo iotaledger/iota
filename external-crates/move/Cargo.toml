@@ -8,6 +8,7 @@ members = [
   # "move-execution/$CUT/crates/move-bytecode-verifier",
   # "move-execution/$CUT/crates/move-stdlib-natives",
   # "move-execution/$CUT/crates/move-vm-runtime",
+  # "move-execution/$CUT/crates/move-vm-types",
 ]
 
 # Dependencies that should be kept in sync through the whole workspace
@@ -75,7 +76,7 @@ pretty = "0.10.0"
 prettydiff = "0.8.0"
 primitive-types = { version = "0.10.1", features = ["impl-serde"] }
 proc-macro2 = "1.0.24"
-proptest = "1.0.0"
+proptest = "1.6.0"
 proptest-derive = "0.5.1"
 quote = "1.0.9"
 rand = "0.8.0"

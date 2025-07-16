@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //**************************************************************************************************
@@ -51,10 +51,11 @@ pub fn make_ascii_titlecase(in_s: &str) -> String {
 /// format_oxford_list!(ITER, "or", "{}", [1, 2, 3].iter());
 /// ==> "1, 2, or 3"
 ///```
+#[macro_export]
 macro_rules! format_oxford_list {
     ($sep:expr, $format_str:expr, $e:expr) => {{
         let entries = $e;
-        format_oxford_list!(ITER, $sep, $format_str, entries.iter())
+        $crate::format_oxford_list!(ITER, $sep, $format_str, entries.iter())
     }};
     (ITER, $sep:expr, $format_str:expr, $e:expr) => {{
         let mut entries = $e;
