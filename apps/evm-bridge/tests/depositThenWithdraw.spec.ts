@@ -4,7 +4,7 @@ import { importL1WalletFromMnemonic, createL2Wallet } from './utils/auth';
 import {
     generate24WordMnemonic,
     deriveAddressFromMnemonic,
-    checkL2BalanceWithRetries,
+    checkL2IotaBalanceWithRetries,
     closeBrowserTabsExceptLast,
     getExtensionUrl,
     addNetworkToMetaMask,
@@ -110,7 +110,7 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
         await approveTransactionPage.waitForLoadState();
         await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
 
-        const balance = await checkL2BalanceWithRetries(addressL2);
+        const balance = await checkL2IotaBalanceWithRetries(addressL2);
 
         expect(balance).toEqual('5.0');
 
