@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) mod adapter;
+pub(crate) mod jobs;
 pub(crate) mod task;
 
 use std::sync::Arc;

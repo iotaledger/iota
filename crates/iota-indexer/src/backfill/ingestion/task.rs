@@ -36,7 +36,6 @@ pub struct IngestionBackfillTask<T: IngestionBackfill> {
 
 impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
     // Creates and starts a new ingestion‐driven backfill task using processor `T`.
-    #[expect(dead_code)]
     pub(crate) async fn new(
         remote_store_url: String,
         start_checkpoint: CheckpointSequenceNumber,
