@@ -19,6 +19,7 @@ use iota_network_stack::{
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
 };
+use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
 use tokio_stream::{Iter, iter};
@@ -34,7 +35,6 @@ use super::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
     },
-    tonic_tls::create_rustls_client_config,
 };
 use crate::{
     CommitIndex, Round,
@@ -44,7 +44,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
-        tonic_tls::create_rustls_server_config,
+        tonic_tls::certificate_server_name,
     },
 };
 
@@ -455,7 +455,16 @@ impl ChannelPool {
         let address = format!("https://{address}");
         let config = &self.context.parameters.tonic;
         let buffer_size = config.connection_buffer_size;
-        let client_tls_config = create_rustls_client_config(&self.context, network_keypair, peer);
+        let client_tls_config = iota_tls::create_rustls_client_config(
+            self.context
+                .committee
+                .authority(peer)
+                .network_key
+                .clone()
+                .into_inner(),
+            certificate_server_name(&self.context),
+            Some(network_keypair.private_key().into_inner()),
+        );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .unwrap()
             .connect_timeout(timeout)
@@ -900,8 +909,17 @@ impl<S: NetworkService> TonicManager<S> {
             .into_axum_router()
             .route_layer(layers);
 
-        let tls_server_config =
-            create_rustls_server_config(&self.context, self.network_keypair.clone());
+        let tls_server_config = iota_tls::create_rustls_server_config(
+            self.network_keypair.clone().private_key().into_inner(),
+            certificate_server_name(&self.context),
+            AllowPublicKeys::new(
+                self.context
+                    .committee
+                    .authorities()
+                    .map(|(_i, a)| a.network_key.clone().into_inner())
+                    .collect(),
+            ),
+        );
 
         // Calculate some metrics around send/recv buffer sizes for the current
         // machine/OS
@@ -1037,14 +1055,10 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, String> {
     let mut iter = addr.iter();
 
     match (iter.next(), iter.next()) {
-        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => {
-            Ok(format!("{}:{}", ipaddr, port))
-        }
-        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => {
-            Ok(format!("{}:{}", ipaddr, port))
-        }
+        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
+        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
         (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port))) => {
-            Ok(format!("{}:{}", hostname, port))
+            Ok(format!("{hostname}:{port}"))
         }
 
         _ => Err(format!("unsupported multiaddr: {addr}")),
