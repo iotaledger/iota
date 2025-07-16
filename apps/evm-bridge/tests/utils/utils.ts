@@ -13,8 +13,14 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { CONFIG } from '../config/config';
 import { expect } from './fixtures';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { bcs } from '@iota/iota-sdk/bcs';
 
 const THREE_MINUTES = 180_000;
+
+const MNEMONIC =
+    'mom program scrap easily doctor seed slender secret mad flat foam hospital cherry seek river you obscure column blood reflect arch pencil cat burst';
+const TOOL_COIN_OBJECT_ID = '0xf7662ffd9cb079d8e75ab4805ba78fdb0e0fb78cf49aa0fa01ecb7ebdf15d04e';
 
 export function generate24WordMnemonic() {
     const entropy = ethers.randomBytes(32);
@@ -249,4 +255,28 @@ export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserCont
         timeout: THREE_MINUTES,
     });
     await l1WalletExtension.close();
+}
+
+export async function fundL1AddressWithNativeTokens(addressL1: string, amount: number) {
+    const { L1 } = CONFIG;
+
+    const client = new IotaClient({
+        url: L1.rpcUrl,
+    });
+
+    const keypair = Ed25519Keypair.deriveKeypair(MNEMONIC);
+    const address = keypair.toIotaAddress();
+
+    const tx = new Transaction();
+
+    const tokenCoin = tx.splitCoins(tx.object(TOOL_COIN_OBJECT_ID), [
+        tx.pure(bcs.U64.serialize(amount)),
+    ]);
+    tx.transferObjects([tokenCoin], addressL1);
+    tx.setSender(address);
+
+    await client.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+    });
 }
