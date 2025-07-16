@@ -775,14 +775,8 @@ pub async fn execute_move_call(
     function: String,
     type_arguments: Vec<IotaTypeTag>,
     arguments: Vec<IotaJsonValue>,
+    gas: Option<ObjectID>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
-    let coins = client
-        .get_coins(address, None, None, Some(1))
-        .await
-        .unwrap()
-        .data;
-    let gas = &coins[0];
-
     let transaction_bytes: TransactionBlockBytes = client
         .move_call(
             address,
@@ -791,7 +785,7 @@ pub async fn execute_move_call(
             function,
             type_arguments,
             arguments,
-            Some(gas.coin_object_id),
+            gas,
             10_000_000.into(),
             None,
         )
@@ -843,6 +837,7 @@ async fn mint_trusted_coin(
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
         call_args![treasury_cap, amount, address].unwrap(),
+        None,
     )
     .await?;
     assert_eq!(tx_response.status_ok(), Some(true));
@@ -918,6 +913,7 @@ async fn create_migrated_coin_manager_coins(
             "migrate_to_manager".into(),
             type_args![coin_name, coin_manager_coin_name].unwrap(),
             call_args![guardian, treasury_cap, coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -970,6 +966,7 @@ async fn create_migrated_coin_manager_coins(
             ]
             .unwrap(),
             call_args![guardian, treasury_cap, coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -985,6 +982,7 @@ async fn create_migrated_coin_manager_coins(
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),
             call_args![coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
