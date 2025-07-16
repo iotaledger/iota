@@ -21,6 +21,7 @@ use iota_config::{
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -277,6 +278,7 @@ pub struct FullnodeConfigBuilder {
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
+    iota_names_config: Option<IotaNamesConfig>,
 }
 
 impl FullnodeConfigBuilder {
@@ -394,6 +396,11 @@ impl FullnodeConfigBuilder {
 
     pub fn with_data_ingestion_dir(mut self, path: Option<PathBuf>) -> Self {
         self.data_ingestion_dir = path;
+        self
+    }
+
+    pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
+        self.iota_names_config = config;
         self
     }
 
@@ -541,7 +548,7 @@ impl FullnodeConfigBuilder {
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
-            iota_names_config: None,
+            iota_names_config: self.iota_names_config,
         }
     }
 

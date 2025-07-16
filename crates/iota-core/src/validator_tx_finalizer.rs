@@ -215,7 +215,7 @@ where
             _ = tokio::time::sleep(tx_finalization_delay) => {
                 trace!(?tx_digest, "Waking up to finalize transaction");
             }
-            _ = cache_read.notify_read_executed_effects_digests(&digests) => {
+            _ = cache_read.try_notify_read_executed_effects_digests(&digests) => {
                 trace!(?tx_digest, "Transaction already finalized");
                 return Ok(false);
             }
@@ -673,7 +673,6 @@ mod tests {
             .get_object(&gas_object_id)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference();
         let tx_data = TestTransactionBuilder::new(
             sender,
@@ -708,7 +707,6 @@ mod tests {
                 client
                     .authority
                     .is_tx_already_executed(tx_digest)
-                    .unwrap()
                     .then_some(auth_agg.committee.weight(name))
             })
             .sum();

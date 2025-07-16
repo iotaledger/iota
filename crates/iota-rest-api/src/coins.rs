@@ -68,7 +68,7 @@ async fn get_coin_info(
     let metadata = if let Some(coin_metadata_object_id) = coin_metadata_object_id {
         state
             .inner()
-            .get_object(&coin_metadata_object_id)?
+            .try_get_object(&coin_metadata_object_id)?
             .map(iota_types::coin::CoinMetadata::try_from)
             .transpose()
             .map_err(|_| {
@@ -85,7 +85,7 @@ async fn get_coin_info(
     let treasury = if let Some(treasury_object_id) = treasury_object_id {
         state
             .inner()
-            .get_object(&treasury_object_id)?
+            .try_get_object(&treasury_object_id)?
             .map(iota_types::coin::TreasuryCap::try_from)
             .transpose()
             .map_err(|_| {
