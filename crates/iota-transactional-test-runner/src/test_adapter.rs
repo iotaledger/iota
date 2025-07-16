@@ -616,7 +616,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     .offchain_reader
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
-                let highest_checkpoint = self.executor.get_latest_checkpoint_sequence_number()?;
+                let highest_checkpoint =
+                    self.executor.try_get_latest_checkpoint_sequence_number()?;
                 offchain_reader
                     .wait_for_checkpoint_catchup(highest_checkpoint, Duration::from_secs(60))
                     .await;
@@ -651,10 +652,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(Some(output.join("\n")))
             }
             IotaSubcommand::ViewCheckpoint => {
-                let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
+                let latest_chk = self.executor.try_get_latest_checkpoint_sequence_number()?;
                 let chk = self
                     .executor
-                    .get_checkpoint_by_sequence_number(latest_chk)?
+                    .try_get_checkpoint_by_sequence_number(latest_chk)?
                     .unwrap();
                 Ok(Some(format!("{}", chk.data())))
             }
@@ -662,14 +663,14 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 for _ in 0..count.unwrap_or(1) {
                     self.executor.create_checkpoint().await?;
                 }
-                let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
+                let latest_chk = self.executor.try_get_latest_checkpoint_sequence_number()?;
                 Ok(Some(format!("Checkpoint created: {latest_chk}")))
             }
             IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand { count }) => {
                 for _ in 0..count.unwrap_or(1) {
                     self.executor.advance_epoch().await?;
                 }
-                let epoch = self.get_latest_epoch_id()?;
+                let epoch = self.try_get_latest_epoch_id()?;
                 Ok(Some(format!("Epoch advanced: {epoch}")))
             }
             IotaSubcommand::AdvanceClock(AdvanceClockCommand { duration_ns }) => {
@@ -686,7 +687,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let random_bytes = Base64::decode(&random_bytes)
                     .map_err(|e| anyhow!("Failed to decode random bytes as Base64: {e}"))?;
 
-                let latest_epoch = self.get_latest_epoch_id()?;
+                let latest_epoch = self.try_get_latest_epoch_id()?;
                 let tx = VerifiedTransaction::new_randomness_state_update(
                     latest_epoch,
                     RandomnessRound(randomness_round),
@@ -1749,9 +1750,9 @@ impl IotaTestAdapter {
 
     fn get_object(&self, id: &ObjectID, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
-            ObjectStore::get_object_by_key(&*self.executor, id, v)
+            ObjectStore::try_get_object_by_key(&*self.executor, id, v)
         } else {
-            ObjectStore::get_object(&*self.executor, id)
+            ObjectStore::try_get_object(&*self.executor, id)
         };
         match obj_res {
             Ok(Some(obj)) => Ok(obj),
@@ -2396,123 +2397,123 @@ async fn update_named_address_mapping(
 }
 
 impl ObjectStore for IotaTestAdapter {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        ObjectStore::get_object(&*self.executor, object_id)
+        ObjectStore::try_get_object(&*self.executor, object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        ObjectStore::get_object_by_key(&*self.executor, object_id, version)
+        ObjectStore::try_get_object_by_key(&*self.executor, object_id, version)
     }
 }
 
 impl ReadStore for IotaTestAdapter {
-    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
-        self.executor.get_latest_epoch_id()
+    fn try_get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        self.executor.try_get_latest_epoch_id()
     }
 
-    fn get_committee(
+    fn try_get_committee(
         &self,
         epoch: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::committee::Committee>>> {
-        self.executor.get_committee(epoch)
+        self.executor.try_get_committee(epoch)
     }
 
-    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        ReadStore::get_latest_checkpoint(&self.executor)
+    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        ReadStore::try_get_latest_checkpoint(&self.executor)
     }
 
-    fn get_highest_verified_checkpoint(
+    fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.executor.get_highest_verified_checkpoint()
+        self.executor.try_get_highest_verified_checkpoint()
     }
 
-    fn get_highest_synced_checkpoint(
+    fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.executor.get_highest_synced_checkpoint()
+        self.executor.try_get_highest_synced_checkpoint()
     }
 
-    fn get_lowest_available_checkpoint(
+    fn try_get_lowest_available_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        self.executor.get_lowest_available_checkpoint()
+        self.executor.try_get_lowest_available_checkpoint()
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        self.executor.get_checkpoint_by_digest(digest)
+        self.executor.try_get_checkpoint_by_digest(digest)
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor
-            .get_checkpoint_by_sequence_number(sequence_number)
+            .try_get_checkpoint_by_sequence_number(sequence_number)
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
-        self.executor.get_checkpoint_contents_by_digest(digest)
+        self.executor.try_get_checkpoint_contents_by_digest(digest)
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.executor
-            .get_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
-        self.executor.get_transaction(tx_digest)
+        self.executor.try_get_transaction(tx_digest)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
-        self.executor.get_transaction_effects(tx_digest)
+        self.executor.try_get_transaction_effects(tx_digest)
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.executor.get_events(event_digest)
+        self.executor.try_get_events(event_digest)
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.executor
-            .get_full_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        self.executor.get_full_checkpoint_contents(digest)
+        self.executor.try_get_full_checkpoint_contents(digest)
     }
 }

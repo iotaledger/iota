@@ -4,26 +4,29 @@
 
 import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import { type IotaClient } from '@iota/iota-sdk/client';
-import { toSerializedSignature, type SignatureScheme } from '@iota/iota-sdk/cryptography';
-import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
+import { type Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
+import { LedgerSigner as SignersLedgerSigner } from '@iota/signers/ledger';
 
-import { WalletSigner } from './walletSigner';
+import { type SignedMessage, type SignedTransaction, WalletSigner } from './walletSigner';
 
 export class LedgerSigner extends WalletSigner {
     #iotaLedgerClient: IotaLedgerClient | null;
+    #signer: SignersLedgerSigner | null = null;
     readonly #connectToLedger: () => Promise<IotaLedgerClient>;
     readonly #derivationPath: string;
-    readonly #signatureScheme: SignatureScheme = 'ED25519';
+    readonly #expectedAddress: string;
 
     constructor(
         connectToLedger: () => Promise<IotaLedgerClient>,
         derivationPath: string,
+        expectedAddress: string,
         client: IotaClient,
     ) {
         super(client);
         this.#connectToLedger = connectToLedger;
         this.#iotaLedgerClient = null;
         this.#derivationPath = derivationPath;
+        this.#expectedAddress = expectedAddress;
     }
 
     async #initializeIotaLedgerClient() {
@@ -35,31 +38,60 @@ export class LedgerSigner extends WalletSigner {
         return this.#iotaLedgerClient;
     }
 
+    async #initializeSigner() {
+        if (!this.#signer) {
+            const ledgerClient = await this.#initializeIotaLedgerClient();
+            this.#signer = await SignersLedgerSigner.fromDerivationPath(
+                this.#derivationPath,
+                ledgerClient,
+                this.client,
+            );
+        }
+        return this.#signer;
+    }
+
+    async #verifyLedgerAddress() {
+        // Verify that the connected ledger device matches the expected address
+        // This prevents signing with the wrong ledger device
+        const actualAddress = await this.getAddress();
+        if (actualAddress !== this.#expectedAddress) {
+            throw new Error(
+                `Ledger address mismatch. Expected: ${this.#expectedAddress}, Got: ${actualAddress}. ` +
+                    `Please make sure you have the correct Ledger device connected and unlocked.`,
+            );
+        }
+    }
+
     async getAddress(): Promise<string> {
-        const ledgerClient = await this.#initializeIotaLedgerClient();
-        const publicKeyResult = await ledgerClient.getPublicKey(this.#derivationPath);
-        const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-        return publicKey.toIotaAddress();
+        const signer = await this.#initializeSigner();
+        return signer.toIotaAddress();
     }
 
     async getPublicKey(): Promise<Ed25519PublicKey> {
-        const ledgerClient = await this.#initializeIotaLedgerClient();
-        const { publicKey } = await ledgerClient.getPublicKey(this.#derivationPath);
-        return new Ed25519PublicKey(publicKey);
+        const signer = await this.#initializeSigner();
+        return signer.getPublicKey();
     }
 
-    async signData(data: Uint8Array): Promise<string> {
-        const ledgerClient = await this.#initializeIotaLedgerClient();
-        const { signature } = await ledgerClient.signTransaction(this.#derivationPath, data);
-        const publicKey = await this.getPublicKey();
-        return toSerializedSignature({
-            signature,
-            signatureScheme: this.#signatureScheme,
-            publicKey,
-        });
+    async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
+        await this.#verifyLedgerAddress();
+        const signer = await this.#initializeSigner();
+        const signature = await signer.signPersonalMessage(input.message);
+        return signature as SignedMessage;
+    }
+
+    async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
+        await this.#verifyLedgerAddress();
+        const signer = await this.#initializeSigner();
+        const signature = await signer.signTransaction(bytes);
+        return signature as SignedTransaction;
     }
 
     connect(client: IotaClient) {
-        return new LedgerSigner(this.#connectToLedger, this.#derivationPath, client);
+        return new LedgerSigner(
+            this.#connectToLedger,
+            this.#derivationPath,
+            this.#expectedAddress,
+            client,
+        );
     }
 }

@@ -371,8 +371,7 @@ async fn test_package_denied() {
             state.epoch_store_for_testing().epoch(),
             &[tx_c, tx_b, tx_a, tx_c_prime, tx_b_prime],
         )
-        .await
-        .unwrap();
+        .await;
 
     // Re-create the state such that we could deny package c.
     let state = reload_state_with_new_deny_config(
@@ -492,7 +491,7 @@ async fn test_certificate_deny() {
         CertifiedTransaction::new(tx.into_message(), vec![signature], epoch_store.committee())
             .unwrap(),
     );
-    let (effects, _) = state.try_execute_for_test(&cert).await.unwrap();
+    let (effects, _) = state.execute_for_test(&cert).await;
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {

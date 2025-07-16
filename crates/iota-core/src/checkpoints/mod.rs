@@ -785,8 +785,8 @@ impl CheckpointStore {
             let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
             let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
             let txns = cache
-                .multi_get_transaction_blocks(&tx_digests)
-                .expect("multi_get_transaction_blocks should not fail");
+                .try_multi_get_transaction_blocks(&tx_digests)
+                .expect("try_multi_get_transaction_blocks should not fail");
             for (tx, digest) in txns.iter().zip(tx_digests.iter()) {
                 if tx.is_none() {
                     panic!("transaction {digest:?} not found");
@@ -834,7 +834,7 @@ impl CheckpointStore {
             });
 
             cache
-                .notify_read_executed_effects_digests(&tx_digests)
+                .try_notify_read_executed_effects_digests(&tx_digests)
                 .await
                 .expect("notify_read_executed_effects_digests should not fail");
 
@@ -1077,7 +1077,7 @@ impl CheckpointBuilder {
             .await?;
         let root_effects = self
             .effects_store
-            .notify_read_executed_effects(&root_digests)
+            .try_notify_read_executed_effects(&root_digests)
             .in_monitored_scope("CheckpointNotifyRead")
             .await?;
 
@@ -1156,7 +1156,7 @@ impl CheckpointBuilder {
         let first_tx = self
             .state
             .get_transaction_cache_reader()
-            .get_transaction_block(&root_digests[0])?
+            .try_get_transaction_block(&root_digests[0])?
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
@@ -1225,7 +1225,7 @@ impl CheckpointBuilder {
         // can be removed.
         self.state
             .get_cache_commit()
-            .persist_transactions(&all_tx_digests)
+            .try_persist_transactions(&all_tx_digests)
             .await?;
 
         batch.write()?;
@@ -1346,7 +1346,7 @@ impl CheckpointBuilder {
         let transactions_and_sizes = self
             .state
             .get_transaction_cache_reader()
-            .get_transactions_and_serialized_sizes(&all_digests)?;
+            .try_get_transactions_and_serialized_sizes(&all_digests)?;
         let mut all_effects_and_transaction_sizes = Vec::with_capacity(all_effects.len());
         let mut transactions = Vec::with_capacity(all_effects.len());
         let mut transaction_keys = Vec::with_capacity(all_effects.len());
@@ -1670,7 +1670,9 @@ impl CheckpointBuilder {
                 break;
             }
             let pending = pending.into_iter().collect::<Vec<_>>();
-            let effects = self.effects_store.multi_get_executed_effects(&pending)?;
+            let effects = self
+                .effects_store
+                .try_multi_get_executed_effects(&pending)?;
             let effects = effects
                 .into_iter()
                 .zip(pending)
@@ -1700,8 +1702,7 @@ impl CheckpointBuilder {
         let root_txs = self
             .state
             .get_transaction_cache_reader()
-            .multi_get_transaction_blocks(root_digests)
-            .unwrap();
+            .multi_get_transaction_blocks(root_digests);
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
@@ -1727,8 +1728,7 @@ impl CheckpointBuilder {
                     .iter()
                     .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
-            )
-            .unwrap();
+            );
 
         if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
@@ -2710,7 +2710,7 @@ mod tests {
     }
 
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
-        fn notify_read_executed_effects(
+        fn try_notify_read_executed_effects(
             &self,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffects>>> {
@@ -2721,7 +2721,7 @@ mod tests {
             .boxed()
         }
 
-        fn notify_read_executed_effects_digests(
+        fn try_notify_read_executed_effects_digests(
             &self,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffectsDigest>>> {
@@ -2736,7 +2736,7 @@ mod tests {
             .boxed()
         }
 
-        fn multi_get_executed_effects(
+        fn try_multi_get_executed_effects(
             &self,
             digests: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEffects>>> {
@@ -2749,28 +2749,28 @@ mod tests {
         // (e.g. had to implement EFfectsNotifyRead for all ExecutionCacheRead
         // implementors).
 
-        fn multi_get_transaction_blocks(
+        fn try_multi_get_transaction_blocks(
             &self,
             _: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
             unimplemented!()
         }
 
-        fn multi_get_executed_effects_digests(
+        fn try_multi_get_executed_effects_digests(
             &self,
             _: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
             unimplemented!()
         }
 
-        fn multi_get_effects(
+        fn try_multi_get_effects(
             &self,
             _: &[TransactionEffectsDigest],
         ) -> IotaResult<Vec<Option<TransactionEffects>>> {
             unimplemented!()
         }
 
-        fn multi_get_events(
+        fn try_multi_get_events(
             &self,
             _: &[TransactionEventsDigest],
         ) -> IotaResult<Vec<Option<TransactionEvents>>> {

@@ -575,7 +575,7 @@ impl IotaNode {
             // the expected_network_iota_amount table.
             cache_traits
                 .reconfig_api
-                .expensive_check_iota_conservation(&epoch_store, None)
+                .try_expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
         }
 
@@ -1606,7 +1606,7 @@ impl IotaNode {
             std::time::Duration::from_secs(timeout),
             state
                 .get_transaction_cache_reader()
-                .notify_read_executed_effects_digests(&digests),
+                .try_notify_read_executed_effects_digests(&digests),
         )
         .await
         .is_err()
@@ -1614,7 +1614,7 @@ impl IotaNode {
             // Log all the digests that were not executed to help debugging.
             if let Ok(executed_effects_digests) = state
                 .get_transaction_cache_reader()
-                .multi_get_executed_effects_digests(&digests)
+                .try_multi_get_executed_effects_digests(&digests)
             {
                 let pending_digests = digests
                     .iter()
@@ -1753,7 +1753,7 @@ impl IotaNode {
             let latest_system_state = self
                 .state
                 .get_object_cache_reader()
-                .get_iota_system_state_object_unsafe()
+                .try_get_iota_system_state_object_unsafe()
                 .expect("Read IOTA System State object cannot fail");
 
             #[cfg(msim)]
