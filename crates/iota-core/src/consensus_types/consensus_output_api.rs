@@ -146,8 +146,8 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
                         let transaction = bcs::from_bytes::<ConsensusTransaction>(tx.data());
                         match transaction {
                             Ok(transaction) => Some((
-                                tx.data(),
                                 transaction,
+                                tx.data().len(),
                             )),
                             Err(err) => {
                                 tracing::error!("Failed to deserialize sequenced consensus transaction(this should not happen) {} from {author} at {round}", err);
