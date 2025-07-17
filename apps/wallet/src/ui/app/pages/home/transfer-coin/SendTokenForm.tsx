@@ -6,7 +6,6 @@ import { useActiveAddress } from '_hooks';
 import { Loading } from '_components';
 import {
     useGetAllCoins,
-    CoinFormat,
     useCoinMetadata,
     useFormatCoin,
     AddressInput,
@@ -17,7 +16,7 @@ import {
     type SendCoinTransaction,
     NO_BALANCE_GENERIC_MESSAGE,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import {
     InfoBox,
@@ -64,7 +63,7 @@ export function SendTokenForm({
     const [tokenBalance, _, queryResult] = useFormatCoin({
         balance: coinBalance,
         coinType,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const coinDecimals = coinMetadata.data?.decimals ?? 0;

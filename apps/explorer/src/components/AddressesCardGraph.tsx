@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
+import { formatDate } from '@iota/core';
+import { formatAmount, CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 import type { AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
@@ -38,11 +39,11 @@ export function AddressesCardGraph(): JSX.Element {
     const adjEpochAddressMetrics = useMemo(() => allEpochMetrics?.slice(-30), [allEpochMetrics]);
 
     const cumulativeAddressesFormatted = addressMetrics?.cumulativeAddresses
-        ? formatBalance(addressMetrics.cumulativeAddresses, 0, CoinFormat.ROUNDED)
+        ? formatBalance(addressMetrics.cumulativeAddresses, 0, CoinFormat.Rounded)
         : FALLBACK;
 
     const cumulativeActiveAddressesFormatted = addressMetrics?.cumulativeActiveAddresses
-        ? formatBalance(addressMetrics.cumulativeActiveAddresses, 0, CoinFormat.ROUNDED)
+        ? formatBalance(addressMetrics.cumulativeActiveAddresses, 0, CoinFormat.Rounded)
         : FALLBACK;
 
     const stats: React.ComponentProps<typeof StatisticsPanel>['stats'] = [

@@ -3,12 +3,12 @@
 
 import {
     AddressInput,
-    CoinFormat,
     NFTMediaDisplayCard,
     useAssetGasBudgetEstimation,
     useFormatCoin,
     useNftDetails,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Button, ButtonHtmlType, Divider, Header, KeyValueInfo, Title } from '@iota/apps-ui-kit';
@@ -32,7 +32,7 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
     });
     const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const { nftName, nftImageUrl } = useNftDetails(objectId, senderAddress);
 

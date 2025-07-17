@@ -12,9 +12,9 @@ import {
     type TransferAssetExecuteFn,
     useAssetGasBudgetEstimation,
     useFormatCoin,
-    CoinFormat,
     toast,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Formik, useFormikContext } from 'formik';
 import { useNavigate } from 'react-router-dom';
@@ -54,7 +54,7 @@ function GasBudgetComponent({
     });
     const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     return (
         <KeyValueInfo
