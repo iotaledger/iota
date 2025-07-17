@@ -463,7 +463,6 @@ impl<'a> LayerBuilder<'a> {
             min_ancestor_links_random_seed: None,
             random_weak_links: false,
             random_weak_links_random_seed: None,
-            // TODO: add more variations of transaction acknowledgment links
             fully_linked_acknowledgments: true,
             skip_acknowledgements: None,
             only_acknowledge: None,
@@ -605,7 +604,6 @@ impl<'a> LayerBuilder<'a> {
             };
 
             // Do not acknowledge transactions in round 0 (genesis).
-            // TODO: check if <= round 1 is correct or if it should be < round 1
             let acknowledgments = if round <= 1 {
                 HashMap::new()
             } else if self.fully_linked_acknowledgments {
