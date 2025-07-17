@@ -243,7 +243,7 @@ impl BlockVerifier for NoopBlockVerifier {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use starfish_config::AuthorityIndex;
 
     use super::*;
@@ -253,7 +253,7 @@ mod test {
         transaction::{TransactionVerifier, ValidationError},
     };
 
-    struct TxnSizeVerifier {}
+    pub(crate) struct TxnSizeVerifier {}
 
     impl TransactionVerifier for TxnSizeVerifier {
         // Fails verification if any transaction is < 4 bytes.

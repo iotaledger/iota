@@ -10,7 +10,7 @@ use std::{
 
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
     CommitRef, CommittedSubDag,
@@ -89,6 +89,7 @@ pub(crate) struct DagBuilder {
     // All blocks created by dag builder. Will be used to pretty print or to be
     // retrieved for testing/persiting to dag state.
     pub(crate) block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
+    pub(crate) transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     // All the committed sub dags created by the dag builder.
     pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
     pub(crate) last_committed_rounds: Vec<Round>,
@@ -96,6 +97,9 @@ pub(crate) struct DagBuilder {
     wave_length: Round,
     number_of_leaders: u32,
     pipeline: bool,
+    // Protocol keypairs are used to compute signature for headers. If it is None, then the Default
+    // signature is used
+    protocol_keypair: Option<Vec<ProtocolKeyPair>>,
 }
 
 impl DagBuilder {
@@ -117,8 +121,15 @@ impl DagBuilder {
             genesis,
             last_ancestors,
             block_headers: BTreeMap::new(),
+            transactions: BTreeMap::new(),
             committed_sub_dags: vec![],
+            protocol_keypair: None,
         }
+    }
+
+    pub(crate) fn set_protocol_keypair(mut self, protocol_keypairs: Vec<ProtocolKeyPair>) -> Self {
+        self.protocol_keypair = Some(protocol_keypairs);
+        self
     }
 
     pub(crate) fn block_headers(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlockHeader> {
@@ -133,6 +144,22 @@ impl DagBuilder {
             })
             .cloned()
             .collect::<Vec<VerifiedBlockHeader>>()
+    }
+
+    pub(crate) fn transactions(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedTransactions> {
+        assert!(
+            !self.transactions.is_empty(),
+            "No transactions have been created, please make sure that you have called build method"
+        );
+        self.transactions
+            .iter()
+            .filter_map(|(block_ref, verified_transactions)| {
+                rounds
+                    .contains(&block_ref.round)
+                    .then_some(verified_transactions)
+            })
+            .cloned()
+            .collect::<Vec<VerifiedTransactions>>()
     }
 
     pub(crate) fn all_block_headers(&self) -> Vec<VerifiedBlockHeader> {
@@ -437,7 +464,7 @@ pub struct LayerBuilder<'a> {
 
     // Accumulated blocks to write to dag state
     block_headers: Vec<VerifiedBlockHeader>,
-    transactions: Vec<VerifiedTransactions>,
+    pub(crate) transactions: Vec<VerifiedTransactions>,
 }
 
 #[expect(unused)]
@@ -619,6 +646,8 @@ impl<'a> LayerBuilder<'a> {
             if self.random_weak_links {
                 connections.append(&mut self.configure_random_weak_links());
             }
+            // reorder ancestors such that the own previous block is referenced first
+            self.reorder_ancestors(&mut connections);
 
             self.create_blocks(round, connections, acknowledgments);
         }
@@ -832,19 +861,26 @@ impl<'a> LayerBuilder<'a> {
                 )
                 .unwrap();
 
-                let block_header = VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(round, author)
-                        .set_ancestors(ancestors.clone())
-                        .set_acknowledgments(
-                            transaction_acknowledgments
-                                .get(&authority)
-                                .cloned()
-                                .unwrap_or_default(),
+                let test_block_header = TestBlockHeader::new(round, author)
+                    .set_ancestors(ancestors.clone())
+                    .set_acknowledgments(
+                        transaction_acknowledgments
+                            .get(&authority)
+                            .cloned()
+                            .unwrap_or_default(),
+                    )
+                    .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
+                    .set_commitment(commitment)
+                    .build();
+                let block_header =
+                    if let Some(protocol_keypair) = self.dag_builder.protocol_keypair.as_ref() {
+                        VerifiedBlockHeader::new_from_header_with_signature(
+                            test_block_header,
+                            &protocol_keypair[author as usize],
                         )
-                        .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
-                        .set_commitment(commitment)
-                        .build(),
-                );
+                    } else {
+                        VerifiedBlockHeader::new_for_test(test_block_header)
+                    };
 
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
@@ -857,6 +893,9 @@ impl<'a> LayerBuilder<'a> {
                 self.dag_builder
                     .block_headers
                     .insert(block_header.reference(), block_header.clone());
+                self.dag_builder
+                    .transactions
+                    .insert(block_header.reference(), verified_transactions.clone());
                 self.block_headers.push(block_header.clone());
                 self.transactions.push(verified_transactions);
             }
@@ -915,6 +954,17 @@ impl<'a> LayerBuilder<'a> {
             }
         }
         false
+    }
+
+    // reorder ancestors in connections such that the reference to own block is
+    // first
+    fn reorder_ancestors(&self, connections: &mut [(AuthorityIndex, Vec<BlockRef>)]) {
+        for (author, ancestors) in connections.iter_mut() {
+            if let Some(pos) = ancestors.iter().position(|b| b.author == *author) {
+                let own_block_ref = ancestors.remove(pos);
+                ancestors.insert(0, own_block_ref);
+            }
+        }
     }
 }
 
