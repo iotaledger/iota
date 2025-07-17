@@ -826,7 +826,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         // For each authority, randomize and try to lock up to
         // MAX_TRANSACTIONS_PER_FETCH acknowledged blocks.
-        // The logic is as folows:
+        // The logic is as follows:
         // * Iterate all authorities that have acknowledged missing transactions.
         // * Randomly select up to MAX_TRANSACTIONS_PER_FETCH missing transactions
         //   acknowledged by the authority.
