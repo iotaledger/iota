@@ -5,7 +5,7 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use iota_config::{ExecutionCacheConfig, NodeConfig};
+use iota_config::{ExecutionCacheConfig, ExecutionCacheConfigType, NodeConfig};
 use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
@@ -20,8 +20,6 @@ use iota_types::{
     storage::ObjectStore,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::execution_cache::{ExecutionCacheConfigType, choose_execution_cache};
 
 #[enum_dispatch]
 pub trait EpochStartConfigTrait {
@@ -69,7 +67,7 @@ impl EpochFlag {
         let mut new_flags = vec![];
 
         if matches!(
-            choose_execution_cache(cache_config),
+            cache_config.cache_type(),
             ExecutionCacheConfigType::WritebackCache
         ) {
             new_flags.push(EpochFlag::WritebackCacheEnabled);
