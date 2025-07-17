@@ -1313,8 +1313,8 @@ mod tests {
         CommitConsumer, Round, TransactionClient,
         authority_service::AuthorityService,
         block_header::{
-            BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock, VerifiedBlockHeader,
-            VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,

@@ -2224,40 +2224,67 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let mut guard = self.added_blocks.lock().await;
             guard.extend(blocks.clone());
-            Ok(blocks.iter().map(|b| b.reference()).collect())
+            Ok((
+                blocks.iter().map(|b| b.reference()).collect(),
+                BTreeMap::new(),
+            ))
         }
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
+            unimplemented!("Unimplemented")
         }
 
-        async fn add_data(
+        async fn add_transactions(
             &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+            _transactions: Vec<VerifiedTransactions>,
+        ) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
         }
 
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            unimplemented!("Unimplemented")
         }
 
         // Stub out the remaining CoreThreadDispatcher methods with defaults:
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             // No additional certified-commit logic in tests
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
-            Ok(())
+        async fn new_block(
+            &self,
+            _round: Round,
+            _force: bool,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            Ok(BTreeMap::new())
         }
 
         async fn get_missing_blocks(
