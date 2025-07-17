@@ -31,21 +31,22 @@ use crate::{
 /// Usage:
 ///
 /// DAG Building
-/// ```
+/// ```rust
 /// let context = Arc::new(Context::new_for_test(4).0);
-/// let dag_builder = DagBuilder::new(context);
+/// let mut dag_builder = DagBuilder::new(context);
 /// dag_builder.layer(1).build(); // Round 1 is fully connected with parents by default.
-/// dag_builder.layers(2..10).build(); // Rounds 2 ~ 10 are fully connected with parents by default.
-/// dag_builder.layers(11).min_parent_links().build(); // Round 11 is minimally and randomly connected with parents, without weak links.
-/// dag_builder.layers(12).no_leader_block(0).build(); // Round 12 misses leader block. Other blocks are fully connected with parents.
-/// dag_builder.layers(13).no_leader_link(12, 0).build(); // Round 13 misses votes for leader block. Other blocks are fully connected with parents.
-/// dag_builder.layers(14).authorities(vec![3,5]).skip_block().build(); // Round 14 authorities 3 and 5 will not propose any block.
-/// dag_builder.layers(15).authorities(vec![3,5]).skip_ancestor_links(vec![1,2]).build(); // Round 15 authorities 3 and 5 will not link to ancestors 1 and 2
-/// dag_builder.layers(16).authorities(vec![3,5]).equivocate(3).build(); // Round 16 authorities 3 and 5 will produce 3 equivocating blocks.
+/// dag_builder.layers(2..=10).build(); // Rounds 2 ~ 10 are fully connected with parents by default.
+/// dag_builder.layers(11).skip_acknowledgements(vec![1,2]).build(); // Round 11 skips acknowledgments for blocks from authorities 1 and 2.
+/// dag_builder.layers(12).min_parent_links().build(); // Round 11 is minimally and randomly connected with parents, without weak links.
+/// dag_builder.layers(13).no_leader_block(0).build(); // Round 12 misses leader block. Other blocks are fully connected with parents.
+/// dag_builder.layers(14).no_leader_link(12, 0).build(); // Round 13 misses votes for leader block. Other blocks are fully connected with parents.
+/// dag_builder.layers(15).authorities(vec![3,5]).skip_block().build(); // Round 14 authorities 3 and 5 will not propose any block.
+/// dag_builder.layers(16).authorities(vec![3,5]).skip_ancestor_links(vec![1,2]).build(); // Round 15 authorities 3 and 5 will not link to ancestors 1 and 2
+/// dag_builder.layers(17).authorities(vec![3,5]).equivocate(3).build(); // Round 16 authorities 3 and 5 will produce 3 equivocating blocks.
 /// ```
 ///
 /// Persisting to DagState by Layer
-/// ```
+/// ```rust
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
 ///     Arc::new(MemStore::new()),
@@ -59,7 +60,7 @@ use crate::{
 /// ```
 ///
 /// Persisting entire DAG to DagState
-/// ```
+/// ```rust
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
 ///     Arc::new(MemStore::new()),
@@ -72,7 +73,7 @@ use crate::{
 /// ```
 ///
 /// Printing DAG
-/// ```
+/// ```rust
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
 /// dag_builder.layer(1).build();
@@ -406,6 +407,10 @@ pub struct LayerBuilder<'a> {
     skip_block: bool,
     // Skip specified ancestor links for specified authorities
     skip_ancestor_links: Option<Vec<AuthorityIndex>>,
+    // Skip specified acknowledgements for blocks from specified authorities
+    skip_acknowledgements: Option<Vec<AuthorityIndex>>,
+    // Only acknowledge blocks from specified authorities
+    only_acknowledge: Option<Vec<AuthorityIndex>>,
     // Skip leader link for specified authorities
     no_leader_link: bool,
 
@@ -459,7 +464,8 @@ impl<'a> LayerBuilder<'a> {
             random_weak_links: false,
             random_weak_links_random_seed: None,
             fully_linked_acknowledgments: true,
-            // TODO: add more variations of transaction acknowledgment links
+            skip_acknowledgements: None,
+            only_acknowledge: None,
             ancestors,
             block_headers: vec![],
             transactions: vec![],
@@ -552,21 +558,36 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
+    // Skip specified acknowledgments for blocks from specified authorities
+    pub fn skip_acknowledgements(mut self, acks_to_skip: Vec<AuthorityIndex>) -> Self {
+        self.skip_acknowledgements = Some(acks_to_skip);
+        self.fully_linked_acknowledgments = false;
+        self
+    }
+
+    // Only acknowledge blocks from specified authorities
+    pub fn only_acknowledge(mut self, only_acknowledge: Vec<AuthorityIndex>) -> Self {
+        self.only_acknowledge = Some(only_acknowledge);
+        self.fully_linked_acknowledgments = false;
+        self
+    }
+
     // Apply the configurations & build the dag layer(s).
     pub fn build(mut self) -> Self {
         for round in self.start_round..=self.end_round.unwrap_or(self.start_round) {
             tracing::debug!("BUILDING LAYER ROUND {round}...");
 
-            let authorities = if self.specified_authorities.is_some() {
-                self.specified_authorities.clone().unwrap()
-            } else {
-                self.dag_builder
-                    .context
-                    .committee
-                    .authorities()
-                    .map(|x| x.0)
-                    .collect()
-            };
+            let authorities =
+                if let Some(specified_authorities) = self.specified_authorities.clone() {
+                    specified_authorities
+                } else {
+                    self.dag_builder
+                        .context
+                        .committee
+                        .authorities()
+                        .map(|x| x.0)
+                        .collect()
+                };
 
             // TODO: investigate if these configurations can be called in combination
             // for the same layer
@@ -575,19 +596,22 @@ impl<'a> LayerBuilder<'a> {
             } else if self.min_ancestor_links {
                 self.configure_min_parent_links()
             } else if self.no_leader_link {
-                self.configure_no_leader_links(authorities.clone(), round)
-            } else if self.skip_ancestor_links.is_some() {
-                self.configure_skipped_ancestor_links(
-                    authorities,
-                    self.skip_ancestor_links.clone().unwrap(),
-                )
+                self.configure_no_leader_links(&authorities, round)
+            } else if let Some(ancestors_to_skip) = self.skip_ancestor_links.clone() {
+                self.configure_skipped_ancestor_links(&authorities, ancestors_to_skip)
             } else {
                 vec![]
             };
 
             // Do not acknowledge transactions in round 0 (genesis).
-            let acknowledgments = if round > 1 && self.fully_linked_acknowledgments {
+            let acknowledgments = if round <= 1 {
+                HashMap::new()
+            } else if self.fully_linked_acknowledgments {
                 self.configure_fully_linked_acknowledgments()
+            } else if let Some(acks_to_skip) = self.skip_acknowledgements.clone() {
+                self.configure_skipped_acknowledgements(authorities, acks_to_skip)
+            } else if let Some(only_acknowledge) = self.only_acknowledge.clone() {
+                self.configure_only_acknowledge(authorities, only_acknowledge)
             } else {
                 HashMap::new()
             };
@@ -681,7 +705,7 @@ impl<'a> LayerBuilder<'a> {
     // ancestors.
     fn configure_no_leader_links(
         &mut self,
-        authorities: Vec<AuthorityIndex>,
+        authorities: &[AuthorityIndex],
         round: Round,
     ) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
         let mut missing_leaders = Vec::new();
@@ -717,6 +741,40 @@ impl<'a> LayerBuilder<'a> {
             .collect()
     }
 
+    fn configure_skipped_acknowledgements(
+        &mut self,
+        authorities: Vec<AuthorityIndex>,
+        acks_to_skip: Vec<AuthorityIndex>,
+    ) -> HashMap<AuthorityIndex, Vec<BlockRef>> {
+        let filtered_acks = self
+            .ancestors
+            .clone()
+            .into_iter()
+            .filter(|ancestor| !acks_to_skip.contains(&ancestor.author))
+            .collect::<Vec<_>>();
+        authorities
+            .into_iter()
+            .map(|authority| (authority, filtered_acks.clone()))
+            .collect()
+    }
+
+    fn configure_only_acknowledge(
+        &mut self,
+        authorities: Vec<AuthorityIndex>,
+        only_acknowledge: Vec<AuthorityIndex>,
+    ) -> HashMap<AuthorityIndex, Vec<BlockRef>> {
+        let filtered_acks = self
+            .ancestors
+            .clone()
+            .into_iter()
+            .filter(|ancestor| only_acknowledge.contains(&ancestor.author))
+            .collect::<Vec<_>>();
+        authorities
+            .into_iter()
+            .map(|authority| (authority, filtered_acks.clone()))
+            .collect()
+    }
+
     fn configure_fully_linked_ancestors(&mut self) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
         self.dag_builder
             .context
@@ -728,7 +786,7 @@ impl<'a> LayerBuilder<'a> {
 
     fn configure_skipped_ancestor_links(
         &mut self,
-        authorities: Vec<AuthorityIndex>,
+        authorities: &[AuthorityIndex],
         ancestors_to_skip: Vec<AuthorityIndex>,
     ) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
         let filtered_ancestors = self
@@ -738,8 +796,8 @@ impl<'a> LayerBuilder<'a> {
             .filter(|ancestor| !ancestors_to_skip.contains(&ancestor.author))
             .collect::<Vec<_>>();
         authorities
-            .into_iter()
-            .map(|authority| (authority, filtered_ancestors.clone()))
+            .iter()
+            .map(|authority| (*authority, filtered_ancestors.clone()))
             .collect::<Vec<_>>()
     }
 
@@ -860,4 +918,87 @@ impl<'a> LayerBuilder<'a> {
     }
 }
 
-// TODO: add unit tests
+// TODO: add more unit tests
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_fully_linked_acknowledgments() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layer(1).build(); // Round 1 is fully connected with parents by default.
+        dag_builder.layers(2..=10).build();
+        for (block_ref, block_header) in dag_builder.block_headers {
+            if block_ref.round <= 1 {
+                assert!(block_header.acknowledgments().is_empty())
+            } else {
+                assert!(block_header.acknowledgments().len() == 4)
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_skip_acknowledgments() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut dag_builder = DagBuilder::new(context);
+        let authorities_to_skip = vec![
+            AuthorityIndex::new_for_test(1),
+            AuthorityIndex::new_for_test(2),
+        ];
+        dag_builder.layers(1..=5).build();
+        // Round 6 and above should skip acknowledgments from authorities to skip
+        dag_builder
+            .layers(6..=10)
+            .skip_acknowledgements(authorities_to_skip.clone())
+            .build();
+        for (block_ref, block_header) in dag_builder.block_headers {
+            if block_ref.round <= 1 {
+                assert!(block_header.acknowledgments().is_empty());
+            } else if block_ref.round <= 5 {
+                assert_eq!(block_header.acknowledgments().len(), 4);
+            } else {
+                // Round 6 and above should not have acknowledgments from authorities to skip
+                assert_eq!(block_header.acknowledgments().len(), 2);
+                // Check that acknowledgments from authorities to skip are not present
+                for ack in block_header.acknowledgments() {
+                    assert!(!authorities_to_skip.contains(&ack.author));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_only_acknowledge() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut dag_builder = DagBuilder::new(context);
+        let only_acknowledge = vec![
+            AuthorityIndex::new_for_test(1),
+            AuthorityIndex::new_for_test(2),
+        ];
+        dag_builder.layers(1..=5).build();
+        // Round 6 and above should only acknowledge blocks from authorities to
+        // acknowledge
+        dag_builder
+            .layers(6..=10)
+            .only_acknowledge(only_acknowledge.clone())
+            .build();
+        for (block_ref, block_header) in dag_builder.block_headers {
+            if block_ref.round <= 1 {
+                assert!(block_header.acknowledgments().is_empty());
+            } else if block_ref.round <= 5 {
+                assert_eq!(block_header.acknowledgments().len(), 4);
+            } else {
+                // Round 6 and above should only have acknowledgments from authorities to
+                // acknowledge
+                assert_eq!(block_header.acknowledgments().len(), 2);
+                // Check that acknowledgments are only from authorities to acknowledge
+                for ack in block_header.acknowledgments() {
+                    assert!(only_acknowledge.contains(&ack.author));
+                }
+            }
+        }
+    }
+}
