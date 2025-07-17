@@ -3619,7 +3619,12 @@ impl AuthorityPerEpochStore {
                                     .congested_objects_gas_price_feedback_mechanism()
                                 {
                                     let current_commit_suggested_gas_price =
-                                        self.reference_gas_price();
+                                        suggested_gas_price_calculator
+                                            .calculate_suggested_gas_price(
+                                                &certificate,
+                                                estimated_execution_duration,
+                                            );
+
                                     let suggested_gas_price = previously_deferred_tx_digests
                                         .get(certificate.digest())
                                         .map_or_else(
