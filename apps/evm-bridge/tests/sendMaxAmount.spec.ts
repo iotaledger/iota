@@ -297,6 +297,8 @@ test.describe.serial('Send MAX amount from L2', () => {
 
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
 
+        await testPageL2.waitForTimeout(2500);
+
         const addressL1 = await testPageL2.getByTestId('receive-address').inputValue();
         const l1Balance = await checkL1CoinBalanceForAddress(addressL1, TOOL_COIN_TYPE);
 
