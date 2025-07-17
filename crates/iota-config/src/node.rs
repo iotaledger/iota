@@ -307,127 +307,129 @@ impl Default for ExecutionCacheConfig {
 
 impl ExecutionCacheConfig {
     pub fn max_cache_size(&self) -> u64 {
-        std::env::var("IOTA_MAX_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache { max_cache_size, .. } => {
-                    max_cache_size.unwrap_or(100000)
-                }
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache { max_cache_size, .. } => {
+                std::env::var("IOTA_MAX_CACHE_SIZE")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_else(|| max_cache_size.unwrap_or(100000))
+            }
+        }
     }
 
     pub fn package_cache_size(&self) -> u64 {
-        std::env::var("IOTA_PACKAGE_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    package_cache_size, ..
-                } => package_cache_size.unwrap_or(1000),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                package_cache_size, ..
+            } => std::env::var("IOTA_PACKAGE_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| package_cache_size.unwrap_or(1000)),
+        }
     }
 
     pub fn object_cache_size(&self) -> u64 {
-        std::env::var("IOTA_OBJECT_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    object_cache_size, ..
-                } => object_cache_size.unwrap_or(self.max_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                object_cache_size, ..
+            } => std::env::var("IOTA_OBJECT_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| object_cache_size.unwrap_or(self.max_cache_size())),
+        }
     }
 
     pub fn marker_cache_size(&self) -> u64 {
-        std::env::var("IOTA_MARKER_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    marker_cache_size, ..
-                } => marker_cache_size.unwrap_or(self.object_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                marker_cache_size, ..
+            } => std::env::var("IOTA_MARKER_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| marker_cache_size.unwrap_or(self.object_cache_size())),
+        }
     }
 
     pub fn object_by_id_cache_size(&self) -> u64 {
-        std::env::var("IOTA_OBJECT_BY_ID_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    object_by_id_cache_size,
-                    ..
-                } => object_by_id_cache_size.unwrap_or(self.object_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                object_by_id_cache_size,
+                ..
+            } => std::env::var("IOTA_OBJECT_BY_ID_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| object_by_id_cache_size.unwrap_or(self.object_cache_size())),
+        }
     }
 
     pub fn transaction_cache_size(&self) -> u64 {
-        std::env::var("IOTA_TRANSACTION_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    transaction_cache_size,
-                    ..
-                } => transaction_cache_size.unwrap_or(self.max_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                transaction_cache_size,
+                ..
+            } => std::env::var("IOTA_TRANSACTION_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| transaction_cache_size.unwrap_or(self.max_cache_size())),
+        }
     }
 
     pub fn executed_effect_cache_size(&self) -> u64 {
-        std::env::var("IOTA_EXECUTED_EFFECT_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    executed_effect_cache_size,
-                    ..
-                } => executed_effect_cache_size.unwrap_or(self.transaction_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                executed_effect_cache_size,
+                ..
+            } => std::env::var("IOTA_EXECUTED_EFFECT_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| {
+                    executed_effect_cache_size.unwrap_or(self.transaction_cache_size())
+                }),
+        }
     }
 
     pub fn effect_cache_size(&self) -> u64 {
-        std::env::var("IOTA_EFFECT_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    effect_cache_size, ..
-                } => effect_cache_size.unwrap_or(self.executed_effect_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                effect_cache_size, ..
+            } => std::env::var("IOTA_EFFECT_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| effect_cache_size.unwrap_or(self.executed_effect_cache_size())),
+        }
     }
 
     pub fn events_cache_size(&self) -> u64 {
-        std::env::var("IOTA_EVENTS_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    events_cache_size, ..
-                } => events_cache_size.unwrap_or(self.transaction_cache_size()),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                events_cache_size, ..
+            } => std::env::var("IOTA_EVENTS_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| events_cache_size.unwrap_or(self.transaction_cache_size())),
+        }
     }
 
     pub fn transaction_objects_cache_size(&self) -> u64 {
-        std::env::var("IOTA_TRANSACTION_OBJECTS_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| match self {
-                ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
-                ExecutionCacheConfig::WritebackCache {
-                    transaction_objects_cache_size,
-                    ..
-                } => transaction_objects_cache_size.unwrap_or(1000),
-            })
+        match self {
+            ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),
+            ExecutionCacheConfig::WritebackCache {
+                transaction_objects_cache_size,
+                ..
+            } => std::env::var("IOTA_TRANSACTION_OBJECTS_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| transaction_objects_cache_size.unwrap_or(1000)),
+        }
     }
 }
 
