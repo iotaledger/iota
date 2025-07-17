@@ -42,10 +42,10 @@ pub struct Parameters {
     pub max_forward_time_drift: Duration,
 
     /// Number of blocks to fetch per request.
-    #[serde(default = "Parameters::default_max_blocks_per_fetch")]
-    pub max_blocks_per_fetch: usize,
+    #[serde(default = "Parameters::default_max_block_headers_per_fetch")]
+    pub max_block_headers_per_fetch: usize,
 
-    /// Number of blocks to fetch per request.
+    /// Number of transactions to fetch per request.
     #[serde(default = "Parameters::default_max_transactions_per_fetch")]
     pub max_transactions_per_fetch: usize,
 
@@ -124,7 +124,7 @@ impl Parameters {
         Duration::from_millis(500)
     }
 
-    pub(crate) fn default_max_blocks_per_fetch() -> usize {
+    pub(crate) fn default_max_block_headers_per_fetch() -> usize {
         // TODO: set some sensible value adjusted for Starfish
         if cfg!(msim) {
             // Exercise hitting blocks per fetch limit.
@@ -205,7 +205,7 @@ impl Default for Parameters {
             leader_timeout: Parameters::default_leader_timeout(),
             min_round_delay: Parameters::default_min_round_delay(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
-            max_blocks_per_fetch: Parameters::default_max_blocks_per_fetch(),
+            max_block_headers_per_fetch: Parameters::default_max_block_headers_per_fetch(),
             max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),

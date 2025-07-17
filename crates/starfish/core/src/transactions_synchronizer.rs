@@ -825,7 +825,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let mut request_futures = FuturesUnordered::new();
 
         // For each authority, randomize and try to lock up to
-        // MAX_TRANSACTIONS_PER_FETCH acknowledged blocks
+        // MAX_TRANSACTIONS_PER_FETCH acknowledged blocks.
+        // The logic is as folows:
+        // * Iterate all authorities that have acknowledged missing transactions.
+        // * Randomly select up to MAX_TRANSACTIONS_PER_FETCH missing transactions
+        //   acknowledged by the authority.
+        // * Attempt to lock the selected transactions using the
+        //   inflight_transactions_map. Some transactions may already be locked by other
+        //   authorities, but continue with the transactions that were successfully
+        //   locked. If no transactions can be locked and there are remaining missing
+        //   transactions acknowledged by the authority, then try again with a new
+        //   random selection. TODO: This part of the logic needs to be improved!
+        // * If transactions are successfully locked, then send a request to the network
+        //   client to fetch the transactions from the authority.
         for (authority, authority_block_refs) in blocks_by_authority {
             let peer_hostname = &context.committee.authority(authority).hostname;
             // Remove block_refs already assigned to another peer
@@ -835,7 +847,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             // .collect();
             while !available_refs.is_empty() {
                 // TODO: remove this and use inflight_transactions_map to choose transactions
-                // randomly
+                //  randomly
                 let selected_block_refs = available_refs
                     .iter()
                     .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)

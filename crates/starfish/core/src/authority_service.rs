@@ -776,7 +776,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+        if block_refs.len() > self.context.parameters.max_block_headers_per_fetch {
             return Err(ConsensusError::TooManyFetchBlockHeadersRequested(peer));
         }
 
@@ -842,7 +842,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+        if block_refs.len() > self.context.parameters.max_block_headers_per_fetch {
             return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
         }
 

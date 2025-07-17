@@ -393,18 +393,16 @@ impl Core {
         let _scope = monitored_scope("Core::add_transactions");
 
         // Add transactions to the dag state.
-        // TODO: transactions should be added to the data manager instead of the dag
-        //  state. DataManager should keep track of missing data for commits and should
-        //  try to create a committed subdag as soon as the data becomes available.
         let mut dag_state = self.dag_state.write();
         for transaction in transactions {
             dag_state.add_transactions(transaction);
         }
 
         // After adding transactions, some pending subdags might be committable.
-        // We collect any newly missing refs to be picked up by the periodic fetcher.
-        // Let (_, newly_missing_txns) = self.try_commit()?;
-        // self.missing_transaction_data.extend(newly_missing_txns);
+        // Commit observer is called with an empty vector of new leaders to check if all
+        // transactions are available for any currently pending subdags, without
+        // creating any new commits.
+        self.commit_observer.handle_commit(Vec::new())?;
 
         Ok(())
     }

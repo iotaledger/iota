@@ -115,7 +115,10 @@ impl CommitObserver {
 
         tracing::trace!("Missing committed data {missing_transactions:#?}");
 
-        let missing_transactions = self
+        // Retrieve the transaction acknowledgment authors for the missing transactions.
+        // This will be used by the transactions synchronizer to fetch the missing
+        // transactions from the authorities that acknowledged them.
+        let missing_transaction_acknowledgers = self
             .commit_interpreter
             .get_transaction_ack_authors(missing_transactions);
 
@@ -138,7 +141,7 @@ impl CommitObserver {
         self.report_metrics(&pending_sub_dags);
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
-        Ok((pending_sub_dags, missing_transactions))
+        Ok((pending_sub_dags, missing_transaction_acknowledgers))
     }
 
     fn recover_and_send_commits(&mut self, last_processed_commit_index: CommitIndex) {

@@ -599,10 +599,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
         let num_chunks = block_refs
             .len()
-            .div_ceil(inner.context.parameters.max_blocks_per_fetch)
+            .div_ceil(inner.context.parameters.max_block_headers_per_fetch)
             as u32;
         let mut requests: FuturesOrdered<_> = block_refs
-            .chunks(inner.context.parameters.max_blocks_per_fetch)
+            .chunks(inner.context.parameters.max_block_headers_per_fetch)
             .enumerate()
             .map(|(i, request_block_refs)| {
                 let inner = inner.clone();
@@ -954,7 +954,7 @@ mod tests {
                 commit_sync_batch_size: 5,
                 commit_sync_batches_ahead: 5,
                 commit_sync_parallel_fetches: 5,
-                max_blocks_per_fetch: 5,
+                max_block_headers_per_fetch: 5,
                 ..context.parameters
             },
             ..context
