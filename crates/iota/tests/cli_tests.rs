@@ -104,7 +104,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
 
-    assert_eq!(9, files.len());
+    assert_eq!(6, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
@@ -114,7 +114,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     // Check network config
     let network_conf =
         PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
-    assert_eq!(4, network_conf.validator_configs().len());
+    assert_eq!(1, network_conf.validator_configs().len());
 
     // Check wallet config
     let wallet_conf =

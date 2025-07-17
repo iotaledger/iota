@@ -38,7 +38,7 @@ use iota_sdk::{
 };
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
-    genesis_config::{DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
+    genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
@@ -274,7 +274,7 @@ pub enum IotaCommand {
         #[arg(
             long,
             help = "The number of validators in the network.",
-            default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
+            default_value_t = 1
         )]
         committee_size: usize,
         /// The path to local migration snapshot files
@@ -608,9 +608,8 @@ async fn start(
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        let committee_size =
-            NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES))
-                .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(1))
+            .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
@@ -655,7 +654,7 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES),
+                committee_size.unwrap_or(1),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
