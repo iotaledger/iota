@@ -215,7 +215,9 @@ export class FeaturesController {
                     },
                 },
                 [Feature.KnownIotaEVMCoinTypes]: {
-                    defaultValue: [],
+                    defaultValue: [
+                        '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD',
+                    ],
                 },
             },
             dateUpdated: new Date().toISOString(),
