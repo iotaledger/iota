@@ -134,6 +134,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) valid_headers_in_bundles: IntCounterVec,
     pub(crate) filtered_headers_in_bundles: IntCounterVec,
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
+    pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -406,6 +407,12 @@ impl NodeMetrics {
             received_unique_headers_from_bundles: register_int_counter_vec_with_registry!(
                 "received_unique_headers_from_a_bundle",
                 "Number of unique block headers received from block bundles per sender authority",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            processed_duplicated_headers_in_bundles: register_int_counter_vec_with_registry!(
+                "processed_duplicated_headers_in_bundles",
+                "Number of times block headers from bundles were not filtered and processed extra time (i.e. deserialized and verified) per sender authority",
                 &["authority", "source"],
                 registry,
             ).unwrap(),

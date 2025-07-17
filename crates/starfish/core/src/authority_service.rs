@@ -579,7 +579,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 7. Add digests to filter. Exclude for the vector those that are already
+        // 7. Add digests to filter. Exclude from the vector those that are already
         //    inserted
         let mut digests_to_add_to_filter = vec![];
         for block_header in additional_block_headers.iter() {
@@ -607,6 +607,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .received_unique_headers_from_bundles
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
+        self.context
+            .metrics
+            .node_metrics
+            .processed_duplicated_headers_in_bundles
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(digests_to_exclude.len() as u64);
 
         // 8. Add additional headers from bundle to dag, receive missing ancestors for
         //    them
