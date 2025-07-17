@@ -11,6 +11,7 @@ pub mod meter;
 pub mod one_time_witness_verifier;
 pub mod private_generics;
 pub mod struct_with_key_verifier;
+mod view_verifier;
 
 use iota_types::error::{ExecutionError, ExecutionErrorKind};
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
