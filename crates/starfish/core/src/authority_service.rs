@@ -590,6 +590,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .received_block_headers
             .add_batch(digests_to_add_to_filter)
             .await;
+        // Exclude digests that are already in the filter from the additional headers
+        // We rely on the fact that digests_to_exclude is subsequence of
+        // additional_block_headers
         let mut index = 0;
         additional_block_headers.retain(|block_header| {
             if index < digests_to_exclude.len()
