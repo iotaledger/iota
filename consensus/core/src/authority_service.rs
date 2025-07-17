@@ -29,6 +29,7 @@ use crate::{
     storage::Store,
     synchronizer::SynchronizerHandle,
 };
+
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 /// Authority's network service implementation, agnostic to the actual

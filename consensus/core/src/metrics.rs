@@ -87,7 +87,7 @@ const SIZE_BUCKETS: &[f64] = &[
 pub(crate) struct Metrics {
     pub(crate) node_metrics: NodeMetrics,
     pub(crate) network_metrics: NetworkMetrics,
-    pub(crate) scoring_metrics: ValidatorScoreMetrics,
+    pub(crate) scoring_metrics: ValidatorScoringMetrics,
 }
 
 impl Metrics {
@@ -340,6 +340,17 @@ impl Metrics {
         } else {
             return;
         }
+    }
+}
+
+pub(crate) struct Score(AtomicU64);
+impl Score {
+    pub(crate) fn new() -> Self {
+        Self(AtomicU64::new(u64::MAX))
+    }
+
+    pub(crate) fn store(&self, value: u64) {
+        self.0.store(value, Ordering::Relaxed);
     }
 }
 
@@ -1089,13 +1100,13 @@ impl NodeMetrics {
     }
 }
 
-pub(crate) struct ValidatorScoreMetrics {
+pub(crate) struct ValidatorScoringMetrics {
     pub(crate) uncached: Vec<UncachedScoreMetrics>,
     pub(crate) cached: Vec<CachedScoreMetrics>,
     pub(crate) score: Vec<Score>,
 }
 
-impl ValidatorScoreMetrics {
+impl ValidatorScoringMetrics {
     pub(crate) fn new(committee_size: usize) -> Self {
         let uncached = (0..committee_size)
             .map(|_| UncachedScoreMetrics::new())
@@ -1112,16 +1123,6 @@ impl ValidatorScoreMetrics {
     }
 }
 
-pub(crate) struct Score(AtomicU64);
-impl Score {
-    pub(crate) fn new() -> Self {
-        Self(AtomicU64::new(0))
-    }
-
-    pub(crate) fn store(&self, value: u64) {
-        self.0.store(value, Ordering::Relaxed);
-    }
-}
 #[derive(Debug)]
 pub(crate) struct UncachedScoreMetrics {
     // Counts the number of times that a faulty block signed by the validator was already verified
@@ -1178,7 +1179,7 @@ pub(crate) struct StoredScoreMetricsU64 {
 pub(crate) fn initialise_metrics(registry: Registry, committee_size: usize) -> Arc<Metrics> {
     let node_metrics = NodeMetrics::new(&registry);
     let network_metrics = NetworkMetrics::new(&registry);
-    let scoring_metrics = ValidatorScoreMetrics::new(committee_size);
+    let scoring_metrics = ValidatorScoringMetrics::new(committee_size);
     Arc::new(Metrics {
         node_metrics,
         network_metrics,
@@ -1201,7 +1202,7 @@ fn calculate_scoring_metrics_for_range(
     block_rounds.dedup();
     let unique_block_rounds = block_rounds.len();
     // We use saturating_sub to avoid unexpected underflows, but the subtractions
-    // below should never result in negative values by contruction:
+    // below should never result in negative values by construction:
     // 1) unique_block_rounds <= number_of_blocks
     // 2) end - start + 1 >= unique_block_rounds
     let number_of_equivocations = number_of_blocks.saturating_sub(unique_block_rounds) as u64;
@@ -1315,7 +1316,7 @@ mod tests {
         context::Context,
         dag_state::DagState,
         error::ConsensusResult,
-        metrics::{ConsensusError, ValidatorScoreMetrics},
+        metrics::{ConsensusError, ValidatorScoringMetrics},
         network::{BlockStream, NetworkClient},
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
@@ -1435,7 +1436,7 @@ mod tests {
         (keys, context, core_dispatcher, authority_service)
     }
 
-    impl ValidatorScoreMetrics {
+    impl ValidatorScoringMetrics {
         pub(crate) fn uncached_missing_proposals_by_authority(&self) -> Vec<u64> {
             self.uncached
                 .iter()

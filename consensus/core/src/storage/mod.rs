@@ -18,6 +18,7 @@ use crate::{
     error::ConsensusResult,
     metrics::StoredScoreMetricsU64,
 };
+
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
