@@ -12,6 +12,7 @@ import {
     fundL1AddressWithNativeTokens,
     TOOL_COIN_TYPE,
     checkL2CoinBalanceForAddressWithRetries,
+    checkL1CoinBalanceForAddressWithRetries,
 } from './utils/utils';
 
 const THREE_MINUTES = 180_000;
@@ -241,5 +242,41 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
             TOOL_COIN_TYPE,
         );
         expect(balance).toEqual(nativeTokenAmount.toString());
+    });
+
+    test('should successfully process an L2 native token deposit', async () => {
+        const nativeTokenAmount = '2';
+
+        await pageWithL2Wallet.getByTestId('coin-selector').click();
+        await pageWithL2Wallet.getByText('Tool', { exact: true }).click();
+
+        const amountField = pageWithL2Wallet.getByTestId('bridge-amount');
+        await expect(amountField).toBeVisible();
+        await amountField.fill(nativeTokenAmount);
+
+        // check est. gas fees and your receive
+        await pageWithL2Wallet.waitForTimeout(2500);
+
+        const gasFeeValue = await pageWithL2Wallet
+            .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
+            .locator('xpath=../div/span')
+            .nth(1)
+            .textContent();
+        expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
+
+        await expect(pageWithL2Wallet.getByText('Bridge Assets')).toBeEnabled();
+
+        const approveTransactionPagePromise = browserL2.waitForEvent('page');
+        await pageWithL2Wallet.getByText('Bridge Assets').click();
+
+        const approveTransactionPage = await approveTransactionPagePromise;
+        await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
+
+        // Check funds on L1 wallet
+        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(
+            addressL1 ?? '',
+            TOOL_COIN_TYPE,
+        );
+        expect(l1Balance).toEqual(nativeTokenAmount.toString());
     });
 });
