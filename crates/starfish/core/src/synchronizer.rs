@@ -20,8 +20,10 @@ use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
 use rand::prelude::SliceRandom;
-use rand::prelude::{IteratorRandom, StdRng};
-use rand::SeedableRng;
+use rand::{
+    SeedableRng,
+    prelude::{IteratorRandom, StdRng},
+};
 use starfish_config::AuthorityIndex;
 use tap::TapFallible;
 use tokio::{
@@ -2204,7 +2206,8 @@ mod tests {
             let inflight = InflightBlockHeadersMap::new();
 
             // 2) One missing block
-            let missing_vb = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(100, 3).build());
+            let missing_vb =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(100, 3).build());
             let missing_ref = missing_vb.reference();
             let missing_blocks = BTreeMap::from([(
                 missing_ref,

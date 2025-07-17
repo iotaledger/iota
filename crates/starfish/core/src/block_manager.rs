@@ -876,7 +876,11 @@ mod tests {
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=3).build();
 
-        let all_blocks = dag_builder.block_headers.values().cloned().collect::<Vec<_>>();
+        let all_blocks = dag_builder
+            .block_headers
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
 
         let blocks_round_2 = all_blocks
             .iter()
@@ -896,7 +900,8 @@ mod tests {
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
-        let (_, missing_blocks) = block_manager.try_accept_block_headers(vec![blocks_round_2[0].clone()]);
+        let (_, missing_blocks) =
+            block_manager.try_accept_block_headers(vec![blocks_round_2[0].clone()]);
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
