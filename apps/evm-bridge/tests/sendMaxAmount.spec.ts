@@ -17,8 +17,6 @@ import {
 } from './utils/utils';
 
 const THREE_MINUTES = 180_000;
-const TOKEN_COIN_TYPE =
-    '0xe1e88f4962b3ea96cfad19aee42f666b04bbce4dc4327c3cd63f1b8ff16e13b2::tool_coin::TOOL_COIN';
 
 test.describe.serial('Send MAX amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
@@ -151,7 +149,7 @@ test.describe.serial('Send MAX amount from L1', () => {
         await testPageL1.waitForTimeout(2500);
 
         const addressL2 = await testPageL1.getByTestId('receive-address').inputValue();
-        const balance = await checkL2CoinBalanceForAddress(addressL2, TOKEN_COIN_TYPE);
+        const balance = await checkL2CoinBalanceForAddress(addressL2, TOOL_COIN_TYPE);
 
         expect(balance).toEqual(nativeTokenAmount.toString());
     });
@@ -265,7 +263,7 @@ test.describe.serial('Send MAX amount from L2', () => {
 
         await testPageL2.waitForTimeout(2500);
 
-        const nativeTokenBalance = await checkL2CoinBalanceForAddress(addressL2, TOKEN_COIN_TYPE);
+        const nativeTokenBalance = await checkL2CoinBalanceForAddress(addressL2, TOOL_COIN_TYPE);
         expect(nativeTokenBalance).toEqual(nativeTokenAmount.toString());
 
         await testPageL2.waitForTimeout(500);
