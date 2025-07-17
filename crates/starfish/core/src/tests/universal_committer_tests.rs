@@ -43,7 +43,7 @@ async fn direct_commit() {
 
     // Genesis cert will not be included in commit sequence, marking it as last
     // decided
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
 
     // The universal committer should mark the potential leaders in leader round 6
     // as undecided because there is no way to get enough certificates for
@@ -80,7 +80,7 @@ async fn idempotence() {
     );
 
     // Commit one leader.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let first_sequence = committer.try_decide(last_decided);
     assert_eq!(first_sequence.len(), 1);
 
@@ -146,7 +146,7 @@ async fn multiple_direct_commit() {
     let (context, dag_state, committer) = basic_test_setup();
 
     let mut ancestors = None;
-    let mut last_decided = Slot::new_for_test(0, 0);
+    let mut last_decided = Slot::new(0, 0);
     for n in 1..=10 {
         // Build the DAG up to the certifying round for leader blocks of authority 1,
         // i.e. full DAG is built with chunks of 3 rounds
@@ -194,7 +194,7 @@ async fn direct_commit_late_call() {
         certifying_round_wave_10,
     );
 
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -223,7 +223,7 @@ async fn no_genesis_commit() {
     for r in 0..certifying_round {
         ancestors = Some(build_dag(context.clone(), dag_state.clone(), ancestors, r));
 
-        let last_committed = Slot::new_for_test(0, 0);
+        let last_committed = Slot::new(0, 0);
         let sequence = committer.try_decide(last_committed);
         tracing::info!("Commit sequence: {sequence:#?}");
         assert!(sequence.is_empty());
@@ -252,7 +252,7 @@ async fn direct_skip_no_leader_votes() {
     let first_leader = AuthorityIndex::new_for_test(1);
     let first_round = 1 as Round;
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -276,7 +276,7 @@ async fn direct_skip_no_leader_votes() {
     // committer.
     assert_eq!(committer.committers.len(), 3);
 
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     // Only leader for slot B1 should be decided, specifically, skipped
     assert_eq!(sequence.len(), 1);
@@ -323,7 +323,7 @@ async fn direct_skip_missing_leader_block() {
         .persist_all_blocks(test_setup.dag_state.clone());
 
     // Ensure that the leader of round 3 is skipped because the leader is missing.
-    let last_committed = Slot::new_for_test(0, 0);
+    let last_committed = Slot::new(0, 0);
     let sequence = test_setup.committer.try_decide(last_committed);
     tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -372,7 +372,7 @@ async fn indirect_commit() {
         Round 8 : { * },
      }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -398,7 +398,7 @@ async fn indirect_commit() {
 
     // Ensure we indirectly commit the leader of round 3 via the directly committed
     // leader of round 6.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 6);
@@ -454,7 +454,7 @@ async fn indirect_skip() {
         Round 9 : { * },
      }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -480,7 +480,7 @@ async fn indirect_skip() {
 
     // Ensure we indirectly skip the leader of round 4 via the directly committed
     // leader of round 7.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 7);
@@ -540,7 +540,7 @@ async fn undecided() {
         },
      }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -566,7 +566,7 @@ async fn undecided() {
 
     // Ensure we indirectly commit the leader of round3 via the directly committed
     // leader of round 6.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert!(sequence.is_empty());
@@ -715,7 +715,7 @@ async fn test_byzantine_direct_commit() {
     // all of these blocks also have good votes for leader A12 through A, B, D.
 
     // Expect a successful direct commit of A12 and all leaders at previous rounds.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 
