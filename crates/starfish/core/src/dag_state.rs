@@ -38,7 +38,7 @@ use crate::{
 /// block.
 // TODO: make it derivable from the protocol parameters
 pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
-pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 50;
+pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 150;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.

@@ -374,6 +374,12 @@ impl BlockManager {
         if self.suspended_block_headers.contains_key(&block_ref)
             || dag_state.contains_block_header(&block_ref)
         {
+            self.context
+                .metrics
+                .node_metrics
+                .block_manager_filtered_processed_headers_by_authority
+                .with_label_values(&[&self.context.committee.authority(block_ref.author).hostname])
+                .inc();
             return TryAcceptResult::Processed;
         }
 
