@@ -554,6 +554,18 @@ impl VerifiedBlockHeader {
         }
     }
 
+    pub(crate) fn new_verified_with_digest(
+        signed_block_header: SignedBlockHeader,
+        serialized: Bytes,
+        digest: BlockHeaderDigest,
+    ) -> Self {
+        VerifiedBlockHeader {
+            signed_block_header: Arc::new(signed_block_header),
+            digest,
+            serialized,
+        }
+    }
+
     pub(crate) fn new_from_bytes(serialized_block_header: Bytes) -> ConsensusResult<Self> {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedBlockHeader)?;
@@ -571,6 +583,23 @@ impl VerifiedBlockHeader {
             inner: block_header,
             signature: Default::default(),
         };
+        let serialized: Bytes = bcs::to_bytes(&signed_block_header)
+            .expect("Serialization should not fail")
+            .into();
+        let digest = Self::compute_digest(&serialized);
+        VerifiedBlockHeader {
+            signed_block_header: Arc::new(signed_block_header),
+            digest,
+            serialized,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_from_header_with_signature(
+        block_header: BlockHeader,
+        protocol_keypair: &ProtocolKeyPair,
+    ) -> Self {
+        let signed_block_header = SignedBlockHeader::new(block_header, protocol_keypair).unwrap();
         let serialized: Bytes = bcs::to_bytes(&signed_block_header)
             .expect("Serialization should not fail")
             .into();

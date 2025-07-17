@@ -130,10 +130,11 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
-    pub(crate) invalid_headers_in_a_bundle: IntCounterVec,
-    pub(crate) valid_headers_in_a_bundle: IntCounterVec,
-    #[allow(dead_code)]
-    pub(crate) received_unique_headers_from_a_bundle: IntCounterVec,
+    pub(crate) invalid_headers_in_bundles: IntCounterVec,
+    pub(crate) valid_headers_in_bundles: IntCounterVec,
+    pub(crate) filtered_headers_in_bundles: IntCounterVec,
+    pub(crate) received_unique_headers_from_bundles: IntCounterVec,
+    pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -163,6 +164,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_blocks: IntGauge,
     pub(crate) block_manager_missing_blocks_by_authority: IntCounterVec,
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
+    pub(crate) block_manager_filtered_processed_headers_by_authority: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
@@ -384,21 +386,33 @@ impl NodeMetrics {
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            invalid_headers_in_a_bundle: register_int_counter_vec_with_registry!(
-                "invalid_headers_in_a_bundle",
-                "Number of invalid block headers received from block bundles per peer authority",
+            invalid_headers_in_bundles: register_int_counter_vec_with_registry!(
+                "invalid_headers_in_bundles",
+                "Number of invalid block headers received from block bundles per sender authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
-            valid_headers_in_a_bundle: register_int_counter_vec_with_registry!(
-                "valid_headers_in_a_bundle",
-                "Number of valid block headers received from block bundles per peer authority",
+            valid_headers_in_bundles: register_int_counter_vec_with_registry!(
+                "valid_headers_in_bundles",
+                "Number of valid block headers received from block bundles per sender authority",
                 &["authority", "source"],
                 registry,
             ).unwrap(),
-            received_unique_headers_from_a_bundle: register_int_counter_vec_with_registry!(
+            filtered_headers_in_bundles: register_int_counter_vec_with_registry!(
+                "filtered_headers_in_bundles",
+                "Number of filtered block headers received from block bundles per sender authority",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            received_unique_headers_from_bundles: register_int_counter_vec_with_registry!(
                 "received_unique_headers_from_a_bundle",
-                "Number of unique block headers received from block bundles per sender peer authority",
+                "Number of unique block headers received from block bundles per sender authority",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            processed_duplicated_headers_in_bundles: register_int_counter_vec_with_registry!(
+                "processed_duplicated_headers_in_bundles",
+                "Number of times block headers from bundles were not filtered and processed extra time (i.e. deserialized and verified) per sender authority",
                 &["authority", "source"],
                 registry,
             ).unwrap(),
@@ -550,6 +564,12 @@ impl NodeMetrics {
             block_manager_missing_ancestors_by_authority: register_int_counter_vec_with_registry!(
                 "block_manager_missing_ancestors_by_authority",
                 "The number of missing ancestors by ancestor authority across received blocks",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            block_manager_filtered_processed_headers_by_authority: register_int_counter_vec_with_registry!(
+                "block_manager_trying_to_accept_processed_header_by_authority",
+                "The number of already processed headers filtered in block manager by authority",
                 &["authority"],
                 registry,
             ).unwrap(),
