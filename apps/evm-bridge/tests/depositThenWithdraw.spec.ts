@@ -9,6 +9,9 @@ import {
     getExtensionUrl,
     addNetworkToMetaMask,
     addL1FundsThroughBridgeUI,
+    fundL1AddressWithNativeTokens,
+    TOOL_COIN_TYPE,
+    checkL2CoinBalanceForAddressWithRetries,
 } from './utils/utils';
 
 const THREE_MINUTES = 180_000;
@@ -117,9 +120,10 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
             await expect(addressFieldL2).toBeVisible();
             await addressFieldL2.fill(addressL1);
 
-            // Fund L1 wallet with IOTA
+            // Fund L1 wallet with IOTA and native tokens
             await addL1FundsThroughBridgeUI(pageWithL1Wallet, browserL1);
-            //todo add fund L1 wallet with native tokens
+            const nativeTokenAmount = 5;
+            await fundL1AddressWithNativeTokens(addressL1, nativeTokenAmount);
         },
     );
 
@@ -185,14 +189,57 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
 
         const approveTransactionPage = await approveTransactionPagePromise;
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
-
         // Check funds on L1 wallet
-        pageWithL1Wallet = await browserL1.newPage();
+        const pageWithL1WalletExtension = await browserL1.newPage();
         const l1ExtensionUrl = await getExtensionUrl(browserL1);
-        await pageWithL1Wallet.goto(l1ExtensionUrl, { waitUntil: 'commit' });
+        await pageWithL1WalletExtension.goto(l1ExtensionUrl, { waitUntil: 'commit' });
 
-        await expect(pageWithL1Wallet.getByTestId('coin-balance')).toHaveText('6.99', {
+        await expect(pageWithL1WalletExtension.getByTestId('coin-balance')).toHaveText('6.99', {
             timeout: THREE_MINUTES,
         });
+        await pageWithL1WalletExtension.close();
+    });
+
+    test('should successfully process a native token deposit', async () => {
+        const nativeTokenAmount = 3;
+
+        await pageWithL1Wallet.getByTestId('coin-selector').click();
+        await pageWithL1Wallet.getByText('Tool', { exact: true }).click();
+
+        const amountField = pageWithL1Wallet.getByTestId('bridge-amount');
+        await expect(amountField).toBeVisible();
+        amountField.fill(nativeTokenAmount.toString());
+
+        // check est. gas fees and your receive
+        await pageWithL1Wallet.waitForTimeout(2500);
+
+        const gasFeeValue = await pageWithL1Wallet
+            .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
+            .locator('xpath=../div/span')
+            .nth(1)
+            .textContent();
+        const gasFeeFixed = Number(Number(gasFeeValue).toFixed(3));
+        expect(gasFeeFixed).toBeGreaterThanOrEqual(0.008);
+        expect(gasFeeFixed).toBeLessThanOrEqual(0.01);
+
+        const gasFeeValueEVM = await pageWithL1Wallet
+            .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
+            .locator('xpath=../div/span')
+            .nth(1)
+            .textContent();
+        expect(gasFeeValueEVM).toEqual('0.001');
+
+        await expect(pageWithL1Wallet.getByText('Bridge Assets')).toBeEnabled();
+        await pageWithL1Wallet.getByText('Bridge Assets').click();
+
+        const approveTransactionPage = await browserL1.waitForEvent('page');
+        await approveTransactionPage.waitForLoadState();
+        await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
+
+        const balance = await checkL2CoinBalanceForAddressWithRetries(
+            addressL2 ?? '',
+            TOOL_COIN_TYPE,
+        );
+        expect(balance).toEqual(nativeTokenAmount.toString());
     });
 });
