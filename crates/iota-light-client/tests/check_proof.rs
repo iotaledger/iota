@@ -27,17 +27,18 @@ use iota_types::{
 const FIXTURES_DIR: &str = "tests/fixtures";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
-    let mut config = Config::get_mainnet_config();
+    let mut config = Config::mainnet();
     config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
 
     let checkpoint_list =
         read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
+
     let committee_seq = checkpoint_list
-        .checkpoints()
+        .checkpoints
         .first()
         .expect("there should be a first checkpoint in the checkpoints.yaml");
     let seq = checkpoint_list
-        .checkpoints()
+        .checkpoints
         .get(1)
         .expect("there should be a second checkpoint in the checkpoints.yaml");
 

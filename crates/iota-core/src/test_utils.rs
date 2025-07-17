@@ -115,7 +115,7 @@ pub async fn wait_for_tx(digest: TransactionDigest, state: Arc<AuthorityState>) 
         WAIT_FOR_TX_TIMEOUT,
         state
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[digest]),
+            .try_notify_read_executed_effects(&[digest]),
     )
     .await
     {
@@ -132,7 +132,7 @@ pub async fn wait_for_all_txes(digests: Vec<TransactionDigest>, state: Arc<Autho
         WAIT_FOR_TX_TIMEOUT,
         state
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&digests),
+            .try_notify_read_executed_effects(&digests),
     )
     .await
     {

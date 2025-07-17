@@ -125,7 +125,7 @@ pub async fn main() -> Result<()> {
             path.display()
         ))?
     } else {
-        Config::get_mainnet_config()
+        Config::mainnet()
     };
 
     config.setup().await?;

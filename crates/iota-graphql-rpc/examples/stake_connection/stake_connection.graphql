@@ -1,7 +1,7 @@
 # Get all the staked objects for this address and all the active validators at the epoch when the stake became active
 {
   address(
-    address: "0xc0a5b916d0e406ddde11a29558cd91b29c49e644eef597b7424a622955280e1e"
+    address: "0x906aaab49c5320ac9bf91214cb74ad5c64d44df3f90d7b6b7120302b155d1e96"
   ) {
     address
     balance(type: "0x2::iota::IOTA") {

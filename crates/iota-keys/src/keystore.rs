@@ -24,11 +24,14 @@ use iota_types::{
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{DisplayFromStr, serde_as};
 use shared_crypto::intent::{Intent, IntentMessage};
+use tracing::{debug, info};
 
 use crate::{
     key_derive::{derive_key_pair_from_path, generate_new_key},
     random_names::{random_name, random_names},
+    serde_iota_keypair, serde_public_key,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -40,11 +43,14 @@ pub enum Keystore {
 
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
-    -> Result<(), anyhow::Error>;
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        key: impl Into<StoredKey>,
+    ) -> Result<(), anyhow::Error>;
     fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error>;
-    fn keys(&self) -> Vec<PublicKey>;
-    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
+    fn keys(&self) -> Vec<&StoredKey>;
+    fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error>;
 
     fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
     -> Result<Signature, signature::Error>;
@@ -58,7 +64,7 @@ pub trait AccountKeystore: Send + Sync {
     where
         T: Serialize;
     fn addresses(&self) -> Vec<IotaAddress> {
-        self.keys().iter().map(|k| k.into()).collect()
+        self.keys().into_iter().map(|k| k.address()).collect()
     }
     fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)>;
     fn aliases(&self) -> Vec<&Alias>;
@@ -150,6 +156,23 @@ pub trait AccountKeystore: Send + Sync {
             Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
         }
     }
+
+    fn import_from_external(
+        &mut self,
+        source: &str,
+        public_key: PublicKey,
+        derivation_path: Option<DerivationPath>,
+        alias: Option<String>,
+    ) -> Result<(), anyhow::Error> {
+        self.add_key(
+            alias,
+            StoredKey::External {
+                derivation_path,
+                public_key,
+                source: source.to_string(),
+            },
+        )
+    }
 }
 
 impl Display for Keystore {
@@ -175,9 +198,72 @@ pub struct Alias {
     pub public_key_base64: String,
 }
 
+#[expect(clippy::large_enum_variant)]
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(
+    tag = "type",            // this makes {"type": "...", "value": …}
+    content = "value",       // name the payload field "value"
+    rename_all = "snake_case"
+)]
+pub enum StoredKey {
+    #[serde(with = "serde_iota_keypair")]
+    KeyPair(IotaKeyPair),
+    External {
+        source: String,
+        #[serde_as(as = "Option<DisplayFromStr>")]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        derivation_path: Option<DerivationPath>,
+        #[serde(rename = "public_key_base64_with_flag", with = "serde_public_key")]
+        public_key: PublicKey,
+    },
+}
+
+impl From<IotaKeyPair> for StoredKey {
+    fn from(keypair: IotaKeyPair) -> Self {
+        StoredKey::KeyPair(keypair)
+    }
+}
+
+impl StoredKey {
+    pub fn address(&self) -> IotaAddress {
+        IotaAddress::from(&self.public())
+    }
+
+    pub fn public(&self) -> PublicKey {
+        match self {
+            StoredKey::KeyPair(keypair) => keypair.public(),
+            StoredKey::External { public_key, .. } => public_key.clone(),
+        }
+    }
+
+    pub fn derivation_path(&self) -> Option<DerivationPath> {
+        match self {
+            StoredKey::KeyPair(_) => None,
+            StoredKey::External {
+                derivation_path, ..
+            } => derivation_path.clone(),
+        }
+    }
+
+    pub fn external_source(&self) -> Option<String> {
+        match self {
+            StoredKey::KeyPair(_) => None,
+            StoredKey::External { source, .. } => Some(source.clone()),
+        }
+    }
+
+    pub fn as_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
+        match self {
+            StoredKey::KeyPair(keypair) => Ok(keypair),
+            StoredKey::External { .. } => bail!("Cannot get key pair for External keys."),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct FileBasedKeystore {
-    keys: BTreeMap<IotaAddress, IotaKeyPair>,
+    keys: BTreeMap<IotaAddress, StoredKey>,
     aliases: BTreeMap<IotaAddress, Alias>,
     path: PathBuf,
 }
@@ -201,6 +287,18 @@ impl<'de> Deserialize<'de> for FileBasedKeystore {
             .map_err(D::Error::custom)
     }
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FileBasedKeystoreFile {
+    pub version: u8,
+    pub keys: Vec<AliasedKey>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AliasedKey {
+    pub alias: String,
+    pub address: IotaAddress,
+    pub key: StoredKey,
+}
 
 impl AccountKeystore for FileBasedKeystore {
     fn sign_hashed(
@@ -208,12 +306,16 @@ impl AccountKeystore for FileBasedKeystore {
         address: &IotaAddress,
         msg: &[u8],
     ) -> Result<Signature, signature::Error> {
-        Ok(Signature::new_hashed(
-            msg,
-            self.keys.get(address).ok_or_else(|| {
-                signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
-            })?,
-        ))
+        let stored_key = self.keys.get(address).ok_or_else(|| {
+            signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
+        })?;
+
+        match stored_key {
+            StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
+                "sign_hashed is not supported for external type: {source} [{address}]"
+            ))),
+        }
     }
     fn sign_secure<T>(
         &self,
@@ -224,29 +326,35 @@ impl AccountKeystore for FileBasedKeystore {
     where
         T: Serialize,
     {
-        Ok(Signature::new_secure(
-            &IntentMessage::new(intent, msg),
-            self.keys.get(address).ok_or_else(|| {
-                signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
-            })?,
-        ))
+        let stored_key = self.keys.get(address).ok_or_else(|| {
+            signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
+        })?;
+
+        let intent_msg = &IntentMessage::new(intent, msg);
+        match stored_key {
+            StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
+                "sign_secure is not supported for external type: {source} [{address}]",
+            ))),
+        }
     }
 
     fn add_key(
         &mut self,
         alias: Option<String>,
-        keypair: IotaKeyPair,
+        key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error> {
-        let address: IotaAddress = (&keypair.public()).into();
+        let key = key.into();
+        let address: IotaAddress = (&key.public()).into();
         let alias = self.create_alias(alias)?;
         self.aliases.insert(
             address,
             Alias {
                 alias,
-                public_key_base64: keypair.public().encode_base64(),
+                public_key_base64: key.public().encode_base64(),
             },
         );
-        self.keys.insert(address, keypair);
+        self.keys.insert(address, key);
         self.save()?;
         Ok(())
     }
@@ -274,8 +382,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.aliases.values_mut().collect()
     }
 
-    fn keys(&self) -> Vec<PublicKey> {
-        self.keys.values().map(|key| key.public()).collect()
+    fn keys(&self) -> Vec<&StoredKey> {
+        self.keys.values().collect()
     }
 
     /// This function returns an error if the provided alias already exists. If
@@ -314,7 +422,7 @@ impl AccountKeystore for FileBasedKeystore {
         }
     }
 
-    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error> {
+    fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error> {
         match self.keys.get(address) {
             Some(key) => Ok(key),
             None => Err(anyhow!("Cannot find key for address: [{address}]")),
@@ -329,13 +437,13 @@ impl AccountKeystore for FileBasedKeystore {
         new_alias: Option<&str>,
     ) -> Result<String, anyhow::Error> {
         let new_alias_name = self.update_alias_value(old_alias, new_alias)?;
-        self.save_aliases()?;
+        self.save()?;
         Ok(new_alias_name)
     }
 }
 
 impl FileBasedKeystore {
-    pub fn new(path: &PathBuf) -> Result<Self, anyhow::Error> {
+    pub fn new_from_v1(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let keys = if path.exists() {
             let reader =
                 BufReader::new(File::open(path).with_context(|| {
@@ -348,7 +456,7 @@ impl FileBasedKeystore {
                 .iter()
                 .map(|kpstr| {
                     let key = IotaKeyPair::decode(kpstr);
-                    key.map(|k| (IotaAddress::from(&k.public()), k))
+                    key.map(|k| (IotaAddress::from(&k.public()), StoredKey::KeyPair(k)))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?
@@ -425,62 +533,165 @@ impl FileBasedKeystore {
         })
     }
 
+    fn needs_migration(path: &PathBuf) -> Result<bool, anyhow::Error> {
+        let mut aliases_path = path.clone();
+        aliases_path.set_extension("aliases");
+        if aliases_path.exists() {
+            // If the aliases file exists, we assume that the keystore is in v1 format
+            debug!(
+                "An alias file exists at {}, assuming keystore is in v1 format",
+                aliases_path.display()
+            );
+            return Ok(true);
+        }
+        // If the aliases file does not exist, we check if the keystore file exists and
+        // it has the old format
+        if path.exists() {
+            let reader =
+                BufReader::new(File::open(path).with_context(|| {
+                    format!("Cannot open the keystore file: {}", path.display())
+                })?);
+            // If we can deserialize the keystore file as a Vec<String>, it is in v1 format
+            // If it fails, it is in v2 format or invalid
+            let is_v1_format = serde_json::from_reader::<_, Vec<String>>(reader).is_ok();
+            debug!(
+                "Keystore file at {} is in v1 format: {}",
+                path.display(),
+                is_v1_format,
+            );
+            Ok(is_v1_format)
+        } else {
+            // If the keystore file does not exist, no migration is needed
+            Ok(false)
+        }
+    }
+
+    fn migrate_v1_to_v2(path: &PathBuf) -> Result<Self, anyhow::Error> {
+        let migrated = Self::new_from_v1(path)?;
+        // If the migration was successful, we rename the <path> and <path>.aliases
+        // files as a backup and append .migrated
+        let mut backup_path = path.clone();
+        backup_path.set_extension(
+            // We append .migrated to the original file extension
+            // add_extension is still experimental, so we do it manually
+            path.extension()
+                .and_then(|ext| Some(ext.to_str()?.to_owned() + ".migrated"))
+                .unwrap_or(String::from("migrated")),
+        );
+        fs::rename(path, &backup_path).with_context(|| {
+            format!(
+                "Failed to rename the old keystore file to {}",
+                backup_path.display()
+            )
+        })?;
+        let mut aliases_path = path.clone();
+        aliases_path.set_extension("aliases");
+        let mut backup_aliases_path = aliases_path.clone();
+        backup_aliases_path.set_extension("aliases.migrated");
+        fs::rename(&aliases_path, &backup_aliases_path).with_context(|| {
+            format!(
+                "Failed to rename the old aliases file to {}",
+                backup_aliases_path.display()
+            )
+        })?;
+
+        info!(
+            "Migrated {} keys in keystore from v1 to v2 format. Old files have been renamed to {} and {}",
+            migrated.keys.len(),
+            backup_path.display(),
+            backup_aliases_path.display()
+        );
+
+        // Now we save the migrated keystore to the original path
+        migrated.save()?;
+
+        Ok(migrated)
+    }
+
+    pub fn new(path: &PathBuf) -> Result<Self, anyhow::Error> {
+        if Self::needs_migration(path)? {
+            return Self::migrate_v1_to_v2(path);
+        }
+
+        let (keys, aliases) = if path.exists() {
+            let reader =
+                BufReader::new(File::open(path).with_context(|| {
+                    format!("Cannot open the keystore file: {}", path.display())
+                })?);
+
+            let file: FileBasedKeystoreFile = serde_json::from_reader(reader)
+                .with_context(|| {
+                    format!("Cannot deserialize the keystore file: {}", path.display(),)
+                })
+                .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?;
+
+            let aliases = file
+                .keys
+                .iter()
+                .map(|aliased| {
+                    let public_key = aliased.key.public();
+                    (
+                        IotaAddress::from(&public_key),
+                        Alias {
+                            alias: aliased.alias.clone(),
+                            public_key_base64: public_key.encode_base64(),
+                        },
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+
+            let keys = file
+                .keys
+                .into_iter()
+                .map(|aliased| (IotaAddress::from(&aliased.key.public()), aliased.key))
+                .collect::<BTreeMap<_, _>>();
+
+            (keys, aliases)
+        } else {
+            (BTreeMap::new(), BTreeMap::new())
+        };
+
+        Ok(Self {
+            keys,
+            aliases,
+            path: path.to_path_buf(),
+        })
+    }
+
     pub fn set_path(&mut self, path: &Path) {
         self.path = path.to_path_buf();
     }
 
-    pub fn save_aliases(&self) -> Result<(), anyhow::Error> {
-        let aliases_store = serde_json::to_string_pretty(
-            &self.aliases.values().collect::<Vec<_>>(),
-        )
-        .with_context(|| {
-            format!(
-                "Cannot serialize aliases to file in keystore: {}",
-                self.path.display()
-            )
-        })?;
-
-        let mut aliases_path = self.path.clone();
-        aliases_path.set_extension("aliases");
-        fs::write(&aliases_path, aliases_store)
-            .map_err(|e| anyhow!("Couldn't save aliases to {}: {e}", aliases_path.display()))?;
-        Ok(())
-    }
-
-    /// Keys saved as Base64 with 33 bytes `flag || privkey` ($BASE64_STR).
-    /// To see Bech32 format encoding, use `iota keytool export $IOTA_ADDRESS`
-    /// where $IOTA_ADDRESS can be found with `iota keytool list`. Or use
-    /// `iota keytool convert $BASE64_STR`
-    pub fn save_keystore(&self) -> Result<(), anyhow::Error> {
-        let store = serde_json::to_string_pretty(
-            &self
+    pub fn save(&self) -> Result<(), anyhow::Error> {
+        let file = FileBasedKeystoreFile {
+            version: 2,
+            keys: self
                 .keys
-                .values()
-                .map(|k| k.encode())
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| anyhow!(e))?,
-        )
-        .with_context(|| format!("Cannot serialize keystore to file: {}", self.path.display()))?;
+                .iter()
+                .map(|(address, key)| AliasedKey {
+                    alias: self
+                        .aliases
+                        .get(address)
+                        .map_or_else(|| self.create_alias(None).unwrap(), |a| a.alias.clone()),
+                    address: *address,
+                    key: key.clone(),
+                })
+                .collect(),
+        };
+
+        let store = serde_json::to_string_pretty(&file).with_context(|| {
+            format!("Cannot serialize keystore to file: {}", self.path.display())
+        })?;
         fs::write(&self.path, store)
             .map_err(|e| anyhow!("Couldn't save keystore to {}: {e}", self.path.display()))?;
         Ok(())
-    }
-
-    pub fn save(&self) -> Result<(), anyhow::Error> {
-        self.save_aliases()?;
-        self.save_keystore()?;
-        Ok(())
-    }
-
-    pub fn key_pairs(&self) -> Vec<&IotaKeyPair> {
-        self.keys.values().collect()
     }
 }
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct InMemKeystore {
     aliases: BTreeMap<IotaAddress, Alias>,
-    keys: BTreeMap<IotaAddress, IotaKeyPair>,
+    keys: BTreeMap<IotaAddress, StoredKey>,
 }
 
 impl AccountKeystore for InMemKeystore {
@@ -489,12 +700,16 @@ impl AccountKeystore for InMemKeystore {
         address: &IotaAddress,
         msg: &[u8],
     ) -> Result<Signature, signature::Error> {
-        Ok(Signature::new_hashed(
-            msg,
-            self.keys.get(address).ok_or_else(|| {
-                signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
-            })?,
-        ))
+        let stored_key = self.keys.get(address).ok_or_else(|| {
+            signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
+        })?;
+
+        match stored_key {
+            StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
+                "sign_hashed is not supported for external type: {source} [{address}]"
+            ))),
+        }
     }
     fn sign_secure<T>(
         &self,
@@ -505,20 +720,26 @@ impl AccountKeystore for InMemKeystore {
     where
         T: Serialize,
     {
-        Ok(Signature::new_secure(
-            &IntentMessage::new(intent, msg),
-            self.keys.get(address).ok_or_else(|| {
-                signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
-            })?,
-        ))
+        let stored_key = self.keys.get(address).ok_or_else(|| {
+            signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
+        })?;
+
+        let intent_msg = &IntentMessage::new(intent, msg);
+        match stored_key {
+            StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
+                "sign_secure is not supported for external type: {source} [{address}]",
+            ))),
+        }
     }
 
     fn add_key(
         &mut self,
         alias: Option<String>,
-        keypair: IotaKeyPair,
+        key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error> {
-        let address: IotaAddress = (&keypair.public()).into();
+        let key = key.into();
+        let address: IotaAddress = (&key.public()).into();
         let alias = alias.unwrap_or_else(|| {
             random_name(
                 &self
@@ -529,13 +750,13 @@ impl AccountKeystore for InMemKeystore {
             )
         });
 
-        let public_key_base64 = keypair.public().encode_base64();
+        let public_key_base64 = key.public().encode_base64();
         let alias = Alias {
             alias,
             public_key_base64,
         };
         self.aliases.insert(address, alias);
-        self.keys.insert(address, keypair);
+        self.keys.insert(address, key);
         Ok(())
     }
 
@@ -554,11 +775,11 @@ impl AccountKeystore for InMemKeystore {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
-    fn keys(&self) -> Vec<PublicKey> {
-        self.keys.values().map(|key| key.public()).collect()
+    fn keys(&self) -> Vec<&StoredKey> {
+        self.keys.values().collect()
     }
 
-    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error> {
+    fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error> {
         match self.keys.get(address) {
             Some(key) => Ok(key),
             None => Err(anyhow!("Cannot find key for address: [{address}]")),
@@ -621,8 +842,8 @@ impl InMemKeystore {
         let mut rng = StdRng::from_seed([0; 32]);
         let keys = (0..initial_key_number)
             .map(|_| get_key_pair_from_rng(&mut rng))
-            .map(|(ad, k)| (ad, IotaKeyPair::Ed25519(k)))
-            .collect::<BTreeMap<IotaAddress, IotaKeyPair>>();
+            .map(|(ad, k)| (ad, IotaKeyPair::Ed25519(k).into()))
+            .collect::<BTreeMap<IotaAddress, StoredKey>>();
 
         let aliases = keys
             .iter()

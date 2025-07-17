@@ -28,6 +28,7 @@ use crate::{
 };
 
 pub mod apis;
+pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;

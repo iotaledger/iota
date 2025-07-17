@@ -85,7 +85,7 @@ async fn get_checkpoint(
         signature,
     } = match checkpoint_id {
         CheckpointId::SequenceNumber(s) => {
-            let oldest_checkpoint = state.inner().get_lowest_available_checkpoint()?;
+            let oldest_checkpoint = state.inner().try_get_lowest_available_checkpoint()?;
             if s < oldest_checkpoint {
                 return Err(crate::RestError::new(
                     axum::http::StatusCode::GONE,
@@ -93,9 +93,9 @@ async fn get_checkpoint(
                 ));
             }
 
-            state.inner().get_checkpoint_by_sequence_number(s)
+            state.inner().try_get_checkpoint_by_sequence_number(s)
         }
-        CheckpointId::Digest(d) => state.inner().get_checkpoint_by_digest(&d.into()),
+        CheckpointId::Digest(d) => state.inner().try_get_checkpoint_by_digest(&d.into()),
     }?
     .ok_or(CheckpointNotFoundError(checkpoint_id))?
     .into_inner()
@@ -105,7 +105,7 @@ async fn get_checkpoint(
         Some(
             state
                 .inner()
-                .get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)?
+                .try_get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)?
                 .ok_or(CheckpointNotFoundError(checkpoint_id))?
                 .try_into()?,
         )
@@ -262,8 +262,8 @@ async fn list_checkpoints(
     accept: AcceptFormat,
     State(state): State<StateReader>,
 ) -> Result<Page<CheckpointResponse, CheckpointSequenceNumber>> {
-    let latest_checkpoint = state.inner().get_latest_checkpoint()?.sequence_number;
-    let oldest_checkpoint = state.inner().get_lowest_available_checkpoint()?;
+    let latest_checkpoint = state.inner().try_get_latest_checkpoint()?.sequence_number;
+    let oldest_checkpoint = state.inner().try_get_lowest_available_checkpoint()?;
     let limit = parameters.limit();
     let start = parameters.start(latest_checkpoint);
     let direction = parameters.direction();
@@ -432,20 +432,20 @@ async fn get_full_checkpoint(
                 ));
             }
 
-            state.inner().get_checkpoint_by_sequence_number(s)
+            state.inner().try_get_checkpoint_by_sequence_number(s)
         }
-        CheckpointId::Digest(d) => state.inner().get_checkpoint_by_digest(&d.into()),
+        CheckpointId::Digest(d) => state.inner().try_get_checkpoint_by_digest(&d.into()),
     }?
     .ok_or(CheckpointNotFoundError(checkpoint_id))?;
 
     let checkpoint_contents = state
         .inner()
-        .get_checkpoint_contents_by_digest(&verified_summary.content_digest)?
+        .try_get_checkpoint_contents_by_digest(&verified_summary.content_digest)?
         .ok_or(CheckpointNotFoundError(checkpoint_id))?;
 
     let checkpoint_data = state
         .inner()
-        .get_checkpoint_data(verified_summary, checkpoint_contents)?;
+        .try_get_checkpoint_data(verified_summary, checkpoint_contents)?;
 
     Ok(Bcs(checkpoint_data))
 }
@@ -512,7 +512,7 @@ async fn list_full_checkpoints(
         }
     }
 
-    let latest_checkpoint = state.inner().get_latest_checkpoint()?.sequence_number;
+    let latest_checkpoint = state.inner().try_get_latest_checkpoint()?.sequence_number;
     let oldest_checkpoint = state.inner().get_lowest_available_checkpoint_objects()?;
     let limit = parameters.limit();
     let start = parameters.start(latest_checkpoint);
@@ -541,7 +541,7 @@ async fn list_full_checkpoints(
                 .and_then(|(checkpoint, contents)| {
                     state
                         .inner()
-                        .get_checkpoint_data(
+                        .try_get_checkpoint_data(
                             iota_types::messages_checkpoint::VerifiedCheckpoint::new_from_verified(
                                 checkpoint,
                             ),
