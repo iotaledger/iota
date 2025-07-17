@@ -143,6 +143,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
+            // TODO:: Port PR 7292 from consensus crate to starfish
             let mut block_bundles = match network_client
                 .subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL)
                 .await
