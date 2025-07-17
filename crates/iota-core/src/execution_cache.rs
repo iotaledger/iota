@@ -155,7 +155,12 @@ pub fn build_execution_cache_from_env(
         )
     } else {
         ExecutionCacheTraitPointers::new(
-            WritebackCache::new(&Default::default(), store.clone(), execution_cache_metrics).into(),
+            WritebackCache::new(
+                &ExecutionCacheConfig::default_writeback_cache(),
+                store.clone(),
+                execution_cache_metrics,
+            )
+            .into(),
         )
     }
 }

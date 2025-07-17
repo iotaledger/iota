@@ -290,22 +290,27 @@ pub enum ExecutionCacheConfig {
 
 impl Default for ExecutionCacheConfig {
     fn default() -> Self {
-        ExecutionCacheConfig::WritebackCache {
-            max_cache_size: None,
-            package_cache_size: None,
-            object_cache_size: None,
-            marker_cache_size: None,
-            object_by_id_cache_size: None,
-            transaction_cache_size: None,
-            executed_effect_cache_size: None,
-            effect_cache_size: None,
-            events_cache_size: None,
-            transaction_objects_cache_size: None,
-        }
+        ExecutionCacheConfig::default_writeback_cache()
     }
 }
 
 impl ExecutionCacheConfig {
+    /// Creates a default `WritebackCache` configuration with sensible defaults.
+    pub fn default_writeback_cache() -> Self {
+        ExecutionCacheConfig::WritebackCache {
+            max_cache_size: None,                 // defaults to 10000
+            package_cache_size: None,             // defaults to 1000
+            object_cache_size: None,              // defaults to max_cache_size
+            marker_cache_size: None,              // defaults to object_cache_size
+            object_by_id_cache_size: None,        // defaults to object_cache_size
+            transaction_cache_size: None,         // defaults to max_cache_size
+            executed_effect_cache_size: None,     // defaults to transaction_cache_size
+            effect_cache_size: None,              // defaults to executed_effect_cache_size
+            events_cache_size: None,              // defaults to transaction_cache_size
+            transaction_objects_cache_size: None, // defaults to 1000
+        }
+    }
+
     pub fn max_cache_size(&self) -> u64 {
         match self {
             ExecutionCacheConfig::PassthroughCache => fatal!("invalid cache config"),

@@ -77,7 +77,7 @@ impl Scenario {
             once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
         let cache = Arc::new(WritebackCache::new(
-            &Default::default(),
+            &ExecutionCacheConfig::default_writeback_cache(),
             store.clone(),
             (*METRICS).clone(),
         ));
@@ -374,7 +374,7 @@ impl Scenario {
 
     pub fn reset_cache(&mut self) {
         self.cache = Arc::new(WritebackCache::new(
-            &Default::default(),
+            &ExecutionCacheConfig::default_writeback_cache(),
             self.store.clone(),
             self.cache.metrics.clone(),
         ));
@@ -1205,7 +1205,7 @@ async fn latest_object_cache_race_test() {
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
-        &Default::default(),
+        &ExecutionCacheConfig::default_writeback_cache(),
         store.clone(),
         (*METRICS).clone(),
     ));

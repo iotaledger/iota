@@ -66,6 +66,19 @@ impl ProxyCache {
         let cache_type = epoch_start_config.execution_cache_type();
         tracing::info!("using cache impl {:?}", cache_type);
         let passthrough_cache = PassthroughCache::new(store.clone(), metrics.clone());
+
+        // we need to initialize both caches at startup, no matter which one is passed
+        // in the cache_config, because we may switch to the other one in the
+        // next epoch. If the cache_config is for a passthrough cache, we still
+        // need to create a writeback cache, so we replace the cache_config with
+        // the default one for writeback cache, otherwise the writeback cache would
+        // panic when it tries to access the settings.
+        let cache_config = match cache_type {
+            ExecutionCacheConfigType::WritebackCache => cache_config,
+            ExecutionCacheConfigType::PassthroughCache => {
+                &ExecutionCacheConfig::default_writeback_cache()
+            }
+        };
         let writeback_cache = WritebackCache::new(cache_config, store.clone(), metrics.clone());
 
         Self {
