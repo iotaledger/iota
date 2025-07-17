@@ -7,7 +7,7 @@
 #[cfg_attr(msim, ignore)]
 fn test_format() {
     // If this test breaks and you intended a format change, you need to run to get
-    // the fresh format: # cargo -q run --example generate-format -- print >
+    // the fresh format: # cargo run --example generate-format -- print >
     // crates/iota-core/tests/staged/iota.yaml
 
     let status = std::process::Command::new("cargo")
@@ -20,7 +20,7 @@ fn test_format() {
         status.success(),
         "\n\
 If this test breaks and you intended a format change, you need to run to get the fresh format:\n\
-cargo -q run --example generate-format -- print > crates/iota-core/tests/staged/iota.yaml\n\
+cargo run --example generate-format -- print > crates/iota-core/tests/staged/iota.yaml\n\
         "
     );
 }

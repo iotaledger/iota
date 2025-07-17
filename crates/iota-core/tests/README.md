@@ -37,7 +37,7 @@ Now our code is modified in a way that will make the format test fail: let's upd
 
 ```
 huitseeker@Garillots-MBP.localdomain➜~/tmp/iota(main✗)» cd iota_core                                                                                                                                                                                                                                                                                                                                                                                                                    [8:43:38]
-huitseeker@Garillots-MBP.localdomain➜tmp/iota/iota_core(main✗)» cargo -q run --example generate-format -- print > tests/staged/iota.yaml
+huitseeker@Garillots-MBP.localdomain➜tmp/iota/iota_core(main✗)» cargo run --example generate-format -- print > tests/staged/iota.yaml
 ```
 
 Let's check that we pass the test again:
