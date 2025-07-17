@@ -9,7 +9,7 @@ use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     backfill::{
@@ -86,18 +86,27 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
         let end = *range.end();
 
         while start <= end {
-            while let Some((_, processed)) = self
+            if let Some((_, processed)) = self
                 .ready_checkpoints
                 .remove(&(start as CheckpointSequenceNumber))
             {
                 processed_data.extend(processed);
                 start += 1;
-            }
-
-            if start <= end {
+            } else {
+                info!(
+                    "Waiting for processed data for checkpoint sequence number {}",
+                    start
+                );
                 self.notify.notified().await;
             }
         }
+
+        info!(
+            "Persisting backfill chunk from {} to {} with {} total items",
+            range.start(),
+            range.end(),
+            processed_data.len()
+        );
 
         // TODO: Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
