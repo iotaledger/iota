@@ -19,10 +19,9 @@ use iota_metrics::{
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
-use rand::prelude::SliceRandom;
 use rand::{
     SeedableRng,
-    prelude::{IteratorRandom, StdRng},
+    prelude::{IteratorRandom, SliceRandom, StdRng},
 };
 use starfish_config::AuthorityIndex;
 use tap::TapFallible;
@@ -35,9 +34,11 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
-    BlockHeaderAPI, CommitIndex, Round,
+    CommitIndex, Round,
     authority_service::COMMIT_LAG_MULTIPLIER,
-    block_header::{BlockRef, GENESIS_ROUND, SignedBlockHeader, VerifiedBlockHeader},
+    block_header::{
+        BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, VerifiedBlockHeader,
+    },
     block_verifier::BlockVerifier,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -1350,7 +1351,7 @@ mod tests {
     use tokio::{sync::Mutex, time::sleep};
 
     use crate::{
-        BlockHeaderAPI, CommitDigest, CommitIndex,
+        CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
             BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
@@ -1824,7 +1825,7 @@ mod tests {
         // authority = 0, so we are skipped anyways.
         let mut expected_blocks = expected_blocks
             .into_iter()
-            .filter(|block| block.round() <= SYNC_MISSING_BLOCK_ROUND_THRESHOLD)
+            .filter(|block| block.reference().round <= SYNC_MISSING_BLOCK_ROUND_THRESHOLD)
             .collect::<Vec<_>>();
 
         for chunk in expected_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
@@ -2137,11 +2138,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CoreThreadDispatcher for SyncMockDispatcher {
-        async fn get_missing_blocks(
-            &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(self.missing_blocks.lock().await.clone())
-        }
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
@@ -2149,6 +2145,23 @@ mod tests {
             let mut guard = self.added_blocks.lock().await;
             guard.extend(blocks.clone());
             Ok(blocks.iter().map(|b| b.reference()).collect())
+        }
+        async fn add_block_headers(
+            &self,
+            _blocks: Vec<VerifiedBlockHeader>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn add_data(
+            &self,
+            _data: Vec<VerifiedTransactions>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
         }
 
         // Stub out the remaining CoreThreadDispatcher methods with defaults:
@@ -2164,6 +2177,12 @@ mod tests {
             Ok(())
         }
 
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            Ok(self.missing_blocks.lock().await.clone())
+        }
+
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             Ok(())
         }
@@ -2174,24 +2193,6 @@ mod tests {
 
         fn highest_received_rounds(&self) -> Vec<Round> {
             Vec::new()
-        }
-
-        async fn add_block_headers(
-            &self,
-            blocks: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn add_data(
-            &self,
-            data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
         }
     }
 
