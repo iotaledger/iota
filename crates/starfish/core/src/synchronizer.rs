@@ -1825,7 +1825,7 @@ mod tests {
         // authority = 0, so we are skipped anyways.
         let mut expected_blocks = expected_blocks
             .into_iter()
-            .filter(|block| block.round() <= SYNC_MISSING_BLOCK_ROUND_THRESHOLD)
+            .filter(|block| block.reference().round <= SYNC_MISSING_BLOCK_ROUND_THRESHOLD)
             .collect::<Vec<_>>();
 
         for chunk in expected_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
