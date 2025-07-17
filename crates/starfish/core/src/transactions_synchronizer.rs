@@ -564,8 +564,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             // allows us to identify which block these transactions belong to
             // and access their commitment in the block header.
             let serialized_transactions: SerializedTransactions =
-                bcs::from_bytes(&serialized_transaction_bytes)
-                    .map_err(|e| ConsensusError::MalformedTransactions(e))?;
+                bcs::from_bytes(serialized_transaction_bytes)
+                    .map_err(ConsensusError::MalformedTransactions)?;
 
             // Step 2: Get the block header and verify that the transactions commitment
             // matches. This ensures the transactions we received are exactly
@@ -589,7 +589,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             // Step 3: Deserialize and verify the actual transactions vector.
             let transactions: Vec<Transaction> =
                 bcs::from_bytes(&serialized_transactions.serialized_transactions)
-                    .map_err(|e| ConsensusError::MalformedTransactions(e))?;
+                    .map_err(ConsensusError::MalformedTransactions)?;
 
             block_verifier.check_and_verify_transactions(&transactions)?;
 
@@ -720,7 +720,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 let _scope = monitored_scope("FetchMissingTransactionsScheduler");
                 // Update metrics for missing transactions per authority before fetching
                 let mut missing_transactions_per_authority = vec![0; context.committee.size()];
-                for (block_ref, _) in &missing_transactions {
+                for block_ref in missing_transactions.keys() {
                     missing_transactions_per_authority[block_ref.author] += 1;
                 }
                 for (missing, (_, authority)) in missing_transactions_per_authority
@@ -1016,12 +1016,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
-                    transactions,
-                    header.reference(),
-                    commitment,
-                    Bytes::from(serialized),
-                )
+                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1120,12 +1115,8 @@ mod tests {
 
             block_headers.push(header.clone());
 
-            let verified_transaction = VerifiedTransactions::new(
-                transactions,
-                header.reference(),
-                commitment,
-                Bytes::from(serialized),
-            );
+            let verified_transaction =
+                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized);
 
             verified_transactions.push(verified_transaction);
         }
@@ -1232,12 +1223,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
-                    transactions,
-                    header.reference(),
-                    commitment,
-                    Bytes::from(serialized),
-                )
+                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1353,12 +1339,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
-                    transactions,
-                    header.reference(),
-                    commitment,
-                    Bytes::from(serialized),
-                )
+                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1463,12 +1444,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
-                    transactions,
-                    header.reference(),
-                    commitment,
-                    Bytes::from(serialized),
-                )
+                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1575,12 +1551,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
-                    transactions,
-                    header.reference(),
-                    commitment,
-                    Bytes::from(serialized),
-                )
+                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1948,7 +1919,7 @@ mod tests {
                 let exists = transactions.iter().any(|txn| txn.block_ref() == *block_ref);
 
                 if !exists {
-                    filtered.insert(block_ref.clone(), authority_set.clone());
+                    filtered.insert(*block_ref, authority_set.clone());
                 }
             }
 

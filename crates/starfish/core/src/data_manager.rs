@@ -66,7 +66,7 @@ impl DataManager {
         let dag_state = self.dag_state.read();
 
         // Check all pending subdags for missing transactions
-        for (_, subdag) in &self.pending_subdags {
+        for subdag in self.pending_subdags.values() {
             let exists = dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
             for (i, exists) in exists.iter().enumerate() {
                 if !exists {
