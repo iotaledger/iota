@@ -257,7 +257,7 @@ impl DagState {
         state
             .context
             .metrics
-            .load_scoring_metrics_from_storage(metrics, hostnames);
+            .initialize_uncached_scoring_metrics(metrics, hostnames);
 
         // Initialize the scoring metrics relative to rounds that were loaded to cache.
         let threshold_clock_round = state.threshold_clock_round();
@@ -268,16 +268,13 @@ impl DagState {
                 .iter()
                 .map(|block_ref| block_ref.round)
                 .collect();
-            state
-                .context
-                .metrics
-                .calculate_scoring_metrics_from_storage(
-                    authority_index,
-                    hostname,
-                    block_rounds_in_cache,
-                    threshold_clock_round,
-                    eviction_round,
-                );
+            state.context.metrics.initialize_cached_scoring_metrics(
+                authority_index,
+                hostname,
+                block_rounds_in_cache,
+                threshold_clock_round,
+                eviction_round,
+            );
         }
 
         if state.gc_enabled() {

@@ -84,44 +84,6 @@ const SIZE_BUCKETS: &[f64] = &[
     10_000_000.0,
 ]; // size in bytes
 
-const ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION: [&str; 6] = [
-    "WrongEpoch",
-    "UnexpectedGenesisBlock",
-    "InvalidAuthorityIndex",
-    "SerializationFailure",
-    "MalformedSignature",
-    "SignatureVerificationFailure",
-];
-
-const ERRORS_FROM_SIGNED_BLOCK_VERIFICATION: [&str; 11] = [
-    "TooManyAncestors",
-    "InsufficientParentStakes",
-    "InvalidAuthorityIndex",
-    "InvalidAncestorPosition",
-    "InvalidAncestorRound",
-    "InvalidGenesisAncestor",
-    "DuplicatedAncestorsAuthority",
-    "TransactionTooLarge",
-    "TooManyTransactions",
-    "TooManyTransactionBytes",
-    "InvalidTransaction",
-];
-
-const UNPROVABLE_ERRORS_FROM_COMMIT_SYNCER: [&str; 8] = [
-    "MalformedCommit",
-    "UnexpectedStartCommit",
-    "UnexpectedCommitSequence",
-    "NoCommitReceived",
-    "MalformedBlock",
-    "NotEnoughCommitVotes",
-    "UnexpectedNumberOfBlocksFetched",
-    "UnexpectedBlockForCommit",
-];
-
-const UNPROVABLE_ERRORS_FROM_SUBSCRIBER: [&str; 2] = ["MalformedBlock", "UnexpectedAuthority"];
-
-const PROVABLE_ERRORS_FROM_SUBSCRIBER: [&str; 2] = ["BlockRejected", "MalformedAncestorBlock"];
-
 pub(crate) struct Metrics {
     pub(crate) node_metrics: NodeMetrics,
     pub(crate) network_metrics: NetworkMetrics,
@@ -139,36 +101,26 @@ impl Metrics {
         threshold_clock_round: u32,
     ) -> Option<StoredScoreMetricsU64> {
         // Get the blocks rounds that were not evicted.
-        let mut cached_block_rounds = recent_refs_by_authority
+        let cached_block_rounds = recent_refs_by_authority
             .iter()
             .map(|block| block.round)
             .filter(|&round| round > eviction_round && round < threshold_clock_round)
             .collect::<Vec<u32>>();
 
         // Update metrics according to the blocks from rounds still in cache.
-        let number_of_cached_blocks = cached_block_rounds.len();
-        cached_block_rounds.dedup();
-        let unique_cached_block_rounds = cached_block_rounds.len();
-        let cached_equivocations =
-            number_of_cached_blocks.saturating_sub(unique_cached_block_rounds) as u64;
-        let missing_blocks_in_cached_rounds = threshold_clock_round
-            .saturating_sub(eviction_round + unique_cached_block_rounds as u32 + 1)
-            as u64;
-
-        self.scoring_metrics.cached[validator.value()]
-            .equivocations_by_authority
-            .store(cached_equivocations, Ordering::Relaxed);
-        self.scoring_metrics.cached[validator.value()]
-            .missing_proposals_by_authority
-            .store(missing_blocks_in_cached_rounds, Ordering::Relaxed);
-        self.node_metrics
-            .equivocations_in_cache_by_authority
-            .with_label_values(&[hostname])
-            .set(cached_equivocations as i64);
-        self.node_metrics
-            .missing_proposals_in_cache_by_authority
-            .with_label_values(&[hostname])
-            .set(missing_blocks_in_cached_rounds as i64);
+        let (cached_equivocations, missing_blocks_in_cached_rounds) =
+            calculate_scoring_metrics_for_range(
+                cached_block_rounds,
+                eviction_round + 1,
+                threshold_clock_round - 1,
+            );
+        self.update_missing_blocks_and_equivocations(
+            missing_blocks_in_cached_rounds,
+            cached_equivocations,
+            hostname,
+            validator,
+            "cached",
+        );
 
         // If no eviction happened, we do not update the metrics on storage.
         if eviction_round == last_evicted_round {
@@ -176,57 +128,47 @@ impl Metrics {
         }
 
         // Get the evicted blocks rounds.
-        let mut evicted_block_rounds = recent_refs_by_authority
+        let evicted_block_rounds = recent_refs_by_authority
             .iter()
             .map(|block| block.round)
             .filter(|&round| round <= eviction_round)
             .collect::<Vec<u32>>();
 
         // Update metrics according to the blocks from evicted rounds.
-        let number_of_evicted_blocks = evicted_block_rounds.len();
-        evicted_block_rounds.dedup();
-        let unique_evicted_block_rounds = evicted_block_rounds.len();
-        let evicted_equivocations =
-            number_of_evicted_blocks.saturating_sub(unique_evicted_block_rounds) as u64;
-        let missing_blocks_in_evicted_rounds = eviction_round
-            .saturating_sub(last_evicted_round + unique_evicted_block_rounds as u32)
-            as u64;
-
-        self.scoring_metrics.stored[validator.value()]
-            .equivocations_by_authority
-            .fetch_add(evicted_equivocations, Ordering::Relaxed);
-        self.scoring_metrics.stored[validator.value()]
-            .missing_proposals_by_authority
-            .fetch_add(missing_blocks_in_evicted_rounds, Ordering::Relaxed);
-        self.node_metrics
-            .uncached_equivocations_by_authority
-            .with_label_values(&[hostname])
-            .inc_by(evicted_equivocations);
-        self.node_metrics
-            .uncached_missing_proposals_by_authority
-            .with_label_values(&[hostname])
-            .inc_by(missing_blocks_in_evicted_rounds);
+        let (evicted_equivocations, missing_blocks_in_evicted_rounds) =
+            calculate_scoring_metrics_for_range(
+                evicted_block_rounds,
+                last_evicted_round + 1,
+                eviction_round,
+            );
+        self.update_missing_blocks_and_equivocations(
+            missing_blocks_in_evicted_rounds,
+            evicted_equivocations,
+            hostname,
+            validator,
+            "uncached",
+        );
 
         // Update score
-        self.update_score(Some(validator));
+        self.update_authority_score(validator.value());
 
         Some(StoredScoreMetricsU64 {
-            faulty_blocks_provable_by_authority: self.scoring_metrics.stored[validator.value()]
+            faulty_blocks_provable_by_authority: self.scoring_metrics.uncached[validator]
                 .faulty_blocks_provable_by_authority
                 .load(Ordering::Relaxed),
-            faulty_blocks_unprovable_by_authority: self.scoring_metrics.stored[validator.value()]
+            faulty_blocks_unprovable_by_authority: self.scoring_metrics.uncached[validator]
                 .faulty_blocks_unprovable_by_authority
                 .load(Ordering::Relaxed),
-            equivocations_by_authority: self.scoring_metrics.stored[validator.value()]
+            equivocations_by_authority: self.scoring_metrics.uncached[validator]
                 .equivocations_by_authority
                 .load(Ordering::Relaxed),
-            missing_proposals_by_authority: self.scoring_metrics.stored[validator.value()]
+            missing_proposals_by_authority: self.scoring_metrics.uncached[validator]
                 .missing_proposals_by_authority
                 .load(Ordering::Relaxed),
         })
     }
 
-    pub(crate) fn load_scoring_metrics_from_storage(
+    pub(crate) fn initialize_uncached_scoring_metrics(
         &self,
         metrics: Vec<(AuthorityIndex, StoredScoreMetricsU64)>,
         hostnames: &Vec<&str>,
@@ -239,23 +181,14 @@ impl Metrics {
                 missing_proposals_by_authority,
             } = metrics;
 
-            self.scoring_metrics.stored[authority.value()]
-                .faulty_blocks_provable_by_authority
-                .store(faulty_blocks_provable_by_authority, Ordering::Relaxed);
-            self.scoring_metrics.stored[authority.value()]
-                .faulty_blocks_unprovable_by_authority
-                .store(faulty_blocks_unprovable_by_authority, Ordering::Relaxed);
-            self.scoring_metrics.stored[authority.value()]
-                .equivocations_by_authority
-                .store(equivocations_by_authority, Ordering::Relaxed);
-            self.scoring_metrics.stored[authority.value()]
-                .missing_proposals_by_authority
-                .store(missing_proposals_by_authority, Ordering::Relaxed);
+            self.update_missing_blocks_and_equivocations(
+                missing_proposals_by_authority,
+                equivocations_by_authority,
+                hostname,
+                authority,
+                "uncached",
+            );
 
-            self.node_metrics
-                .faulty_blocks_provable_by_authority
-                .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
-                .reset();
             self.node_metrics
                 .faulty_blocks_provable_by_authority
                 .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
@@ -263,102 +196,113 @@ impl Metrics {
             self.node_metrics
                 .faulty_blocks_unprovable_by_authority
                 .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
-                .reset();
-            self.node_metrics
-                .faulty_blocks_unprovable_by_authority
-                .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
                 .inc_by(faulty_blocks_unprovable_by_authority);
-            self.node_metrics
-                .uncached_equivocations_by_authority
-                .with_label_values(&[hostname])
-                .reset();
-            self.node_metrics
-                .uncached_equivocations_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(equivocations_by_authority);
-            self.node_metrics
-                .uncached_missing_proposals_by_authority
-                .with_label_values(&[hostname])
-                .reset();
-            self.node_metrics
-                .uncached_missing_proposals_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(missing_proposals_by_authority);
+            self.scoring_metrics.uncached[authority]
+                .faulty_blocks_provable_by_authority
+                .store(faulty_blocks_provable_by_authority, Ordering::Relaxed);
+            self.scoring_metrics.uncached[authority]
+                .faulty_blocks_unprovable_by_authority
+                .store(faulty_blocks_unprovable_by_authority, Ordering::Relaxed);
 
-            // Update score
-            self.update_score(None);
+            // Update all scores
+            self.update_scores();
         }
     }
 
-    pub(crate) fn calculate_scoring_metrics_from_storage(
+    pub(crate) fn initialize_cached_scoring_metrics(
         &self,
         validator: AuthorityIndex,
         hostname: &str,
-        mut block_rounds_in_cache: Vec<u32>,
+        block_rounds_in_cache: Vec<u32>,
         threshold_clock_round: u32,
         eviction_round: u32,
     ) {
         // Update metrics according to the blocks that are loaded to cache.
-        // We filter out the rounds that are not below the threshold clock round.
-        block_rounds_in_cache.retain(|&round| round < threshold_clock_round);
-        let number_of_blocks_in_cache = block_rounds_in_cache.len();
-        block_rounds_in_cache.dedup();
-        let unique_block_rounds_in_cache = block_rounds_in_cache.len();
-        // The subtraction below cannot result in a negative value by construction
-        let equivocations_in_cache =
-            number_of_blocks_in_cache.saturating_sub(unique_block_rounds_in_cache) as u64;
-
-        // eviction_round + 1 is the index of the first round that is loaded to cache.
-        // eviction_round + 1 + unique_block_rounds_in_cache is at most
-        // threshold_clock_round. Thus, the subtraction below cannot result in a
-        // negative value.
-        let missing_blocks_in_cache = threshold_clock_round
-            .saturating_sub(eviction_round + unique_block_rounds_in_cache as u32 + 1)
-            as u64;
-
-        self.scoring_metrics.cached[validator.value()]
-            .equivocations_by_authority
-            .store(equivocations_in_cache, Ordering::Relaxed);
-        self.scoring_metrics.cached[validator.value()]
-            .missing_proposals_by_authority
-            .store(missing_blocks_in_cache, Ordering::Relaxed);
-        self.node_metrics
-            .equivocations_in_cache_by_authority
-            .with_label_values(&[hostname])
-            .set(equivocations_in_cache as i64);
-        self.node_metrics
-            .missing_proposals_in_cache_by_authority
-            .with_label_values(&[hostname])
-            .set(missing_blocks_in_cache as i64);
+        let (cached_equivocations, missing_blocks_in_cached_rounds) =
+            calculate_scoring_metrics_for_range(
+                block_rounds_in_cache,
+                eviction_round + 1,
+                threshold_clock_round - 1,
+            );
+        self.update_missing_blocks_and_equivocations(
+            missing_blocks_in_cached_rounds,
+            cached_equivocations,
+            hostname,
+            validator,
+            "cached",
+        );
     }
 
-    pub(crate) fn update_score(&self, authority: Option<AuthorityIndex>) {
-        if let Some(authority) = authority {
-            self.update_authority_score(authority.value());
+    fn update_missing_blocks_and_equivocations(
+        &self,
+        missing_blocks: u64,
+        equivocations: u64,
+        hostname: &str,
+        authority: AuthorityIndex,
+        metric_type: &str,
+    ) {
+        assert!(
+            metric_type == "cached" || metric_type == "uncached",
+            "Invalid metric type: {}. Expected 'cached' or 'uncached'.",
+            metric_type
+        );
+
+        if metric_type == "cached" {
+            self.scoring_metrics.cached[authority]
+                .equivocations_by_authority
+                .store(equivocations, Ordering::Relaxed);
+            self.scoring_metrics.cached[authority]
+                .missing_proposals_by_authority
+                .store(missing_blocks, Ordering::Relaxed);
+            self.node_metrics
+                .equivocations_in_cache_by_authority
+                .with_label_values(&[hostname])
+                .set(equivocations as i64);
+            self.node_metrics
+                .missing_proposals_in_cache_by_authority
+                .with_label_values(&[hostname])
+                .set(missing_blocks as i64);
         } else {
-            for authority in 0..self.scoring_metrics.score.len() {
-                self.update_authority_score(authority);
-            }
+            self.scoring_metrics.uncached[authority]
+                .equivocations_by_authority
+                .fetch_add(equivocations, Ordering::Relaxed);
+            self.scoring_metrics.uncached[authority]
+                .missing_proposals_by_authority
+                .fetch_add(missing_blocks, Ordering::Relaxed);
+            self.node_metrics
+                .uncached_equivocations_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(equivocations);
+            self.node_metrics
+                .uncached_missing_proposals_by_authority
+                .with_label_values(&[hostname])
+                .inc_by(missing_blocks);
         }
     }
 
-    pub(crate) fn update_authority_score(&self, authority: usize) {
+    fn update_scores(&self) {
+        for authority in 0..self.scoring_metrics.score.len() {
+            self.update_authority_score(authority);
+        }
+    }
+
+    fn update_authority_score(&self, authority: usize) {
         let StoredScoreMetricsU64 {
             faulty_blocks_provable_by_authority,
             faulty_blocks_unprovable_by_authority,
             equivocations_by_authority,
             missing_proposals_by_authority,
         } = StoredScoreMetricsU64 {
-            faulty_blocks_provable_by_authority: self.scoring_metrics.stored[authority]
+            faulty_blocks_provable_by_authority: self.scoring_metrics.uncached[authority]
                 .faulty_blocks_provable_by_authority
                 .load(Ordering::Relaxed),
-            faulty_blocks_unprovable_by_authority: self.scoring_metrics.stored[authority]
+            faulty_blocks_unprovable_by_authority: self.scoring_metrics.uncached[authority]
                 .faulty_blocks_unprovable_by_authority
                 .load(Ordering::Relaxed),
-            equivocations_by_authority: self.scoring_metrics.stored[authority]
+            equivocations_by_authority: self.scoring_metrics.uncached[authority]
                 .equivocations_by_authority
                 .load(Ordering::Relaxed),
-            missing_proposals_by_authority: self.scoring_metrics.stored[authority]
+            missing_proposals_by_authority: self.scoring_metrics.uncached[authority]
                 .missing_proposals_by_authority
                 .load(Ordering::Relaxed),
         };
@@ -377,59 +321,24 @@ impl Metrics {
         error: ConsensusError,
         source: &str,
     ) {
-        // Errors from the commit syncer
-        // TODO: analyse handle_fetch_result
-        if source == "fetch_once" {
-            if ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || ERRORS_FROM_SIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || UNPROVABLE_ERRORS_FROM_COMMIT_SYNCER.contains(&error.name())
-            {
-                self.scoring_metrics.stored[index.value()]
-                    .faulty_blocks_unprovable_by_authority
-                    .fetch_add(1, Ordering::Relaxed);
-                self.node_metrics
-                    .faulty_blocks_unprovable_by_authority
-                    .with_label_values(&[hostname, source, error.name()])
-                    .inc();
-            }
-        }
-        // Errors from the subscriber
-        else if source == "handle_send_block" {
-            if ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || UNPROVABLE_ERRORS_FROM_SUBSCRIBER.contains(&error.name())
-            {
-                self.scoring_metrics.stored[index.value()]
-                    .faulty_blocks_unprovable_by_authority
-                    .fetch_add(1, Ordering::Relaxed);
-                self.node_metrics
-                    .faulty_blocks_unprovable_by_authority
-                    .with_label_values(&[hostname, source, error.name()])
-                    .inc();
-            } else if ERRORS_FROM_SIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || PROVABLE_ERRORS_FROM_SUBSCRIBER.contains(&error.name())
-            {
-                self.scoring_metrics.stored[index.value()]
-                    .faulty_blocks_provable_by_authority
-                    .fetch_add(1, Ordering::Relaxed);
-                self.node_metrics
-                    .faulty_blocks_provable_by_authority
-                    .with_label_values(&[hostname, source, error.name()])
-                    .inc();
-            }
-        }
-        // Errors from the synchronizer
-        else if source == "process_fetched_blocks"
-            && (ERRORS_FROM_UNSIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || ERRORS_FROM_SIGNED_BLOCK_VERIFICATION.contains(&error.name())
-                || error.name() == "MalformedBlock")
-        {
-            self.scoring_metrics.stored[index.value()]
+        if should_update_provable_metrics(&error, source) {
+            self.scoring_metrics.uncached[index]
+                .faulty_blocks_provable_by_authority
+                .fetch_add(1, Ordering::Relaxed);
+            self.node_metrics
+                .faulty_blocks_provable_by_authority
+                .with_label_values(&[hostname, source, error.name()])
+                .inc();
+        } else if should_update_unprovable_metrics(&error, source) {
+            self.scoring_metrics.uncached[index]
                 .faulty_blocks_unprovable_by_authority
                 .fetch_add(1, Ordering::Relaxed);
             self.node_metrics
                 .faulty_blocks_unprovable_by_authority
                 .with_label_values(&[hostname, source, error.name()])
                 .inc();
+        } else {
+            return;
         }
     }
 }
@@ -802,13 +711,13 @@ impl NodeMetrics {
             ).unwrap(),
             uncached_equivocations_by_authority: register_int_counter_vec_with_registry!(
                 "uncached_equivocations_by_authority",
-                "Registers the number of equivocations per authority persisted in storage.",
+                "Registers the number of equivocations per authority that were already evicted from cache.",
                 &["authority"],
                 registry,
             ).unwrap(),
             uncached_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
                 "uncached_missing_proposals_by_authority",
-                "Registers the number of blocks that should be on storage that an authority failed to send.",
+                "Registers the number of blocks that should be already evicted from cache but authority failed to send.",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -1181,22 +1090,22 @@ impl NodeMetrics {
 }
 
 pub(crate) struct ValidatorScoreMetrics {
-    pub(crate) stored: Vec<StoredScoreMetrics>,
+    pub(crate) uncached: Vec<UncachedScoreMetrics>,
     pub(crate) cached: Vec<CachedScoreMetrics>,
     pub(crate) score: Vec<Score>,
 }
 
 impl ValidatorScoreMetrics {
     pub(crate) fn new(committee_size: usize) -> Self {
-        let stored = (0..committee_size)
-            .map(|_| StoredScoreMetrics::new())
+        let uncached = (0..committee_size)
+            .map(|_| UncachedScoreMetrics::new())
             .collect();
         let cached = (0..committee_size)
             .map(|_| CachedScoreMetrics::new())
             .collect();
         let score = (0..committee_size).map(|_| Score::new()).collect();
         Self {
-            stored,
+            uncached,
             cached,
             score,
         }
@@ -1214,7 +1123,7 @@ impl Score {
     }
 }
 #[derive(Debug)]
-pub(crate) struct StoredScoreMetrics {
+pub(crate) struct UncachedScoreMetrics {
     // Counts the number of times that a faulty block signed by the validator was already verified
     // in the epoch.
     pub(crate) faulty_blocks_provable_by_authority: AtomicU64,
@@ -1228,7 +1137,7 @@ pub(crate) struct StoredScoreMetrics {
     pub(crate) missing_proposals_by_authority: AtomicU64,
 }
 
-impl StoredScoreMetrics {
+impl UncachedScoreMetrics {
     pub(crate) fn new() -> Self {
         Self {
             faulty_blocks_provable_by_authority: AtomicU64::new(0),
@@ -1257,7 +1166,7 @@ impl CachedScoreMetrics {
 }
 
 // This struct is used in storage. It holds the same data as
-// `StoredScoreMetrics`, but uses `u64` instead of `AtomicU64`.
+// `UncachedScoreMetrics`, but uses `u64` instead of `AtomicU64`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct StoredScoreMetricsU64 {
     pub(crate) faulty_blocks_provable_by_authority: u64,
@@ -1275,6 +1184,106 @@ pub(crate) fn initialise_metrics(registry: Registry, committee_size: usize) -> A
         network_metrics,
         scoring_metrics,
     })
+}
+
+// Given the set of blocks issued by an authority in rounds in the inclusive
+// range [start, end], this function calculates and returns the number of
+// equivocations and missing blocks in that range . The function should receive
+// the vector with the rounds of such blocks and the range start and end points.
+fn calculate_scoring_metrics_for_range(
+    mut block_rounds: Vec<u32>,
+    start: u32,
+    end: u32,
+) -> (u64, u64) {
+    // Filter out rounds that are not in the range [start, end].
+    block_rounds.retain(|&round| round >= start && round <= end);
+    let number_of_blocks = block_rounds.len();
+    block_rounds.dedup();
+    let unique_block_rounds = block_rounds.len();
+    // We use saturating_sub to avoid unexpected underflows, but the subtractions
+    // below should never result in negative values by contruction:
+    // 1) unique_block_rounds <= number_of_blocks
+    // 2) end - start + 1 >= unique_block_rounds
+    let number_of_equivocations = number_of_blocks.saturating_sub(unique_block_rounds) as u64;
+    let number_of_missing_blocks =
+        (end + 1).saturating_sub(start + unique_block_rounds as u32) as u64;
+
+    (number_of_equivocations, number_of_missing_blocks)
+}
+
+fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool {
+    if source == "handle_send_block"
+        && (is_from_signed_block_verification(error)
+            || matches!(
+                error,
+                ConsensusError::BlockRejected { .. }
+                //| ConsensusError::MalformedAncestorBlock { .. }
+                ))
+    {
+        return true;
+    }
+    false
+}
+
+fn should_update_unprovable_metrics(error: &ConsensusError, source: &str) -> bool {
+    if source == "handle_send_block" {
+        return is_from_unsigned_block_verification(error)
+            || matches!(
+                error,
+                ConsensusError::MalformedBlock { .. } | ConsensusError::UnexpectedAuthority { .. }
+            );
+    } else if source == "fetch_once" {
+        return is_from_commit_syncer(error);
+    } else if source == "process_fetched_blocks" {
+        return is_from_unsigned_block_verification(error)
+            || is_from_signed_block_verification(error)
+            || matches!(error, ConsensusError::MalformedBlock { .. });
+    }
+    false
+}
+
+fn is_from_unsigned_block_verification(err: &ConsensusError) -> bool {
+    matches!(
+        err,
+        ConsensusError::WrongEpoch { .. }
+            | ConsensusError::UnexpectedGenesisBlock
+            | ConsensusError::InvalidAuthorityIndex { .. }
+            | ConsensusError::SerializationFailure { .. }
+            | ConsensusError::MalformedSignature { .. }
+            | ConsensusError::SignatureVerificationFailure { .. }
+    )
+}
+
+fn is_from_signed_block_verification(err: &ConsensusError) -> bool {
+    matches!(
+        err,
+        ConsensusError::TooManyAncestors { .. }
+            | ConsensusError::InsufficientParentStakes { .. }
+            | ConsensusError::InvalidAuthorityIndex { .. }
+            | ConsensusError::InvalidAncestorPosition { .. }
+            | ConsensusError::InvalidAncestorRound { .. }
+            | ConsensusError::InvalidGenesisAncestor { .. }
+            | ConsensusError::DuplicatedAncestorsAuthority { .. }
+            | ConsensusError::TransactionTooLarge { .. }
+            | ConsensusError::TooManyTransactions { .. }
+            | ConsensusError::TooManyTransactionBytes { .. }
+            | ConsensusError::InvalidTransaction { .. }
+    )
+}
+
+fn is_from_commit_syncer(err: &ConsensusError) -> bool {
+    matches!(
+        err,
+        ConsensusError::MalformedCommit { .. }
+            | ConsensusError::UnexpectedStartCommit { .. }
+            | ConsensusError::UnexpectedCommitSequence { .. }
+            | ConsensusError::NoCommitReceived { .. }
+            | ConsensusError::MalformedBlock { .. }
+            | ConsensusError::NotEnoughCommitVotes { .. }
+            | ConsensusError::UnexpectedNumberOfBlocksFetched { .. }
+            | ConsensusError::UnexpectedBlockForCommit { .. }
+    ) || is_from_unsigned_block_verification(err)
+        || is_from_signed_block_verification(err)
 }
 
 #[cfg(test)]
@@ -1320,6 +1329,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
     }
+
     #[derive(Default)]
     struct FakeNetworkClient {}
 
@@ -1427,7 +1437,7 @@ mod tests {
 
     impl ValidatorScoreMetrics {
         pub(crate) fn uncached_missing_proposals_by_authority(&self) -> Vec<u64> {
-            self.stored
+            self.uncached
                 .iter()
                 .map(|metrics| {
                     metrics
@@ -1443,6 +1453,7 @@ mod tests {
                 .map(|metrics| metrics.equivocations_by_authority.load(Ordering::Relaxed))
                 .collect()
         }
+
         pub(crate) fn missing_proposals_in_cache_by_authority(&self) -> Vec<u64> {
             self.cached
                 .iter()
@@ -1453,15 +1464,16 @@ mod tests {
                 })
                 .collect()
         }
+
         pub(crate) fn uncached_equivocations_by_authority(&self) -> Vec<u64> {
-            self.stored
+            self.uncached
                 .iter()
                 .map(|metrics| metrics.equivocations_by_authority.load(Ordering::Relaxed))
                 .collect()
         }
 
         pub(crate) fn faulty_blocks_provable_by_authority(&self) -> Vec<u64> {
-            self.stored
+            self.uncached
                 .iter()
                 .map(|metrics| {
                     metrics
@@ -1470,8 +1482,9 @@ mod tests {
                 })
                 .collect()
         }
+
         pub(crate) fn faulty_blocks_unprovable_by_authority(&self) -> Vec<u64> {
-            self.stored
+            self.uncached
                 .iter()
                 .map(|metrics| {
                     metrics
@@ -1605,7 +1618,7 @@ mod tests {
         );
 
         // Clear and check all metrics
-        metrics.stored[0]
+        metrics.uncached[0]
             .missing_proposals_by_authority
             .store(0, Ordering::Relaxed);
         metrics.cached[0]
@@ -1698,7 +1711,7 @@ mod tests {
         }
 
         // Clear and check all metrics
-        metrics.stored[0]
+        metrics.uncached[0]
             .missing_proposals_by_authority
             .store(0, Ordering::Relaxed);
         metrics.cached[1]
