@@ -5394,11 +5394,7 @@ dependencies = [
  "arrow",
  "arrow-array",
  "async-trait",
- "axum 0.8.4",
  "bcs",
- "byteorder",
- "bytes",
- "chrono",
  "clap",
  "csv",
  "eyre",
@@ -5414,8 +5410,6 @@ dependencies = [
  "iota-rest-api",
  "iota-storage",
  "iota-types",
- "move-binary-format",
- "move-bytecode-utils",
  "move-core-types",
  "num_enum",
  "object_store 0.10.2",
@@ -5431,10 +5425,8 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.64",
  "tokio",
- "tokio-stream",
  "tracing",
  "typed-store",
- "url",
 ]
 
 [[package]]
@@ -12921,15 +12913,9 @@ name = "simulacrum"
 version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
- "async-trait",
- "bcs",
  "fastcrypto",
- "futures",
  "iota-config",
  "iota-execution",
- "iota-framework",
- "iota-genesis-builder",
- "iota-keys",
  "iota-protocol-config",
  "iota-storage",
  "iota-swarm-config",
@@ -12938,12 +12924,8 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "once_cell",
  "prometheus",
  "rand 0.8.5",
- "serde",
- "shared-crypto",
- "tracing",
 ]
 
 [[package]]
