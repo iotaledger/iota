@@ -1778,7 +1778,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
- "colored",
  "dirs-next",
  "hex",
  "insta",
@@ -2054,7 +2053,6 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
- "move-disassembler",
  "move-ir-types",
  "move-symbol-pool",
  "num",
@@ -2102,7 +2100,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote",
  "syn 2.0.104",
 ]

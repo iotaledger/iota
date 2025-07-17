@@ -10,7 +10,6 @@ description = "Move shared command line and file tools"
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-colored.workspace = true
 dirs-next.workspace = true
 hex.workspace = true
 insta = { workspace = true, features = ["serde"] }
