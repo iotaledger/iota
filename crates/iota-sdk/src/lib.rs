@@ -279,7 +279,6 @@ impl IotaClientBuilder {
             for (key, value) in custom_headers {
                 let header_name =
                     HeaderName::from_str(&key).map_err(|e| Error::CustomHeaders(e.to_string()))?;
-
                 let header_value = HeaderValue::from_str(&value)
                     .map_err(|e| Error::CustomHeaders(e.to_string()))?;
                 headers.insert(header_name, header_value);
