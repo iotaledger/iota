@@ -1,6 +1,12 @@
+# This query retrieves the previous transaction block for a given object address.
+# It includes:
+# - The sender's address.
+# - If the transaction is a ConsensusCommitPrologue: epoch info, round, timestamp, digest.
+# - If it's a GenesisTransaction: list of created object addresses.
+# - If it's a ProgrammableTransaction: Move call module and function names.
 {
   object(
-    address: "0xd6b9c261ab53d636760a104e4ab5f46c2a3e9cda58bd392488fc4efa6e43728c"
+    address: "0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1"
   ) {
     previousTransactionBlock {
       sender {
@@ -17,15 +23,24 @@
           commitTimestamp
           consensusCommitDigest
         }
-        ... on ChangeEpochTransaction {
-          computationCharge
-          storageCharge
-          startTimestamp
-          storageRebate
-        }
         ... on GenesisTransaction {
           objects {
-            nodes { address }
+            nodes {
+              address
+            }
+          }
+        }
+        ... on ProgrammableTransactionBlock {
+          transactions {
+            nodes {
+              __typename
+              ... on MoveCallTransaction {
+                module
+                function {
+                  name
+                }
+              }
+            }
           }
         }
       }

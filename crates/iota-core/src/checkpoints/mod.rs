@@ -1702,8 +1702,7 @@ impl CheckpointBuilder {
         let root_txs = self
             .state
             .get_transaction_cache_reader()
-            .try_multi_get_transaction_blocks(root_digests)
-            .unwrap();
+            .multi_get_transaction_blocks(root_digests);
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
@@ -1724,13 +1723,12 @@ impl CheckpointBuilder {
         let txs = self
             .state
             .get_transaction_cache_reader()
-            .try_multi_get_transaction_blocks(
+            .multi_get_transaction_blocks(
                 &sorted
                     .iter()
                     .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
-            )
-            .unwrap();
+            );
 
         if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there

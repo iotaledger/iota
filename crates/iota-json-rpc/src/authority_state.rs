@@ -256,7 +256,7 @@ impl StateRead for AuthorityState {
     }
 
     async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
-        Ok(self.get_object(object_id).await?)
+        Ok(self.try_get_object(object_id).await?)
     }
 
     fn get_past_object_read(

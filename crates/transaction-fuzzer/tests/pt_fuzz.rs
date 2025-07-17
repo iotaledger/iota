@@ -55,7 +55,6 @@ fn publish_coin_factory(
                 .rt
                 .block_on(exec.state.get_object(&obj_ref.0))
                 .unwrap()
-                .unwrap()
                 .data
                 .struct_tag()
             {
@@ -112,7 +111,6 @@ pub fn run_pt_success(
             if let Some(stag) = exec
                 .rt
                 .block_on(exec.state.get_object(&obj_ref.0))
-                .unwrap()
                 .unwrap()
                 .data
                 .struct_tag()

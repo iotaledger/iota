@@ -113,8 +113,7 @@ impl TestRunner {
     pub fn get_object_latest_version(&mut self, obj_id: ObjectID) -> SequenceNumber {
         self.authority_state
             .get_object_cache_reader()
-            .try_get_latest_object_ref_or_tombstone(obj_id)
-            .unwrap()
+            .get_latest_object_ref_or_tombstone(obj_id)
             .unwrap()
             .1
     }
@@ -560,8 +559,7 @@ impl TestRunner {
     ) -> Option<TransactionDigest> {
         self.authority_state
             .get_object_cache_reader()
-            .try_get_deleted_shared_object_previous_tx_digest(object_id, *version, epoch)
-            .unwrap()
+            .get_deleted_shared_object_previous_tx_digest(object_id, *version, epoch)
     }
 }
 

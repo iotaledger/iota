@@ -59,9 +59,8 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     handle
         .state()
         .get_transaction_cache_reader()
-        .try_notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .notify_read_executed_effects(&[digest])
+        .await;
 
     // Transaction Orchestrator proactivcely executes txn locally
     let txn = txns.swap_remove(0);
