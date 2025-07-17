@@ -345,7 +345,7 @@ where
         let qd = self.clone_quorum_driver();
         Ok(async move {
             let digests = [tx_digest];
-            let effects_await = cache_reader.notify_read_executed_effects(&digests);
+            let effects_await = cache_reader.try_notify_read_executed_effects(&digests);
             // let-and-return necessary to satisfy borrow checker.
             let res = match select(ticket, effects_await.boxed()).await {
                 Either::Left((quorum_driver_response, _)) => Ok(quorum_driver_response),
@@ -381,7 +381,7 @@ where
         //    one extra time)
         // 3. at the end of day, the tx will be executed at most once per lock guard.
         let tx_digest = transaction.digest();
-        if validator_state.is_tx_already_executed(tx_digest)? {
+        if validator_state.try_is_tx_already_executed(tx_digest)? {
             return Ok(());
         }
         metrics.local_execution_in_flight.inc();

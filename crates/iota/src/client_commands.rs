@@ -691,7 +691,7 @@ impl OptsWithGas {
         }
     }
 
-    // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
+    // `--display` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
     /// Output the options as a vec of strings that can be provided as args to
     /// the PTB CLI.
     pub fn into_args(self) -> Vec<String> {
@@ -713,6 +713,9 @@ impl OptsWithGas {
         }
         if self.rest.serialize_unsigned_transaction {
             args.push("--serialize-unsigned-transaction".to_string());
+        }
+        if let Some(sender) = self.rest.sender {
+            args.push(format!("--sender @{sender}"));
         }
         args
     }

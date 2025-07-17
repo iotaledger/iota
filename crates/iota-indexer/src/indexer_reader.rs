@@ -2039,7 +2039,7 @@ impl IndexerReader {
 }
 
 impl iota_types::storage::ObjectStore for IndexerReader {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
@@ -2047,7 +2047,7 @@ impl iota_types::storage::ObjectStore for IndexerReader {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: iota_types::base_types::VersionNumber,
