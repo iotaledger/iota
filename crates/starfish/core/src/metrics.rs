@@ -126,9 +126,11 @@ pub(crate) struct NodeMetrics {
     pub(crate) fetch_blocks_scheduler_inflight: IntGauge,
     pub(crate) fetch_blocks_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_blocks_by_peer: IntCounterVec,
+    pub(crate) synchronizer_requested_blocks_by_peer: IntCounterVec,
     pub(crate) synchronizer_missing_blocks_by_authority: IntCounterVec,
     pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
+    pub(crate) synchronizer_requested_blocks_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) invalid_headers_in_bundles: IntCounterVec,
     pub(crate) valid_headers_in_bundles: IntCounterVec,
@@ -351,6 +353,12 @@ impl NodeMetrics {
                 &["peer", "type"],
                 registry,
             ).unwrap(),
+            synchronizer_requested_blocks_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_requested_blocks_by_peer",
+                "Number of requested blocks per peer authority via the synchronizer and also by block authority",
+                &["peer", "type"],
+                registry,
+            ).unwrap(),
             synchronizer_missing_blocks_by_authority: register_int_counter_vec_with_registry!(
                 "synchronizer_missing_blocks_by_authority",
                 "Number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
@@ -366,6 +374,12 @@ impl NodeMetrics {
             synchronizer_fetched_blocks_by_authority: register_int_counter_vec_with_registry!(
                 "synchronizer_fetched_blocks_by_authority",
                 "Number of fetched blocks per block author via the synchronizer",
+                &["authority", "type"],
+                registry,
+            ).unwrap(),
+            synchronizer_requested_blocks_by_authority: register_int_counter_vec_with_registry!(
+                "synchronizer_requested_blocks_by_authority",
+                "Number of requested blocks per block author via the synchronizer",
                 &["authority", "type"],
                 registry,
             ).unwrap(),
