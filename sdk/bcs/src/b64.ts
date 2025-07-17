@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export function fromB64(base64String: string): Uint8Array {
+export function fromBase64(base64String: string): Uint8Array {
     return Uint8Array.from(atob(base64String), (char) => char.charCodeAt(0));
 }
 
 const CHUNK_SIZE = 8192;
-export function toB64(bytes: Uint8Array): string {
+export function toBase64(bytes: Uint8Array): string {
     // Special-case the simple case for speed's sake.
     if (bytes.length < CHUNK_SIZE) {
         return btoa(String.fromCharCode(...bytes));
@@ -21,3 +21,9 @@ export function toB64(bytes: Uint8Array): string {
 
     return btoa(output);
 }
+
+/** @deprecated use toBase64 instead */
+export const toB64 = toBase64;
+
+/** @deprecated use fromBase64 instead */
+export const fromB64 = fromBase64;

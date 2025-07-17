@@ -25,6 +25,7 @@ tracing.workspace = true
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-names.workspace = true
 iota-network-stack.workspace = true
 iota-node.workspace = true
 iota-protocol-config.workspace = true

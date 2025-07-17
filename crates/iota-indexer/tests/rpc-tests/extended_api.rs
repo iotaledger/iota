@@ -60,7 +60,7 @@ fn get_epochs() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epochs(None, None, None).await.unwrap();
@@ -97,7 +97,7 @@ fn get_epochs_descending() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epochs(None, None, Some(true)).await.unwrap();
@@ -124,7 +124,7 @@ fn get_epochs_paging() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epochs(None, Some(2), None).await.unwrap();
@@ -166,7 +166,7 @@ fn get_epoch_metrics() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epoch_metrics = client.get_epoch_metrics(None, None, None).await.unwrap();
@@ -203,7 +203,7 @@ fn get_epoch_metrics_descending() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client
@@ -233,7 +233,7 @@ fn get_epoch_metrics_paging() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epoch_metrics(None, Some(2), None).await.unwrap();
@@ -275,7 +275,7 @@ fn get_current_epoch() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let last_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let current_epoch = client.get_current_epoch().await.unwrap();
@@ -403,7 +403,7 @@ fn get_total_transactions() {
     } = get_or_init_shared_extended_api_simulacrum_env();
 
     runtime.block_on(async move {
-        let latest_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let latest_checkpoint = sim.try_get_latest_checkpoint().unwrap();
         let total_transactions_count = latest_checkpoint.network_total_transactions;
         indexer_wait_for_checkpoint(store, latest_checkpoint.sequence_number).await;
 

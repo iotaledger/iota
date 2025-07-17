@@ -319,7 +319,7 @@ where
 {
     let id = derive_dynamic_field_id(parent_id, &K::get_type_tag(), &bcs::to_bytes(key).unwrap())
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?;
-    let object = object_store.get_object(&id)?.ok_or_else(|| {
+    let object = object_store.try_get_object(&id)?.ok_or_else(|| {
         IotaError::DynamicFieldRead(format!(
             "Dynamic field with key={key:?} and ID={id:?} not found on parent {parent_id:?}"
         ))
