@@ -18,7 +18,8 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
+    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis,
+    p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
@@ -683,8 +684,7 @@ async fn start(
             ..
         } = PersistedConfig::read(&network_config_path).map_err(|err| {
             err.context(format!(
-                "Cannot open IOTA network config file at {:?}",
-                network_config_path
+                "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
         let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
@@ -698,6 +698,27 @@ async fn start(
         swarm_builder = swarm_builder
             .dir(config_path.clone())
             .with_network_config(network_config);
+
+        let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
+        if fullnode_config_path.exists() {
+            info!(
+                "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
+            );
+
+            let NodeConfig {
+                iota_names_config, ..
+            } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
+                err.context(format!(
+                    "Cannot open fullnode config file at {fullnode_config_path:?}"
+                ))
+            })?;
+
+            if let Some(iota_names_config) = iota_names_config {
+                swarm_builder = swarm_builder
+                    .dir(config_path.clone())
+                    .with_iota_names_config(iota_names_config);
+            }
+        }
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -731,7 +752,7 @@ async fn start(
     info!("Cluster started");
 
     // the indexer requires a fullnode url with protocol specified
-    let fullnode_url = format!("http://{}", fullnode_url);
+    let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
@@ -907,7 +928,7 @@ async fn genesis(
     // up (if --force/-f option was specified or report an
     // error
     let dir = iota_config_dir.read_dir().map_err(|err| {
-        anyhow!(err).context(format!("Cannot open IOTA config dir {:?}", iota_config_dir))
+        anyhow!(err).context(format!("Cannot open IOTA config dir {iota_config_dir:?}"))
     })?;
     let files = dir.collect::<Result<Vec<_>, _>>()?;
 
@@ -1168,13 +1189,11 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{:?}] with default (Testnet) Full node server and ed25519 key scheme.",
-                wallet_conf_path
+                "Creating config file [{wallet_conf_path:?}] with default (Testnet) Full node server and ed25519 key scheme."
             );
         } else {
             print!(
-                "Config file [{:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?",
-                wallet_conf_path
+                "Config file [{wallet_conf_path:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?"
             );
         }
         if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {

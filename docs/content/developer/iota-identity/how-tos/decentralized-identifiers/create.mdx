@@ -1,0 +1,152 @@
+---
+title: Creating a Decentralized Identity
+sidebar_label: Create and Publish
+description: Create DID Documents and publish them to an IOTA network.
+image: /img/identity/icon.png
+teams:
+  - iotaledger/identity
+tags:
+    - how-to
+    - identity
+    - did
+---
+
+
+If you want to benefit from Self-Sovereign Identity,
+you need to create a [Decentralized Identity](../../explanations/decentralized-identifiers.mdx).
+This identity consists of many parts that have different functions.
+
+:::note DID method Specification
+
+Note that the IOTA Identity Framework follows [IOTA DID Method Specification](../../references/iota-did-method-spec.mdx).
+
+:::
+
+## Identity Generation Process
+
+### 1. Get Funds to cover the gas costs
+
+The first thing you will need to generate an identity is an address with enough funds to cover
+the gas cost of the whole procedure.
+In test networks as well as local ones, you can use a faucet to request funds.
+
+:::tip
+
+If you want to use the main IOTA network,
+you will need an an address with actual IOTA funds to create a new Identity.
+
+:::
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/utils/utils.rs#L103-L111
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/util.ts#L66-L78
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create the content for the DID Document
+
+As a bare minimum, a [DID document](../../explanations/decentralized-identifiers.mdx) needs at least one verification method.
+
+At this point, the DID itself is unknown since the `Identity` object is not published yet and thus there's no `ID` for it.
+
+:::tip
+
+You can use a placeholder `did:iota:0x0000000000000000000000000000000000000000000000000000000000000000` to reference
+the DID inside the document.
+
+:::
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/utils/utils.rs#L48-L57
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/util.ts#L33-L41
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Construct an `Identity` Object
+
+Next, you need to construct a new [Identity Object](../../explanations/about-identity-objects.mdx) that contains the just created
+DID Document.
+The created `Identity` contains an encoded version of the DID Document, and has a single controller that is represented by a newly
+created `ControllerCap`.
+
+:::info Identity Creation Arguments
+When creating a new Identity, if no arguments are provided - other than the mandatory DID Document - the following defaults will be used:
+- the transaction's sender address will become the Identity's single controller, with voting power `1`;
+- Identity's AC threshold set to `1`;
+:::
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust 
+let identity = identity_client
+  .create_identity(unpublished)
+  .finish()
+  .build_and_execute(&identity_client)
+  .await?
+  .output;
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts#L24-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/0_basic/0_create_did.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your
+setup.

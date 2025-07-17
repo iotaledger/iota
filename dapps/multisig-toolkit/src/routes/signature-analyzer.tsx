@@ -4,7 +4,7 @@
 
 import { parseSerializedSignature, PublicKey, SignatureScheme } from '@iota/iota-sdk/cryptography';
 import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -48,7 +48,7 @@ function Signature({ signature, index }: { signature: SignaturePubkeyPair; index
         { label: 'Signature Public Key', value: pubkey },
         { label: 'IOTA Format Public Key ( flag | pk )', value: pubkey_base64_iota_format },
         { label: 'IOTA Address', value: iotaAddress },
-        { label: 'Signature', value: toB64(signature.signature) },
+        { label: 'Signature', value: toBase64(signature.signature) },
     ];
 
     return (
@@ -85,6 +85,31 @@ export default function SignatureAnalyzer() {
             <h2 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
                 Signature Analyzer
             </h2>
+
+            <div className="flex gap-2 items-center">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                        setSignature(
+                            'AIkRvZLLqcD60oUtZNIUpTe7a/tCTGa5jYlnCEO4XBtczGIGSLLlsD3G0V3q75pqZtTjf3pawEqqUJ1L1rKf4A+CjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==',
+                        )
+                    }
+                >
+                    Example single signature
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                        setSignature(
+                            'AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA=',
+                        )
+                    }
+                >
+                    Example 2 combined signatures
+                </Button>
+            </div>
 
             {error && (
                 <Alert variant="destructive">

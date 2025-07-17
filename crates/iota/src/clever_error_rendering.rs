@@ -192,7 +192,7 @@ mod tests {
         let parsed: Vec<_> = corpus.into_iter().map(|c| {
             let (address, module_name, function_name, instruction, abort_code, command_index) =
                 parse_abort_status_string(c).unwrap();
-            format!("original abort message: {}\n address: {}\n module_name: {}\n function_name: {}\n instruction: {}\n abort_code: {}\n command_index: {}", c, address, module_name, function_name, instruction, abort_code, command_index)
+            format!("original abort message: {c}\n address: {address}\n module_name: {module_name}\n function_name: {function_name}\n instruction: {instruction}\n abort_code: {abort_code}\n command_index: {command_index}")
         }).collect();
         insta::assert_snapshot!(parsed.join("\n------\n"));
     }

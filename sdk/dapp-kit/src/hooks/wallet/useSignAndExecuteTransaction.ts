@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Transaction } from '@iota/iota-sdk/transactions';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import type {
     IotaSignAndExecuteTransactionInput,
     IotaSignAndExecuteTransactionOutput,
@@ -29,6 +29,7 @@ type UseSignAndExecuteTransactionArgs = PartialBy<
     'account' | 'chain'
 > & {
     transaction: Transaction | string;
+    waitForTransaction?: boolean;
 };
 
 type UseSignAndExecuteTransactionResult = IotaSignAndExecuteTransactionOutput;
@@ -101,7 +102,7 @@ export function useSignAndExecuteTransaction<
             return {
                 digest,
                 rawEffects,
-                effects: toB64(new Uint8Array(rawEffects!)),
+                effects: toBase64(new Uint8Array(rawEffects!)),
                 bytes,
                 signature,
             };
@@ -151,12 +152,18 @@ export function useSignAndExecuteTransaction<
             if ('effects' in result && result.effects?.bcs) {
                 effects = result.effects.bcs;
             } else if ('rawEffects' in result) {
-                effects = toB64(new Uint8Array(result.rawEffects!));
+                effects = toBase64(new Uint8Array(result.rawEffects!));
             } else {
                 throw new Error('Could not parse effects from transaction result.');
             }
 
             reportTransactionEffects({ effects, account: signerAccount, chain });
+
+            if (signTransactionArgs.waitForTransaction && 'digest' in result) {
+                await client.waitForTransaction({
+                    digest: result.digest,
+                });
+            }
 
             return result as Result;
         },

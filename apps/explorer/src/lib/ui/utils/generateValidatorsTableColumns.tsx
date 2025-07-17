@@ -36,7 +36,7 @@ function ValidatorWithImage({
     highlightValidatorName?: boolean;
 }) {
     return validator.isPending ? (
-        <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+        <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
             <div className="h-8 w-8 shrink-0">
                 <ImageIcon
                     src={validator.imageUrl}
@@ -48,7 +48,7 @@ function ValidatorWithImage({
             </div>
             <span
                 className={clsx('text-label-lg', {
-                    'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
+                    'text-iota-neutral-10 dark:text-iota-neutral-92': highlightValidatorName,
                 })}
             >
                 {validator.name}
@@ -65,7 +65,7 @@ function ValidatorWithImage({
                 })
             }
             label={
-                <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+                <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
                     <div className="h-8 w-8 shrink-0">
                         <ImageIcon
                             src={validator.imageUrl}
@@ -77,7 +77,8 @@ function ValidatorWithImage({
                     </div>
                     <span
                         className={clsx('text-label-lg', {
-                            'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
+                            'text-iota-neutral-10 dark:text-iota-neutral-92':
+                                highlightValidatorName,
                         })}
                     >
                         {validator.name}
@@ -127,7 +128,7 @@ export function generateValidatorsTableColumns({
                                 <span
                                     className={
                                         highlightValidatorName
-                                            ? 'text-neutral-10 dark:text-neutral-92'
+                                            ? 'text-iota-neutral-10 dark:text-iota-neutral-92'
                                             : undefined
                                     }
                                 >

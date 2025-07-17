@@ -274,7 +274,6 @@ pub async fn do_cert_with_shared_objects(
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[*cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap()
 }
@@ -365,7 +364,7 @@ async fn test_execution_with_dependencies() {
         assert_eq!(initial_shared_version.value(), 3);
         initial_shared_version
     } else {
-        panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
+        panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
 
     // ---- Execute transactions with dependencies on first 3 nodes in the
@@ -454,8 +453,7 @@ async fn test_execution_with_dependencies() {
     authorities[3]
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .await;
 }
 
 fn make_socket_addr() -> std::net::SocketAddr {
@@ -519,7 +517,6 @@ async fn test_per_object_overload() {
             .get_transaction_cache_reader()
             .notify_read_executed_effects(&[*create_counter_cert.digest()])
             .await
-            .unwrap()
             .pop()
             .unwrap();
     }
@@ -534,7 +531,6 @@ async fn test_per_object_overload() {
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap();
     let (shared_counter_ref, owner) = create_counter_effects.created()[0];
@@ -542,7 +538,7 @@ async fn test_per_object_overload() {
         initial_shared_version: shared_counter_initial_version,
     } = owner
     else {
-        panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
+        panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
 
     // Stop execution on the last authority, to simulate having a backlog.
@@ -649,7 +645,6 @@ async fn test_txn_age_overload() {
             .get_transaction_cache_reader()
             .notify_read_executed_effects(&[*create_counter_cert.digest()])
             .await
-            .unwrap()
             .pop()
             .unwrap();
     }
@@ -664,7 +659,6 @@ async fn test_txn_age_overload() {
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap();
     let (shared_counter_ref, owner) = create_counter_effects.created()[0];
@@ -672,7 +666,7 @@ async fn test_txn_age_overload() {
         initial_shared_version: shared_counter_initial_version,
     } = owner
     else {
-        panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
+        panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
 
     // Stop execution on the last authority, to simulate having a backlog.

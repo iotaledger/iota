@@ -69,8 +69,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     // A small delay is needed for post processing operations following the
     // transaction to finish.
@@ -116,8 +115,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     Ok(())
 }
@@ -168,13 +166,15 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
                 .config()
                 .keystore()
                 .get_key(&sender)
-                .unwrap(),
+                .unwrap()
+                .as_keypair()?,
             test_cluster
                 .wallet
                 .config()
                 .keystore()
                 .get_key(&sponsor)
-                .unwrap(),
+                .unwrap()
+                .as_keypair()?,
         ],
     );
 
@@ -485,8 +485,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     let info = fullnode
         .state()
@@ -506,6 +505,7 @@ async fn test_full_node_sync_flood() {
 }
 
 #[sim_test(check_determinism)]
+#[ignore = "https://github.com/iotaledger/iota/issues/7469"]
 async fn test_full_node_sync_flood_determinism() {
     do_test_full_node_sync_flood().await
 }
@@ -606,8 +606,7 @@ async fn do_test_full_node_sync_flood() {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .await;
 }
 
 // Test fullnode has event read jsonrpc endpoints working
@@ -720,8 +719,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     // Test WaitForLocalExecution
@@ -734,7 +732,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
             None,
         )
         .await
-        .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
 
     let (
         tx,
@@ -757,7 +755,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     );
     // verify that the node has sequenced and executed the txn
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store.clone()).await
-        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {:?} that was executed with WaitForLocalExecution: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForLocalExecution: {e:?}"));
 
     // Test WaitForEffectsCert
     let txn = txns.swap_remove(0);
@@ -769,7 +767,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
             None,
         )
         .await
-        .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
 
     let (
         tx,
@@ -794,10 +792,9 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
-        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {:?} that was executed with WaitForEffectsCert: {:?}", digest, e));
+        .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
 
     Ok(())
 }
@@ -871,8 +868,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -1094,8 +1090,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     node.state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     loop {
         // Ensure this full node is able to transition to the next epoch
@@ -1114,8 +1109,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     node.state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest_after_restore])
-        .await
-        .unwrap();
+        .await;
     Ok(())
 }
 
@@ -1170,7 +1164,12 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     .unwrap();
     let tx = to_sender_signed_transaction(
         tx_data,
-        context.config().keystore().get_key(&sender).unwrap(),
+        context
+            .config()
+            .keystore()
+            .get_key(&sender)
+            .unwrap()
+            .as_keypair()?,
     );
 
     let digest = *tx.digest();
@@ -1181,8 +1180,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
             None,
         )
         .await
-        .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
-    println!("res: {:?}", _res);
+        .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
+    println!("res: {_res:?}");
 
     let (
         _tx,
@@ -1240,7 +1239,6 @@ async fn test_access_old_object_pruned() {
                     state
                         .database_for_testing()
                         .get_object_by_key(&gas_object.0, gas_object.1)
-                        .unwrap()
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();

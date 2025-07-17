@@ -16,6 +16,7 @@ use iota_network_stack::config::Config;
 use iota_types::{
     base_types::AuthorityName,
     committee::CommitteeWithNetworkMetadata,
+    crypto::NetworkPublicKey,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
@@ -87,17 +88,32 @@ pub struct NetworkAuthorityClient {
 }
 
 impl NetworkAuthorityClient {
-    /// Connects to a client address.
-    pub async fn connect(address: &Multiaddr) -> anyhow::Result<Self> {
-        let channel = iota_network_stack::client::connect(address)
+    pub async fn connect(
+        address: &Multiaddr,
+        tls_target: Option<NetworkPublicKey>,
+    ) -> anyhow::Result<Self> {
+        let tls_config = tls_target.map(|tls_target| {
+            iota_tls::create_rustls_client_config(
+                tls_target,
+                iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+                None,
+            )
+        });
+        let channel = iota_network_stack::client::connect(address, tls_config)
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         Ok(Self::new(channel))
     }
 
-    /// Connects to a client address lazily.
-    pub fn connect_lazy(address: &Multiaddr) -> Self {
-        let client: IotaResult<_> = iota_network_stack::client::connect_lazy(address)
+    pub fn connect_lazy(address: &Multiaddr, tls_target: Option<NetworkPublicKey>) -> Self {
+        let tls_config = tls_target.map(|tls_target| {
+            iota_tls::create_rustls_client_config(
+                tls_target,
+                iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+                None,
+            )
+        });
+        let client: IotaResult<_> = iota_network_stack::client::connect_lazy(address, tls_config)
             .map(ValidatorClient::new)
             .map_err(|err| err.to_string().into());
         Self { client }
@@ -232,7 +248,18 @@ pub fn make_network_authority_clients_with_network_config(
     for (name, (_state, network_metadata)) in committee.validators() {
         let address = network_metadata.network_address.clone();
         let address = address.rewrite_udp_to_tcp();
-        let maybe_channel = network_config.connect_lazy(&address).map_err(|e| {
+        // TODO: Enable TLS on this interface with below config, once support is rolled
+        // out to validators. let tls_config =
+        // network_metadata.network_public_key.as_ref().map(|key| {
+        //     iota_tls::create_rustls_client_config(
+        //         key.clone(),
+        //         iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+        //         None,
+        //     )
+        // });
+        // TODO: Change below code to generate a IotaError if no valid TLS config is
+        // available.
+        let maybe_channel = network_config.connect_lazy(&address, None).map_err(|e| {
             tracing::error!(
                 address = %address,
                 name = %name,

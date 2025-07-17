@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB58, toB58 } from './b58.js';
-import { fromB64, toB64 } from './b64.js';
-import { fromHEX, toHEX } from './hex.js';
+import { fromBase58, toBase58 } from './b58.js';
+import { fromBase64, toBase64 } from './b64.js';
+import { fromHex, toHex } from './hex.js';
 import { BcsReader } from './reader.js';
 import { ulebEncode } from './uleb.js';
 import type { BcsWriterOptions } from './writer.js';
@@ -69,35 +69,36 @@ export class BcsType<T, Input = T> {
     }
 
     fromHex(hex: string) {
-        return this.parse(fromHEX(hex));
+        return this.parse(fromHex(hex));
     }
 
     fromBase58(b64: string) {
-        return this.parse(fromB58(b64));
+        return this.parse(fromBase58(b64));
     }
 
     fromBase64(b64: string) {
-        return this.parse(fromB64(b64));
+        return this.parse(fromBase64(b64));
     }
 
-    transform<T2, Input2>({
+    transform<T2 = T, Input2 = Input>({
         name,
         input,
         output,
         validate,
     }: {
-        input: (val: Input2) => Input;
-        output: (value: T) => T2;
+        input?: (val: Input2) => Input;
+        output?: (value: T) => T2;
     } & BcsTypeOptions<T2, Input2>) {
         return new BcsType<T2, Input2>({
             name: name ?? this.name,
-            read: (reader) => output(this.read(reader)),
-            write: (value, writer) => this.#write(input(value), writer),
-            serializedSize: (value) => this.serializedSize(input(value)),
-            serialize: (value, options) => this.#serialize(input(value), options),
+            read: (reader) => (output ? output(this.read(reader)) : (this.read(reader) as never)),
+            write: (value, writer) => this.#write(input ? input(value) : (value as never), writer),
+            serializedSize: (value) => this.serializedSize(input ? input(value) : (value as never)),
+            serialize: (value, options) =>
+                this.#serialize(input ? input(value) : (value as never), options),
             validate: (value) => {
                 validate?.(value);
-                this.validate(input(value));
+                this.validate(input ? input(value) : (value as never));
             },
         });
     }
@@ -128,15 +129,15 @@ export class SerializedBcs<T, Input = T> {
     }
 
     toHex() {
-        return toHEX(this.#bytes);
+        return toHex(this.#bytes);
     }
 
     toBase64() {
-        return toB64(this.#bytes);
+        return toBase64(this.#bytes);
     }
 
     toBase58() {
-        return toB58(this.#bytes);
+        return toBase58(this.#bytes);
     }
 
     parse() {

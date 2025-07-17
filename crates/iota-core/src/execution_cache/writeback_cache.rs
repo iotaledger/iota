@@ -653,7 +653,7 @@ impl WritebackCache {
                         "object_by_id cache is incoherent for {:?}",
                         object_id
                     );
-                    panic!("object_by_id cache is incoherent for {:?}", object_id);
+                    panic!("object_by_id cache is incoherent for {object_id:?}");
                 }
             }
         }
@@ -758,7 +758,7 @@ impl WritebackCache {
             CacheResult::Hit((_, object)) => Ok(Some(object)),
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => {
-                let obj = self.store.get_object(id)?;
+                let obj = self.store.try_get_object(id)?;
                 if let Some(obj) = &obj {
                     self.cache_latest_object_by_id(
                         id,
@@ -1141,7 +1141,7 @@ impl WritebackCache {
         // pending_consensus_transactions until after the transaction has executed.
         let Some((_, outputs)) = self.dirty.pending_transaction_writes.remove(tx) else {
             assert!(
-                !self.is_tx_already_executed(tx).expect("read cannot fail"),
+                !self.try_is_tx_already_executed(tx)?,
                 "attempt to revert committed transaction"
             );
 
@@ -1196,7 +1196,7 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
-    fn commit_transaction_outputs<'a>(
+    fn try_commit_transaction_outputs<'a>(
         &'a self,
         epoch: EpochId,
         digests: &'a [TransactionDigest],
@@ -1204,7 +1204,7 @@ impl ExecutionCacheCommit for WritebackCache {
         WritebackCache::commit_transaction_outputs(self, epoch, digests).boxed()
     }
 
-    fn persist_transactions<'a>(
+    fn try_persist_transactions<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {
@@ -1213,17 +1213,16 @@ impl ExecutionCacheCommit for WritebackCache {
 }
 
 impl ObjectCacheRead for WritebackCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.metrics
             .record_cache_request("package", "package_cache");
         if let Some(p) = self.packages.get(package_id) {
             if cfg!(debug_assertions) {
-                if let Some(store_package) = self.store.get_object(package_id).unwrap() {
+                if let Some(store_package) = self.store.try_get_object(package_id).unwrap() {
                     assert_eq!(
                         store_package.digest(),
                         p.object().digest(),
-                        "Package object cache is inconsistent for package {:?}",
-                        package_id
+                        "Package object cache is inconsistent for package {package_id:?}"
                     );
                 }
             }
@@ -1265,11 +1264,11 @@ impl ObjectCacheRead for WritebackCache {
 
     // get_object and variants.
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
         self.get_object_impl("object_latest", id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -1279,11 +1278,11 @@ impl ObjectCacheRead for WritebackCache {
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => Ok(self
                 .record_db_get("object_by_version")
-                .get_object_by_key(object_id, version)?),
+                .try_get_object_by_key(object_id, version)?),
         }
     }
 
-    fn multi_get_objects_by_key(
+    fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
@@ -1303,7 +1302,7 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
-    fn object_exists_by_key(
+    fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -1317,7 +1316,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
+    fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         do_fallback_lookup(
             object_keys,
             |key| {
@@ -1334,7 +1333,7 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
-    fn get_latest_object_ref_or_tombstone(
+    fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
@@ -1351,7 +1350,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn get_latest_object_or_tombstone(
+    fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
@@ -1386,7 +1385,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id, version_bound))]
-    fn find_object_lt_or_eq_version(
+    fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version_bound: SequenceNumber,
@@ -1535,11 +1534,11 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+    fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
     }
 
-    fn get_marker_value(
+    fn try_get_marker_value(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -1554,7 +1553,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn get_latest_marker(
+    fn try_get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
@@ -1570,7 +1569,11 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
+    fn try_get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaLockResult {
         match self.get_object_by_id_cache_only("lock", &obj_ref.0) {
             CacheResult::Hit((_, obj)) => {
                 let actual_objref = obj.compute_object_reference();
@@ -1605,7 +1608,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         let obj = self.get_object_impl("live_objref", &object_id)?.ok_or(
             UserInputError::ObjectNotFound {
                 object_id,
@@ -1615,7 +1618,7 @@ impl ObjectCacheRead for WritebackCache {
         Ok(obj.compute_object_reference())
     }
 
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         do_fallback_lookup(
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
@@ -1646,13 +1649,13 @@ impl ObjectCacheRead for WritebackCache {
         Ok(())
     }
 
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
         self.store.perpetual_tables.get_highest_pruned_checkpoint()
     }
 }
 
 impl TransactionCacheRead for WritebackCache {
-    fn multi_get_transaction_blocks(
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
@@ -1689,7 +1692,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn multi_get_executed_effects_digests(
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
@@ -1725,7 +1728,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn multi_get_effects(
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
@@ -1761,18 +1764,18 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
-                self.multi_get_executed_effects_digests(digests)
+                self.try_multi_get_executed_effects_digests(digests)
             })
             .boxed()
     }
 
-    fn multi_get_events(
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
@@ -1827,7 +1830,7 @@ impl TransactionCacheRead for WritebackCache {
 }
 
 impl ExecutionCacheWrite for WritebackCache {
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
@@ -1838,7 +1841,7 @@ impl ExecutionCacheWrite for WritebackCache {
             .boxed()
     }
 
-    fn write_transaction_outputs(
+    fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,

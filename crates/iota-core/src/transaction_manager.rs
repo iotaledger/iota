@@ -420,9 +420,9 @@ impl TransactionManager {
                 // skip already executed txes
                 if self
                     .transaction_cache_read
-                    .is_tx_already_executed(&digest)
+                    .try_is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
-                        fatal!("Failed to check if tx is already executed: {:?}", err)
+                        fatal!("Failed to check if tx {digest:?} is already executed: {err:?}")
                     })
                 {
                     self.metrics
@@ -460,7 +460,6 @@ impl TransactionManager {
                             if self
                                 .transaction_cache_read
                                 .is_tx_already_executed(cert.digest())
-                                .expect("is_tx_already_executed cannot fail")
                             {
                                 return None;
                             }
@@ -526,7 +525,6 @@ impl TransactionManager {
                 receiving_objects,
                 epoch_store.epoch(),
             )
-            .unwrap_or_else(|err| panic!("Checking object existence cannot fail: {:?}", err))
             .into_iter()
             .zip(input_object_cache_misses);
 
@@ -617,10 +615,8 @@ impl TransactionManager {
                 continue;
             }
             // skip already executed txes
-            let is_tx_already_executed = self
-                .transaction_cache_read
-                .is_tx_already_executed(&digest)
-                .expect("Check if tx is already executed should not fail");
+            let is_tx_already_executed =
+                self.transaction_cache_read.is_tx_already_executed(&digest);
             if is_tx_already_executed {
                 self.metrics
                     .transaction_manager_num_enqueued_certificates
@@ -641,9 +637,7 @@ impl TransactionManager {
 
                     assert!(
                         inner.missing_inputs.entry(key).or_default().insert(digest),
-                        "Duplicated certificate {:?} for missing object {:?}",
-                        digest,
-                        key
+                        "Duplicated certificate {digest:?} for missing object {key:?}"
                     );
                     let input_txns = inner.input_objects.entry(key.id()).or_default();
                     input_txns.insert(digest, pending_cert_enqueue_time);
@@ -667,8 +661,7 @@ impl TransactionManager {
                     .pending_certificates
                     .insert(digest, pending_cert)
                     .is_none(),
-                "Duplicated pending certificate {:?}",
-                digest
+                "Duplicated pending certificate {digest:?}"
             );
 
             self.metrics

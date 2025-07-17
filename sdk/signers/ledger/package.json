@@ -1,0 +1,6 @@
+{
+    "private": true,
+    "import": "../dist/esm/ledger/index.js",
+    "main": "../dist/cjs/ledger/index.js",
+    "sideEffects": false
+}

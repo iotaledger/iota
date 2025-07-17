@@ -242,7 +242,7 @@ impl IndexedEpochInfo {
     /// X. `network_total_tx_num_at_last_epoch_end` is needed to determine
     /// the number of transactions that occurred in the epoch X-1.
     pub fn from_end_of_epoch_data(
-        system_state_summary: &IotaSystemStateSummary,
+        _system_state_summary: &IotaSystemStateSummary,
         last_checkpoint_summary: &CertifiedCheckpointSummary,
         event: &SystemEpochInfoEvent,
         network_total_tx_num_at_last_epoch_end: u64,
@@ -264,7 +264,8 @@ impl IndexedEpochInfo {
                 .end_of_epoch_data
                 .as_ref()
                 .map(|e| e.epoch_commitments.clone()),
-            system_state: bcs::to_bytes(system_state_summary).unwrap(),
+            // At epoch end the system state is the state of the next epoch, so we ignore it.
+            system_state: Default::default(),
             // The following felds will not and shall not be upserted
             // into DB. We have them below to make compiler and diesel happy
             first_checkpoint_id: 0,
@@ -787,10 +788,11 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
         IotaTransactionBlockResponse {
             digest: response.digest,
             transaction: options.show_input.then_some(response.transaction).flatten(),
-            raw_transaction: options
-                .show_raw_input
-                .then_some(response.raw_transaction)
-                .unwrap_or_default(),
+            raw_transaction: if options.show_raw_input {
+                response.raw_transaction
+            } else {
+                Default::default()
+            },
             effects: options.show_effects.then_some(response.effects).flatten(),
             events: options.show_events.then_some(response.events).flatten(),
             object_changes: options
@@ -805,10 +807,11 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
             confirmed_local_execution: response.confirmed_local_execution,
             checkpoint: response.checkpoint,
             errors: vec![],
-            raw_effects: options
-                .show_raw_effects
-                .then_some(response.raw_effects)
-                .unwrap_or_default(),
+            raw_effects: if options.show_raw_effects {
+                response.raw_effects
+            } else {
+                Default::default()
+            },
         }
     }
 }

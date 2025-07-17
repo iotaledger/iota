@@ -21,6 +21,7 @@ use iota_config::{
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -277,6 +278,7 @@ pub struct FullnodeConfigBuilder {
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
+    iota_names_config: Option<IotaNamesConfig>,
 }
 
 impl FullnodeConfigBuilder {
@@ -397,6 +399,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
+        self.iota_names_config = config;
+        self
+    }
+
     pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
@@ -459,7 +466,7 @@ impl FullnodeConfigBuilder {
             let rpc_port = self
                 .rpc_port
                 .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
-            format!("{}:{}", ip, rpc_port).parse().unwrap()
+            format!("{ip}:{rpc_port}").parse().unwrap()
         });
 
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -541,7 +548,7 @@ impl FullnodeConfigBuilder {
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
-            iota_names_config: None,
+            iota_names_config: self.iota_names_config,
         }
     }
 

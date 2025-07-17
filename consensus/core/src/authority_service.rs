@@ -205,8 +205,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Err(ConsensusError::BlockRejected {
                 block_ref,
                 reason: format!(
-                    "Last commit index is lagging quorum commit index too much ({} < {})",
-                    last_commit_index, quorum_commit_index,
+                    "Last commit index is lagging quorum commit index too much ({last_commit_index} < {quorum_commit_index})",
                 ),
             });
         }
@@ -570,7 +569,22 @@ impl SubscriptionCounter {
     fn increment(&self, peer: AuthorityIndex) -> Result<(), ConsensusError> {
         let mut counter = self.counter.lock();
         counter.count += 1;
+        let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
         counter.subscriptions_by_authority[peer] += 1;
+        let mut total_stake = 0;
+        for (authority_index, _) in self.context.committee.authorities() {
+            if counter.subscriptions_by_authority[authority_index] >= 1
+                || self.context.own_index == authority_index
+            {
+                total_stake += self.context.committee.stake(authority_index);
+            }
+        }
+        // Stake of subscriptions before a new peer was subscribed
+        let previous_stake = if original_subscription_by_peer == 0 {
+            total_stake - self.context.committee.stake(peer)
+        } else {
+            total_stake
+        };
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         self.context
@@ -579,19 +593,39 @@ impl SubscriptionCounter {
             .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(1);
-
-        if counter.count == 1 {
+        // If the subscription count reaches quorum, notify the dispatcher and get ready
+        // to propose blocks.
+        if !self.context.committee.reached_quorum(previous_stake)
+            && self.context.committee.reached_quorum(total_stake)
+        {
             self.dispatcher
-                .set_subscriber_exists(true)
+                .set_quorum_subscribers_exists(true)
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
+        // Drop the counter after sending the command to the dispatcher
+        drop(counter);
         Ok(())
     }
 
     fn decrement(&self, peer: AuthorityIndex) -> Result<(), ConsensusError> {
         let mut counter = self.counter.lock();
         counter.count -= 1;
+        let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
         counter.subscriptions_by_authority[peer] -= 1;
+        let mut total_stake = 0;
+        for (authority_index, _) in self.context.committee.authorities() {
+            if counter.subscriptions_by_authority[authority_index] >= 1
+                || self.context.own_index == authority_index
+            {
+                total_stake += self.context.committee.stake(authority_index);
+            }
+        }
+        // Stake of subscriptions before a peer was dropped
+        let previous_stake = if original_subscription_by_peer == 1 {
+            total_stake + self.context.committee.stake(peer)
+        } else {
+            total_stake
+        };
 
         if counter.subscriptions_by_authority[peer] == 0 {
             let peer_hostname = &self.context.committee.authority(peer).hostname;
@@ -603,11 +637,17 @@ impl SubscriptionCounter {
                 .set(0);
         }
 
-        if counter.count == 0 {
+        // If the subscription count drops below quorum, notify the dispatcher to stop
+        // proposing blocks.
+        if self.context.committee.reached_quorum(previous_stake)
+            && !self.context.committee.reached_quorum(total_stake)
+        {
             self.dispatcher
-                .set_subscriber_exists(false)
+                .set_quorum_subscribers_exists(false)
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
+        // Drop the counter after sending the command to the dispatcher
+        drop(counter);
         Ok(())
     }
 }
@@ -708,7 +748,11 @@ async fn make_recv_future<T: Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use async_trait::async_trait;
     use bytes::Bytes;
@@ -778,11 +822,13 @@ mod tests {
             Ok(())
         }
 
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(Default::default())
         }
 
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
 

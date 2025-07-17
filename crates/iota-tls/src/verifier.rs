@@ -130,8 +130,7 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
 
         if !self.allower.allowed(&public_key) {
             return Err(rustls::Error::General(format!(
-                "invalid certificate: {:?} is not in the validator set",
-                public_key,
+                "invalid certificate: {public_key:?} is not in the validator set",
             )));
         }
 
@@ -182,20 +181,30 @@ impl ServerCertVerifier {
         Self { public_key, name }
     }
 
-    pub fn rustls_client_config(
+    pub fn rustls_client_config_with_client_auth(
         self,
         certificates: Vec<CertificateDer<'static>>,
         private_key: PrivateKeyDer<'static>,
     ) -> Result<rustls::ClientConfig, rustls::Error> {
-        let mut config = rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::ClientConfig::builder_with_provider(Arc::new(
             rustls::crypto::ring::default_provider(),
         ))
         .with_safe_default_protocol_versions()?
         .dangerous()
         .with_custom_certificate_verifier(std::sync::Arc::new(self))
-        .with_client_auth_cert(certificates, private_key)?;
-        config.alpn_protocols = vec![b"h2".to_vec()];
-        Ok(config)
+        .with_client_auth_cert(certificates, private_key)
+    }
+
+    pub fn rustls_client_config_with_no_client_auth(
+        self,
+    ) -> Result<rustls::ClientConfig, rustls::Error> {
+        Ok(rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()?
+        .dangerous()
+        .with_custom_certificate_verifier(std::sync::Arc::new(self))
+        .with_no_client_auth())
     }
 }
 
@@ -211,8 +220,7 @@ impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
         let public_key = public_key_from_certificate(end_entity)?;
         if public_key != self.public_key {
             return Err(rustls::Error::General(format!(
-                "invalid certificate: {:?} is not the expected server public key",
-                public_key,
+                "invalid certificate: {public_key:?} is not the expected server public key",
             )));
         }
 

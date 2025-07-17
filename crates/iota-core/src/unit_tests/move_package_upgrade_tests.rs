@@ -81,14 +81,14 @@ fn build_upgrade_test_modules_with_overlay(
 
     match overlay {
         FileOverlay::Remove(file_name) => {
-            let file_path = tmp_dir_path.join(format!("sources/{}", file_name));
+            let file_path = tmp_dir_path.join(format!("sources/{file_name}"));
             std::fs::remove_file(file_path).unwrap();
         }
         FileOverlay::Add {
             file_name,
             contents,
         } => {
-            let new_file_path = tmp_dir_path.join(format!("sources/{}", file_name));
+            let new_file_path = tmp_dir_path.join(format!("sources/{file_name}"));
             std::fs::write(new_file_path, contents).unwrap();
         }
     }
@@ -313,7 +313,7 @@ async fn test_upgrade_package_happy_path() {
 
     match effects.into_status().unwrap_err().0 {
         ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
-        err => panic!("Unexpected error: {:#?}", err),
+        err => panic!("Unexpected error: {err:#?}"),
     };
 
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
@@ -325,7 +325,6 @@ async fn test_upgrade_package_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&runner.package.0)
-        .unwrap()
         .unwrap();
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let binary_config = to_binary_config(&config);
@@ -412,7 +411,6 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .authority_state
         .get_object_store()
         .get_object_by_key(&created.0, created.1)
-        .unwrap()
         .unwrap();
 
     assert_eq!(
@@ -1000,7 +998,6 @@ async fn test_publish_override_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&new_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1054,7 +1051,6 @@ async fn test_publish_transitive_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&root_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1083,7 +1079,7 @@ async fn test_publish_transitive_happy_path() {
 
     match call_effects.into_status().unwrap_err().0 {
         ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
-        err => panic!("Unexpected error: {:#?}", err),
+        err => panic!("Unexpected error: {err:#?}"),
     };
 }
 
@@ -1146,7 +1142,6 @@ async fn test_publish_transitive_override_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&root_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1406,7 +1401,7 @@ async fn test_conflicting_versions_across_calls() {
     // verify that execution aborts
     match call_error.0 {
         ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
-        err => panic!("Unexpected error: {:#?}", err),
+        err => panic!("Unexpected error: {err:#?}"),
     };
 
     // verify that execution aborts in the second (counting from 0) command

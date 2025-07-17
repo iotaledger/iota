@@ -55,14 +55,14 @@ body {
     background-size: cover;
     position: relative;
     overflow-x: hidden;
-    @apply bg-primary-90;
+    @apply bg-iota-primary-90;
 }
 
 #root {
     display: flex;
     align-items: center;
     justify-content: center;
-    @apply rounded-xl bg-neutral-100 dark:bg-neutral-6;
+    @apply rounded-xl bg-iota-neutral-100 dark:bg-iota-neutral-6;
 }
 
 * {
