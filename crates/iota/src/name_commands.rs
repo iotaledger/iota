@@ -65,7 +65,7 @@ pub enum NameCommand {
     #[command(subcommand)]
     Auction(AuctionCommand),
     /// Check the availability of a name and return its price if available.
-    /// Subnames are always free to register by the parent name owner
+    /// Subnames are always free to register by the parent name owner.
     Availability { name: Name },
     /// Burn an expired IOTA-Names NFT
     Burn {
@@ -1474,7 +1474,7 @@ impl std::fmt::Display for NameCommandResult {
             Self::List(nfts) => {
                 let mut table_builder = TableBuilder::default();
 
-                table_builder.set_header(["id", "name or node subname", "expiration"]);
+                table_builder.set_header(["id", "name", "expiration"]);
 
                 for nft in nfts {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
