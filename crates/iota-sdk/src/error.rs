@@ -33,5 +33,5 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error("Invalid Header key-value pair: {0}")]
-    CustomHeadersError(String),
+    CustomHeaders(String),
 }
