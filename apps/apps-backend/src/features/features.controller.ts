@@ -216,7 +216,7 @@ export class FeaturesController {
                 },
                 [Feature.KnownIotaEVMCoinTypes]: {
                     defaultValue: [
-                        '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD',
+                        '0xd3b63e603a78786facf65ff22e79701f3e824881a12fa3268d62a75530fe904f::vusd::VUSD',
                     ],
                 },
             },
