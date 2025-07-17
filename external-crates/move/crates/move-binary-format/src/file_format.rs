@@ -563,6 +563,7 @@ pub struct FunctionDefinition {
     pub visibility: Visibility,
     /// Marker if the function is intended as an entry function. That is
     pub is_entry: bool,
+    pub is_view: bool,
     /// List of locally defined types (declared in this module) with the `Key`
     /// ability that the procedure might access, either through:
     /// BorrowGlobal, MoveFrom, or transitively through another procedure
@@ -2924,6 +2925,7 @@ pub fn basic_test_module() -> CompiledModule {
         function: FunctionHandleIndex(0),
         visibility: Visibility::Private,
         is_entry: false,
+        is_view: false,
         acquires_global_resources: vec![],
         code: Some(CodeUnit {
             locals: SignatureIndex(0),

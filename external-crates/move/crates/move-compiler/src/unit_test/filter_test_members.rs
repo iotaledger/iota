@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use move_ir_types::location::{sp, Loc};
+use move_ir_types::location::{Loc, sp};
 use move_symbol_pool::Symbol;
 
 use crate::{
@@ -14,9 +14,9 @@ use crate::{
     diagnostics::DiagnosticReporter,
     parser::{
         ast::{self as P, DocComment, NamePath, PathEntry},
-        filter::{filter_program, FilterContext},
+        filter::{FilterContext, filter_program},
     },
-    shared::{known_attributes, CompilationEnv},
+    shared::{CompilationEnv, known_attributes},
 };
 
 struct Context<'env> {
@@ -250,7 +250,8 @@ fn test_attributes(attrs: &P::Attributes) -> Vec<(Loc, known_attributes::Testing
                 | KnownAttribute::External(_)
                 | KnownAttribute::Syntax(_)
                 | KnownAttribute::Error(_)
-                | KnownAttribute::Deprecation(_) => None,
+                | KnownAttribute::Deprecation(_)
+                | KnownAttribute::View(_) => None,
             },
         )
         .collect()

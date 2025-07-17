@@ -30,6 +30,7 @@ pub enum KnownAttribute {
     Syntax(SyntaxAttribute),
     Error(ErrorAttribute),
     Deprecation(DeprecationAttribute),
+    View(ViewAttribute),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -79,6 +80,8 @@ pub struct ErrorAttribute;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DeprecationAttribute;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ViewAttribute;
 
 impl AttributePosition {
     const ALL: &'static [Self] = &[
@@ -109,6 +112,7 @@ impl KnownAttribute {
             SyntaxAttribute::SYNTAX => SyntaxAttribute::Syntax.into(),
             ErrorAttribute::ERROR => ErrorAttribute.into(),
             DeprecationAttribute::DEPRECATED => DeprecationAttribute.into(),
+            ViewAttribute::VIEW => ViewAttribute.into(),
             _ => return None,
         })
     }
@@ -124,6 +128,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.name(),
             Self::Error(a) => a.name(),
             Self::Deprecation(a) => a.name(),
+            Self::View(a) => a.name(),
         }
     }
 
@@ -138,6 +143,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.expected_positions(),
             Self::Error(a) => a.expected_positions(),
             Self::Deprecation(a) => a.expected_positions(),
+            Self::View(a) => a.expected_positions(),
         }
     }
 }
@@ -356,6 +362,20 @@ impl DeprecationAttribute {
     }
 }
 
+impl ViewAttribute {
+    pub const VIEW: &'static str = "view";
+
+    pub const fn name(&self) -> &str {
+        Self::VIEW
+    }
+
+    pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
+        static VIEW_POSITIONS: Lazy<BTreeSet<AttributePosition>> =
+            Lazy::new(|| BTreeSet::from([AttributePosition::Function]));
+        &VIEW_POSITIONS
+    }
+}
+
 //**************************************************************************************************
 // Display
 //**************************************************************************************************
@@ -388,6 +408,7 @@ impl fmt::Display for KnownAttribute {
             Self::Syntax(a) => a.fmt(f),
             Self::Error(a) => a.fmt(f),
             Self::Deprecation(a) => a.fmt(f),
+            Self::View(a) => a.fmt(f),
         }
     }
 }
@@ -446,6 +467,11 @@ impl fmt::Display for DeprecationAttribute {
     }
 }
 
+impl fmt::Display for ViewAttribute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
 //**************************************************************************************************
 // From
 //**************************************************************************************************
@@ -493,5 +519,10 @@ impl From<ErrorAttribute> for KnownAttribute {
 impl From<DeprecationAttribute> for KnownAttribute {
     fn from(a: DeprecationAttribute) -> Self {
         Self::Deprecation(a)
+    }
+}
+impl From<ViewAttribute> for KnownAttribute {
+    fn from(a: ViewAttribute) -> Self {
+        Self::View(a)
     }
 }

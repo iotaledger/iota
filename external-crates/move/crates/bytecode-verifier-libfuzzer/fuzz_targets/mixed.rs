@@ -8,11 +8,11 @@ use std::str::FromStr;
 use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;
 use move_binary_format::file_format::{
-    empty_module, AbilitySet, Bytecode, CodeUnit, Constant, DatatypeHandle, DatatypeHandleIndex,
-    FieldDefinition, FunctionDefinition, FunctionHandle, FunctionHandleIndex, IdentifierIndex,
-    ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
+    AbilitySet, Bytecode, CodeUnit, Constant, DatatypeHandle, DatatypeHandleIndex, FieldDefinition,
+    FunctionDefinition, FunctionHandle, FunctionHandleIndex, IdentifierIndex, ModuleHandleIndex,
+    Signature, SignatureIndex, SignatureToken,
     SignatureToken::{Address, Bool},
-    StructDefinition, StructFieldInformation, TypeSignature, Visibility,
+    StructDefinition, StructFieldInformation, TypeSignature, Visibility, empty_module,
 };
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 
@@ -90,6 +90,7 @@ fuzz_target!(|mix: Mixed| {
         function: FunctionHandleIndex(0),
         visibility: Visibility::Public,
         is_entry: false,
+        is_view: false,
         acquires_global_resources: vec![],
     };
 

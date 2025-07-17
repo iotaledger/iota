@@ -1662,6 +1662,7 @@ fn parse_function_decl(
         make_loc(tokens.file_hash(), start_loc, end_loc),
         visibility,
         is_entry,
+        false, // don't know at this stage
         args,
         ret.unwrap_or_default(),
         type_parameters,

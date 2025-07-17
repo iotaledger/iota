@@ -6,13 +6,13 @@
 use std::{
     clone::Clone,
     collections::{
-        hash_map::Entry::{Occupied, Vacant},
         BTreeSet, HashMap, HashSet,
+        hash_map::Entry::{Occupied, Vacant},
     },
     fmt::Write,
 };
 
-use anyhow::{bail, format_err, Result};
+use anyhow::{Result, bail, format_err};
 use move_binary_format::{
     file_format::{
         Ability, AbilitySet, Bytecode, CodeOffset, CodeUnit, CompiledModule, Constant,
@@ -957,6 +957,7 @@ fn compile_function(
     let ast_function = ast_function.value;
 
     let is_entry = ast_function.is_entry;
+    let is_view = ast_function.is_view;
     let visibility = match ast_function.visibility {
         FunctionVisibility::Public => Visibility::Public,
         FunctionVisibility::Friend => Visibility::Friend,
@@ -968,6 +969,7 @@ fn compile_function(
         function: fh_idx,
         visibility,
         is_entry,
+        is_view,
         acquires_global_resources: vec![],
         code,
     })
