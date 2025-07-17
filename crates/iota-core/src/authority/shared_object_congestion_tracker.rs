@@ -6,12 +6,14 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
-    base_types::{CommitRound, ObjectID, TransactionDigest},
+    base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
     transaction::{SharedInputObject, TransactionDataAPI},
 };
 
-use super::transaction_deferral::DeferralKey;
+use super::{
+    authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
+};
 
 /// Represents execution slot boundaries
 pub(crate) type ExecutionTime = u64;
@@ -374,7 +376,7 @@ impl SharedObjectCongestionTracker {
         &self,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
-        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
         let tx_duration = self.get_estimated_execution_duration(cert);
@@ -428,19 +430,22 @@ impl SharedObjectCongestionTracker {
         };
         assert!(!congested_objects.is_empty());
 
-        let deferral_key =
-            if let Some(previous_key) = previously_deferred_tx_digests.get(cert.digest()) {
-                // This transaction has been deferred in previous consensus commit. Use its
-                // previous deferred_from_round.
-                DeferralKey::new_for_consensus_round(
-                    commit_round + 1,
-                    previous_key.deferred_from_round(),
-                )
-            } else {
-                // This transaction has not been deferred before. Use the current commit round
-                // as the deferred_from_round.
-                DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
-            };
+        let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
+            previously_deferred_tx_digests.get(cert.digest())
+        {
+            // This transaction has been deferred in previous consensus commit. Use its
+            // previous deferred_from_round.
+            DeferralKey::new_for_consensus_round(
+                commit_round + 1,
+                previous_key_suggested_gas_price_pair
+                    .0
+                    .deferred_from_round(),
+            )
+        } else {
+            // This transaction has not been deferred before. Use the current commit round
+            // as the deferred_from_round.
+            DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
+        };
         SequencingResult::Defer(deferral_key, congested_objects)
     }
 
@@ -476,12 +481,6 @@ impl SharedObjectCongestionTracker {
             .map(|slots| slots.max_object_occupied_slot_end_time())
             .max()
             .unwrap_or(0)
-    }
-
-    // NOTE: this function will be rewritten anyway in the new sequencer
-    // (see PR #6490), so we simple return the certificate's gas price here.
-    pub fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
-        Some(cert.transaction_data().gas_price())
     }
 }
 
@@ -672,7 +671,7 @@ pub mod shared_object_test_utils {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
-        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
         shared_object_congestion_tracker.initialize_object_execution_slots(
@@ -735,6 +734,7 @@ pub mod shared_object_test_utils {
 
 #[cfg(test)]
 mod object_cost_tests {
+    use iota_types::digests::TransactionDigest;
     use rstest::rstest;
 
     use super::{shared_object_test_utils::*, *};
@@ -1068,13 +1068,16 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
 
         // Insert a random pre-existing transaction.
-        let mut previously_deferred_tx_digests = HashMap::new();
+        let mut previously_deferred_tx_digests = PreviouslyDeferredTransactions::new();
         previously_deferred_tx_digests.insert(
             TransactionDigest::random(),
-            DeferralKey::ConsensusRound {
-                future_round: 10,
-                deferred_from_round: 5,
-            },
+            (
+                DeferralKey::ConsensusRound {
+                    future_round: 10,
+                    deferred_from_round: 5,
+                },
+                Some(1_000),
+            ),
         );
 
         // Test deferral key for a transaction that has not been deferred before.
@@ -1100,9 +1103,12 @@ mod object_cost_tests {
         // Insert `tx`` as previously deferred transaction due to randomness.
         previously_deferred_tx_digests.insert(
             *tx.digest(),
-            DeferralKey::Randomness {
-                deferred_from_round: 4,
-            },
+            (
+                DeferralKey::Randomness {
+                    deferred_from_round: 4,
+                },
+                None,
+            ),
         );
 
         // New deferral key should have deferred_from_round equal to the deferred
@@ -1129,10 +1135,13 @@ mod object_cost_tests {
         // Insert `tx`` as previously deferred consensus transaction.
         previously_deferred_tx_digests.insert(
             *tx.digest(),
-            DeferralKey::ConsensusRound {
-                future_round: 10,
-                deferred_from_round: 5,
-            },
+            (
+                DeferralKey::ConsensusRound {
+                    future_round: 10,
+                    deferred_from_round: 5,
+                },
+                Some(1_000),
+            ),
         );
 
         // New deferral key should have deferred_from_round equal to the one in the old

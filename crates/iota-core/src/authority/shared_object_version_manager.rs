@@ -180,7 +180,11 @@ impl SharedObjVerManager {
                         {
                             if enable_gas_price_feedback {
                                 SequenceNumber::new_congested_with_suggested_gas_price(
-                                    *suggested_gas_price,
+                                    suggested_gas_price.expect(
+                                        "Suggested gas price for transactions cancelled due \
+                                            to congestion must not be None if the gas price \
+                                            feedback is enabled.",
+                                    ),
                                 )
                             } else {
                                 // WARN: do not remove this `else` branch even after
@@ -544,14 +548,14 @@ mod tests {
                 *certs[1].digest(),
                 CancelConsensusCertificateReason::CongestionOnObjects {
                     congested_objects: vec![id1],
-                    suggested_gas_price,
+                    suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
                 *certs[3].digest(),
                 CancelConsensusCertificateReason::CongestionOnObjects {
                     congested_objects: vec![id2],
-                    suggested_gas_price,
+                    suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
