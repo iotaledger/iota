@@ -7,22 +7,27 @@ use std::{collections::VecDeque, pin::Pin, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use bytes::Bytes;
 use dashmap::DashSet;
-use futures::{ready, stream, task, Stream, StreamExt};
+use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::{
-    sync::{broadcast, Mutex},
+    sync::{Mutex, broadcast},
     time::sleep,
 };
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
 use crate::{
+    CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderDigest, BlockRef, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
-        VerifiedTransactions, GENESIS_ROUND,
-    }, block_verifier::BlockVerifier, commit::{CommitAPI as _, CommitRange, TrustedCommit}, commit_vote_monitor::CommitVoteMonitor, context::Context,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
+        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
+    },
+    block_verifier::BlockVerifier,
+    commit::{CommitAPI as _, CommitRange, TrustedCommit},
+    commit_vote_monitor::CommitVoteMonitor,
+    context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
     error::{ConsensusError, ConsensusResult},
@@ -35,11 +40,6 @@ use crate::{
     storage::Store,
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
-    BlockHeaderAPI,
-    CommitIndex,
-    Round,
-    Transaction,
-    VerifiedBlockHeader,
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -1310,17 +1310,20 @@ mod tests {
     use tokio::{sync::broadcast, time::sleep};
 
     use crate::{
-        authority_service::AuthorityService, block_header::{
-            BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedTransactions,
-        }, block_manager::BlockManager,
+        CommitConsumer, Round, TransactionClient,
+        authority_service::AuthorityService,
+        block_header::{
+            BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock, VerifiedBlockHeader,
+            VerifiedTransactions,
+        },
+        block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::{Core, CoreSignals},
-        core_thread::{tests::MockCoreThreadDispatcher, CoreError, CoreThreadDispatcher},
+        core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::DagState,
         error::ConsensusResult,
         leader_schedule::LeaderSchedule,
@@ -1333,9 +1336,6 @@ mod tests {
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
-        CommitConsumer,
-        Round,
-        TransactionClient,
     };
 
     #[derive(Default)]
@@ -1565,40 +1565,64 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let mut guard = self.core.lock();
             let _ = guard.add_blocks(blocks);
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let mut guard = self.core.lock();
             let _ = guard.add_block_headers(block_headers);
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
-        async fn add_data(
+        async fn add_transactions(
             &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            _transactions: Vec<VerifiedTransactions>,
+        ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             unimplemented!("Unimplemented")
         }
 
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
+        async fn new_block(
+            &self,
+            _round: Round,
+            _force: bool,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -1676,11 +1700,20 @@ mod tests {
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
         let synchronizer = Synchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             false,
@@ -1690,6 +1723,7 @@ mod tests {
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
@@ -1807,12 +1841,20 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
 
         let synchronizer = Synchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             false,
@@ -1822,6 +1864,7 @@ mod tests {
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
