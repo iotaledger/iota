@@ -32,8 +32,7 @@ export function deriveAddressFromMnemonic(mnemonic: string) {
 }
 
 async function checkBalanceWithRetries(
-    address: string,
-    fetchBalance: (address: string) => Promise<string | null>,
+    fetchBalance: () => Promise<string | null>,
     layer: 'L1' | 'L2',
     maxRetries = 10,
     delay = 2500,
@@ -42,11 +41,11 @@ async function checkBalanceWithRetries(
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            balance = await fetchBalance(address);
+            balance = await fetchBalance();
         } catch (error) {
             console.error('Error checking balance:', error);
         } finally {
-            if (balance?.startsWith('0') && attempt < maxRetries) {
+            if ((!balance || balance?.startsWith('0')) && attempt < maxRetries) {
                 console.log(
                     `Fetching ${layer} balance attempt ${attempt + 1} out of ${maxRetries} in ${delay} ms`,
                 );
@@ -78,14 +77,14 @@ export async function getEVMBalanceForAddress(address: string): Promise<string> 
 }
 
 export async function checkL1IotaBalanceWithRetries(address: string) {
-    return await checkBalanceWithRetries(address, getL1BalanceForAddress, 'L1');
+    return await checkBalanceWithRetries(() => getL1BalanceForAddress(address), 'L1');
 }
 
 export async function checkL2IotaBalanceWithRetries(address: string) {
-    return await checkBalanceWithRetries(address, getEVMBalanceForAddress, 'L2');
+    return await checkBalanceWithRetries(() => getEVMBalanceForAddress(address), 'L2');
 }
 
-export async function checkL1CoinBalanceForAddress(
+export async function getL1CoinBalanceForAddress(
     address: string,
     coinType: string,
 ): Promise<string> {
@@ -103,7 +102,7 @@ export async function checkL1CoinBalanceForAddress(
     return coinBalance.totalBalance;
 }
 
-export async function checkL2CoinBalanceForAddress(
+export async function getL2CoinBalanceForAddress(
     address: string,
     coinType: string,
 ): Promise<string> {
@@ -115,6 +114,14 @@ export async function checkL2CoinBalanceForAddress(
     }
     const nativeToken = balance?.nativeTokens?.find((token) => token.coinType === coinType);
     return nativeToken ? nativeToken.balance : '0';
+}
+
+export async function checkL1CoinBalanceForAddressWithRetries(address: string, coinType: string) {
+    return await checkBalanceWithRetries(() => getL1CoinBalanceForAddress(address, coinType), 'L1');
+}
+
+export async function checkL2CoinBalanceForAddressWithRetries(address: string, coinType: string) {
+    return await checkBalanceWithRetries(() => getL2CoinBalanceForAddress(address, coinType), 'L2');
 }
 
 export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: string } {
@@ -150,7 +157,8 @@ export async function fundL2AddressWithIscClient(
         coinData?.decimals ?? IOTA_DECIMALS,
     ) as bigint;
 
-    const keypair = Ed25519Keypair.deriveKeypair(MNEMONIC);
+    const keypair =
+        coinType === IOTA_TYPE_ARG ? new Ed25519Keypair() : Ed25519Keypair.deriveKeypair(MNEMONIC);
     const address = keypair.toIotaAddress();
     let coins: CoinStruct[] = [];
 

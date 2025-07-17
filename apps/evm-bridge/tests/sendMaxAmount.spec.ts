@@ -5,9 +5,9 @@ import { test, expect } from './utils/fixtures';
 import {
     addL1FundsThroughBridgeUI,
     addNetworkToMetaMask,
-    checkL1CoinBalanceForAddress,
+    checkL1CoinBalanceForAddressWithRetries,
     checkL1IotaBalanceWithRetries,
-    checkL2CoinBalanceForAddress,
+    checkL2CoinBalanceForAddressWithRetries,
     checkL2IotaBalanceWithRetries,
     closeBrowserTabsExceptLast,
     fundL1AddressWithNativeTokens,
@@ -146,10 +146,8 @@ test.describe.serial('Send MAX amount from L1', () => {
         await approveTransactionPage.waitForLoadState();
         await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
 
-        await testPageL1.waitForTimeout(2500);
-
         const addressL2 = await testPageL1.getByTestId('receive-address').inputValue();
-        const balance = await checkL2CoinBalanceForAddress(addressL2, TOOL_COIN_TYPE);
+        const balance = await checkL2CoinBalanceForAddressWithRetries(addressL2, TOOL_COIN_TYPE);
 
         expect(balance).toEqual(nativeTokenAmount.toString());
     });
@@ -261,9 +259,10 @@ test.describe.serial('Send MAX amount from L2', () => {
         await fundL2AddressWithIscClient(addressL2, 9);
         await fundL2AddressWithIscClient(addressL2, nativeTokenAmount, TOOL_COIN_TYPE);
 
-        await testPageL2.waitForTimeout(2500);
-
-        const nativeTokenBalance = await checkL2CoinBalanceForAddress(addressL2, TOOL_COIN_TYPE);
+        const nativeTokenBalance = await checkL2CoinBalanceForAddressWithRetries(
+            addressL2,
+            TOOL_COIN_TYPE,
+        );
         expect(nativeTokenBalance).toEqual(nativeTokenAmount.toString());
 
         await testPageL2.waitForTimeout(500);
@@ -295,10 +294,8 @@ test.describe.serial('Send MAX amount from L2', () => {
 
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
 
-        await testPageL2.waitForTimeout(2500);
-
         const addressL1 = await testPageL2.getByTestId('receive-address').inputValue();
-        const l1Balance = await checkL1CoinBalanceForAddress(addressL1, TOOL_COIN_TYPE);
+        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(addressL1, TOOL_COIN_TYPE);
 
         expect(l1Balance).toEqual(nativeTokenAmount.toString());
     });
