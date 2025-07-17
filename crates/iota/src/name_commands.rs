@@ -65,7 +65,7 @@ pub enum NameCommand {
     #[command(subcommand)]
     Auction(AuctionCommand),
     /// Check the availability of a name and return its price if available.
-    /// Subnames are always free to register by the parent name owner.
+    /// Subnames are always free to register by the parent name owner
     Availability { name: Name },
     /// Burn an expired IOTA-Names NFT
     Burn {
@@ -85,7 +85,8 @@ pub enum NameCommand {
         /// records will be returned.
         key: Option<String>,
     },
-    /// List the names owned by the given address, or the active address
+    /// List the names and node subnames owned by the given address, or the
+    /// active address. Leaf subnames are not tracked by the CLI
     List { address: Option<KeyIdentity> },
     /// Lookup the address of a name
     Lookup { name: Name },
@@ -1023,8 +1024,8 @@ impl AuctionCommand {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub enum SubnameCommand {
-    /// Register a new leaf subname, which can only be managed by the parent's
-    /// NFT
+    /// Register a new leaf subname, which is managed by its parent, i.e. a name
+    /// or a node subname NFT. Leaf subnames are not tracked by the CLI
     RegisterLeaf {
         /// The subname. Ex. my-subname.my-name.iota
         name: Name,
@@ -1473,7 +1474,7 @@ impl std::fmt::Display for NameCommandResult {
             Self::List(nfts) => {
                 let mut table_builder = TableBuilder::default();
 
-                table_builder.set_header(["id", "name", "expiration"]);
+                table_builder.set_header(["id", "name or node subname", "expiration"]);
 
                 for nft in nfts {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
@@ -1523,7 +1524,11 @@ impl std::fmt::Display for NameCommandResult {
             } => {
                 writeln!(f, "Registered record:")?;
                 format_name_record(f, record)?;
-                write!(f, "\nTransaction digest: {transaction}")
+                writeln!(f, "\nTransaction digest: {transaction}")?;
+                write!(
+                    f,
+                    "IMPORTANT NOTE: leaf subnames are not tracked by the CLI!"
+                )
             }
             Self::RegisterNodeSubname {
                 record,
