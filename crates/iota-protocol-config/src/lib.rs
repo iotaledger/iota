@@ -58,7 +58,13 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 // Version 10: Enable min_free_execution_slot for the shared object congestion
 //             tracker in all networks.
 //             Increase the committee size to 80 on all networks.
-
+//             Enable round prober in consensus for mainnet.
+//             Enable probing for accepted rounds in round prober for mainnet.
+//             Switch to distributed vote scoring in consensus for mainnet.
+//             Enable the new consensus commit rule for mainnet.
+//             Enable consensus garbage collection for mainnet with GC depth set
+//             to 60 rounds
+//             Enable batching in synchronizer for testnet
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -277,6 +283,10 @@ struct FeatureFlags {
     // If true, multisig containing passkey sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_passkey_in_multisig: bool,
+
+    // If true, enabled batched block sync in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_batched_block_sync: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1156,14 +1166,20 @@ impl ProtocolConfig {
     }
 
     pub fn max_transactions_in_block_bytes(&self) -> u64 {
-        // Provide a default value if protocol config version is too low.
-        self.consensus_max_transactions_in_block_bytes
-            .unwrap_or(512 * 1024)
+        if cfg!(msim) {
+            256 * 1024
+        } else {
+            self.consensus_max_transactions_in_block_bytes
+                .unwrap_or(512 * 1024)
+        }
     }
 
     pub fn max_num_transactions_in_block(&self) -> u64 {
-        // 500 is the value used before this field is introduced.
-        self.consensus_max_num_transactions_in_block.unwrap_or(500)
+        if cfg!(msim) {
+            8
+        } else {
+            self.consensus_max_num_transactions_in_block.unwrap_or(512)
+        }
     }
 
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
@@ -1242,6 +1258,10 @@ impl ProtocolConfig {
 
     pub fn accept_passkey_in_multisig(&self) -> bool {
         self.feature_flags.accept_passkey_in_multisig
+    }
+
+    pub fn consensus_batched_block_sync(&self) -> bool {
+        self.feature_flags.consensus_batched_block_sync
     }
 }
 
@@ -2004,6 +2024,28 @@ impl ProtocolConfig {
 
                     // Increase the committee size to 80 on all networks.
                     cfg.max_committee_members_count = Some(80);
+
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
+                    // Enable probing for accepted rounds in round.
+                    cfg.feature_flags
+                        .consensus_round_prober_probe_accepted_rounds = true;
+                    // Enable distributed vote scoring.
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
+                    // Enable the new consensus commit rule.
+                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+
+                    // Enable consensus garbage collection
+                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                    // blocks within a window of ~4 seconds
+                    // to be included before be considered garbage collected.
+                    cfg.consensus_gc_depth = Some(60);
+
+                    if chain != Chain::Mainnet {
+                        // Enable batched block sync in devnet and testnet.
+                        cfg.feature_flags.consensus_batched_block_sync = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -2150,6 +2192,10 @@ impl ProtocolConfig {
 
     pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_smart_ancestor_selection = val;
+    }
+
+    pub fn set_consensus_batched_block_sync_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_batched_block_sync = val;
     }
 }
 

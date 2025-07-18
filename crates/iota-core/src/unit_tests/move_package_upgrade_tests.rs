@@ -325,7 +325,6 @@ async fn test_upgrade_package_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&runner.package.0)
-        .unwrap()
         .unwrap();
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let binary_config = to_binary_config(&config);
@@ -412,7 +411,6 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .authority_state
         .get_object_store()
         .get_object_by_key(&created.0, created.1)
-        .unwrap()
         .unwrap();
 
     assert_eq!(
@@ -1000,7 +998,6 @@ async fn test_publish_override_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&new_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1054,7 +1051,6 @@ async fn test_publish_transitive_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&root_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1146,7 +1142,6 @@ async fn test_publish_transitive_override_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&root_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!

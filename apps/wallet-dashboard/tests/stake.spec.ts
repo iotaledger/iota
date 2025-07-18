@@ -32,6 +32,7 @@ test.describe('Wallet staking', () => {
         await dashboardPage.getByText('validator-1').click();
         await dashboardPage.getByText('Next').click();
 
+        await expect(dashboardPage.getByText(/IOTA Available/)).toBeVisible({ timeout: 30_000 });
         await dashboardPage.getByLabel('Amount').fill('10');
 
         let stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
@@ -43,6 +44,8 @@ test.describe('Wallet staking', () => {
 
         let walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+
+        await dashboardPage.bringToFront();
 
         await expect(dashboardPage.getByText('Successfully sent')).toBeVisible({
             timeout: 30_000,
@@ -67,6 +70,8 @@ test.describe('Wallet staking', () => {
         await dashboardPage.getByRole('button', { name: 'Unstake' }).click();
         walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+
+        await dashboardPage.bringToFront();
 
         await dashboardPage.waitForSelector('text=Start Staking', {
             timeout: 30_000,
