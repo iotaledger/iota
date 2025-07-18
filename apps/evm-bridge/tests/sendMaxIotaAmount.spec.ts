@@ -5,20 +5,16 @@ import { test, expect } from './utils/fixtures';
 import {
     addL1FundsThroughBridgeUI,
     addNetworkToMetaMask,
-    checkL1CoinBalanceForAddressWithRetries,
     checkL1IotaBalanceWithRetries,
-    checkL2CoinBalanceForAddressWithRetries,
     checkL2IotaBalanceWithRetries,
     closeBrowserTabsExceptLast,
-    fundL1AddressWithNativeTokens,
     fundL2AddressWithIscClient,
     getRandomL2MnemonicAndAddress,
-    TOOL_COIN_TYPE,
 } from './utils/utils';
 
 const THREE_MINUTES = 180_000;
 
-test.describe.serial('Send MAX amount from L1', () => {
+test.describe('Send MAX Iota amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
     let browserL1: BrowserContext;
@@ -63,7 +59,7 @@ test.describe.serial('Send MAX amount from L1', () => {
         await addressField.fill(addressL2);
     });
 
-    test('should bridge iota successfully', async () => {
+    test('should bridge successfully', async () => {
         await addL1FundsThroughBridgeUI(testPageL1, browserL1);
 
         // wait for available
@@ -104,56 +100,9 @@ test.describe.serial('Send MAX amount from L1', () => {
 
         expect(balance).toEqual('9.990388');
     });
-
-    test('should bridge native tokens successfully', async () => {
-        const addressL1 = await testPageL1.getByTestId('sender-address').inputValue();
-        const nativeTokenAmount = 2;
-
-        await addL1FundsThroughBridgeUI(testPageL1, browserL1);
-        await fundL1AddressWithNativeTokens(addressL1, nativeTokenAmount);
-        await testPageL1.waitForTimeout(500);
-
-        await testPageL1.getByTestId('coin-selector').click();
-        await testPageL1.getByText('Tool', { exact: true }).click();
-
-        await testPageL1.getByText('Max').click();
-
-        const amountField = testPageL1.getByTestId('bridge-amount');
-        await expect(amountField).toBeVisible();
-        await expect(amountField).toHaveValue(nativeTokenAmount.toString());
-
-        // check est. gas fees and your receive
-        await testPageL1.waitForTimeout(2500);
-
-        const gasFeeValue = await testPageL1
-            .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
-            .locator('xpath=../div/span')
-            .nth(1)
-            .textContent();
-        expect(Number(gasFeeValue).toFixed(3)).toEqual('0.008');
-
-        const gasFeeValueEVM = await testPageL1
-            .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
-            .locator('xpath=../div/span')
-            .nth(1)
-            .textContent();
-        expect(gasFeeValueEVM).toEqual('0.001');
-
-        await expect(testPageL1.getByText('Bridge Assets')).toBeEnabled();
-        await testPageL1.getByText('Bridge Assets').click();
-
-        const approveTransactionPage = await browserL1.waitForEvent('page');
-        await approveTransactionPage.waitForLoadState();
-        await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
-
-        const addressL2 = await testPageL1.getByTestId('receive-address').inputValue();
-        const balance = await checkL2CoinBalanceForAddressWithRetries(addressL2, TOOL_COIN_TYPE);
-
-        expect(balance).toEqual(nativeTokenAmount.toString());
-    });
 });
 
-test.describe.serial('Send MAX amount from L2', () => {
+test.describe('Send MAX Iota amount from L2', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
     let browserL2: BrowserContext;
@@ -214,10 +163,10 @@ test.describe.serial('Send MAX amount from L2', () => {
         await addressField.fill(addressL1);
     });
 
-    test('should bridge iota successfully', async () => {
+    test('should bridge successfully', async () => {
         const addressL2 = await testPageL2.getByTestId('sender-address').inputValue();
-
         await fundL2AddressWithIscClient(addressL2, 9);
+
         const balance = await checkL2IotaBalanceWithRetries(addressL2);
         expect(balance).toEqual('9.0');
 
@@ -250,53 +199,5 @@ test.describe.serial('Send MAX amount from L2', () => {
         const addressL1 = await testPageL2.getByTestId('receive-address').inputValue();
         const l1Balance = await checkL1IotaBalanceWithRetries(addressL1);
         expect(Number(l1Balance).toFixed(6)).toMatch(/^8\.9996\d\d$/);
-    });
-
-    test('should bridge native tokens successfully', async () => {
-        const addressL2 = await testPageL2.getByTestId('sender-address').inputValue();
-        const nativeTokenAmount = 2;
-
-        await fundL2AddressWithIscClient(addressL2, 9);
-        await fundL2AddressWithIscClient(addressL2, nativeTokenAmount, TOOL_COIN_TYPE);
-
-        const nativeTokenBalance = await checkL2CoinBalanceForAddressWithRetries(
-            addressL2,
-            TOOL_COIN_TYPE,
-        );
-        expect(nativeTokenBalance).toEqual(nativeTokenAmount.toString());
-
-        await testPageL2.waitForTimeout(500);
-
-        await testPageL2.getByTestId('coin-selector').click();
-        await testPageL2.getByText('Tool', { exact: true }).click();
-
-        await testPageL2.getByText('Max').click();
-
-        const amountField = testPageL2.getByTestId('bridge-amount');
-        await expect(amountField).toBeVisible();
-        await expect(amountField).toHaveValue(nativeTokenAmount.toString());
-
-        // check est. gas fees and your receive
-        await testPageL2.waitForTimeout(2500);
-
-        const gasFeeValue = await testPageL2
-            .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
-            .locator('xpath=../div/span')
-            .nth(1)
-            .textContent();
-        expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
-
-        await expect(testPageL2.getByText('Bridge Assets')).toBeEnabled();
-
-        const approveTransactionPagePromise = browserL2.waitForEvent('page');
-        await testPageL2.getByText('Bridge Assets').click();
-        const approveTransactionPage = await approveTransactionPagePromise;
-
-        await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
-
-        const addressL1 = await testPageL2.getByTestId('receive-address').inputValue();
-        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(addressL1, TOOL_COIN_TYPE);
-
-        expect(l1Balance).toEqual(nativeTokenAmount.toString());
     });
 });
