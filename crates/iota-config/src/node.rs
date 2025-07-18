@@ -323,7 +323,7 @@ pub struct WritebackCacheConfig {
 
 impl WritebackCacheConfig {
     pub fn max_cache_size(&self) -> u64 {
-        std::env::var("IOTA_MAX_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_MAX")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.max_cache_size)
@@ -331,7 +331,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn package_cache_size(&self) -> u64 {
-        std::env::var("IOTA_PACKAGE_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_PACKAGE")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.package_cache_size)
@@ -339,7 +339,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn object_cache_size(&self) -> u64 {
-        std::env::var("IOTA_OBJECT_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_OBJECT")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.object_cache_size)
@@ -347,7 +347,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn marker_cache_size(&self) -> u64 {
-        std::env::var("IOTA_MARKER_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_MARKER")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.marker_cache_size)
@@ -355,7 +355,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn object_by_id_cache_size(&self) -> u64 {
-        std::env::var("IOTA_OBJECT_BY_ID_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_OBJECT_BY_ID")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.object_by_id_cache_size)
@@ -363,7 +363,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn transaction_cache_size(&self) -> u64 {
-        std::env::var("IOTA_TRANSACTION_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_TRANSACTION")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.transaction_cache_size)
@@ -371,7 +371,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn executed_effect_cache_size(&self) -> u64 {
-        std::env::var("IOTA_EXECUTED_EFFECT_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EXECUTED_EFFECT")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.executed_effect_cache_size)
@@ -379,7 +379,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn effect_cache_size(&self) -> u64 {
-        std::env::var("IOTA_EFFECT_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EFFECT")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.effect_cache_size)
@@ -387,7 +387,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn events_cache_size(&self) -> u64 {
-        std::env::var("IOTA_EVENTS_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EVENTS")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.events_cache_size)
@@ -395,7 +395,7 @@ impl WritebackCacheConfig {
     }
 
     pub fn transaction_objects_cache_size(&self) -> u64 {
-        std::env::var("IOTA_TRANSACTION_OBJECTS_CACHE_SIZE")
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_TRANSACTION_OBJECTS")
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.transaction_objects_cache_size)
