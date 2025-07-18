@@ -76,7 +76,11 @@ impl Scenario {
         static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
             once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-        let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+        let cache = Arc::new(WritebackCache::new(
+            &ExecutionCacheConfig::default_writeback_cache(),
+            store.clone(),
+            (*METRICS).clone(),
+        ));
         Self {
             authority,
             store,
@@ -370,6 +374,7 @@ impl Scenario {
 
     pub fn reset_cache(&mut self) {
         self.cache = Arc::new(WritebackCache::new(
+            &ExecutionCacheConfig::default_writeback_cache(),
             self.store.clone(),
             self.cache.metrics.clone(),
         ));
@@ -1199,7 +1204,11 @@ async fn latest_object_cache_race_test() {
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+    let cache = Arc::new(WritebackCache::new(
+        &ExecutionCacheConfig::default_writeback_cache(),
+        store.clone(),
+        (*METRICS).clone(),
+    ));
 
     let object_id = ObjectID::random();
     let owner = IotaAddress::random_for_testing_only();
