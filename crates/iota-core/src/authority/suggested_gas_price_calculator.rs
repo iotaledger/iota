@@ -44,6 +44,36 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// `SuggestedGasPriceCalculator` calculates suggested gas prices for
 /// deferred/cancelled shared-object transactions, using congestion
 /// info from a single consensus commit.
+///
+/// The congestion info stored by the calculator should only be updated
+/// for scheduled certificates. In contrast, calculations of the suggested
+/// gas price should only be invoked for deferred/cancelled certificates.
+///
+/// Roughly speaking, the suggested gas price calculator works as follows:
+/// 1. For every scheduled certificate, obtain its reference gas price,
+///    execution start time and estimated execution duration.
+/// 2. For every input shared object accessed mutably by the scheduled
+///    transaction, keep and update a map, ordered by execution start time
+///    (key), whose values store scheduled certificate's gas price and estimated
+///    execution duration.
+/// 3. For every deferred/cancelled certificate, obtain its estimated execution
+///    duration, as well as all input shared objects.
+/// 4. Calculate a suggested gas price for the deferred/cancelled certificate as
+///    follows:
+///    - compute its (imaginary) execution start time as
+///      `max_execution_duration_per_commit` minus its estimated execution
+///      duration;
+///    - for each input shared object, get the maximum gas price over scheduled
+///      certificates whose end execution time is larger than our imaginary
+///      start time;
+///    - take the maximum over the values obtained in the previous step;
+///    - the suggested gas price equals the maximum value obtained in the
+///      previous step plus 1, but such that it does not become larger than the
+///      maximum gas price set in the protocol.
+///
+/// Note that if `max_execution_duration_per_commit` is set to `None`,
+/// which means there is no shared object congestion control mechanism,
+/// the calculator will suggest the reference gas price.
 #[derive(Debug)]
 pub(crate) struct SuggestedGasPriceCalculator {
     /// Per-commit congestion info
@@ -161,14 +191,20 @@ impl SuggestedGasPriceCalculator {
     }
 
     /// Find the gas price for which a deferred/scheduled certificate would be
-    /// scheduled if that gas price was paid.
+    /// scheduled if that gas price was paid and if exactly the same set of
+    /// transactions appeared in a commit.
     fn find_clearing_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
         max_execution_duration_per_commit: ExecutionTime,
     ) -> u64 {
-        let start_time = max_execution_duration_per_commit - estimated_execution_duration;
+        // Imaginary start time of the deferred/cancelled certificate. We consider
+        // only the highest possible (but sufficient for scheduling) start time as
+        // it is very likely that scheduled certificates with lower gas prices
+        // appear have higher start times.
+        let start_time_of_deferred_cert =
+            max_execution_duration_per_commit - estimated_execution_duration;
 
         certificate
             .shared_input_objects()
@@ -180,24 +216,36 @@ impl SuggestedGasPriceCalculator {
                         per_object_congestion_info
                             .par_iter()
                             .filter_map(|(execution_start_time, tx_congestion_info)| {
-                                if execution_start_time
-                                    + tx_congestion_info.estimated_execution_duration
-                                    > start_time
+                                let end_time_of_scheduled_cert = execution_start_time
+                                    + tx_congestion_info.estimated_execution_duration;
+
+                                if end_time_of_scheduled_cert > start_time_of_deferred_cert
                                 {
+                                    // Store gas price of that scheduled certificate
                                     Some(tx_congestion_info.gas_price)
                                 } else {
                                     None
                                 }
                             })
+                            // Take the maximum over all found gas prices of scheduled certificates
+                            // whose execution end time is larger than the imaginary start time
+                            // of the deferred/cancelled transaction. It has to be maximum here
+                            // since otherwise the suggested gas price will be insufficient to
+                            // guarantee scheduling if the same set of certificates was repeated
+                            // again in a commit.
                             .max()
                     })
             })
+            // Take the maximum over all input shared objects, as we need to consider the
+            // "worst-case" (most congested) object; otherwise, the suggested gas price
+            // will be insufficient to guarantee scheduling if the same set of certificates
+            // was repeated again in a commit.
             .max()
             .flatten()
             .unwrap_or_else(|| {
                 panic!(
                     "At least one of the shared input objects should have appeared in between \
-                    execution start time of {start_time} and execution end time of \
+                    execution start time of {start_time_of_deferred_cert} and execution end time of \
                     {max_execution_duration_per_commit}; otherwise, this deferred certificate \
                     would be scheduled by the sequencer."
                 );
@@ -324,12 +372,15 @@ mod tests {
 
     fn build_and_try_sequencing_certificate(
         input_shared_objects: &[(ObjectID, bool)],
-        gas_price: u64,
-        gas_budget: u64,
+        tx_gas_data: TxGasData,
         max_execution_duration_per_commit: ExecutionTime,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> (VerifiedExecutableTransaction, SequencingResult) {
-        let certificate = build_transaction(input_shared_objects, gas_budget, gas_price);
+        let certificate = build_transaction(
+            input_shared_objects,
+            tx_gas_data.gas_budget,
+            tx_gas_data.gas_price,
+        );
         let shared_input_objects: Vec<_> = certificate.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
 
@@ -599,12 +650,9 @@ mod tests {
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
-        let input_shared_objects = vec![(object_1, true), (object_2, false)];
-        let tx_gas_data = *txs_gas_data.first().unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
-            &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget,
+            &[(object_1, true), (object_2, false)],
+            txs_gas_data[0],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -633,18 +681,15 @@ mod tests {
         } else {
             panic!(
                 "Certificate {} must be scheduled",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[0].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
-        let input_shared_objects = vec![(object_1, false), (object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(1).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
-            &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget,
+            &[(object_1, false), (object_2, true)],
+            txs_gas_data[1],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -677,18 +722,15 @@ mod tests {
         } else {
             panic!(
                 "Certificate {} must be scheduled",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[1].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
-        let input_shared_objects = vec![(object_1, false), (object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(2).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
-            &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget,
+            &[(object_1, false), (object_2, true)],
+            txs_gas_data[2],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -725,18 +767,15 @@ mod tests {
         } else {
             panic!(
                 "Certificate {} must be scheduled",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[2].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
-        let input_shared_objects = vec![(object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(3).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
-            &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget,
+            &[(object_2, true)],
+            txs_gas_data[3],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -778,7 +817,7 @@ mod tests {
             } else {
                 panic!(
                     "Certificate {} must be scheduled in the new sequencer",
-                    tx_gas_data.global_ordering_index
+                    txs_gas_data[3].global_ordering_index
                 );
             }
         } else {
@@ -792,14 +831,11 @@ mod tests {
                         shared_object_congestion_tracker
                             .get_estimated_execution_duration(&certificate),
                     );
-                assert_eq!(
-                    suggested_gas_price,
-                    txs_gas_data.get(2).unwrap().gas_price + 1
-                );
+                assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
             } else {
                 panic!(
                     "Certificate {} must be deferred in the old sequencer",
-                    tx_gas_data.global_ordering_index
+                    txs_gas_data[3].global_ordering_index
                 );
             }
         }
@@ -807,11 +843,9 @@ mod tests {
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_2, false)];
-        let tx_gas_data = *txs_gas_data.get(4).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 1_000_001
+            txs_gas_data[4],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -859,25 +893,20 @@ mod tests {
                 &certificate,
                 shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
-            assert_eq!(
-                suggested_gas_price,
-                txs_gas_data.get(2).unwrap().gas_price + 1
-            );
+            assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
             panic!(
                 "Certificate {} must be deferred",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[4].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(5).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 5_000_000
+            txs_gas_data[5],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -925,25 +954,20 @@ mod tests {
                 &certificate,
                 shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
-            assert_eq!(
-                suggested_gas_price,
-                txs_gas_data.get(2).unwrap().gas_price + 1
-            );
+            assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
             panic!(
                 "Certificate {} must be deferred",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[5].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_1, true), (object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(6).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 5_000_001
+            txs_gas_data[6],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -994,33 +1018,25 @@ mod tests {
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    assert_eq!(
-                        suggested_gas_price,
-                        txs_gas_data.get(2).unwrap().gas_price + 1
-                    );
+                    assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    assert_eq!(
-                        suggested_gas_price,
-                        txs_gas_data.get(1).unwrap().gas_price + 1
-                    );
+                    assert_eq!(suggested_gas_price, txs_gas_data[1].gas_price + 1);
                 }
             }
         } else {
             panic!(
                 "Certificate {} must be deferred",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[6].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_1, true), (object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(7).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 8_000_000
+            txs_gas_data[7],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -1086,27 +1102,24 @@ mod tests {
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    assert_eq!(
-                        suggested_gas_price,
-                        txs_gas_data.get(2).unwrap().gas_price + 1
-                    );
+                    assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     assert_eq!(suggested_gas_price, max_gas_price);
                 }
             }
         } else {
-            panic!("Certificate 8 must be deferred");
+            panic!(
+                "Certificate {} must be deferred",
+                txs_gas_data[7].global_ordering_index
+            );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
-        let input_shared_objects = vec![(object_1, true)];
-        let tx_gas_data = *txs_gas_data.get(8).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
-            &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget,
+            &[(object_1, true)],
+            txs_gas_data[8],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -1144,18 +1157,15 @@ mod tests {
         } else {
             panic!(
                 "Certificate {} must be scheduled",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[8].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
-        let input_shared_objects = vec![(object_1, true)];
-        let tx_gas_data = *txs_gas_data.get(9).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
-            &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget,
+            &[(object_1, true)],
+            txs_gas_data[9],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -1193,18 +1203,16 @@ mod tests {
         } else {
             panic!(
                 "Certificate {} must be scheduled",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[9].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_1, false), (object_2, false)];
-        let tx_gas_data = *txs_gas_data.get(10).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 1_000_001
+            txs_gas_data[10],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -1246,25 +1254,20 @@ mod tests {
                 &certificate,
                 shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
             );
-            assert_eq!(
-                suggested_gas_price,
-                txs_gas_data.get(2).unwrap().gas_price + 1
-            );
+            assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
             panic!(
                 "Certificate {} must be deferred",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[10].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_1, true), (object_2, false)];
-        let tx_gas_data = *txs_gas_data.get(11).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 5_000_001
+            txs_gas_data[11],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -1309,33 +1312,25 @@ mod tests {
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    assert_eq!(
-                        suggested_gas_price,
-                        txs_gas_data.get(2).unwrap().gas_price + 1
-                    );
+                    assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    assert_eq!(
-                        suggested_gas_price,
-                        txs_gas_data.get(1).unwrap().gas_price + 1
-                    );
+                    assert_eq!(suggested_gas_price, txs_gas_data[1].gas_price + 1);
                 }
             }
         } else {
             panic!(
                 "Certificate {} must be deferred",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[11].global_ordering_index
             );
         }
 
         // Construct a certificate with some shared objects (note mutability),
         // and try scheduling it.
         let input_shared_objects = vec![(object_1, false), (object_2, true)];
-        let tx_gas_data = *txs_gas_data.get(12).unwrap();
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
-            tx_gas_data.gas_price,
-            tx_gas_data.gas_budget, // 9_000_000
+            txs_gas_data[12],
             max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
@@ -1380,10 +1375,7 @@ mod tests {
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    assert_eq!(
-                        suggested_gas_price,
-                        txs_gas_data.get(2).unwrap().gas_price + 1
-                    );
+                    assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     assert_eq!(suggested_gas_price, max_gas_price);
@@ -1392,7 +1384,7 @@ mod tests {
         } else {
             panic!(
                 "Certificate {} must be deferred",
-                tx_gas_data.global_ordering_index
+                txs_gas_data[12].global_ordering_index
             );
         }
     }
