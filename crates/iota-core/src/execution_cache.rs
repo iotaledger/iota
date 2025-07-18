@@ -1333,27 +1333,6 @@ macro_rules! implement_passthrough_traits {
             }
         }
 
-        impl StateSyncAPI for $implementor {
-            fn try_insert_transaction_and_effects(
-                &self,
-                transaction: &VerifiedTransaction,
-                transaction_effects: &TransactionEffects,
-            ) -> IotaResult {
-                self.store
-                    .insert_transaction_and_effects(transaction, transaction_effects)
-                    .map_err(IotaError::from)
-            }
-
-            fn try_multi_insert_transaction_and_effects(
-                &self,
-                transactions_and_effects: &[VerifiedExecutionData],
-            ) -> IotaResult {
-                self.store
-                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())
-                    .map_err(IotaError::from)
-            }
-        }
-
         impl TestingAPI for $implementor {
             fn database_for_testing(&self) -> Arc<AuthorityStore> {
                 self.store.clone()
