@@ -131,13 +131,20 @@ pub fn build_execution_cache_from_env(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
+    // Load cache type from env
+    let cache_type = ExecutionCacheType::default().cache_type();
     let config = ExecutionCacheConfig::default();
-    match config.cache_type() {
+    match cache_type {
         ExecutionCacheType::PassthroughCache => ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
         ),
         ExecutionCacheType::WritebackCache => ExecutionCacheTraitPointers::new(
-            WritebackCache::new(&config, store.clone(), execution_cache_metrics).into(),
+            WritebackCache::new(
+                &config.writeback_cache,
+                store.clone(),
+                execution_cache_metrics,
+            )
+            .into(),
         ),
     }
 }

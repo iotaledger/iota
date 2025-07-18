@@ -67,7 +67,11 @@ impl ProxyCache {
         tracing::info!("using cache impl {:?}", cache_type);
         let passthrough_cache = PassthroughCache::new(store.clone(), metrics.clone());
 
-        let writeback_cache = WritebackCache::new(cache_config, store.clone(), metrics.clone());
+        let writeback_cache = WritebackCache::new(
+            &cache_config.writeback_cache,
+            store.clone(),
+            metrics.clone(),
+        );
 
         Self {
             passthrough_cache,

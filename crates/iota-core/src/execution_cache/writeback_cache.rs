@@ -56,7 +56,7 @@ use std::{
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::ExecutionCacheConfig;
+use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point_async;
 use iota_types::{
     accumulator::Accumulator,
@@ -308,7 +308,7 @@ struct CachedCommittedData {
 }
 
 impl CachedCommittedData {
-    fn new(config: &ExecutionCacheConfig) -> Self {
+    fn new(config: &WritebackCacheConfig) -> Self {
         let object_cache = MokaCache::builder()
             .max_capacity(config.object_cache_size())
             .build();
@@ -436,7 +436,7 @@ macro_rules! check_cache_entry_by_latest {
 
 impl WritebackCache {
     pub fn new(
-        config: &ExecutionCacheConfig,
+        config: &WritebackCacheConfig,
         store: Arc<AuthorityStore>,
         metrics: Arc<ExecutionCacheMetrics>,
     ) -> Self {

@@ -244,7 +244,10 @@ pub struct NodeConfig {
     pub firewall_config: Option<RemoteFirewallConfig>,
 
     #[serde(default)]
-    pub execution_cache: ExecutionCacheConfig,
+    pub execution_cache: ExecutionCacheType,
+
+    #[serde(default)]
+    pub execution_cache_config: ExecutionCacheConfig,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
@@ -269,13 +272,25 @@ pub enum ExecutionCacheType {
     PassthroughCache,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-#[derive(Default)]
-pub struct ExecutionCacheConfig {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cache_type: Option<ExecutionCacheType>, // defaults to WritebackCache
+impl ExecutionCacheType {
+    pub fn cache_type(self) -> Self {
+        std::env::var("DISABLE_WRITEBACK_CACHE")
+            .is_ok()
+            .then_some(Self::PassthroughCache)
+            .unwrap_or(self)
+    }
+}
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExecutionCacheConfig {
+    #[serde(default)]
+    pub writeback_cache: WritebackCacheConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct WritebackCacheConfig {
     /// Maximum number of entries in each cache. (There are several
     /// different caches). If None, the default of 10000 is used.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -305,15 +320,7 @@ pub struct ExecutionCacheConfig {
     pub transaction_objects_cache_size: Option<u64>, // defaults to 1000
 }
 
-impl ExecutionCacheConfig {
-    pub fn cache_type(&self) -> ExecutionCacheType {
-        std::env::var("DISABLE_WRITEBACK_CACHE")
-            .is_ok()
-            .then_some(ExecutionCacheType::PassthroughCache)
-            .or(self.cache_type)
-            .unwrap_or_default()
-    }
-
+impl WritebackCacheConfig {
     pub fn max_cache_size(&self) -> u64 {
         std::env::var("IOTA_MAX_CACHE_SIZE")
             .ok()
