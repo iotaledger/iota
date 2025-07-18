@@ -94,8 +94,7 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
                 start += 1;
             } else {
                 info!(
-                    "Waiting for processed data for checkpoint sequence number {}",
-                    start
+                    "Waiting for processed data for checkpoint sequence number {start}"
                 );
                 self.notify.notified().await;
             }
