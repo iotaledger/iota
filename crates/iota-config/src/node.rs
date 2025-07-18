@@ -262,8 +262,9 @@ pub struct NodeConfig {
     pub iota_names_config: Option<IotaNamesConfig>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 pub enum ExecutionCacheType {
+    #[default]
     WritebackCache,
     PassthroughCache,
 }
@@ -299,7 +300,7 @@ impl ExecutionCacheConfig {
             .is_ok()
             .then_some(ExecutionCacheType::PassthroughCache)
             .or(self.cache_type)
-            .unwrap_or(ExecutionCacheType::WritebackCache)
+            .unwrap_or_default()
     }
 
     pub fn max_cache_size(&self) -> u64 {
