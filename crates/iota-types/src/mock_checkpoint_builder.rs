@@ -168,12 +168,12 @@ impl MockCheckpointBuilder {
                 .previous_checkpoint
                 .as_ref()
                 .map(|c| c.sequence_number + 1)
-                .unwrap_or_default(),
+                .unwrap_or(0),
             network_total_transactions: self
                 .previous_checkpoint
                 .as_ref()
                 .map(|c| c.network_total_transactions)
-                .unwrap_or_default()
+                .unwrap_or(0)
                 + contents.size() as u64,
             content_digest: *contents.digest(),
             previous_digest: self.previous_checkpoint.as_ref().map(|c| *c.digest()),
