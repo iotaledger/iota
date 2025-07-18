@@ -86,7 +86,7 @@ pub enum NameCommand {
         key: Option<String>,
     },
     /// List the names and node subnames owned by the given address, or the
-    /// active address. Leaf subnames are not tracked by the CLI
+    /// active address. Note, that leaf subnames are not listed by the CLI.
     List { address: Option<KeyIdentity> },
     /// Lookup the address of a name
     Lookup { name: Name },
@@ -1024,8 +1024,9 @@ impl AuctionCommand {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub enum SubnameCommand {
-    /// Register a new leaf subname, which is managed by its parent, i.e. a name
-    /// or a node subname NFT. Leaf subnames are not tracked by the CLI
+    /// Register a new leaf subname, which will NOT create an NFT, but instead,
+    /// is managed by its parent NFT. Therefore, it won't be listed by the
+    /// CLI.
     RegisterLeaf {
         /// The subname. Ex. my-subname.my-name.iota
         name: Name,
