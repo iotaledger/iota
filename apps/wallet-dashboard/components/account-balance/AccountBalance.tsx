@@ -3,7 +3,7 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useGetFiatBalance, toast, useGetAllBalances } from '@iota/core';
+import { useBalance, useFormatCoin, useGetFiatBalance, toast, useGetAllBalances, NamedAddress } from '@iota/core';
 import {
     Address,
     Button,
@@ -63,6 +63,13 @@ export function AccountBalance() {
                                         isExternal
                                         externalLink={explorerLink}
                                         onCopySuccess={handleOnCopySuccess}
+                                    />
+                                    <NamedAddress
+                                        address={address}
+                                        onCopy={(e) => {
+                                            e.stopPropagation();
+                                            handleOnCopySuccess();
+                                        }}
                                     />
                                 </div>
                             )}

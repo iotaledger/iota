@@ -225,6 +225,9 @@ importers:
       '@iota/graphql-transport':
         specifier: workspace:*
         version: link:../../sdk/graphql-transport
+      '@iota/iota-names-sdk':
+        specifier: 0.0.0-experimental-20250711100940
+        version: 0.0.0-experimental-20250711100940(typescript@5.6.2)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -769,6 +772,9 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
+      '@iota/iota-names-sdk':
+        specifier: 0.0.0-experimental-20250711100940
+        version: 0.0.0-experimental-20250711100940(typescript@5.6.2)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -1070,6 +1076,9 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
+      '@iota/iota-names-sdk':
+        specifier: 0.0.0-experimental-20250711100940
+        version: 0.0.0-experimental-20250711100940(typescript@5.6.2)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -5576,6 +5585,17 @@ packages:
   '@inquirer/type@2.0.0':
     resolution: {integrity: sha512-XvJRx+2KR3YXyYtPUUy+qd9i7p+GO9Ko6VIIpWlBrpWwXDv8WLFeHTxz35CfQFUiBMLXlGHhGzys7lqit9gWag==}
     engines: {node: '>=18'}
+
+  '@iota/bcs@1.0.0':
+    resolution: {integrity: sha512-oxXgpzlL0d2jbzZH/9XmLcM+jmPbYT1hbbPfkvzMZvGChIDw1zLvp1EFsJtb2hAcLHORIAHIV0xEhzhBpIlSqA==}
+
+  '@iota/iota-names-sdk@0.0.0-experimental-20250711100940':
+    resolution: {integrity: sha512-UCWHRXIzJvqqiog0gihSBmrmR/DQwLkyrOSn/+WWOGF6IK7cDFzMxAzEWr6J5lyySMPr0s4uOkxrLATGNdNQjw==}
+    engines: {node: '>=20'}
+
+  '@iota/iota-sdk@0.0.0-experimental-20250620081851':
+    resolution: {integrity: sha512-kNBsyoLwKV95OvJyfq81BN9AklYLJbA/YVAz9PS5g6NE+rOWQNr2TQPef56I3TXLpyir1+cUkl6kpCvLGlZYfA==}
+    engines: {node: '>=20'}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -12102,6 +12122,7 @@ packages:
 
   formidable@2.1.2:
     resolution: {integrity: sha512-CM3GuJ57US06mlpQ47YcunuUZ9jpm8Vx+P2CGt2j7HpgkKZO/DJYQ0Bobim8G6PFQmK5lOqOOdUXboU+h73A4g==}
+    deprecated: 'ACTION REQUIRED: SWITCH TO v3 - v1 and v2 are VULNERABLE! v1 is DEPRECATED FOR OVER 2 YEARS! Use formidable@latest or try formidable-mini for fresh projects'
 
   formik@2.4.6:
     resolution: {integrity: sha512-A+2EI7U7aG296q2TLGvNapDNTZp1khVt5Vk0Q/fyfSROss0V/V6+txt2aJnwEos44IxTCW/LYAi/zgWzlevj+g==}
@@ -14733,6 +14754,7 @@ packages:
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
+    deprecated: Use your platform's native DOMException instead
 
   node-emoji@1.11.0:
     resolution: {integrity: sha512-wo2DpQkQp7Sjm2A0cq+sN7EHKO6Sl0ctXeBdFZrL9T9+UywORbufTcTZxom8YqpLQt/FqNMUkOpkZrJVYSKD3A==}
@@ -25054,6 +25076,37 @@ snapshots:
   '@inquirer/type@2.0.0':
     dependencies:
       mute-stream: 1.0.0
+
+  '@iota/bcs@1.0.0':
+    dependencies:
+      bs58: 6.0.0
+
+  '@iota/iota-names-sdk@0.0.0-experimental-20250711100940(typescript@5.6.2)':
+    dependencies:
+      '@iota/iota-sdk': 0.0.0-experimental-20250620081851(typescript@5.6.2)
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
+
+  '@iota/iota-sdk@0.0.0-experimental-20250620081851(typescript@5.6.2)':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.9.0)
+      '@iota/bcs': 1.0.0
+      '@noble/curves': 1.9.2
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      '@suchipi/femver': 1.0.0
+      bech32: 2.0.0
+      gql.tada: 1.8.9(graphql@16.9.0)(typescript@5.6.2)
+      graphql: 16.9.0
+      tweetnacl: 1.0.3
+      valibot: 0.36.0
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
 
   '@isaacs/cliui@8.0.2':
     dependencies:
