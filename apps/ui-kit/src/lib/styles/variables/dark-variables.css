@@ -35,6 +35,7 @@
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
     --button-text-color-error: theme('colors.iota-error.90');
+    --button-outline-bg-color: theme('colors.iota-neutral.6');
 
     /* BUTTON PILL */
     --button-pill-border-color: theme('colors.iota-neutral.40');

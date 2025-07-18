@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@iota/bcs';
+import { fromBase64 } from '@iota/bcs';
 
 import type { PublicKey, SignatureFlag, SignatureScheme } from '../cryptography/index.js';
 import { parseSerializedSignature, SIGNATURE_FLAG_TO_SCHEME } from '../cryptography/index.js';
@@ -100,7 +100,7 @@ export function publicKeyFromRawBytes(
 }
 
 export function publicKeyFromIotaBytes(publicKey: string | Uint8Array) {
-    const bytes = typeof publicKey === 'string' ? fromB64(publicKey) : publicKey;
+    const bytes = typeof publicKey === 'string' ? fromBase64(publicKey) : publicKey;
 
     const signatureScheme = SIGNATURE_FLAG_TO_SCHEME[bytes[0] as SignatureFlag];
 

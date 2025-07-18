@@ -368,7 +368,7 @@ pub struct MultiSigAddress {
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSig {
     multisig_address: IotaAddress,
-    multisig_parsed: GenericSignature,
+    multisig_parsed: MultiSig,
     multisig_serialized: String,
 }
 
@@ -707,11 +707,10 @@ impl KeyToolCommand {
                 let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
                 let multisig = MultiSig::combine(sigs, multisig_pk)?;
-                let generic_sig: GenericSignature = multisig.into();
-                let multisig_serialized = generic_sig.encode_base64();
+                let multisig_serialized = multisig.encode_base64();
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
                     multisig_address: address,
-                    multisig_parsed: generic_sig,
+                    multisig_parsed: multisig,
                     multisig_serialized,
                 })
             }
@@ -1265,6 +1264,26 @@ impl Display for CommandOutput {
                 table.with(Rotate::Left);
                 table.with(tabled::settings::Style::rounded().horizontals([]));
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(160).keep_words()));
+                write!(formatter, "{table}")
+            }
+            CommandOutput::MultiSigCombinePartialSig(data) => {
+                // Build inner table for multisigParsed
+                let parsed_table = json_to_table(&json!(&data.multisig_parsed))
+                    .with(tabled::settings::Style::rounded().horizontals([]))
+                    .to_string();
+
+                let mut builder = Builder::default();
+                builder
+                    .set_header(["multisigSerialized", "multisigParsed", "multisigAddress"])
+                    .push_record([
+                        &data.multisig_serialized,
+                        &parsed_table,
+                        &data.multisig_address.to_string(),
+                    ]);
+                let mut table = builder.build();
+                table.with(Rotate::Left);
+                table.with(tabled::settings::Style::rounded().horizontals([]));
+                table.with(Modify::new(Rows::new(0..)).with(Width::wrap(126).keep_words()));
                 write!(formatter, "{table}")
             }
             CommandOutput::UpdateAlias(update) => {

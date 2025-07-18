@@ -4,7 +4,7 @@
 
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { PublicKey } from '@iota/iota-sdk/cryptography';
-import { fromB64, toB64 } from '@iota/iota-sdk/utils';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { Box, Button, Em, Flex, Separator, Spinner, Text, TextField } from '@radix-ui/themes';
@@ -51,7 +51,7 @@ export function NewMultiSigGame(): ReactElement {
 
 	return (
 		<>
-			<ComputedField value={bytes && toB64(bytes)} label="Your public key" />
+			<ComputedField value={bytes && toBase64(bytes)} label="Your public key" />
 			<ComputedField value={address} label="Your address" />
 			<TextField.Root
 				size="2"
@@ -136,7 +136,7 @@ function parsePublicKey(key?: string): PublicKey | null {
 	}
 
 	try {
-		return publicKeyFromRawBytes('ED25519', fromB64(key));
+		return publicKeyFromRawBytes('ED25519', fromBase64(key));
 	} catch (e) {
 		console.error('Failed to get public key from raw bytes', e);
 		return null;

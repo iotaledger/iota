@@ -44,10 +44,11 @@
     --button-bg-color-disabled-primary: theme('colors.names-neutral.30');
     --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
-    --button-border-color-outline: theme('colors.names-neutral.60');
+    --button-border-color-outline: var(--names-gradient-primary);
     --button-text-color-primary: theme('colors.names-primary.100');
     --button-text-color-neutral: theme('colors.names-neutral.92');
     --button-text-color-error: theme('colors.names-error.90');
+    --button-outline-bg-color: theme('colors.names-neutral.4');
 
     /* BUTTON PILL */
     --button-pill-border-color: theme('colors.names-neutral.40');

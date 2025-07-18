@@ -127,6 +127,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -258,6 +267,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -389,6 +407,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -520,6 +547,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -651,6 +687,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -782,6 +827,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -913,6 +967,15 @@ validator_configs:
     execution-cache:
       writeback-cache:
         max_cache_size: ~
+        package_cache_size: ~
+        object_cache_size: ~
+        marker_cache_size: ~
+        object_by_id_cache_size: ~
+        transaction_cache_size: ~
+        executed_effect_cache_size: ~
+        effect_cache_size: ~
+        events_cache_size: ~
+        transaction_objects_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~

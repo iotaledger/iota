@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64, toHEX } from '@iota/bcs';
+import { toBase64, toHex } from '@iota/bcs';
 import { describe, expect, it } from 'vitest';
 
 import { Secp256r1PublicKey } from '../../../src/keypairs/secp256r1/publickey';
@@ -28,13 +28,13 @@ describe('Secp256r1PublicKey', () => {
 
         expect(() => {
             const invalid_pubkey_buffer = new Uint8Array(INVALID_SECP256R1_PUBLIC_KEY);
-            const invalid_pubkey_base64 = toB64(invalid_pubkey_buffer);
+            const invalid_pubkey_base64 = toBase64(invalid_pubkey_buffer);
             new Secp256r1PublicKey(invalid_pubkey_base64);
         }).toThrow();
 
         expect(() => {
             const pubkey_buffer = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
-            const wrong_encode = toHEX(pubkey_buffer);
+            const wrong_encode = toHex(pubkey_buffer);
             new Secp256r1PublicKey(wrong_encode);
         }).toThrow();
 
@@ -45,14 +45,14 @@ describe('Secp256r1PublicKey', () => {
 
     it('toBase64', () => {
         const pub_key = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
-        const pub_key_base64 = toB64(pub_key);
+        const pub_key_base64 = toBase64(pub_key);
         const key = new Secp256r1PublicKey(pub_key_base64);
         expect(key.toBase64()).toEqual(pub_key_base64);
     });
 
     it('toBuffer', () => {
         const pub_key = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
-        const pub_key_base64 = toB64(pub_key);
+        const pub_key_base64 = toBase64(pub_key);
         const key = new Secp256r1PublicKey(pub_key_base64);
         expect(key.toRawBytes().length).toBe(33);
         expect(new Secp256r1PublicKey(key.toRawBytes()).equals(key)).toBe(true);
