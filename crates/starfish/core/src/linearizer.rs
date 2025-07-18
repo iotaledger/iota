@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
 };
 
@@ -256,7 +256,6 @@ impl Linearizer {
 
         // TODO: we should resubmit transactions from own blocks that are not sequenced
         // and below certain round
-
         pending_sub_dags
     }
 
@@ -298,6 +297,24 @@ impl Linearizer {
             }
         }
         acknowledged_data
+    }
+
+    /// This method accepts a vector of missing transaction references and
+    /// returns a map of the passed transactions along with authorities that
+    /// have acknowledged this reference.
+    pub fn get_transaction_ack_authors(
+        &self,
+        missing_refs: Vec<BlockRef>,
+    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        let mut acknowledged_map = BTreeMap::new();
+
+        for missing_ref in missing_refs {
+            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&missing_ref) {
+                acknowledged_map.insert(missing_ref, acknowledgments.votes());
+            }
+        }
+
+        acknowledged_map
     }
 }
 

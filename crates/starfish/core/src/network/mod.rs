@@ -87,6 +87,14 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         timeout: Duration,
     ) -> ConsensusResult<BlockBundleStream>;
 
+    /// Fetches transactions for the given block references from a peer.
+    async fn fetch_transactions(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        timeout: Duration,
+    ) -> ConsensusResult<Vec<Bytes>>;
+
     /// Fetches serialized `SerializedBlocks` from a peer. It also might
     /// return additional ancestor blocks of the requested blocks according
     /// to the provided `highest_accepted_rounds`. The
@@ -221,6 +229,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
     ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
+
+    /// Handles the request to fetch transactions by references from the peer.
+    async fn handle_fetch_transactions(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+    ) -> ConsensusResult<Vec<Bytes>>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -380,4 +395,10 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
     fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
         SerializedBlockBundle::try_from(SerializedBlockAndHeaders::try_from(block_bundle)?)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedTransactions {
+    pub(crate) block_ref: BlockRef,
+    pub(crate) serialized_transactions: Bytes,
 }

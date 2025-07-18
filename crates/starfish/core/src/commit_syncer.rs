@@ -65,6 +65,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
+    transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 // Handle to stop the CommitSyncer loop.
@@ -115,6 +116,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         context: Arc<Context>,
         core_thread_dispatcher: Arc<dyn CoreThreadDispatcher>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         commit_consumer_monitor: Arc<CommitConsumerMonitor>,
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
@@ -125,6 +127,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             core_thread_dispatcher,
             commit_vote_monitor,
             commit_consumer_monitor,
+            transactions_synchronizer,
             network_client,
             block_verifier,
             dag_state,
@@ -341,14 +344,14 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .add_certified_commits(commits)
                 .await
             {
-                Ok(missing) => {
-                    if !missing.is_empty() {
+                Ok((missing_blocks, missing_committed_txns)) => {
+                    if !missing_blocks.is_empty() {
                         warn!(
                             "Fetched block headers have missing ancestors: {:?} for commit range {:?}",
-                            missing, fetched_commit_range
+                            missing_blocks, fetched_commit_range
                         );
                     }
-                    for block_ref in missing {
+                    for block_ref in missing_blocks {
                         let hostname = &self
                             .inner
                             .context
@@ -359,6 +362,22 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .commit_sync_fetch_missing_blocks
                             .with_label_values(&[hostname])
                             .inc();
+                    }
+                    if !missing_committed_txns.is_empty() {
+                        debug!(
+                            "Fetched blocks have missing committed transactions: {:?} for commit range {:?}",
+                            missing_committed_txns, fetched_commit_range
+                        );
+                        if let Err(err) = self
+                            .inner
+                            .transactions_synchronizer
+                            .fetch_transactions(missing_committed_txns)
+                            .await
+                        {
+                            warn!(
+                                "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                            );
+                        }
                     }
                 }
                 Err(e) => {
@@ -580,10 +599,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
         let num_chunks = block_refs
             .len()
-            .div_ceil(inner.context.parameters.max_blocks_per_fetch)
+            .div_ceil(inner.context.parameters.max_block_headers_per_fetch)
             as u32;
         let mut requests: FuturesOrdered<_> = block_refs
-            .chunks(inner.context.parameters.max_blocks_per_fetch)
+            .chunks(inner.context.parameters.max_block_headers_per_fetch)
             .enumerate()
             .map(|(i, request_block_refs)| {
                 let inner = inner.clone();
@@ -734,6 +753,7 @@ struct Inner<C: NetworkClient> {
     core_thread_dispatcher: Arc<dyn CoreThreadDispatcher>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     network_client: Arc<C>,
     block_verifier: Arc<dyn BlockVerifier>,
     dag_state: Arc<RwLock<DagState>>,
@@ -848,6 +868,7 @@ mod tests {
         error::ConsensusResult,
         network::{BlockBundleStream, BlockStream, NetworkClient},
         storage::mem_store::MemStore,
+        transactions_synchronizer::TransactionsSynchronizer,
     };
 
     #[derive(Default)]
@@ -870,6 +891,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 
@@ -924,7 +954,7 @@ mod tests {
                 commit_sync_batch_size: 5,
                 commit_sync_batches_ahead: 5,
                 commit_sync_parallel_fetches: 5,
-                max_blocks_per_fetch: 5,
+                max_block_headers_per_fetch: 5,
                 ..context.parameters
             },
             ..context
@@ -937,10 +967,18 @@ mod tests {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_thread_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
         let mut commit_syncer = CommitSyncer::new(
             context,
             core_thread_dispatcher,
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             commit_consumer_monitor.clone(),
             network_client,
             block_verifier,

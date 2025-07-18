@@ -220,27 +220,29 @@ impl Core {
             std::thread::sleep(Duration::from_millis(wait_ms));
         }
 
-        // Try to commit and propose, since they may not have run after the last storage
-        // write.
+        // Try to commit and propose, since they may not have run after the last write
+        // to storage. The returned committed subdags and missing transaction
+        // refs can be ignored as the missing transactions will be fetched by the
+        // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = if let Some(last_proposed_block) = self.try_propose(true).unwrap()
-        {
-            Some(last_proposed_block)
-        } else {
-            let last_proposed_block = self.dag_state.read().get_last_proposed_block();
-            if self.should_propose() {
-                assert!(
-                    last_proposed_block.round() != GENESIS_ROUND,
-                    "At minimum a block of round higher than genesis should have been produced during recovery"
-                );
-            }
-            if last_proposed_block.round() != GENESIS_ROUND {
-                // if no new block proposed then just re-broadcast the last proposed one to
-                // ensure liveness.
-                self.signals.new_block(last_proposed_block.clone()).unwrap();
-                Some(last_proposed_block)
-            } else {
-                None
+        let last_proposed_block = match self.try_propose(true).unwrap() {
+            (Some(block), _) => Some(block),
+            (None, _) => {
+                let last_proposed_block = self.dag_state.read().get_last_proposed_block();
+                if self.should_propose() {
+                    assert!(
+                        last_proposed_block.round() != GENESIS_ROUND,
+                        "At minimum a block of round higher than genesis should have been produced during recovery"
+                    );
+                }
+                if last_proposed_block.round() != GENESIS_ROUND {
+                    // if no new block proposed then just re-broadcast the last proposed one to
+                    // ensure liveness.
+                    self.signals.new_block(last_proposed_block.clone()).unwrap();
+                    Some(last_proposed_block)
+                } else {
+                    None
+                }
             }
         };
 
@@ -261,11 +263,15 @@ impl Core {
     /// causal history exists. The method also uses the input bool variable if
     /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
+    /// - The references of committed transactions that are missing
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
-    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+    ) -> ConsensusResult<(
+        BTreeSet<BlockRef>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
             .context
@@ -282,7 +288,7 @@ impl Core {
         let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks);
 
-        if !accepted_blocks_headers.is_empty() {
+        let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
             debug!(
                 "Accepted block headers: {}",
                 accepted_blocks_headers
@@ -292,7 +298,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(false)?;
@@ -301,7 +307,11 @@ impl Core {
             // This needs to be called after try_commit() and try_propose(), which may
             // have advanced the threshold clock round.
             self.try_signal_new_round();
-        }
+
+            new_missing_committed_txns
+        } else {
+            BTreeMap::new()
+        };
 
         if !missing_block_refs.is_empty() {
             trace!(
@@ -309,17 +319,21 @@ impl Core {
                 missing_block_refs.iter().map(|b| b.to_string()).join(", ")
             );
         }
-        Ok(missing_block_refs)
+        Ok((missing_block_refs, missing_committed_txns))
     }
 
     /// Processes the provided block headers and accepts them if possible when
     /// their causal history exists. The method returns:
     /// - The references of ancestors missing their block header
+    /// - The references of committed transactions that are missing
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
-    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+    ) -> ConsensusResult<(
+        BTreeSet<BlockRef>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::add_block_header");
         let _s = self
             .context
@@ -336,7 +350,7 @@ impl Core {
         let (accepted_block_headers, missing_block_refs) =
             self.block_manager.try_accept_block_headers(block_headers);
 
-        if !accepted_block_headers.is_empty() {
+        let missing_committed_txns = if !accepted_block_headers.is_empty() {
             debug!(
                 "Accepted block headers: {}",
                 accepted_block_headers
@@ -346,7 +360,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(false)?;
@@ -355,7 +369,11 @@ impl Core {
             // This needs to be called after try_commit() and try_propose(), which may
             // have advanced the threshold clock round.
             self.try_signal_new_round();
-        }
+
+            new_missing_committed_txns
+        } else {
+            BTreeMap::new()
+        };
 
         if !missing_block_refs.is_empty() {
             trace!(
@@ -363,17 +381,43 @@ impl Core {
                 missing_block_refs.iter().map(|b| b.to_string()).join(", ")
             );
         }
-        Ok(missing_block_refs)
+        Ok((missing_block_refs, missing_committed_txns))
+    }
+
+    /// Adds transactions to the DAG state. This is called when transactions are
+    /// fetched from peers.
+    pub(crate) fn add_transactions(
+        &mut self,
+        transactions: Vec<VerifiedTransactions>,
+    ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::add_transactions");
+
+        // Add transactions to the dag state.
+        let mut dag_state = self.dag_state.write();
+        for transaction in transactions {
+            dag_state.add_transactions(transaction);
+        }
+
+        // After adding transactions, some pending subdags might be committable.
+        // Commit observer is called with an empty vector of new leaders to check if all
+        // transactions are available for any currently pending subdags, without
+        // creating any new commits.
+        self.commit_observer.handle_commit(Vec::new())?;
+
+        Ok(())
     }
 
     // Adds the certified commits that have been synced via the commit syncer. We
-    // are using the commit info in order to skip running the decision
+    // are using the commit info to skip running the decision
     // rule and immediately commit the corresponding leaders and sub dags.
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_certified_commits(
         &mut self,
         certified_commits: CertifiedCommits,
-    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+    ) -> ConsensusResult<(
+        BTreeSet<BlockRef>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::add_certified_commits");
         let block_headers = certified_commits
             .commits()
@@ -411,13 +455,16 @@ impl Core {
 
     /// Creating a new block for the dictated round. This is used when a leader
     /// timeout occurs, either when the min timeout expires or max. When
-    /// `force = true` , then any checks like previous round
+    /// `force = true`, then any checks like previous round
     /// leader existence will get skipped.
     pub(crate) fn new_block(
         &mut self,
         round: Round,
         force: bool,
-    ) -> ConsensusResult<Option<VerifiedBlock>> {
+    ) -> ConsensusResult<(
+        Option<VerifiedBlock>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
             self.context
@@ -431,15 +478,21 @@ impl Core {
             self.try_signal_new_round();
             return result;
         }
-        Ok(None)
+        Ok((None, BTreeMap::new()))
     }
 
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
     // ancestors and if the minimum round delay has passed.
-    fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlock>> {
+    fn try_propose(
+        &mut self,
+        force: bool,
+    ) -> ConsensusResult<(
+        Option<VerifiedBlock>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         if !self.should_propose() {
-            return Ok(None);
+            return Ok((None, BTreeMap::new()));
         }
         if let Some(verified_block) = self.try_new_block(force) {
             self.signals.new_block(verified_block.clone())?;
@@ -447,10 +500,10 @@ impl Core {
             fail_point!("consensus-after-propose");
 
             // The new block may help commit.
-            self.try_commit()?;
-            return Ok(Some(verified_block));
+            let (_, missing_committed_txns) = self.try_commit()?;
+            return Ok((Some(verified_block), missing_committed_txns));
         }
-        Ok(None)
+        Ok((None, BTreeMap::new()))
     }
 
     /// Attempts to propose a new block for the next round. If a block has
@@ -569,7 +622,7 @@ impl Core {
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // TODO: remove this info debug when transaction consumption is ensured to be
         // aligned with expectation
-        info!("{} transaction are consumed by a block", transactions.len());
+        debug!("{} transaction are consumed by a block", transactions.len());
         // Serialize the transaction
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
@@ -680,7 +733,12 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
-    fn try_commit(&mut self) -> ConsensusResult<Vec<PendingSubDag>> {
+    fn try_commit(
+        &mut self,
+    ) -> ConsensusResult<(
+        Vec<PendingSubDag>,
+        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    )> {
         let _s = self
             .context
             .metrics
@@ -690,6 +748,7 @@ impl Core {
             .start_timer();
 
         let mut committed_sub_dags = Vec::new();
+        let mut all_missing_committed_txns = BTreeMap::new();
         // TODO: Add optimization to abort early without quorum for a round.
         loop {
             // LeaderSchedule has a limit to how many sequenced leaders can be committed
@@ -769,8 +828,17 @@ impl Core {
             );
 
             // TODO: refcount subdags
-            let (subdags, _missing_transactions_refs) =
+            let (subdags, missing_transactions_refs) =
                 self.commit_observer.handle_commit(sequenced_leaders)?;
+
+            // Check for duplicates before extending
+            assert!(
+                !missing_transactions_refs
+                    .keys()
+                    .any(|k| all_missing_committed_txns.contains_key(k)),
+                "duplicate committed missing transactions reference found"
+            );
+            all_missing_committed_txns.extend(missing_transactions_refs);
 
             // Both pending and solid sub DAGs should be added to scoring subdags.
             self.dag_state
@@ -793,12 +861,21 @@ impl Core {
         self.transaction_consumer
             .notify_own_blocks_status(committed_block_refs);
 
-        Ok(committed_sub_dags)
+        Ok((committed_sub_dags, all_missing_committed_txns))
     }
 
     pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
+    }
+    pub(crate) fn get_missing_transaction_data(
+        &self,
+    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        let _scope = monitored_scope("Core::get_missing_transaction_data");
+
+        // Use CommitObserver to get missing transaction data with authority
+        // acknowledgments
+        self.commit_observer.get_missing_transaction_data()
     }
 
     /// Sets if there is 2f+1 subscriptions to the block stream.
@@ -1613,9 +1690,13 @@ mod test {
 
         // Try to propose again - with or without ignore leaders check, it will not
         // return any block
-        assert!(core.try_propose(false).unwrap().is_none());
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
         // Check no commits have been persisted to dag_state & store
         let last_commit = store.read_last_commit().unwrap();
         assert!(last_commit.is_none());
@@ -1682,7 +1763,9 @@ mod test {
         assert_eq!(core.last_proposed_round(), 1);
         expected_ancestors.insert(core.last_proposed_block_header().reference());
         // attempt to create a block - none will be produced.
-        assert!(core.try_propose(false).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Adding another block now forms a quorum for round 1, so block at round 2 will
         // proposed
@@ -1767,7 +1850,9 @@ mod test {
         );
 
         // Trying to explicitly propose a block will not produce anything
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Create blocks for the whole network - even "our" node in order to replicate
         // an "amnesia" recovery.
@@ -1777,16 +1862,24 @@ mod test {
         let block_headers = builder.block_headers.values().cloned().collect::<Vec<_>>();
 
         // Process all the blocks
-        assert!(core.add_block_headers(block_headers).unwrap().is_empty());
+        let (missing_ancestors, missing_committed_txns) =
+            core.add_block_headers(block_headers).unwrap();
+        assert!(missing_ancestors.is_empty());
+        assert!(missing_committed_txns.is_empty());
 
         // Try to propose - no block should be produced.
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Now set the last known proposed round which is the highest round for which
         // the network informed us that we do have proposed a block about.
         core.set_last_known_proposed_round(10);
 
-        let block = core.try_propose(true).expect("No error").unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).expect("No error");
+        assert!(missing_committed_txns.is_empty());
+
+        let block = new_block_opt.unwrap();
         assert_eq!(block.round(), 11);
         assert_eq!(block.ancestors().len(), 4);
 
@@ -1851,13 +1944,12 @@ mod test {
                     assert_eq!(round - 1, r);
                     if core_fixture.core.last_proposed_round() == r {
                         // Force propose new block regardless of min round delay.
-                        core_fixture
-                            .core
-                            .try_propose(true)
-                            .unwrap()
-                            .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
-                            });
+                        let (new_block_opt, missing_committed_txns) =
+                            core_fixture.core.try_propose(true).unwrap();
+                        assert!(missing_committed_txns.is_empty());
+                        new_block_opt.unwrap_or_else(|| {
+                            panic!("Block should have been proposed for round {}", round)
+                        });
                     }
                 }
 
@@ -1879,13 +1971,19 @@ mod test {
                 .core
                 .add_block_headers(last_round_blocks.clone())
                 .unwrap();
-            assert!(core_fixture.core.try_propose(false).unwrap().is_none());
+            let (new_block_opt, missing_committed_txns) =
+                core_fixture.core.try_propose(false).unwrap();
+            assert!(new_block_opt.is_none());
+            assert!(missing_committed_txns.is_empty());
         }
 
         // Now try to create the blocks for round 4 via the leader timeout method which
         // should ignore any leader checks or min round delay.
         for core_fixture in cores.iter_mut() {
-            assert!(core_fixture.core.new_block(4, true).unwrap().is_some());
+            let (new_block, missing_committed_txns) = core_fixture.core.new_block(4, true).unwrap();
+            assert!(missing_committed_txns.is_empty());
+            assert!(new_block.is_some());
+
             assert_eq!(core_fixture.core.last_proposed_round(), 4);
 
             // Check commits have been persisted to store
@@ -1960,13 +2058,17 @@ mod test {
         );
 
         // There is no proposal even with forced proposing.
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Let Core know subscriber exists.
         core.set_quorum_subscribers_exists(true);
 
         // Proposing now would succeed.
-        assert!(core.try_propose(true).unwrap().is_some());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_some());
+        assert!(missing_committed_txns.is_empty());
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2133,7 +2235,7 @@ mod test {
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
-        let committed_sub_dags = core.try_commit().unwrap();
+        let (committed_sub_dags, _) = core.try_commit().unwrap();
 
         // We should have committed up to round 4
         assert_eq!(committed_sub_dags.len(), 4);

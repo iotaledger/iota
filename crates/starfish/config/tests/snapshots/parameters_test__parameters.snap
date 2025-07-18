@@ -1,5 +1,5 @@
 ---
-source: consensus-starfish/config/tests/parameters_test.rs
+source: crates/starfish/config/tests/parameters_test.rs
 expression: parameters
 ---
 leader_timeout:
@@ -11,7 +11,8 @@ min_round_delay:
 max_forward_time_drift:
   secs: 0
   nanos: 500000000
-max_blocks_per_fetch: 1000
+max_block_headers_per_fetch: 1000
+max_transactions_per_fetch: 1000
 sync_last_known_own_block_timeout:
   secs: 5
   nanos: 0

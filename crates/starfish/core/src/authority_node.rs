@@ -31,6 +31,7 @@ use crate::{
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
+    transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
 
 pub struct ConsensusAuthority {
@@ -38,6 +39,7 @@ pub struct ConsensusAuthority {
     start_time: Instant,
     transaction_client: Arc<TransactionClient>,
     synchronizer: Arc<SynchronizerHandle>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
 
     commit_syncer_handle: CommitSyncerHandle,
@@ -168,8 +170,21 @@ impl ConsensusAuthority {
         let (core_dispatcher, core_thread_handle) =
             ChannelCoreThreadDispatcher::start(context.clone(), &dag_state, core);
         let core_dispatcher = Arc::new(core_dispatcher);
-        let leader_timeout_handle =
-            LeaderTimeoutTask::start(core_dispatcher.clone(), &signals_receivers, context.clone());
+
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let leader_timeout_handle = LeaderTimeoutTask::start(
+            core_dispatcher.clone(),
+            transactions_synchronizer.clone(),
+            &signals_receivers,
+            context.clone(),
+        );
 
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
@@ -178,6 +193,7 @@ impl ConsensusAuthority {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             sync_last_known_own_block,
@@ -187,6 +203,7 @@ impl ConsensusAuthority {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             commit_consumer_monitor.clone(),
             network_client.clone(),
             block_verifier.clone(),
@@ -199,6 +216,7 @@ impl ConsensusAuthority {
             block_verifier,
             commit_vote_monitor,
             synchronizer.clone(),
+            transactions_synchronizer.clone(),
             core_dispatcher,
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
@@ -229,6 +247,7 @@ impl ConsensusAuthority {
             start_time,
             transaction_client: Arc::new(tx_client),
             synchronizer,
+            transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
             leader_timeout_handle,
@@ -253,6 +272,16 @@ impl ConsensusAuthority {
             }
             warn!(
                 "Failed to stop synchronizer when shutting down consensus: {:?}",
+                e
+            );
+        };
+
+        if let Err(e) = self.transactions_synchronizer.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop transactions synchronizer when shutting down consensus: {:?}",
                 e
             );
         };

@@ -87,11 +87,19 @@ pub(crate) enum ConsensusError {
     )]
     TooManyFetchedBlocksReturned(AuthorityIndex),
 
+    #[error(
+        "Too many transactions have been returned from authority {0} when requesting to fetch missing transactions"
+    )]
+    TooManyFetchedTransactionsReturned(AuthorityIndex),
+
     #[error("Too many blocks have been requested from authority {0}")]
     TooManyFetchBlocksRequested(AuthorityIndex),
 
     #[error("Too many block headers have been requested from authority {0}")]
     TooManyFetchBlockHeadersRequested(AuthorityIndex),
+
+    #[error("Too many transaction bundles have been requested from authority {0}")]
+    TooManyFetchTransactionsRequested(AuthorityIndex),
 
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
@@ -119,6 +127,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
+
+    #[error("Transaction Synchronizer is saturated")]
+    TransactionSynchronizerSaturated,
 
     #[error("Block {block_ref:?} rejected: {reason}")]
     BlockRejected { block_ref: BlockRef, reason: String },

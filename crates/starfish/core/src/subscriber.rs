@@ -287,6 +287,15 @@ mod test {
             unimplemented!("Unimplemented")
         }
 
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
         async fn fetch_blocks(
             &self,
             _peer: AuthorityIndex,
