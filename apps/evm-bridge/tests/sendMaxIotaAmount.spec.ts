@@ -8,8 +8,16 @@ import {
     getRandomL2MnemonicAndAddress,
     createL2Wallet,
     addNetworkToMetaMask,
+    connectL1Wallet,
+    connectL2Wallet,
 } from './helpers/wallet';
 import { THREE_MINUTES } from './utils/constants';
+import {
+    clickMaxAmount,
+    executeBridgeTransaction,
+    setReceiverAddress,
+    toggleBridgeDirection,
+} from './helpers/ui';
 
 test.describe('Send MAX Iota amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
@@ -29,40 +37,20 @@ test.describe('Send MAX Iota amount from L1', () => {
 
         await testPageL1.goto('/');
 
-        const connectButtonId = 'connect-l1-wallet';
-        const connectButtonL1 = await testPageL1.waitForSelector(
-            `[data-testid="${connectButtonId}"]`,
-            {
-                state: 'visible',
-            },
-        );
-
-        await connectButtonL1.click();
-        const approveWalletConnectPage = browserL1.waitForEvent('page');
-        await testPageL1.getByText('IOTA Wallet').click();
-
-        const walletL1Page = await approveWalletConnectPage;
-        await walletL1Page.getByRole('button', { name: 'Continue' }).click();
-        await walletL1Page.getByRole('button', { name: 'Connect' }).click();
+        await connectL1Wallet(testPageL1, browserL1);
 
         const { address: addressL2 } = getRandomL2MnemonicAndAddress();
 
-        const toggleManualInput = testPageL1.getByTestId('toggle-receiver-address-input');
-        await expect(toggleManualInput).toBeVisible();
-        await toggleManualInput.click();
-
-        const addressField = testPageL1.getByTestId('receive-address');
-        await expect(addressField).toBeVisible();
-        await addressField.fill(addressL2);
+        await setReceiverAddress(testPageL1, addressL2);
     });
 
     test('should bridge successfully', async () => {
         await addL1FundsThroughBridgeUI(testPageL1, browserL1);
 
-        // wait for available
+        // wait for available todo reomove wait for check balance with retries
         await testPageL1.waitForTimeout(2500);
 
-        await testPageL1.getByText('Max').click();
+        await clickMaxAmount(testPageL1);
 
         const amountField = testPageL1.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
@@ -85,12 +73,7 @@ test.describe('Send MAX Iota amount from L1', () => {
             .textContent();
         expect(gasFeeValueEVM).toEqual('0.001');
 
-        await expect(testPageL1.getByText('Bridge Assets')).toBeEnabled();
-        await testPageL1.getByText('Bridge Assets').click();
-
-        const approveTransactionPage = await browserL1.waitForEvent('page');
-        await approveTransactionPage.waitForLoadState();
-        await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
+        await executeBridgeTransaction(testPageL1, browserL1, true);
 
         const addressL2 = await testPageL1.getByTestId('receive-address').inputValue();
         const balance = await checkL2IotaBalanceWithRetries(addressL2);
@@ -119,22 +102,7 @@ test.describe('Send MAX Iota amount from L2', () => {
         await closeBrowserTabsExceptLast(browserL2);
         await testPageL2.goto('/');
 
-        const connectButtonId = 'connect-l2-wallet';
-        const connectButtonL2 = await testPageL2.waitForSelector(
-            `[data-testid="${connectButtonId}"]`,
-            {
-                state: 'visible',
-            },
-        );
-
-        await connectButtonL2.click();
-
-        const approveWalletL2ConnectDialog = browserL2.waitForEvent('page', { timeout: 20_000 });
-        await testPageL2.getByTestId(/metamask/).click();
-        const walletL2Modal = await approveWalletL2ConnectDialog;
-
-        await walletL2Modal.waitForLoadState();
-        await walletL2Modal.getByRole('button', { name: 'Connect' }).click();
+        await connectL2Wallet(testPageL2, browserL2);
 
         const l2WalletConnectedButton = testPageL2.getByRole('button', {
             name: /Dropdown/,
@@ -144,32 +112,23 @@ test.describe('Send MAX Iota amount from L2', () => {
         const balanceL2Display = l2WalletConnectedButton.getByText('0 IOTA');
         await expect(balanceL2Display).toBeVisible();
 
-        const toggleBridgeDirectionButton = testPageL2.getByTestId('toggle-bridge-direction');
-        await expect(toggleBridgeDirectionButton).toBeVisible();
-        await toggleBridgeDirectionButton.click();
+        await toggleBridgeDirection(testPageL2);
 
         const keypair = new Ed25519Keypair();
         const addressL1 = keypair.toIotaAddress();
 
-        const toggleManualInput = testPageL2.getByTestId('toggle-receiver-address-input');
-        await expect(toggleManualInput).toBeVisible();
-        await toggleManualInput.click();
-
-        const addressField = testPageL2.getByTestId('receive-address');
-        await expect(addressField).toBeVisible();
-        await addressField.fill(addressL1);
+        await setReceiverAddress(testPageL2, addressL1);
     });
 
     test('should bridge successfully', async () => {
         const addressL2 = await testPageL2.getByTestId('sender-address').inputValue();
-        await fundL2AddressWithIscClient(addressL2, 9);
+        const iotaAmount = 9;
+        await fundL2AddressWithIscClient(addressL2, iotaAmount);
 
         const balance = await checkL2IotaBalanceWithRetries(addressL2);
-        expect(balance).toEqual('9.0');
+        expect(Number(balance)).toEqual(iotaAmount);
 
-        await testPageL2.waitForTimeout(2500);
-
-        await testPageL2.getByText('Max').click();
+        await clickMaxAmount(testPageL2);
 
         const amountField = testPageL2.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
@@ -185,13 +144,7 @@ test.describe('Send MAX Iota amount from L2', () => {
             .textContent();
         expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
 
-        await expect(testPageL2.getByText('Bridge Assets')).toBeEnabled();
-
-        const approveTransactionPagePromise = browserL2.waitForEvent('page');
-        await testPageL2.getByText('Bridge Assets').click();
-        const approveTransactionPage = await approveTransactionPagePromise;
-
-        await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
+        await executeBridgeTransaction(testPageL2, browserL2, false);
 
         const addressL1 = await testPageL2.getByTestId('receive-address').inputValue();
         const l1Balance = await checkL1IotaBalanceWithRetries(addressL1);
