@@ -20,7 +20,7 @@ use iota_types::{
 use parking_lot::RwLock;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheConfigType,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheType,
     ExecutionCacheMetrics, ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead,
     PassthroughCache, StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
@@ -38,8 +38,8 @@ use crate::{
 macro_rules! delegate_method {
     ($self:ident.$method:ident($($args:ident),*)) => {
         match *$self.mode.read() {
-            ExecutionCacheConfigType::PassthroughCache => $self.passthrough_cache.$method($($args),*),
-            ExecutionCacheConfigType::WritebackCache => $self.writeback_cache.$method($($args),*),
+            ExecutionCacheType::PassthroughCache => $self.passthrough_cache.$method($($args),*),
+            ExecutionCacheType::WritebackCache => $self.writeback_cache.$method($($args),*),
         }
     };
 }
@@ -53,7 +53,7 @@ pub struct ProxyCache {
     // Cache implementations are entirely passive, so the unused one will have no effect.
     passthrough_cache: PassthroughCache,
     writeback_cache: WritebackCache,
-    mode: RwLock<ExecutionCacheConfigType>,
+    mode: RwLock<ExecutionCacheType>,
 }
 
 impl ProxyCache {
@@ -79,7 +79,7 @@ impl ProxyCache {
     async fn reconfigure_cache_impl(&self, epoch_start_config: &EpochStartConfiguration) {
         let cache_type = epoch_start_config.execution_cache_type();
         tracing::info!("switching to cache impl {:?}", cache_type);
-        if matches!(cache_type, ExecutionCacheConfigType::PassthroughCache) {
+        if matches!(cache_type, ExecutionCacheType::PassthroughCache) {
             // we may switch back to the writeback cache next epoch, at which point its
             // caches will be stale if not cleared now
 

@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::fatal;
-use iota_config::{ExecutionCacheConfig, ExecutionCacheConfigType};
+use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
@@ -133,10 +133,10 @@ pub fn build_execution_cache_from_env(
 
     let config = ExecutionCacheConfig::default();
     match config.cache_type() {
-        ExecutionCacheConfigType::PassthroughCache => ExecutionCacheTraitPointers::new(
+        ExecutionCacheType::PassthroughCache => ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
         ),
-        ExecutionCacheConfigType::WritebackCache => ExecutionCacheTraitPointers::new(
+        ExecutionCacheType::WritebackCache => ExecutionCacheTraitPointers::new(
             WritebackCache::new(&config, store.clone(), execution_cache_metrics).into(),
         ),
     }

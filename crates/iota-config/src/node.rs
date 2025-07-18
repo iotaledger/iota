@@ -263,7 +263,7 @@ pub struct NodeConfig {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub enum ExecutionCacheConfigType {
+pub enum ExecutionCacheType {
     WritebackCache,
     PassthroughCache,
 }
@@ -272,7 +272,7 @@ pub enum ExecutionCacheConfigType {
 #[serde(rename_all = "kebab-case")]
 #[derive(Default)]
 pub struct ExecutionCacheConfig {
-    pub cache_type: Option<ExecutionCacheConfigType>, // defaults to WritebackCache
+    pub cache_type: Option<ExecutionCacheType>, // defaults to WritebackCache
 
     /// Maximum number of entries in each cache. (There are several
     /// different caches). If None, the default of 10000 is used.
@@ -294,12 +294,12 @@ pub struct ExecutionCacheConfig {
 }
 
 impl ExecutionCacheConfig {
-    pub fn cache_type(&self) -> ExecutionCacheConfigType {
+    pub fn cache_type(&self) -> ExecutionCacheType {
         std::env::var("DISABLE_WRITEBACK_CACHE")
             .is_ok()
-            .then_some(ExecutionCacheConfigType::PassthroughCache)
+            .then_some(ExecutionCacheType::PassthroughCache)
             .or(self.cache_type)
-            .unwrap_or(ExecutionCacheConfigType::WritebackCache)
+            .unwrap_or(ExecutionCacheType::WritebackCache)
     }
 
     pub fn max_cache_size(&self) -> u64 {

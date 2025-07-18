@@ -5,7 +5,7 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use iota_config::{ExecutionCacheConfig, ExecutionCacheConfigType, NodeConfig};
+use iota_config::{ExecutionCacheConfig, ExecutionCacheType, NodeConfig};
 use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
@@ -30,11 +30,11 @@ pub trait EpochStartConfigTrait {
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
 
-    fn execution_cache_type(&self) -> ExecutionCacheConfigType {
+    fn execution_cache_type(&self) -> ExecutionCacheType {
         if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
-            ExecutionCacheConfigType::WritebackCache
+            ExecutionCacheType::WritebackCache
         } else {
-            ExecutionCacheConfigType::PassthroughCache
+            ExecutionCacheType::PassthroughCache
         }
     }
 }
@@ -68,7 +68,7 @@ impl EpochFlag {
 
         if matches!(
             cache_config.cache_type(),
-            ExecutionCacheConfigType::WritebackCache
+            ExecutionCacheType::WritebackCache
         ) {
             new_flags.push(EpochFlag::WritebackCacheEnabled);
         }
