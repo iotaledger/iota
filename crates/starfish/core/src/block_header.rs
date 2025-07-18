@@ -366,15 +366,10 @@ pub struct Slot {
 }
 
 impl Slot {
-    pub fn new(round: Round, authority: AuthorityIndex) -> Self {
-        Self { round, authority }
-    }
-
-    #[cfg(test)]
-    pub fn new_for_test(round: Round, authority: u32) -> Self {
+    pub fn new(round: Round, authority: impl Into<AuthorityIndex>) -> Self {
         Self {
             round,
-            authority: AuthorityIndex::new_for_test(authority),
+            authority: authority.into(),
         }
     }
 }
@@ -874,7 +869,7 @@ impl TestBlockHeader {
         Self {
             block_header: BlockHeaderV1 {
                 round,
-                author: AuthorityIndex::new_for_test(author),
+                author: author.into(),
                 transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
                     &Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 )

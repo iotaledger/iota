@@ -2648,7 +2648,7 @@ mod test {
             Round 8 : { * },
         }";
 
-        let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
         dag_builder.print();
 
         // Subscribe to all created "own" blocks. We know that for our node (A) we'll be

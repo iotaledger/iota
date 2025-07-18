@@ -32,6 +32,9 @@ use crate::{
 ///
 /// DAG Building
 /// ```rust
+/// use std::sync::Arc;
+/// use super::context::Context;
+/// use super::test_dag_builder::DagBuilder;
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let mut dag_builder = DagBuilder::new(context);
 /// dag_builder.layer(1).build(); // Round 1 is fully connected with parents by default.
@@ -47,6 +50,11 @@ use crate::{
 ///
 /// Persisting to DagState by Layer
 /// ```rust
+/// use std::sync::{Arc, RwLock};
+///
+/// use super::{
+///     context::Context, dag_state::DagState, storage::MemStore, test_dag_builder::DagBuilder,
+/// };
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
 ///     Arc::new(MemStore::new()),
@@ -61,12 +69,18 @@ use crate::{
 ///
 /// Persisting entire DAG to DagState
 /// ```rust
+/// use std::sync::{Arc, RwLock};
+///
+/// use super::{
+///     context::Context, dag_state::DagState, storage::MemStore, test_dag_builder::DagBuilder,
+/// };
+/// let context = Arc::new(Context::new_for_test(4).0);
+/// let dag_builder = DagBuilder::new(context);
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
 ///     Arc::new(MemStore::new()),
 /// )));
-/// let context = Arc::new(Context::new_for_test(4).0);
-/// let dag_builder = DagBuilder::new(context);
+///
 /// dag_builder.layer(1).build();
 /// dag_builder.layers(2..10).build();
 /// dag_builder.persist_all_blocks(dag_state.clone()); // persist entire DAG
@@ -74,6 +88,9 @@ use crate::{
 ///
 /// Printing DAG
 /// ```rust
+/// use std::sync::Arc;
+///
+/// use super::{context::Context, test_dag_builder::DagBuilder};
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
 /// dag_builder.layer(1).build();
@@ -101,19 +118,21 @@ pub(crate) struct DagBuilder {
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
 }
-/// The `AncestorSelection` enum is an interim data structure used to specify how ancestors
-/// should be selected for a block in the `DagBuilder`. `UseLast` equates to the "*" in the
-/// parser, while `IncludeFrom(Slot)` and `ExcludeFrom(Slot)` equate to "A3" and "-A3" respectively.
-#[derive(Clone, Copy, PartialEq, PartialOrd, Hash)]
+/// The `AncestorSelection` enum is an interim data structure used to specify
+/// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
+/// equates to the "*" in the parser, while `IncludeFrom(Slot)` and
+/// `ExcludeFrom(Slot)` equate to "A3" and "-A3" respectively.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash)]
 pub(crate) enum AncestorSelection {
     UseLast,
     IncludeFrom(Slot),
     ExcludeFrom(Slot),
 }
-/// The `AncestorConnectionSpec` enum is an interim data structure used to represent round
-/// definitions of the `test_dag_parser`, where `FullyConnected` equates to the { * } in the
-/// parser, while `AuthoritySpecific` equates to the { A -> [], B -> [] } in the parser.
-#[derive(Clone, PartialEq)]
+/// The `AncestorConnectionSpec` enum is an interim data structure used to
+/// represent round definitions of the `test_dag_parser`, where `FullyConnected`
+/// equates to the { * } in the parser, while `AuthoritySpecific` equates to the
+/// { A -> [], B -> [] } in the parser.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AncestorConnectionSpec {
     FullyConnected,
     AuthoritySpecific(
@@ -380,39 +399,6 @@ impl DagBuilder {
         tracing::info!("{dag_str}");
     }
 
-    // TODO: merge into layer builder?
-    // This method allows the user to specify specific links to ancestors. The
-    // layer is written to dag state and the blocks are cached in [`DagBuilder`]
-    // state.
-    pub(crate) fn layer_with_connections(
-        &mut self,
-        connections: Vec<(AuthorityIndex, Vec<BlockRef>)>,
-        transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
-
-        round: Round,
-    ) {
-        let mut references = Vec::new();
-        for (authority, ancestors) in connections {
-            let author = authority.value() as u32;
-            let base_ts = round as BlockTimestampMs * 1000;
-            let block = VerifiedBlockHeader::new_for_test(
-                TestBlockHeader::new(round, author)
-                    .set_ancestors(ancestors)
-                    .set_acknowledgments(
-                        transactions_acknowledgments
-                            .get(&authority)
-                            .cloned()
-                            .unwrap_or_default(),
-                    )
-                    .set_timestamp_ms(base_ts + author as u64)
-                    .build(),
-            );
-            references.push(block.reference());
-            self.block_headers.insert(block.reference(), block.clone());
-        }
-        self.last_ancestors = references;
-    }
-
     /// Gets all uncommitted blocks in a slot.
     pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut blocks = vec![];
@@ -437,10 +423,11 @@ impl DagBuilder {
         self.genesis.keys().cloned().collect()
     }
 
-    // Refactor of the `get_blocks` function from the `test_dag_parser` into a method of the
-    // `DagBuilder` struct. Converts the slot into a block reference and retrieves the
-    // corresponding blocks from the `DagBuilder` state. Special case for genesis blocks as they
-    // are cached separately in the `genesis` field.
+    // Refactor of the `get_blocks` function from the `test_dag_parser` into a
+    // method of the `DagBuilder` struct. Converts the slot into a block
+    // reference and retrieves the corresponding blocks from the `DagBuilder`
+    // state. Special case for genesis blocks as they are cached separately in
+    // the `genesis` field.
     fn get_blocks(&self, slot: Slot) -> Vec<BlockRef> {
         // note: special case for genesis blocks as they are cached separately
         let block_refs = if slot.round == 0 {
@@ -456,11 +443,12 @@ impl DagBuilder {
         };
         block_refs
     }
-    // Refactor of the `parse_specified_connections` and 'parse_fully_connected' functions from the
-    // `test_dag_parser` into a single method of the `DagBuilder` struct using ancestor_selections
-    // instead of text. Converts the ancestor selections into block references from the DagBuilder's
+    // Refactor of the `parse_specified_connections` and 'parse_fully_connected'
+    // functions from the `test_dag_parser` into a single method of the
+    // `DagBuilder` struct using ancestor_selections instead of text. Converts
+    // the ancestor selections into block references from the DagBuilder's
     // last ancestors or from the blocks in the specified slots.
-    fn get_refences_from_ancestor_specs(
+    fn get_references_from_ancestor_specs(
         &self,
         ancestor_selections: Vec<AncestorSelection>,
     ) -> Vec<BlockRef> {
@@ -485,12 +473,11 @@ impl DagBuilder {
         block_refs
     }
 
-    // Refactor of the `layer_with_connections` method, using `AncestorConnectionSpec` instead of
-    // requiring the user to specify `DagBulder` connections manually. Uses the
-    // `get_refences_from_ancestor_specs` method to convert the ancestor selections into
-    // block references from the DagBuilder's last ancestors or from the blocks in the specified
-    // slots.
-    pub(crate) fn layer_with_ancestor_connections(
+    // TODO: merge into layer builder?
+    // This method allows the user to specify specific links to ancestors. The
+    // layer is written to dag state and the blocks are cached in [`DagBuilder`]
+    // state.
+    pub(crate) fn layer_with_connections(
         &mut self,
         ancestor_connection_spec: AncestorConnectionSpec,
         round: Round,
@@ -509,7 +496,7 @@ impl DagBuilder {
             AncestorConnectionSpec::AuthoritySpecific(ancestor_connections, _transaction_acks) => {
                 let mut output = vec![];
                 for (authority, ancestor_specs) in ancestor_connections {
-                    let block_refs = self.get_refences_from_ancestor_specs(ancestor_specs);
+                    let block_refs = self.get_references_from_ancestor_specs(ancestor_specs);
                     output.push((authority, block_refs));
                 }
                 output
@@ -1120,10 +1107,7 @@ mod tests {
     async fn test_skip_acknowledgments() {
         let context = Arc::new(Context::new_for_test(4).0);
         let mut dag_builder = DagBuilder::new(context);
-        let authorities_to_skip = vec![
-            AuthorityIndex::new_for_test(1),
-            AuthorityIndex::new_for_test(2),
-        ];
+        let authorities_to_skip = vec![1.into(), 2.into()];
         dag_builder.layers(1..=5).build();
         // Round 6 and above should skip acknowledgments from authorities to skip
         dag_builder
@@ -1150,10 +1134,7 @@ mod tests {
     async fn test_only_acknowledge() {
         let context = Arc::new(Context::new_for_test(4).0);
         let mut dag_builder = DagBuilder::new(context);
-        let only_acknowledge = vec![
-            AuthorityIndex::new_for_test(1),
-            AuthorityIndex::new_for_test(2),
-        ];
+        let only_acknowledge = vec![1.into(), 2.into()];
         dag_builder.layers(1..=5).build();
         // Round 6 and above should only acknowledge blocks from authorities to
         // acknowledge
@@ -1188,12 +1169,7 @@ mod tests {
         // Genesis  Round 0 : { 4 },
         let context = Arc::new(Context::new_for_test(4).0);
         let mut dag_builder = DagBuilder::new(context);
-        let (a, b, c, d) = (
-            AuthorityIndex::new_for_test(0),
-            AuthorityIndex::new_for_test(1),
-            AuthorityIndex::new_for_test(2),
-            AuthorityIndex::new_for_test(3),
-        );
+        let (a, b, c, d) = (0.into(), 1.into(), 2.into(), 3.into());
 
         let ancestor_specs = vec![
             // Round 1 : { * }
@@ -1221,27 +1197,27 @@ mod tests {
                     (
                         a,
                         vec![
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, a.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, b.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, c.value() as u32)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, a)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, b)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, c)),
                         ],
                     ),
                     // B -> [A3, B3, C3]
                     (
                         b,
                         vec![
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, a.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, b.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, c.value() as u32)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, a)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, b)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, c)),
                         ],
                     ),
                     // C -> [A3, B3, C3],
                     (
                         c,
                         vec![
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, a.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, b.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, c.value() as u32)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, a)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, b)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, c)),
                         ],
                     ),
                     // D -> [*]
@@ -1255,29 +1231,11 @@ mod tests {
                     // A -> [*]
                     (a, vec![AncestorSelection::UseLast]),
                     // B -> [-A4]
-                    (
-                        b,
-                        vec![AncestorSelection::ExcludeFrom(Slot::new_for_test(
-                            4,
-                            a.value() as u32,
-                        ))],
-                    ),
+                    (b, vec![AncestorSelection::ExcludeFrom(Slot::new(4, a))]),
                     // C -> [-A4],
-                    (
-                        c,
-                        vec![AncestorSelection::ExcludeFrom(Slot::new_for_test(
-                            4,
-                            a.value() as u32,
-                        ))],
-                    ),
+                    (c, vec![AncestorSelection::ExcludeFrom(Slot::new(4, a))]),
                     // D -> [-A4]
-                    (
-                        d,
-                        vec![AncestorSelection::ExcludeFrom(Slot::new_for_test(
-                            4,
-                            a.value() as u32,
-                        ))],
-                    ),
+                    (d, vec![AncestorSelection::ExcludeFrom(Slot::new(4, a))]),
                 ],
                 HashMap::new(),
             ),
@@ -1288,11 +1246,11 @@ mod tests {
                     (
                         a,
                         vec![
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, a.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, b.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(3, c.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(1, a.value() as u32)),
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(1, b.value() as u32)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, a)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, b)),
+                            AncestorSelection::IncludeFrom(Slot::new(3, c)),
+                            AncestorSelection::IncludeFrom(Slot::new(1, a)),
+                            AncestorSelection::IncludeFrom(Slot::new(1, b)),
                         ],
                     ),
                     // B -> [*, A0]
@@ -1300,17 +1258,11 @@ mod tests {
                         b,
                         vec![
                             AncestorSelection::UseLast,
-                            AncestorSelection::IncludeFrom(Slot::new_for_test(0, a.value() as u32)),
+                            AncestorSelection::IncludeFrom(Slot::new(0, a)),
                         ],
                     ),
                     // C -> [-A5],
-                    (
-                        c,
-                        vec![AncestorSelection::ExcludeFrom(Slot::new_for_test(
-                            5,
-                            a.value() as u32,
-                        ))],
-                    ),
+                    (c, vec![AncestorSelection::ExcludeFrom(Slot::new(5, a))]),
                 ],
                 HashMap::new(),
             ),
@@ -1320,60 +1272,53 @@ mod tests {
 
         for (i, ancestor_spec) in ancestor_specs.iter().enumerate() {
             let round = (i + 1) as Round; // No transactions in this test
-            dag_builder.layer_with_ancestor_connections(ancestor_spec.clone(), round);
+            dag_builder.layer_with_connections(ancestor_spec.clone(), round);
         }
 
         assert_eq!(dag_builder.block_headers.len(), 23);
 
         // Check the blocks were correctly parsed in Round 6
-        let blocks_a6 = dag_builder
-            .get_uncommitted_blocks_at_slot(Slot::new(6, AuthorityIndex::new_for_test(0)));
+        let blocks_a6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 0));
         assert_eq!(blocks_a6.len(), 1);
         let block_a6 = blocks_a6.first().unwrap();
         assert_eq!(block_a6.round(), 6);
-        assert_eq!(block_a6.author(), AuthorityIndex::new_for_test(0));
+        assert_eq!(block_a6.author(), 0.into());
         assert_eq!(block_a6.ancestors().len(), 5);
         let expected_block_a6_ancestor_slots = [
-            Slot::new(3, AuthorityIndex::new_for_test(0)),
-            Slot::new(3, AuthorityIndex::new_for_test(1)),
-            Slot::new(3, AuthorityIndex::new_for_test(2)),
-            Slot::new(1, AuthorityIndex::new_for_test(0)),
-            Slot::new(1, AuthorityIndex::new_for_test(1)),
+            Slot::new(3, 0),
+            Slot::new(3, 1),
+            Slot::new(3, 2),
+            Slot::new(1, 0),
+            Slot::new(1, 1),
         ];
         for ancestor in block_a6.ancestors() {
             assert!(expected_block_a6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
 
-        let blocks_b6 = dag_builder
-            .get_uncommitted_blocks_at_slot(Slot::new(6, AuthorityIndex::new_for_test(1)));
+        let blocks_b6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 1));
         assert_eq!(blocks_b6.len(), 1);
         let block_b6 = blocks_b6.first().unwrap();
         assert_eq!(block_b6.round(), 6);
-        assert_eq!(block_b6.author(), AuthorityIndex::new_for_test(1));
+        assert_eq!(block_b6.author(), 1.into());
         assert_eq!(block_b6.ancestors().len(), 5);
         let expected_block_b6_ancestor_slots = [
-            Slot::new(5, AuthorityIndex::new_for_test(0)),
-            Slot::new(5, AuthorityIndex::new_for_test(1)),
-            Slot::new(5, AuthorityIndex::new_for_test(2)),
-            Slot::new(5, AuthorityIndex::new_for_test(3)),
-            Slot::new(0, AuthorityIndex::new_for_test(0)),
+            Slot::new(5, 0),
+            Slot::new(5, 1),
+            Slot::new(5, 2),
+            Slot::new(5, 3),
+            Slot::new(0, 0),
         ];
         for ancestor in block_b6.ancestors() {
             assert!(expected_block_b6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
 
-        let blocks_c6 = dag_builder
-            .get_uncommitted_blocks_at_slot(Slot::new(6, AuthorityIndex::new_for_test(2)));
+        let blocks_c6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 2));
         assert_eq!(blocks_c6.len(), 1);
         let block_c6 = blocks_c6.first().unwrap();
         assert_eq!(block_c6.round(), 6);
-        assert_eq!(block_c6.author(), AuthorityIndex::new_for_test(2));
+        assert_eq!(block_c6.author(), 2.into());
         assert_eq!(block_c6.ancestors().len(), 3);
-        let expected_block_c6_ancestor_slots = [
-            Slot::new(5, AuthorityIndex::new_for_test(1)),
-            Slot::new(5, AuthorityIndex::new_for_test(2)),
-            Slot::new(5, AuthorityIndex::new_for_test(3)),
-        ];
+        let expected_block_c6_ancestor_slots = [Slot::new(5, 1), Slot::new(5, 2), Slot::new(5, 3)];
         for ancestor in block_c6.ancestors() {
             assert!(expected_block_c6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
