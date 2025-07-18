@@ -273,24 +273,35 @@ pub enum ExecutionCacheType {
 #[serde(rename_all = "kebab-case")]
 #[derive(Default)]
 pub struct ExecutionCacheConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_type: Option<ExecutionCacheType>, // defaults to WritebackCache
 
     /// Maximum number of entries in each cache. (There are several
     /// different caches). If None, the default of 10000 is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_cache_size: Option<u64>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_cache_size: Option<u64>, // defaults to 1000
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object_cache_size: Option<u64>, // defaults to max_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marker_cache_size: Option<u64>, // defaults to object_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object_by_id_cache_size: Option<u64>, // defaults to object_cache_size
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_cache_size: Option<u64>, // defaults to max_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executed_effect_cache_size: Option<u64>, // defaults to transaction_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect_cache_size: Option<u64>,      // defaults to executed_effect_cache_size
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub events_cache_size: Option<u64>, // defaults to transaction_cache_size
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_objects_cache_size: Option<u64>, // defaults to 1000
 }
 
