@@ -526,7 +526,7 @@ where
         latest_checkpoint_in_archive
     );
     let latest_checkpoint = store
-        .get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint()
         .map_err(|_| anyhow!("Failed to read highest synced checkpoint"))?
         .sequence_number;
     info!("Highest synced checkpoint in db: {latest_checkpoint}");
@@ -561,7 +561,7 @@ where
         tokio::spawn(async move {
             loop {
                 let latest_checkpoint = cloned_store
-                    .get_highest_synced_checkpoint()
+                    .try_get_highest_synced_checkpoint()
                     .map_err(|_| anyhow!("Failed to read highest synced checkpoint"))?
                     .sequence_number;
                 let percent = (latest_checkpoint * 100) / latest_checkpoint_in_archive;
@@ -588,7 +588,7 @@ where
         .await?;
     progress_bar.iter().for_each(|p| p.finish_and_clear());
     let end = store
-        .get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint()
         .map_err(|_| anyhow!("Failed to read watermark"))?
         .sequence_number;
     info!("Highest verified checkpoint: {}", end);

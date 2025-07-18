@@ -133,6 +133,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
     pub(crate) synchronizer_requested_blocks_by_authority: IntCounterVec,
+    pub(crate) synchronizer_fetch_failures_by_peer: IntCounterVec,
+    pub(crate) synchronizer_process_fetched_failures_by_peer: IntCounterVec,
     pub(crate) network_received_excluded_ancestors_from_authority: IntCounterVec,
     pub(crate) network_excluded_ancestors_sent_to_fetch: IntCounterVec,
     pub(crate) network_excluded_ancestors_count_by_authority: IntCounterVec,
@@ -390,6 +392,18 @@ impl NodeMetrics {
                 "synchronizer_missing_blocks_by_authority",
                 "Number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
                 &["authority"],
+                registry,
+            ).unwrap(),
+            synchronizer_fetch_failures_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_fetch_failures",
+                "Number of fetch failures against each peer",
+                &["peer", "type"],
+                registry,
+            ).unwrap(),
+            synchronizer_process_fetched_failures_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_process_fetched_failures",
+                "Number of failures for processing fetched blocks against each peer",
+                &["peer", "type"],
                 registry,
             ).unwrap(),
             synchronizer_current_missing_blocks_by_authority: register_int_gauge_vec_with_registry!(

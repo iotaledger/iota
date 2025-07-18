@@ -470,11 +470,14 @@ impl ArchiveReader {
                                 VerifiedCheckpointContents::new_unchecked(contents.clone());
                             // Insert content
                             store
-                                .insert_checkpoint_contents(&verified_checkpoint, verified_contents)
+                                .try_insert_checkpoint_contents(
+                                    &verified_checkpoint,
+                                    verified_contents,
+                                )
                                 .map_err(|e| anyhow!("Failed to insert content: {e}"))?;
                             // Update highest synced watermark
                             store
-                                .update_highest_synced_checkpoint(&verified_checkpoint)
+                                .try_update_highest_synced_checkpoint(&verified_checkpoint)
                                 .map_err(|e| anyhow!("Failed to update watermark: {e}"))?;
                             txn_counter.fetch_add(contents.size() as u64, Ordering::Relaxed);
                             self.archive_reader_metrics
@@ -541,7 +544,7 @@ impl ArchiveReader {
         S: WriteStore + Clone,
     {
         store
-            .insert_checkpoint(VerifiedCheckpoint::new_unchecked(certified_checkpoint).borrow())
+            .try_insert_checkpoint(VerifiedCheckpoint::new_unchecked(certified_checkpoint).borrow())
             .map_err(|e| anyhow!("Failed to insert checkpoint: {e}"))
     }
 
@@ -555,7 +558,7 @@ impl ArchiveReader {
         S: WriteStore + Clone,
     {
         store
-            .get_checkpoint_by_sequence_number(certified_checkpoint.sequence_number)
+            .try_get_checkpoint_by_sequence_number(certified_checkpoint.sequence_number)
             .map_err(|e| anyhow!("Store op failed: {e}"))?
             .map(Ok::<VerifiedCheckpoint, anyhow::Error>)
             .unwrap_or_else(|| {
@@ -566,7 +569,7 @@ impl ArchiveReader {
                         .checked_sub(1)
                         .context("Checkpoint seq num underflow")?;
                     let prev_checkpoint = store
-                        .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
+                        .try_get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
                         .map_err(|e| anyhow!("Store op failed: {e}"))?
                         .context(format!(
                             "Missing previous checkpoint {prev_checkpoint_seq_num} in store"
@@ -579,11 +582,11 @@ impl ArchiveReader {
                 };
                 // Insert checkpoint summary
                 store
-                    .insert_checkpoint(&verified_checkpoint)
+                    .try_insert_checkpoint(&verified_checkpoint)
                     .map_err(|e| anyhow!("Failed to insert checkpoint: {e}"))?;
                 // Update highest verified checkpoint watermark
                 store
-                    .update_highest_verified_checkpoint(&verified_checkpoint)
+                    .try_update_highest_verified_checkpoint(&verified_checkpoint)
                     .expect("store operation should not fail");
                 Ok::<VerifiedCheckpoint, anyhow::Error>(verified_checkpoint)
             })

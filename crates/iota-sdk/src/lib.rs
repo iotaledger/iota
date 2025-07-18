@@ -85,10 +85,11 @@ pub mod json_rpc_error;
 pub mod wallet_context;
 
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fmt::{Debug, Formatter},
     marker::PhantomData,
     pin::Pin,
+    str::FromStr,
     sync::Arc,
     task::Poll,
     time::Duration,
@@ -115,6 +116,7 @@ use jsonrpsee::{
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::language_storage::StructTag;
+use reqwest::header::HeaderName;
 use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
 
@@ -167,6 +169,7 @@ pub struct IotaClientBuilder {
     ws_ping_interval: Option<Duration>,
     basic_auth: Option<(String, String)>,
     tls_config: Option<rustls::ClientConfig>,
+    headers: Option<HashMap<String, String>>,
 }
 
 impl Default for IotaClientBuilder {
@@ -178,6 +181,7 @@ impl Default for IotaClientBuilder {
             ws_ping_interval: None,
             basic_auth: None,
             tls_config: None,
+            headers: None,
         }
     }
 }
@@ -210,6 +214,12 @@ impl IotaClientBuilder {
     /// Set the basic auth credentials for the HTTP client.
     pub fn basic_auth(mut self, username: impl AsRef<str>, password: impl AsRef<str>) -> Self {
         self.basic_auth = Some((username.as_ref().to_string(), password.as_ref().to_string()));
+        self
+    }
+
+    /// Set custom headers for the HTTP client
+    pub fn custom_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = Some(headers);
         self
     }
 
@@ -263,6 +273,16 @@ impl IotaClientBuilder {
                 // reqwest::header::AUTHORIZATION,
                 HeaderValue::from_str(&format!("Basic {auth}")).unwrap(),
             );
+        }
+
+        if let Some(custom_headers) = self.headers {
+            for (key, value) in custom_headers {
+                let header_name =
+                    HeaderName::from_str(&key).map_err(|e| Error::CustomHeaders(e.to_string()))?;
+                let header_value = HeaderValue::from_str(&value)
+                    .map_err(|e| Error::CustomHeaders(e.to_string()))?;
+                headers.insert(header_name, header_value);
+            }
         }
 
         let ws = if let Some(url) = self.ws_url {
