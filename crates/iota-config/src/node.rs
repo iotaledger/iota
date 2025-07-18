@@ -296,7 +296,7 @@ pub struct ExecutionCacheConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executed_effect_cache_size: Option<u64>, // defaults to transaction_cache_size
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effect_cache_size: Option<u64>,      // defaults to executed_effect_cache_size
+    pub effect_cache_size: Option<u64>, // defaults to executed_effect_cache_size
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub events_cache_size: Option<u64>, // defaults to transaction_cache_size

@@ -20,8 +20,8 @@ use iota_types::{
 use parking_lot::RwLock;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheType,
-    ExecutionCacheMetrics, ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
+    ExecutionCacheReconfigAPI, ExecutionCacheType, ExecutionCacheWrite, ObjectCacheRead,
     PassthroughCache, StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
 use crate::{
