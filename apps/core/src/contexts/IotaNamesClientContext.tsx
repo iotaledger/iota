@@ -6,7 +6,6 @@
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { IotaNamesClient } from '@iota/iota-names-sdk';
 import { getNetwork } from '@iota/iota-sdk/client';
-import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import React, { createContext, useContext, useMemo } from 'react';
 import { useIotaGraphQLClientContext } from './IotaGraphQLClientContext';
 

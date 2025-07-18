@@ -3,15 +3,15 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useGetFiatBalance, toast, useGetAllBalances, NamedAddress } from '@iota/core';
 import {
-    Address,
-    Button,
-    ButtonSize,
-    ButtonType,
-    LoadingIndicator,
-    Panel,
-} from '@iota/apps-ui-kit';
+    useBalance,
+    useFormatCoin,
+    useGetFiatBalance,
+    toast,
+    useGetAllBalances,
+    NamedAddress,
+} from '@iota/core';
+import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import { useState } from 'react';
@@ -55,21 +55,14 @@ export function AccountBalance() {
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
                         <div className="flex flex-col items-center gap-y-xs">
                             {address && (
-                                <div className="-mr-lg" data-full-address={address}>
-                                    <Address
-                                        text={formattedAddress}
+                                <div className="w-full" data-full-address={address}>
+                                    <NamedAddress
+                                        address={formattedAddress}
                                         isCopyable
                                         copyText={address}
                                         isExternal
                                         externalLink={explorerLink}
                                         onCopySuccess={handleOnCopySuccess}
-                                    />
-                                    <NamedAddress
-                                        address={address}
-                                        onCopy={(e) => {
-                                            e.stopPropagation();
-                                            handleOnCopySuccess();
-                                        }}
                                     />
                                 </div>
                             )}
@@ -85,7 +78,7 @@ export function AccountBalance() {
                                 </span>
                             )}
                         </div>
-                        <div className="flex w-full max-w-56 gap-xs">
+                        <div className="max-w-56 flex w-full gap-xs">
                             <Button
                                 onClick={openSendTokenDialog}
                                 text="Send"

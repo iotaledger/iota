@@ -17,6 +17,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
+import { useGetIotaName } from '@iota/core';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -62,7 +63,7 @@ export function PageMainLayout({
                 />
             ) : null}
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
+                <div className="dark:bg-iota-neutral-6 flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
                             'p-5': bottomNavEnabled && isHomePage,
@@ -95,6 +96,7 @@ function LeftContent({
     isLegacyAccount?: boolean;
     isMainAccount?: boolean;
 }) {
+    const { data: defaultName } = useGetIotaName(account?.address || '');
     const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
@@ -111,9 +113,16 @@ function LeftContent({
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="line-clamp-1 break-all text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                {accountName}
-            </span>
+            <div className="flex flex-col items-start">
+                <span className="dark:text-iota-neutral-92 line-clamp-1 break-all text-title-sm text-iota-neutral-10">
+                    {accountName}
+                </span>
+                {defaultName ? (
+                    <span className="bg-names-gradient-primary bg-clip-text text-label-md text-transparent">
+                        {defaultName.name}
+                    </span>
+                ) : null}
+            </div>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
             {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
