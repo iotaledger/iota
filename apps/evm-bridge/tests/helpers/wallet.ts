@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { BrowserContext, Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
 import { HDNodeWallet, Wallet } from 'ethers';
 import { WALLET_CUSTOMRPC_PLACEHOLDER } from '../utils/constants';
@@ -90,6 +90,42 @@ export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promis
     await page.getByRole('button', { name: /Done/ }).click();
 
     return address;
+}
+
+/**
+ * Connect L1 wallet to the bridge UI
+ */
+export async function connectL1Wallet(page: Page, browserContext: BrowserContext): Promise<void> {
+    const connectButtonId = 'connect-l1-wallet';
+    const connectButton = await page.waitForSelector(`[data-testid="${connectButtonId}"]`, {
+        state: 'visible',
+    });
+
+    await connectButton.click();
+    const approveWalletConnectPage = browserContext.waitForEvent('page');
+    await page.getByText('IOTA Wallet').click();
+
+    const walletPage = await approveWalletConnectPage;
+    await walletPage.getByRole('button', { name: 'Continue' }).click();
+    await walletPage.getByRole('button', { name: 'Connect' }).click();
+}
+
+/**
+ * Connect L2 wallet to the bridge UI
+ */
+export async function connectL2Wallet(page: Page, browserContext: BrowserContext): Promise<void> {
+    const connectButtonId = 'connect-l2-wallet';
+    const connectButton = await page.waitForSelector(`[data-testid="${connectButtonId}"]`, {
+        state: 'visible',
+    });
+
+    await connectButton.click();
+    const approveDialog = browserContext.waitForEvent('page', { timeout: 20_000 });
+    await page.getByTestId(/metamask/).click();
+
+    const walletModal = await approveDialog;
+    await walletModal.waitForLoadState();
+    await walletModal.getByRole('button', { name: 'Connect' }).click();
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
