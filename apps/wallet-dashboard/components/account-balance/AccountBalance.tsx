@@ -63,6 +63,7 @@ export function AccountBalance() {
                                         isExternal
                                         externalLink={explorerLink}
                                         onCopySuccess={handleOnCopySuccess}
+                                        addMarginRightToCenter
                                     />
                                 </div>
                             )}

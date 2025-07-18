@@ -119,7 +119,7 @@ function LeftContent({
                 </span>
                 {defaultName ? (
                     <span className="bg-names-gradient-primary bg-clip-text text-label-md text-transparent">
-                        {defaultName.name}
+                        {defaultName}
                     </span>
                 ) : null}
             </div>
