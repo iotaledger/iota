@@ -51,89 +51,98 @@ pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 150;
 pub(crate) struct DagState {
     context: Arc<Context>,
 
-    // The genesis blocks
+    /// The genesis blocks
     genesis: BTreeMap<BlockRef, VerifiedBlock>,
 
-    // Contains recent block headers within CACHED_ROUNDS from the last traversed round per
-    // authority. Note: all uncommitted block headers are kept in memory.
+    /// Contains recent block headers within CACHED_ROUNDS from the last
+    /// traversed round per authority. Note: all uncommitted block headers
+    /// are kept in memory.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
-    // Contains recent transactions. It contains MAX_TRANSACTIONS_ACK_DEPTH+MAX_LINEARIZER_DEPTH
-    // from the round of the last consumed commit. Note: all transactions in blocks below that
-    // round are evicted from memory.
+    /// Contains recent transactions. It contains
+    /// MAX_TRANSACTIONS_ACK_DEPTH+MAX_LINEARIZER_DEPTH from the round of
+    /// the last consumed commit. Note: all transactions in blocks below that
+    /// round are evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
 
-    // Indexes recent block headers refs by their authorities.
-    // Vec position corresponds to the authority index.
+    /// Indexes recent block headers refs by their authorities.
+    /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
-    // Keeps track of the threshold clock for proposing blocks.
+    /// Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
-    // Keeps track of the highest round that has been evicted for each authority. Any block header
-    // that are of round <= evict_round should be considered evicted, and if any exist we
-    // should not consider the causally complete in the order they appear. The `evicted_rounds`
-    // size should be the same as the committee size.
+    /// Keeps track of the highest round that has been evicted for each
+    /// authority. Any block header that are of round <= evict_round should
+    /// be considered evicted, and if any exist we should not consider the
+    /// causally complete in the order they appear. The `evicted_rounds`
+    /// size should be the same as the committee size.
     evicted_rounds: Vec<Round>,
 
-    // Highest round of blocks accepted.
+    /// Highest round of blocks accepted.
     highest_accepted_round: Round,
 
-    // Last consensus commit of the dag.
+    /// Last consensus commit of the dag.
     last_commit: Option<TrustedCommit>,
 
-    // Last wall time when commit round advanced. Does not persist across restarts.
+    /// Last wall time when commit round advanced. Does not persist across
+    /// restarts.
     last_commit_round_advancement_time: Option<std::time::Instant>,
 
-    // Round of the last committed leader which created a commit with available transactions. Does
-    // not persist across restarts and after recovery. All transactions below this round minus
-    // MAX_TRANSACTIONS_ACK_DEPTH minus MAX_LINEARIZER_DEPTH are evicted from memory.
+    /// Round of the last committed leader which created a commit with available
+    /// transactions. Does not persist across restarts and after recovery.
+    /// All transactions below this round minus MAX_TRANSACTIONS_ACK_DEPTH
+    /// minus MAX_LINEARIZER_DEPTH are evicted from memory.
     last_available_commit_leader_round: Option<Round>,
 
-    // Rounds for latest blocks traversed by linearizer per authority.
+    /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
     /// The committed subdags that have been scored but scores have not been
     /// used for leader schedule yet.
     scoring_subdag: ScoringSubdag,
 
-    // Commit votes pending to be included in new blocks.
+    /// Commit votes pending to be included in new blocks.
     // TODO: limit to 1st commit per round with multi-leader.
     pending_commit_votes: VecDeque<CommitVote>,
 
-    // Acknowledgments pending to be included in new blocks. These represent votes indicating
-    // availability of transaction data from the corresponding blocks
+    /// Acknowledgments pending to be included in new blocks. These represent
+    /// votes indicating availability of transaction data from the
+    /// corresponding blocks
     pending_acknowledgments: BTreeSet<BlockRef>,
 
     // TODO: add metrics for recent_dag_cordial_knowledge and block_headers_not_known_by_authority
-    // and pending_acknowledgments Keeps track of the most recent BlockHeaderDAG cordial
-    // knowledge (who knows which blocks) for each authority. This is a helper structure that
-    // is used primarily for traversing the recent DAG. This struct is evicted after flushing
-    // the dag state to storage and is not persisted.
-    // To access the cordial knowledge of a given block_ref, one shall retrieve it from
-    // `recent_dag_cordial_knowledge[block_ref.author][(block_ref.round, block_ref.digest)]`.
-    // The value is a tuple of (parents, who knows the block header).
+    // and pending_acknowledgments
+    /// Keeps track of the most recent BlockHeaderDAG cordial
+    /// knowledge (who knows which blocks) for each authority. This is a helper
+    /// structure that is used primarily for traversing the recent DAG. This
+    /// struct is evicted after flushing the dag state to storage and is not
+    /// persisted. To access the cordial knowledge of a given block_ref, one
+    /// shall retrieve it from `recent_dag_cordial_knowledge[block_ref.
+    /// author][(block_ref.round, block_ref.digest)]`. The value is a tuple
+    /// of (parents, who knows the block header).
     recent_dag_cordial_knowledge:
         Vec<BTreeMap<(Round, BlockHeaderDigest), (Vec<BlockRef>, HashSet<AuthorityIndex>)>>,
-    // Keeps tracks of block headers that are not known by the authority.
-    // Is used to ensure that we send block headers that are really needed
-    // to the authority, and not the ones that they already know.
+    /// Keeps tracks of block headers that are not known by the authority.
+    /// Is used to ensure that we send block headers that are really needed
+    /// to the authority, and not the ones that they already know.
     block_headers_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
 
-    // Transactions to be flushed to storage.
+    /// Transactions to be flushed to storage.
     transactions_to_write: Vec<VerifiedTransactions>,
     block_headers_to_write: Vec<VerifiedBlockHeader>,
     commits_to_write: Vec<TrustedCommit>,
 
-    // Buffer the reputation scores & last_committed_rounds to be flushed with the
-    // next dag state flush. This is okay because we can recover reputation scores
-    // & last_committed_rounds from the commits as needed.
+    /// Buffer the reputation scores & last_committed_rounds to be flushed with
+    /// the next dag state flush. This is okay because we can recover
+    /// reputation scores & last_committed_rounds from the commits as
+    /// needed.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
-    // Persistent storage for blocks, commits and other consensus data.
+    /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
 
-    // The number of cached rounds
+    /// The number of cached rounds
     cached_rounds: Round,
 }
 
@@ -458,14 +467,6 @@ impl DagState {
         }
     }
 
-    /// Gets a transaction by checking cached recent transactions then storage.
-    /// Returns None when the transaction is not found.
-    pub(crate) fn get_transaction(&self, reference: &BlockRef) -> Option<VerifiedTransactions> {
-        self.get_transactions(&[*reference])
-            .pop()
-            .expect("Exactly one element should be returned")
-    }
-
     /// Gets transactions by checking cached recent transactions in memory, then
     /// storage. An element is None when the corresponding transaction is not
     /// found.
@@ -519,30 +520,6 @@ impl DagState {
         }
 
         transactions
-    }
-
-    /// Gets a block by reconstructing it from its header and transactions.
-    /// Returns None when the block is not found.
-    pub(crate) fn get_block(&self, reference: &BlockRef) -> Option<VerifiedBlock> {
-        let header = self.get_block_header(reference)?;
-        let transactions = self.get_transaction(reference)?;
-        Some(VerifiedBlock::new(header, transactions))
-    }
-
-    /// Gets blocks by reconstructing them from their headers and transactions.
-    /// Returns None for elements where the block is not found.
-    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
-        let headers = self.get_block_headers(block_refs);
-        let transactions = self.get_transactions(block_refs);
-
-        headers
-            .into_iter()
-            .zip(transactions)
-            .map(|(header, transaction)| match (header, transaction) {
-                (Some(header), Some(transaction)) => Some(VerifiedBlock::new(header, transaction)),
-                _ => None,
-            })
-            .collect()
     }
 
     /// Gets a block header by checking cached recent blocks then storage.
@@ -785,16 +762,40 @@ impl DagState {
         authority: AuthorityIndex,
         start: Round,
     ) -> Vec<VerifiedBlockHeader> {
+        self.get_cached_block_headers_in_range(authority, start, Round::MAX, usize::MAX)
+    }
+    pub(crate) fn get_cached_block_headers_in_range(
+        &self,
+        authority: AuthorityIndex,
+        start_round: Round,
+        end_round: Round,
+        limit: usize,
+    ) -> Vec<VerifiedBlockHeader> {
+        if start_round >= end_round || limit == 0 {
+            return vec![];
+        }
+
         let mut block_headers = vec![];
         for block_ref in self.recent_headers_refs_by_authority[authority].range((
-            Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
-            Unbounded,
+            Included(BlockRef::new(
+                start_round,
+                authority,
+                BlockHeaderDigest::MIN,
+            )),
+            Excluded(BlockRef::new(
+                end_round,
+                AuthorityIndex::MIN,
+                BlockHeaderDigest::MIN,
+            )),
         )) {
             let block_header = self
                 .recent_block_headers
                 .get(block_ref)
-                .expect("Block Header should exist in recent blocks headers");
+                .expect("Block should exist in recent blocks");
             block_headers.push(block_header.clone());
+            if block_headers.len() >= limit {
+                break;
+            }
         }
         block_headers
     }
@@ -809,10 +810,8 @@ impl DagState {
         start_round: Round,
         end_round: Round,
     ) -> Option<VerifiedBlockHeader> {
-        if end_round == GENESIS_ROUND {
-            panic!(
-                "Attempted to retrieve blocks earlier than the genesis round which is impossible"
-            );
+        if start_round >= end_round {
+            return None;
         }
 
         let block_ref = self.recent_headers_refs_by_authority[authority]
@@ -1149,23 +1148,6 @@ impl DagState {
             .push((last_commit.reference(), commit_info));
     }
 
-    /// Returns the set of block headers up to a given round that are not known
-    /// by the given authority
-    #[expect(unused)]
-    pub(crate) fn get_past_block_headers_not_known_by_authority(
-        &self,
-        authority_index: AuthorityIndex,
-        round: Round,
-    ) -> Vec<BlockRef> {
-        let set = &self.block_headers_not_known_by_authority[authority_index.value()];
-
-        // Construct an upper bound (exclusive)
-        let upper_bound = BlockRef::new(round, AuthorityIndex::MAX, BlockHeaderDigest::MAX);
-
-        // Take all BlockRefs strictly less than the upper bound
-        set.range(..upper_bound).cloned().collect()
-    }
-
     /// Takes a batch of at most MAX_HEADERS_PER_BUNDLE unknown headers for the
     /// given authority, but only from round smaller than
     /// round_upper_bound_exclusive. Marks these headers as known to the
@@ -1196,10 +1178,20 @@ impl DagState {
         let mut block_refs: Vec<BlockRef> = vec![];
         for block_ref in set.into_iter() {
             block_refs.push(block_ref);
-            let (_, who_knows_given_block) = self.recent_dag_cordial_knowledge
-                [block_ref.author.value()]
-            .get_mut(&(block_ref.round, block_ref.digest))
-            .expect("We expect block ref to be in recent dag cordial knowledge");
+            let opt_block_knowledge = self.recent_dag_cordial_knowledge[block_ref.author.value()]
+                .get_mut(&(block_ref.round, block_ref.digest));
+            if opt_block_knowledge.is_none() {
+                println!(
+                    "WARNING: Block knowledge for {:?} not found in recent dag cordial knowledge",
+                    block_ref
+                );
+                println!(
+                    "Current block headers not known by authority: {:?}",
+                    self.block_headers_not_known_by_authority
+                );
+            }
+            let (_, who_knows_given_block) = opt_block_knowledge
+                .expect("We expect block ref to be in recent dag cordial knowledge");
             who_knows_given_block.insert(authority_index);
         }
         self.get_block_headers(&block_refs)
@@ -1619,7 +1611,7 @@ mod test {
         let last_ref = blocks.keys().last().unwrap();
         assert!(
             dag_state
-                .get_block(&BlockRef::new(
+                .get_block_header(&BlockRef::new(
                     last_ref.round,
                     last_ref.author,
                     BlockHeaderDigest::MIN
@@ -2246,6 +2238,77 @@ mod test {
             .get_cached_block_headers(context.committee.to_authority_index(3).unwrap(), 12);
         assert_eq!(cached_block_headers.len(), 1);
         assert_eq!(cached_block_headers[0].round(), 12);
+
+        // Test get_cached_block_headers_in_range()
+
+        // Start == end
+        let cached_block_headers = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            10,
+            10,
+            1,
+        );
+        assert!(cached_block_headers.is_empty());
+
+        // Start > end
+        let cached_block_headers = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            11,
+            10,
+            1,
+        );
+        assert!(cached_block_headers.is_empty());
+
+        // Empty result.
+        let cached_blocks = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(0).unwrap(),
+            9,
+            10,
+            1,
+        );
+        assert!(cached_blocks.is_empty());
+
+        // Single block, one round before the end.
+        let cached_block_headers = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(1).unwrap(),
+            9,
+            11,
+            1,
+        );
+        assert_eq!(cached_block_headers.len(), 1);
+        assert_eq!(cached_block_headers[0].round(), 10);
+
+        // Respect end round.
+        let cached_block_headers = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(2).unwrap(),
+            9,
+            12,
+            5,
+        );
+        assert_eq!(cached_block_headers.len(), 2);
+        assert_eq!(cached_block_headers[0].round(), 10);
+        assert_eq!(cached_block_headers[1].round(), 11);
+
+        // Respect start round.
+        let cached_block_headers = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            11,
+            20,
+            5,
+        );
+        assert_eq!(cached_block_headers.len(), 2);
+        assert_eq!(cached_block_headers[0].round(), 11);
+        assert_eq!(cached_block_headers[1].round(), 12);
+
+        // Respect limit
+        let cached_block_headers = dag_state.get_cached_block_headers_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            10,
+            20,
+            1,
+        );
+        assert_eq!(cached_block_headers.len(), 1);
+        assert_eq!(cached_block_headers[0].round(), 10);
     }
 
     #[rstest]
