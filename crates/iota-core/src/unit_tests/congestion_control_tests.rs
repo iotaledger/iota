@@ -181,24 +181,18 @@ impl TestSetup {
             self.setup_authority_state
                 .get_object(&self.package.0)
                 .await
-                .unwrap()
                 .unwrap(),
         ));
         genesis_objects.push(TestSetup::convert_to_genesis_obj(
             self.setup_authority_state
                 .get_object(&self.gas_object_id)
                 .await
-                .unwrap()
                 .unwrap(),
         ));
 
         for obj in objects {
             genesis_objects.push(TestSetup::convert_to_genesis_obj(
-                self.setup_authority_state
-                    .get_object(obj)
-                    .await
-                    .unwrap()
-                    .unwrap(),
+                self.setup_authority_state.get_object(obj).await.unwrap(),
             ));
         }
         genesis_objects
@@ -333,7 +327,6 @@ async fn test_congestion_control_execution_cancellation() {
             .get_object(&owned_object.0)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference(),
     )
     .await;
@@ -373,7 +366,7 @@ async fn test_congestion_control_execution_cancellation() {
         )
         .await
         .unwrap();
-    let (effects_2, execution_error) = authority_state_2.try_execute_for_test(&cert).await.unwrap();
+    let (effects_2, execution_error) = authority_state_2.execute_for_test(&cert).await;
 
     // Should result in the same cancellation.
     assert_eq!(

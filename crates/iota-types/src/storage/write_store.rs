@@ -12,92 +12,139 @@ use crate::{
 };
 
 pub trait WriteStore: ReadStore {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
+
+    /// Non-fallible version of `try_insert_checkpoint`.
+    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
+        self.try_insert_checkpoint(checkpoint)
+            .expect("storage access failed")
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
+
+    /// Non-fallible version of `try_update_highest_synced_checkpoint`.
+    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
+        self.try_update_highest_synced_checkpoint(checkpoint)
+            .expect("storage access failed")
+    }
+
+    fn try_update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint)
+    -> Result<()>;
+
+    /// Non-fallible version of `try_update_highest_verified_checkpoint`.
+    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
+        self.try_update_highest_verified_checkpoint(checkpoint)
+            .expect("storage access failed")
+    }
+
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
     ) -> Result<()>;
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()>;
-}
-
-impl<T: WriteStore + ?Sized> WriteStore for &T {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (*self).insert_checkpoint(checkpoint)
-    }
-
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (*self).update_highest_synced_checkpoint(checkpoint)
-    }
-
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (*self).update_highest_verified_checkpoint(checkpoint)
-    }
-
+    /// Non-fallible version of `try_insert_checkpoint_contents`.
     fn insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
-    ) -> Result<()> {
-        (*self).insert_checkpoint_contents(checkpoint, contents)
+    ) {
+        self.try_insert_checkpoint_contents(checkpoint, contents)
+            .expect("storage access failed")
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
-        (*self).insert_committee(new_committee)
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()>;
+
+    /// Non-fallible version of `try_insert_committee`.
+    fn insert_committee(&self, new_committee: Committee) {
+        self.try_insert_committee(new_committee)
+            .expect("storage access failed")
+    }
+}
+
+impl<T: WriteStore + ?Sized> WriteStore for &T {
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (*self).try_insert_checkpoint(checkpoint)
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (*self).try_update_highest_synced_checkpoint(checkpoint)
+    }
+
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
+        (*self).try_update_highest_verified_checkpoint(checkpoint)
+    }
+
+    fn try_insert_checkpoint_contents(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        contents: VerifiedCheckpointContents,
+    ) -> Result<()> {
+        (*self).try_insert_checkpoint_contents(checkpoint, contents)
+    }
+
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
+        (*self).try_insert_committee(new_committee)
     }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).insert_checkpoint(checkpoint)
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (**self).try_insert_checkpoint(checkpoint)
     }
 
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).update_highest_synced_checkpoint(checkpoint)
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (**self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).update_highest_verified_checkpoint(checkpoint)
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
+        (**self).try_update_highest_verified_checkpoint(checkpoint)
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
     ) -> Result<()> {
-        (**self).insert_checkpoint_contents(checkpoint, contents)
+        (**self).try_insert_checkpoint_contents(checkpoint, contents)
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
-        (**self).insert_committee(new_committee)
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
+        (**self).try_insert_committee(new_committee)
     }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
-    fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).insert_checkpoint(checkpoint)
+    fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (**self).try_insert_checkpoint(checkpoint)
     }
 
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).update_highest_synced_checkpoint(checkpoint)
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (**self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
-    fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).update_highest_verified_checkpoint(checkpoint)
+    fn try_update_highest_verified_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<()> {
+        (**self).try_update_highest_verified_checkpoint(checkpoint)
     }
 
-    fn insert_checkpoint_contents(
+    fn try_insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
     ) -> Result<()> {
-        (**self).insert_checkpoint_contents(checkpoint, contents)
+        (**self).try_insert_checkpoint_contents(checkpoint, contents)
     }
 
-    fn insert_committee(&self, new_committee: Committee) -> Result<()> {
-        (**self).insert_committee(new_committee)
+    fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
+        (**self).try_insert_committee(new_committee)
     }
 }
