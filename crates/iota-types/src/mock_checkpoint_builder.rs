@@ -68,9 +68,10 @@ impl MockCheckpointBuilder {
             .push(VerifiedExecutionData::new(transaction, effects))
     }
 
-    /// Overrides the next checkpoint number indirectly by setting the previous checkpoint's
-    /// number to checkpoint_number - 1. This ensures the next generated checkpoint has the
-    /// exact sequence number provided. This can be useful to generate checkpoints with specific sequence
+    /// Overrides the next checkpoint number indirectly by setting the previous
+    /// checkpoint's number to checkpoint_number - 1. This ensures the next
+    /// generated checkpoint has the exact sequence number provided. This
+    /// can be useful to generate checkpoints with specific sequence
     /// numbers.
     pub fn override_next_checkpoint_number(
         &mut self,
@@ -78,7 +79,8 @@ impl MockCheckpointBuilder {
         validator_keys: &impl ValidatorKeypairProvider,
     ) {
         if checkpoint_number > 0 {
-            let mut summary = self.previous_checkpoint
+            let mut summary = self
+                .previous_checkpoint
                 .as_ref()
                 .expect("Cannot set next checkpoint number without existing previous checkpoint")
                 .data()
