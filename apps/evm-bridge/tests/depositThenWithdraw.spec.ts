@@ -73,7 +73,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             await walletL1Page.getByRole('button', { name: 'Continue' }).click();
             await walletL1Page.getByRole('button', { name: 'Connect' }).click();
 
-            // Manualy input adressL2 on pageWithL1Wallet
+            // Manually input adressL2 on pageWithL1Wallet
             const toggleManualInputL1 = pageWithL1Wallet.getByTestId(
                 'toggle-receiver-address-input',
             );
@@ -107,7 +107,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             await expect(toggleBridgeDirectionButton).toBeVisible();
             await toggleBridgeDirectionButton.click();
 
-            // Manualy input addressL1 on pageWithL2Wallet
+            // Manually input addressL1 on pageWithL2Wallet
             const toggleManualInputL2 = pageWithL2Wallet.getByTestId(
                 'toggle-receiver-address-input',
             );
