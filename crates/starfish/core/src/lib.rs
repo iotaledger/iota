@@ -37,6 +37,7 @@ mod threshold_clock;
 mod transaction;
 #[cfg(msim)]
 pub mod transaction;
+mod transactions_synchronizer;
 
 mod universal_committer;
 

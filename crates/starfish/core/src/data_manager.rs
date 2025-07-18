@@ -57,6 +57,26 @@ impl DataManager {
         self.last_committed_index = index;
     }
 
+    /// Gets all missing transactions from pending subdags.
+    ///
+    /// # Returns
+    /// A `BTreeSet` of `BlockRef`s for which transactions are missing.
+    pub(crate) fn get_missing_transaction_data(&self) -> BTreeSet<BlockRef> {
+        let mut missing = BTreeSet::new();
+        let dag_state = self.dag_state.read();
+
+        // Check all pending subdags for missing transactions
+        for subdag in self.pending_subdags.values() {
+            let exists = dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
+            for (i, exists) in exists.iter().enumerate() {
+                if !exists {
+                    missing.insert(subdag.committed_transaction_refs[i]);
+                }
+            }
+        }
+        missing
+    }
+
     /// Attempts to retrieve transactions included in the newly created commits.
     /// Adds the PendingSubDag to the buffer if any transactions are missing and
     /// outputs them once they are available.

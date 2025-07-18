@@ -96,6 +96,16 @@ fn build_tonic_services(out_dir: &Path) {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            tonic_build::manual::Method::builder()
+                .name("fetch_transactions")
+                .route_name("FetchTransactions")
+                .input_type("crate::network::tonic_network::FetchTransactionsRequest")
+                .output_type("crate::network::tonic_network::FetchTransactionsResponse")
+                .codec_path(codec_path)
+                .server_streaming()
+                .build(),
+        )
         .build();
 
     tonic_build::manual::Builder::new()

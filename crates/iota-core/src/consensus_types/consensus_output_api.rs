@@ -6,7 +6,6 @@ use std::fmt::Display;
 
 use consensus_core::{BlockAPI, CommitDigest};
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
-use starfish_core::BlockHeaderAPI as StarfishBlockAPI;
 
 use crate::consensus_types::AuthorityIndex;
 
@@ -134,12 +133,12 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     }
 
     fn transactions(&self) -> ConsensusOutputTransactions {
-        self.blocks
+        self.transactions
             .iter()
-            .map(|block| {
-                let round = block.round();
-                let author = block.author().value() as AuthorityIndex;
-                let transactions: Vec<_> = block
+            .map(|verified_transactions| {
+                let round = verified_transactions.block_ref().round;
+                let author = verified_transactions.block_ref().author.value() as AuthorityIndex;
+                let transactions: Vec<_> = verified_transactions
                     .transactions()
                     .iter()
                     .flat_map(|tx| {

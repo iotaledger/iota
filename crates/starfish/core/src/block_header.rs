@@ -85,10 +85,6 @@ pub trait BlockHeaderAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn ancestors(&self) -> &[BlockRef];
     fn commit_votes(&self) -> &[CommitVote];
-
-    // TODO: we should remove this method from the API of the block header and use
-    // another type of a full block in the consensus output
-    fn transactions(&self) -> &[Transaction];
     fn transactions_commitment(&self) -> TransactionsCommitment;
 }
 
@@ -182,10 +178,6 @@ impl BlockHeaderAPI for BlockHeaderV1 {
 
     fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transactions_commitment
-    }
-
-    fn transactions(&self) -> &[Transaction] {
-        unimplemented!();
     }
 }
 
@@ -682,7 +674,6 @@ impl fmt::Debug for VerifiedBlockHeader {
 // TODO: make a custom Debug implementation for more control over printed data
 #[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
-    #[expect(dead_code)]
     transactions: Vec<Transaction>,
 
     /// The block reference of the block that contains the transactions.
@@ -722,6 +713,11 @@ impl VerifiedTransactions {
 
     pub fn block_ref(&self) -> BlockRef {
         self.block_ref
+    }
+
+    /// Returns the leader round of the sub-dag.
+    pub fn transactions(&self) -> Vec<Transaction> {
+        self.transactions.clone()
     }
 
     pub fn serialized(&self) -> &Bytes {
