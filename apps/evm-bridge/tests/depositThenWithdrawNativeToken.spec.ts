@@ -4,17 +4,19 @@ import { importL1WalletFromMnemonic, createL2Wallet } from './utils/auth';
 import {
     generate24WordMnemonic,
     deriveAddressFromMnemonic,
-    checkL2IotaBalanceWithRetries,
     closeBrowserTabsExceptLast,
-    getExtensionUrl,
     addNetworkToMetaMask,
     addL1FundsThroughBridgeUI,
     fundL1AddressWithNativeTokens,
+    TOOL_COIN_TYPE,
+    checkL2CoinBalanceForAddressWithRetries,
+    checkL1CoinBalanceForAddressWithRetries,
+    fundL2AddressWithIscClient,
 } from './utils/utils';
 
 const THREE_MINUTES = 180_000;
 
-test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
+test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
     test.setTimeout(THREE_MINUTES);
 
     let browserL1: BrowserContext;
@@ -122,15 +124,26 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             await addL1FundsThroughBridgeUI(pageWithL1Wallet, browserL1);
             const nativeTokenAmount = 5;
             await fundL1AddressWithNativeTokens(addressL1, nativeTokenAmount);
+            // Fund L2 wallet with IOTA
+            await fundL2AddressWithIscClient(addressL2, 5);
         },
     );
 
     test('should successfully process an L1 deposit', async () => {
-        const iotaAmountToSend = '5';
+        const nativeTokenAmount = 3;
+
+        const l1CoinBalance = await checkL1CoinBalanceForAddressWithRetries(
+            addressL1 ?? '',
+            TOOL_COIN_TYPE,
+        );
+        expect(Number(l1CoinBalance)).toBeGreaterThan(nativeTokenAmount);
+
+        await pageWithL1Wallet.getByTestId('coin-selector').click();
+        await pageWithL1Wallet.getByText('Tool', { exact: true }).click();
 
         const amountField = pageWithL1Wallet.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
-        amountField.fill(iotaAmountToSend);
+        amountField.fill(nativeTokenAmount.toString());
 
         // check est. gas fees and your receive
         await pageWithL1Wallet.waitForTimeout(2500);
@@ -140,7 +153,9 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             .locator('xpath=../div/span')
             .nth(1)
             .textContent();
-        expect(Number(gasFeeValue).toFixed(5)).toEqual('0.00663');
+        const gasFeeFixed = Number(Number(gasFeeValue).toFixed(3));
+        expect(gasFeeFixed).toBeGreaterThanOrEqual(0.008);
+        expect(gasFeeFixed).toBeLessThanOrEqual(0.01);
 
         const gasFeeValueEVM = await pageWithL1Wallet
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
@@ -156,19 +171,22 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
         await approveTransactionPage.waitForLoadState();
         await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
 
-        const balance = await checkL2IotaBalanceWithRetries(addressL2 ?? '');
-
-        expect(Number(balance)).toEqual(Number(iotaAmountToSend));
-
-        await closeBrowserTabsExceptLast(browserL1);
+        const balance = await checkL2CoinBalanceForAddressWithRetries(
+            addressL2 ?? '',
+            TOOL_COIN_TYPE,
+        );
+        expect(balance).toEqual(nativeTokenAmount.toString());
     });
 
     test('should successfully process an L2 deposit', async () => {
-        const iotaAmountToSend = '2';
+        const nativeTokenAmount = '2';
+
+        await pageWithL2Wallet.getByTestId('coin-selector').click();
+        await pageWithL2Wallet.getByText('Tool', { exact: true }).click();
 
         const amountField = pageWithL2Wallet.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
-        await amountField.fill(iotaAmountToSend);
+        await amountField.fill(nativeTokenAmount);
 
         // check est. gas fees and your receive
         await pageWithL2Wallet.waitForTimeout(2500);
@@ -187,14 +205,12 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
 
         const approveTransactionPage = await approveTransactionPagePromise;
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
-        // Check funds on L1 wallet
-        const pageWithL1WalletExtension = await browserL1.newPage();
-        const l1ExtensionUrl = await getExtensionUrl(browserL1);
-        await pageWithL1WalletExtension.goto(l1ExtensionUrl, { waitUntil: 'commit' });
 
-        await expect(pageWithL1WalletExtension.getByTestId('coin-balance')).toHaveText('6.99', {
-            timeout: THREE_MINUTES,
-        });
-        await pageWithL1WalletExtension.close();
+        // Check funds on L1 wallet
+        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(
+            addressL1 ?? '',
+            TOOL_COIN_TYPE,
+        );
+        expect(l1Balance).toEqual(nativeTokenAmount.toString());
     });
 });
