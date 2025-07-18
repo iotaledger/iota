@@ -11,7 +11,7 @@ import { parseAmount } from '../../../lib/utils';
 import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
 import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
-import { formatBalance, IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { useCoinMetadata, useGetAllCoins } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 import { useAccount } from 'wagmi';
@@ -45,7 +45,7 @@ export function DepositLayer1() {
         });
     const gasSummary = transactionData?.gasSummary;
     const formattedGasEstimation = gasSummary?.totalGas
-        ? formatBalance(BigInt(gasSummary.totalGas), IOTA_DECIMALS)
+        ? formatBalance(BigInt(gasSummary.totalGas), IOTA_DECIMALS, CoinFormat.Full)
         : undefined;
 
     const deposit = async () => {
@@ -102,7 +102,7 @@ export function DepositLayer1() {
             isGasEstimationLoading={isBuildingTransaction}
             isTransactionLoading={isTransactionLoading}
             gasEstimation={formattedGasEstimation}
-            gasEstimationEVM={formatBalance(L2_FROM_L1_GAS_BUDGET, IOTA_DECIMALS)}
+            gasEstimationEVM={formatBalance(L2_FROM_L1_GAS_BUDGET, IOTA_DECIMALS, CoinFormat.Full)}
         />
     );
 }
