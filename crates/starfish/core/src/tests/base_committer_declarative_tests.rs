@@ -46,7 +46,7 @@ async fn direct_commit() {
         },
         }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
     dag_builder.persist_all_blocks(dag_state.clone());
 
     let leader_round = committer.leader_round(1);
@@ -90,7 +90,7 @@ async fn direct_skip() {
         Round 5 : { * },
         }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
     dag_builder.persist_all_blocks(dag_state.clone());
 
     let leader_round = committer.leader_round(1);
@@ -134,7 +134,7 @@ async fn direct_undecided() {
         Round 5 : { * },
         }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
     dag_builder.persist_all_blocks(dag_state.clone());
 
     let leader_round = committer.leader_round(1);
@@ -208,7 +208,7 @@ async fn indirect_commit() {
         },
     }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
     dag_builder.persist_all_blocks(dag_state.clone());
 
     let leader_round = committer.leader_round(1);
@@ -290,7 +290,7 @@ async fn indirect_skip() {
         Round 11 : { * },
     }";
 
-    let (_, dag_builder) = parse_dag(dag_str).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
     dag_builder.persist_all_blocks(dag_state.clone());
 
     let leader_round = committer.leader_round(1);

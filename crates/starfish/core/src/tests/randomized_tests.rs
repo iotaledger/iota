@@ -54,7 +54,7 @@ async fn test_randomized_dag_all_direct_commit() {
             "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
         );
 
-        let last_decided = Slot::new_for_test(0, 0);
+        let last_decided = Slot::new(0, 0);
         let sequence = authority.committer.try_decide(last_decided);
         tracing::debug!("Commit sequence: {sequence:#?}");
 
@@ -118,7 +118,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_1 = vec![];
-        let mut last_decided = Slot::new_for_test(0, 0);
+        let mut last_decided = Slot::new(0, 0);
         let mut i = 0;
         while i < all_blocks.len() {
             let chunk_size = random_test_setup
@@ -153,7 +153,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_2 = vec![];
-        let mut last_decided = Slot::new_for_test(0, 0);
+        let mut last_decided = Slot::new(0, 0);
         let mut i = 0;
         while i < all_blocks.len() {
             let chunk_size = random_test_setup

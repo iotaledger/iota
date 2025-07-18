@@ -27,7 +27,7 @@ async fn direct_commit() {
     let decision_round_wave_0_pipeline_1 = committer.committers[1].certifying_round(0);
     build_dag(context, dag_state, None, decision_round_wave_0_pipeline_1);
 
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 1);
@@ -61,7 +61,7 @@ async fn idempotence() {
     );
 
     // Commit one leader.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let first_sequence = committer.try_decide(last_decided);
     assert_eq!(first_sequence.len(), 1);
     tracing::info!("Commit sequence: {first_sequence:#?}");
@@ -104,7 +104,7 @@ async fn multiple_direct_commit() {
     let (context, dag_state, committer) = basic_test_setup();
     let wave_length = WAVE_LENGTH;
 
-    let mut last_decided = Slot::new_for_test(0, 0);
+    let mut last_decided = Slot::new(0, 0);
     let mut ancestors = None;
     for n in 1..=10 {
         // Build the dag up to the decision round for each pipeline's wave starting
@@ -158,7 +158,7 @@ async fn direct_commit_late_call() {
 
     build_dag(context.clone(), dag_state.clone(), None, certifying_round);
 
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -189,7 +189,7 @@ async fn no_genesis_commit() {
     for r in 0..certifying_round_pipeline_0_wave_0 {
         ancestors = Some(build_dag(context.clone(), dag_state.clone(), ancestors, r));
 
-        let last_decided = Slot::new_for_test(0, 0);
+        let last_decided = Slot::new(0, 0);
         let sequence = committer.try_decide(last_decided);
         assert!(sequence.is_empty());
     }
@@ -233,7 +233,7 @@ async fn direct_skip_no_leader() {
 
     // Ensure no blocks are committed because there are 2f+1 blame (non-votes) for
     // the missing leader.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -307,7 +307,7 @@ async fn direct_skip_enough_blame() {
 
     // Ensure the leader is skipped because there are 2f+1 blame (non-votes) for
     // the wave 0 leader of pipeline 1.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -413,7 +413,7 @@ async fn indirect_commit() {
     );
 
     // Ensure we commit the first leaders.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 5);
@@ -494,7 +494,7 @@ async fn indirect_skip() {
 
     // Ensure we commit the first 3 leaders, skip the 4th, and commit the last 2
     // leaders.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 7);
@@ -572,7 +572,7 @@ async fn undecided() {
     );
 
     // Ensure no blocks are committed.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     assert!(sequence.is_empty());
 }
@@ -730,7 +730,7 @@ async fn test_byzantine_validator() {
 
     // Expect a successful direct commit of A12 and leaders at rounds 1 ~ 11 as
     // pipelining is enabled.
-    let last_decided = Slot::new_for_test(0, 0);
+    let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 

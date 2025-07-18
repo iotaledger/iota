@@ -624,7 +624,7 @@ mod tests {
                 Round 5 : { * },
             }";
 
-        let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
         dag_builder.print();
         dag_builder.persist_all_blocks(dag_state.clone());
 
