@@ -75,6 +75,7 @@ pub enum BackfillKind {
 #[derive(ValueEnum, Clone, Debug)]
 #[non_exhaustive]
 pub enum IngestionBackfillKind {
+    /// Backfills the `tx_wrapped_or_deleted_objects` table.
     TxWrappedOrDeletedObjects,
 }
 
