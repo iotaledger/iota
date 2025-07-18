@@ -266,6 +266,7 @@ pub struct NodeConfig {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum ExecutionCacheType {
     #[default]
     WritebackCache,

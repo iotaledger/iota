@@ -125,7 +125,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
@@ -256,7 +256,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
@@ -387,7 +387,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
@@ -518,7 +518,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
@@ -649,7 +649,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
@@ -780,7 +780,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
@@ -911,7 +911,7 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: WritebackCache
+    execution-cache: writeback-cache
     execution-cache-config:
       writeback-cache: {}
     enable-validator-tx-finalizer: true
