@@ -75,7 +75,7 @@ test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
             await walletL1Page.getByRole('button', { name: 'Continue' }).click();
             await walletL1Page.getByRole('button', { name: 'Connect' }).click();
 
-            // Manually input adressL2 on pageWithL1Wallet
+            // Manually input addressL2 on pageWithL1Wallet
             const toggleManualInputL1 = pageWithL1Wallet.getByTestId(
                 'toggle-receiver-address-input',
             );
