@@ -274,8 +274,11 @@ pub enum ExecutionCacheType {
 
 impl ExecutionCacheType {
     pub fn cache_type(self) -> Self {
-        if std::env::var("DISABLE_WRITEBACK_CACHE")
-            .is_ok() { Self::PassthroughCache } else { self }
+        if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
+            Self::PassthroughCache
+        } else {
+            self
+        }
     }
 }
 
