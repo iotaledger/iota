@@ -1,20 +1,22 @@
-import { BrowserContext, Page } from '@playwright/test';
+import { BrowserContext, expect, Page } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { createL1Wallet, createL2Wallet } from './utils/auth';
-import { test, expect } from './utils/fixtures';
+import { closeBrowserTabsExceptLast, test } from './helpers/browser';
+import {
+    checkL2CoinBalanceForAddressWithRetries,
+    checkL1CoinBalanceForAddressWithRetries,
+} from './helpers/balances';
 import {
     addL1FundsThroughBridgeUI,
-    addNetworkToMetaMask,
-    checkL1CoinBalanceForAddressWithRetries,
-    checkL2CoinBalanceForAddressWithRetries,
-    closeBrowserTabsExceptLast,
     fundL1AddressWithNativeTokens,
     fundL2AddressWithIscClient,
+} from './helpers/transactions';
+import {
+    createL1Wallet,
     getRandomL2MnemonicAndAddress,
-    TOOL_COIN_TYPE,
-} from './utils/utils';
-
-const THREE_MINUTES = 180_000;
+    createL2Wallet,
+    addNetworkToMetaMask,
+} from './helpers/wallet';
+import { THREE_MINUTES, TOOL_COIN_TYPE } from './utils/constants';
 
 test.describe('Send MAX native token amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });

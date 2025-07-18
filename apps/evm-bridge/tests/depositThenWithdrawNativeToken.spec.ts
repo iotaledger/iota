@@ -1,20 +1,17 @@
-import { BrowserContext, Page } from '@playwright/test';
-import { test, expect } from './utils/fixtures';
-import { importL1WalletFromMnemonic, createL2Wallet } from './utils/auth';
+import { BrowserContext, expect, Page } from '@playwright/test';
+import { generate24WordMnemonic, deriveAddressFromMnemonic } from './utils/utils';
+import { closeBrowserTabsExceptLast, test } from './helpers/browser';
 import {
-    generate24WordMnemonic,
-    deriveAddressFromMnemonic,
-    closeBrowserTabsExceptLast,
-    addNetworkToMetaMask,
+    checkL1CoinBalanceForAddressWithRetries,
+    checkL2CoinBalanceForAddressWithRetries,
+} from './helpers/balances';
+import {
     addL1FundsThroughBridgeUI,
     fundL1AddressWithNativeTokens,
-    TOOL_COIN_TYPE,
-    checkL2CoinBalanceForAddressWithRetries,
-    checkL1CoinBalanceForAddressWithRetries,
     fundL2AddressWithIscClient,
-} from './utils/utils';
-
-const THREE_MINUTES = 180_000;
+} from './helpers/transactions';
+import { importL1WalletFromMnemonic, createL2Wallet, addNetworkToMetaMask } from './helpers/wallet';
+import { THREE_MINUTES, TOOL_COIN_TYPE } from './utils/constants';
 
 test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
     test.setTimeout(THREE_MINUTES);

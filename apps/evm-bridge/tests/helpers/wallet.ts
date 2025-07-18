@@ -1,8 +1,7 @@
 import { Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
-import { getRandomL2MnemonicAndAddress } from './utils';
-
-const WALLET_CUSTOMRPC_PLACEHOLDER = 'http://localhost:3000/';
+import { HDNodeWallet, Wallet } from 'ethers';
+import { WALLET_CUSTOMRPC_PLACEHOLDER } from '../utils/constants';
 
 export async function createL1Wallet(page: Page, l1ExtensionUrl: string) {
     await page.goto(l1ExtensionUrl);
@@ -91,4 +90,47 @@ export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promis
     await page.getByRole('button', { name: /Done/ }).click();
 
     return address;
+}
+
+export async function addNetworkToMetaMask(l2WalletPage: Page) {
+    await l2WalletPage.click('[data-testid="network-display"]', { force: true });
+    const popoverCloseButton = l2WalletPage.locator('.page-container__header-close');
+
+    if (await popoverCloseButton.isVisible()) {
+        await popoverCloseButton.click();
+    }
+    const addCustomNetworkButton = await l2WalletPage.getByText('Add a custom network');
+
+    if (await addCustomNetworkButton.isHidden()) {
+        await l2WalletPage.click('[data-testid="network-display"]');
+    }
+
+    await addCustomNetworkButton.click();
+
+    await l2WalletPage.getByTestId('network-form-network-name').fill(CONFIG.L2.chainName);
+    await l2WalletPage.getByTestId('test-add-rpc-drop-down').click();
+    await l2WalletPage.getByText('Add RPC URL').click();
+    await l2WalletPage.getByTestId('rpc-url-input-test').fill(CONFIG.L2.rpcUrl);
+    await l2WalletPage.getByText('Add URL').click();
+
+    await l2WalletPage.getByTestId('network-form-chain-id').fill(CONFIG.L2.chainId.toString());
+    await l2WalletPage.getByTestId('network-form-ticker-input').fill(CONFIG.L2.chainCurrency);
+
+    await l2WalletPage.getByText('Save').click();
+
+    await l2WalletPage.click('[data-testid="network-display"]');
+    await l2WalletPage.getByRole('button', { name: CONFIG.L2.chainName }).click();
+}
+
+export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: string } {
+    const mnemonic = Wallet.createRandom().mnemonic;
+
+    if (!mnemonic) {
+        throw new Error('Failed to generate mnemonic');
+    }
+
+    return {
+        mnemonic: mnemonic.phrase,
+        address: HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/0`).address,
+    };
 }

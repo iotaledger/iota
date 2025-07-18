@@ -1,18 +1,10 @@
-import { BrowserContext, Page } from '@playwright/test';
-import { test, expect } from './utils/fixtures';
-import { importL1WalletFromMnemonic, createL2Wallet } from './utils/auth';
-import {
-    generate24WordMnemonic,
-    deriveAddressFromMnemonic,
-    checkL2IotaBalanceWithRetries,
-    closeBrowserTabsExceptLast,
-    getExtensionUrl,
-    addNetworkToMetaMask,
-    addL1FundsThroughBridgeUI,
-    fundL1AddressWithNativeTokens,
-} from './utils/utils';
-
-const THREE_MINUTES = 180_000;
+import { BrowserContext, expect, Page } from '@playwright/test';
+import { generate24WordMnemonic, deriveAddressFromMnemonic } from './utils/utils';
+import { closeBrowserTabsExceptLast, getExtensionUrl, test } from './helpers/browser';
+import { checkL2IotaBalanceWithRetries } from './helpers/balances';
+import { addL1FundsThroughBridgeUI, fundL1AddressWithNativeTokens } from './helpers/transactions';
+import { importL1WalletFromMnemonic, createL2Wallet, addNetworkToMetaMask } from './helpers/wallet';
+import { THREE_MINUTES } from './utils/constants';
 
 test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
     test.setTimeout(THREE_MINUTES);

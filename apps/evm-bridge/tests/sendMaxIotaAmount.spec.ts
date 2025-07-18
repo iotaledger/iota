@@ -1,18 +1,15 @@
-import { BrowserContext, Page } from '@playwright/test';
+import { BrowserContext, expect, Page } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { createL1Wallet, createL2Wallet } from './utils/auth';
-import { test, expect } from './utils/fixtures';
+import { closeBrowserTabsExceptLast, test } from './helpers/browser';
+import { checkL2IotaBalanceWithRetries, checkL1IotaBalanceWithRetries } from './helpers/balances';
+import { addL1FundsThroughBridgeUI, fundL2AddressWithIscClient } from './helpers/transactions';
 import {
-    addL1FundsThroughBridgeUI,
-    addNetworkToMetaMask,
-    checkL1IotaBalanceWithRetries,
-    checkL2IotaBalanceWithRetries,
-    closeBrowserTabsExceptLast,
-    fundL2AddressWithIscClient,
+    createL1Wallet,
     getRandomL2MnemonicAndAddress,
-} from './utils/utils';
-
-const THREE_MINUTES = 180_000;
+    createL2Wallet,
+    addNetworkToMetaMask,
+} from './helpers/wallet';
+import { THREE_MINUTES } from './utils/constants';
 
 test.describe('Send MAX Iota amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
