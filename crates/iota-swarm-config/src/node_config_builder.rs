@@ -44,6 +44,7 @@ pub struct ValidatorConfigBuilder {
     force_unpruned_checkpoints: bool,
     jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
     firewall_config: Option<RemoteFirewallConfig>,
@@ -85,6 +86,11 @@ impl ValidatorConfigBuilder {
 
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
+        self.execution_cache_config = Some(config);
         self
     }
 
@@ -223,11 +229,11 @@ impl ValidatorConfigBuilder {
                 .unwrap_or(3600),
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
+            execution_cache: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
-            execution_cache: ExecutionCacheConfig::default(),
             enable_validator_tx_finalizer: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,

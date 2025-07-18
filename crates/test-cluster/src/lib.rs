@@ -13,8 +13,8 @@ use std::{
 
 use futures::{StreamExt, future::join_all};
 use iota_config::{
-    Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
-    PersistedConfig,
+    Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    NodeConfig, PersistedConfig,
     genesis::Genesis,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
 };
@@ -990,6 +990,7 @@ pub struct TestClusterBuilder {
     config_dir: Option<PathBuf>,
     default_jwks: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
@@ -1020,6 +1021,7 @@ impl TestClusterBuilder {
             config_dir: None,
             default_jwks: false,
             authority_overload_config: None,
+            execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
@@ -1215,6 +1217,12 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
+        assert!(self.network_config.is_none());
+        self.execution_cache_config = Some(config);
+        self
+    }
+
     pub fn with_data_ingestion_dir(mut self, path: PathBuf) -> Self {
         self.data_ingestion_dir = Some(path);
         self
@@ -1344,6 +1352,10 @@ impl TestClusterBuilder {
 
         if let Some(authority_overload_config) = self.authority_overload_config.take() {
             builder = builder.with_authority_overload_config(authority_overload_config);
+        }
+
+        if let Some(execution_cache_config) = self.execution_cache_config.take() {
+            builder = builder.with_execution_cache_config(execution_cache_config);
         }
 
         if let Some(fullnode_rpc_addr) = self.fullnode_rpc_addr {
