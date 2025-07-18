@@ -73,6 +73,7 @@ const DEFAULT_FAUCET_PORT: u16 = 9123;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
+const DEFAULT_COMMITTEE_SIZE: usize = 1;
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
@@ -274,7 +275,7 @@ pub enum IotaCommand {
         #[arg(
             long,
             help = "The number of validators in the network.",
-            default_value_t = 1
+            default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
         /// The path to local migration snapshot files
@@ -608,7 +609,7 @@ async fn start(
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(1))
+        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
@@ -654,7 +655,7 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                committee_size.unwrap_or(1),
+                committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
