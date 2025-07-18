@@ -188,6 +188,12 @@ impl AuthorityIndex {
     }
 }
 
+impl From<u32> for AuthorityIndex {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
 impl AuthorityIndex {
     pub fn new_for_test(index: u32) -> Self {
         Self(index)

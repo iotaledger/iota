@@ -2,33 +2,210 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{char, collections::HashMap, sync::Arc};
 
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{tag, take_while_m_n, take_while1},
-    character::complete::{char, digit1, multispace0, multispace1, space0, space1},
-    combinator::{map_res, opt},
+    bytes::complete::tag,
+    character::complete::{anychar, char, digit1},
+    combinator::{map, map_res, opt},
     multi::{many0, separated_list0},
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, terminated, tuple},
 };
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockRef, Round, Slot},
+    block_header::{Round, Slot},
     context::Context,
-    test_dag_builder::DagBuilder,
+    test_dag_builder::{AncestorConnectionSpec, AncestorSelection, DagBuilder},
 };
 
+/// Parses a non-empty sequence of decimal digits into a `u32` integer.
+///
+/// # Format
+/// - One or more ASCII digits (`0-9`)
+///
+/// # Returns
+/// The parsed `u32` value on success.
+fn parse_u32(input: &str) -> IResult<&str, u32> {
+    map_res(digit1, |num_str: &str| num_str.parse::<u32>())(input)
+}
+/// Parses the genesis round definition with the number of authorities.
+///
+/// # Format
+/// - The literal string `"Round0:{"`
+/// - Followed by a non-empty sequence of digits representing the number of
+///   authorities
+/// - Followed by a closing brace `}`
+/// - Optionally followed by a comma `,`
+///
+/// # Returns
+/// The parsed `u32` number representing the number of authorities.
+fn parse_genesis(input: &str) -> IResult<&str, u32> {
+    delimited(
+        tag("Round0:{"),
+        parse_u32,
+        tuple((char('}'), opt(char(',')))),
+    )(input)
+}
+/// Parses a single uppercase ASCII character representing an authority index.
+///
+/// # Format
+/// - A single ASCII uppercase letter (`'A'` to `'Z'`)
+///
+/// # Returns
+/// - `AuthorityIndex` constructed by mapping `'A'` → 0, `'B'` → 1, etc.
+fn parse_authority_index(input: &str) -> IResult<&str, AuthorityIndex> {
+    map_res(anychar, |c: char| {
+        if c.is_ascii_uppercase() {
+            Ok((c as u32 - 'A' as u32).into())
+        } else {
+            Err(nom::Err::Error(()))
+        }
+    })(input)
+}
+/// Parses an alphanumeric slot identifier in the format `A1`, `B3`, etc.
+///
+/// # Format
+/// - A single uppercase ASCII letter representing the authority (e.g., `'A'`
+///   maps to index 0)
+/// - Followed by one or more digits representing the round number
+fn parse_slot(input: &str) -> IResult<&str, Slot> {
+    map(
+        pair(parse_authority_index, parse_u32),
+        |(authority, digit)| Slot::new(digit, authority),
+    )(input)
+}
+/// Parses a single ancestor selection syntax.
+///
+/// # Supported Formats
+/// - `"*"` → `AncestorSelection::UseLast`
+/// - `"-A1"` → `AncestorSelection::ExcludeFrom(Slot::A1)`
+/// - `"B2"` → `AncestorSelection::IncludeFrom(Slot::B2)`
+fn parse_ancestor_selection(input: &str) -> IResult<&str, AncestorSelection> {
+    alt((
+        map(tag("*"), |_| AncestorSelection::UseLast),
+        map(
+            preceded(char('-'), parse_slot),
+            AncestorSelection::ExcludeFrom,
+        ),
+        map(parse_slot, AncestorSelection::IncludeFrom),
+    ))(input)
+}
+/// Parses a comma-separated list of ancestor selections.
+///
+/// # Format
+/// - Any number of entries separated by commas, e.g.: `"*,-A2,B3"`
+fn parse_ancestor_selections(input: &str) -> IResult<&str, Vec<AncestorSelection>> {
+    separated_list0(char(','), parse_ancestor_selection)(input)
+}
+/// Parses an author identifier followed by their ancestor selections enclosed
+/// in brackets.
+///
+/// # Format
+/// - An uppercase ASCII character representing the author (e.g. `'A'`)
+/// - Followed by the literal string `"->"`
+/// - Followed by a bracketed list of ancestor selections, e.g. `[*, -B2, C3]`
+/// - Optionally terminated by a comma `,` (useful for parsing lists)
+///
+/// # Returns
+/// A tuple `(AuthorityIndex, Vec<AncestorSelection>)` where:
+/// - `AuthorityIndex` is derived from the author character (`'A'` maps to index
+///   0)
+/// - `Vec<AncestorSelection>` contains parsed ancestor selections inside the
+///   brackets
+fn parse_author_and_connections(
+    input: &str,
+) -> IResult<&str, (AuthorityIndex, Vec<AncestorSelection>)> {
+    terminated(
+        pair(
+            map(terminated(anychar, tag("->")), |author: char| {
+                (author as u32 - 'A' as u32).into()
+            }),
+            delimited(char('['), parse_ancestor_selections, char(']')),
+        ),
+        opt(char(',')),
+    )(input)
+}
+/// Parses an ancestor connection specification from input.
+///
+/// # Supported Formats
+/// - `"*"` indicating a fully connected ancestor graph
+///   (`AncestorConnectionSpec::FullyConnected`)
+/// - Or a sequence (zero or more) of author-and-connections entries, e.g.:
+///   ```text A->[*, -B1],B->[C2], ... ```
+///
+/// # Returns
+/// An `AncestorConnectionSpec` enum value:
+/// - `FullyConnected` if the input is a single `"*"` character
+/// - `AuthoritySpecific` with a vector of `(AuthorityIndex,
+///   Vec<AncestorSelection>)` parsed by `parse_author_and_connections`
+fn parse_connections(input: &str) -> IResult<&str, AncestorConnectionSpec> {
+    alt((
+        map(char('*'), |_| AncestorConnectionSpec::FullyConnected),
+        map(
+            many0(parse_author_and_connections),
+            |author_and_connections| {
+                AncestorConnectionSpec::AuthoritySpecific(author_and_connections, HashMap::new())
+            },
+        ),
+    ))(input)
+}
+/// Parses a round definition with its ancestor connection specification.
+///
+/// # Format
+/// - The literal prefix `"Round"`
+/// - Followed by one or more digits representing the round number (e.g.
+///   `"Round0"`, `"Round42"`)
+/// - Followed by a colon `:`
+/// - Followed by a block of connections enclosed in braces `{ ... }`
+/// - Optionally followed by a comma `,`
+///
+/// Example input:
+/// ```text
+/// Round3:{A->[*,-B1],B->[C2]},
+/// ```
+///
+/// # Returns
+/// A tuple `(Round, AncestorConnectionSpec)` where:
+/// - `Round` is the parsed round number as an integer type
+/// - `AncestorConnectionSpec` is parsed from the contents inside the braces
+fn parse_round(input: &str) -> IResult<&str, (Round, AncestorConnectionSpec)> {
+    map(
+        tuple((
+            map_res(preceded(tag("Round"), digit1), |s: &str| s.parse::<Round>()),
+            char(':'),
+            delimited(char('{'), |i| parse_connections(i), char('}')),
+            opt(char(',')),
+        )),
+        |(round, _, connections, _)| (round, connections),
+    )(input)
+}
+
+/// Custom error wrapper to box `nom` errors into a standard `Error` type
+#[derive(Debug)]
+pub struct ParseDagError(String);
+
+impl std::fmt::Display for ParseDagError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Parse DAG Error: {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseDagError {}
+
+impl<E: std::fmt::Debug> From<nom::Err<E>> for ParseDagError {
+    fn from(err: nom::Err<E>) -> Self {
+        ParseDagError(format!("{:?}", err))
+    }
+}
 /// DagParser
 ///
 /// Usage:
 ///
-/// ```
+/// ```rust
+/// use super::test_dag_parser::parse_dag;
 /// let dag_str = "DAG {
 ///     Round 0 : { 4 },
 ///     Round 1 : { * },
@@ -51,264 +228,36 @@ use crate::{
 ///     Round 8 : { * },
 ///     }";
 ///
-/// let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag"); // parse DAG DSL
+/// let dag_builder = parse_dag(dag_str).expect("Invalid dag"); // parse DAG DSL
 /// dag_builder.print(); // print the parsed DAG
-/// dag_builder.persist_all_blocks(dag_state.clone()); // persist all blocks to DagState
 /// ```
-pub(crate) fn parse_dag(dag_string: &str) -> IResult<&str, DagBuilder> {
-    let (input, _) = tuple((tag("DAG"), multispace0, char('{')))(dag_string)?;
+pub(crate) fn parse_dag(dag_string: &str) -> Result<DagBuilder, ParseDagError> {
+    // Parse subsequent rounds
+    // remove whitespace from the input
+    let cleaned: String = dag_string.chars().filter(|c| !c.is_whitespace()).collect();
+    let input = cleaned.as_str();
 
-    let (mut input, num_authors) = parse_genesis(input)?;
+    let (mut input, num_authors) = preceded(tag("DAG{"), parse_genesis)(input)?;
 
     let context = Arc::new(Context::new_for_test(num_authors as usize).0);
     let mut dag_builder = DagBuilder::new(context);
-
-    // Parse subsequent rounds
     loop {
-        match parse_round(input, &dag_builder) {
-            Ok((new_input, (round, connections, transaction_acknowledgments))) => {
-                dag_builder.layer_with_connections(connections, transaction_acknowledgments, round);
+        match parse_round(input) {
+            Ok((new_input, (round, ancestor_connection_spec))) => {
+                dag_builder.layer_with_connections(ancestor_connection_spec, round);
                 input = new_input
             }
             Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => break,
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+            Err(e) => return Err(e.into()),
         }
     }
-    let (input, _) = tuple((multispace0, char('}')))(input)?;
-
-    Ok((input, dag_builder))
-}
-
-fn parse_round<'a>(
-    input: &'a str,
-    dag_builder: &DagBuilder,
-) -> IResult<
-    &'a str,
-    (
-        Round,
-        Vec<(AuthorityIndex, Vec<BlockRef>)>,
-        HashMap<AuthorityIndex, Vec<BlockRef>>,
-    ),
-> {
-    let (input, _) = tuple((multispace0, tag("Round"), space1))(input)?;
-    let (input, round) = take_while1(|c: char| c.is_ascii_digit())(input)?;
-
-    let (input, connections) = alt((
-        |input| parse_fully_connected(input, dag_builder),
-        |input| parse_specified_connections(input, dag_builder),
-    ))(input)?;
-
-    // TODO: extend DAG parser with transaction acknowledgments. For now it's
-    //  assumed that transactions are available together with the block headers and
-    //  we acknowledge transactions of all ancestors.
-
-    //  If the round is "1", we assume no transactions in Round 0 (genesis) are
-    // acknowledged.
-    let transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>> = if round == "1" {
-        HashMap::new()
-    } else {
-        connections.clone().into_iter().collect()
-    };
-    Ok((
-        input,
-        (
-            round.parse().unwrap(),
-            connections,
-            transactions_acknowledgments,
-        ),
-    ))
-}
-
-fn parse_fully_connected<'a>(
-    input: &'a str,
-    dag_builder: &DagBuilder,
-) -> IResult<&'a str, Vec<(AuthorityIndex, Vec<BlockRef>)>> {
-    let (input, _) = tuple((
-        space0,
-        char(':'),
-        space0,
-        char('{'),
-        space0,
-        char('*'),
-        space0,
-        char('}'),
-        opt(char(',')),
-    ))(input)?;
-
-    let ancestors = dag_builder.last_ancestors.clone();
-    let connections = dag_builder
-        .context
-        .committee
-        .authorities()
-        .map(|authority| (authority.0, ancestors.clone()))
-        .collect::<Vec<_>>();
-
-    Ok((input, connections))
-}
-
-fn parse_specified_connections<'a>(
-    input: &'a str,
-    dag_builder: &DagBuilder,
-) -> IResult<&'a str, Vec<(AuthorityIndex, Vec<BlockRef>)>> {
-    let (input, _) = tuple((space0, char(':'), space0, char('{'), multispace0))(input)?;
-
-    // parse specified connections
-    // case 1: all authorities; [*]
-    // case 2: specific included authorities; [A0, B0, C0]
-    // case 3: specific excluded authorities;  [-A0]
-    // case 4: mixed all authorities + specific included/excluded authorities; [*,
-    // A0] TODO: case 5: byzantine case of multiple blocks per slot; [*];
-    // timestamp=1
-    let (input, authors_and_connections) = many0(parse_author_and_connections)(input)?;
-
-    let mut output = Vec::new();
-    for (author, connections) in authors_and_connections {
-        let mut block_refs = HashSet::new();
-        for connection in connections {
-            if connection == "*" {
-                block_refs.extend(dag_builder.last_ancestors.clone());
-            } else if connection.starts_with('-') {
-                let (input, _) = char('-')(connection)?;
-                let (_, slot) = parse_slot(input)?;
-                let stored_block_refs = get_blocks(slot, dag_builder);
-                block_refs.extend(dag_builder.last_ancestors.clone());
-
-                block_refs.retain(|ancestor| !stored_block_refs.contains(ancestor));
-            } else {
-                let input = connection;
-                let (_, slot) = parse_slot(input)?;
-                let stored_block_refs = get_blocks(slot, dag_builder);
-
-                block_refs.extend(stored_block_refs);
-            }
-        }
-        output.push((author, block_refs.into_iter().collect()));
-    }
-
-    let (input, _) = tuple((multispace0, char('}'), opt(char(','))))(input)?;
-
-    Ok((input, output))
-}
-
-fn get_blocks(slot: Slot, dag_builder: &DagBuilder) -> Vec<BlockRef> {
-    // note: special case for genesis blocks as they are cached separately
-    let block_refs = if slot.round == 0 {
-        dag_builder
-            .genesis_block_refs()
-            .into_iter()
-            .filter(|block| Slot::from(*block) == slot)
-            .collect::<Vec<_>>()
-    } else {
-        dag_builder
-            .get_uncommitted_blocks_at_slot(slot)
-            .iter()
-            .map(|block| block.reference())
-            .collect::<Vec<_>>()
-    };
-    block_refs
-}
-
-fn parse_author_and_connections(input: &str) -> IResult<&str, (AuthorityIndex, Vec<&str>)> {
-    // parse author
-    let (input, author) = preceded(
-        multispace0,
-        terminated(
-            take_while1(|c: char| c.is_alphabetic()),
-            preceded(opt(space0), tag("->")),
-        ),
-    )(input)?;
-
-    // parse connections
-    let (input, connections) = delimited(
-        preceded(opt(space0), char('[')),
-        separated_list0(tag(", "), parse_block),
-        terminated(char(']'), opt(char(','))),
-    )(input)?;
-    let (input, _) = opt(multispace1)(input)?;
-    Ok((
-        input,
-        (
-            str_to_authority_index(author).expect("Invalid authority index"),
-            connections,
-        ),
-    ))
-}
-
-fn parse_block(input: &str) -> IResult<&str, &str> {
-    alt((
-        map_res(tag("*"), |s: &str| Ok::<_, nom::error::ErrorKind>(s)),
-        map_res(
-            take_while1(|c: char| c.is_alphanumeric() || c == '-'),
-            |s: &str| Ok::<_, nom::error::ErrorKind>(s),
-        ),
-    ))(input)
-}
-
-fn parse_genesis(input: &str) -> IResult<&str, u32> {
-    let (input, num_authorities) = preceded(
-        tuple((
-            multispace0,
-            tag("Round"),
-            space1,
-            char('0'),
-            space0,
-            char(':'),
-            space0,
-            char('{'),
-            space0,
-        )),
-        |i| parse_authority_count(i),
-    )(input)?;
-    let (input, _) = tuple((space0, char('}'), opt(char(','))))(input)?;
-
-    Ok((input, num_authorities))
-}
-
-fn parse_authority_count(input: &str) -> IResult<&str, u32> {
-    let (input, num_str) = digit1(input)?;
-    Ok((input, num_str.parse().unwrap()))
-}
-
-fn parse_slot(input: &str) -> IResult<&str, Slot> {
-    let parse_authority = map_res(
-        take_while_m_n(1, 1, |c: char| c.is_alphabetic() && c.is_uppercase()),
-        |letter: &str| {
-            Ok::<_, nom::error::ErrorKind>(
-                str_to_authority_index(letter).expect("Invalid authority index"),
-            )
-        },
-    );
-
-    let parse_round = map_res(digit1, |digits: &str| digits.parse::<Round>());
-
-    let mut parser = tuple((parse_authority, parse_round));
-
-    let (input, (authority, round)) = parser(input)?;
-    Ok((input, Slot::new(round, authority)))
-}
-
-// Helper function to convert a string representation (e.g., 'A' or '[26]') to
-// an AuthorityIndex
-fn str_to_authority_index(input: &str) -> Option<AuthorityIndex> {
-    if input.starts_with('[') && input.ends_with(']') && input.len() > 2 {
-        input[1..input.len() - 1]
-            .parse::<u32>()
-            .ok()
-            .map(AuthorityIndex::new_for_test)
-    } else if input.len() == 1 && input.chars().next()?.is_ascii_uppercase() {
-        // Handle single uppercase ASCII alphabetic character
-        let alpha_char = input.chars().next().unwrap();
-        let index = alpha_char as u32 - 'A' as u32;
-        Some(AuthorityIndex::new_for_test(index))
-    } else {
-        None
-    }
+    // Ensure the DAG ends with a closing brace
+    let _ = char::<&str, nom::error::Error<&str>>('}')(input)?;
+    Ok(dag_builder)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::block_header::BlockHeaderAPI;
 
@@ -346,59 +295,52 @@ mod tests {
         let result = parse_dag(dag_str);
         assert!(result.is_ok());
 
-        let (_, dag_builder) = result.unwrap();
+        let dag_builder = result.unwrap();
         assert_eq!(dag_builder.genesis.len(), 4);
         assert_eq!(dag_builder.block_headers.len(), 23);
 
         // Check the blocks were correctly parsed in Round 6
-        let blocks_a6 = dag_builder
-            .get_uncommitted_blocks_at_slot(Slot::new(6, AuthorityIndex::new_for_test(0)));
+        let blocks_a6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 0));
         assert_eq!(blocks_a6.len(), 1);
         let block_a6 = blocks_a6.first().unwrap();
         assert_eq!(block_a6.round(), 6);
-        assert_eq!(block_a6.author(), AuthorityIndex::new_for_test(0));
+        assert_eq!(block_a6.author(), 0.into());
         assert_eq!(block_a6.ancestors().len(), 5);
         let expected_block_a6_ancestor_slots = [
-            Slot::new(3, AuthorityIndex::new_for_test(0)),
-            Slot::new(3, AuthorityIndex::new_for_test(1)),
-            Slot::new(3, AuthorityIndex::new_for_test(2)),
-            Slot::new(1, AuthorityIndex::new_for_test(0)),
-            Slot::new(1, AuthorityIndex::new_for_test(1)),
+            Slot::new(3, 0),
+            Slot::new(3, 1),
+            Slot::new(3, 2),
+            Slot::new(1, 0),
+            Slot::new(1, 1),
         ];
         for ancestor in block_a6.ancestors() {
             assert!(expected_block_a6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
 
-        let blocks_b6 = dag_builder
-            .get_uncommitted_blocks_at_slot(Slot::new(6, AuthorityIndex::new_for_test(1)));
+        let blocks_b6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 1));
         assert_eq!(blocks_b6.len(), 1);
         let block_b6 = blocks_b6.first().unwrap();
         assert_eq!(block_b6.round(), 6);
-        assert_eq!(block_b6.author(), AuthorityIndex::new_for_test(1));
+        assert_eq!(block_b6.author(), 1.into());
         assert_eq!(block_b6.ancestors().len(), 5);
         let expected_block_b6_ancestor_slots = [
-            Slot::new(5, AuthorityIndex::new_for_test(0)),
-            Slot::new(5, AuthorityIndex::new_for_test(1)),
-            Slot::new(5, AuthorityIndex::new_for_test(2)),
-            Slot::new(5, AuthorityIndex::new_for_test(3)),
-            Slot::new(0, AuthorityIndex::new_for_test(0)),
+            Slot::new(5, 0),
+            Slot::new(5, 1),
+            Slot::new(5, 2),
+            Slot::new(5, 3),
+            Slot::new(0, 0),
         ];
         for ancestor in block_b6.ancestors() {
             assert!(expected_block_b6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
 
-        let blocks_c6 = dag_builder
-            .get_uncommitted_blocks_at_slot(Slot::new(6, AuthorityIndex::new_for_test(2)));
+        let blocks_c6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 2));
         assert_eq!(blocks_c6.len(), 1);
         let block_c6 = blocks_c6.first().unwrap();
         assert_eq!(block_c6.round(), 6);
-        assert_eq!(block_c6.author(), AuthorityIndex::new_for_test(2));
+        assert_eq!(block_c6.author(), 2.into());
         assert_eq!(block_c6.ancestors().len(), 3);
-        let expected_block_c6_ancestor_slots = [
-            Slot::new(5, AuthorityIndex::new_for_test(1)),
-            Slot::new(5, AuthorityIndex::new_for_test(2)),
-            Slot::new(5, AuthorityIndex::new_for_test(3)),
-        ];
+        let expected_block_c6_ancestor_slots = [Slot::new(5, 1), Slot::new(5, 2), Slot::new(5, 3)];
         for ancestor in block_c6.ancestors() {
             assert!(expected_block_c6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
@@ -406,7 +348,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_genesis_round_parsing() {
-        let dag_str = "Round 0 : { 4 }";
+        let dag_str = "Round0:{4}";
         let result = parse_genesis(dag_str);
         assert!(result.is_ok());
         let (_, num_authorities) = result.unwrap();
@@ -415,139 +357,113 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_slot_parsing() {
-        let dag_str = "A0";
-        let result = parse_slot(dag_str);
-        assert!(result.is_ok());
-        let (_, slot) = result.unwrap();
-
-        assert_eq!(slot.authority, str_to_authority_index("A").unwrap());
-        assert_eq!(slot.round, 0);
-    }
-
-    #[tokio::test]
     async fn test_all_round_parsing() {
-        let dag_str = "Round 1 : { * }";
-        let context = Arc::new(Context::new_for_test(4).0);
-        let dag_builder = DagBuilder::new(context);
-        let result = parse_round(dag_str, &dag_builder);
+        let dag_str = "Round1:{*}";
+        let result = parse_round(dag_str);
         assert!(result.is_ok());
-        let (_, (round, connections, transactions_acknowledgments)) = result.unwrap();
+        let (_, (round, ancestor_connection_spec)) = result.unwrap();
 
         assert_eq!(round, 1);
-        for (i, (authority, references)) in connections.into_iter().enumerate() {
-            assert_eq!(authority, AuthorityIndex::new_for_test(i as u32));
-            assert_eq!(references, dag_builder.last_ancestors);
-            assert!(
-                transactions_acknowledgments
-                    .get(&authority)
-                    .cloned()
-                    .unwrap_or_default()
-                    .is_empty(),
-                "Transactions should not be acknowledged in Round 1"
-            );
-        }
+        assert_eq!(
+            ancestor_connection_spec,
+            AncestorConnectionSpec::FullyConnected
+        );
     }
 
     #[tokio::test]
     async fn test_specific_round_parsing() {
-        let dag_str = "Round 1 : {
-            A -> [A0, B0, C0, D0],
-            B -> [*, A0],
-            C -> [-A0],
-        }";
-        let context = Arc::new(Context::new_for_test(4).0);
-        let dag_builder = DagBuilder::new(context);
-        let result = parse_round(dag_str, &dag_builder);
+        let dag_str = "Round1:{A->[A0,B0,C0,D0],B->[*,A0],C->[-A0],}";
+        let result = parse_round(dag_str);
         assert!(result.is_ok());
-        let (_, (round, connections, transactions_acknowledgments)) = result.unwrap();
-
-        let skipped_slot = Slot::new_for_test(0, 0); // A0
-        let mut expected_references = [
-            dag_builder.last_ancestors.clone(),
-            dag_builder.last_ancestors.clone(),
-            dag_builder
-                .last_ancestors
-                .into_iter()
-                .filter(|ancestor| Slot::from(*ancestor) != skipped_slot)
-                .collect(),
-        ];
-
+        let (_, (round, ancestor_connection_spec)) = result.unwrap();
         assert_eq!(round, 1);
-        for (i, (authority, mut references)) in connections.into_iter().enumerate() {
-            assert_eq!(authority, AuthorityIndex::new_for_test(i as u32));
-            references.sort();
-            expected_references[i].sort();
-            assert_eq!(references, expected_references[i]);
-
-            assert!(
-                transactions_acknowledgments.is_empty(),
-                "Transactions should not be acknowledged in Round 1"
-            );
-        }
+        assert_eq!(
+            ancestor_connection_spec,
+            AncestorConnectionSpec::AuthoritySpecific(
+                vec![
+                    (
+                        0.into(),
+                        vec![
+                            AncestorSelection::IncludeFrom(Slot::new(0, 0)),
+                            AncestorSelection::IncludeFrom(Slot::new(0, 1)),
+                            AncestorSelection::IncludeFrom(Slot::new(0, 2)),
+                            AncestorSelection::IncludeFrom(Slot::new(0, 3))
+                        ]
+                    ),
+                    (
+                        1.into(),
+                        vec![
+                            AncestorSelection::UseLast,
+                            AncestorSelection::IncludeFrom(Slot::new(0, 0))
+                        ]
+                    ),
+                    (
+                        2.into(),
+                        vec![AncestorSelection::ExcludeFrom(Slot::new(0, 0))]
+                    ),
+                ],
+                HashMap::new()
+            )
+        );
     }
 
     #[tokio::test]
     async fn test_parse_author_and_connections() {
-        let expected_authority = str_to_authority_index("A").unwrap();
+        let expected_authority = 0.into(); // 'A'
 
         // case 1: all authorities
-        let dag_str = "A -> [*]";
+        let dag_str = "A->[*]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
         let (_, (actual_author, actual_connections)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
-        assert_eq!(actual_connections, ["*"]);
+        assert_eq!(actual_connections, vec![AncestorSelection::UseLast]);
 
         // case 2: specific included authorities
-        let dag_str = "A -> [A0, B0, C0]";
+        let dag_str = "A->[A0,B0,C0]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
         let (_, (actual_author, actual_connections)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
-        assert_eq!(actual_connections, ["A0", "B0", "C0"]);
+        assert_eq!(
+            actual_connections,
+            vec![
+                AncestorSelection::IncludeFrom(Slot::new(0, 0)), // A0
+                AncestorSelection::IncludeFrom(Slot::new(0, 1)), // B0
+                AncestorSelection::IncludeFrom(Slot::new(0, 2)), // C0
+            ]
+        );
 
         // case 3: specific excluded authorities
-        let dag_str = "A -> [-A0, -B0]";
+        let dag_str = "A->[-A0,-B0]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
         let (_, (actual_author, actual_connections)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
-        assert_eq!(actual_connections, ["-A0", "-B0"]);
+        assert_eq!(
+            actual_connections,
+            vec![
+                AncestorSelection::ExcludeFrom(Slot::new(0, 0)), // -A0
+                AncestorSelection::ExcludeFrom(Slot::new(0, 1)), // -B0
+            ]
+        );
 
         // case 4: mixed all authorities + specific included/excluded authorities
-        let dag_str = "A -> [*, A0, -B0]";
+        let dag_str = "A->[*,A0,-B0]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
         let (_, (actual_author, actual_connections)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
-        assert_eq!(actual_connections, ["*", "A0", "-B0"]);
+        assert_eq!(
+            actual_connections,
+            vec![
+                AncestorSelection::UseLast,                      // *
+                AncestorSelection::IncludeFrom(Slot::new(0, 0)), // A0
+                AncestorSelection::ExcludeFrom(Slot::new(0, 1)), // -B0
+            ]
+        );
 
         // TODO: case 5: byzantine case of multiple blocks per slot; [*];
         // timestamp=1
-    }
-
-    #[tokio::test]
-    async fn test_str_to_authority_index() {
-        assert_eq!(
-            str_to_authority_index("A"),
-            Some(AuthorityIndex::new_for_test(0))
-        );
-        assert_eq!(
-            str_to_authority_index("Z"),
-            Some(AuthorityIndex::new_for_test(25))
-        );
-        assert_eq!(
-            str_to_authority_index("[26]"),
-            Some(AuthorityIndex::new_for_test(26))
-        );
-        assert_eq!(
-            str_to_authority_index("[100]"),
-            Some(AuthorityIndex::new_for_test(100))
-        );
-        assert_eq!(str_to_authority_index("a"), None);
-        assert_eq!(str_to_authority_index("0"), None);
-        assert_eq!(str_to_authority_index(" "), None);
-        assert_eq!(str_to_authority_index("!"), None);
     }
 }
