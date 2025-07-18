@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{char, collections::HashMap, sync::Arc};
+use std::{char, sync::Arc};
 
 use nom::{
     IResult,
@@ -11,7 +11,7 @@ use nom::{
     character::complete::{anychar, char, digit1},
     combinator::{map, map_res, opt},
     multi::{many0, separated_list0},
-    sequence::{delimited, pair, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
 };
 use starfish_config::AuthorityIndex;
 
@@ -96,9 +96,45 @@ fn parse_ancestor_selection(input: &str) -> IResult<&str, AncestorSelection> {
 /// Parses a comma-separated list of ancestor selections.
 ///
 /// # Format
-/// - Any number of entries separated by commas, e.g.: `"*,-A2,B3"`
+/// - a bracketed list of ancestor selections, e.g. `[*, -B2, C3]`
 fn parse_ancestor_selections(input: &str) -> IResult<&str, Vec<AncestorSelection>> {
-    separated_list0(char(','), parse_ancestor_selection)(input)
+    delimited(
+        char('['),
+        separated_list0(char(','), parse_ancestor_selection),
+        char(']'),
+    )(input)
+}
+/// Parses a pair of ancestor connections or a single one.
+///
+/// # Supported Formats
+/// - a comma(',') separated pair of ancestor selections delimited by '()'
+///   brackets, e.g.: `([A1,B2],[C3,-D4])`
+/// - a single list of ancestor connections, e.g.: ```text [*,-B1]```
+///
+/// # Returns
+/// A tuple of two `Vec<AncestorSelection>` where:
+/// - the first vector contains block ancestors
+/// - the second vector contains transaction acknowledgements
+///
+/// # Note:
+/// If only one selection is provided, it is duplicated for both
+fn parse_pair_of_ancestor_selections(
+    input: &str,
+) -> IResult<&str, (Vec<AncestorSelection>, Vec<AncestorSelection>)> {
+    alt((
+        delimited(
+            char('('),
+            separated_pair(
+                parse_ancestor_selections,
+                char(','),
+                parse_ancestor_selections,
+            ),
+            char(')'),
+        ),
+        map(parse_ancestor_selections, |selections| {
+            (selections.clone(), selections)
+        }),
+    ))(input)
 }
 /// Parses an author identifier followed by their ancestor selections enclosed
 /// in brackets.
@@ -106,7 +142,7 @@ fn parse_ancestor_selections(input: &str) -> IResult<&str, Vec<AncestorSelection
 /// # Format
 /// - An uppercase ASCII character representing the author (e.g. `'A'`)
 /// - Followed by the literal string `"->"`
-/// - Followed by a bracketed list of ancestor selections, e.g. `[*, -B2, C3]`
+/// - Followed by
 /// - Optionally terminated by a comma `,` (useful for parsing lists)
 ///
 /// # Returns
@@ -117,15 +153,26 @@ fn parse_ancestor_selections(input: &str) -> IResult<&str, Vec<AncestorSelection
 ///   brackets
 fn parse_author_and_connections(
     input: &str,
-) -> IResult<&str, (AuthorityIndex, Vec<AncestorSelection>)> {
-    terminated(
-        pair(
-            map(terminated(anychar, tag("->")), |author: char| {
-                (author as u32 - 'A' as u32).into()
-            }),
-            delimited(char('['), parse_ancestor_selections, char(']')),
+) -> IResult<
+    &str,
+    (
+        (AuthorityIndex, Vec<AncestorSelection>),
+        (AuthorityIndex, Vec<AncestorSelection>),
+    ),
+> {
+    map(
+        terminated(
+            pair(
+                map(terminated(anychar, tag("->")), |author: char| {
+                    AuthorityIndex::from(author as u32 - 'A' as u32)
+                }),
+                parse_pair_of_ancestor_selections,
+            ),
+            opt(char(',')),
         ),
-        opt(char(',')),
+        |(authority, (ancestors, transactions))| {
+            ((authority, ancestors), (authority, transactions))
+        },
     )(input)
 }
 /// Parses an ancestor connection specification from input.
@@ -147,7 +194,12 @@ fn parse_connections(input: &str) -> IResult<&str, AncestorConnectionSpec> {
         map(
             many0(parse_author_and_connections),
             |author_and_connections| {
-                AncestorConnectionSpec::AuthoritySpecific(author_and_connections, HashMap::new())
+                let (ancestors, transactions): (Vec<_>, Vec<_>) =
+                    author_and_connections.into_iter().unzip();
+                AncestorConnectionSpec::AuthoritySpecific(
+                    ancestors,
+                    transactions.into_iter().collect(),
+                )
             },
         ),
     ))(input)
@@ -204,7 +256,7 @@ impl<E: std::fmt::Debug> From<nom::Err<E>> for ParseDagError {
 ///
 /// Usage:
 ///
-/// ```rust
+/// ```ignore
 /// use super::test_dag_parser::parse_dag;
 /// let dag_str = "DAG {
 ///     Round 0 : { 4 },
@@ -288,8 +340,8 @@ mod tests {
             },
             Round 6 : {
                 A -> [A3, B3, C3, A1, B1],
-                B -> [*, A0],
-                C -> [-A5],
+                B -> ([*, A0],[B1, C1]),
+                C -> ([-A5],[]),
             }
          }";
         let result = parse_dag(dag_str);
@@ -316,6 +368,11 @@ mod tests {
         for ancestor in block_a6.ancestors() {
             assert!(expected_block_a6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
+        // all ancestors have corresponding acknowledgments
+        // A -> [A3, B3, C3, A1, B1]
+        for transaction_ack in block_a6.acknowledgments() {
+            assert!(expected_block_a6_ancestor_slots.contains(&Slot::from(*transaction_ack)));
+        }
 
         let blocks_b6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 1));
         assert_eq!(blocks_b6.len(), 1);
@@ -330,8 +387,15 @@ mod tests {
             Slot::new(5, 3),
             Slot::new(0, 0),
         ];
+        let expected_block_b6_acknowledgments_slots = [Slot::new(1, 1), Slot::new(1, 2)];
         for ancestor in block_b6.ancestors() {
             assert!(expected_block_b6_ancestor_slots.contains(&Slot::from(*ancestor)));
+        }
+        // B -> ([*, A0],[B1, C1]),
+        for transaction_ack in block_a6.acknowledgments() {
+            assert!(
+                expected_block_b6_acknowledgments_slots.contains(&Slot::from(*transaction_ack))
+            );
         }
 
         let blocks_c6 = dag_builder.get_uncommitted_blocks_at_slot(Slot::new(6, 2));
@@ -344,6 +408,8 @@ mod tests {
         for ancestor in block_c6.ancestors() {
             assert!(expected_block_c6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
+        // C -> ([-A5],[]),
+        assert_eq!(block_c6.acknowledgments().len(), 0);
     }
 
     #[tokio::test]
@@ -354,6 +420,23 @@ mod tests {
         let (_, num_authorities) = result.unwrap();
 
         assert_eq!(num_authorities, 4);
+    }
+
+    #[tokio::test]
+    async fn test_parse_pair_of_ancestor_selections() {
+        let dag_str = "([A1,B2],[C3,-D4])";
+        let expected_block_ancestors = parse_ancestor_selections("[A1,B2]").unwrap().1;
+        let expected_transaction_acknowledgements =
+            parse_ancestor_selections("[C3,-D4]").unwrap().1;
+        let result = parse_pair_of_ancestor_selections(dag_str);
+        assert!(result.is_ok());
+        let (_, (block_ancestors, transaction_acknowledgements)) = result.unwrap();
+
+        assert_eq!(block_ancestors, expected_block_ancestors,);
+        assert_eq!(
+            transaction_acknowledgements,
+            expected_transaction_acknowledgements,
+        );
     }
 
     #[tokio::test]
@@ -373,6 +456,14 @@ mod tests {
     #[tokio::test]
     async fn test_specific_round_parsing() {
         let dag_str = "Round1:{A->[A0,B0,C0,D0],B->[*,A0],C->[-A0],}";
+        let expected_ancestors_for_a = parse_ancestor_selections("[A0,B0,C0,D0]").unwrap().1;
+        let expected_ancestors_for_b = parse_ancestor_selections("[*,A0]").unwrap().1;
+        let expected_ancestors_for_c = parse_ancestor_selections("[-A0]").unwrap().1;
+        let expected_vector = vec![
+            (0.into(), expected_ancestors_for_a),
+            (1.into(), expected_ancestors_for_b),
+            (2.into(), expected_ancestors_for_c),
+        ];
         let result = parse_round(dag_str);
         assert!(result.is_ok());
         let (_, (round, ancestor_connection_spec)) = result.unwrap();
@@ -380,29 +471,8 @@ mod tests {
         assert_eq!(
             ancestor_connection_spec,
             AncestorConnectionSpec::AuthoritySpecific(
-                vec![
-                    (
-                        0.into(),
-                        vec![
-                            AncestorSelection::IncludeFrom(Slot::new(0, 0)),
-                            AncestorSelection::IncludeFrom(Slot::new(0, 1)),
-                            AncestorSelection::IncludeFrom(Slot::new(0, 2)),
-                            AncestorSelection::IncludeFrom(Slot::new(0, 3))
-                        ]
-                    ),
-                    (
-                        1.into(),
-                        vec![
-                            AncestorSelection::UseLast,
-                            AncestorSelection::IncludeFrom(Slot::new(0, 0))
-                        ]
-                    ),
-                    (
-                        2.into(),
-                        vec![AncestorSelection::ExcludeFrom(Slot::new(0, 0))]
-                    ),
-                ],
-                HashMap::new()
+                expected_vector.clone(),
+                expected_vector.into_iter().collect()
             )
         );
     }
@@ -415,7 +485,7 @@ mod tests {
         let dag_str = "A->[*]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
-        let (_, (actual_author, actual_connections)) = result.unwrap();
+        let (_, ((actual_author, actual_connections), _)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
         assert_eq!(actual_connections, vec![AncestorSelection::UseLast]);
 
@@ -423,7 +493,7 @@ mod tests {
         let dag_str = "A->[A0,B0,C0]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
-        let (_, (actual_author, actual_connections)) = result.unwrap();
+        let (_, ((actual_author, actual_connections), _)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
         assert_eq!(
             actual_connections,
@@ -438,7 +508,7 @@ mod tests {
         let dag_str = "A->[-A0,-B0]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
-        let (_, (actual_author, actual_connections)) = result.unwrap();
+        let (_, ((actual_author, actual_connections), _)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
         assert_eq!(
             actual_connections,
@@ -452,7 +522,7 @@ mod tests {
         let dag_str = "A->[*,A0,-B0]";
         let result = parse_author_and_connections(dag_str);
         assert!(result.is_ok());
-        let (_, (actual_author, actual_connections)) = result.unwrap();
+        let (_, ((actual_author, actual_connections), _)) = result.unwrap();
         assert_eq!(actual_author, expected_authority);
         assert_eq!(
             actual_connections,
