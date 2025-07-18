@@ -16,7 +16,7 @@ use tracing::{debug, warn};
 
 use crate::{
     block_header::Round, context::Context, core::CoreSignalsReceivers,
-    core_thread::CoreThreadDispatcher,
+    core_thread::CoreThreadDispatcher, transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 pub(crate) struct LeaderTimeoutTaskHandle {
@@ -33,6 +33,7 @@ impl LeaderTimeoutTaskHandle {
 
 pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
     dispatcher: Arc<D>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     new_round_receiver: watch::Receiver<Round>,
     leader_timeout: Duration,
     min_round_delay: Duration,
@@ -44,12 +45,14 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
     /// election timeout mechanism.
     pub fn start(
         dispatcher: Arc<D>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         signals_receivers: &CoreSignalsReceivers,
         context: Arc<Context>,
     ) -> LeaderTimeoutTaskHandle {
         let (stop_sender, stop) = tokio::sync::oneshot::channel();
         let mut me = Self {
             dispatcher,
+            transactions_synchronizer,
             stop,
             new_round_receiver: signals_receivers.new_round_receiver(),
             leader_timeout: context.parameters.leader_timeout,
@@ -83,13 +86,32 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
         loop {
             tokio::select! {
-                // when the min leader timer expires then we attempt to trigger the creation of a new block.
-                // If we already timed out before then the branch gets disabled so we don't attempt
+                // When the min leader timer expires, then we attempt to trigger the creation of a new block.
+                // If we already timed out before then, the branch gets disabled so we don't attempt
                 // all the time to produce already produced blocks for that round.
+
                 () = &mut min_leader_timeout, if !min_leader_round_timed_out => {
-                    if let Err(err) = self.dispatcher.new_block(leader_round, false).await {
-                        warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                        return;
+                    match self.dispatcher.new_block(leader_round, false).await {
+                        Ok(missing_committed_txns) => {
+                            if !missing_committed_txns.is_empty() {
+                                debug!(
+                                    "Missing committed transactions after creating new block: {:?}",
+                                    missing_committed_txns
+                                );
+                                if let Err(err) = self.transactions_synchronizer
+                                    .fetch_transactions(missing_committed_txns)
+                                    .await
+                                {
+                                    warn!(
+                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                                    );
+                                }
+                            }
+                        },
+                        Err(err) => {
+                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
+                            return;
+                        }
                     }
                     min_leader_round_timed_out = true;
                 },
@@ -100,14 +122,32 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // if the round has not advanced in the meantime. Otherwise, the max timeout will not get
                 // triggered at all.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    if let Err(err) = self.dispatcher.new_block(leader_round, true).await {
-                        warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                        return;
+                    match self.dispatcher.new_block(leader_round, true).await {
+                        Ok(missing_committed_txns) => {
+                            if !missing_committed_txns.is_empty() {
+                                debug!(
+                                    "Missing committed transactions after creating new block: {:?}",
+                                    missing_committed_txns
+                                );
+                                if let Err(err) = self.transactions_synchronizer
+                                    .fetch_transactions(missing_committed_txns)
+                                    .await
+                                {
+                                    warn!(
+                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                                    );
+                                }
+                            }
+                        }
+                        Err(err) =>  {
+                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
+                            return;
+                        }
                     }
                     max_leader_round_timed_out = true;
                 }
 
-                // a new round has been produced. Reset the leader timeout.
+                // A new round has been produced. Reset the leader timeout.
                 Ok(_) = new_round.changed() => {
                     leader_round = *new_round.borrow_and_update();
                     debug!("New round has been received {leader_round}, resetting timer");
@@ -136,13 +176,97 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use starfish_config::Parameters;
+    use bytes::Bytes;
+    use parking_lot::RwLock;
+    use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        context::Context, core::CoreSignals, core_thread::tests::MockCoreThreadDispatcher,
+        BlockRef, Round,
+        block_verifier::NoopBlockVerifier,
+        commit::CommitRange,
+        context::Context,
+        core::CoreSignals,
+        core_thread::tests::MockCoreThreadDispatcher,
+        dag_state::DagState,
+        error::ConsensusResult,
         leader_timeout::LeaderTimeoutTask,
+        network::{BlockBundleStream, BlockStream, NetworkClient},
+        storage::mem_store::MemStore,
+        transactions_synchronizer::TransactionsSynchronizer,
     };
+
+    #[derive(Default)]
+    struct FakeNetworkClient {}
+
+    #[async_trait::async_trait]
+    impl NetworkClient for FakeNetworkClient {
+        async fn subscribe_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        // Returns a vector of serialized block headers
+        async fn fetch_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!();
+        }
+
+        async fn fetch_commits(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_latest_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _authorities: Vec<AuthorityIndex>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_leader_timeout() {
@@ -159,9 +283,25 @@ mod tests {
         let start = Instant::now();
 
         let (mut signals, signal_receivers) = CoreSignals::new(context.clone());
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            Arc::new(FakeNetworkClient::default()),
+            context.clone(),
+            dispatcher.clone(),
+            block_verifier,
+            Arc::new(RwLock::new(DagState::new(
+                context.clone(),
+                Arc::new(MemStore::new()),
+            ))),
+        );
 
         // spawn the task
-        let _handle = LeaderTimeoutTask::start(dispatcher.clone(), &signal_receivers, context);
+        let _handle = LeaderTimeoutTask::start(
+            dispatcher.clone(),
+            transactions_synchronizer,
+            &signal_receivers,
+            context,
+        );
 
         // send a signal that a new round has been produced.
         signals.new_round(10);
@@ -216,12 +356,30 @@ mod tests {
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            Arc::new(FakeNetworkClient::default()),
+            context.clone(),
+            dispatcher.clone(),
+            block_verifier.clone(),
+            Arc::new(RwLock::new(DagState::new(
+                context.clone(),
+                Arc::new(MemStore::new()),
+            ))),
+        );
+
         let now = Instant::now();
 
         let (mut signals, signal_receivers) = CoreSignals::new(context.clone());
 
         // spawn the task
-        let _handle = LeaderTimeoutTask::start(dispatcher.clone(), &signal_receivers, context);
+        let _handle = LeaderTimeoutTask::start(
+            dispatcher.clone(),
+            transactions_synchronizer,
+            &signal_receivers,
+            context,
+        );
 
         // now send some signals with some small delay between them, but not enough so
         // every round manages to timeout and call the force new block method.

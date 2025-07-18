@@ -7,7 +7,7 @@ use std::{ops::Bound::Included, time::Duration};
 use bytes::Bytes;
 use iota_macros::fail_point;
 use starfish_config::AuthorityIndex;
-use tracing::info;
+use tracing::debug;
 use typed_store::{
     Map as _,
     metrics::SamplingInterval,
@@ -126,7 +126,7 @@ impl Store for RocksDBStore {
         // Store block headers and their associated commit votes
         for block_header in write_batch.block_headers {
             let block_ref = block_header.reference();
-            info!("block header {} pushed to store", block_header);
+            debug!("block header {} pushed to store", block_header);
             // Store the block header
             batch
                 .insert_batch(

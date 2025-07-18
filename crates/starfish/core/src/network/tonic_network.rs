@@ -408,6 +408,80 @@ impl NetworkClient for TonicClient {
         }
         Ok(blocks)
     }
+
+    async fn fetch_transactions(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        timeout: Duration,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(FetchTransactionsRequest {
+            block_refs: block_refs
+                .iter()
+                .filter_map(|r| match bcs::to_bytes(r) {
+                    Ok(serialized) => Some(serialized),
+                    Err(e) => {
+                        debug!("Failed to serialize block ref {:?}: {e:?}", r);
+                        None
+                    }
+                })
+                .collect(),
+        });
+        request.set_timeout(timeout);
+        let mut stream = client
+            .fetch_transactions(request)
+            .await
+            .map_err(|e| {
+                if e.code() == tonic::Code::DeadlineExceeded {
+                    ConsensusError::NetworkRequestTimeout(format!(
+                        "fetch_transactions failed: {e:?}"
+                    ))
+                } else {
+                    ConsensusError::NetworkRequest(format!("fetch_transactions failed: {e:?}"))
+                }
+            })?
+            .into_inner();
+
+        let mut total_fetched_bytes = 0;
+        let mut vec_serialized_transactions = vec![];
+        loop {
+            match stream.message().await {
+                Ok(Some(response)) => {
+                    for b in &response.vec_serialized_transactions {
+                        total_fetched_bytes += b.len();
+                    }
+                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                        info!(
+                            "fetch_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                        );
+                        break;
+                    }
+                    vec_serialized_transactions.extend(response.vec_serialized_transactions);
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => {
+                    if vec_serialized_transactions.is_empty() {
+                        if e.code() == tonic::Code::DeadlineExceeded {
+                            return Err(ConsensusError::NetworkRequestTimeout(format!(
+                                "fetch_transactions failed mid-stream: {e:?}"
+                            )));
+                        }
+                        return Err(ConsensusError::NetworkRequest(format!(
+                            "fetch_transactions failed mid-stream: {e:?}"
+                        )));
+                    } else {
+                        warn!("fetch_transactions failed mid-stream: {e:?}");
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(vec_serialized_transactions)
+    }
 }
 
 // Tonic channel wrapped with layers.
@@ -810,6 +884,54 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             highest_received,
             highest_accepted,
         }))
+    }
+
+    type FetchTransactionsStream =
+        Iter<std::vec::IntoIter<Result<FetchTransactionsResponse, tonic::Status>>>;
+
+    async fn fetch_transactions(
+        &self,
+        request: Request<FetchTransactionsRequest>,
+    ) -> Result<Response<Self::FetchTransactionsStream>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+
+        let request = request.into_inner();
+        let block_refs = request
+            .block_refs
+            .iter()
+            .filter_map(|r| match bcs::from_bytes::<BlockRef>(r) {
+                Ok(block_ref) => Some(block_ref),
+                Err(e) => {
+                    debug!("Failed to deserialize block ref: {e:?}");
+                    None
+                }
+            })
+            .collect();
+
+        let vec_serialized_transactions = self
+            .service
+            .handle_fetch_transactions(peer_index, block_refs)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
+
+        let responses: std::vec::IntoIter<Result<FetchTransactionsResponse, tonic::Status>> =
+            chunk_data(vec_serialized_transactions, MAX_FETCH_RESPONSE_BYTES)
+                .into_iter()
+                .map(|transactions| {
+                    Ok(FetchTransactionsResponse {
+                        vec_serialized_transactions: transactions,
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter();
+        let stream = iter(responses);
+        Ok(Response::new(stream))
     }
 }
 
@@ -1283,6 +1405,18 @@ pub(crate) struct GetLatestRoundsResponse {
     // Highest accepted round per authority.
     #[prost(uint32, repeated, tag = "2")]
     highest_accepted: Vec<u32>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchTransactionsRequest {
+    #[prost(bytes = "vec", repeated, tag = "1")]
+    block_refs: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchTransactionsResponse {
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    vec_serialized_transactions: Vec<Bytes>,
 }
 
 // Splits a list of byte sequences into chunks where each chunk's total size

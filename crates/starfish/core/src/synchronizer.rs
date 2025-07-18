@@ -46,6 +46,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 /// The number of concurrent fetch blocks requests per authority
@@ -58,6 +59,8 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// Max number of blocks to fetch per request.
 /// This value should be chosen so even with blocks at max size, the requests
 /// can finish on hosts with good network using the timeouts above.
+// TODO: this can be increased as we're only syncing headers which have almost
+// constant size
 const MAX_BLOCKS_PER_FETCH: usize = 32;
 
 const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 3;
@@ -261,6 +264,7 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
     core_dispatcher: Arc<D>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     dag_state: Arc<RwLock<DagState>>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     fetch_blocks_scheduler_task: JoinSet<()>,
     fetch_own_last_block_task: JoinSet<()>,
     network_client: Arc<C>,
@@ -277,6 +281,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
@@ -298,6 +303,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 index,
                 network_client.clone(),
                 block_verifier.clone(),
+                transactions_synchronizer.clone(),
                 commit_vote_monitor.clone(),
                 context.clone(),
                 core_dispatcher.clone(),
@@ -327,6 +333,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 commit_vote_monitor,
                 fetch_blocks_scheduler_task: JoinSet::new(),
                 fetch_own_last_block_task: JoinSet::new(),
+                transactions_synchronizer,
                 network_client,
                 block_verifier,
                 inflight_block_headers_map,
@@ -458,6 +465,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         peer_index: AuthorityIndex,
         network_client: Arc<C>,
         block_verifier: Arc<V>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
@@ -514,6 +522,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 core_dispatcher.clone(),
                                 block_verifier.clone(),
                                 commit_vote_monitor.clone(),
+                                transactions_synchronizer.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
                                 "live"
@@ -550,6 +559,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         core_dispatcher: Arc<D>,
         block_verifier: Arc<V>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         context: Arc<Context>,
         commands_sender: Sender<Command>,
         sync_method: &str,
@@ -635,7 +645,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         // Now send them to core for processing. Ignore the returned missing blocks as
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
-        let missing_blocks = core_dispatcher
+        let (missing_blocks, missing_committed_txns) = core_dispatcher
             .add_block_headers(blocks)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
@@ -658,6 +668,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .node_metrics
             .missing_blocks_after_fetch_total
             .inc_by(missing_blocks.len() as u64);
+
+        if !missing_committed_txns.is_empty() {
+            debug!(
+                "Missing committed transactions after fetching blocks: {:?}",
+                missing_committed_txns
+            );
+            if let Err(err) = transactions_synchronizer
+                .fetch_transactions(missing_committed_txns)
+                .await
+            {
+                warn!(
+                    "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                );
+            }
+        }
 
         Ok(())
     }
@@ -937,6 +962,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let blocks_to_fetch = self.inflight_block_headers_map.clone();
         let commands_sender = self.commands_sender.clone();
         let dag_state = self.dag_state.clone();
+        let transactions_synchronizer = self.transactions_synchronizer.clone();
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         if commit_lagging {
@@ -1011,6 +1037,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         core_dispatcher.clone(),
                         block_verifier.clone(),
                         commit_vote_monitor.clone(),
+                        transactions_synchronizer.clone(),
                         context.clone(),
                         commands_sender.clone(),
                         "periodic",
@@ -1370,6 +1397,7 @@ mod tests {
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlockHeadersMap,
             MAX_BLOCKS_PER_FETCH, SYNC_MISSING_BLOCK_ROUND_THRESHOLD, Synchronizer,
         },
+        transactions_synchronizer::TransactionsSynchronizer,
     };
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
@@ -1438,6 +1466,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 
@@ -1616,11 +1653,20 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
         let handle = Synchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             false,
@@ -1669,11 +1715,20 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
         let handle = Synchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             false,
@@ -1734,7 +1789,13 @@ mod tests {
         let network_client = Arc::new(MockNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
         // Create some test blocks
         let expected_blocks = (0..10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
@@ -1773,6 +1834,7 @@ mod tests {
             context,
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             false,
@@ -1807,7 +1869,13 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
         // AND stub some missing blocks. The highest accepted round is 0. Create some
         // blocks that are below and above the threshold sync.
         let expected_blocks = (0..SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2)
@@ -1869,6 +1937,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer,
             block_verifier.clone(),
             dag_state.clone(),
             false,
@@ -1897,7 +1966,13 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
         // AND stub some missing blocks. The highest accepted round is 0. Create blocks
         // that are above the threshold sync.
         let mut expected_blocks = (SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2
@@ -1955,6 +2030,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer,
             block_verifier,
             dag_state.clone(),
             false,
@@ -2021,7 +2097,13 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let our_index = AuthorityIndex::new_for_test(0);
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
         // Create some test blocks
         let mut expected_blocks = (8..=10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
@@ -2091,6 +2173,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             true,
@@ -2141,40 +2224,67 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let mut guard = self.added_blocks.lock().await;
             guard.extend(blocks.clone());
-            Ok(blocks.iter().map(|b| b.reference()).collect())
+            Ok((
+                blocks.iter().map(|b| b.reference()).collect(),
+                BTreeMap::new(),
+            ))
         }
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
+            unimplemented!("Unimplemented")
         }
 
-        async fn add_data(
+        async fn add_transactions(
             &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+            _transactions: Vec<VerifiedTransactions>,
+        ) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
         }
 
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            unimplemented!("Unimplemented")
         }
 
         // Stub out the remaining CoreThreadDispatcher methods with defaults:
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             // No additional certified-commit logic in tests
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
-            Ok(())
+        async fn new_block(
+            &self,
+            _round: Round,
+            _force: bool,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            Ok(BTreeMap::new())
         }
 
         async fn get_missing_blocks(

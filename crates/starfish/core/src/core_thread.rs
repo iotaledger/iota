@@ -37,23 +37,46 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
-    AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
+    AddBlocks(
+        Vec<VerifiedBlock>,
+        oneshot::Sender<(
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        )>,
+    ),
     /// Add block headers to be processed and accepted
     AddBlockHeaders(
         Vec<VerifiedBlockHeader>,
-        oneshot::Sender<BTreeSet<BlockRef>>,
+        oneshot::Sender<(
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        )>,
     ),
     /// Add committed sub dag blocks for processing and acceptance.
-    AddCertifiedCommits(CertifiedCommits, oneshot::Sender<BTreeSet<BlockRef>>),
+    AddCertifiedCommits(
+        CertifiedCommits,
+        oneshot::Sender<(
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        )>,
+    ),
     /// Called when the min round has passed or the leader timeout occurred and
     /// a block should be produced. When the command is called with `force =
     /// true`, then the block will be created for `round` skipping
     /// any checks (ex leader existence of previous round). More information can
     /// be found on the `Core` component.
-    NewBlock(Round, oneshot::Sender<()>, bool),
+    NewBlock(
+        Round,
+        oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        bool,
+    ),
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
+    /// Add transactions to be processed and accepted
+    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>),
+    /// Get missing transaction data that need to be synced
+    GetMissingTransactionData(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
 
 #[derive(Error, Debug)]
@@ -66,34 +89,53 @@ pub enum CoreError {
 /// Also this allows the easier mocking during unit tests.
 #[async_trait]
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
-    async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
-    -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn add_blocks(
+        &self,
+        blocks: Vec<VerifiedBlock>,
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    >;
 
     async fn add_block_headers(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    >;
 
-    // TODO: The following method will be called from transaction synchronizer to
-    //  trigger output  of commits that became solid in the DataManager
-    #[expect(unused)]
-    async fn add_data(
+    async fn add_transactions(
         &self,
-        data: Vec<VerifiedTransactions>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
+        transactions: Vec<VerifiedTransactions>,
+    ) -> Result<(), CoreError>;
 
-    // TODO: The following method will be used by the transaction synchronizer to
-    //  get references to missing transactions that has already been committed and
-    //  needs to be fetched before the commit is successfully output.
-    #[expect(unused)]
-    async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn get_missing_transaction_data(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn add_certified_commits(
         &self,
         commits: CertifiedCommits,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    >;
 
-    async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError>;
+    async fn new_block(
+        &self,
+        round: Round,
+        force: bool,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_blocks(
         &self,
@@ -146,27 +188,36 @@ impl CoreThread {
                     match command {
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
-                            let missing_block_refs = self.core.add_blocks(blocks)?;
-                            sender.send(missing_block_refs).ok();
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
+                            sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_block_headers");
-                            let missing_block_refs = self.core.add_block_headers(block_headers)?;
-                            sender.send(missing_block_refs).ok();
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_block_headers(block_headers)?;
+                            sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_certified_commits");
-                            let missing_block_refs = self.core.add_certified_commits(commits)?;
-                            sender.send(missing_block_refs).ok();
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(commits)?;
+                            sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::NewBlock(round, sender, force) => {
                             let _scope = monitored_scope("CoreThread::loop::new_block");
-                            self.core.new_block(round, force)?;
-                            sender.send(()).ok();
+                            let (_new_block_opt, missing_committed_txns) = self.core.new_block(round, force)?;
+                            sender.send(missing_committed_txns).ok();
                         }
                         CoreThreadCommand::GetMissingBlocks(sender) => {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
+                        }
+                        CoreThreadCommand::AddTransactions(transactions, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::add_transactions");
+                            self.core.add_transactions(transactions)?;
+                            sender.send(()).ok();
+                        }
+                        CoreThreadCommand::GetMissingTransactionData(sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::get_missing_transaction_data");
+                            sender.send(self.core.get_missing_transaction_data()).ok();
                         }
                     }
                 }
@@ -285,45 +336,67 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    > {
         for block in &blocks {
             self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
         }
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddBlocks(blocks, sender))
             .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-
-        Ok(missing_block_refs)
+        Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
     async fn add_block_headers(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    > {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddBlockHeaders(block_headers, sender))
             .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-
-        Ok(missing_block_refs)
+        Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
-    async fn add_data(
+    async fn add_transactions(
         &self,
-        _data: Vec<VerifiedTransactions>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
-        todo!()
+        transactions: Vec<VerifiedTransactions>,
+    ) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddTransactions(transactions, sender))
+            .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-        todo!()
+    async fn get_missing_transaction_data(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::GetMissingTransactionData(sender))
+            .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
     async fn add_certified_commits(
         &self,
         commits: CertifiedCommits,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+    ) -> Result<
+        (
+            BTreeSet<BlockRef>,
+            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        ),
+        CoreError,
+    > {
         for commit in commits.commits() {
             for block in commit.blocks() {
                 self.highest_received_rounds[block.author()]
@@ -333,11 +406,14 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddCertifiedCommits(commits, sender))
             .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-        Ok(missing_block_refs)
+        Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
-    async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
+    async fn new_block(
+        &self,
+        round: Round,
+        force: bool,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::NewBlock(round, sender, force))
             .await;
@@ -446,44 +522,68 @@ pub(crate) mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
-            Ok(block_refs)
+            Ok((block_refs, BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let block_refs = block_headers.iter().map(|b| b.reference()).collect();
             self.block_headers.lock().extend(block_headers);
-            Ok(block_refs)
+            Ok((block_refs, BTreeMap::new()))
         }
 
-        async fn add_data(
+        async fn add_transactions(
             &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+            _transactions: Vec<VerifiedTransactions>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
         }
 
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            Ok(BTreeMap::new())
         }
 
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
+            unimplemented!()
         }
 
-        async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
+        async fn new_block(
+            &self,
+            round: Round,
+            force: bool,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             self.new_block_calls
                 .lock()
                 .push((round, force, Instant::now()));
-            Ok(())
+            Ok(BTreeMap::new())
         }
 
         async fn get_missing_blocks(
@@ -496,17 +596,16 @@ pub(crate) mod tests {
         }
 
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            todo!()
+            unimplemented!()
         }
 
         fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError> {
-            let mut last_known_proposed_round = self.last_known_proposed_round.lock();
-            last_known_proposed_round.push(round);
+            self.last_known_proposed_round.lock().push(round);
             Ok(())
         }
 
         fn highest_received_rounds(&self) -> Vec<Round> {
-            todo!()
+            unimplemented!()
         }
     }
 

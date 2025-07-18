@@ -19,10 +19,10 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
 use crate::{
-    BlockHeaderAPI, CommitIndex, Round, Transaction, VerifiedBlockHeader,
+    CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment,
-        VerifiedBlock, VerifiedTransactions,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
+        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -34,10 +34,12 @@ use crate::{
     network::{
         BlockBundle, BlockBundleStream, BlockStream, NetworkService, SerializedBlock,
         SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
+        SerializedTransactions,
     },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
+    transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -91,6 +93,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     block_verifier: Arc<dyn BlockVerifier>,
     synchronizer: Arc<SynchronizerHandle>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     core_dispatcher: Arc<C>,
     rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
     subscription_counter: Arc<SubscriptionCounter>,
@@ -109,6 +112,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         synchronizer: Arc<SynchronizerHandle>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         core_dispatcher: Arc<C>,
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
@@ -123,6 +127,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher,
             rx_block_broadcaster,
             subscription_counter,
@@ -302,11 +307,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        let missing_ancestors = self
+        let (missing_ancestors, missing_committed_txns) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+
         if !missing_ancestors.is_empty() {
             // schedule the fetching of them from this peer
             if let Err(err) = self
@@ -317,6 +323,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
             }
         }
+        if !missing_committed_txns.is_empty() {
+            // Also fetch missing transactions for these blocks
+            if let Err(err) = self
+                .transactions_synchronizer
+                .fetch_transactions(missing_committed_txns)
+                .await
+            {
+                warn!(
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -621,7 +640,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //    them
         // Normally, there should be no missing ancestors, as the headers are sent in
         // order of increasing rounds.
-        let mut missing_ancestors = self
+        let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
             .add_block_headers(additional_block_headers)
             .await
@@ -629,15 +648,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 9. Add block to dag, add its missing ancestors to the set
         // TODO:: consider possible optimization:
-        // first try to accept the block. If it fails, try to find missing ancestors
-        // among additional headers and from block_round-1 add only them. From the
-        // rounds < block_round-1 add all headers
-        missing_ancestors.extend(
-            self.core_dispatcher
-                .add_blocks(vec![verified_block])
-                .await
-                .map_err(|_| ConsensusError::Shutdown)?,
-        );
+        //  first try to accept the block. If it fails, try to find missing ancestors
+        //  among additional headers and from block_round-1 add only them. From the
+        //  rounds < block_round-1 add all headers
+        // TODO: handle missing transactions as well
+        let (missing_block_ancestors, missing_block_committed_transactions) = self
+            .core_dispatcher
+            .add_blocks(vec![verified_block])
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
+
+        missing_ancestors.extend(missing_block_ancestors);
+        missing_committed_txns.extend(missing_block_committed_transactions);
+
         if !missing_ancestors.is_empty() {
             // 10. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
@@ -646,6 +669,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .await
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
+            }
+        }
+
+        if !missing_committed_txns.is_empty() {
+            // Also, fetch missing committed transactions after adding the blocks.
+            if let Err(err) = self
+                .transactions_synchronizer
+                .fetch_transactions(missing_committed_txns)
+                .await
+            {
+                warn!(
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
+                );
             }
         }
         Ok(())
@@ -740,7 +776,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+        if block_refs.len() > self.context.parameters.max_block_headers_per_fetch {
             return Err(ConsensusError::TooManyFetchBlockHeadersRequested(peer));
         }
 
@@ -806,7 +842,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+        if block_refs.len() > self.context.parameters.max_block_headers_per_fetch {
             return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
         }
 
@@ -989,6 +1025,56 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             highest_accepted_rounds[self.context.own_index];
 
         Ok((highest_received_rounds, highest_accepted_rounds))
+    }
+
+    async fn handle_fetch_transactions(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        fail_point_async!("consensus-rpc-response");
+
+        if block_refs.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
+            return Err(ConsensusError::TooManyFetchTransactionsRequested(peer));
+        }
+
+        // Some quick validation of the requested block refs
+        for block in &block_refs {
+            if !self.context.committee.is_valid_index(block.author) {
+                return Err(ConsensusError::InvalidAuthorityIndex {
+                    index: block.author,
+                    max: self.context.committee.size(),
+                });
+            }
+            if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisBlockRequested);
+            }
+        }
+
+        // Get the transactions from the dag state
+        let transactions = self.dag_state.read().get_transactions(&block_refs);
+
+        // Return the serialized transactions
+        let result = transactions
+            .into_iter()
+            .flatten()
+            .map(|transaction| {
+                Bytes::from(
+                    bcs::to_bytes(&SerializedTransactions {
+                        block_ref: transaction.block_ref(),
+                        serialized_transactions: transaction.serialized().clone(),
+                    })
+                    .map_err(ConsensusError::SerializationFailure)
+                    .expect("serialization should succeed"),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        Ok(result)
     }
 }
 
@@ -1249,6 +1335,7 @@ mod tests {
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
+        transactions_synchronizer::TransactionsSynchronizer,
     };
 
     #[derive(Default)]
@@ -1312,6 +1399,15 @@ mod tests {
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1325,20 +1421,31 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
         let synchronizer = Synchronizer::start(
-            network_client,
+            network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             false,
         );
+
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state,
@@ -1388,20 +1495,31 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
         let synchronizer = Synchronizer::start(
-            network_client,
+            network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             true,
         );
+
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
@@ -1447,40 +1565,64 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let mut guard = self.core.lock();
             let _ = guard.add_blocks(blocks);
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             let mut guard = self.core.lock();
             let _ = guard.add_block_headers(block_headers);
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
-        async fn add_data(
+        async fn add_transactions(
             &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            _transactions: Vec<VerifiedTransactions>,
+        ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_transaction_data(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
         async fn add_certified_commits(
             &self,
             _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        ) -> Result<
+            (
+                BTreeSet<BlockRef>,
+                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            ),
+            CoreError,
+        > {
             unimplemented!("Unimplemented")
         }
 
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
+        async fn new_block(
+            &self,
+            _round: Round,
+            _force: bool,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -1558,11 +1700,20 @@ mod tests {
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
         let synchronizer = Synchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             false,
@@ -1572,6 +1723,7 @@ mod tests {
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
@@ -1689,12 +1841,20 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
 
         let synchronizer = Synchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             false,
@@ -1704,6 +1864,7 @@ mod tests {
             block_verifier,
             commit_vote_monitor,
             synchronizer,
+            transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
