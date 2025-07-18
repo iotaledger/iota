@@ -1528,7 +1528,7 @@ impl std::fmt::Display for NameCommandResult {
                 writeln!(f, "\nTransaction digest: {transaction}")?;
                 write!(
                     f,
-                    "IMPORTANT NOTE: leaf subnames are not tracked by the CLI!"
+                    "IMPORTANT NOTE: leaf subnames are not listed by the CLI. Make sure to keep track of them."
                 )
             }
             Self::RegisterNodeSubname {
