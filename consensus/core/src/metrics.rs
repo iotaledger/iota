@@ -90,6 +90,11 @@ pub(crate) struct Metrics {
     pub(crate) scoring_metrics: ValidatorScoringMetrics,
 }
 
+enum MetricType {
+    Cached,
+    Uncached,
+}
+
 impl Metrics {
     pub(crate) fn update_scoring_metrics_on_eviction(
         &self,
@@ -119,7 +124,7 @@ impl Metrics {
             cached_equivocations,
             hostname,
             validator,
-            "cached",
+            MetricType::Cached,
         );
 
         // If no eviction happened, we do not update the metrics on storage.
@@ -146,7 +151,7 @@ impl Metrics {
             evicted_equivocations,
             hostname,
             validator,
-            "uncached",
+            MetricType::Uncached,
         );
 
         // Update score
@@ -186,7 +191,7 @@ impl Metrics {
                 equivocations_by_authority,
                 hostname,
                 authority,
-                "uncached",
+                MetricType::Uncached,
             );
 
             self.node_metrics
@@ -229,7 +234,7 @@ impl Metrics {
             cached_equivocations,
             hostname,
             validator,
-            "cached",
+            MetricType::Cached,
         );
     }
 
@@ -239,44 +244,42 @@ impl Metrics {
         equivocations: u64,
         hostname: &str,
         authority: AuthorityIndex,
-        metric_type: &str,
+        metric_type: MetricType,
     ) {
-        assert!(
-            metric_type == "cached" || metric_type == "uncached",
-            "Invalid metric type: {}. Expected 'cached' or 'uncached'.",
-            metric_type
-        );
+        match metric_type {
+            MetricType::Cached => {
+                self.scoring_metrics.cached[authority]
+                    .equivocations_by_authority
+                    .store(equivocations, Ordering::Relaxed);
+                self.scoring_metrics.cached[authority]
+                    .missing_proposals_by_authority
+                    .store(missing_blocks, Ordering::Relaxed);
+                self.node_metrics
+                    .equivocations_in_cache_by_authority
+                    .with_label_values(&[hostname])
+                    .set(equivocations as i64);
+                self.node_metrics
+                    .missing_proposals_in_cache_by_authority
+                    .with_label_values(&[hostname])
+                    .set(missing_blocks as i64);
+            }
 
-        if metric_type == "cached" {
-            self.scoring_metrics.cached[authority]
-                .equivocations_by_authority
-                .store(equivocations, Ordering::Relaxed);
-            self.scoring_metrics.cached[authority]
-                .missing_proposals_by_authority
-                .store(missing_blocks, Ordering::Relaxed);
-            self.node_metrics
-                .equivocations_in_cache_by_authority
-                .with_label_values(&[hostname])
-                .set(equivocations as i64);
-            self.node_metrics
-                .missing_proposals_in_cache_by_authority
-                .with_label_values(&[hostname])
-                .set(missing_blocks as i64);
-        } else {
-            self.scoring_metrics.uncached[authority]
-                .equivocations_by_authority
-                .fetch_add(equivocations, Ordering::Relaxed);
-            self.scoring_metrics.uncached[authority]
-                .missing_proposals_by_authority
-                .fetch_add(missing_blocks, Ordering::Relaxed);
-            self.node_metrics
-                .uncached_equivocations_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(equivocations);
-            self.node_metrics
-                .uncached_missing_proposals_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(missing_blocks);
+            MetricType::Uncached => {
+                self.scoring_metrics.uncached[authority]
+                    .equivocations_by_authority
+                    .fetch_add(equivocations, Ordering::Relaxed);
+                self.scoring_metrics.uncached[authority]
+                    .missing_proposals_by_authority
+                    .fetch_add(missing_blocks, Ordering::Relaxed);
+                self.node_metrics
+                    .uncached_equivocations_by_authority
+                    .with_label_values(&[hostname])
+                    .inc_by(equivocations);
+                self.node_metrics
+                    .uncached_missing_proposals_by_authority
+                    .with_label_values(&[hostname])
+                    .inc_by(missing_blocks);
+            }
         }
     }
 

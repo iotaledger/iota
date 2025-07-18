@@ -247,7 +247,7 @@ impl DagState {
         }
 
         // Load the stored metrics relative to rounds that were not loaded to cache.
-        let metrics = state.store.scan_metrics().expect("Database error");
+        let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
         let hostnames = &state
             .context
             .committee
@@ -257,7 +257,7 @@ impl DagState {
         state
             .context
             .metrics
-            .initialize_uncached_scoring_metrics(metrics, hostnames);
+            .initialize_uncached_scoring_metrics(recovered_scoring_metrics, hostnames);
 
         // Initialize the scoring metrics relative to rounds that were loaded to cache.
         let threshold_clock_round = state.threshold_clock_round();
