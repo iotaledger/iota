@@ -226,8 +226,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/graphql-transport
       '@iota/iota-names-sdk':
-        specifier: 0.0.0-experimental-20250711100940
-        version: 0.0.0-experimental-20250711100940(typescript@5.6.2)
+        specifier: 0.0.0-experimental-20250718080829
+        version: 0.0.0-experimental-20250718080829(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -5592,6 +5592,12 @@ packages:
   '@iota/iota-names-sdk@0.0.0-experimental-20250711100940':
     resolution: {integrity: sha512-UCWHRXIzJvqqiog0gihSBmrmR/DQwLkyrOSn/+WWOGF6IK7cDFzMxAzEWr6J5lyySMPr0s4uOkxrLATGNdNQjw==}
     engines: {node: '>=20'}
+
+  '@iota/iota-names-sdk@0.0.0-experimental-20250718080829':
+    resolution: {integrity: sha512-XP16w41gZgaempZDCTzZ9TuTEm7MaQhW7DMJ33ZMNnsI5K7hxT4l/ShWZl6IVlQpChlOiaSUsQnLiL2VJqcmjg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@iota/iota-sdk': 0.0.0-experimental-20250620081851
 
   '@iota/iota-sdk@0.0.0-experimental-20250620081851':
     resolution: {integrity: sha512-kNBsyoLwKV95OvJyfq81BN9AklYLJbA/YVAz9PS5g6NE+rOWQNr2TQPef56I3TXLpyir1+cUkl6kpCvLGlZYfA==}
@@ -25088,6 +25094,10 @@ snapshots:
       - '@gql.tada/svelte-support'
       - '@gql.tada/vue-support'
       - typescript
+
+  '@iota/iota-names-sdk@0.0.0-experimental-20250718080829(@iota/iota-sdk@sdk+typescript)':
+    dependencies:
+      '@iota/iota-sdk': link:sdk/typescript
 
   '@iota/iota-sdk@0.0.0-experimental-20250620081851(typescript@5.6.2)':
     dependencies:
