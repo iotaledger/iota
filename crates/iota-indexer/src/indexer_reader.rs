@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -66,7 +66,7 @@ use crate::{
             IndexStatus, OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
         },
-        tx_indices::TxSequenceNumber,
+        tx_indices::TxDigest,
     },
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
@@ -78,6 +78,7 @@ use crate::{
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
+pub const SEQUENCE_NUMBER_STR: &str = "sequence_number";
 pub const TRANSACTION_DIGEST_STR: &str = "transaction_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
@@ -754,27 +755,6 @@ impl IndexerReader {
         Ok(tx_blocks)
     }
 
-    fn multi_get_transactions_with_sequence_numbers(
-        &self,
-        tx_sequence_numbers: Vec<i64>,
-        // Some(true) for desc, Some(false) for asc, None for undefined order
-        is_descending: Option<bool>,
-    ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        let mut query = transactions::table
-            .filter(transactions::tx_sequence_number.eq_any(tx_sequence_numbers))
-            .into_boxed();
-        match is_descending {
-            Some(true) => {
-                query = query.order(transactions::dsl::tx_sequence_number.desc());
-            }
-            Some(false) => {
-                query = query.order(transactions::dsl::tx_sequence_number.asc());
-            }
-            None => (),
-        }
-        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
-    }
-
     pub async fn get_owned_objects_in_blocking_task(
         &self,
         address: IotaAddress,
@@ -1186,24 +1166,55 @@ impl IndexerReader {
             }
         };
 
-        let query = format!(
+        let sequence_number_query = format!(
             "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {table_name} WHERE {main_where_clause} {cursor_clause} ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} LIMIT {limit}",
+        );
+        let digests_with_global_order_query = format!(
+            "SELECT \
+                COALESCE(tx_global_order.global_sequence_number, seq_num_qry.tx_sequence_number) AS global_sequence_number, \
+                COALESCE(tx_global_order.optimistic_sequence_number, -1) AS optimistic_sequence_number, \
+                tx_digests.tx_digest \
+            FROM ({sequence_number_query}) seq_num_qry \
+            JOIN tx_digests ON seq_num_qry.tx_sequence_number = tx_digests.tx_sequence_number \
+            LEFT JOIN tx_global_order ON tx_global_order.tx_digest = tx_digests.tx_digest"
+        );
+        let query = format!(
+            "SELECT tx_digest AS transaction_digest \
+            FROM ({digests_with_global_order_query}) digests_w_global_order \
+            ORDER BY (global_sequence_number, optimistic_sequence_number) {order_str}"
         );
 
         tracing::debug!("query transaction blocks: {}", query);
         let pool = self.get_pool();
-        let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
-            diesel::sql_query(query.clone()).load::<TxSequenceNumber>(conn)
+        let ordered_digests = run_query_async!(&pool, move |conn| {
+            sql_query(query.clone()).load::<TxDigest>(conn)
         })?
         .into_iter()
-        .map(|tsn| tsn.tx_sequence_number)
-        .collect::<Vec<i64>>();
-        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
-            tx_sequence_numbers,
-            options,
-            Some(is_descending),
-        )
-        .await
+        .map(|stored_dig| {
+            stored_dig
+                .transaction_digest
+                .as_slice()
+                .try_into()
+                .expect("Digest read from DB should be valid")
+        })
+        .collect::<Vec<TransactionDigest>>();
+        let order_map: HashMap<TransactionDigest, usize> = ordered_digests
+            .iter()
+            .enumerate()
+            .map(|(index, &id)| (id, index))
+            .collect();
+
+        Ok(self
+            .multi_get_transaction_block_response_in_blocking_task(ordered_digests, options)
+            .await?
+            .into_iter()
+            .sorted_by_key(|tx| {
+                order_map
+                    .get(&tx.digest)
+                    .copied()
+                    .expect("All digests should have some order")
+            })
+            .collect::<Vec<_>>())
     }
 
     async fn multi_get_transaction_block_response_in_blocking_task_impl(
@@ -1213,25 +1224,6 @@ impl IndexerReader {
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes = self
             .multi_get_transactions_in_blocking_task(digests.to_vec())
-            .await?;
-        self.stored_transaction_to_transaction_block(stored_txes, options)
-            .await
-    }
-
-    async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
-        &self,
-        tx_sequence_numbers: Vec<i64>,
-        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-        // Some(true) for desc, Some(false) for asc, None for undefined order
-        is_descending: Option<bool>,
-    ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        let stored_txes: Vec<StoredTransaction> = self
-            .spawn_blocking(move |this| {
-                this.multi_get_transactions_with_sequence_numbers(
-                    tx_sequence_numbers,
-                    is_descending,
-                )
-            })
             .await?;
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
