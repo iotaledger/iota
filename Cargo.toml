@@ -140,6 +140,7 @@ members = [
   "crates/iota-surfer",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
+  "crates/iota-synthetic-ingestion",
   "crates/iota-test-transaction-builder",
   "crates/iota-tls",
   "crates/iota-tool",
@@ -443,6 +444,7 @@ iota-storage = { path = "crates/iota-storage" }
 iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
+iota-synthetic-ingestion = { path = "crates/iota-synthetic-ingestion" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-tls = { path = "crates/iota-tls" }
 iota-tool = { path = "crates/iota-tool" }

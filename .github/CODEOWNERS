@@ -76,6 +76,7 @@
 /crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
 /crates/iota-swarm-config/ @iotaledger/node
+/crates/iota-synthetic-ingestion/ @iotaledger/infrastructure
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-tls/ @iotaledger/core-protocol
 /crates/iota-tool/ @iotaledger/node

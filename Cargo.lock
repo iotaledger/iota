@@ -7850,6 +7850,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-synthetic-ingestion"
+version = "1.4.0-alpha"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "iota-storage",
+ "iota-test-transaction-builder",
+ "iota-types",
+ "simulacrum",
+ "telemetry-subscribers",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "iota-test-transaction-builder"
 version = "1.4.0-alpha"
 dependencies = [
