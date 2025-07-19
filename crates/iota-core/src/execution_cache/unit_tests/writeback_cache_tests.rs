@@ -1329,7 +1329,11 @@ async fn concurrent_latest_object_cache_race_test() {
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+    ));
 
     let object_id = ObjectID::random();
     let owner = IotaAddress::random_for_testing_only();
@@ -1422,7 +1426,11 @@ async fn concurrent_latest_object_cache_collision_test() {
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+    ));
 
     let mk_object_id = |i: usize| -> ObjectID {
         let mut obj_id = [0_u8; 32];
