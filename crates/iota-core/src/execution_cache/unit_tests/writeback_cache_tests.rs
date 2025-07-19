@@ -81,6 +81,7 @@ impl Scenario {
             &WritebackCacheConfig::default(),
             store.clone(),
             (*METRICS).clone(),
+            BackpressureManager::new_for_tests(),
         ));
         Self {
             authority,
@@ -378,6 +379,7 @@ impl Scenario {
             &WritebackCacheConfig::default(),
             self.store.clone(),
             self.cache.metrics.clone(),
+            BackpressureManager::new_for_tests(),
         ));
 
         // reset the scenario state to match the db
@@ -1210,6 +1212,7 @@ async fn latest_object_cache_race_test() {
         &WritebackCacheConfig::default(),
         store.clone(),
         (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
     ));
 
     let object_id = ObjectID::random();
@@ -1333,6 +1336,7 @@ async fn concurrent_latest_object_cache_race_test() {
         &WritebackCacheConfig::default(),
         store.clone(),
         (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
     ));
 
     let object_id = ObjectID::random();
@@ -1430,6 +1434,7 @@ async fn concurrent_latest_object_cache_collision_test() {
         &WritebackCacheConfig::default(),
         store.clone(),
         (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
     ));
 
     let mk_object_id = |i: usize| -> ObjectID {

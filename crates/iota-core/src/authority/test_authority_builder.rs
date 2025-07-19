@@ -32,7 +32,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 
-use super::epoch_start_configuration::EpochFlag;
+use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{
     authority::{
         AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
@@ -255,11 +255,16 @@ impl<'a> TestAuthorityBuilder<'a> {
         .unwrap();
         let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
 
+        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+        let backpressure_manager =
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
+
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
             &epoch_start_configuration,
             &registry,
             &authority_store,
+            backpressure_manager.clone(),
         );
 
         let epoch_store = AuthorityPerEpochStore::new(
@@ -282,7 +287,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
         ));
 
-        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
         if self.insert_genesis_checkpoint {
             checkpoint_store.insert_genesis_checkpoint(
                 genesis.checkpoint(),

@@ -211,6 +211,7 @@ pub mod test_authority_builder;
 pub mod transaction_deferral;
 
 pub(crate) mod authority_store;
+pub mod backpressure;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
@@ -1002,6 +1003,22 @@ impl AuthorityState {
         consensus_adapter.check_consensus_overload().tap_err(|_| {
             self.update_overload_metrics("consensus");
         })?;
+
+        let pending_tx_count = self
+            .get_cache_commit()
+            .approximate_pending_transaction_count();
+        if pending_tx_count
+            > self
+                .config
+                .execution_cache_config
+                .writeback_cache
+                .backpressure_threshold_for_rpc()
+        {
+            return Err(IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 10,
+            });
+        }
+
         Ok(())
     }
 
