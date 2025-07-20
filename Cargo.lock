@@ -7576,6 +7576,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
+ "iota-package-management",
  "iota-sdk 1.4.0-alpha",
  "iota-source-validation",
  "jsonrpsee",
