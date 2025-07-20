@@ -12,7 +12,10 @@ use std::{
 };
 
 use fastcrypto::encoding::Base64;
-use iota_package_management::{resolve_published_id, system_package_versions::{SystemPackagesVersion, SYSTEM_GIT_REPO}, PublishedAtError};
+use iota_package_management::{
+    PublishedAtError, resolve_published_id,
+    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
+};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
@@ -38,9 +41,16 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use move_package::{
+    BuildConfig as MoveBuildConfig,
     compilation::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
-    }, package_hooks::{PackageHooks, PackageIdentifier}, resolution::resolution_graph::ResolvedGraph, source_package::parsed_manifest::{Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency, OnChainInfo, PackageName, SourceManifest}, BuildConfig as MoveBuildConfig
+    },
+    package_hooks::{PackageHooks, PackageIdentifier},
+    resolution::resolution_graph::ResolvedGraph,
+    source_package::parsed_manifest::{
+        Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency, OnChainInfo,
+        PackageName, SourceManifest,
+    },
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;

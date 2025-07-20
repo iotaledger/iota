@@ -16,7 +16,6 @@ const-str.workspace = true
 datatest-stable.workspace = true
 git-version.workspace = true
 insta-cmd = "0.6.0"
-iota-package-management.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 serde_json.workspace = true
@@ -29,6 +28,7 @@ walkdir = "2.5.0"
 bin-version.workspace = true
 iota-move-build.workspace = true
 iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
+iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true

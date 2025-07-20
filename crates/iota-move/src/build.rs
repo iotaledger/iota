@@ -5,7 +5,9 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-use iota_move_build::{check_invalid_dependencies, check_unpublished_dependencies, implicit_deps, BuildConfig};
+use iota_move_build::{
+    BuildConfig, check_invalid_dependencies, check_unpublished_dependencies, implicit_deps,
+};
 use iota_package_management::system_package_versions::latest_system_packages;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
