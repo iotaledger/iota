@@ -6789,6 +6789,7 @@ dependencies = [
  "iota-metrics",
  "iota-move-build",
  "iota-move-natives-latest",
+ "iota-package-management",
  "iota-protocol-config",
  "iota-types",
  "jemalloc-ctl",

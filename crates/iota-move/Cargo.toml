@@ -15,6 +15,7 @@ colored.workspace = true
 const-str.workspace = true
 datatest-stable.workspace = true
 git-version.workspace = true
+iota-package-management.workspace = true
 insta-cmd = "0.6.0"
 once_cell.workspace = true
 prometheus.workspace = true

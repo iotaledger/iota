@@ -5,7 +5,8 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-use iota_move_build::{BuildConfig, check_invalid_dependencies, check_unpublished_dependencies};
+use iota_move_build::{check_invalid_dependencies, check_unpublished_dependencies, implicit_deps, BuildConfig};
+use iota_package_management::system_package_versions::latest_system_packages;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
 use serde_json::json;
@@ -65,12 +66,13 @@ impl Build {
 
     pub fn execute_internal(
         rerooted_path: &Path,
-        config: MoveBuildConfig,
+        mut config: MoveBuildConfig,
         with_unpublished_deps: bool,
         dump_bytecode_as_base64: bool,
         generate_struct_layouts: bool,
         chain_id: Option<String>,
     ) -> anyhow::Result<()> {
+        config.implicit_dependencies = implicit_deps(latest_system_packages());
         let pkg = BuildConfig {
             config,
             run_bytecode_verifier: true,

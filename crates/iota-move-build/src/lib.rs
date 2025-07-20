@@ -12,7 +12,7 @@ use std::{
 };
 
 use fastcrypto::encoding::Base64;
-use iota_package_management::{PublishedAtError, resolve_published_id};
+use iota_package_management::{resolve_published_id, system_package_versions::{SystemPackagesVersion, SYSTEM_GIT_REPO}, PublishedAtError};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
@@ -38,13 +38,9 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use move_package::{
-    BuildConfig as MoveBuildConfig,
     compilation::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
-    },
-    package_hooks::{PackageHooks, PackageIdentifier},
-    resolution::resolution_graph::ResolvedGraph,
-    source_package::parsed_manifest::{OnChainInfo, PackageName, SourceManifest},
+    }, package_hooks::{PackageHooks, PackageIdentifier}, resolution::resolution_graph::ResolvedGraph, source_package::parsed_manifest::{Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency, OnChainInfo, PackageName, SourceManifest}, BuildConfig as MoveBuildConfig
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
@@ -93,6 +89,7 @@ impl BuildConfig {
             .config
             .lint_flag
             .set(move_compiler::linters::LintLevel::None);
+        build_config.config.implicit_dependencies = Dependencies::new();
         build_config.config.silence_warnings = true;
         build_config
     }
@@ -605,6 +602,31 @@ impl Default for BuildConfig {
             chain_id: None,
         }
     }
+}
+
+/// Create a set of [Dependencies] from a [SystemPackagesVersion]; the
+/// dependencies are override git dependencies to the specific revision given by
+/// the [SystemPackagesVersion]
+pub fn implicit_deps(packages: &SystemPackagesVersion) -> Dependencies {
+    packages
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.package_name.clone().into(),
+                Dependency::Internal(InternalDependency {
+                    kind: DependencyKind::Git(GitInfo {
+                        git_url: SYSTEM_GIT_REPO.into(),
+                        git_rev: packages.git_revision.clone().into(),
+                        subdir: package.repo_path.clone().into(),
+                    }),
+                    subst: None,
+                    digest: None,
+                    dep_override: true,
+                }),
+            )
+        })
+        .collect()
 }
 
 impl GetModule for CompiledPackage {

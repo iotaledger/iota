@@ -36,8 +36,12 @@ use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
     check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
+    implicit_deps,
 };
-use iota_package_management::{LockCommand, PublishedAtError};
+use iota_package_management::{
+    LockCommand, PublishedAtError,
+    system_package_versions::{latest_system_packages, system_packages_for_protocol},
+};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_replay::ReplayToolCommand;
 use iota_sdk::{
@@ -72,7 +76,7 @@ use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
 use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
-use move_package::BuildConfig as MoveBuildConfig;
+use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
@@ -1698,7 +1702,7 @@ impl IotaClientCommands {
             ),
             IotaClientCommands::VerifySource {
                 package_path,
-                build_config,
+                mut build_config,
                 verify_deps,
                 skip_source,
                 address_override,
@@ -1715,6 +1719,7 @@ impl IotaClientCommands {
                     (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
                 };
 
+                build_config.implicit_dependencies = implicit_deps(latest_system_packages());
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let chain_id = context
                     .get_client()
@@ -1795,10 +1800,11 @@ fn check_dep_verification_flags(
 }
 
 fn compile_package_simple(
-    build_config: MoveBuildConfig,
+    mut build_config: MoveBuildConfig,
     package_path: &Path,
     chain_id: Option<String>,
 ) -> Result<CompiledPackage, anyhow::Error> {
+    build_config.implicit_dependencies = implicit_deps(latest_system_packages());
     let config = BuildConfig {
         config: resolve_lock_file_path(build_config, Some(package_path))?,
         run_bytecode_verifier: false,
@@ -1904,7 +1910,7 @@ pub(crate) async fn upgrade_package(
 
 pub(crate) async fn compile_package(
     read_api: &ReadApi,
-    build_config: MoveBuildConfig,
+    mut build_config: MoveBuildConfig,
     package_path: &Path,
     with_unpublished_dependencies: bool,
     skip_dependency_verification: bool,
@@ -1917,6 +1923,10 @@ pub(crate) async fn compile_package(
     ),
     anyhow::Error,
 > {
+    let protocol_config = read_api.get_protocol_config(None).await?;
+
+    build_config.implicit_dependencies =
+        implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
     let config = resolve_lock_file_path(build_config, Some(package_path))?;
     let run_bytecode_verifier = true;
     let print_diags_to_stderr = true;
@@ -2054,6 +2064,23 @@ pub(crate) async fn compile_package(
         })?;
 
     Ok((dependencies, compiled_modules, compiled_package, package_id))
+}
+
+/// Return the correct implicit dependencies for the [version], producing a
+/// warning or error if the protocol version is unknown or old
+fn implicit_deps_for_protocol_version(version: ProtocolVersion) -> anyhow::Result<Dependencies> {
+    if version > ProtocolVersion::MAX + 2 {
+        eprintln!(
+            "[{}]: The network is using protocol version {:?}, but this binary only recognizes protocol version {:?}; \
+            the system packages used for compilation (e.g. MoveStdlib) may be out of date. If you have errors related to \
+            system packages, you may need to update your CLI.",
+            "warning".bold().yellow(),
+            ProtocolVersion::MAX,
+            version
+        )
+    }
+
+    Ok(implicit_deps(system_packages_for_protocol(version)?.0))
 }
 
 impl Display for IotaClientCommandResult {
