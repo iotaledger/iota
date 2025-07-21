@@ -11,9 +11,7 @@ workspace = true
 
 [dependencies]
 # external dependencies
-bcs.workspace = true
 bip32.workspace = true
-serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
@@ -25,5 +23,6 @@ shared-crypto.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 base64.workspace = true
+bcs.workspace = true
 clap.workspace = true
 tokio.workspace = true

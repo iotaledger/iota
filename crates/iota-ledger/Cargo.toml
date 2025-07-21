@@ -11,11 +11,8 @@ workspace = true
 
 [dependencies]
 # external dependencies
-async-trait.workspace = true
-base64.workspace = true
 bcs.workspace = true
 bip32.workspace = true
-byteorder.workspace = true
 fastcrypto.workspace = true
 hex.workspace = true
 hidapi = { version = "2.6.3", features = ["linux-static-hidraw"], default-features = false }
@@ -31,4 +28,5 @@ shared-crypto.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
+base64.workspace = true
 clap.workspace = true
