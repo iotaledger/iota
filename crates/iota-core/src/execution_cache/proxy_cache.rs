@@ -5,6 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::{FutureExt, future::BoxFuture};
+use iota_config::node::ExecutionCacheTypeAtomicU8;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
@@ -17,7 +18,6 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use parking_lot::RwLock;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
@@ -37,7 +37,7 @@ use crate::{
 
 macro_rules! delegate_method {
     ($self:ident.$method:ident($($args:ident),*)) => {
-        match *$self.mode.read() {
+        match ExecutionCacheType::from(&$self.mode.load(std::sync::atomic::Ordering::Acquire)) {
             ExecutionCacheType::PassthroughCache => $self.passthrough_cache.$method($($args),*),
             ExecutionCacheType::WritebackCache => $self.writeback_cache.$method($($args),*),
         }
@@ -53,7 +53,7 @@ pub struct ProxyCache {
     // Cache implementations are entirely passive, so the unused one will have no effect.
     passthrough_cache: PassthroughCache,
     writeback_cache: WritebackCache,
-    mode: RwLock<ExecutionCacheType>,
+    mode: ExecutionCacheTypeAtomicU8,
 }
 
 impl ProxyCache {
@@ -76,7 +76,7 @@ impl ProxyCache {
         Self {
             passthrough_cache,
             writeback_cache,
-            mode: RwLock::new(cache_type),
+            mode: cache_type.into(),
         }
     }
 
@@ -101,7 +101,8 @@ impl ProxyCache {
             tokio::time::sleep(Duration::from_nanos(100)).await;
             self.writeback_cache.clear_caches_and_assert_empty();
         }
-        *self.mode.write() = cache_type;
+        self.mode
+            .store(cache_type.into(), std::sync::atomic::Ordering::Release);
     }
 }
 
