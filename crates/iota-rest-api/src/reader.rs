@@ -48,7 +48,7 @@ impl StateReader {
             .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
 
-    pub fn get_committee(&self, epoch: EpochId) -> Result<Option<ValidatorCommittee>> {
+    pub fn try_get_committee(&self, epoch: EpochId) -> Result<Option<ValidatorCommittee>> {
         self.inner
             .try_get_committee(epoch)
             .map(|maybe| maybe.map(|committee| (*committee).clone().into()))

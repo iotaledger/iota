@@ -1,10 +1,8 @@
-query ByEmittingPackageModuleAndEventType {
+# Get all on-chain events emitted by the module `0x3::iota_system
+query ByEmittingPackageModule {
   events(
-    first: 1
-    after: "eyJ0eCI6Njc2MywiZSI6MCwiYyI6MjI4MDA3NDJ9"
     filter: {
       emittingModule: "0x3::iota_system",
-      eventType: "0x3::validator::StakingRequestEvent"
     }
   ) {
     pageInfo {

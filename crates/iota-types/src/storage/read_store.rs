@@ -30,6 +30,12 @@ pub trait ReadStore: ObjectStore {
 
     fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>>;
 
+    /// Non-fallible version of `try_get_committee`.
+    fn get_committee(&self, epoch: EpochId) -> Option<Arc<Committee>> {
+        self.try_get_committee(epoch)
+            .expect("storage access failed")
+    }
+
     // Checkpoint Getters
     //
 
@@ -40,11 +46,23 @@ pub trait ReadStore: ObjectStore {
     /// available for the returned checkpoint.
     fn try_get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint>;
 
+    /// Non-fallible version of `try_get_latest_checkpoint`.
+    fn get_latest_checkpoint(&self) -> VerifiedCheckpoint {
+        self.try_get_latest_checkpoint()
+            .expect("storage access failed")
+    }
+
     /// Get the latest available checkpoint sequence number. This is the
     /// sequence number of the latest executed checkpoint.
     fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
         let latest_checkpoint = self.try_get_latest_checkpoint()?;
         Ok(*latest_checkpoint.sequence_number())
+    }
+
+    /// Non-fallible version of `try_get_latest_checkpoint_sequence_number`.
+    fn get_latest_checkpoint_sequence_number(&self) -> CheckpointSequenceNumber {
+        self.try_get_latest_checkpoint_sequence_number()
+            .expect("storage access failed")
     }
 
     /// Get the epoch of the latest checkpoint
@@ -53,16 +71,34 @@ pub trait ReadStore: ObjectStore {
         Ok(latest_checkpoint.epoch())
     }
 
+    /// Non-fallible version of `try_get_latest_epoch_id`.
+    fn get_latest_epoch_id(&self) -> EpochId {
+        self.try_get_latest_epoch_id()
+            .expect("storage access failed")
+    }
+
     /// Get the highest verified checkpoint. This is the highest checkpoint
     /// summary that has been verified, generally by state-sync. Only the
     /// checkpoint header is guaranteed to be present in the store.
     fn try_get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint>;
+
+    /// Non-fallible version of `try_get_highest_verified_checkpoint`.
+    fn get_highest_verified_checkpoint(&self) -> VerifiedCheckpoint {
+        self.try_get_highest_verified_checkpoint()
+            .expect("storage access failed")
+    }
 
     /// Get the highest synced checkpoint. This is the highest checkpoint that
     /// has been synced from state-synce. The checkpoint header, contents,
     /// transactions, and effects of this checkpoint are guaranteed to be
     /// present in the store
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint>;
+
+    /// Non-fallible version of `try_get_highest_synced_checkpoint`.
+    fn get_highest_synced_checkpoint(&self) -> VerifiedCheckpoint {
+        self.try_get_highest_synced_checkpoint()
+            .expect("storage access failed")
+    }
 
     /// Lowest available checkpoint for which transaction and checkpoint data
     /// can be requested.
@@ -77,25 +113,65 @@ pub trait ReadStore: ObjectStore {
     /// For object availability see `get_lowest_available_checkpoint_objects`.
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber>;
 
+    /// Non-fallible version of `try_get_lowest_available_checkpoint`.
+    fn get_lowest_available_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.try_get_lowest_available_checkpoint()
+            .expect("storage access failed")
+    }
+
     fn try_get_checkpoint_by_digest(
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>>;
+
+    /// Non-fallible version of `try_get_checkpoint_by_digest`.
+    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
+        self.try_get_checkpoint_by_digest(digest)
+            .expect("storage access failed")
+    }
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<VerifiedCheckpoint>>;
 
+    /// Non-fallible version of `try_get_checkpoint_by_sequence_number`.
+    fn get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> Option<VerifiedCheckpoint> {
+        self.try_get_checkpoint_by_sequence_number(sequence_number)
+            .expect("storage access failed")
+    }
+
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>>;
 
+    /// Non-fallible version of `try_get_checkpoint_contents_by_digest`.
+    fn get_checkpoint_contents_by_digest(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<CheckpointContents> {
+        self.try_get_checkpoint_contents_by_digest(digest)
+            .expect("storage access failed")
+    }
+
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<CheckpointContents>>;
+
+    /// Non-fallible version of
+    /// `try_get_checkpoint_contents_by_sequence_number`.
+    fn get_checkpoint_contents_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> Option<CheckpointContents> {
+        self.try_get_checkpoint_contents_by_sequence_number(sequence_number)
+            .expect("storage access failed")
+    }
 
     // Transaction Getters
     //
@@ -104,6 +180,12 @@ pub trait ReadStore: ObjectStore {
         &self,
         tx_digest: &TransactionDigest,
     ) -> Result<Option<Arc<VerifiedTransaction>>>;
+
+    /// Non-fallible version of `try_get_transaction`.
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
+        self.try_get_transaction(tx_digest)
+            .expect("storage access failed")
+    }
 
     fn try_multi_get_transactions(
         &self,
@@ -115,10 +197,25 @@ pub trait ReadStore: ObjectStore {
             .collect::<Result<Vec<_>, _>>()
     }
 
+    /// Non-fallible version of `try_multi_get_transactions`.
+    fn multi_get_transactions(
+        &self,
+        tx_digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+        self.try_multi_get_transactions(tx_digests)
+            .expect("storage access failed")
+    }
+
     fn try_get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
     ) -> Result<Option<TransactionEffects>>;
+
+    /// Non-fallible version of `try_get_transaction_effects`.
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.try_get_transaction_effects(tx_digest)
+            .expect("storage access failed")
+    }
 
     fn try_multi_get_transaction_effects(
         &self,
@@ -130,10 +227,25 @@ pub trait ReadStore: ObjectStore {
             .collect::<Result<Vec<_>, _>>()
     }
 
+    /// Non-fallible version of `try_multi_get_transaction_effects`.
+    fn multi_get_transaction_effects(
+        &self,
+        tx_digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        self.try_multi_get_transaction_effects(tx_digests)
+            .expect("storage access failed")
+    }
+
     fn try_get_events(
         &self,
         event_digest: &TransactionEventsDigest,
     ) -> Result<Option<TransactionEvents>>;
+
+    /// Non-fallible version of `try_get_events`.
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.try_get_events(event_digest)
+            .expect("storage access failed")
+    }
 
     fn try_multi_get_events(
         &self,
@@ -143,6 +255,15 @@ pub trait ReadStore: ObjectStore {
             .iter()
             .map(|digest| self.try_get_events(digest))
             .collect::<Result<Vec<_>, _>>()
+    }
+
+    /// Non-fallible version of `try_multi_get_events`.
+    fn multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(event_digests)
+            .expect("storage access failed")
     }
 
     // Extra Checkpoint fetching apis
@@ -155,12 +276,31 @@ pub trait ReadStore: ObjectStore {
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>>;
 
+    /// Non-fallible version of
+    /// `try_get_full_checkpoint_contents_by_sequence_number`.
+    fn get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> Option<FullCheckpointContents> {
+        self.try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
+            .expect("storage access failed")
+    }
+
     /// Get a "full" checkpoint for purposes of state-sync
     /// "full" checkpoints include: header, contents, transactions, effects
     fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>>;
+
+    /// Non-fallible version of `try_get_full_checkpoint_contents`.
+    fn get_full_checkpoint_contents(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<FullCheckpointContents> {
+        self.try_get_full_checkpoint_contents(digest)
+            .expect("storage access failed")
+    }
 
     // Fetch all checkpoint data
     // TODO fix return type to not be anyhow
@@ -278,6 +418,16 @@ pub trait ReadStore: ObjectStore {
         };
 
         Ok(checkpoint_data)
+    }
+
+    /// Non-fallible version of `try_get_checkpoint_data`.
+    fn get_checkpoint_data(
+        &self,
+        checkpoint: VerifiedCheckpoint,
+        checkpoint_contents: CheckpointContents,
+    ) -> CheckpointData {
+        self.try_get_checkpoint_data(checkpoint, checkpoint_contents)
+            .expect("storage access failed")
     }
 }
 

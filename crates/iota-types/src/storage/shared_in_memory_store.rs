@@ -103,7 +103,7 @@ impl ReadStore for SharedInMemoryStore {
         inner
             .get_checkpoint_contents(digest)
             .map(|contents| {
-                FullCheckpointContents::from_checkpoint_contents(self, contents.to_owned())
+                FullCheckpointContents::try_from_checkpoint_contents(self, contents.to_owned())
             })
             .transpose()
             .map(|contents| contents.flatten())

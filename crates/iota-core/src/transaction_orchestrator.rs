@@ -381,7 +381,7 @@ where
         //    one extra time)
         // 3. at the end of day, the tx will be executed at most once per lock guard.
         let tx_digest = transaction.digest();
-        if validator_state.is_tx_already_executed(tx_digest)? {
+        if validator_state.try_is_tx_already_executed(tx_digest)? {
             return Ok(());
         }
         metrics.local_execution_in_flight.inc();
