@@ -1,6 +1,4 @@
-import { BrowserContext, expect, Page } from '@playwright/test';
-import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { closeBrowserTabsExceptLast, test } from './helpers/browser';
+import { expect } from '@playwright/test';
 import {
     checkL2CoinBalanceForAddressWithRetries,
     checkL1CoinBalanceForAddressWithRetries,
@@ -10,49 +8,15 @@ import {
     fundL1AddressWithNativeTokens,
     fundL2AddressWithIscClient,
 } from './helpers/transactions';
-import {
-    createL1Wallet,
-    getRandomL2MnemonicAndAddress,
-    createL2Wallet,
-    addNetworkToMetaMask,
-    connectL1Wallet,
-    connectL2Wallet,
-} from './helpers/wallet';
 import { THREE_MINUTES, TOOL_COIN_TYPE } from './utils/constants';
-import {
-    clickMaxAmount,
-    executeBridgeTransaction,
-    selectCoin,
-    setReceiverAddress,
-    toggleBridgeDirection,
-} from './helpers/ui';
+import { clickMaxAmount, executeBridgeTransaction, selectCoin } from './helpers/ui';
+import { test } from './helpers/fixtures';
 
 test.describe('Send MAX native token amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    let browserL1: BrowserContext;
-    let testPageL1: Page;
-
-    test.beforeAll('setup L1 wallet', async ({ contextL1, l1ExtensionUrl }) => {
-        test.setTimeout(THREE_MINUTES);
-
-        testPageL1 = await contextL1.newPage();
-        await createL1Wallet(testPageL1, l1ExtensionUrl);
-
-        testPageL1 = await contextL1.newPage();
-        browserL1 = contextL1;
-        await closeBrowserTabsExceptLast(browserL1);
-
-        await testPageL1.goto('/');
-
-        await connectL1Wallet(testPageL1, browserL1);
-
-        const { address: addressL2 } = getRandomL2MnemonicAndAddress();
-
-        await setReceiverAddress(testPageL1, addressL2);
-    });
-
-    test('should bridge successfully', async () => {
+    test('should bridge successfully', async ({ l1Setup }) => {
+        const { browser: browserL1, page: testPageL1, receiverAddress } = l1Setup;
         const addressL1 = await testPageL1.getByTestId('sender-address').inputValue();
         const nativeTokenAmount = 2;
 
@@ -91,8 +55,10 @@ test.describe('Send MAX native token amount from L1', () => {
 
         await executeBridgeTransaction(testPageL1, browserL1, true);
 
-        const addressL2 = await testPageL1.getByTestId('receive-address').inputValue();
-        const balance = await checkL2CoinBalanceForAddressWithRetries(addressL2, TOOL_COIN_TYPE);
+        const balance = await checkL2CoinBalanceForAddressWithRetries(
+            receiverAddress,
+            TOOL_COIN_TYPE,
+        );
 
         expect(balance).toEqual(nativeTokenAmount.toString());
     });
@@ -101,42 +67,8 @@ test.describe('Send MAX native token amount from L1', () => {
 test.describe('Send MAX native token amount from L2', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    let browserL2: BrowserContext;
-    let testPageL2: Page;
-
-    test.beforeAll('setup L2 wallet', async ({ contextL2, l2ExtensionUrl }) => {
-        test.setTimeout(THREE_MINUTES);
-
-        testPageL2 = await contextL2.newPage();
-
-        await createL2Wallet(testPageL2, l2ExtensionUrl);
-
-        await addNetworkToMetaMask(testPageL2);
-
-        testPageL2 = await contextL2.newPage();
-        browserL2 = contextL2;
-        await closeBrowserTabsExceptLast(browserL2);
-        await testPageL2.goto('/');
-
-        await connectL2Wallet(testPageL2, browserL2);
-
-        const l2WalletConnectedButton = testPageL2.getByRole('button', {
-            name: /Dropdown/,
-        });
-
-        await expect(l2WalletConnectedButton).toBeVisible();
-        const balanceL2Display = l2WalletConnectedButton.getByText('0 IOTA');
-        await expect(balanceL2Display).toBeVisible();
-
-        await toggleBridgeDirection(testPageL2);
-
-        const keypair = new Ed25519Keypair();
-        const addressL1 = keypair.toIotaAddress();
-
-        await setReceiverAddress(testPageL2, addressL1);
-    });
-
-    test('should bridge successfully', async () => {
+    test('should bridge successfully', async ({ l2Setup }) => {
+        const { browser: browserL2, page: testPageL2, receiverAddress } = l2Setup;
         const addressL2 = await testPageL2.getByTestId('sender-address').inputValue();
         const nativeTokenAmount = 2;
 
@@ -171,8 +103,10 @@ test.describe('Send MAX native token amount from L2', () => {
 
         await executeBridgeTransaction(testPageL2, browserL2, false);
 
-        const addressL1 = await testPageL2.getByTestId('receive-address').inputValue();
-        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(addressL1, TOOL_COIN_TYPE);
+        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(
+            receiverAddress,
+            TOOL_COIN_TYPE,
+        );
 
         expect(l1Balance).toEqual(nativeTokenAmount.toString());
     });
