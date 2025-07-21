@@ -3,11 +3,18 @@
 # Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-nval=4  # default
-if [[ $1 =~ ^[0-9]+$ ]]; then
-  nval=$1
-  shift
-fi
+
+# Default validator count
+nval=4
+
+# Parse -n flag for number of validators
+while getopts "n:" opt; do
+  case "$opt" in
+    n) nval="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators] [modes...]"; exit 1 ;;
+  esac
+done
+shift $((OPTIND -1))
 
 function start_services() {
   services="$1"
