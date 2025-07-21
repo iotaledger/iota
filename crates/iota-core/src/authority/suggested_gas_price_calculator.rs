@@ -7,7 +7,6 @@ use iota_types::{
     base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction,
     transaction::TransactionDataAPI,
 };
-use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
@@ -208,13 +207,12 @@ impl SuggestedGasPriceCalculator {
 
         certificate
             .shared_input_objects()
-            .par_bridge()
             .filter_map(|object| {
                 self.congestion_info
                     .get(&object.id)
                     .map(|per_object_congestion_info| {
                         per_object_congestion_info
-                            .par_iter()
+                            .iter()
                             .filter_map(|(execution_start_time, tx_congestion_info)| {
                                 let end_time_of_scheduled_cert = execution_start_time
                                     + tx_congestion_info.estimated_execution_duration;
