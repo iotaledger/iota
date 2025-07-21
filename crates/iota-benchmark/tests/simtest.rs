@@ -30,7 +30,7 @@ mod test {
         },
     };
     use iota_config::{
-        AUTHORITIES_DB_NAME, ExecutionCacheConfig, IOTA_KEYSTORE_FILENAME,
+        AUTHORITIES_DB_NAME, ExecutionCacheConfig, ExecutionCacheType, IOTA_KEYSTORE_FILENAME,
         node::AuthorityOverloadConfig,
     };
     use iota_core::{
@@ -871,19 +871,11 @@ mod test {
         // To validate this, change
         // backpressure::Watermarks::is_backpressure_suppressed() to
         // always return false and verify the test fails.
-        match &mut cache_config {
-            ExecutionCacheConfig::WritebackCache {
-                backpressure_threshold,
-                backpressure_threshold_for_rpc,
-                ..
-            } => {
-                *backpressure_threshold = Some(1);
-                // for the tests to pass we still need to be able to submit transactions
-                // during backpressure.
-                *backpressure_threshold_for_rpc = Some(10000);
-            }
-            _ => panic!(),
-        }
+        cache_config.backpressure_threshold = Some(1);
+
+        // for the tests to pass we still need to be able to submit transactions
+        // during backpressure.
+        cache_config.backpressure_threshold_for_rpc = Some(10000);
 
         let test_cluster = init_test_cluster_builder(4, 10000)
             .with_authority_overload_config(AuthorityOverloadConfig {
@@ -894,6 +886,7 @@ mod test {
                 check_system_overload_at_signing: false,
                 ..Default::default()
             })
+            .with_execution_cache_type(ExecutionCacheType::WritebackCache)
             .with_execution_cache_config(cache_config)
             .with_submit_delay_step_override_millis(3000)
             .build()
