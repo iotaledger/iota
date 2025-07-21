@@ -3,17 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_bigtable::{
-    BigTableClient, Cell, Row,
-    proto::bigtable::v2::{RowFilter, row_filter::Filter},
-};
+use iota_bigtable::{BigTableClient, Cell, Row};
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
+    base_types::TransactionDigest,
     digests::CheckpointDigest,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::Object,
     storage::ObjectKey,
@@ -27,7 +24,6 @@ const OBJECTS_TABLE: &str = "objects";
 const TRANSACTIONS_TABLE: &str = "transactions";
 const CHECKPOINTS_TABLE: &str = "checkpoints";
 const CHECKPOINTS_BY_DIGEST_TABLE: &str = "checkpoints_by_digest";
-const WATERMARK_TABLE: &str = "watermark";
 
 const DEFAULT_COLUMN_QUALIFIER: &str = "";
 const CHECKPOINT_SUMMARY_COLUMN_QUALIFIER: &str = "cs";
@@ -116,20 +112,6 @@ impl KeyValueStoreWriter for BigTableClient {
             cells,
         );
         self.multi_set(CHECKPOINTS_BY_DIGEST_TABLE, [row])
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn save_watermark(
-        &mut self,
-        watermark: CheckpointSequenceNumber,
-    ) -> Result<(), Self::Error> {
-        let cells = vec![Cell::new(
-            DEFAULT_COLUMN_QUALIFIER.as_bytes().to_vec(),
-            vec![],
-        )];
-        let row = Row::new(watermark.to_be_bytes().to_vec(), cells);
-        self.multi_set(WATERMARK_TABLE, [row])
             .await
             .map_err(Into::into)
     }
@@ -242,79 +224,6 @@ impl KeyValueStoreReader for BigTableClient {
                 if let Some(chk) = self.get_checkpoints(&[sequence_number]).await?.pop() {
                     return Ok(Some(chk));
                 }
-            }
-        }
-        Ok(None)
-    }
-
-    async fn get_latest_checkpoint(&mut self) -> Result<CheckpointSequenceNumber, Self::Error> {
-        let upper_limit = u64::MAX.to_be_bytes().to_vec();
-        match self
-            .reversed_scan(WATERMARK_TABLE, upper_limit, 1)
-            .await?
-            .pop()
-        {
-            Some(latest_row) => {
-                let latest_watermark = u64::from_be_bytes(latest_row.key.as_slice().try_into()?);
-                let latest_checkpoint = latest_watermark.saturating_sub(1);
-                Ok(latest_checkpoint)
-            }
-            None => Ok(0),
-        }
-    }
-
-    async fn get_latest_checkpoint_summary(
-        &mut self,
-    ) -> Result<Option<CheckpointSummary>, Self::Error> {
-        let sequence_number = self.get_latest_checkpoint().await?;
-        if sequence_number == 0 {
-            return Ok(None);
-        }
-
-        // Fetch just the summary for the latest checkpoint sequence number.
-        let mut rows_cells = self
-            .multi_get(
-                CHECKPOINTS_TABLE,
-                vec![(sequence_number).to_be_bytes().to_vec()],
-                Some(RowFilter {
-                    filter: Some(Filter::ColumnQualifierRegexFilter(
-                        CHECKPOINT_SUMMARY_COLUMN_QUALIFIER.into(),
-                    )),
-                }),
-            )
-            .await?;
-
-        let Some(latest_row_cells) = rows_cells.pop() else {
-            return Ok(None);
-        };
-
-        let mut summary = None;
-        for Cell { name, value } in latest_row_cells {
-            match std::str::from_utf8(&name)? {
-                CHECKPOINT_SUMMARY_COLUMN_QUALIFIER => {
-                    summary = Some(bcs::from_bytes::<CheckpointSummary>(&value)?)
-                }
-                unexpected_cell_name => {
-                    error!("unexpected column {unexpected_cell_name:?} in checkpoints table")
-                }
-            }
-        }
-
-        Ok(summary)
-    }
-
-    async fn get_latest_object(
-        &mut self,
-        object_id: &ObjectID,
-    ) -> Result<Option<Object>, Self::Error> {
-        let upper_limit = raw_object_key(&ObjectKey::max_for_id(object_id));
-        if let Some(latest_row) = self
-            .reversed_scan(OBJECTS_TABLE, upper_limit, 1)
-            .await?
-            .pop()
-        {
-            if let Some(latest_cell) = latest_row.cells.into_iter().next() {
-                return Ok(Some(bcs::from_bytes(&latest_cell.value)?));
             }
         }
         Ok(None)

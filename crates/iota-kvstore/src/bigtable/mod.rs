@@ -5,8 +5,6 @@
 /// Implementation of key-value store reader and writer traits for the BigTable
 /// client.
 pub(crate) mod client;
-/// Data ingestion core `ProgressStore` implementation.
-pub(crate) mod progress_store;
 /// Data ingestion core `Worker` implementation.
 pub(crate) mod worker;
 

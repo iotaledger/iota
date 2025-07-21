@@ -5,12 +5,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::{
-    base_types::ObjectID,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::Object,
     storage::ObjectKey,
@@ -21,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// BigTable Key Value store implementation.
 mod bigtable;
 
-pub use bigtable::{BigTableClient, progress_store::BigTableProgressStore, worker::KvWorker};
+pub use bigtable::{BigTableClient, worker::KvWorker};
 
 /// Read key-value data from a persistent store, such as objects, transactions,
 /// and checkpoints.
@@ -49,20 +48,6 @@ pub trait KeyValueStoreReader {
         &mut self,
         digest: CheckpointDigest,
     ) -> Result<Option<Checkpoint>, Self::Error>;
-
-    /// Fetches the sequence number of the latest checkpoint.
-    async fn get_latest_checkpoint(&mut self) -> Result<CheckpointSequenceNumber, Self::Error>;
-
-    /// Fetches the summary of the latest checkpoint, if available.
-    async fn get_latest_checkpoint_summary(
-        &mut self,
-    ) -> Result<Option<CheckpointSummary>, Self::Error>;
-
-    /// Fetches the latest version of an object by its ID.
-    async fn get_latest_object(
-        &mut self,
-        object_id: &ObjectID,
-    ) -> Result<Option<Object>, Self::Error>;
 }
 
 /// Writing key-value data to a persistent store, such as objects, transactions,
@@ -82,12 +67,6 @@ pub trait KeyValueStoreWriter {
 
     /// Persists a checkpoint to the store.
     async fn save_checkpoint(&mut self, checkpoint: &CheckpointData) -> Result<(), Self::Error>;
-
-    /// Persists the watermark to the store.
-    async fn save_watermark(
-        &mut self,
-        watermark: CheckpointSequenceNumber,
-    ) -> Result<(), Self::Error>;
 }
 
 /// Represents all stored Key-Value data associated to a checkpoint containing

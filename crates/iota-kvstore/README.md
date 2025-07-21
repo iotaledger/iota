@@ -19,8 +19,8 @@ This crate provides a key-value store implementation using Google Cloud Bigtable
   High-level client for interacting with Bigtable, handling authentication, table naming, and metrics.
 - `KvWorker`:
   Worker implementation that processes checkpoints and persists their data as key-value pairs in Bigtable.
-- `BigTableProgressStore`:
-  Manages persistent progress information (watermarks) in Bigtable for ingestion jobs.
+- `KeyValueStoreReader`, `KeyValueStoreWriter`:
+  Traits for reading and writing key-value pairs to a persistent store.
 
 ## Protocol Buffers
 
@@ -60,7 +60,7 @@ Never commit your credentials file to version control. Always keep it secure and
 - Run the following script to configure the remote instance (replace `<instance_id>` and `<project_id>` accordingly).
   The project ID can be found in your credentials JSON file:
   ```sh
-  ./src/bigtable/init.sh <instance_id> <project_id>
+  ./init.sh <instance_id> <project_id>
   ```
 
 ### Local development
@@ -85,4 +85,4 @@ gcloud beta emulators bigtable start
 $(gcloud beta emulators bigtable env-init)
 ```
 
-- Run `./src/bigtable/init.sh` to configure the emulator
+- Run `./init.sh` to configure the emulator
