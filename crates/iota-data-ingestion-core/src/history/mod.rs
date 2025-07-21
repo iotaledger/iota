@@ -59,8 +59,6 @@ pub mod reader;
 
 pub const CHECKPOINT_FILE_MAGIC: u32 = 0x0000BEEF;
 pub const CHECKPOINT_FILE_SUFFIX: &str = "chk";
-const HISTORICAL_DIR_NAME: &str = "historical";
-const INGESTION_DIR_NAME: &str = "ingestion";
 pub const MAGIC_BYTES: usize = 4;
 pub const MANIFEST_FILE_MAGIC: u32 = 0x0000FACE;
 pub const MANIFEST_FILENAME: &str = "MANIFEST";

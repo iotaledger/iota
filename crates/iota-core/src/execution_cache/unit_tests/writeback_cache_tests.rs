@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -76,7 +77,11 @@ impl Scenario {
         static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
             once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-        let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+        let cache = Arc::new(WritebackCache::new(
+            &WritebackCacheConfig::default(),
+            store.clone(),
+            (*METRICS).clone(),
+        ));
         Self {
             authority,
             store,
@@ -370,6 +375,7 @@ impl Scenario {
 
     pub fn reset_cache(&mut self) {
         self.cache = Arc::new(WritebackCache::new(
+            &WritebackCacheConfig::default(),
             self.store.clone(),
             self.cache.metrics.clone(),
         ));
@@ -1199,7 +1205,11 @@ async fn latest_object_cache_race_test() {
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+    ));
 
     let object_id = ObjectID::random();
     let owner = IotaAddress::random_for_testing_only();

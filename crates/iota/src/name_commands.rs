@@ -58,6 +58,11 @@ use crate::{
 /// The overbid must be at least of 1 IOTA, which is 10^9 NANOs
 const MIN_OVERBID: u64 = 1_000_000_000;
 
+/// Minimum coin amount (in NANOs) required for gas payment eligibility.
+/// Coins below this value (9_000_000 NANOs = 0.009 IOTA) are ignored for gas
+/// payment.
+const MIN_COIN_AMOUNT_FOR_GAS_PAYMENT: u64 = 9_000_000;
+
 /// Tool to register and manage names and subnames
 #[derive(Parser)]
 pub enum NameCommand {
@@ -2171,7 +2176,13 @@ async fn select_coin_arg_for_payment(
             .await?;
             let mut balance = 0;
             if let IotaClientCommandResult::Gas(coins) = gas_result {
-                if coins.len() == 1 {
+                if coins
+                    .iter()
+                    // Ignore coins insufficient for the gas payment
+                    .filter(|c| c.value() >= MIN_COIN_AMOUNT_FOR_GAS_PAYMENT)
+                    .count()
+                    == 1
+                {
                     return Ok("gas".to_string());
                 }
                 for coin in coins {

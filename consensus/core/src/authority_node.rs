@@ -178,12 +178,13 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+        let committee_size = committee.size();
         let context = Arc::new(Context::new(
             own_index,
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry),
+            initialise_metrics(registry, committee_size),
             Arc::new(Clock::new()),
         ));
         let start_time = Instant::now();

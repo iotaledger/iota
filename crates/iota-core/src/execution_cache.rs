@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::fatal;
-use iota_config::ExecutionCacheConfig;
+use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
@@ -103,49 +103,22 @@ impl ExecutionCacheTraitPointers {
     }
 }
 
-static DISABLE_WRITEBACK_CACHE_ENV_VAR: &str = "DISABLE_WRITEBACK_CACHE";
-
-#[derive(Debug)]
-pub enum ExecutionCacheConfigType {
-    WritebackCache,
-    PassthroughCache,
-}
-
-pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheConfigType {
-    #[cfg(msim)]
-    {
-        let mut use_random_cache = None;
-        iota_macros::fail_point_if!("select-random-cache", || {
-            let random = rand::random::<bool>();
-            tracing::info!("Randomly selecting cache: {}", random);
-            use_random_cache = Some(random);
-        });
-        if let Some(random) = use_random_cache {
-            if random {
-                return ExecutionCacheConfigType::PassthroughCache;
-            } else {
-                return ExecutionCacheConfigType::WritebackCache;
-            }
-        }
-    }
-
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
-        || matches!(config, ExecutionCacheConfig::PassthroughCache)
-    {
-        ExecutionCacheConfigType::PassthroughCache
-    } else {
-        ExecutionCacheConfigType::WritebackCache
-    }
-}
-
 pub fn build_execution_cache(
+    cache_config: &ExecutionCacheConfig,
     epoch_start_config: &EpochStartConfiguration,
     prometheus_registry: &Registry,
     store: &Arc<AuthorityStore>,
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
+
     ExecutionCacheTraitPointers::new(
-        ProxyCache::new(epoch_start_config, store.clone(), execution_cache_metrics).into(),
+        ProxyCache::new(
+            cache_config,
+            epoch_start_config,
+            store.clone(),
+            execution_cache_metrics,
+        )
+        .into(),
     )
 }
 
@@ -158,14 +131,21 @@ pub fn build_execution_cache_from_env(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
-        ExecutionCacheTraitPointers::new(
+    // Load cache type from env
+    let cache_type = ExecutionCacheType::default().cache_type();
+    let config = ExecutionCacheConfig::default();
+    match cache_type {
+        ExecutionCacheType::PassthroughCache => ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
-        )
-    } else {
-        ExecutionCacheTraitPointers::new(
-            WritebackCache::new(store.clone(), execution_cache_metrics).into(),
-        )
+        ),
+        ExecutionCacheType::WritebackCache => ExecutionCacheTraitPointers::new(
+            WritebackCache::new(
+                &config.writeback_cache,
+                store.clone(),
+                execution_cache_metrics,
+            )
+            .into(),
+        ),
     }
 }
 
@@ -1346,15 +1326,10 @@ macro_rules! implement_passthrough_traits {
                 &'a self,
                 _: &'a EpochStartConfiguration,
             ) -> BoxFuture<'a, ()> {
-                // If we call this method instead of ProxyCache::reconfigure_cache, it's a bug.
-                // Such a bug would almost certainly cause other test failures before reaching
-                // this point, but if it somehow slipped through it is better to crash
-                // than risk forking because ProxyCache::reconfigure_cache was not
-                // called.
-                panic!(
-                    "reconfigure_cache should not be called on a {}",
-                    stringify!($implementor)
-                );
+                // Since we now use WritebackCache directly at startup (if the epoch flag is
+                // set), this can be called at reconfiguration time. It is a no-op.
+                // TODO: remove this once we completely remove ProxyCache.
+                std::future::ready(()).boxed()
             }
         }
 

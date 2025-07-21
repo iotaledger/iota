@@ -5,7 +5,7 @@ genesis_blob_download_url: "https://dbfiles.mainnet.iota.cafe/genesis.blob"
 sync_before_check: true
 checkpoint_store_config:
   object-store: "S3"
-  aws-endpoint: "https://checkpoints.mainnet.iota.cafe"
+  aws-endpoint: "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
   aws-virtual-hosted-style-request: true
   no-sign-request: true
   aws-region: "weur"
