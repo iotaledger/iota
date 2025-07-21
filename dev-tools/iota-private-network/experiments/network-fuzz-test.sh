@@ -1,18 +1,21 @@
 #!/bin/bash
+
+# Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 IFS=$'\n\t'
 SEED=${SEED:-$(date +%s)}
 RANDOM=$SEED
 echo "Seeding RANDOM with $SEED"
 
-# network-fuzz-test.sh
 # Run a 24h fuzzy random network disruption test across validators.
 
 
 # === LOCKING: Prevent multiple instances ===
 LOCKFILE="/tmp/network-fuzz.lock"
 if [ -e "$LOCKFILE" ]; then
-  echo "❌ Fuzz test already running (lockfile exists)."
+  echo "Error: Fuzz test already running (lockfile exists)."
   exit 1
 fi
 trap 'rm -f "$LOCKFILE"' EXIT
@@ -129,7 +132,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
   sleep 60
 
 
-  #  For each validator pair A-B, randomly apply one of five blocking actions with 1/20 probability each
+  #  For each validator pair A-B, randomly apply one of five blocking actions with 1/50 probability each
   duration=$((RANDOM % 120 + 60))
   for ((i=0; i<${#validators[@]}; i++)); do
     for ((j=i+1; j<${#validators[@]}; j++)); do

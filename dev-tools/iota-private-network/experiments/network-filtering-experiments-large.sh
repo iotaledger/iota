@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 # Array of durations for each run (seconds)
 durations=(30 60 90 120 240)
 # Cool-down between runs
