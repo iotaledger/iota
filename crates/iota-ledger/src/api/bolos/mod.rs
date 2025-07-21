@@ -11,6 +11,5 @@ pub(crate) const APDU_CLA_E0: u8 = 0xe0;
 pub(crate) enum APDUInstructions {
     GetAppVersionB0 = 0x01,
     AppExitB0 = 0xa7,
-
     OpenAppE0 = 0xd8,
 }

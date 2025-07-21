@@ -3,6 +3,8 @@
 
 use thiserror::Error;
 
+pub use crate::transport::{HidError, LedgerHIDError, LedgerTCPError};
+
 /// APDU error codes including standard codes from the ledger SDK
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(u16)]
@@ -88,7 +90,7 @@ pub enum SyscallError {
     Unspecified,
 }
 
-#[derive(Error, PartialEq, Debug)]
+#[derive(Error, Debug)]
 pub enum LedgerError {
     #[error(
         "Address mismatch - connect the correct Ledger device or select the correct bip32 path"
@@ -125,8 +127,14 @@ pub enum LedgerError {
     #[error("Blocks protocol failed")]
     BlocksProtocolFailed,
 
-    #[error("Transport error")]
-    Transport,
+    #[error("Hid API error: {0}")]
+    HidError(#[from] HidError),
+
+    #[error("HID Transport error: {0}")]
+    LedgerHID(#[from] LedgerHIDError),
+
+    #[error("TCP Transport error: {0}")]
+    LedgerTCP(#[from] LedgerTCPError),
 
     #[error("Serialization error")]
     Serialization,

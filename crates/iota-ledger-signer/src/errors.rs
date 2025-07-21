@@ -13,6 +13,6 @@ pub enum LedgerSignerError {
     #[error("IotaSdk error: {0}")]
     Sdk(#[from] IotaSdkError),
 
-    #[error("UserInputError error: {0}")]
+    #[error("UserInput error: {0}")]
     UserInput(#[from] UserInputError),
 }

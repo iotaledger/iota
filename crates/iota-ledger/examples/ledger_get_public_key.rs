@@ -52,14 +52,14 @@ pub fn main() -> Result<()> {
     };
 
     // generate address without prompt
-    let addresses = if verify {
+    let pk_result = if verify {
         ledger.verify_address(&derivation_path)?
     } else {
         ledger.get_public_key(&derivation_path)?
     };
 
-    println!("Public Key: 0x{}", hex::encode(&addresses.public_key));
-    println!("Address: 0x{}", hex::encode(addresses.address));
+    println!("Public Key: 0x{}", hex::encode(&pk_result.public_key));
+    println!("Address: 0x{}", hex::encode(pk_result.address));
 
     Ok(())
 }

@@ -4,7 +4,7 @@
 use std::{thread, time, vec};
 
 mod transport;
-use transport::{Transport, TransportType, create_transport};
+use transport::Transport;
 
 pub use crate::api::errors::LedgerError;
 mod api;
@@ -34,21 +34,19 @@ const DASHBOARD_APP_NAME: &str = "BOLOS";
 impl Ledger {
     pub fn new_with_default() -> Result<Ledger, LedgerError> {
         let transport = if std::env::var("LEDGER_SIMULATOR").is_ok() {
-            create_transport(TransportType::TCP)?
+            Transport::new_simulator()?
         } else {
-            create_transport(TransportType::NativeHID)?
+            Transport::new_native_hid()?
         };
         Ok(crate::Ledger::new(transport))
     }
 
     pub fn new_with_native_hid() -> Result<Ledger, LedgerError> {
-        Ok(crate::Ledger::new(create_transport(
-            TransportType::NativeHID,
-        )?))
+        Ok(crate::Ledger::new(Transport::new_native_hid()?))
     }
 
     pub fn new_with_simulator() -> Result<Ledger, LedgerError> {
-        Ok(crate::Ledger::new(create_transport(TransportType::TCP)?))
+        Ok(crate::Ledger::new(Transport::new_simulator()?))
     }
 
     fn new(transport: Transport) -> Self {

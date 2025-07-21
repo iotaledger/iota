@@ -8,7 +8,7 @@ This crate provides a convenient, high-level interface for using Ledger hardware
 
 ## Examples
 
-This crate provides a sample transaction signing implementation in `examples/ledger_signer.rs`.\
+This crate provides a sample transaction signing implementation in `examples/ledger_signer.rs`.
 To run the example, use:
 
 ```bash
