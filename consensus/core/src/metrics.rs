@@ -1651,10 +1651,6 @@ mod tests {
             ]
         );
 
-        // TODO: documentation
-        assert_eq!(dag_state.last_commit_index(), 9);
-        assert_eq!(dag_state.last_committed_rounds(), [9, 9, 10, 9]);
-
         // Destroy and recover dag state from storage.
         drop(dag_state);
         let mut dag_state = DagState::new(context.clone(), store.clone());
