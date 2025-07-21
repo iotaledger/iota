@@ -189,6 +189,7 @@ export const SHADER_COLOR_PALETTE = {
         '16': '#bed8ff28',
         '48': '#bed8ff7a',
         '72': '#bed8ffb7',
+        '100': '#bed8ff',
     },
     'shader-inverted-dark': {
         '0': '#002f6d00',
@@ -197,6 +198,7 @@ export const SHADER_COLOR_PALETTE = {
         '16': '#002f6d28',
         '48': '#002f6d7a',
         '72': '#002f6db7',
+        '100': '#002f6d',
     },
     'shader-neutral-dark': {
         '0': '#bed8ff00',
@@ -205,6 +207,7 @@ export const SHADER_COLOR_PALETTE = {
         '16': '#bed8ff28',
         '48': '#bed8ff7a',
         '72': '#bed8ffb7',
+        '100': '#bed8ff',
     },
     'shader-primary-light': {
         0: '#0067ee00',
@@ -213,6 +216,7 @@ export const SHADER_COLOR_PALETTE = {
         16: '#0067ee28',
         48: '#0067ee7a',
         72: '#0067eeb7',
+        100: '#0067ee',
     },
     'shader-inverted-light': {
         0: '#bed8ff00',
@@ -221,6 +225,7 @@ export const SHADER_COLOR_PALETTE = {
         16: '#bed8ff28',
         48: '#bed8ff7a',
         72: '#bed8ffb7',
+        100: '#bed8ff',
     },
     'shader-neutral-light': {
         0: '#002f6d00',
@@ -229,5 +234,6 @@ export const SHADER_COLOR_PALETTE = {
         16: '#002f6d28',
         48: '#002f6d7a',
         72: '#002f6db7',
+        100: '#002f6d',
     },
 };
