@@ -492,7 +492,7 @@ mod execution_slot_tests {
     use super::ExecutionSlot;
 
     #[test]
-    fn new_with_non_zero_duration() {
+    fn test_execution_slot_new_and_duration() {
         // Creating a slot with `start_time`  < `end_time`
         let slot = ExecutionSlot::new(1, 3);
         assert_eq!(slot.duration(), 2);
@@ -500,20 +500,20 @@ mod execution_slot_tests {
 
     #[test]
     #[should_panic]
-    fn new_with_zero_duration() {
+    fn test_execution_slot_new_zero_duration() {
         // Creating a slot with `start_time`  == `end_time` should panic.
         ExecutionSlot::new(1, 1);
     }
 
     #[test]
     #[should_panic]
-    fn new_with_negative_duration() {
+    fn test_execution_slot_new_negative_duration() {
         // Creating a slot with `start_time`  > `end_time` should panic.
         ExecutionSlot::new(3, 1);
     }
 
     #[test]
-    fn intersection() {
+    fn test_execution_slot_intersection() {
         // Test intersection of two identical slots
         let slot_1 = ExecutionSlot::new(1, 3);
         let slot_2 = ExecutionSlot::new(1, 3);
@@ -578,7 +578,7 @@ mod execution_slot_tests {
     }
 
     #[test]
-    fn contains() {
+    fn test_execution_slot_contains() {
         // Test case where slot_1 contains slot_2
         let slot_1 = ExecutionSlot::new(1, 5);
         let slot_2 = ExecutionSlot::new(2, 3);
@@ -1432,7 +1432,7 @@ mod object_cost_tests {
                     .unwrap()
                     .max_object_occupied_slot_end_time(),
                 MAX_EXECUTION_TIME - 1
-            )
+            );
         } else {
             panic!("transaction is not congesting, should not defer");
         }
