@@ -23,10 +23,28 @@ touch "$LOCKFILE"
 
 # === CONFIGURATION ===
 duration_total=$((24 * 60 * 60))  # 24 hours
+
+# Parse optional -n flag for number of validators (default 4)
+NUM_VALIDATORS=4
+while getopts "n:" opt; do
+  case "$opt" in
+    n) NUM_VALIDATORS="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
 start_time=$(date +%s)
 end_time=$((start_time + duration_total))
 
-validators=(validator-1 validator-2 validator-3 validator-4 validator-5 validator-6 validator-7 validator-8 validator-9 validator-10 validator-11 validator-12 validator-13 validator-14 validator-15 validator-16 validator-17 validator-18 validator-19)
+# Build validators array based on NUM_VALIDATORS
+validators=()
+for i in $(seq 1 "$NUM_VALIDATORS"); do
+  validators+=(validator-"$i")
+done
+
+# Announce test start with selected validator count
+echo "Starting network fuzz test with ${NUM_VALIDATORS} validators"
 
 log() {
   echo "$(date -Iseconds) $1"
