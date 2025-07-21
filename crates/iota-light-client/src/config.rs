@@ -119,7 +119,9 @@ impl Config {
             checkpoint_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::S3),
                 object_store_connection_limit: 20,
-                aws_endpoint: Some(format!("https://checkpoints.{network}.iota.cafe")),
+                aws_endpoint: Some(format!(
+                    "https://checkpoints.{network}.iota.cafe/ingestion/historical"
+                )),
                 aws_virtual_hosted_style_request: true,
                 aws_region: Some("weur".to_string()),
                 no_sign_request: true,

@@ -18,7 +18,9 @@ use object_store::{ObjectStore, path::Path as ObjectStorePath};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
-use crate::{IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS};
+use crate::{
+    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, history::CHECKPOINT_FILE_SUFFIX,
+};
 
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
@@ -188,7 +190,7 @@ pub async fn fetch_from_object_store(
     store: &dyn ObjectStore,
     checkpoint_number: CheckpointSequenceNumber,
 ) -> CheckpointResult {
-    let path = ObjectStorePath::from(format!("{checkpoint_number}.chk"));
+    let path = ObjectStorePath::from(format!("{checkpoint_number}.{CHECKPOINT_FILE_SUFFIX}"));
     let response = store.get(&path).await?;
     let bytes = response.bytes().await?;
     Ok((
