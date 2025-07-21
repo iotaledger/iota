@@ -94,6 +94,7 @@ use crate::{
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
+        suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -193,7 +194,7 @@ impl DeferredTransaction {
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
 /// returned by the `try_schedule` method of `AuthorityPerEpochStore`.
-enum SchedulingResult {
+pub(crate) enum SchedulingResult {
     /// Scheduling result indicating that a transaction is scheduled to be
     /// executed at start time
     Schedule(/* start_time */ ExecutionTime),
@@ -3216,6 +3217,23 @@ impl AuthorityPerEpochStore {
             }
         );
 
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            self.get_max_execution_duration_per_commit(),
+            self.reference_gas_price(),
+            self.protocol_config().max_gas_price(),
+        );
+
+        fail_point_arg!(
+            "initial_suggested_gas_price_calculator",
+            |calculator: SuggestedGasPriceCalculator| {
+                info!(
+                    "Initialize suggested_gas_price_calculator to  {:?}",
+                    calculator
+                );
+                suggested_gas_price_calculator = calculator;
+            }
+        );
+
         let mut randomness_state_updated = false;
         for tx in transactions {
             let key = tx.0.transaction.key();
@@ -3237,6 +3255,7 @@ impl AuthorityPerEpochStore {
                     dkg_failed,
                     randomness_round.is_some(),
                     congestion_tracker,
+                    &mut suggested_gas_price_calculator,
                     authority_metrics,
                 )
                 .await?
@@ -3496,6 +3515,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -3532,7 +3552,8 @@ impl AuthorityPerEpochStore {
                     // certificate here it means authority is byzantine and sent certificate after
                     // EndOfPublish (or we have some bug in ConsensusAdapter)
                     warn!(
-                        "[Byzantine authority] Authority {:?} sent a new, previously unseen certificate {:?} after it sent EndOfPublish message to consensus",
+                        "[Byzantine authority] Authority {:?} sent a new, previously unseen 
+                            certificate {:?} after it sent EndOfPublish message to consensus",
                         certificate_author.concise(),
                         certificate.digest()
                     );
@@ -3569,6 +3590,8 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                 );
+                let estimated_execution_duration =
+                    shared_object_congestion_tracker.get_estimated_execution_duration(&certificate);
 
                 match scheduling_result {
                     SchedulingResult::Defer(deferral_key, deferral_reason) => {
@@ -3596,7 +3619,12 @@ impl AuthorityPerEpochStore {
                                     .congested_objects_gas_price_feedback_mechanism()
                                 {
                                     let current_commit_suggested_gas_price =
-                                        self.reference_gas_price();
+                                        suggested_gas_price_calculator
+                                            .calculate_suggested_gas_price(
+                                                &certificate,
+                                                estimated_execution_duration,
+                                            );
+
                                     let suggested_gas_price = previously_deferred_tx_digests
                                         .get(certificate.digest())
                                         .map_or_else(
@@ -3651,7 +3679,8 @@ impl AuthorityPerEpochStore {
                                 }
                             }
                         };
-                        return Ok(deferral_result);
+
+                        Ok(deferral_result)
                     }
                     SchedulingResult::Schedule(start_time) => {
                         if dkg_failed && certificate.transaction_data().uses_randomness() {
@@ -3659,16 +3688,26 @@ impl AuthorityPerEpochStore {
                                 "Canceling randomness-using certificate for transaction {:?} because DKG failed",
                                 certificate.digest(),
                             );
+
                             return Ok(ConsensusCertificateResult::Cancelled((
                                 certificate,
                                 CancelConsensusCertificateReason::DkgFailed,
                             )));
                         }
 
-                        // This certificate will be scheduled. Update object execution slots.
+                        // This certificate will be scheduled. If it contains shared object(s),
+                        // we have to update the following:
+                        // - shared object execution slots (for congestion tracker);
+                        // - shared object congestion info (for suggested gas price calculator).
                         if certificate.contains_shared_object() {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
+
+                            suggested_gas_price_calculator.update_congestion_info(
+                                &certificate,
+                                start_time,
+                                estimated_execution_duration,
+                            );
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {
