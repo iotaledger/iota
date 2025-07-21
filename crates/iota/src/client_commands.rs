@@ -3190,7 +3190,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             gas_budget,
             gas_price,
             gas_payment.clone(),
-            None,
+            gas_sponsor,
         )
         .await;
     }
