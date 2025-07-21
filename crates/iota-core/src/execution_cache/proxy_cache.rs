@@ -20,8 +20,8 @@ use iota_types::{
 use parking_lot::RwLock;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheConfigType,
-    ExecutionCacheMetrics, ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
+    ExecutionCacheReconfigAPI, ExecutionCacheType, ExecutionCacheWrite, ObjectCacheRead,
     PassthroughCache, StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
 use crate::{
@@ -38,8 +38,8 @@ use crate::{
 macro_rules! delegate_method {
     ($self:ident.$method:ident($($args:ident),*)) => {
         match *$self.mode.read() {
-            ExecutionCacheConfigType::PassthroughCache => $self.passthrough_cache.$method($($args),*),
-            ExecutionCacheConfigType::WritebackCache => $self.writeback_cache.$method($($args),*),
+            ExecutionCacheType::PassthroughCache => $self.passthrough_cache.$method($($args),*),
+            ExecutionCacheType::WritebackCache => $self.writeback_cache.$method($($args),*),
         }
     };
 }
@@ -53,7 +53,7 @@ pub struct ProxyCache {
     // Cache implementations are entirely passive, so the unused one will have no effect.
     passthrough_cache: PassthroughCache,
     writeback_cache: WritebackCache,
-    mode: RwLock<ExecutionCacheConfigType>,
+    mode: RwLock<ExecutionCacheType>,
 }
 
 impl ProxyCache {
@@ -67,19 +67,11 @@ impl ProxyCache {
         tracing::info!("using cache impl {:?}", cache_type);
         let passthrough_cache = PassthroughCache::new(store.clone(), metrics.clone());
 
-        // we need to initialize both caches at startup, no matter which one is passed
-        // in the cache_config, because we may switch to the other one in the
-        // next epoch. If the cache_config is for a passthrough cache, we still
-        // need to create a writeback cache, so we replace the cache_config with
-        // the default one for writeback cache, otherwise the writeback cache would
-        // panic when it tries to access the settings.
-        let cache_config = match cache_type {
-            ExecutionCacheConfigType::WritebackCache => cache_config,
-            ExecutionCacheConfigType::PassthroughCache => {
-                &ExecutionCacheConfig::default_writeback_cache()
-            }
-        };
-        let writeback_cache = WritebackCache::new(cache_config, store.clone(), metrics.clone());
+        let writeback_cache = WritebackCache::new(
+            &cache_config.writeback_cache,
+            store.clone(),
+            metrics.clone(),
+        );
 
         Self {
             passthrough_cache,
@@ -91,7 +83,7 @@ impl ProxyCache {
     async fn reconfigure_cache_impl(&self, epoch_start_config: &EpochStartConfiguration) {
         let cache_type = epoch_start_config.execution_cache_type();
         tracing::info!("switching to cache impl {:?}", cache_type);
-        if matches!(cache_type, ExecutionCacheConfigType::PassthroughCache) {
+        if matches!(cache_type, ExecutionCacheType::PassthroughCache) {
             // we may switch back to the writeback cache next epoch, at which point its
             // caches will be stale if not cleared now
 

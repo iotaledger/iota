@@ -527,7 +527,7 @@ impl IotaNode {
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&prometheus_registry);
 
         let cache_traits = build_execution_cache(
-            &config.execution_cache,
+            &config.execution_cache_config,
             &epoch_start_configuration,
             &prometheus_registry,
             &store,

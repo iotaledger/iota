@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::fatal;
-use iota_config::ExecutionCacheConfig;
+use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
@@ -103,24 +103,6 @@ impl ExecutionCacheTraitPointers {
     }
 }
 
-static DISABLE_WRITEBACK_CACHE_ENV_VAR: &str = "DISABLE_WRITEBACK_CACHE";
-
-#[derive(Debug)]
-pub enum ExecutionCacheConfigType {
-    WritebackCache,
-    PassthroughCache,
-}
-
-pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheConfigType {
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
-        || matches!(config, ExecutionCacheConfig::PassthroughCache)
-    {
-        ExecutionCacheConfigType::PassthroughCache
-    } else {
-        ExecutionCacheConfigType::WritebackCache
-    }
-}
-
 pub fn build_execution_cache(
     cache_config: &ExecutionCacheConfig,
     epoch_start_config: &EpochStartConfiguration,
@@ -149,19 +131,21 @@ pub fn build_execution_cache_from_env(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
-        ExecutionCacheTraitPointers::new(
+    // Load cache type from env
+    let cache_type = ExecutionCacheType::default().cache_type();
+    let config = ExecutionCacheConfig::default();
+    match cache_type {
+        ExecutionCacheType::PassthroughCache => ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
-        )
-    } else {
-        ExecutionCacheTraitPointers::new(
+        ),
+        ExecutionCacheType::WritebackCache => ExecutionCacheTraitPointers::new(
             WritebackCache::new(
-                &ExecutionCacheConfig::default_writeback_cache(),
+                &config.writeback_cache,
                 store.clone(),
                 execution_cache_metrics,
             )
             .into(),
-        )
+        ),
     }
 }
 

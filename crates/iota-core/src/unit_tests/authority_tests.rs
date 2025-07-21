@@ -2790,7 +2790,8 @@ async fn test_authority_store_init() {
             .disable_indexer()
             // Use passthrough cache so that the new objects end up in object store.
             // It's hard to flush the writeback cache that is enabled by default.
-            .with_cache_config(iota_config::ExecutionCacheConfig::PassthroughCache)
+            .with_cache_type(iota_config::ExecutionCacheType::PassthroughCache)
+            .with_cache_config(iota_config::ExecutionCacheConfig::default())
             .build()
             .await
     };
