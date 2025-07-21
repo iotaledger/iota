@@ -871,11 +871,11 @@ mod test {
         // To validate this, change
         // backpressure::Watermarks::is_backpressure_suppressed() to
         // always return false and verify the test fails.
-        cache_config.backpressure_threshold = Some(1);
+        cache_config.writeback_cache.backpressure_threshold = Some(1);
 
         // for the tests to pass we still need to be able to submit transactions
         // during backpressure.
-        cache_config.backpressure_threshold_for_rpc = Some(10000);
+        cache_config.writeback_cache.backpressure_threshold_for_rpc = Some(10000);
 
         let test_cluster = init_test_cluster_builder(4, 10000)
             .with_authority_overload_config(AuthorityOverloadConfig {
@@ -884,6 +884,9 @@ mod test {
                 // having queued certs which are missing dependencies.
                 check_system_overload_at_execution: false,
                 check_system_overload_at_signing: false,
+                max_txn_age_in_queue: Duration::from_secs(10000),
+                max_transaction_manager_queue_length: 10000,
+                max_transaction_manager_per_object_queue_length: 10000,
                 ..Default::default()
             })
             .with_execution_cache_type(ExecutionCacheType::WritebackCache)
