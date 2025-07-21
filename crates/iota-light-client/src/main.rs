@@ -159,7 +159,7 @@ pub async fn main() -> Result<()> {
                 println!(
                     "ObjectID: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
-                    serde_json::to_string(&result).expect("json deserialization error")
+                    serde_json::to_string(&result).expect("JSON deserialization error")
                 );
             }
         }
@@ -192,7 +192,7 @@ pub async fn main() -> Result<()> {
                         event.transaction_module,
                         event.sender,
                         event.type_,
-                        serde_json::to_string(&result).expect("json deserialization error")
+                        serde_json::to_string(&result).expect("JSON deserialization error")
                     );
                 }
             } else {
@@ -210,12 +210,6 @@ pub async fn main() -> Result<()> {
                 !event_ids.is_empty() || !object_ids.is_empty() || include_committee,
                 "missing proof targets"
             );
-
-            if config.sync_before_check {
-                sync_and_verify_checkpoints(&config)
-                    .await
-                    .context("Failed to sync checkpoints")?;
-            }
 
             // determine the checkpoint sequence number
             let seq = match checkpoint_id {
@@ -264,12 +258,12 @@ pub async fn main() -> Result<()> {
 
             event_ids_map.iter().for_each(|id| {
                 error!(
-                    "event '{}' could not be found in checkpoint {seq}",
+                    "Event '{}' could not be found in checkpoint {seq}",
                     String::from(*id)
                 );
             });
             object_ids_map.iter().for_each(|id| {
-                error!("object '{id}' could not be found in checkpoint {seq}");
+                error!("Object '{id}' could not be found in checkpoint {seq}");
             });
 
             ensure!(
@@ -280,10 +274,11 @@ pub async fn main() -> Result<()> {
             // add the committee of the next epoch as a proof target
             if include_committee {
                 let epoch = checkpoint.checkpoint_summary.epoch;
-                let checkpoint_list = read_checkpoint_list(&config)?;
+                let checkpoint_list = read_checkpoint_list(&config)
+                    .context("Checkpoint list not found. Please run the `sync` command first")?;
                 let Some(end_of_epoch_seq) = checkpoint_list.get_sequence_number_by_epoch(epoch)
                 else {
-                    bail!("checkpoint list not synced, or epoch is still ongoing");
+                    bail!("Checkpoint list not synced, or epoch is still ongoing");
                 };
                 if seq != end_of_epoch_seq {
                     bail!(
@@ -334,11 +329,12 @@ pub async fn main() -> Result<()> {
             let committee = if epoch == 0 {
                 Genesis::load(config.genesis_blob_file_path())?.committee()?
             } else {
-                let checkpoint_list = read_checkpoint_list(&config)?;
+                let checkpoint_list = read_checkpoint_list(&config)
+                    .context("Checkpoint list not found. Please run the `sync` command first")?;
                 let Some(end_of_epoch_seq) =
                     checkpoint_list.get_sequence_number_by_epoch(epoch - 1)
                 else {
-                    bail!("checkpoint list not synced");
+                    bail!("Checkpoint list not synced. Please run the `sync` command first");
                 };
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
