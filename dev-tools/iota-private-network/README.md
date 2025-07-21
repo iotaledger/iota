@@ -68,7 +68,7 @@ To bring up 4 validators, three full nodes (one with the backup feature enabled)
 To bring up 19 validators and faucet:
 
 ```bash
-./run.sh 19 faucet
+./run.sh -n 19 faucet
 ```
 
 > **Note:** Out of the box, only **4** or **19** validators are fully supported by the provided `genesis-template-4.yaml` and `genesis-template-19.yaml` templates.\
