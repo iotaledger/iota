@@ -515,12 +515,8 @@ impl RestStateReader for RestReadStore {
         }
     }
 
-    fn get_chain_identifier(
-        &self,
-    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        self.state
-            .get_chain_identifier()
-            .ok_or_else(|| StorageError::missing("unable to query chain identifier"))
+    fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {
+        Ok(self.state.get_chain_identifier())
     }
 
     fn get_epoch_last_checkpoint(
