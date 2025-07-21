@@ -72,6 +72,10 @@ iota-json-rpc-types:
   - "crates/iota-json-rpc-types/**"
 iota-keys:
   - "crates/iota-keys/**"
+iota-ledger:
+  - "crates/iota-ledger/**"
+iota-ledger-signer:
+  - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
 iota-macros:
