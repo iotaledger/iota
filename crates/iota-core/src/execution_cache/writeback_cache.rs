@@ -1766,7 +1766,7 @@ impl TransactionCacheRead for WritebackCache {
                     Some(PointCacheItem::Some(tx)) => {
                         self.metrics
                             .record_cache_hit("transaction_block", "committed");
-                        return Ok(CacheResult::Hit(Some(tx)));
+                        Ok(CacheResult::Hit(Some(tx)))
                     }
                     Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
                     None => {
@@ -1830,13 +1830,13 @@ impl TransactionCacheRead for WritebackCache {
                     Some(PointCacheItem::Some(digest)) => {
                         self.metrics
                             .record_cache_hit("executed_effects_digests", "committed");
-                        return Ok(CacheResult::Hit(Some(digest)));
+                        Ok(CacheResult::Hit(Some(digest)))
                     }
-                    Some(PointCacheItem::None) => return Ok(CacheResult::NegativeHit),
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
                     None => {
                         self.metrics
                             .record_cache_miss("executed_effects_digests", "committed");
-                        return Ok(CacheResult::Miss);
+                        Ok(CacheResult::Miss)
                     }
                 }
             },
@@ -1890,13 +1890,13 @@ impl TransactionCacheRead for WritebackCache {
                     Some(PointCacheItem::Some(effects)) => {
                         self.metrics
                             .record_cache_hit("transaction_effects", "committed");
-                        return Ok(CacheResult::Hit(Some((*effects).clone())));
+                        Ok(CacheResult::Hit(Some((*effects).clone())))
                     }
-                    Some(PointCacheItem::None) => return Ok(CacheResult::NegativeHit),
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
                     None => {
                         self.metrics
                             .record_cache_miss("transaction_effects", "committed");
-                        return Ok(CacheResult::Miss);
+                        Ok(CacheResult::Miss)
                     }
                 }
             },
@@ -1914,7 +1914,7 @@ impl TransactionCacheRead for WritebackCache {
                             .ok();
                     }
                 }
-                return Ok(results);
+                Ok(results)
             },
         )
     }
@@ -1976,14 +1976,14 @@ impl TransactionCacheRead for WritebackCache {
                     Some(PointCacheItem::Some(events)) => {
                         self.metrics
                             .record_cache_hit("transaction_events", "committed");
-                        return Ok(CacheResult::Hit(map_events((*events).clone())));
+                        Ok(CacheResult::Hit(map_events((*events).clone())))
                     }
-                    Some(PointCacheItem::None) => return Ok(CacheResult::NegativeHit),
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
                     None => {
                         self.metrics
                             .record_cache_miss("transaction_events", "committed");
 
-                        return Ok(CacheResult::Miss);
+                        Ok(CacheResult::Miss)
                     }
                 }
             },
@@ -2001,7 +2001,7 @@ impl TransactionCacheRead for WritebackCache {
                             .ok();
                     }
                 }
-                return Ok(results);
+                Ok(results)
             },
         )
     }
