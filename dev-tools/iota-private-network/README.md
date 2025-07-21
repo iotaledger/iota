@@ -37,7 +37,7 @@ Generate the genesis files and validators’ configuration:
 # By default, bootstrap 4 validators:
 ./bootstrap.sh
 
-# To bootstrap 19 validators instead, set NUM_VALIDATORS:
+# To bootstrap 19 validators instead:
 ./bootstrap.sh -n 19
 ```
 
