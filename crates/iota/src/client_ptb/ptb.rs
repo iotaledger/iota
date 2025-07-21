@@ -181,7 +181,7 @@ impl PTB {
             .collect();
 
         // the sender is the gas object if gas is provided, otherwise the active address
-                let sender = if let Some(sender) = program_metadata.sender {
+        let sender = if let Some(sender) = program_metadata.sender {
             sender.value.into_inner().into()
         } else {
             context.infer_sender(&gas).await?

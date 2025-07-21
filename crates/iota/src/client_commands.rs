@@ -78,7 +78,7 @@ use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
 use shared_crypto::intent::Intent;
-use strum::EnumString;
+use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
@@ -290,8 +290,16 @@ pub enum IotaClientCommands {
     /// Pay coins to recipients following specified amounts, with input coins.
     /// Length of recipients must be the same as that of amounts.
     Pay {
+        /// The input coins to be used for pay recipients, following the
+        /// specified amounts.
+        #[arg(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
+        /// The recipient addresses, must be of same length as amounts.
+        /// Aliases of addresses are also accepted as input.
+        #[arg(long, num_args(1..))]
         recipients: Vec<KeyIdentity>,
+        /// The amounts to be paid, following the order of recipients.
+        #[arg(long, num_args(1..))]
         amounts: Vec<u64>,
         #[command(flatten)]
         payment: PaymentArgs,
@@ -304,7 +312,13 @@ pub enum IotaClientCommands {
     /// deducting the gas cost. The input coins also include the coin for
     /// gas payment, so no extra gas coin is required.
     PayAllIota {
+        /// The input coins to be used for pay recipients, including the gas
+        /// coin.
+        #[arg(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
+        /// The recipient address (or its alias if it's an address in the
+        /// keystore).
+        #[arg(long)]
         recipient: KeyIdentity,
         #[command(flatten)]
         gas_data: GasDataArgs,
@@ -316,8 +330,16 @@ pub enum IotaClientCommands {
     /// amounts. The input coins also include the coin for gas payment, so
     /// no extra gas coin is required.
     PayIota {
+        /// The input coins to be used for pay recipients, including the gas
+        /// coin.
+        #[arg(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
+        /// The recipient addresses, must be of same length as amounts.
+        /// Aliases of addresses are also accepted as input.
+        #[arg(long, num_args(1..))]
         recipients: Vec<KeyIdentity>,
+        /// The amounts to be paid, following the order of recipients.
+        #[arg(long, num_args(1..))]
         amounts: Vec<u64>,
         #[command(flatten)]
         gas_data: GasDataArgs,
@@ -416,7 +438,11 @@ pub enum IotaClientCommands {
     },
     /// Transfer object
     Transfer {
+        /// Recipient address (or its alias if it's an address in the keystore)
+        #[arg(long)]
         to: KeyIdentity,
+        /// ID of the object to transfer
+        #[arg(long)]
         object_id: ObjectID,
         #[command(flatten)]
         payment: PaymentArgs,
@@ -580,6 +606,17 @@ pub struct PaymentArgs {
     pub gas: Vec<ObjectID>,
 }
 
+impl PaymentArgs {
+    /// Output the payment args as a vec of strings for CLI usage.
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::new();
+        for gas_id in self.gas {
+            args.push(format!("--gas {}", gas_id));
+        }
+        args
+    }
+}
+
 /// Arguments related to setting gas data, apart from payment coins.
 #[derive(Args, Debug, Default)]
 pub struct GasDataArgs {
@@ -609,6 +646,23 @@ pub struct GasDataArgs {
     /// set.
     #[arg(long)]
     pub gas_sponsor: Option<IotaAddress>,
+}
+
+impl GasDataArgs {
+    /// Output the gas data args as a vec of strings for CLI usage.
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::new();
+        if let Some(gas_budget) = self.gas_budget {
+            args.push(format!("--gas-budget {}", gas_budget));
+        }
+        if let Some(gas_price) = self.gas_price {
+            args.push(format!("--gas-price {}", gas_price));
+        }
+        if let Some(gas_sponsor) = self.gas_sponsor {
+            args.push(format!("--gas-sponsor @{}", gas_sponsor));
+        }
+        args
+    }
 }
 
 /// Arguments related to what to do to a transaction after it has been built.
@@ -654,39 +708,42 @@ pub struct TxProcessingArgs {
     pub display: HashSet<DisplayOption>,
 }
 
-// TODO: alternative
-// impl OptsWithGas {
-//     // `--display` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
-//     /// Output the options as a vec of strings that can be provided as args
-// to     /// the PTB CLI.
-//     pub fn into_args(self) -> Vec<String> {
-//         let mut args = Vec::default();
-//         if let Some(gas) = self.gas {
-//             args.push(format!("--gas {gas}"));
-//         }
-//         if let Some(gas_budget) = self.rest.gas_budget {
-//             args.push(format!("--gas-budget {gas_budget}"));
-//         }
-//         if self.rest.dry_run {
-//             args.push("--dry-run".to_string());
-//         }
-//         if self.rest.dev_inspect {
-//             args.push("--dev-inspect".to_string());
-//         }
-//         if self.rest.serialize_signed_transaction {
-//             args.push("--serialize-signed-transaction".to_string());
-//         }
-//         if self.rest.serialize_unsigned_transaction {
-//             args.push("--serialize-unsigned-transaction".to_string());
-//         }
-//         if let Some(sender) = self.rest.sender {
-//             args.push(format!("--sender @{sender}"));
-//         }
-//         args
-//     }
-// }
+impl TxProcessingArgs {
+    /// Output the tx processing args as a vec of strings for CLI usage.
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::new();
+        if self.tx_digest {
+            args.push("--tx-digest".to_string());
+        }
+        if self.dry_run {
+            args.push("--dry-run".to_string());
+        }
+        if self.dev_inspect {
+            args.push("--dev-inspect".to_string());
+        }
+        if self.serialize_unsigned_transaction {
+            args.push("--serialize-unsigned-transaction".to_string());
+        }
+        if self.serialize_signed_transaction {
+            args.push("--serialize-signed-transaction".to_string());
+        }
+        if let Some(sender) = self.sender {
+            args.push(format!("--sender @{}", sender));
+        }
+        if !self.display.is_empty() {
+            let display_fields = self
+                .display
+                .iter()
+                .map(|d| d.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            args.push(format!("--display {}", display_fields));
+        }
+        args
+    }
+}
 
-#[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, Hash, Eq, PartialEq)]
 #[strum(serialize_all = "snake_case")]
 pub enum DisplayOption {
     Input,
@@ -3199,7 +3256,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        // TODO new keystore API
         let signature = {
             let key = context.config().keystore().get_key(&tx_data.sender())?;
 
@@ -3223,7 +3279,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
                 let signature = match key {
                     StoredKey::KeyPair(_) => context.config().keystore().sign_secure(
-                        &tx_data.sender(),
+                        &gas_sponsor,
                         &tx_data,
                         Intent::iota_transaction(),
                     )?,

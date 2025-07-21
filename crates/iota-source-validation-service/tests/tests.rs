@@ -12,8 +12,7 @@ use std::{
 
 use expect_test::expect;
 use iota::client_commands::{
-    GasDataArgs, IotaClientCommandResult, IotaClientCommands, OptsWithGas, PaymentArgs,
-    TxProcessingArgs,
+    GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
 };
 use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
 use iota_move_build::{BuildConfig, IotaPackageHooks};

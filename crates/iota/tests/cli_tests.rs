@@ -5478,7 +5478,6 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
         .get_owned_objects(address, None, None, None)
         .await?
         .data;
-    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
     let obj_id = object_refs.get(1).unwrap().object().unwrap().object_id;
     // Send funds to the multisig address
     IotaClientCommands::Transfer {
