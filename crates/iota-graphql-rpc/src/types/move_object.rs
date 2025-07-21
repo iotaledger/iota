@@ -23,9 +23,7 @@ use crate::{
         display::DisplayEntry,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
-        iota_names_registration::{
-            IotaNamesRegistration, IotaNamesRegistrationDowncastError, NameFormat,
-        },
+        iota_names_registration::{NameFormat, NameRegistration, NameRegistrationDowncastError},
         move_type::MoveType,
         move_value::MoveValue,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
@@ -114,7 +112,7 @@ pub(crate) enum IMoveObject {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNamesRegistration(IotaNamesRegistration),
+    NameRegistration(NameRegistration),
 }
 
 /// The representation of an object as a Move Object, which exposes additional
@@ -209,7 +207,7 @@ impl MoveObject {
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this object. These grant the
+    /// The NameRegistration NFTs owned by this object. These grant the
     /// owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
@@ -218,7 +216,7 @@ impl MoveObject {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(&self.super_)
             .iota_names_registrations(ctx, first, after, last, before)
             .await
@@ -415,20 +413,20 @@ impl MoveObject {
         }
     }
 
-    // Attempts to convert the Move object into a `IotaNamesRegistration` object.
+    // Attempts to convert the Move object into a `NameRegistration` object.
     async fn as_iota_names_registration(
         &self,
         ctx: &Context<'_>,
-    ) -> Result<Option<IotaNamesRegistration>> {
+    ) -> Result<Option<NameRegistration>> {
         let cfg: &IotaNamesConfig = ctx.data_unchecked();
-        let tag = IotaNamesRegistration::type_(cfg.package_address.into());
+        let tag = NameRegistration::type_(cfg.package_address.into());
 
-        match IotaNamesRegistration::try_from(self, &tag) {
+        match NameRegistration::try_from(self, &tag) {
             Ok(registration) => Ok(Some(registration)),
-            Err(IotaNamesRegistrationDowncastError::NotAnIotaNamesRegistration) => Ok(None),
-            Err(IotaNamesRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
+            Err(NameRegistrationDowncastError::NotAnNameRegistration) => Ok(None),
+            Err(NameRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
                 "Failed to deserialize
-     IotaNamesRegistration: {e}",
+     NameRegistration: {e}",
             )))
             .extend(),
         }

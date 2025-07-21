@@ -245,7 +245,7 @@ async fn isolated_sync_job() {
         Some(
             event_loop_1
                 .store
-                .get_highest_verified_checkpoint()
+                .try_get_highest_verified_checkpoint()
                 .unwrap()
                 .data()
         )
@@ -506,7 +506,7 @@ async fn sync_with_checkpoints_being_inserted() {
     let mut checkpoint_iter = ordered_checkpoints.clone().into_iter().skip(1);
     let checkpoint = checkpoint_iter.next().unwrap();
     store_1
-        .insert_checkpoint_contents(&checkpoint, empty_contents())
+        .try_insert_checkpoint_contents(&checkpoint, empty_contents())
         .unwrap();
     store_1.insert_certified_checkpoint(&checkpoint);
     handle_1.send_checkpoint(checkpoint).await;
@@ -648,7 +648,7 @@ async fn sync_with_checkpoints_watermark() {
     let contents_1 = contents_iter.next().unwrap();
     let checkpoint_seq = checkpoint_1.sequence_number();
     store_1
-        .insert_checkpoint_contents(&checkpoint_1, contents_1.clone())
+        .try_insert_checkpoint_contents(&checkpoint_1, contents_1.clone())
         .unwrap();
     store_1.insert_certified_checkpoint(&checkpoint_1);
     handle_1.send_checkpoint(checkpoint_1.clone()).await;
@@ -668,28 +668,28 @@ async fn sync_with_checkpoints_watermark() {
 
     assert_eq!(
         store_1
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         checkpoint_seq
     );
     assert_eq!(
         store_2
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         checkpoint_seq
     );
     assert_eq!(
         store_1
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
         &1
     );
     assert_eq!(
         store_2
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
         &1
@@ -711,7 +711,7 @@ async fn sync_with_checkpoints_watermark() {
     // Inject all the checkpoints to Peer 1
     for (checkpoint, contents) in checkpoint_iter.zip(contents_iter) {
         store_1
-            .insert_checkpoint_contents(&checkpoint, contents)
+            .try_insert_checkpoint_contents(&checkpoint, contents)
             .unwrap();
         store_1.insert_certified_checkpoint(&checkpoint);
         handle_1.send_checkpoint(checkpoint).await;
@@ -727,14 +727,8 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_1
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
-            assert_eq!(
-                store_2
-                    .get_full_checkpoint_contents(&content_digest)
-                    .unwrap(),
-                None
-            );
+            assert_eq!(store_2.get_full_checkpoint_contents(&content_digest), None);
         }
     })
     .await
@@ -743,14 +737,14 @@ async fn sync_with_checkpoints_watermark() {
 
     assert_eq!(
         store_1
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         ordered_checkpoints.last().unwrap().sequence_number()
     );
     assert_eq!(
         store_2
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         ordered_checkpoints[1].sequence_number()
@@ -758,7 +752,7 @@ async fn sync_with_checkpoints_watermark() {
 
     assert_eq!(
         store_1
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
         &last_checkpoint_seq
@@ -794,7 +788,6 @@ async fn sync_with_checkpoints_watermark() {
         let content_digest = contents[1].clone().into_checkpoint_contents_digest();
         store_3
             .get_full_checkpoint_contents(&content_digest)
-            .unwrap()
             .unwrap();
     })
     .await
@@ -804,14 +797,14 @@ async fn sync_with_checkpoints_watermark() {
 
     assert_eq!(
         store_2
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         ordered_checkpoints[1].sequence_number(),
     );
     assert_eq!(
         store_3
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         ordered_checkpoints[1].sequence_number(),
@@ -833,11 +826,9 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_2
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
             store_3
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
         }
     })
@@ -845,28 +836,28 @@ async fn sync_with_checkpoints_watermark() {
     .unwrap();
     assert_eq!(
         store_2
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         &last_checkpoint_seq
     );
     assert_eq!(
         store_3
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         &last_checkpoint_seq
     );
     assert_eq!(
         store_2
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
         &last_checkpoint_seq
     );
     assert_eq!(
         store_3
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
         &last_checkpoint_seq
@@ -914,7 +905,6 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_4
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
         }
     })
@@ -922,7 +912,7 @@ async fn sync_with_checkpoints_watermark() {
     .unwrap();
     assert_eq!(
         store_4
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
         &last_checkpoint_seq

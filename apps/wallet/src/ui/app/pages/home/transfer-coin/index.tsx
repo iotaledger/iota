@@ -94,14 +94,6 @@ export function TransferCoinPage() {
     });
     const { data: transactionData, isPending } = sendCoinTransactionQuery;
 
-    if (coinsBalanceIsPending) {
-        return (
-            <div className="flex h-full w-full items-center justify-center">
-                <LoadingIndicator />
-            </div>
-        );
-    }
-
     const executeTransfer = useMutation({
         mutationFn: async () => {
             if (!transactionData?.transaction || !signer) {
@@ -156,6 +148,14 @@ export function TransferCoinPage() {
 
     if (useUnlockedGuard()) {
         return null;
+    }
+
+    if (coinsBalanceIsPending) {
+        return (
+            <div className="flex h-full w-full items-center justify-center">
+                <LoadingIndicator />
+            </div>
+        );
     }
 
     if (!coinsBalance) {

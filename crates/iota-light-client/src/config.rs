@@ -38,50 +38,6 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn get_mainnet_config() -> Self {
-        Self::get_config_by_network("mainnet")
-    }
-
-    pub fn get_testnet_config() -> Self {
-        Self::get_config_by_network("testnet")
-    }
-
-    pub fn get_devnet_config() -> Self {
-        Self::get_config_by_network("devnet")
-    }
-
-    fn get_config_by_network(network: &str) -> Self {
-        Self {
-            rpc_url: Url::parse(&format!("https://api.{network}.iota.cafe")).unwrap(),
-            graphql_url: Some(Url::parse(&format!("https://graphql.{network}.iota.cafe")).unwrap()),
-            checkpoints_dir: PathBuf::from_str(&format!("checkpoints_{network}")).unwrap(),
-            genesis_blob_download_url: Some(
-                Url::parse(&format!("https://dbfiles.{network}.iota.cafe/genesis.blob")).unwrap(),
-            ),
-            sync_before_check: false,
-            checkpoint_store_config: Some(ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::S3),
-                object_store_connection_limit: 20,
-                aws_endpoint: Some(format!("https://checkpoints.{network}.iota.cafe")),
-                aws_virtual_hosted_style_request: true,
-                aws_region: Some("weur".to_string()),
-                no_sign_request: true,
-                ..Default::default()
-            }),
-            archive_store_config: Some(ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::S3),
-                object_store_connection_limit: 20,
-                aws_endpoint: Some(format!("https://archive.{network}.iota.cafe")),
-                aws_virtual_hosted_style_request: true,
-                aws_region: Some("weur".to_string()),
-                no_sign_request: true,
-                ..Default::default()
-            }),
-        }
-    }
-}
-
-impl Config {
     /// Loads the config from file.
     pub async fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = read_to_string(path).await?;
@@ -132,21 +88,55 @@ impl Config {
         self.checkpoints_dir.join(GENESIS_FILE_NAME)
     }
 
-    pub fn full_checkpoint_file_path<'a>(
-        &self,
-        seq: u64,
-        custom_path: impl Into<Option<&'a str>>,
-    ) -> PathBuf {
-        let mut path = self.checkpoints_dir.clone();
-        if let Some(custom) = custom_path.into() {
-            path.push(custom);
-        }
-        path.push(format!("{seq}.chk"));
-        path
-    }
-
     pub fn checkpoint_summary_file_path(&self, seq: u64) -> PathBuf {
         Path::new(&self.checkpoints_dir).join(format!("{seq}.sum"))
+    }
+
+    pub fn mainnet() -> Self {
+        Self::create_config_from_network_name("mainnet")
+    }
+
+    pub fn testnet() -> Self {
+        Self::create_config_from_network_name("testnet")
+    }
+
+    pub fn devnet() -> Self {
+        Self::create_config_from_network_name("devnet")
+    }
+
+    fn create_config_from_network_name(network: &str) -> Self {
+        Self {
+            rpc_url: Url::parse(&format!("https://api.{network}.iota.cafe")).unwrap(),
+            graphql_url: Some(Url::parse(&format!("https://graphql.{network}.iota.cafe")).unwrap()),
+            checkpoints_dir: PathBuf::from_str(&format!("checkpoints_{network}")).unwrap(),
+            genesis_blob_download_url: Some(
+                Url::parse(&format!(
+                    "https://dbfiles.{network}.iota.cafe/{GENESIS_FILE_NAME}"
+                ))
+                .unwrap(),
+            ),
+            sync_before_check: false,
+            checkpoint_store_config: Some(ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::S3),
+                object_store_connection_limit: 20,
+                aws_endpoint: Some(format!(
+                    "https://checkpoints.{network}.iota.cafe/ingestion/historical"
+                )),
+                aws_virtual_hosted_style_request: true,
+                aws_region: Some("weur".to_string()),
+                no_sign_request: true,
+                ..Default::default()
+            }),
+            archive_store_config: Some(ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::S3),
+                object_store_connection_limit: 20,
+                aws_endpoint: Some(format!("https://archive.{network}.iota.cafe")),
+                aws_virtual_hosted_style_request: true,
+                aws_region: Some("weur".to_string()),
+                no_sign_request: true,
+                ..Default::default()
+            }),
+        }
     }
 }
 
@@ -159,7 +149,7 @@ mod tests {
 
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
-        std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
+        std::fs::File::create(temp_dir.path().join(GENESIS_FILE_NAME)).unwrap();
         let config = Config {
             rpc_url: "http://localhost:9000".parse().unwrap(),
             graphql_url: Some("http://localhost:9003".parse().unwrap()),
@@ -194,18 +184,14 @@ mod tests {
         let list_path = config.checkpoints_list_file_path();
         assert_eq!(list_path.file_name().unwrap(), "checkpoints.yaml");
 
-        let checkpoint_path = config.full_checkpoint_file_path(123, None);
-        assert_eq!(checkpoint_path.file_name().unwrap(), "123.chk");
-
-        let custom_checkpoint_path = config.full_checkpoint_file_path(456, Some("custom"));
-        assert!(custom_checkpoint_path.to_str().unwrap().contains("custom"));
-        assert_eq!(custom_checkpoint_path.file_name().unwrap(), "456.chk");
+        let checkpoint_path = config.checkpoint_summary_file_path(123);
+        assert_eq!(checkpoint_path.file_name().unwrap(), "123.sum");
     }
 
     #[test]
     fn test_genesis_path() {
         let (config, _temp_dir) = create_test_config();
         let genesis_path = config.genesis_blob_file_path();
-        assert_eq!(genesis_path.file_name().unwrap(), "genesis.blob");
+        assert_eq!(genesis_path.file_name().unwrap(), GENESIS_FILE_NAME);
     }
 }

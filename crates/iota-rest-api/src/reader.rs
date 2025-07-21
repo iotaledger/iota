@@ -32,7 +32,7 @@ impl StateReader {
 
     pub fn get_object(&self, object_id: ObjectId) -> crate::Result<Option<Object>> {
         self.inner
-            .get_object(&object_id.into())
+            .try_get_object(&object_id.into())
             .map_err(Into::into)
             .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
@@ -43,14 +43,14 @@ impl StateReader {
         version: Version,
     ) -> crate::Result<Option<Object>> {
         self.inner
-            .get_object_by_key(&object_id.into(), version.into())
+            .try_get_object_by_key(&object_id.into(), version.into())
             .map_err(Into::into)
             .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
 
-    pub fn get_committee(&self, epoch: EpochId) -> Result<Option<ValidatorCommittee>> {
+    pub fn try_get_committee(&self, epoch: EpochId) -> Result<Option<ValidatorCommittee>> {
         self.inner
-            .get_committee(epoch)
+            .try_get_committee(epoch)
             .map(|maybe| maybe.map(|committee| (*committee).clone().into()))
     }
 
@@ -84,17 +84,17 @@ impl StateReader {
 
         let transaction = (*self
             .inner()
-            .get_transaction(&transaction_digest)?
+            .try_get_transaction(&transaction_digest)?
             .ok_or(TransactionNotFoundError(digest))?)
         .clone()
         .into_inner();
         let effects = self
             .inner()
-            .get_transaction_effects(&transaction_digest)?
+            .try_get_transaction_effects(&transaction_digest)?
             .ok_or(TransactionNotFoundError(digest))?;
         let events = if let Some(event_digest) = effects.events_digest() {
             self.inner()
-                .get_events(event_digest)?
+                .try_get_events(event_digest)?
                 .ok_or(TransactionNotFoundError(digest))?
                 .pipe(Some)
         } else {
@@ -124,7 +124,7 @@ impl StateReader {
         let checkpoint = self.inner().get_transaction_checkpoint(&(digest.into()))?;
         let timestamp_ms = if let Some(checkpoint) = checkpoint {
             self.inner()
-                .get_checkpoint_by_sequence_number(checkpoint)?
+                .try_get_checkpoint_by_sequence_number(checkpoint)?
                 .map(|checkpoint| checkpoint.timestamp_ms)
         } else {
             None
@@ -202,7 +202,7 @@ impl Iterator for CheckpointTransactionsIter {
                 let checkpoint = match self
                     .reader
                     .inner()
-                    .get_checkpoint_by_sequence_number(current_checkpoint)
+                    .try_get_checkpoint_by_sequence_number(current_checkpoint)
                 {
                     Ok(Some(checkpoint)) => checkpoint,
                     Ok(None) => return None,
@@ -211,7 +211,7 @@ impl Iterator for CheckpointTransactionsIter {
                 let contents = match self
                     .reader
                     .inner()
-                    .get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)
+                    .try_get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)
                 {
                     Ok(Some(contents)) => contents,
                     Ok(None) => return None,
@@ -311,7 +311,7 @@ impl Iterator for CheckpointIter {
         let checkpoint = match self
             .reader
             .inner()
-            .get_checkpoint_by_sequence_number(current_checkpoint)
+            .try_get_checkpoint_by_sequence_number(current_checkpoint)
         {
             Ok(Some(checkpoint)) => checkpoint,
             Ok(None) => return None,
@@ -321,7 +321,7 @@ impl Iterator for CheckpointIter {
         let contents = match self
             .reader
             .inner()
-            .get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)
+            .try_get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)
         {
             Ok(Some(contents)) => contents,
             Ok(None) => return None,

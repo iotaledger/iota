@@ -1,7 +1,7 @@
 # Filter on objectIds
 {
   objects(filter: { objectIds: [
-    "0x4bba2c7b9574129c272bca8f58594eba933af8001257aa6e0821ad716030f149"
+    "0x281b97c4303f1571f64499b214c35d933ea5ad21522a608daffd2a5b2bd318d8"
   ]}) {
     edges {
       node {

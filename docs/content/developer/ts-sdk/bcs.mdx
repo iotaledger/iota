@@ -318,7 +318,7 @@ preserves type information for the serialized bytes, and can be used to get raw 
 formats.
 
 ```ts
-import { bcs, fromB58, fromB64, fromHex } from '@iota/bcs';
+import { bcs, fromBase58, fromBase64, fromHex } from '@iota/bcs';
 
 const serializedString = bcs.string().serialize('this is a string');
 
@@ -335,8 +335,8 @@ const str1 = bcs.string().parse(bytes);
 
 // If your data is encoded as string, you need to convert it to Uint8Array first
 const str2 = bcs.string().parse(fromHex(hex));
-const str3 = bcs.string().parse(fromB64(base64));
-const str4 = bcs.string().parse(fromB58(base58));
+const str3 = bcs.string().parse(fromBase64(base64));
+const str4 = bcs.string().parse(fromBase58(base58));
 
 console.assert((str1 == str2) == (str3 == str4), 'Result is the same');
 ```

@@ -39,14 +39,14 @@ impl PackageObjectCache {
             #[cfg(debug_assertions)]
             {
                 assert_eq!(
-                    store.get_object(package_id).unwrap().unwrap().digest(),
+                    store.get_object(package_id).unwrap().digest(),
                     p.object().digest(),
                     "Package object cache is inconsistent for package {package_id:?}"
                 )
             }
             return Ok(Some(p.clone()));
         }
-        if let Some(p) = store.get_object(package_id)? {
+        if let Some(p) = store.try_get_object(package_id)? {
             if p.is_package() {
                 let p = PackageObject::new(p);
                 self.cache.write().push(*package_id, p.clone());
@@ -69,10 +69,7 @@ impl PackageObjectCache {
         store: &impl ObjectStore,
     ) {
         for package_id in system_package_ids {
-            if let Some(p) = store
-                .get_object(&package_id)
-                .expect("Failed to update system packages")
-            {
+            if let Some(p) = store.get_object(&package_id) {
                 assert!(p.is_package());
                 self.cache.write().push(package_id, PackageObject::new(p));
             }
