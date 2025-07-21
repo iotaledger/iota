@@ -18,7 +18,7 @@ use crate::{
         TrustedCommit,
     },
     error::ConsensusResult,
-    storage::StoredScoreMetricsU64,
+    storage::StoredScoringMetricsU64,
 };
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -31,7 +31,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: BTreeMap<AuthorityIndex, StoredScoreMetricsU64>,
+    scoring_metrics: BTreeMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
 
 impl MemStore {
@@ -132,7 +132,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoreMetricsU64)>> {
+    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoringMetricsU64)>> {
         let inner = self.inner.read();
         let metrics_by_author = inner
             .scoring_metrics

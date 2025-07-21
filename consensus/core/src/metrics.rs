@@ -104,7 +104,7 @@ impl Metrics {
         last_evicted_round: u32,
         recent_refs_by_authority: &BTreeSet<BlockRef>,
         threshold_clock_round: u32,
-    ) -> Option<StoredScoreMetricsU64> {
+    ) -> Option<StoredScoringMetricsU64> {
         // Get the blocks rounds that were not evicted.
         let cached_block_rounds = recent_refs_by_authority
             .iter()
@@ -155,9 +155,9 @@ impl Metrics {
         );
 
         // Update score
-        self.update_authority_score(validator.value());
+        self.update_authority_score(validator);
 
-        Some(StoredScoreMetricsU64 {
+        Some(StoredScoringMetricsU64 {
             faulty_blocks_provable_by_authority: self.scoring_metrics.uncached[validator]
                 .faulty_blocks_provable_by_authority
                 .load(Ordering::Relaxed),
@@ -175,11 +175,11 @@ impl Metrics {
 
     pub(crate) fn initialize_uncached_scoring_metrics(
         &self,
-        metrics: Vec<(AuthorityIndex, StoredScoreMetricsU64)>,
+        metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
         hostnames: &Vec<&str>,
     ) {
         for ((authority, metrics), &hostname) in metrics.into_iter().zip(hostnames.iter()) {
-            let StoredScoreMetricsU64 {
+            let StoredScoringMetricsU64 {
                 faulty_blocks_provable_by_authority,
                 faulty_blocks_unprovable_by_authority,
                 equivocations_by_authority,
@@ -209,8 +209,8 @@ impl Metrics {
                 .faulty_blocks_unprovable_by_authority
                 .store(faulty_blocks_unprovable_by_authority, Ordering::Relaxed);
 
-            // Update all scores
-            self.update_scores();
+            // Update score
+            self.update_authority_score(authority);
         }
     }
 
@@ -283,19 +283,13 @@ impl Metrics {
         }
     }
 
-    fn update_scores(&self) {
-        for authority in 0..self.scoring_metrics.score.len() {
-            self.update_authority_score(authority);
-        }
-    }
-
-    fn update_authority_score(&self, authority: usize) {
-        let StoredScoreMetricsU64 {
+    fn update_authority_score(&self, authority: AuthorityIndex) {
+        let StoredScoringMetricsU64 {
             faulty_blocks_provable_by_authority,
             faulty_blocks_unprovable_by_authority,
             equivocations_by_authority,
             missing_proposals_by_authority,
-        } = StoredScoreMetricsU64 {
+        } = StoredScoringMetricsU64 {
             faulty_blocks_provable_by_authority: self.scoring_metrics.uncached[authority]
                 .faulty_blocks_provable_by_authority
                 .load(Ordering::Relaxed),
@@ -1118,18 +1112,18 @@ impl NodeMetrics {
 }
 
 pub(crate) struct ValidatorScoringMetrics {
-    pub(crate) uncached: Vec<UncachedScoreMetrics>,
-    pub(crate) cached: Vec<CachedScoreMetrics>,
+    pub(crate) uncached: Vec<UncachedScoringMetrics>,
+    pub(crate) cached: Vec<CachedScoringMetrics>,
     pub(crate) score: Vec<Score>,
 }
 
 impl ValidatorScoringMetrics {
     pub(crate) fn new(committee_size: usize) -> Self {
         let uncached = (0..committee_size)
-            .map(|_| UncachedScoreMetrics::new())
+            .map(|_| UncachedScoringMetrics::new())
             .collect();
         let cached = (0..committee_size)
-            .map(|_| CachedScoreMetrics::new())
+            .map(|_| CachedScoringMetrics::new())
             .collect();
         let score = (0..committee_size).map(|_| Score::new()).collect();
         Self {
@@ -1141,7 +1135,7 @@ impl ValidatorScoringMetrics {
 }
 
 #[derive(Debug)]
-pub(crate) struct UncachedScoreMetrics {
+pub(crate) struct UncachedScoringMetrics {
     // Counts the number of times that a faulty block signed by the validator was already verified
     // in the epoch.
     pub(crate) faulty_blocks_provable_by_authority: AtomicU64,
@@ -1155,7 +1149,7 @@ pub(crate) struct UncachedScoreMetrics {
     pub(crate) missing_proposals_by_authority: AtomicU64,
 }
 
-impl UncachedScoreMetrics {
+impl UncachedScoringMetrics {
     pub(crate) fn new() -> Self {
         Self {
             faulty_blocks_provable_by_authority: AtomicU64::new(0),
@@ -1166,7 +1160,7 @@ impl UncachedScoreMetrics {
     }
 }
 
-pub(crate) struct CachedScoreMetrics {
+pub(crate) struct CachedScoringMetrics {
     // Counts the number of equivocations in cache, below the threshold clock round.
     pub(crate) equivocations_by_authority: AtomicU64,
     // Counts the number of blocks that the validator failed to propose, or that the node did not
@@ -1174,7 +1168,7 @@ pub(crate) struct CachedScoreMetrics {
     pub(crate) missing_proposals_by_authority: AtomicU64,
 }
 
-impl CachedScoreMetrics {
+impl CachedScoringMetrics {
     pub(crate) fn new() -> Self {
         Self {
             equivocations_by_authority: AtomicU64::new(0),
@@ -1184,9 +1178,9 @@ impl CachedScoreMetrics {
 }
 
 // This struct is used in storage. It holds the same data as
-// `UncachedScoreMetrics`, but uses `u64` instead of `AtomicU64`.
+// `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct StoredScoreMetricsU64 {
+pub(crate) struct StoredScoringMetricsU64 {
     pub(crate) faulty_blocks_provable_by_authority: u64,
     pub(crate) faulty_blocks_unprovable_by_authority: u64,
     pub(crate) equivocations_by_authority: u64,
