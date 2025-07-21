@@ -414,3 +414,6 @@ async fn test_congestion_control_execution_cancellation() {
     );
     assert_eq!(&effects, effects_2.data())
 }
+
+#[sim_test]
+async fn gas_price_feedback_mechanism() {}
