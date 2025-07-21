@@ -54,8 +54,7 @@ chmod +x network-filtering-experiments.sh
 
 A 24-hour “fuzz” test that randomly applies:
 
-- Container **pause/unpause**
-- Container **restart**
+- Container **stop/restart**
 - **Packet loss** (random percent)
 - **iptables** block/unblock to random peers
 
