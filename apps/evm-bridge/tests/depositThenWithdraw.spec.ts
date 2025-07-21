@@ -3,8 +3,20 @@ import { generate24WordMnemonic, deriveAddressFromMnemonic } from './utils/utils
 import { closeBrowserTabsExceptLast, getExtensionUrl, test } from './helpers/browser';
 import { checkL2IotaBalanceWithRetries } from './helpers/balances';
 import { addL1FundsThroughBridgeUI, fundL1AddressWithNativeTokens } from './helpers/transactions';
-import { importL1WalletFromMnemonic, createL2Wallet, addNetworkToMetaMask } from './helpers/wallet';
+import {
+    importL1WalletFromMnemonic,
+    createL2Wallet,
+    addNetworkToMetaMask,
+    connectL1Wallet,
+    connectL2Wallet,
+} from './helpers/wallet';
 import { THREE_MINUTES } from './utils/constants';
+import {
+    executeBridgeTransaction,
+    setBridgeAmount,
+    setReceiverAddress,
+    toggleBridgeDirection,
+} from './helpers/ui';
 
 test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
     test.setTimeout(THREE_MINUTES);
@@ -49,66 +61,19 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             }
 
             // Connect L1 wallet to the EVM Bridge on pageWithL1Wallet
-            const connectButtonIdL1 = 'connect-l1-wallet';
-            const connectButtonL1 = await pageWithL1Wallet.waitForSelector(
-                `[data-testid="${connectButtonIdL1}"]`,
-                {
-                    state: 'visible',
-                },
-            );
-
-            await connectButtonL1.click();
-            const approveWalletConnectPage = browserL1.waitForEvent('page');
-            await pageWithL1Wallet.getByText('IOTA Wallet').click();
-
-            const walletL1Page = await approveWalletConnectPage;
-            await walletL1Page.getByRole('button', { name: 'Continue' }).click();
-            await walletL1Page.getByRole('button', { name: 'Connect' }).click();
+            await connectL1Wallet(pageWithL1Wallet, browserL1);
 
             // Manually input addressL2 on pageWithL1Wallet
-            const toggleManualInputL1 = pageWithL1Wallet.getByTestId(
-                'toggle-receiver-address-input',
-            );
-            await expect(toggleManualInputL1).toBeVisible();
-            await toggleManualInputL1.click();
-
-            const addressFieldL1 = pageWithL1Wallet.getByTestId('receive-address');
-            await expect(addressFieldL1).toBeVisible();
-            addressFieldL1.fill(addressL2);
+            await setReceiverAddress(pageWithL1Wallet, addressL2);
 
             // Connect L2 wallet to the EVM Bridge on pageWithL2Wallet
-            const connectButtonIdL2 = 'connect-l2-wallet';
-            const connectButtonL2 = await pageWithL2Wallet.waitForSelector(
-                `[data-testid="${connectButtonIdL2}"]`,
-                {
-                    state: 'visible',
-                },
-            );
-
-            await connectButtonL2.click();
-            const approveWalletL2ConnectDialog = browserL2.waitForEvent('page');
-            await pageWithL2Wallet.getByTestId(/metamask/).click();
-
-            const walletL2Modal = await approveWalletL2ConnectDialog;
-            await walletL2Modal.waitForLoadState();
-            await walletL2Modal.getByRole('button', { name: 'Connect' }).click();
+            await connectL2Wallet(pageWithL2Wallet, browserL2);
 
             // Switch to the L2 wallet page on pageWithL2Wallet
-            const toggleBridgeDirectionButton =
-                pageWithL2Wallet.getByTestId('toggle-bridge-direction');
-            await expect(toggleBridgeDirectionButton).toBeVisible();
-            await toggleBridgeDirectionButton.click();
+            await toggleBridgeDirection(pageWithL2Wallet);
 
             // Manually input addressL1 on pageWithL2Wallet
-            const toggleManualInputL2 = pageWithL2Wallet.getByTestId(
-                'toggle-receiver-address-input',
-            );
-            await expect(toggleManualInputL2).toBeVisible();
-            await toggleManualInputL2.click();
-
-            const addressFieldL2 = pageWithL2Wallet.getByTestId('receive-address');
-            await expect(addressFieldL2).toBeVisible();
-            await addressFieldL2.fill(addressL1);
+            await setReceiverAddress(pageWithL2Wallet, addressL1);
 
             // Fund L1 wallet with IOTA and native tokens
             await addL1FundsThroughBridgeUI(pageWithL1Wallet, browserL1);
@@ -119,10 +84,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
 
     test('should successfully process an L1 deposit', async () => {
         const iotaAmountToSend = '5';
-
-        const amountField = pageWithL1Wallet.getByTestId('bridge-amount');
-        await expect(amountField).toBeVisible();
-        amountField.fill(iotaAmountToSend);
+        await setBridgeAmount(pageWithL1Wallet, iotaAmountToSend);
 
         // check est. gas fees and your receive
         await pageWithL1Wallet.waitForTimeout(2500);
@@ -141,15 +103,9 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             .textContent();
         expect(gasFeeValueEVM).toEqual('0.001');
 
-        await expect(pageWithL1Wallet.getByText('Bridge Assets')).toBeEnabled();
-        await pageWithL1Wallet.getByText('Bridge Assets').click();
-
-        const approveTransactionPage = await browserL1.waitForEvent('page');
-        await approveTransactionPage.waitForLoadState();
-        await approveTransactionPage.getByRole('button', { name: 'Approve' }).click();
+        await executeBridgeTransaction(pageWithL1Wallet, browserL1, true);
 
         const balance = await checkL2IotaBalanceWithRetries(addressL2 ?? '');
-
         expect(Number(balance)).toEqual(Number(iotaAmountToSend));
 
         await closeBrowserTabsExceptLast(browserL1);
@@ -157,10 +113,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
 
     test('should successfully process an L2 deposit', async () => {
         const iotaAmountToSend = '2';
-
-        const amountField = pageWithL2Wallet.getByTestId('bridge-amount');
-        await expect(amountField).toBeVisible();
-        await amountField.fill(iotaAmountToSend);
+        await setBridgeAmount(pageWithL2Wallet, iotaAmountToSend);
 
         // check est. gas fees and your receive
         await pageWithL2Wallet.waitForTimeout(2500);
@@ -172,13 +125,8 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
             .textContent();
         expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
 
-        await expect(pageWithL2Wallet.getByText('Bridge Assets')).toBeEnabled();
+        await executeBridgeTransaction(pageWithL2Wallet, browserL2, false);
 
-        const approveTransactionPagePromise = browserL2.waitForEvent('page');
-        await pageWithL2Wallet.getByText('Bridge Assets').click();
-
-        const approveTransactionPage = await approveTransactionPagePromise;
-        await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
         // Check funds on L1 wallet
         const pageWithL1WalletExtension = await browserL1.newPage();
         const l1ExtensionUrl = await getExtensionUrl(browserL1);
