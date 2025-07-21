@@ -324,7 +324,7 @@ pub struct WritebackCacheConfig {
     /// Number of uncommitted transactions at which to pause consensus
     /// handler.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub backpressure_threshold: Option<u64>, // defaults to 10000
+    pub backpressure_threshold: Option<u64>, // defaults to 100_000
 
     /// Number of uncommitted transactions at which to refuse new
     /// transaction submissions. Defaults to backpressure_threshold
@@ -419,7 +419,7 @@ impl WritebackCacheConfig {
             .ok()
             .and_then(|s| s.parse().ok())
             .or(self.backpressure_threshold)
-            .unwrap_or(10000)
+            .unwrap_or(100_000)
     }
 
     pub fn backpressure_threshold_for_rpc(&self) -> u64 {
