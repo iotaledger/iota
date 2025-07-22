@@ -3278,7 +3278,10 @@ async fn select_coins_for_amount(
     let mut amount_remaining = amount;
     while amount_remaining > 0 {
         if gas_coins.is_empty() {
-            anyhow::bail!("insufficient funds for requested amount: {amount}");
+            anyhow::bail!(
+                "insufficient funds for requested amount: {amount}, available: {}",
+                amount - amount_remaining
+            );
         }
         let coin = if let Some(idx) = gas_coins.iter().position(|c| c.value() >= amount_remaining) {
             gas_coins.remove(idx)
