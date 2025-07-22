@@ -33,7 +33,6 @@ enum Task {
 struct BigTableTaskConfig {
     instance_id: String,
     column_family: String,
-    credentials_path: String,
     timeout_secs: usize,
 }
 
@@ -186,10 +185,6 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::BigTableKv(kv_config) => {
-                std::env::set_var(
-                    "GOOGLE_APPLICATION_CREDENTIALS",
-                    kv_config.credentials_path.clone(),
-                );
                 let client = BigTableClient::new_remote(
                     kv_config.instance_id,
                     false,
