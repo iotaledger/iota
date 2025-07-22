@@ -4,6 +4,8 @@
 import { Address } from '@iota/apps-ui-kit';
 import { useGetIotaName } from '../../hooks';
 import clsx from 'clsx';
+import { normalizeIotaName } from '@iota/iota-names-sdk';
+import { truncateString } from '../../utils';
 
 interface NamedAddressProps {
     address: string;
@@ -29,18 +31,17 @@ export function NamedAddress({
     addMarginRightToCenter = false,
 }: NamedAddressProps): React.JSX.Element {
     const { data: defaultName } = useGetIotaName(address);
-
+    const iotaName = defaultName && normalizeIotaName(defaultName);
     return (
         <div
             className={clsx(
-                'flex flex-col gap-y-xxs',
-                defaultName ? ' items-start' : 'items-center',
-                addMarginRightToCenter && !defaultName ? '-mr-lg' : '',
+                'flex flex-col gap-y-xxs items-center',
+                addMarginRightToCenter && iotaName ? '-mr-lg' : '',
             )}
         >
-            {defaultName ? (
-                <span className="text-label-md bg-names-gradient-primary bg-clip-text text-transparent">
-                    {defaultName}
+            {iotaName ? (
+                <span className="text-label-md dark:text-iota-neutral-92 text-iota-neutral-10 -ml-xl">
+                    {truncateString(iotaName, 12)}
                 </span>
             ) : null}
             <Address

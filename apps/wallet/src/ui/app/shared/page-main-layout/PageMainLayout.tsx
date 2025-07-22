@@ -13,11 +13,12 @@ import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { useGetIotaName } from '@iota/core';
+import { formatAccountName } from '../../helpers';
+import { normalizeIotaName } from '@iota/iota-names-sdk';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -63,7 +64,7 @@ export function PageMainLayout({
                 />
             ) : null}
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                <div className="dark:bg-iota-neutral-6 flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100">
+                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
                             'p-5': bottomNavEnabled && isHomePage,
@@ -97,7 +98,8 @@ function LeftContent({
     isMainAccount?: boolean;
 }) {
     const { data: defaultName } = useGetIotaName(account?.address || '');
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
+    const iotaName = defaultName && normalizeIotaName(defaultName);
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
@@ -114,14 +116,9 @@ function LeftContent({
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
             <div className="flex flex-col items-start">
-                <span className="dark:text-iota-neutral-92 line-clamp-1 break-all text-title-sm text-iota-neutral-10">
+                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                     {accountName}
                 </span>
-                {defaultName ? (
-                    <span className="bg-names-gradient-primary bg-clip-text text-label-md text-transparent">
-                        {defaultName}
-                    </span>
-                ) : null}
             </div>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
             {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
