@@ -109,13 +109,11 @@ impl Unpackable for String {
     where
         Self: Sized,
     {
-        let l = u8::unpack(buf)?;
-        let mut v: Vec<u8> = Vec::new();
-        for _ in 0..l {
-            v.push(u8::unpack(buf)?);
-        }
-        match str::from_utf8(v.as_ref()) {
-            Ok(v) => Ok(String::from(v)),
+        let l = u8::unpack(buf)? as usize;
+        let mut v = vec![0u8; l];
+        buf.read_exact(&mut v)?;
+        match str::from_utf8(&v) {
+            Ok(s) => Ok(s.to_owned()),
             Err(_) => Err(Error::InvalidUtf8String),
         }
     }
