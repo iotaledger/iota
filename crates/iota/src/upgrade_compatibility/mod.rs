@@ -19,7 +19,7 @@ use formatting::{FormattedField, format_list, format_param, singular_or_plural};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::IotaClient;
+use iota_sdk::apis::ReadApi;
 use iota_types::{
     base_types::ObjectID, execution_config_utils::to_binary_config, move_package::UpgradePolicy,
 };
@@ -665,15 +665,14 @@ upgrade_codes!(
 /// Check the upgrade compatibility of a new package with an existing on-chain
 /// package.
 pub(crate) async fn check_compatibility(
-    client: &IotaClient,
+    read_api: &ReadApi,
     package_id: ObjectID,
     new_package: CompiledPackage,
     package_path: PathBuf,
     upgrade_policy: u8,
     protocol_config: ProtocolConfig,
 ) -> Result<(), Error> {
-    let existing_obj_read = client
-        .read_api()
+    let existing_obj_read = read_api
         .get_object_with_options(package_id, IotaObjectDataOptions::new().with_bcs())
         .await
         .context("Unable to get existing package")?;

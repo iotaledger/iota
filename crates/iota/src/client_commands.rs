@@ -4,7 +4,7 @@
 
 use std::{
     cmp::Eq,
-    collections::{BTreeMap, HashSet, btree_map::Entry},
+    collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -59,7 +59,7 @@ use iota_types::{
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
-    move_package::UpgradeCap,
+    move_package::{MovePackage, UpgradeCap},
     object::Owner,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -73,6 +73,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
 use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
 use move_package::BuildConfig as MoveBuildConfig;
+use move_symbol_pool::Symbol;
 use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
@@ -944,12 +945,9 @@ impl IotaClientCommands {
                 let sender = context.try_get_object_owner(&opts.gas).await?;
                 let sender = sender.unwrap_or(context.active_address()?);
                 let client = context.get_client().await?;
-                let chain_id = client.read_api().get_chain_identifier().await.ok();
-                let protocol_version = client
-                    .read_api()
-                    .get_protocol_config(None)
-                    .await?
-                    .protocol_version;
+                let read_api = client.read_api();
+                let chain_id = read_api.get_chain_identifier().await.ok();
+                let protocol_version = read_api.get_protocol_config(None).await?.protocol_version;
                 let protocol_config = ProtocolConfig::get_for_version(
                     protocol_version,
                     match chain_id
@@ -961,7 +959,7 @@ impl IotaClientCommands {
                     },
                 );
 
-                check_protocol_version_and_warn(&client).await?;
+                check_protocol_version_and_warn(read_api).await?;
 
                 let package_path =
                     package_path
@@ -984,7 +982,7 @@ impl IotaClientCommands {
                 let verify =
                     check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let upgrade_result = upgrade_package(
-                    client.read_api(),
+                    read_api,
                     build_config.clone(),
                     &package_path,
                     upgrade_capability,
@@ -1016,7 +1014,7 @@ impl IotaClientCommands {
 
                 if verify_compatibility {
                     check_compatibility(
-                        &client,
+                        read_api,
                         package_id,
                         compiled_package,
                         package_path,
@@ -1089,9 +1087,10 @@ impl IotaClientCommands {
                 let sender = context.try_get_object_owner(&opts.gas).await?;
                 let sender = sender.unwrap_or(context.active_address()?);
                 let client = context.get_client().await?;
-                let chain_id = client.read_api().get_chain_identifier().await.ok();
+                let read_api = client.read_api();
+                let chain_id = read_api.get_chain_identifier().await.ok();
 
-                check_protocol_version_and_warn(&client).await?;
+                check_protocol_version_and_warn(read_api).await?;
 
                 let package_path =
                     package_path
@@ -1113,7 +1112,7 @@ impl IotaClientCommands {
                 let verify =
                     check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let compile_result = compile_package(
-                    client.read_api(),
+                    read_api,
                     build_config.clone(),
                     &package_path,
                     with_unpublished_dependencies,
@@ -1170,6 +1169,8 @@ impl IotaClientCommands {
                 package_path,
                 build_config,
             } => {
+                let client = context.get_client().await?;
+                let read_api = client.read_api();
                 let protocol_version =
                     protocol_version.map_or(ProtocolVersion::MAX, ProtocolVersion::new);
                 let protocol_config =
@@ -1197,7 +1198,9 @@ impl IotaClientCommands {
 
                     (_, package_path) => {
                         let package_path = package_path.unwrap_or_else(|| PathBuf::from("."));
-                        let package = compile_package_simple(build_config, &package_path, None)?;
+                        let package =
+                            compile_package_simple(read_api, build_config, &package_path, None)
+                                .await?;
                         let name = package
                             .package
                             .compiled_package_info
@@ -1797,7 +1800,8 @@ fn check_dep_verification_flags(
     Ok(verify_dependencies)
 }
 
-fn compile_package_simple(
+async fn compile_package_simple(
+    read_api: &ReadApi,
     build_config: MoveBuildConfig,
     package_path: &Path,
     chain_id: Option<String>,
@@ -1811,7 +1815,7 @@ fn compile_package_simple(
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let mut compiled_package =
         build_from_resolution_graph(resolution_graph, false, false, chain_id)?;
-    compiled_package.tree_shake(false)?;
+    pkg_tree_shake(read_api, false, &mut compiled_package).await?;
 
     Ok(compiled_package)
 }
@@ -1833,7 +1837,13 @@ pub(crate) async fn upgrade_package(
         skip_dependency_verification,
     )
     .await?;
-    compiled_package.tree_shake(with_unpublished_dependencies)?;
+
+    pkg_tree_shake(
+        read_api,
+        with_unpublished_dependencies,
+        &mut compiled_package,
+    )
+    .await?;
 
     compiled_package.published_at.as_ref().map_err(|e| match e {
         PublishedAtError::NotPresent => {
@@ -1915,7 +1925,14 @@ pub(crate) async fn compile_package(
         print_diags_to_stderr,
         chain_id,
     )?;
-    compiled_package.tree_shake(with_unpublished_dependencies)?;
+
+    pkg_tree_shake(
+        read_api,
+        with_unpublished_dependencies,
+        &mut compiled_package,
+    )
+    .await?;
+
     let protocol_config = read_api.get_protocol_config(None).await?;
 
     // Check that the package's Move version is compatible with the chain's
@@ -3179,13 +3196,9 @@ pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, St
 
 /// Warn the user if the CLI does not match the version of current on-chain
 /// protocol.
-async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyhow::Error> {
-    let on_chain_protocol_version = client
-        .read_api()
-        .get_protocol_config(None)
-        .await?
-        .protocol_version
-        .as_u64();
+async fn check_protocol_version_and_warn(read_api: &ReadApi) -> Result<(), anyhow::Error> {
+    let protocol_cfg = read_api.get_protocol_config(None).await?;
+    let on_chain_protocol_version = protocol_cfg.protocol_version.as_u64();
     let cli_protocol_version = ProtocolVersion::MAX.as_u64();
 
     if cli_protocol_version != on_chain_protocol_version {
@@ -3205,6 +3218,102 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
 
         eprintln!("{}", format!("{warning_msg}\n{help_msg}").yellow().bold())
     }
+
+    Ok(())
+}
+
+/// Try to convert this object into a package.
+fn to_package(o: IotaObjectResponse) -> anyhow::Result<MovePackage> {
+    let id = o.object_id()?;
+    let Some(IotaRawData::Package(p)) = o.into_object()?.bcs else {
+        bail!("Object {id} not a package");
+    };
+
+    Ok(p.to_move_package(u64::MAX /* safe as this pkg comes from the network */)?)
+}
+
+/// Fetch move packages
+async fn fetch_move_packages(
+    read_api: &ReadApi,
+    immediate_dep_packages: &BTreeMap<Symbol, ObjectID>,
+) -> Result<Vec<MovePackage>, anyhow::Error> {
+    let package_ids: Vec<_> = immediate_dep_packages.values().cloned().collect(); // a map from id to pkg name for finding package names for error reporting.
+    let pkg_id_to_name: BTreeMap<_, _> = immediate_dep_packages
+        .iter()
+        .map(|(name, id)| (id, name))
+        .collect();
+
+    let objects = read_api
+        .multi_get_object_with_options(package_ids, IotaObjectDataOptions::bcs_lossless())
+        .await?;
+
+    let mut packages = Vec::with_capacity(objects.len());
+    for o in objects {
+        let id = o.object_id()?;
+        packages.push(to_package(o).with_context(|| {
+            format!(
+                "Failed to fetch package {}",
+                pkg_id_to_name
+                    .get(&id)
+                    .map_or("of unknown name", |x| x.as_str())
+            )
+        })?);
+    }
+
+    Ok(packages)
+}
+
+// Fetch the original ids of all the transitive dependencies of the immediate
+// package dependencies
+async fn trans_deps_original_ids(
+    read_api: &ReadApi,
+    immediate_dep_packages: &BTreeMap<Symbol, ObjectID>,
+) -> Result<BTreeSet<ObjectID>, anyhow::Error> {
+    let pkgs = fetch_move_packages(read_api, immediate_dep_packages).await?;
+    let linkage_table = pkgs
+        .iter()
+        .flat_map(|pkg| pkg.linkage_table().keys())
+        .copied()
+        .collect();
+
+    Ok(linkage_table)
+}
+
+/// Filter out a package's dependencies which are not referenced in the source
+/// code. The algorithm finds the immediate dependencies of this package, and
+/// the original ids of each transitive dependencies for all these immediate
+/// package dependencies. For packages that are not referenced in the source
+/// code, they will be filtered out from the list of dependencies.
+pub(crate) async fn pkg_tree_shake(
+    read_api: &ReadApi,
+    with_unpublished_dependencies: bool,
+    compiled_package: &mut CompiledPackage,
+) -> Result<(), anyhow::Error> {
+    // these are packages that are immediate dependencies of the root package
+    let immediate_dep_packages =
+        compiled_package.find_immediate_deps_pkgs_to_keep(with_unpublished_dependencies)?;
+
+    // for every immediate dependency package, we need to use its linkage table to
+    // determine its transitive dependencies and ensure that we keep the
+    // required packages, so fetch those tables
+    let trans_deps_orig_ids = trans_deps_original_ids(read_api, &immediate_dep_packages).await?;
+    let pkg_name_to_orig_id: BTreeMap<_, _> = compiled_package
+        .package
+        .deps_compiled_units
+        .iter()
+        .map(|(pkg_name, module)| (*pkg_name, ObjectID::from(module.unit.address.into_inner())))
+        .collect();
+
+    // for every published package in the original list of published dependencies,
+    // get its original id and then check if that id exists in the linkage
+    // table. If it does, then we need to keep this package. Similarly, all
+    // immediate dep packages must stay
+    compiled_package.dependency_ids.published.retain(|pkg, _| {
+        immediate_dep_packages.contains_key(pkg)
+            || pkg_name_to_orig_id
+                .get(pkg)
+                .is_some_and(|id| trans_deps_orig_ids.contains(id))
+    });
 
     Ok(())
 }
