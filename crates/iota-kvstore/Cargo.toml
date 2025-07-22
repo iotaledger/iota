@@ -1,0 +1,25 @@
+[package]
+name = "iota-kvstore"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+async-trait.workspace = true
+bcs.workspace = true
+clap.workspace = true
+iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "60f2bc6655300cae5cadcb0ce231f6fdd9c99f42" }
+prometheus.workspace = true
+serde.workspace = true
+strum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-data-ingestion-core.workspace = true
+iota-types.workspace = true
+telemetry-subscribers.workspace = true
