@@ -1,5 +1,3 @@
-# Move Trace Debugging
-
 Provides the ability to visualize Move trace files, which can be generated for a given package when running Move tests. These trace files contain information about which Move instructions are executed during a given test run. This extension leverages an implementation of the [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol) (DAP) that analyzes Move execution traces and presents them to the IDE client (in this case a VSCode extension) in a format that the client understands and can visualize using a familiar debugging interface.
 
 ## Supported features
