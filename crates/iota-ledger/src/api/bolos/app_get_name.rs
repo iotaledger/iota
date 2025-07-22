@@ -46,7 +46,7 @@ impl Unpackable for Response {
     }
 }
 
-pub fn exec(transport: &Transport) -> Result<Response, errors::LedgerError> {
+pub fn exec<T: Transport>(transport: &T) -> Result<Response, errors::LedgerError> {
     let cmd = APDUCommand {
         cla: bolos::APDU_CLA_B0,
         ins: bolos::APDUInstructions::GetAppVersionB0 as u8,
@@ -54,5 +54,5 @@ pub fn exec(transport: &Transport) -> Result<Response, errors::LedgerError> {
         p2: 0,
         data: Vec::new(),
     };
-    helpers::exec::<Response>(transport, cmd)
+    helpers::exec::<T, Response>(transport, cmd)
 }

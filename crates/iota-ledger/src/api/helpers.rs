@@ -125,8 +125,8 @@ impl Unpackable for BlockResponse {
     }
 }
 
-pub(crate) fn send_with_blocks<R: Unpackable>(
-    transport: &Transport,
+pub(crate) fn send_with_blocks<T: Transport, R: Unpackable>(
+    transport: &T,
     ins: constants::APDUInstructions,
     payloads: Vec<Box<dyn PackableObject>>,
     extra_data: Option<HashMap<Digest<32>, Vec<u8>>>,
@@ -163,12 +163,12 @@ pub(crate) fn send_with_blocks<R: Unpackable>(
     handle_blocks_protocol(transport, ins, initial_payload, data)
 }
 
-fn handle_blocks_protocol<T: Unpackable>(
-    transport: &Transport,
+fn handle_blocks_protocol<T: Transport, U: Unpackable>(
+    transport: &T,
     ins: constants::APDUInstructions,
     mut payload: Vec<u8>,
     mut data: HashMap<Digest<32>, Vec<u8>>,
-) -> Result<T, errors::LedgerError> {
+) -> Result<U, errors::LedgerError> {
     let mut result = Vec::new();
     let ins = ins as u8;
 
@@ -181,7 +181,7 @@ fn handle_blocks_protocol<T: Unpackable>(
             data: payload,
         };
 
-        let rv = exec::<BlockResponse>(transport, cmd)?;
+        let rv = exec::<T, BlockResponse>(transport, cmd)?;
 
         match rv.instruction {
             LedgerToHost::ResultAccumulating => {
@@ -209,19 +209,19 @@ fn handle_blocks_protocol<T: Unpackable>(
         }
     }
 
-    let res = T::unpack(&mut &result[..]).map_err(|_| errors::LedgerError::Serialization)?;
+    let res = U::unpack(&mut &result[..]).map_err(|_| errors::LedgerError::Serialization)?;
     Ok(res)
 }
 
-pub(crate) fn exec<T: Unpackable>(
-    transport: &Transport,
+pub(crate) fn exec<T: Transport, U: Unpackable>(
+    transport: &T,
     cmd: APDUCommand<Vec<u8>>,
-) -> Result<T, errors::LedgerError> {
+) -> Result<U, errors::LedgerError> {
     transport.exchange(&cmd).and_then(|resp| {
         let api_error = errors::LedgerError::get_error(resp.retcode());
         match api_error {
             None => {
-                let res = T::unpack(&mut &resp.data()[..])
+                let res = U::unpack(&mut &resp.data()[..])
                     .map_err(|_| errors::LedgerError::Serialization)?;
                 Ok(res)
             }

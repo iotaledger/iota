@@ -3,8 +3,13 @@
 
 use std::{thread, time, vec};
 
+use hex::ToHex;
+use tracing::debug;
 mod transport;
-use transport::Transport;
+use serde::Serialize;
+use transport::{
+    APDUAnswer, APDUCommand, LedgerTransport, create_hid_transport, create_tcp_transport,
+};
 
 pub use crate::api::errors::LedgerError;
 mod api;
@@ -13,14 +18,16 @@ use iota_types::{
     crypto::{Ed25519IotaSignature, Signature, SignatureScheme, ToFromBytes},
     object::Object,
 };
-use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage};
 
-use crate::api::{bolos, exit, get_public_key, sign_transaction};
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
+use crate::{
+    api::{bolos, exit, get_public_key, sign_transaction},
+    transport::Transport,
+};
 
 pub struct Ledger {
-    transport: Transport,
+    transport: LedgerTransport,
 }
 
 pub struct SignedTransaction {
@@ -34,33 +41,45 @@ const DASHBOARD_APP_NAME: &str = "BOLOS";
 impl Ledger {
     pub fn new_with_default() -> Result<Ledger, LedgerError> {
         let transport = if std::env::var("LEDGER_SIMULATOR").is_ok() {
-            Transport::new_simulator()?
+            create_tcp_transport()?
         } else {
-            Transport::new_native_hid()?
+            create_hid_transport()?
         };
         Ok(crate::Ledger::new(transport))
     }
 
     pub fn new_with_native_hid() -> Result<Ledger, LedgerError> {
-        Ok(crate::Ledger::new(Transport::new_native_hid()?))
+        Ok(crate::Ledger::new(create_hid_transport()?))
     }
 
     pub fn new_with_simulator() -> Result<Ledger, LedgerError> {
-        Ok(crate::Ledger::new(Transport::new_simulator()?))
+        Ok(crate::Ledger::new(create_tcp_transport()?))
     }
 
-    fn new(transport: Transport) -> Self {
+    fn new(transport: LedgerTransport) -> Self {
         Ledger { transport }
+    }
+
+    fn is_simulator(&self) -> bool {
+        matches!(&self.transport, LedgerTransport::Simulator(_))
     }
 
     fn recreate_transport(&mut self) -> Result<(), LedgerError> {
         thread::sleep(time::Duration::from_secs(3));
-        self.transport.recreate()
+        match &self.transport {
+            LedgerTransport::Simulator(_) => {
+                self.transport = create_tcp_transport()?;
+            }
+            LedgerTransport::NativeHID(_) => {
+                self.transport = create_hid_transport()?;
+            }
+        }
+        Ok(())
     }
 
     /// Check if the IOTA app is open on the Ledger device
     pub fn is_app_open(&self) -> Result<bool, LedgerError> {
-        let app = bolos::app_get_name::exec(&self.transport)?;
+        let app = bolos::app_get_name::exec(self)?;
         Ok(app.app == IOTA_APP_NAME)
     }
 
@@ -70,7 +89,7 @@ impl Ledger {
         if self.is_app_open()? {
             return Ok(());
         }
-        bolos::app_open::exec(&self.transport, IOTA_APP_NAME.to_string())?;
+        bolos::app_open::exec(self, IOTA_APP_NAME.to_string())?;
         self.recreate_transport()
     }
 
@@ -78,7 +97,7 @@ impl Ledger {
     /// Only works if an app is open
     /// This will re-create the transport after closing the app
     fn bolos_exit_app(&mut self) -> Result<(), LedgerError> {
-        bolos::app_exit::exec(&self.transport)?;
+        bolos::app_exit::exec(self)?;
         self.recreate_transport()
     }
 
@@ -87,11 +106,11 @@ impl Ledger {
     /// If another app is open, it will close it first
     /// This will re-create the transport after closing the app
     pub fn ensure_app_is_open(&mut self) -> Result<(), LedgerError> {
-        if self.transport.is_simulator() {
+        if self.is_simulator() {
             return Ok(());
         }
 
-        match bolos::app_get_name::exec(&self.transport)?.app.as_str() {
+        match bolos::app_get_name::exec(self)?.app.as_str() {
             IOTA_APP_NAME => {
                 // App is already open
                 return Ok(());
@@ -109,12 +128,8 @@ impl Ledger {
         Ok(())
     }
 
-    fn transport(&self) -> &Transport {
-        &self.transport
-    }
-
     pub fn get_version(&self) -> Result<Version, LedgerError> {
-        let version = crate::api::get_version::exec(&self.transport)?;
+        let version = crate::api::get_version::exec(self)?;
         Ok(version)
     }
 
@@ -122,14 +137,14 @@ impl Ledger {
         &self,
         bip32: &bip32::DerivationPath,
     ) -> Result<PublicKeyResult, LedgerError> {
-        get_public_key::exec(&self.transport, bip32, true)
+        get_public_key::exec(self, bip32, true)
     }
 
     pub fn get_public_key(
         &self,
         bip32: &bip32::DerivationPath,
     ) -> Result<PublicKeyResult, LedgerError> {
-        get_public_key::exec(&self.transport, bip32, false)
+        get_public_key::exec(self, bip32, false)
     }
 
     pub fn get_signature_scheme(&self) -> SignatureScheme {
@@ -160,9 +175,9 @@ impl Ledger {
                 .map(|o| bcs::to_bytes(&o).map_err(|_| LedgerError::Serialization))
                 .collect::<Result<_, _>>()?;
             // If the major version is greater than 0, we assume it supports clear signing
-            sign_transaction::exec(self.transport(), bip32, intent_bytes, bcs_objects)
+            sign_transaction::exec(self, bip32, intent_bytes, bcs_objects)
         } else {
-            sign_transaction::exec(self.transport(), bip32, intent_bytes, vec![])
+            sign_transaction::exec(self, bip32, intent_bytes, vec![])
         })?;
 
         let mut signature_bytes: Vec<u8> = Vec::new();
@@ -182,7 +197,23 @@ impl Ledger {
     /// Close the IOTA app from within
     /// This will re-create the transport after closing the app
     pub fn exit_app(&mut self) -> Result<(), LedgerError> {
-        exit::exec(&self.transport)?;
+        exit::exec(self)?;
         self.recreate_transport()
+    }
+}
+
+impl Transport for Ledger {
+    fn exchange(
+        &self,
+        apdu_command: &APDUCommand<Vec<u8>>,
+    ) -> Result<APDUAnswer<Vec<u8>>, LedgerError> {
+        debug!(
+            "Exchanging APDU command: {}",
+            apdu_command.serialize().encode_hex::<String>()
+        );
+        match &self.transport {
+            LedgerTransport::Simulator(tcp) => Ok(tcp.exchange(apdu_command)?),
+            LedgerTransport::NativeHID(hid) => Ok(hid.exchange(apdu_command)?),
+        }
     }
 }

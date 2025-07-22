@@ -50,8 +50,8 @@ impl Unpackable for PublicKeyResult {
     }
 }
 
-pub fn exec(
-    transport: &Transport,
+pub fn exec<T: Transport>(
+    transport: &T,
     bip32: &bip32::DerivationPath,
     show: bool,
 ) -> Result<PublicKeyResult, errors::LedgerError> {

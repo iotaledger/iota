@@ -27,7 +27,7 @@ impl Packable for Request {
     }
 }
 
-pub fn exec(transport: &Transport, app: String) -> Result<(), errors::LedgerError> {
+pub fn exec<T: Transport>(transport: &T, app: String) -> Result<(), errors::LedgerError> {
     let req = Request { app };
 
     let mut buf = Vec::new();
@@ -45,7 +45,7 @@ pub fn exec(transport: &Transport, app: String) -> Result<(), errors::LedgerErro
         p2: 0,
         data: buf,
     };
-    helpers::exec::<()>(transport, cmd).map_err(|e| match e {
+    helpers::exec::<T, ()>(transport, cmd).map_err(|e| match e {
         errors::LedgerError::Syscall(errors::SyscallError::InvalidCounter) => {
             errors::LedgerError::AppNotFound
         }

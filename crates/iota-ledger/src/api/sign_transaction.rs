@@ -72,8 +72,8 @@ impl Packable for TransactionObjects {
     }
 }
 
-pub fn exec(
-    transport: &Transport,
+pub fn exec<T: Transport>(
+    transport: &T,
     path: &bip32::DerivationPath,
     transaction: Vec<u8>,
     objects: Vec<Vec<u8>>,

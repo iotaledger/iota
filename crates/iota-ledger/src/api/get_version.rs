@@ -57,8 +57,8 @@ impl Packable for VersionRequest {
     }
 }
 
-pub fn exec(transport: &Transport) -> Result<Version, errors::LedgerError> {
-    helpers::send_with_blocks::<Version>(
+pub fn exec<T: Transport>(transport: &T) -> Result<Version, errors::LedgerError> {
+    helpers::send_with_blocks::<T, Version>(
         transport,
         constants::APDUInstructions::GetVersion,
         vec![Box::new(VersionRequest {})],

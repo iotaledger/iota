@@ -8,7 +8,7 @@ use crate::{
     api::{bolos, errors, helpers},
 };
 
-pub fn exec(transport: &Transport) -> Result<(), errors::LedgerError> {
+pub fn exec<T: Transport>(transport: &T) -> Result<(), errors::LedgerError> {
     let cmd = APDUCommand {
         cla: bolos::APDU_CLA_B0,
         ins: bolos::APDUInstructions::AppExitB0 as u8,
@@ -16,5 +16,5 @@ pub fn exec(transport: &Transport) -> Result<(), errors::LedgerError> {
         p2: 0,
         data: Vec::new(),
     };
-    helpers::exec::<()>(transport, cmd)
+    helpers::exec::<T, ()>(transport, cmd)
 }
