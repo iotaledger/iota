@@ -21,6 +21,7 @@ jobs:
 
       - name: Generate documentation
         uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+      - uses: taiki-e/install-action@protoc
         with:
           command: doc
           args: --workspace --exclude "iota-benchmark" --no-deps
