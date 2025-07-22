@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::fatal;
-use iota_config::ExecutionCacheConfig;
+use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
@@ -29,7 +29,7 @@ use crate::{
     authority::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store::{ExecutionLockWriteGuard, IotaLockResult},
+        authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     state_accumulator::AccumulatorStore,
@@ -103,49 +103,22 @@ impl ExecutionCacheTraitPointers {
     }
 }
 
-static DISABLE_WRITEBACK_CACHE_ENV_VAR: &str = "DISABLE_WRITEBACK_CACHE";
-
-#[derive(Debug)]
-pub enum ExecutionCacheConfigType {
-    WritebackCache,
-    PassthroughCache,
-}
-
-pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheConfigType {
-    #[cfg(msim)]
-    {
-        let mut use_random_cache = None;
-        iota_macros::fail_point_if!("select-random-cache", || {
-            let random = rand::random::<bool>();
-            tracing::info!("Randomly selecting cache: {}", random);
-            use_random_cache = Some(random);
-        });
-        if let Some(random) = use_random_cache {
-            if random {
-                return ExecutionCacheConfigType::PassthroughCache;
-            } else {
-                return ExecutionCacheConfigType::WritebackCache;
-            }
-        }
-    }
-
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
-        || matches!(config, ExecutionCacheConfig::PassthroughCache)
-    {
-        ExecutionCacheConfigType::PassthroughCache
-    } else {
-        ExecutionCacheConfigType::WritebackCache
-    }
-}
-
 pub fn build_execution_cache(
+    cache_config: &ExecutionCacheConfig,
     epoch_start_config: &EpochStartConfiguration,
     prometheus_registry: &Registry,
     store: &Arc<AuthorityStore>,
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
+
     ExecutionCacheTraitPointers::new(
-        ProxyCache::new(epoch_start_config, store.clone(), execution_cache_metrics).into(),
+        ProxyCache::new(
+            cache_config,
+            epoch_start_config,
+            store.clone(),
+            execution_cache_metrics,
+        )
+        .into(),
     )
 }
 
@@ -158,14 +131,21 @@ pub fn build_execution_cache_from_env(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
-        ExecutionCacheTraitPointers::new(
+    // Load cache type from env
+    let cache_type = ExecutionCacheType::default().cache_type();
+    let config = ExecutionCacheConfig::default();
+    match cache_type {
+        ExecutionCacheType::PassthroughCache => ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
-        )
-    } else {
-        ExecutionCacheTraitPointers::new(
-            WritebackCache::new(store.clone(), execution_cache_metrics).into(),
-        )
+        ),
+        ExecutionCacheType::WritebackCache => ExecutionCacheTraitPointers::new(
+            WritebackCache::new(
+                &config.writeback_cache,
+                store.clone(),
+                execution_cache_metrics,
+            )
+            .into(),
+        ),
     }
 }
 
@@ -173,11 +153,24 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
-    fn commit_transaction_outputs<'a>(
+    fn try_commit_transaction_outputs<'a>(
         &'a self,
         epoch: EpochId,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult>;
+
+    /// Non-fallible version of `try_commit_transaction_outputs`.
+    fn commit_transaction_outputs<'a>(
+        &'a self,
+        epoch: EpochId,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            self.try_commit_transaction_outputs(epoch, digests)
+                .await
+                .expect("storage access failed")
+        })
+    }
 
     /// Durably commit transactions (but not their outputs) to the database.
     /// Called before writing a locally built checkpoint to the CheckpointStore,
@@ -190,54 +183,120 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// After we have done that, crash recovery will be done by
     /// re-processing consensus commits and pending_consensus_transactions,
     /// and this method can be removed.
-    fn persist_transactions<'a>(
+    fn try_persist_transactions<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult>;
+
+    /// Non-fallible version of `try_persist_transactions`.
+    fn persist_transactions<'a>(&'a self, digests: &'a [TransactionDigest]) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            self.try_persist_transactions(digests)
+                .await
+                .expect("storage access failed")
+        })
+    }
 }
 
 pub trait ObjectCacheRead: Send + Sync {
-    fn get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
+    fn try_get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
+
+    /// Non-fallible version of `try_get_package_object`.
+    fn get_package_object(&self, id: &ObjectID) -> Option<PackageObject> {
+        self.try_get_package_object(id)
+            .expect("storage access failed")
+    }
+
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>>;
+    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>>;
 
-    fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    /// Non-fallible version of `try_get_object`.
+    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+        self.try_get_object(id).expect("storage access failed")
+    }
+
+    fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
         let mut ret = Vec::with_capacity(objects.len());
         for object_id in objects {
-            ret.push(self.get_object(object_id)?);
+            ret.push(self.try_get_object(object_id)?);
         }
         Ok(ret)
     }
 
-    fn get_latest_object_ref_or_tombstone(
+    /// Non-fallible version of `try_get_objects`.
+    fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
+        self.try_get_objects(objects)
+            .expect("storage access failed")
+    }
+
+    fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>>;
 
-    fn get_latest_object_or_tombstone(
+    /// Non-fallible version of `try_get_latest_object_ref_or_tombstone`.
+    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+        self.try_get_latest_object_ref_or_tombstone(object_id)
+            .expect("storage access failed")
+    }
+
+    fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<(ObjectKey, ObjectOrTombstone)>>;
 
-    fn get_object_by_key(
+    /// Non-fallible version of `try_get_latest_object_or_tombstone`.
+    fn get_latest_object_or_tombstone(
+        &self,
+        object_id: ObjectID,
+    ) -> Option<(ObjectKey, ObjectOrTombstone)> {
+        self.try_get_latest_object_or_tombstone(object_id)
+            .expect("storage access failed")
+    }
+
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
-    fn multi_get_objects_by_key(
+    /// Non-fallible version of `try_get_object_by_key`.
+    fn get_object_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+        self.try_get_object_by_key(object_id, version)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>>;
 
-    fn object_exists_by_key(
+    /// Non-fallible version of `try_multi_get_objects_by_key`.
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        self.try_multi_get_objects_by_key(object_keys)
+            .expect("storage access failed")
+    }
+
+    fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<bool>;
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>>;
+    /// Non-fallible version of `try_object_exists_by_key`.
+    fn object_exists_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> bool {
+        self.try_object_exists_by_key(object_id, version)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>>;
+
+    /// Non-fallible version of `try_multi_object_exists_by_key`.
+    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> Vec<bool> {
+        self.try_multi_object_exists_by_key(object_keys)
+            .expect("storage access failed")
+    }
 
     /// Load a list of objects from the store by object reference.
     /// If they exist in the store, they are returned directly.
@@ -247,18 +306,18 @@ pub trait ObjectCacheRead: Send + Sync {
     /// ObjectVersionUnavailableForConsumption, which indicates this is not
     /// retriable. Otherwise, we return a ObjectNotFound error, which
     /// indicates this is retriable.
-    fn multi_get_objects_with_more_accurate_error_return(
+    fn try_multi_get_objects_with_more_accurate_error_return(
         &self,
         object_refs: &[ObjectRef],
     ) -> Result<Vec<Object>, IotaError> {
-        let objects = self.multi_get_objects_by_key(
+        let objects = self.try_multi_get_objects_by_key(
             &object_refs.iter().map(ObjectKey::from).collect::<Vec<_>>(),
         )?;
         let mut result = Vec::new();
         for (object_opt, object_ref) in objects.into_iter().zip(object_refs) {
             match object_opt {
                 None => {
-                    let live_objref = self._get_live_objref(object_ref.0)?;
+                    let live_objref = self._try_get_live_objref(object_ref.0)?;
                     let error = if live_objref.1 >= object_ref.1 {
                         UserInputError::ObjectVersionUnavailableForConsumption {
                             provided_obj_ref: *object_ref,
@@ -281,12 +340,22 @@ pub trait ObjectCacheRead: Send + Sync {
         Ok(result)
     }
 
+    /// Non-fallible version of
+    /// `try_multi_get_objects_with_more_accurate_error_return`.
+    fn multi_get_objects_with_more_accurate_error_return(
+        &self,
+        object_refs: &[ObjectRef],
+    ) -> Vec<Object> {
+        self.try_multi_get_objects_with_more_accurate_error_return(object_refs)
+            .expect("storage access failed")
+    }
+
     /// Used by transaction manager to determine if input objects are ready.
     /// Distinct from multi_get_object_by_key because it also consults
     /// markers to handle the case where an object will never become available
     /// (e.g. because it has been received by some other transaction
     /// already).
-    fn multi_input_objects_available(
+    fn try_multi_input_objects_available(
         &self,
         keys: &[InputKey],
         receiving_objects: HashSet<InputKey>,
@@ -299,7 +368,7 @@ pub trait ObjectCacheRead: Send + Sync {
 
         let mut versioned_results = vec![];
         for ((idx, input_key), has_key) in keys_with_version.iter().zip(
-            self.multi_object_exists_by_key(
+            self.try_multi_object_exists_by_key(
                 &keys_with_version
                     .iter()
                     .map(|(_, k)| ObjectKey(k.id(), k.version().unwrap()))
@@ -324,17 +393,17 @@ pub trait ObjectCacheRead: Send + Sync {
                 // exists or was deleted. We will then let mark it as available
                 // to let the transaction through so it can fail at execution.
                 let is_available = self
-                    .get_object(&input_key.id())?
+                    .try_get_object(&input_key.id())?
                     .map(|obj| obj.version() >= input_key.version().unwrap())
                     .unwrap_or(false)
-                    || self.have_deleted_owned_object_at_version_or_after(
+                    || self.try_have_deleted_owned_object_at_version_or_after(
                         &input_key.id(),
                         input_key.version().unwrap(),
                         epoch,
                     )?;
                 versioned_results.push((*idx, is_available));
             } else if self
-                .get_deleted_shared_object_previous_tx_digest(
+                .try_get_deleted_shared_object_previous_tx_digest(
                     &input_key.id(),
                     input_key.version().unwrap(),
                     epoch,
@@ -354,7 +423,7 @@ pub trait ObjectCacheRead: Send + Sync {
             (
                 idx,
                 match self
-                    .get_latest_object_ref_or_tombstone(key.id())
+                    .try_get_latest_object_ref_or_tombstone(key.id())
                     .expect("read cannot fail")
                 {
                     None => false,
@@ -371,93 +440,194 @@ pub trait ObjectCacheRead: Send + Sync {
         Ok(results.into_iter().map(|(_, result)| result).collect())
     }
 
+    /// Non-fallible version of `try_multi_input_objects_available`.
+    fn multi_input_objects_available(
+        &self,
+        keys: &[InputKey],
+        receiving_objects: HashSet<InputKey>,
+        epoch: EpochId,
+    ) -> Vec<bool> {
+        self.try_multi_input_objects_available(keys, receiving_objects, epoch)
+            .expect("storage access failed")
+    }
+
     /// Return the object with version less then or eq to the provided seq
     /// number. This is used by indexer to find the correct version of
     /// dynamic field child object. We do not store the version of the child
     /// object, but because of lamport timestamp, we know the child must
     /// have version number less then or eq to the parent.
-    fn find_object_lt_or_eq_version(
+    fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult;
+    /// Non-fallible version of `try_find_object_lt_or_eq_version`.
+    fn find_object_lt_or_eq_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> Option<Object> {
+        self.try_find_object_lt_or_eq_version(object_id, version)
+            .expect("storage access failed")
+    }
+
+    fn try_get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaLockResult;
+
+    /// Non-fallible version of `try_get_lock`.
+    fn get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> ObjectLockStatus {
+        self.try_get_lock(obj_ref, epoch_store)
+            .expect("storage access failed")
+    }
 
     // This method is considered "private" - only used by
     // multi_get_objects_with_more_accurate_error_return
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef>;
+    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef>;
 
     // Check that the given set of objects are live at the given version. This is
     // used as a safety check before execution, and could potentially be deleted
     // or changed to a debug_assert
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
 
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
+    /// Non-fallible version of `try_check_owned_objects_are_live`.
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) {
+        self.try_check_owned_objects_are_live(owned_object_refs)
+            .expect("storage access failed")
+    }
+
+    fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
+
+    /// Non-fallible version of `try_get_iota_system_state_object_unsafe`.
+    fn get_iota_system_state_object_unsafe(&self) -> IotaSystemState {
+        self.try_get_iota_system_state_object_unsafe()
+            .expect("storage access failed")
+    }
 
     // Marker methods
 
     /// Get the marker at a specific version
-    fn get_marker_value(
+    fn try_get_marker_value(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>>;
 
+    /// Non-fallible version of `try_get_marker_value`.
+    fn get_marker_value(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> Option<MarkerValue> {
+        self.try_get_marker_value(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
     /// Get the latest marker for a given object.
-    fn get_latest_marker(
+    fn try_get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>>;
 
+    /// Non-fallible version of `try_get_latest_marker`.
+    fn get_latest_marker(
+        &self,
+        object_id: &ObjectID,
+        epoch_id: EpochId,
+    ) -> Option<(SequenceNumber, MarkerValue)> {
+        self.try_get_latest_marker(object_id, epoch_id)
+            .expect("storage access failed")
+    }
+
     /// If the shared object was deleted, return deletion info for the current
     /// live version
-    fn get_last_shared_object_deletion_info(
+    fn try_get_last_shared_object_deletion_info(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, TransactionDigest)>> {
-        match self.get_latest_marker(object_id, epoch_id)? {
+        match self.try_get_latest_marker(object_id, epoch_id)? {
             Some((version, MarkerValue::SharedDeleted(digest))) => Ok(Some((version, digest))),
             _ => Ok(None),
         }
     }
 
+    /// Non-fallible version of `try_get_last_shared_object_deletion_info`.
+    fn get_last_shared_object_deletion_info(
+        &self,
+        object_id: &ObjectID,
+        epoch_id: EpochId,
+    ) -> Option<(SequenceNumber, TransactionDigest)> {
+        self.try_get_last_shared_object_deletion_info(object_id, epoch_id)
+            .expect("storage access failed")
+    }
+
     /// If the shared object was deleted, return deletion info for the specified
     /// version.
-    fn get_deleted_shared_object_previous_tx_digest(
+    fn try_get_deleted_shared_object_previous_tx_digest(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<TransactionDigest>> {
-        match self.get_marker_value(object_id, version, epoch_id)? {
+        match self.try_get_marker_value(object_id, version, epoch_id)? {
             Some(MarkerValue::SharedDeleted(digest)) => Ok(Some(digest)),
             _ => Ok(None),
         }
     }
 
-    fn have_received_object_at_version(
+    /// Non-fallible version of
+    /// `try_get_deleted_shared_object_previous_tx_digest`.
+    fn get_deleted_shared_object_previous_tx_digest(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> Option<TransactionDigest> {
+        self.try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
+    fn try_have_received_object_at_version(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<bool> {
-        match self.get_marker_value(object_id, version, epoch_id)? {
+        match self.try_get_marker_value(object_id, version, epoch_id)? {
             Some(MarkerValue::Received) => Ok(true),
             _ => Ok(false),
         }
     }
 
-    fn have_deleted_owned_object_at_version_or_after(
+    /// Non-fallible version of `try_have_received_object_at_version`.
+    fn have_received_object_at_version(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> bool {
+        self.try_have_received_object_at_version(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
+    fn try_have_deleted_owned_object_at_version_or_after(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<bool> {
-        match self.get_latest_marker(object_id, epoch_id)? {
+        match self.try_get_latest_marker(object_id, epoch_id)? {
             Some((marker_version, MarkerValue::OwnedDeleted)) if marker_version >= version => {
                 Ok(true)
             }
@@ -465,22 +635,49 @@ pub trait ObjectCacheRead: Send + Sync {
         }
     }
 
+    /// Non-fallible version of
+    /// `try_have_deleted_owned_object_at_version_or_after`.
+    fn have_deleted_owned_object_at_version_or_after(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> bool {
+        self.try_have_deleted_owned_object_at_version_or_after(object_id, version, epoch_id)
+            .expect("storage access failed")
+    }
+
     /// Return the watermark for the highest checkpoint for which we've pruned
     /// objects.
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber>;
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber>;
+
+    /// Non-fallible version of `try_get_highest_pruned_checkpoint`.
+    fn get_highest_pruned_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.try_get_highest_pruned_checkpoint()
+            .expect("storage access failed")
+    }
 }
 
 pub trait TransactionCacheRead: Send + Sync {
-    fn multi_get_transaction_blocks(
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>>;
 
-    fn get_transaction_block(
+    /// Non-fallible version of `try_multi_get_transaction_blocks`.
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+        self.try_multi_get_transaction_blocks(digests)
+            .expect("storage access failed")
+    }
+
+    fn try_get_transaction_block(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<Arc<VerifiedTransaction>>> {
-        self.multi_get_transaction_blocks(&[*digest])
+        self.try_multi_get_transaction_blocks(&[*digest])
             .map(|mut blocks| {
                 blocks
                     .pop()
@@ -488,12 +685,21 @@ pub trait TransactionCacheRead: Send + Sync {
             })
     }
 
+    /// Non-fallible version of `try_get_transaction_block`.
+    fn get_transaction_block(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Arc<VerifiedTransaction>> {
+        self.try_get_transaction_block(digest)
+            .expect("storage access failed")
+    }
+
     #[instrument(level = "trace", skip_all)]
-    fn get_transactions_and_serialized_sizes(
+    fn try_get_transactions_and_serialized_sizes(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(VerifiedTransaction, usize)>>> {
-        let txns = self.multi_get_transaction_blocks(digests)?;
+        let txns = self.try_multi_get_transaction_blocks(digests)?;
         txns.into_iter()
             .map(|txn| {
                 txn.map(|txn| {
@@ -511,13 +717,31 @@ pub trait TransactionCacheRead: Send + Sync {
             .collect::<Result<Vec<_>, _>>()
     }
 
-    fn multi_get_executed_effects_digests(
+    /// Non-fallible version of `try_get_transactions_and_serialized_sizes`.
+    fn get_transactions_and_serialized_sizes(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<(VerifiedTransaction, usize)>> {
+        self.try_get_transactions_and_serialized_sizes(digests)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>;
 
-    fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
-        self.multi_get_executed_effects_digests(&[*digest])
+    /// Non-fallible version of `try_multi_get_executed_effects_digests`.
+    fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        self.try_multi_get_executed_effects_digests(digests)
+            .expect("storage access failed")
+    }
+
+    fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+        self.try_multi_get_executed_effects_digests(&[*digest])
             .map(|mut digests| {
                 digests
                     .pop()
@@ -526,11 +750,17 @@ pub trait TransactionCacheRead: Send + Sync {
             })
     }
 
-    fn multi_get_executed_effects(
+    /// Non-fallible version of `try_is_tx_already_executed`.
+    fn is_tx_already_executed(&self, digest: &TransactionDigest) -> bool {
+        self.try_is_tx_already_executed(digest)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        let effects_digests = self.multi_get_executed_effects_digests(digests)?;
+        let effects_digests = self.try_multi_get_executed_effects_digests(digests)?;
         assert_eq!(effects_digests.len(), digests.len());
 
         let mut results = vec![None; digests.len()];
@@ -544,7 +774,7 @@ pub trait TransactionCacheRead: Send + Sync {
             }
         }
 
-        let effects = self.multi_get_effects(&fetch_digests)?;
+        let effects = self.try_multi_get_effects(&fetch_digests)?;
         for (i, effects) in fetch_indices.into_iter().zip(effects.into_iter()) {
             results[i] = effects;
         }
@@ -552,11 +782,20 @@ pub trait TransactionCacheRead: Send + Sync {
         Ok(results)
     }
 
-    fn get_executed_effects(
+    /// Non-fallible version of `try_multi_get_executed_effects`.
+    fn multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        self.try_multi_get_executed_effects(digests)
+            .expect("storage access failed")
+    }
+
+    fn try_get_executed_effects(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<TransactionEffects>> {
-        self.multi_get_executed_effects(&[*digest])
+        self.try_multi_get_executed_effects(&[*digest])
             .map(|mut effects| {
                 effects
                     .pop()
@@ -564,42 +803,88 @@ pub trait TransactionCacheRead: Send + Sync {
             })
     }
 
-    fn multi_get_effects(
+    /// Non-fallible version of `try_get_executed_effects`.
+    fn get_executed_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.try_get_executed_effects(digest)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>>;
 
-    fn get_effects(
+    /// Non-fallible version of `try_multi_get_effects`.
+    fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> Vec<Option<TransactionEffects>> {
+        self.try_multi_get_effects(digests)
+            .expect("storage access failed")
+    }
+
+    fn try_get_effects(
         &self,
         digest: &TransactionEffectsDigest,
     ) -> IotaResult<Option<TransactionEffects>> {
-        self.multi_get_effects(&[*digest]).map(|mut effects| {
+        self.try_multi_get_effects(&[*digest]).map(|mut effects| {
             effects
                 .pop()
                 .expect("multi-get must return correct number of items")
         })
     }
 
-    fn multi_get_events(
+    /// Non-fallible version of `try_get_effects`.
+    fn get_effects(&self, digest: &TransactionEffectsDigest) -> Option<TransactionEffects> {
+        self.try_get_effects(digest).expect("storage access failed")
+    }
+
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 
-    fn get_events(
+    /// Non-fallible version of `try_multi_get_events`.
+    fn multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(event_digests)
+            .expect("storage access failed")
+    }
+
+    fn try_get_events(
         &self,
         digest: &TransactionEventsDigest,
     ) -> IotaResult<Option<TransactionEvents>> {
-        self.multi_get_events(&[*digest]).map(|mut events| {
+        self.try_multi_get_events(&[*digest]).map(|mut events| {
             events
                 .pop()
                 .expect("multi-get must return correct number of items")
         })
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    /// Non-fallible version of `try_get_events`.
+    fn get_events(&self, digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+        self.try_get_events(digest).expect("storage access failed")
+    }
+
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
+
+    /// Non-fallible version of `try_notify_read_executed_effects_digests`.
+    fn notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
+        Box::pin(async move {
+            self.try_notify_read_executed_effects_digests(digests)
+                .await
+                .expect("storage access failed")
+        })
+    }
 
     /// Wait until the effects of the given transactions are available and
     /// return them. WARNING: If calling this on a transaction that could be
@@ -609,14 +894,16 @@ pub trait TransactionCacheRead: Send + Sync {
     /// ExecutionLockReadGuard would also prevent reconfig from happening while
     /// waiting, but this is very dangerous, as it could prevent
     /// reconfiguration from ever occurring!
-    fn notify_read_executed_effects<'a>(
+    fn try_notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
         async move {
-            let digests = self.notify_read_executed_effects_digests(digests).await?;
+            let digests = self
+                .try_notify_read_executed_effects_digests(digests)
+                .await?;
             // once digests are available, effects must be present as well
-            self.multi_get_effects(&digests).map(|effects| {
+            self.try_multi_get_effects(&digests).map(|effects| {
                 effects
                     .into_iter()
                     .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))
@@ -624,6 +911,18 @@ pub trait TransactionCacheRead: Send + Sync {
             })
         }
         .boxed()
+    }
+
+    /// Non-fallible version of `try_notify_read_executed_effects`.
+    fn notify_read_executed_effects<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, Vec<TransactionEffects>> {
+        Box::pin(async move {
+            self.try_notify_read_executed_effects(digests)
+                .await
+                .expect("storage access failed")
+        })
     }
 }
 
@@ -648,19 +947,46 @@ pub trait ExecutionCacheWrite: Send + Sync {
     /// Any write performed by this method immediately notifies any waiter that
     /// has previously called notify_read_objects_for_execution or
     /// notify_read_objects_for_signing for the object in question.
-    fn write_transaction_outputs(
+    fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
     ) -> BoxFuture<'_, IotaResult>;
 
+    /// Non-fallible version of `try_write_transaction_outputs`.
+    fn write_transaction_outputs(
+        &self,
+        epoch_id: EpochId,
+        tx_outputs: Arc<TransactionOutputs>,
+    ) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.try_write_transaction_outputs(epoch_id, tx_outputs)
+                .await
+                .expect("storage access failed")
+        })
+    }
+
     /// Attempt to acquire object locks for all of the owned input locks.
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
     ) -> BoxFuture<'a, IotaResult>;
+
+    /// Non-fallible version of `try_acquire_transaction_locks`.
+    fn acquire_transaction_locks<'a>(
+        &'a self,
+        epoch_store: &'a AuthorityPerEpochStore,
+        owned_input_objects: &'a [ObjectRef],
+        transaction: VerifiedSignedTransaction,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
+                .await
+                .expect("storage access failed")
+        })
+    }
 }
 
 pub trait CheckpointCache: Send + Sync {
@@ -671,45 +997,117 @@ pub trait CheckpointCache: Send + Sync {
     // Currently, they are only used to implement `get_transaction_block`
     // for JSON RPC `ReadApi`.
 
-    fn get_transaction_perpetual_checkpoint(
+    fn try_get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>>;
 
-    fn multi_get_transactions_perpetual_checkpoints(
+    /// Non-fallible version of `try_get_transaction_perpetual_checkpoint`.
+    fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<(EpochId, CheckpointSequenceNumber)> {
+        self.try_get_transaction_perpetual_checkpoint(digest)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
 
-    fn insert_finalized_transactions_perpetual_checkpoints(
+    /// Non-fallible version of
+    /// `try_multi_get_transactions_perpetual_checkpoints`.
+    fn multi_get_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<(EpochId, CheckpointSequenceNumber)>> {
+        self.try_multi_get_transactions_perpetual_checkpoints(digests)
+            .expect("storage access failed")
+    }
+
+    fn try_insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult;
+
+    /// Non-fallible version of
+    /// `try_insert_finalized_transactions_perpetual_checkpoints`.
+    fn insert_finalized_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+        epoch: EpochId,
+        sequence: CheckpointSequenceNumber,
+    ) {
+        self.try_insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+            .expect("storage access failed")
+    }
 }
 
 pub trait ExecutionCacheReconfigAPI: Send + Sync {
-    fn insert_genesis_object(&self, object: Object) -> IotaResult;
-    fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
+    fn try_insert_genesis_object(&self, object: Object) -> IotaResult;
 
-    fn revert_state_update(&self, digest: &TransactionDigest) -> IotaResult;
-    fn set_epoch_start_configuration(
+    /// Non-fallible version of `try_insert_genesis_object`.
+    fn insert_genesis_object(&self, object: Object) {
+        self.try_insert_genesis_object(object)
+            .expect("storage access failed")
+    }
+
+    fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
+
+    /// Non-fallible version of `try_bulk_insert_genesis_objects`.
+    fn bulk_insert_genesis_objects(&self, objects: &[Object]) {
+        self.try_bulk_insert_genesis_objects(objects)
+            .expect("storage access failed")
+    }
+
+    fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult;
+
+    /// Non-fallible version of `try_revert_state_update`.
+    fn revert_state_update(&self, digest: &TransactionDigest) {
+        self.try_revert_state_update(digest)
+            .expect("storage access failed")
+    }
+
+    fn try_set_epoch_start_configuration(
         &self,
         epoch_start_config: &EpochStartConfiguration,
     ) -> IotaResult;
+
+    /// Non-fallible version of `try_set_epoch_start_configuration`.
+    fn set_epoch_start_configuration(&self, epoch_start_config: &EpochStartConfiguration) {
+        self.try_set_epoch_start_configuration(epoch_start_config)
+            .expect("storage access failed")
+    }
 
     fn update_epoch_flags_metrics(&self, old: &[EpochFlag], new: &[EpochFlag]);
 
     fn clear_state_end_of_epoch(&self, execution_guard: &ExecutionLockWriteGuard<'_>);
 
-    fn expensive_check_iota_conservation(
+    fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
         epoch_supply_change: Option<i64>,
     ) -> IotaResult;
 
-    fn checkpoint_db(&self, path: &Path) -> IotaResult;
+    /// Non-fallible version of `try_expensive_check_iota_conservation`.
+    fn expensive_check_iota_conservation(
+        &self,
+        old_epoch_store: &AuthorityPerEpochStore,
+        epoch_supply_change: Option<i64>,
+    ) {
+        self.try_expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
+            .expect("storage access failed")
+    }
+
+    fn try_checkpoint_db(&self, path: &Path) -> IotaResult;
+
+    /// Non-fallible version of `try_checkpoint_db`.
+    fn checkpoint_db(&self, path: &Path) {
+        self.try_checkpoint_db(path).expect("storage access failed")
+    }
 
     /// Reconfigure the cache itself.
     /// TODO: this is only needed for ProxyCache to switch between cache impls.
@@ -725,16 +1123,35 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 // sync implies that it is certified output, and can be immediately persisted to
 // the store.
 pub trait StateSyncAPI: Send + Sync {
-    fn insert_transaction_and_effects(
+    fn try_insert_transaction_and_effects(
         &self,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult;
 
-    fn multi_insert_transaction_and_effects(
+    /// Non-fallible version of `try_insert_transaction_and_effects`.
+    fn insert_transaction_and_effects(
+        &self,
+        transaction: &VerifiedTransaction,
+        transaction_effects: &TransactionEffects,
+    ) {
+        self.try_insert_transaction_and_effects(transaction, transaction_effects)
+            .expect("storage access failed")
+    }
+
+    fn try_multi_insert_transaction_and_effects(
         &self,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult;
+
+    /// Non-fallible version of `try_multi_insert_transaction_and_effects`.
+    fn multi_insert_transaction_and_effects(
+        &self,
+        transactions_and_effects: &[VerifiedExecutionData],
+    ) {
+        self.try_multi_insert_transaction_and_effects(transactions_and_effects)
+            .expect("storage access failed");
+    }
 }
 
 pub trait TestingAPI: Send + Sync {
@@ -744,16 +1161,16 @@ pub trait TestingAPI: Send + Sync {
 macro_rules! implement_storage_traits {
     ($implementor: ident) => {
         impl ObjectStore for $implementor {
-            fn get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
-                ObjectCacheRead::get_object(self, object_id).map_err(StorageError::custom)
+            fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+                ObjectCacheRead::try_get_object(self, object_id).map_err(StorageError::custom)
             }
 
-            fn get_object_by_key(
+            fn try_get_object_by_key(
                 &self,
                 object_id: &ObjectID,
                 version: iota_types::base_types::VersionNumber,
             ) -> StorageResult<Option<Object>> {
-                ObjectCacheRead::get_object_by_key(self, object_id, version)
+                ObjectCacheRead::try_get_object_by_key(self, object_id, version)
                     .map_err(StorageError::custom)
             }
         }
@@ -766,7 +1183,7 @@ macro_rules! implement_storage_traits {
                 child_version_upper_bound: SequenceNumber,
             ) -> IotaResult<Option<Object>> {
                 let Some(child_object) =
-                    self.find_object_lt_or_eq_version(*child, child_version_upper_bound)?
+                    self.try_find_object_lt_or_eq_version(*child, child_version_upper_bound)?
                 else {
                     return Ok(None);
                 };
@@ -789,7 +1206,7 @@ macro_rules! implement_storage_traits {
                 receive_object_at_version: SequenceNumber,
                 epoch_id: EpochId,
             ) -> IotaResult<Option<Object>> {
-                let Some(recv_object) = ObjectCacheRead::get_object_by_key(
+                let Some(recv_object) = ObjectCacheRead::try_get_object_by_key(
                     self,
                     receiving_object_id,
                     receive_object_at_version,
@@ -806,7 +1223,7 @@ macro_rules! implement_storage_traits {
                 // forks in transaction replay due to possible reordering of
                 // transactions during replay.
                 if recv_object.owner != Owner::AddressOwner((*owner).into())
-                    || self.have_received_object_at_version(
+                    || self.try_have_received_object_at_version(
                         receiving_object_id,
                         receive_object_at_version,
                         epoch_id,
@@ -824,7 +1241,7 @@ macro_rules! implement_storage_traits {
                 &self,
                 package_id: &ObjectID,
             ) -> IotaResult<Option<PackageObject>> {
-                ObjectCacheRead::get_package_object(self, package_id)
+                ObjectCacheRead::try_get_package_object(self, package_id)
             }
         }
     };
@@ -835,14 +1252,14 @@ macro_rules! implement_storage_traits {
 macro_rules! implement_passthrough_traits {
     ($implementor: ident) => {
         impl CheckpointCache for $implementor {
-            fn get_transaction_perpetual_checkpoint(
+            fn try_get_transaction_perpetual_checkpoint(
                 &self,
                 digest: &TransactionDigest,
             ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
                 self.store.get_transaction_perpetual_checkpoint(digest)
             }
 
-            fn multi_get_transactions_perpetual_checkpoints(
+            fn try_multi_get_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
@@ -850,7 +1267,7 @@ macro_rules! implement_passthrough_traits {
                     .multi_get_transactions_perpetual_checkpoints(digests)
             }
 
-            fn insert_finalized_transactions_perpetual_checkpoints(
+            fn try_insert_finalized_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
                 epoch: EpochId,
@@ -862,19 +1279,19 @@ macro_rules! implement_passthrough_traits {
         }
 
         impl ExecutionCacheReconfigAPI for $implementor {
-            fn insert_genesis_object(&self, object: Object) -> IotaResult {
+            fn try_insert_genesis_object(&self, object: Object) -> IotaResult {
                 self.insert_genesis_object_impl(object)
             }
 
-            fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
+            fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
                 self.bulk_insert_genesis_objects_impl(objects)
             }
 
-            fn revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
+            fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
                 self.revert_state_update_impl(digest)
             }
 
-            fn set_epoch_start_configuration(
+            fn try_set_epoch_start_configuration(
                 &self,
                 epoch_start_config: &EpochStartConfiguration,
             ) -> IotaResult {
@@ -889,7 +1306,7 @@ macro_rules! implement_passthrough_traits {
                 self.clear_state_end_of_epoch_impl(execution_guard)
             }
 
-            fn expensive_check_iota_conservation(
+            fn try_expensive_check_iota_conservation(
                 &self,
                 old_epoch_store: &AuthorityPerEpochStore,
                 epoch_supply_change: Option<i64>,
@@ -901,7 +1318,7 @@ macro_rules! implement_passthrough_traits {
                 )
             }
 
-            fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
+            fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
                 self.store.perpetual_tables.checkpoint_db(path)
             }
 
@@ -909,36 +1326,31 @@ macro_rules! implement_passthrough_traits {
                 &'a self,
                 _: &'a EpochStartConfiguration,
             ) -> BoxFuture<'a, ()> {
-                // If we call this method instead of ProxyCache::reconfigure_cache, it's a bug.
-                // Such a bug would almost certainly cause other test failures before reaching
-                // this point, but if it somehow slipped through it is better to crash
-                // than risk forking because ProxyCache::reconfigure_cache was not
-                // called.
-                panic!(
-                    "reconfigure_cache should not be called on a {}",
-                    stringify!($implementor)
-                );
+                // Since we now use WritebackCache directly at startup (if the epoch flag is
+                // set), this can be called at reconfiguration time. It is a no-op.
+                // TODO: remove this once we completely remove ProxyCache.
+                std::future::ready(()).boxed()
             }
         }
 
         impl StateSyncAPI for $implementor {
-            fn insert_transaction_and_effects(
+            fn try_insert_transaction_and_effects(
                 &self,
                 transaction: &VerifiedTransaction,
                 transaction_effects: &TransactionEffects,
             ) -> IotaResult {
-                Ok(self
-                    .store
-                    .insert_transaction_and_effects(transaction, transaction_effects)?)
+                self.store
+                    .insert_transaction_and_effects(transaction, transaction_effects)
+                    .map_err(IotaError::from)
             }
 
-            fn multi_insert_transaction_and_effects(
+            fn try_multi_insert_transaction_and_effects(
                 &self,
                 transactions_and_effects: &[VerifiedExecutionData],
             ) -> IotaResult {
-                Ok(self
-                    .store
-                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())?)
+                self.store
+                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())
+                    .map_err(IotaError::from)
             }
         }
 

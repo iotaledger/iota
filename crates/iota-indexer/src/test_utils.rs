@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use diesel::connection::SimpleConnection;
+use diesel::{QueryableByName, connection::SimpleConnection, sql_types::BigInt};
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
 use tokio::task::JoinHandle;
@@ -369,4 +369,18 @@ impl<'a> IotaTransactionBlockResponseBuilder<'a> {
             ..self.full_response.clone()
         }
     }
+}
+
+/// Returns a database URL for testing purposes.
+/// It uses a default user and password, and connects to a local PostgreSQL
+/// instance.
+pub fn db_url(db_name: &str) -> String {
+    format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
+}
+
+/// Represents a row count result from a SQL query.
+#[derive(QueryableByName, Debug)]
+pub struct RowCount {
+    #[diesel(sql_type = BigInt)]
+    pub cnt: i64,
 }

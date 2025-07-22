@@ -101,6 +101,7 @@ members = [
   "crates/iota-json-rpc-tests",
   "crates/iota-json-rpc-types",
   "crates/iota-keys",
+  "crates/iota-kvstore",
   "crates/iota-ledger",
   "crates/iota-ledger-signer",
   "crates/iota-light-client",
@@ -277,7 +278,7 @@ http = "1"
 http-body = "1"
 humantime = "2.1.0"
 hyper = "1"
-hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http2", "ring", "tls12"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
 hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 im = "15"
 indexmap = { version = "2.1.0", features = ["serde"] }
@@ -404,6 +405,7 @@ iota-json-rpc = { path = "crates/iota-json-rpc" }
 iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
 iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
 iota-keys = { path = "crates/iota-keys" }
+iota-kvstore = { path = "crates/iota-kvstore" }
 iota-ledger = { path = "crates/iota-ledger" }
 iota-ledger-signer = { path = "crates/iota-ledger-signer" }
 iota-macros = { path = "crates/iota-macros" }

@@ -23,7 +23,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
-iota-core = { workspace = true, features = ["test-utils"] }
+iota-core.workspace = true
 iota-framework.workspace = true
 iota-genesis-builder.workspace = true
 iota-json-rpc.workspace = true

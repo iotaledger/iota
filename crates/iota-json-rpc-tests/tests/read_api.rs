@@ -1475,7 +1475,7 @@ async fn try_get_past_object_version_not_found() {
             .with(|node| {
                 node.state()
                     .get_object_cache_reader()
-                    .object_exists_by_key(&mutated_obj_id, seq_num)
+                    .try_object_exists_by_key(&mutated_obj_id, seq_num)
             })
             .unwrap()
         {

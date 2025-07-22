@@ -831,7 +831,7 @@ impl ValidatorService {
                 .into()
             );
             fp_ensure!(
-                !self.state.is_tx_already_executed(&tx_digest)?,
+                !self.state.try_is_tx_already_executed(&tx_digest)?,
                 IotaError::UserInput {
                     error: UserInputError::AlreadyExecuted { digest: tx_digest }
                 }
@@ -974,7 +974,7 @@ impl ValidatorService {
         let response = self
             .state
             .get_object_cache_reader()
-            .get_iota_system_state_object_unsafe()?;
+            .try_get_iota_system_state_object_unsafe()?;
         Ok((tonic::Response::new(response), Weight::one()))
     }
 

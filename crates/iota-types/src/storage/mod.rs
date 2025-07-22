@@ -282,7 +282,7 @@ pub fn load_package_object_from_object_store(
     store: &impl ObjectStore,
     package_id: &ObjectID,
 ) -> IotaResult<Option<PackageObject>> {
-    let package = store.get_object(package_id)?;
+    let package = store.try_get_object(package_id)?;
     if let Some(obj) = &package {
         fp_ensure!(
             obj.is_package(),

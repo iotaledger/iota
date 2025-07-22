@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58 } from '@iota/bcs';
+import { toBase58 } from '@iota/bcs';
 import type { InferInput } from 'valibot';
 import { parse } from 'valibot';
 
@@ -88,7 +88,7 @@ export class TransactionDataBuilder implements TransactionData {
      */
     static getDigestFromBytes(bytes: Uint8Array) {
         const hash = hashTypedData('TransactionData', bytes);
-        return toB58(hash);
+        return toBase58(hash);
     }
 
     // @deprecated use gasData instead

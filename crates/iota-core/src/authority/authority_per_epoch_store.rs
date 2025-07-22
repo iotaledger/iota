@@ -1591,7 +1591,7 @@ impl AuthorityPerEpochStore {
                     // Note: we don't actually need to read from the transaction here, as no writer
                     // can update object_store until after get_or_init_next_object_versions
                     // completes.
-                    match cache_reader.get_object(id).expect("read cannot fail") {
+                    match cache_reader.get_object(id) {
                         Some(obj) => (*id, obj.version()),
                         None => (*id, *initial_version),
                     }
@@ -2873,7 +2873,6 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
     ) -> IotaResult<Option<TransactionKey>> {
-        #[cfg(any(test, feature = "test-utils"))]
         {
             if consensus_commit_info.skip_consensus_commit_prologue_in_test() {
                 return Ok(None);
@@ -2960,7 +2959,6 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub fn get_highest_pending_checkpoint_height(&self) -> CheckpointHeight {
         self.tables()
             .expect("test should not cross epoch boundary")
@@ -2976,7 +2974,6 @@ impl AuthorityPerEpochStore {
     // VerifiedSequencedConsensusTransaction.
     // Also, ConsensusStats and hash will not be updated in the db with this
     // function, unlike in process_consensus_transactions_and_commit_boundary().
-    #[cfg(any(test, feature = "test-utils"))]
     pub async fn process_consensus_transactions_for_tests<C: CheckpointServiceNotify>(
         self: &Arc<Self>,
         transactions: Vec<SequencedConsensusTransaction>,
@@ -3000,7 +2997,6 @@ impl AuthorityPerEpochStore {
         .await
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub async fn assign_shared_object_versions_for_tests(
         self: &Arc<Self>,
         cache_reader: &dyn ObjectCacheRead,

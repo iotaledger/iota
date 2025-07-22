@@ -526,8 +526,12 @@ impl IotaNode {
         let cache_metrics = Arc::new(ResolverMetrics::new(&prometheus_registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&prometheus_registry);
 
-        let cache_traits =
-            build_execution_cache(&epoch_start_configuration, &prometheus_registry, &store);
+        let cache_traits = build_execution_cache(
+            &config.execution_cache_config,
+            &epoch_start_configuration,
+            &prometheus_registry,
+            &store,
+        );
 
         let auth_agg = {
             let safe_client_metrics_base = SafeClientMetricsBase::new(&prometheus_registry);
@@ -575,7 +579,7 @@ impl IotaNode {
             // the expected_network_iota_amount table.
             cache_traits
                 .reconfig_api
-                .expensive_check_iota_conservation(&epoch_store, None)
+                .try_expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
         }
 
@@ -1606,7 +1610,7 @@ impl IotaNode {
             std::time::Duration::from_secs(timeout),
             state
                 .get_transaction_cache_reader()
-                .notify_read_executed_effects_digests(&digests),
+                .try_notify_read_executed_effects_digests(&digests),
         )
         .await
         .is_err()
@@ -1614,7 +1618,7 @@ impl IotaNode {
             // Log all the digests that were not executed to help debugging.
             if let Ok(executed_effects_digests) = state
                 .get_transaction_cache_reader()
-                .multi_get_executed_effects_digests(&digests)
+                .try_multi_get_executed_effects_digests(&digests)
             {
                 let pending_digests = digests
                     .iter()
@@ -1753,7 +1757,7 @@ impl IotaNode {
             let latest_system_state = self
                 .state
                 .get_object_cache_reader()
-                .get_iota_system_state_object_unsafe()
+                .try_get_iota_system_state_object_unsafe()
                 .expect("Read IOTA System State object cannot fail");
 
             #[cfg(msim)]
