@@ -85,18 +85,21 @@ impl Linearizer {
             .with_label_values(&["Linearizer::collect_sub_dag_and_commit"])
             .start_timer();
         // Grab latest commit state from dag state
-        let mut dag_state = self.dag_state.write();
-        let last_commit_index = dag_state.last_commit_index();
-        let last_commit_digest = dag_state.last_commit_digest();
-        let last_commit_timestamp_ms = dag_state.last_commit_timestamp_ms();
-        let last_committed_rounds = dag_state.last_committed_rounds();
+        let mut dag_state_guard = self.dag_state.write();
+        let last_commit_index = dag_state_guard.last_commit_index();
+        let last_commit_digest = dag_state_guard.last_commit_digest();
+        let last_commit_timestamp_ms = dag_state_guard.last_commit_timestamp_ms();
+        let last_committed_rounds = dag_state_guard.last_committed_rounds();
         let timestamp_ms = leader_block.timestamp_ms().max(last_commit_timestamp_ms);
 
         // Now linearize the sub-dag starting from the leader block
-        let to_commit =
-            Self::linearize_sub_dag(leader_block.clone(), last_committed_rounds, &mut dag_state);
+        let to_commit = Self::linearize_sub_dag(
+            leader_block.clone(),
+            last_committed_rounds,
+            &mut dag_state_guard,
+        );
 
-        drop(dag_state);
+        drop(dag_state_guard);
 
         // Collect all block references for transactions that reached quorum after
         // adding acknowledgments
@@ -238,7 +241,9 @@ impl Linearizer {
 
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
-            self.dag_state.write().add_commit(commit.clone());
+            let mut dag_state_guard = self.dag_state.write();
+            dag_state_guard.add_commit(commit.clone());
+            drop(dag_state_guard);
 
             pending_sub_dags.push(sub_dag);
         }
@@ -249,7 +254,9 @@ impl Linearizer {
         // Uncommitted blocks can wait to persist too.
         // But for simplicity, all unpersisted blocks and commits are flushed to
         // storage.
-        self.dag_state.write().flush();
+        let mut dag_state_guard = self.dag_state.write();
+        dag_state_guard.flush();
+        drop(dag_state_guard);
 
         // Evict old acknowledgments from the tracker of the linearizer.
         self.evict_old_acknowledgments(max_round_committed_leader);
@@ -605,20 +612,20 @@ mod tests {
                 Round 0 : { 4 },
                 Round 1 : { * },
                 Round 2 : {
-                    A -> [-D1],
-                    B -> [-D1],
-                    C -> [-D1],
+                    A -> ([-D1],[-D1]),
+                    B -> ([-D1],[-D1]),
+                    C -> ([-D1],[-D1]),
                     D -> [*],
                 },
                 Round 3 : {
-                    A -> [-D2],
-                    B -> [-D2],
-                    C -> [-D2],
+                    A -> ([-D2],[-D2]),
+                    B -> ([-D2],[-D2]),
+                    C -> ([-D2],[-D2]),
                 },
                 Round 4 : {
-                    A -> [-D3],
-                    B -> [-D3],
-                    C -> [-D3],
+                    A -> ([-D3],[-D3]),
+                    B -> ([-D3],[-D3]),
+                    C -> ([-D3],[-D3]),
                     D -> [A3, B3, C3, D2],
                 },
                 Round 5 : { * },
@@ -628,8 +635,10 @@ mod tests {
         dag_builder.print();
         dag_builder.persist_all_blocks(dag_state.clone());
 
+        // Blocks B1, C2, A4, B5 are the leaders of rounds 1-5 (e.g. D3 is not present
+        // in DAG)
         let leaders = dag_builder
-            .leader_blocks(1..=6)
+            .leader_blocks(1..=5)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();

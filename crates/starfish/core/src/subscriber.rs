@@ -241,7 +241,10 @@ mod test {
         block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
+        network::{
+            BlockBundleStream, BlockStream, SerializedBlock, SerializedBlockBundle,
+            SerializedHeaderAndTransactions, test_network::TestService,
+        },
         storage::mem_store::MemStore,
     };
 
@@ -271,6 +274,26 @@ mod test {
             .take(10);
             Ok(Box::pin(block_stream))
         }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
+            let block_stream = stream::unfold((), |_| async {
+                sleep(Duration::from_millis(1)).await;
+                Some((
+                    SerializedBlockBundle {
+                        serialized_block_bundle: Bytes::from(vec![1u8; 8]),
+                    },
+                    (),
+                ))
+            })
+            .take(10);
+            Ok(Box::pin(block_stream))
+        }
+
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
@@ -311,6 +334,7 @@ mod test {
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn subscriber_retries() {
+        telemetry_subscribers::init_for_testing();
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_service = Arc::new(Mutex::new(TestService::new()));

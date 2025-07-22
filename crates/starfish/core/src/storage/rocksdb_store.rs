@@ -121,7 +121,7 @@ impl Store for RocksDBStore {
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
         fail_point!("consensus-store-before-write");
         // TODO: does it matter which CF we use here?
-        let mut batch = self.transactions.batch();
+        let mut batch = self.block_headers.batch();
 
         // Store block headers and their associated commit votes
         for block_header in write_batch.block_headers {
