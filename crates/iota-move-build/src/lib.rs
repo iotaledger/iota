@@ -11,6 +11,7 @@ use std::{
     str::FromStr,
 };
 
+use anyhow::bail;
 use fastcrypto::encoding::Base64;
 use iota_package_management::{PublishedAtError, resolve_published_id};
 use iota_types::{
@@ -43,7 +44,7 @@ use move_package::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
     },
     package_hooks::{PackageHooks, PackageIdentifier},
-    resolution::resolution_graph::ResolvedGraph,
+    resolution::{dependency_graph::DependencyGraph, resolution_graph::ResolvedGraph},
     source_package::parsed_manifest::{OnChainInfo, PackageName, SourceManifest},
 };
 use move_symbol_pool::Symbol;
@@ -65,6 +66,8 @@ pub struct CompiledPackage {
     /// The bytecode modules that this package depends on (both directly and
     /// transitively), i.e. on-chain dependencies.
     pub bytecode_deps: Vec<(PackageName, CompiledModule)>,
+    /// Transitive dependency graph of a Move package
+    pub dependency_graph: DependencyGraph,
 }
 
 /// Wrapper around the core Move `BuildConfig` with some IOTA-specific info
@@ -287,8 +290,9 @@ pub fn build_from_resolution_graph(
         }
         Ok((package, fn_info)) => (package, fn_info),
     };
-    let compiled_modules = package.root_modules_map();
+
     if run_bytecode_verifier {
+        let compiled_modules = package.root_modules_map();
         for m in compiled_modules.iter_modules() {
             move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
                 IotaError::ModuleVerificationFailure {
@@ -299,11 +303,13 @@ pub fn build_from_resolution_graph(
         }
         // TODO(https://github.com/iotaledger/iota/issues/69): Run Move linker
     }
+
     Ok(CompiledPackage {
         package,
         published_at,
         dependency_ids,
         bytecode_deps,
+        dependency_graph: resolution_graph.graph,
     })
 }
 
@@ -398,6 +404,7 @@ impl CompiledPackage {
         self.dependency_ids.published.values().copied().collect()
     }
 
+    /// Return a digest of the bytecode modules in this package.
     pub fn get_package_digest(&self, with_unpublished_deps: bool) -> [u8; 32] {
         MovePackage::compute_digest_for_modules_and_deps(
             &self.get_package_bytes(with_unpublished_deps),
@@ -589,6 +596,83 @@ impl CompiledPackage {
         Err(IotaError::ModulePublishFailure {
             error: error_message.join("\n"),
         })
+    }
+
+    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectID> {
+        self.dependency_ids.published.values().cloned().collect()
+    }
+
+    /// Tree-shake the package's dependencies to remove any that are not
+    /// referenced in source code.
+    ///
+    /// This algorithm uses the set of root modules as the starting point to
+    /// retrieve the list of used packages that are immediate dependencies
+    /// of these modules. Essentially, it will remove any package that has
+    /// no immediate module dependency to it.
+    ///
+    /// Then, it will recursively find all the transitive dependencies of the
+    /// packages in the list above and add them to the list of packages that
+    /// need to be kept as dependencies.
+    pub fn tree_shake(&mut self, with_unpublished_deps: bool) -> Result<(), anyhow::Error> {
+        // Start from the root modules (or all modules if with_unpublished_deps is true
+        // as we need to include modules with 0x0 address)
+        let root_modules: Vec<_> = if with_unpublished_deps {
+            self.package
+                .all_compiled_units_with_source()
+                .filter(|m| m.unit.address.into_inner() == AccountAddress::ZERO)
+                .map(|x| x.unit.clone())
+                .collect()
+        } else {
+            self.package
+                .root_modules()
+                .map(|x| x.unit.clone())
+                .collect()
+        };
+
+        // Find the immediate dependencies for each root module and store the package
+        // name in the used_immediate_packages set. This basically prunes the
+        // packages that are not used based on the modules information.
+        let mut pkgs_to_keep: BTreeSet<Symbol> = BTreeSet::new();
+        let module_to_pkg_name: BTreeMap<_, _> = self
+            .package
+            .all_modules()
+            .map(|m| (m.unit.module.self_id(), m.unit.package_name))
+            .collect();
+        let mut used_immediate_packages: BTreeSet<Symbol> = BTreeSet::new();
+
+        for module in &root_modules {
+            let immediate_deps = module.module.immediate_dependencies();
+            for dep in immediate_deps {
+                if let Some(pkg_name) = module_to_pkg_name.get(&dep) {
+                    let Some(pkg_name) = pkg_name else {
+                        bail!("Expected a package name but it's None")
+                    };
+                    used_immediate_packages.insert(*pkg_name);
+                }
+            }
+        }
+
+        // Next, for each package from used_immediate_packages set, we need to find all
+        // the transitive dependencies. Those trans dependencies need to be
+        // included in the final list of package dependencies (note that the pkg
+        // itself will be added by the transitive deps function)
+        used_immediate_packages.iter().for_each(|pkg| {
+            self.dependency_graph
+                .add_transitive_dependencies(pkg, &mut pkgs_to_keep)
+        });
+
+        // If a package depends on another published package that has only bytecode
+        // without source code available, we need to include also that package
+        // as dep.
+        pkgs_to_keep.extend(self.bytecode_deps.iter().map(|(name, _)| *name));
+
+        // Finally, filter out packages that are not in the union above from the
+        // dependency_ids.published field and return the package ids.
+        self.dependency_ids
+            .published
+            .retain(|pkg_name, _| pkgs_to_keep.contains(pkg_name));
+
+        Ok(())
     }
 }
 

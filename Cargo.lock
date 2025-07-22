@@ -5430,6 +5430,7 @@ dependencies = [
  "test-cluster",
  "thiserror 1.0.64",
  "tokio",
+ "toml 0.7.8",
  "tower 0.4.13",
  "tower-http",
  "tracing",
