@@ -35,7 +35,7 @@ use iota_config::{
 };
 use iota_core::{
     authority::{
-        AuthorityState, AuthorityStore, CHAIN_IDENTIFIER, RandomnessRoundReceiver,
+        AuthorityState, AuthorityStore, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
@@ -443,8 +443,6 @@ impl IotaNode {
         let genesis = config.genesis()?.clone();
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
-        // It's ok if the value is already set due to data races.
-        let _ = CHAIN_IDENTIFIER.set(chain_identifier);
         info!("IOTA chain identifier: {chain_identifier}");
 
         // Check and set the db_corrupted flag
@@ -729,6 +727,7 @@ impl IotaNode {
             config.indirect_objects_threshold,
             archive_readers,
             validator_tx_finalizer,
+            chain_identifier,
         )
         .await;
 
