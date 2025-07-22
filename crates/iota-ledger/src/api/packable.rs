@@ -7,7 +7,6 @@ use std::str;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[allow(dead_code)] // to have "green" files ;-)
 pub enum Error {
     #[error("I/O error happened: {0}.")]
     Io(#[from] std::io::Error),

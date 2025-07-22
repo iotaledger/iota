@@ -20,7 +20,7 @@ use crate::{
 // HID <= 0104|494f5441|05|302e372e30|0102|9000
 // I O T A      0 . 7 . 0
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub struct Response {
     pub app: String,
     pub version: String,
