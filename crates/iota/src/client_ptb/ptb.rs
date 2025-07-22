@@ -173,17 +173,17 @@ impl PTB {
             Ok(x) => x,
         };
 
-        // TODO (amnn): support multiple gas objects
+        // TODO: support multiple gas objects
         let gas: Vec<_> = program_metadata
             .gas_object_id
             .into_iter()
             .map(|x| x.value)
             .collect();
 
-        // the sender is the gas object if gas is provided, otherwise the active address
         let sender = if let Some(sender) = program_metadata.sender {
             sender.value.into_inner().into()
         } else {
+            // the sender is the gas object if gas is provided, otherwise the active address
             context.infer_sender(&gas).await?
         };
 
@@ -195,8 +195,8 @@ impl PTB {
 
         let gas_data = GasDataArgs {
             gas_budget: program_metadata.gas_budget.map(|x| x.value),
-            gas_price: None,   // TODO (amnn): support gas price in PTB
-            gas_sponsor: None, // TODO (amnn): support gas sponsors in PTB
+            gas_price: None,   // TODO: support gas price in PTB
+            gas_sponsor: None, // TODO: support gas sponsors in PTB
         };
 
         let processing = TxProcessingArgs {
@@ -458,7 +458,7 @@ pub fn ptb_description() -> clap::Command {
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
             --"preview"
-            "Preview the list of PTB transactions instead of executing them."
+            "Instead of executing the transaction, preview its PTB commands."
         ))
         .arg(arg!(
             --"tx-digest"
