@@ -1563,7 +1563,7 @@ impl IotaClientCommands {
                     (None, None) => bail!("You must use one of amounts or count options."),
                     (Some(_), Some(_)) => bail!("Cannot specify both amounts and count."),
                     (None, Some(0)) | (None, Some(1)) => {
-                        bail!("Coin split count must be greater than 1")
+                        bail!("Coin split count must be greater than 1.")
                     }
                     _ => { /*no_op*/ }
                 }
