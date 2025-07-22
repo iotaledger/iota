@@ -8,7 +8,7 @@
 #[path = "../utils.rs"]
 mod utils;
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use iota_move_build::BuildConfig;
 use iota_sdk::{rpc_types::ObjectChange, types::move_package::UpgradeCap};
@@ -26,8 +26,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let gas_budget = 50_000_000;
 
-    let package_path = Path::new("../../examples/move/first_package");
-    let module = BuildConfig::new(true, false, None).build(package_path)?;
+    let package_path = [
+        env!("CARGO_MANIFEST_DIR"),
+        "../../examples/move/first_package",
+    ]
+    .iter()
+    .collect::<PathBuf>();
+    let module = BuildConfig::new(true, false, None).build(&package_path)?;
 
     let tx_data = client
         .transaction_builder()
@@ -80,7 +85,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .expect("missing upgrade cap");
 
     // In reality you would like to do some changes to the package before upgrading
-    let module = BuildConfig::new(true, false, None).build(package_path)?;
+    let module = BuildConfig::new(true, false, None).build(&package_path)?;
     let deps = module.get_dependency_storage_package_ids();
     let package_bytes = module.get_package_bytes(false);
 
