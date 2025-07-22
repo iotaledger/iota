@@ -246,6 +246,37 @@ impl DagState {
             );
         }
 
+        // Load the stored metrics relative to rounds that were not loaded to cache.
+        let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
+        let hostnames = &state
+            .context
+            .committee
+            .authorities()
+            .map(|(_, x)| x.hostname.as_str())
+            .collect();
+        state
+            .context
+            .metrics
+            .initialize_uncached_scoring_metrics(recovered_scoring_metrics, hostnames);
+
+        // Initialize the scoring metrics relative to rounds that were loaded to cache.
+        let threshold_clock_round = state.threshold_clock_round();
+        for (authority_index, authority) in state.context.committee.authorities() {
+            let hostname = authority.hostname.as_str();
+            let eviction_round = state.evicted_rounds[authority_index];
+            let block_rounds_in_cache = state.recent_refs_by_authority[authority_index]
+                .iter()
+                .map(|block_ref| block_ref.round)
+                .collect();
+            state.context.metrics.initialize_cached_scoring_metrics(
+                authority_index,
+                hostname,
+                block_rounds_in_cache,
+                threshold_clock_round,
+                eviction_round,
+            );
+        }
+
         if state.gc_enabled() {
             if let Some(last_commit) = last_commit {
                 let mut index = last_commit.index();
@@ -1009,8 +1040,34 @@ impl DagState {
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
         );
+
+        // Update the scoring metrics accordingly to the flushed blocks.
+        let mut metrics_to_write = vec![];
+        let threshold_clock_round = self.threshold_clock_round();
+        for (authority_index, authority) in self.context.committee.authorities() {
+            let last_evicted_round = self.evicted_rounds[authority_index];
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let metrics_to_write_from_authority =
+                self.context.metrics.update_scoring_metrics_on_eviction(
+                    authority_index,
+                    authority.hostname.as_str(),
+                    eviction_round,
+                    last_evicted_round,
+                    &self.recent_refs_by_authority[authority_index],
+                    threshold_clock_round,
+                );
+            if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
+                metrics_to_write.push((authority_index, metrics_to_write_from_authority));
+            }
+        }
+
         self.store
-            .write(WriteBatch::new(blocks, commits, commit_info_to_write))
+            .write(WriteBatch::new(
+                blocks,
+                commits,
+                commit_info_to_write,
+                metrics_to_write,
+            ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context
             .metrics
@@ -1019,11 +1076,13 @@ impl DagState {
             .inc();
 
         // Clean up old cached data. After flushing, all cached blocks are guaranteed to
-        // be persisted.
+        // be persisted. This clean up also triggers some of the scoring metrics
+        // updates.
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
             while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
-                if block_ref.round <= eviction_round {
+                let block_round = block_ref.round;
+                if block_round <= eviction_round {
                     self.recent_blocks.remove(block_ref);
                     self.recent_refs_by_authority[authority_index].pop_first();
                 } else {
