@@ -4,7 +4,7 @@ services:
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/iota/credentials.json
     volumes:
-      - ./config/bigtable_config.yaml:/iota/config.yaml:r
+      - ./config/bigtable.yaml:/iota/config.yaml:r
       # make sure to create the credentials.json file before running this container
       - ./config/credentials.json:/iota/credentials.json:r
       - ./output:/iota/output
