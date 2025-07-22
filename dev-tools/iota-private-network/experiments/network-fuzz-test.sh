@@ -39,6 +39,12 @@ end_time=$((start_time + duration_total))
 
 validators=()
 LOG_DIR="./logs"
+mkdir -p "$LOG_DIR"
+# Start script logging at the top
+TIMESTAMP_START=$(date +%Y%m%d-%H%M%S)
+SCRIPT_LOG="$LOG_DIR/fuzz-test-script-$TIMESTAMP_START.log"
+# Capture all script stdout/stderr to the script log
+exec > >(tee -a "$SCRIPT_LOG") 2>&1
 for i in $(seq 1 "$NUM_VALIDATORS"); do
   validators+=(validator-"$i")
 done
@@ -201,9 +207,14 @@ while [[ $(date +%s) -lt $end_time ]]; do
     done
   sleep 1
   log "Experiments running for 180s"
-  # Periodically save intermediate logs
-  docker logs "${validators[@]}" &> "$LOG_DIR/fuzz-test-latest.log"
-  log "Saved intermediate logs to $LOG_DIR/fuzz-test-latest.log"
+  # Periodically overwrite intermediate logs
+  for v in "${validators[@]}"; do
+    docker logs "$v" &> "$LOG_DIR/fuzz-test-${v}-latest.log"
+    log "Saved intermediate logs for $v to $LOG_DIR/fuzz-test-${v}-latest.log"
+  done
+  # Overwrite intermediate script log
+  cp "$SCRIPT_LOG" "$LOG_DIR/fuzz-test-script-latest.log"
+  log "Saved intermediate script log to $LOG_DIR/fuzz-test-script-latest.log"
   sleep 180
 done
 
@@ -215,11 +226,13 @@ for v in "${validators[@]}"; do
   docker run --rm --privileged --net container:"$v" nicolaka/netshoot sh -c "iptables -F" 2>/dev/null || true
 done
 
- # === SAVE LOGS ===
+# === SAVE LOGS ===
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-LOG_DIR="./logs"
-mkdir -p "$LOG_DIR"
-docker logs "${validators[@]}" &> "$LOG_DIR/fuzz-test-$TIMESTAMP.log"
-log "Saved logs to $LOG_DIR/fuzz-test-$TIMESTAMP.log"
+for v in "${validators[@]}"; do
+  docker logs "$v" &> "$LOG_DIR/fuzz-test-$v-$TIMESTAMP.log"
+  log "Saved logs for $v to $LOG_DIR/fuzz-test-$v-$TIMESTAMP.log"
+done
+cp "$SCRIPT_LOG" "$LOG_DIR/fuzz-test-script-latest.log"
+  log "Saved script log to $LOG_DIR/fuzz-test-script-$TIMESTAMP.log"
 
-log "Fuzz test completed"
+log "Fuzz test completed and logs saved. "
