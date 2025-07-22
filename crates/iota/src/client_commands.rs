@@ -597,7 +597,7 @@ pub enum IotaClientCommands {
     },
 }
 
-/// Arguments related to providing coins for gas payment
+/// Arguments used to provide coins for a gas payment
 #[derive(Args, Debug, Default)]
 pub struct PaymentArgs {
     /// IDs of gas objects to be used for gas payment. If none are provided,
@@ -620,14 +620,14 @@ impl PaymentArgs {
 /// Arguments related to setting gas data, apart from payment coins.
 #[derive(Args, Debug, Default)]
 pub struct GasDataArgs {
-    /// An optional gas budget for this transaction (in MIST). If gas budget is
+    /// An optional gas budget for this transaction (in NANOs). If gas budget is
     /// not provided, the tool will first perform a dry run to estimate the
     /// gas cost, and then it will execute the transaction. Please note that
     /// this incurs a small cost in performance due to the additional
     /// dry run call.
     #[arg(long)]
     pub gas_budget: Option<u64>,
-    /// An optional gas price for this transaction (in MIST). If gas price is
+    /// An optional gas price for this transaction (in NANOs). If gas price is
     /// not provided, the tool will use the current reference gas price from
     /// RPC.
     ///
@@ -665,7 +665,7 @@ impl GasDataArgs {
     }
 }
 
-/// Arguments related to what to do to a transaction after it has been built.
+/// Arguments specifying how to use a transaction after it has been built.
 #[derive(Args, Debug, Default)]
 pub struct TxProcessingArgs {
     /// Compute the transaction digest and print it out, but do not execute the
@@ -1440,7 +1440,7 @@ impl IotaClientCommands {
 
                 ensure!(
                     !payment.gas.iter().any(|gas| input_coins.contains(gas)),
-                    "Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"
+                    "Gas coin is in input coins of `pay` command, use `pay-iota` instead!"
                 );
 
                 let gas_payment = client

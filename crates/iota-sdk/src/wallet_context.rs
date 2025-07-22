@@ -209,7 +209,7 @@ impl WalletContext {
         let owners = future::try_join_all(gas.iter().map(|id| self.get_object_owner(id))).await?;
 
         // SAFETY `gas` is non-empty.
-        let owner = owners.first().copied().unwrap();
+        let owner = owners[0];
 
         ensure!(
             owners.iter().all(|o| o == &owner),
