@@ -7308,6 +7308,7 @@ dependencies = [
  "bytes",
  "clap",
  "iota-config",
+ "iota-kvstore",
  "iota-storage",
  "iota-types",
  "object_store 0.10.2",
