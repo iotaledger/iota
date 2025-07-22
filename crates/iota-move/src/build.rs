@@ -71,7 +71,7 @@ impl Build {
         generate_struct_layouts: bool,
         chain_id: Option<String>,
     ) -> anyhow::Result<()> {
-        let pkg = BuildConfig {
+        let mut pkg = BuildConfig {
             config,
             run_bytecode_verifier: true,
             print_diags_to_stderr: true,
@@ -84,6 +84,7 @@ impl Build {
                 check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
             }
 
+            pkg.tree_shake(with_unpublished_deps)?;
             println!(
                 "{}",
                 json!({
