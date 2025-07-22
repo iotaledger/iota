@@ -1859,11 +1859,10 @@ mod test {
         let mut builder = DagBuilder::new(context.clone());
         builder.layers(1..=10).build();
 
-        let block_headers = builder.block_headers.values().cloned().collect::<Vec<_>>();
-
         // Process all the blocks
         let (missing_ancestors, missing_committed_txns) =
-            core.add_block_headers(block_headers).unwrap();
+            core.add_blocks(builder.blocks(1..=10)).unwrap();
+
         assert!(missing_ancestors.is_empty());
         assert!(missing_committed_txns.is_empty());
 
