@@ -101,8 +101,8 @@ where
     T: Serialize,
 {
     let key = keystore.get_key(address)?;
-    let iota_signature = match key {
-        StoredKey::KeyPair(_) => keystore.sign_secure(address, &msg, intent)?,
+    match key {
+        StoredKey::KeyPair(_) => Ok(keystore.sign_secure(address, &msg, intent)?),
         StoredKey::External {
             derivation_path,
             source,
@@ -119,15 +119,14 @@ where
                     let ledger = Ledger::new_with_default()?;
                     // Pass the expected address to the ledger to ensure the signature is for
                     // the correct address.
-                    ledger
+                    Ok(ledger
                         .sign_intent(derivation_path, address, intent, &msg, vec![])?
-                        .signature
+                        .signature)
                 }
                 ExternalKeySource::Unknown(name) => {
                     bail!("External signing is not supported for source: {name}")
                 }
             }
         }
-    };
-    Ok(iota_signature)
+    }
 }
