@@ -3140,7 +3140,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let coin = object_refs.get(1).unwrap().object().unwrap().object_id;
 
     IotaClientCommands::PayIota {
-        input_coins: vec![coin],
+        input_coins: Some(vec![coin]),
         recipients: vec![KeyIdentity::Address(address1)],
         amounts: vec![1],
         opts: Opts {
@@ -3157,7 +3157,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     .await?;
 
     IotaClientCommands::PayIota {
-        input_coins: vec![coin],
+        input_coins: Some(vec![coin]),
         recipients: vec![KeyIdentity::Address(address1)],
         amounts: vec![1],
         opts: Opts {
@@ -3175,7 +3175,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
 
     // use alias for transfer
     IotaClientCommands::PayIota {
-        input_coins: vec![coin],
+        input_coins: Some(vec![coin]),
         recipients: vec![KeyIdentity::Alias(alias1)],
         amounts: vec![1],
         opts: Opts {
@@ -3585,7 +3585,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 
     // === PAY IOTA === //
     let pay_iota_dry_run = IotaClientCommands::PayIota {
-        input_coins: vec![object_id],
+        input_coins: Some(vec![object_id]),
         recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
         amounts: vec![1],
         opts: Opts::for_testing_dry_run(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
@@ -3767,7 +3767,7 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
     let amounts = [1000, 5000];
     let pay_iota = IotaClientCommands::PayIota {
-        input_coins: vec![object_id1, object_id2],
+        input_coins: Some(vec![object_id1, object_id2]),
         recipients: vec![recipient1.clone(), recipient2.clone()],
         amounts: amounts.into(),
         opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
@@ -3955,7 +3955,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
 
     let pay_iota_cmd = IotaClientCommands::PayIota {
         recipients: vec![KeyIdentity::Address(address2)],
-        input_coins: vec![object_id1],
+        input_coins: Some(vec![object_id1]),
         amounts: vec![amount],
         opts: Opts {
             gas_budget: None,

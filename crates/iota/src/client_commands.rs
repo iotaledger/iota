@@ -325,9 +325,10 @@ pub enum IotaClientCommands {
     /// no extra gas coin is required.
     PayIota {
         /// The input coins to be used for pay recipients, including the gas
-        /// coin.
+        /// coin. If not provided, coins will be select automatically which
+        /// fulfill the requested amounts.
         #[arg(long, num_args(1..))]
-        input_coins: Vec<ObjectID>,
+        input_coins: Option<Vec<ObjectID>>,
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[arg(long, num_args(1..))]
@@ -1395,7 +1396,7 @@ impl IotaClientCommands {
                 opts,
             } => {
                 ensure!(
-                    !input_coins.is_empty(),
+                    !input_coins.as_ref().is_some_and(|v| v.is_empty()),
                     "PayIota transaction requires a non-empty list of input coins"
                 );
                 ensure!(
@@ -1410,6 +1411,11 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
+                let input_coins = if let Some(coins) = input_coins {
+                    coins
+                } else {
+                    select_coins_for_amount(amounts.iter().sum(), opts.sender, context).await?
+                };
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
                     .try_collect::<Vec<IotaAddress>>()
@@ -3234,4 +3240,37 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
     }
 
     Ok(())
+}
+
+async fn select_coins_for_amount(
+    mut amount: u64,
+    sender: Option<IotaAddress>,
+    context: &mut WalletContext,
+) -> anyhow::Result<Vec<ObjectID>> {
+    let mut coins = Vec::new();
+
+    let sender = get_identity_address(sender.map(Into::into), &context).await?;
+    let mut gas_coins = context
+        .gas_objects(sender)
+        .await?
+        .iter()
+        // Ok to unwrap() since `get_gas_objects` guarantees gas
+        .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+        .collect::<Vec<_>>();
+    // Sort in ascending order
+    gas_coins.sort_unstable_by(|c1, c2| c1.value().cmp(&c2.value()));
+    while amount > 0 {
+        if gas_coins.is_empty() {
+            anyhow::bail!("insufficient funds for requested amounts");
+        }
+        let coin = if let Some(idx) = gas_coins.iter().position(|c| c.value() >= amount) {
+            gas_coins.remove(idx)
+        } else {
+            gas_coins.pop().expect("missing coins")
+        };
+        amount = amount.saturating_sub(coin.value());
+        coins.push(*coin.id());
+    }
+
+    Ok(coins)
 }
