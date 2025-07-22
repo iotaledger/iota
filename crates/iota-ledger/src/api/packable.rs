@@ -97,9 +97,9 @@ impl Packable for String {
         if self.chars().count() > 255 {
             return Err(Error::StringTooLong);
         }
-        let bytes = self.clone().into_bytes();
+        let bytes = self.as_bytes();
         (bytes.len() as u8).pack(buf)?;
-        buf.write_all(&bytes)?;
+        buf.write_all(bytes)?;
         Ok(())
     }
 }
