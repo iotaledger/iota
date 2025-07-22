@@ -6075,6 +6075,7 @@ dependencies = [
  "move-trace-format",
  "move-vm-config",
  "move-vm-runtime",
+ "move-vm-types",
  "petgraph 0.6.5",
 ]
 
