@@ -181,11 +181,6 @@ export const test = baseTest.extend<{
         await toggleBridgeDirection(pageWithL2Wallet);
         await setReceiverAddress(pageWithL2Wallet, addressL1);
 
-        // Fund wallets
-        await addL1FundsThroughBridgeUI(pageWithL1Wallet, contextL1);
-        await fundL1AddressWithNativeTokens(addressL1, 5);
-        await fundL2AddressWithIscClient(addressL2, 5);
-
         await use({
             browserL1: contextL1,
             browserL2: contextL2,
