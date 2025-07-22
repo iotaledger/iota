@@ -36,3 +36,5 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true

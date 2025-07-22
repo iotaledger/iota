@@ -30,6 +30,7 @@ use crate::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
+        backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     state_accumulator::AccumulatorStore,
@@ -108,6 +109,7 @@ pub fn build_execution_cache(
     epoch_start_config: &EpochStartConfiguration,
     prometheus_registry: &Registry,
     store: &Arc<AuthorityStore>,
+    backpressure_manager: Arc<BackpressureManager>,
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
@@ -117,6 +119,7 @@ pub fn build_execution_cache(
             epoch_start_config,
             store.clone(),
             execution_cache_metrics,
+            backpressure_manager,
         )
         .into(),
     )
@@ -143,6 +146,7 @@ pub fn build_execution_cache_from_env(
                 &config.writeback_cache,
                 store.clone(),
                 execution_cache_metrics,
+                BackpressureManager::new_for_tests(),
             )
             .into(),
         ),
@@ -196,6 +200,9 @@ pub trait ExecutionCacheCommit: Send + Sync {
                 .expect("storage access failed")
         })
     }
+
+    // Number of pending uncommitted transactions
+    fn approximate_pending_transaction_count(&self) -> u64;
 }
 
 pub trait ObjectCacheRead: Send + Sync {
@@ -1330,27 +1337,6 @@ macro_rules! implement_passthrough_traits {
                 // set), this can be called at reconfiguration time. It is a no-op.
                 // TODO: remove this once we completely remove ProxyCache.
                 std::future::ready(()).boxed()
-            }
-        }
-
-        impl StateSyncAPI for $implementor {
-            fn try_insert_transaction_and_effects(
-                &self,
-                transaction: &VerifiedTransaction,
-                transaction_effects: &TransactionEffects,
-            ) -> IotaResult {
-                self.store
-                    .insert_transaction_and_effects(transaction, transaction_effects)
-                    .map_err(IotaError::from)
-            }
-
-            fn try_multi_insert_transaction_and_effects(
-                &self,
-                transactions_and_effects: &[VerifiedExecutionData],
-            ) -> IotaResult {
-                self.store
-                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())
-                    .map_err(IotaError::from)
             }
         }
 
