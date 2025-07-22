@@ -37,8 +37,8 @@ shift $((OPTIND-1))
 start_time=$(date +%s)
 end_time=$((start_time + duration_total))
 
-# Build validators array based on NUM_VALIDATORS
 validators=()
+LOG_DIR="./logs"
 for i in $(seq 1 "$NUM_VALIDATORS"); do
   validators+=(validator-"$i")
 done
@@ -201,6 +201,9 @@ while [[ $(date +%s) -lt $end_time ]]; do
     done
   sleep 1
   log "Experiments running for 180s"
+  # Periodically save intermediate logs
+  docker logs "${validators[@]}" &> "$LOG_DIR/fuzz-test-latest.log"
+  log "Saved intermediate logs to $LOG_DIR/fuzz-test-latest.log"
   sleep 180
 done
 
@@ -211,5 +214,12 @@ for v in "${validators[@]}"; do
   docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc del dev eth0 root 2>/dev/null || true
   docker run --rm --privileged --net container:"$v" nicolaka/netshoot sh -c "iptables -F" 2>/dev/null || true
 done
+
+ # === SAVE LOGS ===
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+LOG_DIR="./logs"
+mkdir -p "$LOG_DIR"
+docker logs "${validators[@]}" &> "$LOG_DIR/fuzz-test-$TIMESTAMP.log"
+log "Saved logs to $LOG_DIR/fuzz-test-$TIMESTAMP.log"
 
 log "Fuzz test completed"
