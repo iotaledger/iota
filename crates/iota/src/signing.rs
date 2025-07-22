@@ -74,10 +74,8 @@ pub(crate) async fn sign_transaction(
                         );
                     };
 
-                    let signer = LedgerSigner::new_with_default(
-                        derivation_path.clone(),
-                        Some(iota_client.clone()),
-                    )?;
+                    let signer =
+                        LedgerSigner::new_with_default(derivation_path.clone(), Some(iota_client))?;
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer
