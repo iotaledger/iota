@@ -50,8 +50,8 @@ pub fn exec<T: Transport>(transport: &T) -> Result<Response, errors::LedgerError
     let cmd = APDUCommand {
         cla: bolos::APDU_CLA_B0,
         ins: bolos::APDUInstructions::GetAppVersionB0 as u8,
-        p1: 0,
-        p2: 0,
+        p1: bolos::APDU_P1,
+        p2: bolos::APDU_P2,
         data: Vec::new(),
     };
     helpers::exec::<T, Response>(transport, cmd)

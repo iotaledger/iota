@@ -41,8 +41,8 @@ pub fn exec<T: Transport>(transport: &T, app: String) -> Result<(), errors::Ledg
     let cmd = APDUCommand {
         cla: bolos::APDU_CLA_E0,
         ins: bolos::APDUInstructions::OpenAppE0 as u8,
-        p1: 0,
-        p2: 0,
+        p1: bolos::APDU_P1,
+        p2: bolos::APDU_P2,
         data: buf,
     };
     helpers::exec::<T, ()>(transport, cmd).map_err(|e| match e {
