@@ -1393,7 +1393,7 @@ impl IotaClientCommands {
                 input_coins,
                 recipients,
                 amounts,
-                opts,
+                mut opts,
             } => {
                 ensure!(
                     !input_coins.as_ref().is_some_and(|v| v.is_empty()),
@@ -1411,20 +1411,37 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
-                let input_coins = if let Some(coins) = input_coins {
-                    coins
-                } else {
-                    select_coins_for_amount(amounts.iter().sum(), opts.sender, context).await?
-                };
+
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
                     .try_collect::<Vec<IotaAddress>>()
                     .await?;
-                let signer = context.get_object_owner(&input_coins[0]).await?;
+                let signer = get_identity_address(opts.sender.map(Into::into), &context).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
-                    .pay_iota_tx_kind(recipients, amounts)?;
+                    .pay_iota_tx_kind(recipients, amounts.clone())?;
+
+                let input_coins = if let Some(coins) = input_coins {
+                    coins
+                } else {
+                    // Estimate the gas cost if needed
+                    let gas_budget = if let Some(gas_budget) = opts.gas_budget {
+                        gas_budget
+                    } else {
+                        let gas_price = context.get_reference_gas_price().await?;
+                        estimate_gas_budget(context, signer, tx_kind.clone(), gas_price, None, None)
+                            .await?
+                    };
+                    // Ensure that we do not need to estimate again later
+                    opts.gas_budget = Some(gas_budget);
+                    select_coins_for_amount(
+                        amounts.iter().sum::<u64>() + gas_budget,
+                        signer,
+                        context,
+                    )
+                    .await?
+                };
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -3243,32 +3260,32 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
 }
 
 async fn select_coins_for_amount(
-    mut amount: u64,
-    sender: Option<IotaAddress>,
+    amount: u64,
+    sender: IotaAddress,
     context: &mut WalletContext,
 ) -> anyhow::Result<Vec<ObjectID>> {
     let mut coins = Vec::new();
 
-    let sender = get_identity_address(sender.map(Into::into), &context).await?;
     let mut gas_coins = context
         .gas_objects(sender)
         .await?
         .iter()
-        // Ok to unwrap() since `get_gas_objects` guarantees gas
+        // Ok to unwrap() since `gas_objects` guarantees gas
         .map(|(_val, object)| GasCoin::try_from(object).unwrap())
         .collect::<Vec<_>>();
     // Sort in ascending order
     gas_coins.sort_unstable_by(|c1, c2| c1.value().cmp(&c2.value()));
-    while amount > 0 {
+    let mut amount_remaining = amount;
+    while amount_remaining > 0 {
         if gas_coins.is_empty() {
-            anyhow::bail!("insufficient funds for requested amounts");
+            anyhow::bail!("insufficient funds for requested amount: {amount}");
         }
-        let coin = if let Some(idx) = gas_coins.iter().position(|c| c.value() >= amount) {
+        let coin = if let Some(idx) = gas_coins.iter().position(|c| c.value() >= amount_remaining) {
             gas_coins.remove(idx)
         } else {
             gas_coins.pop().expect("missing coins")
         };
-        amount = amount.saturating_sub(coin.value());
+        amount_remaining = amount_remaining.saturating_sub(coin.value());
         coins.push(*coin.id());
     }
 
