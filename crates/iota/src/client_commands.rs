@@ -61,6 +61,7 @@ use iota_types::{
     metrics::BytecodeVerifierMetrics,
     move_package::UpgradeCap,
     object::Owner,
+    parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
@@ -149,7 +150,11 @@ pub enum IotaClientCommands {
         function: String,
         /// Type arguments to the generic function being called.
         /// All must be specified, or the call will fail.
-        #[arg(num_args(1..))]
+        #[arg(
+            long,
+            value_parser = parse_iota_type_tag,
+            num_args(1..),
+        )]
         type_args: Vec<TypeTag>,
         /// Simplified ordered args like in the function syntax
         /// ObjectIDs, Addresses must be hex strings
