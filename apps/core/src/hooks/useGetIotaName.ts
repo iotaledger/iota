@@ -8,7 +8,7 @@ export function useGetIotaName(address: string) {
     const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery({
-        queryKey: ['iota-names', 'default-name', address],
+        queryKey: ['iota-name', 'default-name', address],
         async queryFn() {
             const defaultName = await iotaNamesClient?.getDefaultName(address);
 
