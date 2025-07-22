@@ -17,11 +17,10 @@ server-address: "0.0.0.0:3555"
 instance-id: "iota"
 column-family: "iota"
 timeout-secs: 60
-credentials: "/iota/credentials.json"
 ```
 
 > [!NOTE]
-> The `credentials.json` should be downloaded from Google Cloud Platform to be able to communicate with BigtableDB.
+> Following the application default credentials [guidelines](https://cloud.google.com/docs/authentication/application-default-credentials) the docker compose file uses the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to authenticate with the Google Cloud API.
 
 ## Usage
 
