@@ -223,14 +223,18 @@ impl DagState {
 
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
-            let (block_headers, eviction_round) = {
+            let (block_headers, transactions_by_author, eviction_round) = {
                 let eviction_round = Self::eviction_round(round, cached_rounds);
                 // TODO: scan for blocks?
                 let block_headers = state
                     .store
                     .scan_block_headers_by_author(authority_index, eviction_round + 1)
                     .expect("Database error");
-                (block_headers, eviction_round)
+                let transactions_by_author = state
+                    .store
+                    .scan_transactions_by_author(authority_index, eviction_round + 1)
+                    .expect("Database error");
+                (block_headers, transactions_by_author, eviction_round)
             };
 
             state.evicted_rounds[authority_index] = eviction_round;
@@ -238,6 +242,9 @@ impl DagState {
             // Update the block metadata for the authority.
             for block_header in &block_headers {
                 state.update_block_metadata(block_header);
+            }
+            for transactions in &transactions_by_author {
+                state.update_transaction_metadata(transactions);
             }
 
             info!(
@@ -355,6 +362,11 @@ impl DagState {
             .with_label_values(&[hostname])
             .set(highest_accepted_round_for_author as i64);
         self.update_cordial_knowledge(block_header);
+    }
+
+    fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
+        self.recent_transactions
+            .insert(transaction.block_ref(), transaction.clone());
     }
 
     // Function updates who knows which BlockHeaders what after receiving a new
@@ -1154,39 +1166,6 @@ impl DagState {
         set.range(..upper_bound).cloned().collect()
     }
 
-    /// Updates the set of known block headers for a given authority assuming it
-    /// knows everything below certain round. Make use of BTree nature of
-    /// structure to efficiently prune the sets
-    pub(crate) fn update_known_block_headers_for_authority_by_round(
-        &mut self,
-        authority_index: usize,
-        target_round: Round,
-    ) {
-        // Construct an exclusive upper bound
-        let upper_bound = BlockRef::new(target_round, AuthorityIndex::MAX, BlockHeaderDigest::MAX);
-
-        // Split off entries greater than or equal to upper_bound
-        let old_set = &mut self.block_headers_not_known_by_authority[authority_index];
-        let new_set = old_set.split_off(&upper_bound);
-
-        // Replace with pruned set
-        *old_set = new_set;
-
-        let map = self
-            .recent_dag_cordial_knowledge
-            .get_mut(authority_index)
-            .expect("We expect authority index should be valid");
-
-        // Split off all entries with Round > target_round
-        let new_map = map.split_off(&(target_round + 1, BlockHeaderDigest::MIN));
-
-        // Replace the old map with the new one
-        *self
-            .recent_dag_cordial_knowledge
-            .get_mut(authority_index)
-            .expect("We expect authority index should be valid") = new_map;
-    }
-
     /// Takes a batch of at most MAX_HEADERS_PER_BUNDLE unknown headers for the
     /// given authority, but only from round smaller than
     /// round_upper_bound_exclusive. Marks these headers as known to the
@@ -1282,14 +1261,10 @@ impl DagState {
             let keep_from = (evict_round + 1, BlockHeaderDigest::MIN);
             *map = map.split_off(&keep_from);
         }
-
         // === 2. Evict from block_headers_not_known_by_authority ===
         for authority_index in 0..self.context.committee.size() {
-            let evict_round = self.evicted_rounds[authority_index];
-            self.update_known_block_headers_for_authority_by_round(
-                authority_index,
-                evict_round + 1,
-            );
+            let old_set = &mut self.block_headers_not_known_by_authority[authority_index];
+            old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
         }
     }
 

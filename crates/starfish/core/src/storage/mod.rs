@@ -70,11 +70,40 @@ pub(crate) trait Store: Send + Sync {
         before_round: Option<Round>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
+    fn scan_references_by_author(
+        &self,
+        author: AuthorityIndex,
+        start_round: Round,
+    ) -> ConsensusResult<Vec<BlockRef>>;
+
+    fn scan_transactions_by_author(
+        &self,
+        author: AuthorityIndex,
+        start_round: Round,
+    ) -> ConsensusResult<Vec<VerifiedTransactions>> {
+        let refs = self.scan_references_by_author(author, start_round)?;
+        let results = self
+            .read_transactions(refs.as_slice())?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        Ok(results)
+    }
     fn scan_block_headers_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>>;
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        let refs = self.scan_references_by_author(author, start_round)?;
+        let results = self.read_block_headers(refs.as_slice())?;
+        let mut block_headers = Vec::with_capacity(refs.len());
+        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+            block_headers.push(
+                block.unwrap_or_else(|| panic!("Storage inconsistency: block {:?} not found!", r)),
+            );
+        }
+        Ok(block_headers)
+    }
 
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
