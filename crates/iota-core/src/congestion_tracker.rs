@@ -5,9 +5,10 @@
 
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
-    sync::RwLock,
+    sync::{Arc, RwLock},
 };
 
+use iota_common::{debug_fatal, fatal};
 use iota_types::{
     base_types::ObjectID,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
@@ -16,6 +17,8 @@ use iota_types::{
     transaction::{TransactionData, TransactionDataAPI},
 };
 use moka::{ops::compute::Op, sync::Cache};
+use reqwest::Client;
+use tracing::info;
 
 use crate::execution_cache::TransactionCacheRead;
 
@@ -139,6 +142,34 @@ impl CongestionTracker {
                 .filter(|id| id.mutable)
                 .map(|id| id.id),
         )
+    }
+
+    /// Query AI model for the suggested gas price.
+    pub async fn get_suggested_gas_price_with_ogd(&self, tx: TransactionData) -> Option<u64> {
+        info!("Querying OGD for suggested gas price");
+        let object_ids: Vec<String> = tx
+            .shared_input_objects()
+            .into_iter()
+            .filter(|o| o.mutable)
+            .map(|o| o.id.to_string())
+            .collect();
+
+        // if object_ids.is_empty() {
+        // return None;
+        // }
+
+        let client = Client::new();
+
+        let response = client
+            .get("http://localhost:8000/predict")
+            .send()
+            .await
+            .ok()?; // handle failure
+
+        let json: serde_json::Value = response.json().await.ok()?;
+        info!("Received response from OGD: {:?}", json);
+        let score = json.get("suggested_gas_price")?.as_u64()?; // e.g., 0.42
+        Some(score)
     }
 }
 

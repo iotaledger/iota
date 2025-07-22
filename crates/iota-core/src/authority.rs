@@ -1823,7 +1823,14 @@ impl AuthorityState {
         let module_cache =
             TemporaryModuleResolver::new(&inner_temp_store, epoch_store.module_cache().clone());
 
-         let mut layout_resolver =
+        let tx_clone = transaction.clone();
+        let tracker_clone = self.congestion_tracker.clone();
+
+        let suggested_gas_price = tracker_clone
+            .get_suggested_gas_price_with_ogd(tx_clone)
+            .await;
+
+        let mut layout_resolver =
             epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
@@ -1882,9 +1889,7 @@ impl AuthorityState {
                 events,
                 object_changes,
                 balance_changes,
-                suggested_gas_price: self
-                    .congestion_tracker
-                    .get_suggested_gas_prices(&transaction),
+                suggested_gas_price,
             },
             written_with_kind,
             effects,
