@@ -19,7 +19,6 @@ pub struct KvStoreConfig {
     instance_id: String,
     column_family: String,
     timeout_secs: usize,
-    credentials: String,
 }
 
 /// Provides read access to data ingested by the `iota-data-ingestion`
@@ -43,7 +42,6 @@ impl KvStoreClient {
     ///
     /// Internally it instantiates a BigTableDB client.
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
-        std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", config.credentials);
         let bigtable_client = BigTableClient::new_remote(
             config.instance_id,
             true,
