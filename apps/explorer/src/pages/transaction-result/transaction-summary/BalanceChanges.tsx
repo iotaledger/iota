@@ -27,7 +27,6 @@ import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
-import { onCopySuccess } from '~/lib/utils';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -57,7 +56,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
                     title={coinMetaData?.name || symbol}
                     icon={
                         !unRecognizedToken ? (
-                            <RecognizedBadge className="h-4 w-4 text-primary-40" />
+                            <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />
                         ) : null
                     }
                 />
@@ -68,14 +67,10 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
             </Card>
             {recipient && (
                 <div className="flex flex-wrap items-center justify-between px-sm py-xs">
-                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
+                    <span className="w-full flex-shrink-0 text-label-lg text-iota-neutral-40 md:w-40 dark:text-iota-neutral-60">
                         Recipient
                     </span>
-                    <AddressLink
-                        address={recipient}
-                        copyText={recipient}
-                        onCopySuccess={onCopySuccess}
-                    />
+                    <AddressLink address={recipient} copyText={recipient} />
                 </div>
             )}
         </div>
@@ -95,15 +90,10 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                        <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                             Owner
                         </span>
-                        <AddressLink
-                            label={undefined}
-                            address={owner}
-                            copyText={owner}
-                            onCopySuccess={onCopySuccess}
-                        />
+                        <AddressLink address={owner} copyText={owner} />
                     </div>
                 ) : null
             }

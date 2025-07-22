@@ -513,6 +513,7 @@ pub struct SequencedConsensusTransaction {
 }
 
 #[derive(Debug, Clone)]
+#[expect(clippy::large_enum_variant)]
 pub enum SequencedConsensusTransactionKind {
     External(ConsensusTransaction),
     System(VerifiedExecutableTransaction),
@@ -538,18 +539,20 @@ impl<'de> Deserialize<'de> for SequencedConsensusTransactionKind {
 // design). This wrapper allows us to convert to a serializable format easily.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum SerializableSequencedConsensusTransactionKind {
-    External(ConsensusTransaction),
-    System(TrustedExecutableTransaction),
+    External(Box<ConsensusTransaction>),
+    System(Box<TrustedExecutableTransaction>),
 }
 
 impl From<&SequencedConsensusTransactionKind> for SerializableSequencedConsensusTransactionKind {
     fn from(kind: &SequencedConsensusTransactionKind) -> Self {
         match kind {
             SequencedConsensusTransactionKind::External(ext) => {
-                SerializableSequencedConsensusTransactionKind::External(ext.clone())
+                SerializableSequencedConsensusTransactionKind::External(Box::new(ext.clone()))
             }
             SequencedConsensusTransactionKind::System(txn) => {
-                SerializableSequencedConsensusTransactionKind::System(txn.clone().serializable())
+                SerializableSequencedConsensusTransactionKind::System(Box::new(
+                    txn.clone().serializable(),
+                ))
             }
         }
     }
@@ -559,10 +562,10 @@ impl From<SerializableSequencedConsensusTransactionKind> for SequencedConsensusT
     fn from(kind: SerializableSequencedConsensusTransactionKind) -> Self {
         match kind {
             SerializableSequencedConsensusTransactionKind::External(ext) => {
-                SequencedConsensusTransactionKind::External(ext)
+                SequencedConsensusTransactionKind::External(*ext)
             }
             SerializableSequencedConsensusTransactionKind::System(txn) => {
-                SequencedConsensusTransactionKind::System(txn.into())
+                SequencedConsensusTransactionKind::System((*txn).into())
             }
         }
     }
@@ -699,7 +702,6 @@ pub struct ConsensusCommitInfo {
     pub timestamp: u64,
     pub consensus_commit_digest: ConsensusCommitDigest,
 
-    #[cfg(any(test, feature = "test-utils"))]
     skip_consensus_commit_prologue_in_test: bool,
 }
 
@@ -710,12 +712,10 @@ impl ConsensusCommitInfo {
             timestamp: consensus_output.commit_timestamp_ms(),
             consensus_commit_digest: consensus_output.consensus_digest(),
 
-            #[cfg(any(test, feature = "test-utils"))]
             skip_consensus_commit_prologue_in_test: false,
         }
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(
         commit_round: u64,
         commit_timestamp: u64,
@@ -729,7 +729,6 @@ impl ConsensusCommitInfo {
         }
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub fn skip_consensus_commit_prologue_in_test(&self) -> bool {
         self.skip_consensus_commit_prologue_in_test
     }

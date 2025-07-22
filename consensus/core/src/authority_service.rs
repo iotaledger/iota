@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -27,7 +27,7 @@ use crate::{
     network::{BlockStream, ExtendedSerializedBlock, NetworkService},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    synchronizer::SynchronizerHandle,
+    synchronizer::{MAX_ADDITIONAL_BLOCKS, SynchronizerHandle},
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -205,8 +205,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Err(ConsensusError::BlockRejected {
                 block_ref,
                 reason: format!(
-                    "Last commit index is lagging quorum commit index too much ({} < {})",
-                    last_commit_index, quorum_commit_index,
+                    "Last commit index is lagging quorum commit index too much ({last_commit_index} < {quorum_commit_index})",
                 ),
             });
         }
@@ -341,27 +340,25 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )))
     }
 
+    // Handles two types of requests:
+    // 1. Missing block for block sync:
+    //    - uses highest_accepted_rounds.
+    //    - at most max_blocks_per_sync blocks should be returned.
+    // 2. Committed block for commit sync:
+    //    - does not use highest_accepted_rounds.
+    //    - at most max_blocks_per_fetch blocks should be returned.
     async fn handle_fetch_blocks(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
     ) -> ConsensusResult<Vec<Bytes>> {
+        // This method is used for both commit sync and periodic/live synchronizer.
+        // For commit sync, we do not use highest_accepted_rounds and the fetch size is
+        // larger.
+        let commit_sync_handle = highest_accepted_rounds.is_empty();
+
         fail_point_async!("consensus-rpc-response");
-
-        const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
-            return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
-        }
-
-        if !highest_accepted_rounds.is_empty()
-            && highest_accepted_rounds.len() != self.context.committee.size()
-        {
-            return Err(ConsensusError::InvalidSizeOfHighestAcceptedRounds(
-                highest_accepted_rounds.len(),
-                self.context.committee.size(),
-            ));
-        }
 
         // Some quick validation of the requested block refs
         for block in &block_refs {
@@ -376,35 +373,131 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // For now ask dag state directly
-        let blocks = self.dag_state.read().get_blocks(&block_refs);
+        if !self.context.protocol_config.consensus_batched_block_sync() {
+            if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+                return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
+            }
 
-        // Now check if an ancestor's round is higher than the one that the peer has. If
-        // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
-        let mut ancestor_blocks = vec![];
-        if !highest_accepted_rounds.is_empty() {
-            let all_ancestors = blocks
-                .iter()
+            if !commit_sync_handle && highest_accepted_rounds.len() != self.context.committee.size()
+            {
+                return Err(ConsensusError::InvalidSizeOfHighestAcceptedRounds(
+                    highest_accepted_rounds.len(),
+                    self.context.committee.size(),
+                ));
+            }
+
+            // For now ask dag state directly
+            let blocks = self.dag_state.read().get_blocks(&block_refs);
+
+            // Now check if an ancestor's round is higher than the one that the peer has. If
+            // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
+            let mut ancestor_blocks = vec![];
+            if !commit_sync_handle {
+                let all_ancestors = blocks
+                    .iter()
+                    .flatten()
+                    .flat_map(|block| block.ancestors().to_vec())
+                    .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
+                    .take(MAX_ADDITIONAL_BLOCKS)
+                    .collect::<Vec<_>>();
+
+                if !all_ancestors.is_empty() {
+                    ancestor_blocks = self.dag_state.read().get_blocks(&all_ancestors);
+                }
+            }
+
+            // Return the serialised blocks & the ancestor blocks
+            let result = blocks
+                .into_iter()
+                .chain(ancestor_blocks)
                 .flatten()
-                .flat_map(|block| block.ancestors().to_vec())
-                .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
-                .take(MAX_ADDITIONAL_BLOCKS)
+                .map(|block| block.serialized().clone())
                 .collect::<Vec<_>>();
 
-            if !all_ancestors.is_empty() {
-                ancestor_blocks = self.dag_state.read().get_blocks(&all_ancestors);
-            }
+            return Ok(result);
         }
 
-        // Return the serialised blocks & the ancestor blocks
-        let result = blocks
+        // For commit sync, the fetch size is larger. For periodic/live synchronizer,
+        // the fetch size is smaller.else { Instead of rejecting the request, we
+        // truncate the size to allow an easy update of this parameter in the future.
+        if commit_sync_handle {
+            block_refs.truncate(self.context.parameters.max_blocks_per_fetch);
+        } else {
+            block_refs.truncate(self.context.parameters.max_blocks_per_sync);
+        }
+
+        // Get requested blocks from store.
+        let blocks = if commit_sync_handle {
+            // For commit sync, we respond with all blocks from the store
+            self.dag_state
+                .read()
+                .get_blocks(&block_refs)
+                .into_iter()
+                .flatten()
+                .collect()
+        } else {
+            // For periodic or live synchronizer, we respond with requested blocks from the
+            // store and with additional blocks from the cache
+            block_refs.sort();
+            block_refs.dedup();
+            let dag_state = self.dag_state.read();
+            let mut blocks = dag_state
+                .get_blocks(&block_refs)
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            // Get additional blocks for authorities with missing block, if they are
+            // available in cache. Compute the lowest missing round per
+            // requested authority.
+            let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
+            for block_ref in blocks.iter().map(|b| b.reference()) {
+                let entry = lowest_missing_rounds
+                    .entry(block_ref.author)
+                    .or_insert(block_ref.round);
+                *entry = (*entry).min(block_ref.round);
+            }
+
+            // Retrieve additional blocks per authority, from peer's highest accepted round
+            // + 1 to lowest missing round (exclusive) per requested authority. Start with
+            //   own blocks.
+            let own_index = self.context.own_index;
+
+            // Collect and sort so own_index comes first
+            let mut ordered_missing_rounds: Vec<_> = lowest_missing_rounds.into_iter().collect();
+            ordered_missing_rounds.sort_by_key(|(auth, _)| if *auth == own_index { 0 } else { 1 });
+
+            for (authority, lowest_missing_round) in ordered_missing_rounds {
+                let highest_accepted_round = highest_accepted_rounds[authority];
+                if highest_accepted_round >= lowest_missing_round {
+                    continue;
+                }
+
+                let missing_blocks = dag_state.get_cached_blocks_in_range(
+                    authority,
+                    highest_accepted_round + 1,
+                    lowest_missing_round,
+                    self.context
+                        .parameters
+                        .max_blocks_per_sync
+                        .saturating_sub(blocks.len()),
+                );
+                blocks.extend(missing_blocks);
+                if blocks.len() >= self.context.parameters.max_blocks_per_sync {
+                    blocks.truncate(self.context.parameters.max_blocks_per_sync);
+                    break;
+                }
+            }
+
+            blocks
+        };
+
+        // Return the serialized blocks
+        let bytes = blocks
             .into_iter()
-            .chain(ancestor_blocks)
-            .flatten()
             .map(|block| block.serialized().clone())
             .collect::<Vec<_>>();
-
-        Ok(result)
+        Ok(bytes)
     }
 
     async fn handle_fetch_commits(
@@ -570,7 +663,22 @@ impl SubscriptionCounter {
     fn increment(&self, peer: AuthorityIndex) -> Result<(), ConsensusError> {
         let mut counter = self.counter.lock();
         counter.count += 1;
+        let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
         counter.subscriptions_by_authority[peer] += 1;
+        let mut total_stake = 0;
+        for (authority_index, _) in self.context.committee.authorities() {
+            if counter.subscriptions_by_authority[authority_index] >= 1
+                || self.context.own_index == authority_index
+            {
+                total_stake += self.context.committee.stake(authority_index);
+            }
+        }
+        // Stake of subscriptions before a new peer was subscribed
+        let previous_stake = if original_subscription_by_peer == 0 {
+            total_stake - self.context.committee.stake(peer)
+        } else {
+            total_stake
+        };
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         self.context
@@ -579,19 +687,39 @@ impl SubscriptionCounter {
             .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(1);
-
-        if counter.count == 1 {
+        // If the subscription count reaches quorum, notify the dispatcher and get ready
+        // to propose blocks.
+        if !self.context.committee.reached_quorum(previous_stake)
+            && self.context.committee.reached_quorum(total_stake)
+        {
             self.dispatcher
-                .set_subscriber_exists(true)
+                .set_quorum_subscribers_exists(true)
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
+        // Drop the counter after sending the command to the dispatcher
+        drop(counter);
         Ok(())
     }
 
     fn decrement(&self, peer: AuthorityIndex) -> Result<(), ConsensusError> {
         let mut counter = self.counter.lock();
         counter.count -= 1;
+        let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
         counter.subscriptions_by_authority[peer] -= 1;
+        let mut total_stake = 0;
+        for (authority_index, _) in self.context.committee.authorities() {
+            if counter.subscriptions_by_authority[authority_index] >= 1
+                || self.context.own_index == authority_index
+            {
+                total_stake += self.context.committee.stake(authority_index);
+            }
+        }
+        // Stake of subscriptions before a peer was dropped
+        let previous_stake = if original_subscription_by_peer == 1 {
+            total_stake + self.context.committee.stake(peer)
+        } else {
+            total_stake
+        };
 
         if counter.subscriptions_by_authority[peer] == 0 {
             let peer_hostname = &self.context.committee.authority(peer).hostname;
@@ -603,11 +731,17 @@ impl SubscriptionCounter {
                 .set(0);
         }
 
-        if counter.count == 0 {
+        // If the subscription count drops below quorum, notify the dispatcher to stop
+        // proposing blocks.
+        if self.context.committee.reached_quorum(previous_stake)
+            && !self.context.committee.reached_quorum(total_stake)
+        {
             self.dispatcher
-                .set_subscriber_exists(false)
+                .set_quorum_subscribers_exists(false)
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
+        // Drop the counter after sending the command to the dispatcher
+        drop(counter);
         Ok(())
     }
 }
@@ -707,8 +841,12 @@ async fn make_recv_future<T: Clone>(
 // TODO: add a unit test for BroadcastStream.
 
 #[cfg(test)]
-mod tests {
-    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+pub(crate) mod tests {
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use async_trait::async_trait;
     use bytes::Bytes;
@@ -733,12 +871,12 @@ mod tests {
         test_dag_builder::DagBuilder,
     };
 
-    struct FakeCoreThreadDispatcher {
+    pub(crate) struct FakeCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
     }
 
     impl FakeCoreThreadDispatcher {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 blocks: Mutex::new(vec![]),
             }
@@ -778,11 +916,13 @@ mod tests {
             Ok(())
         }
 
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(Default::default())
         }
 
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
 

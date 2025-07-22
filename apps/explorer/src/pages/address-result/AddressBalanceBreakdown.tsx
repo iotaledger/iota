@@ -212,7 +212,7 @@ function RenderBalanceValue({
     isError,
 }: RenderBalanceValueProps): React.JSX.Element | string {
     if (isLoading) {
-        return <Skeleton widthClass="w-20" heightClass="h-4" />;
+        return <Skeleton className="h-4 w-20" />;
     }
     if (isError) {
         return '--';

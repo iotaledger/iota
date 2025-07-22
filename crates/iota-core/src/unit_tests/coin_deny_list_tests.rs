@@ -41,7 +41,7 @@ async fn test_regulated_coin_v1_types() {
     let mut regulated_metadata_object = None;
     let mut package_id = None;
     for (oref, _owner) in env.publish_effects.created() {
-        let object = env.authority.get_object(&oref.0).await.unwrap().unwrap();
+        let object = env.authority.get_object(&oref.0).await.unwrap();
         if object.is_package() {
             package_id = Some(object.id());
             continue;
@@ -197,7 +197,7 @@ async fn test_regulated_coin_v1_types() {
     if effects.status().is_err() {
         panic!("Failed to enable global pause: {:?}", effects.status());
     }
-    println!("Effects: {:?}", effects);
+    println!("Effects: {effects:?}");
     assert!(check_global_pause(
         &coin_deny_config,
         &env.authority.get_object_store(),
@@ -228,7 +228,6 @@ impl TestEnv {
         self.authority
             .get_object(id)
             .await
-            .unwrap()
             .unwrap()
             .compute_object_reference()
     }

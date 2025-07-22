@@ -1,0 +1,27 @@
+# Get all on-chain events emitted by the module `0x3::iota_system
+query ByEmittingPackageModule {
+  events(
+    filter: {
+      emittingModule: "0x3::iota_system",
+    }
+  ) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      sendingModule {
+        name
+      }
+      type {
+        repr
+      }
+      sender {
+        address
+      }
+      timestamp
+      json
+      bcs
+    }
+  }
+}

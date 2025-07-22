@@ -28,6 +28,7 @@ use crate::{
 };
 
 pub mod apis;
+pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
@@ -87,8 +88,7 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .map_err(|e| {
             warn!("Failed to get new Http client with error: {:?}", e);
             IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {:?}",
-                e
+                "Failed to initialize fullnode RPC client with error: {e:?}"
             ))
         })
 }

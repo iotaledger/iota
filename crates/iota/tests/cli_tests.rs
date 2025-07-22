@@ -34,8 +34,8 @@ use iota::{
     key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
-    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
+    IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -67,7 +67,7 @@ use iota_types::{
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
@@ -104,13 +104,12 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
 
-    assert_eq!(10, files.len());
+    assert_eq!(9, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
     assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
     assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
-    assert!(files.contains(&IOTA_KEYSTORE_ALIASES_FILENAME.to_string()));
 
     // Check network config
     let network_conf =
@@ -188,7 +187,6 @@ async fn test_start() -> Result<(), anyhow::Error> {
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
     assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
     assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
-    assert!(files.contains(&IOTA_KEYSTORE_ALIASES_FILENAME.to_string()));
 
     // Check network config
     let network_conf =
@@ -627,8 +625,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let package = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         assert!(
             response.status_ok().unwrap(),
-            "Command failed: {:?}",
-            response
+            "Command failed: {response:?}"
         );
         assert_eq!(
             response.effects.as_ref().unwrap().gas_object().object_id(),
@@ -2331,8 +2328,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let (mut_obj1, mut_obj2) = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         assert!(
             response.status_ok().unwrap(),
-            "Command failed: {:?}",
-            response
+            "Command failed: {response:?}"
         );
         assert_eq!(
             response.effects.as_ref().unwrap().gas_object().object_id(),
@@ -2472,8 +2468,8 @@ fn test_bug_1078() {
     ));
     let mut writer = String::new();
     // fmt ObjectRead should not fail.
-    write!(writer, "{}", read).unwrap();
-    write!(writer, "{:?}", read).unwrap();
+    write!(writer, "{read}").unwrap();
+    write!(writer, "{read:?}").unwrap();
 }
 
 #[sim_test]
@@ -2587,7 +2583,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.flag() == Ed25519IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == Ed25519IotaSignature::SCHEME.flag())
             .count(),
         5
     );
@@ -2608,7 +2604,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.flag() == Secp256k1IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == Secp256k1IotaSignature::SCHEME.flag())
             .count(),
         1
     );
@@ -2786,7 +2782,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
     let g = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         assert_eq!(r.effects.as_ref().unwrap().gas_object().object_id(), gas);
         let object_id = r
             .effects
@@ -2907,7 +2903,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     .await?;
 
     let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         assert_eq!(r.effects.as_ref().unwrap().gas_object().object_id(), gas);
         let updated_object_id = r
             .effects
@@ -2973,7 +2969,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     .await?;
 
     let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         let updated_object_id = r
             .effects
             .as_ref()
@@ -3041,7 +3037,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     .await?;
 
     let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
-        assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert!(r.status_ok().unwrap(), "Command failed: {r:?}");
         let updated_object_id = r
             .effects
             .as_ref()
@@ -3210,6 +3206,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
             display: HashSet::new(),
+            sender: None,
         },
     }
     .execute(context)
@@ -3226,6 +3223,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             display: HashSet::new(),
+            sender: None,
         },
     }
     .execute(context)
@@ -3243,6 +3241,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             display: HashSet::new(),
+            sender: None,
         },
     }
     .execute(context)
@@ -3520,20 +3519,28 @@ async fn key_identity_test() {
     // by alias
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Alias(alias)), context).unwrap()
+        get_identity_address(Some(KeyIdentity::Alias(alias)), context)
+            .await
+            .unwrap()
     );
     // by address
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Address(address)), context).unwrap()
+        get_identity_address(Some(KeyIdentity::Address(address)), context)
+            .await
+            .unwrap()
     );
     // alias does not exist
-    assert!(get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context).is_err());
+    assert!(
+        get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context)
+            .await
+            .is_err()
+    );
 
     // get active address instead when no alias/address is given
     assert_eq!(
         context.active_address().unwrap(),
-        get_identity_address(None, context).unwrap()
+        get_identity_address(None, context).await.unwrap()
     );
 }
 
@@ -3550,7 +3557,7 @@ fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectID, command
             "{command} dry run test failed, gas object used is not the expected one"
         );
     } else {
-        panic!("{} dry run failed", command);
+        panic!("{command} dry run failed");
     }
 }
 
@@ -4013,6 +4020,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
+            sender: None,
         },
     }
     .execute(context)
@@ -4824,14 +4832,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     --make-move-vec <u8> "[1]"
     "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Input]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
 
@@ -4842,14 +4852,16 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
         --make-move-vec <u8> "[1]"
         "#;
     let args = shlex::split(ptb_string).unwrap();
-    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
-        iota::client_ptb::ptb::PTB {
-            args,
-            display: HashSet::from([DisplayOption::Events]),
-        }
-        .execute(context)
-        .await?
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Events]),
+    }
+    .execute(context)
+    .await?
     else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
         panic!("unexpected PTB result");
     };
     // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
@@ -4900,6 +4912,73 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     assert_eq!(*new_env.ws(), ws);
     assert_eq!(*new_env.basic_auth(), basic_auth);
     assert_eq!(*new_env.faucet(), faucet);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_sender() -> Result<(), anyhow::Error> {
+    use std::collections::HashSet;
+
+    use iota::{
+        client_commands::{IotaClientCommands, OptsWithGas},
+        client_ptb::ptb::PTB,
+        key_identity::KeyIdentity,
+    };
+    use iota_types::base_types::IotaAddress;
+    // Hardcoded multisig address (generated with `iota keytool multi-sig-address
+    // --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold
+    // 1` where the pubKey is for the privKey with all zeros)
+    let multisig_address =
+        IotaAddress::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa")
+            .unwrap();
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let address = test_cluster.get_address_0();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(address, None, None, None)
+        .await?
+        .data;
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+    let obj_id = object_refs.get(1).unwrap().object().unwrap().object_id;
+    // Send funds to the multisig address
+    IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(multisig_address),
+        object_id: obj_id,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+    // Now do a PTB with --sender
+    let ptb_string = format!(
+        r#"
+        --split-coins gas [1]
+        --assign s
+        --transfer-objects [s.0] @{multisig_address}
+        --sender @{multisig_address}
+        --gas-budget 10000000
+        --serialize-unsigned-transaction
+        "#
+    );
+    let args = shlex::split(&ptb_string).unwrap();
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
+    let ptb_res = ptb.execute(context).await?;
+    let PTBCommandResult::CommandResult(res) = ptb_res else {
+        unreachable!("Invalid result");
+    };
+    let IotaClientCommandResult::SerializedUnsignedTransaction(tx_data) = *res else {
+        panic!("unexpected PTB result");
+    };
+    assert_eq!(tx_data.sender(), multisig_address);
 
     Ok(())
 }

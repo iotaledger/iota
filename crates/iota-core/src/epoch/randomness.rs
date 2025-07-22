@@ -16,7 +16,7 @@ use fastcrypto::{
     serde_helpers::ToFromByteArray,
     traits::{KeyPair, ToFromBytes},
 };
-use fastcrypto_tbls::{dkg, dkg::Output, dkg_v1, nodes, nodes::PartyId};
+use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
@@ -75,22 +75,22 @@ impl VersionedProcessedMessage {
     }
 
     pub fn process(
-        party: Arc<dkg::Party<PkG, EncG>>,
+        party: Arc<dkg_v1::Party<PkG, EncG>>,
         message: VersionedDkgMessage,
     ) -> FastCryptoResult<VersionedProcessedMessage> {
         // All inputs are verified in add_message, so we can assume they are of the
         // correct version.
-        let processed = party.process_message_v1(message.unwrap_v1(), &mut rand::thread_rng())?;
+        let processed = party.process_message(message.unwrap_v1(), &mut rand::thread_rng())?;
         Ok(VersionedProcessedMessage::V1(processed))
     }
 
     pub fn merge(
-        party: Arc<dkg::Party<PkG, EncG>>,
+        party: Arc<dkg_v1::Party<PkG, EncG>>,
         messages: Vec<Self>,
     ) -> FastCryptoResult<(VersionedDkgConfirmation, VersionedUsedProcessedMessages)> {
         // All inputs were created by this validator, so we can assume they are of the
         // correct version.
-        let (conf, msgs) = party.merge_v1(
+        let (conf, msgs) = party.merge(
             &messages
                 .into_iter()
                 .map(|vm| vm.unwrap_v1())
@@ -111,14 +111,14 @@ pub enum VersionedUsedProcessedMessages {
 impl VersionedUsedProcessedMessages {
     fn complete_dkg<'a, Iter: Iterator<Item = &'a VersionedDkgConfirmation>>(
         &self,
-        party: Arc<dkg::Party<PkG, EncG>>,
+        party: Arc<dkg_v1::Party<PkG, EncG>>,
         confirmations: Iter,
     ) -> FastCryptoResult<Output<PkG, EncG>> {
         // All inputs are verified in add_confirmation, so we can assume they are of the
         // correct version.
         let rng = &mut StdRng::from_rng(OsRng).expect("RNG construction should not fail");
         let VersionedUsedProcessedMessages::V1(msg) = self;
-        party.complete_v1(
+        party.complete(
             msg,
             &confirmations
                 .map(|vm| vm.unwrap_v1())
@@ -161,12 +161,12 @@ pub struct RandomnessManager {
 
     // State for DKG.
     dkg_start_time: OnceCell<Instant>,
-    party: Arc<dkg::Party<PkG, EncG>>,
+    party: Arc<dkg_v1::Party<PkG, EncG>>,
     enqueued_messages: BTreeMap<PartyId, JoinHandle<Option<VersionedProcessedMessage>>>,
     processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     used_messages: OnceCell<VersionedUsedProcessedMessages>,
     confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
-    dkg_output: OnceCell<Option<dkg::Output<PkG, EncG>>>,
+    dkg_output: OnceCell<Option<dkg_v1::Output<PkG, EncG>>>,
 
     // State for randomness generation.
     next_randomness_round: RandomnessRound,
@@ -270,8 +270,10 @@ impl RandomnessManager {
                 .expect("key length should match"),
         )
         .expect("should work to convert BLS key to Scalar");
-        let party = match dkg::Party::<PkG, EncG>::new(
-            fastcrypto_tbls::ecies::PrivateKey::<bls12381::G2Element>::from(randomness_private_key),
+        let party = match dkg_v1::Party::<PkG, EncG>::new(
+            fastcrypto_tbls::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
+                randomness_private_key,
+            ),
             nodes,
             t,
             fastcrypto_tbls::random_oracle::RandomOracle::new(prefix_str.as_str()),
@@ -756,7 +758,7 @@ impl RandomnessManager {
     ) -> Vec<(
         u16,
         AuthorityName,
-        fastcrypto_tbls::ecies::PublicKey<bls12381::G2Element>,
+        fastcrypto_tbls::ecies_v1::PublicKey<bls12381::G2Element>,
         StakeUnit,
     )> {
         committee
@@ -779,7 +781,7 @@ impl RandomnessManager {
                 (
                     index,
                     *name,
-                    fastcrypto_tbls::ecies::PublicKey::from(pk),
+                    fastcrypto_tbls::ecies_v1::PublicKey::from(pk),
                     *stake,
                 )
             })

@@ -1012,6 +1012,12 @@ request_add_stake_mul_bal_non_entry
 request_withdraw_stake_non_entry
 	public fun
 	0x3::timelocked_staking
+unlock
+	public fun
+	0x3::timelocked_staking
+unlock_with_clock
+	public fun
+	0x3::timelocked_staking
 split
 	public fun
 	0x3::timelocked_staking

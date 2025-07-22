@@ -244,7 +244,10 @@ pub struct NodeConfig {
     pub firewall_config: Option<RemoteFirewallConfig>,
 
     #[serde(default)]
-    pub execution_cache: ExecutionCacheConfig,
+    pub execution_cache: ExecutionCacheType,
+
+    #[serde(default)]
+    pub execution_cache_config: ExecutionCacheConfig,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
@@ -262,22 +265,171 @@ pub struct NodeConfig {
     pub iota_names_config: Option<IotaNamesConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ExecutionCacheConfig {
+pub enum ExecutionCacheType {
+    #[default]
+    WritebackCache,
     PassthroughCache,
-    WritebackCache {
-        /// Maximum number of entries in each cache. (There are several
-        /// different caches). If None, the default of 10000 is used.
-        max_cache_size: Option<usize>,
-    },
 }
 
-impl Default for ExecutionCacheConfig {
-    fn default() -> Self {
-        ExecutionCacheConfig::WritebackCache {
-            max_cache_size: None,
+impl From<ExecutionCacheType> for u8 {
+    fn from(cache_type: ExecutionCacheType) -> Self {
+        match cache_type {
+            ExecutionCacheType::WritebackCache => 0,
+            ExecutionCacheType::PassthroughCache => 1,
         }
+    }
+}
+
+impl From<&u8> for ExecutionCacheType {
+    fn from(cache_type: &u8) -> Self {
+        match cache_type {
+            0 => ExecutionCacheType::WritebackCache,
+            1 => ExecutionCacheType::PassthroughCache,
+            _ => unreachable!("Invalid value for ExecutionCacheType"),
+        }
+    }
+}
+
+/// Type alias for atomic representation of ExecutionCacheType for lock-free
+/// operations
+pub type ExecutionCacheTypeAtomicU8 = std::sync::atomic::AtomicU8;
+
+impl From<ExecutionCacheType> for ExecutionCacheTypeAtomicU8 {
+    fn from(cache_type: ExecutionCacheType) -> Self {
+        ExecutionCacheTypeAtomicU8::new(u8::from(cache_type))
+    }
+}
+
+impl ExecutionCacheType {
+    pub fn cache_type(self) -> Self {
+        if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
+            Self::PassthroughCache
+        } else {
+            self
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExecutionCacheConfig {
+    #[serde(default)]
+    pub writeback_cache: WritebackCacheConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct WritebackCacheConfig {
+    /// Maximum number of entries in each cache. (There are several
+    /// different caches). If None, the default of 10000 is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_cache_size: Option<u64>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_cache_size: Option<u64>, // defaults to 1000
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_cache_size: Option<u64>, // defaults to max_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker_cache_size: Option<u64>, // defaults to object_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_by_id_cache_size: Option<u64>, // defaults to object_cache_size
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction_cache_size: Option<u64>, // defaults to max_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executed_effect_cache_size: Option<u64>, // defaults to transaction_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect_cache_size: Option<u64>, // defaults to executed_effect_cache_size
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub events_cache_size: Option<u64>, // defaults to transaction_cache_size
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction_objects_cache_size: Option<u64>, // defaults to 1000
+}
+
+impl WritebackCacheConfig {
+    pub fn max_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_MAX")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.max_cache_size)
+            .unwrap_or(100000)
+    }
+
+    pub fn package_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_PACKAGE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.package_cache_size)
+            .unwrap_or(1000)
+    }
+
+    pub fn object_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_OBJECT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.object_cache_size)
+            .unwrap_or_else(|| self.max_cache_size())
+    }
+
+    pub fn marker_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_MARKER")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.marker_cache_size)
+            .unwrap_or_else(|| self.object_cache_size())
+    }
+
+    pub fn object_by_id_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_OBJECT_BY_ID")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.object_by_id_cache_size)
+            .unwrap_or_else(|| self.object_cache_size())
+    }
+
+    pub fn transaction_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_TRANSACTION")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.transaction_cache_size)
+            .unwrap_or_else(|| self.max_cache_size())
+    }
+
+    pub fn executed_effect_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EXECUTED_EFFECT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.executed_effect_cache_size)
+            .unwrap_or_else(|| self.transaction_cache_size())
+    }
+
+    pub fn effect_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EFFECT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.effect_cache_size)
+            .unwrap_or_else(|| self.executed_effect_cache_size())
+    }
+
+    pub fn events_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EVENTS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.events_cache_size)
+            .unwrap_or_else(|| self.transaction_cache_size())
+    }
+
+    pub fn transaction_objects_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_TRANSACTION_OBJECTS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.transaction_objects_cache_size)
+            .unwrap_or(1000)
     }
 }
 
@@ -419,20 +571,18 @@ impl NodeConfig {
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
         match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for protocol key",
-                other
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
+            }
         }
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for network key",
-                other
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
+            }
         }
     }
 
@@ -1004,7 +1154,9 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: Some(GenesisLocation::InPlace { genesis }),
+            location: Some(GenesisLocation::InPlace {
+                genesis: Box::new(genesis),
+            }),
             genesis: Default::default(),
         }
     }
@@ -1042,7 +1194,7 @@ impl Genesis {
 #[serde(untagged)]
 enum GenesisLocation {
     InPlace {
-        genesis: genesis::Genesis,
+        genesis: Box<genesis::Genesis>,
     },
     File {
         #[serde(rename = "genesis-file-location")]
@@ -1109,7 +1261,7 @@ impl KeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
-                            panic!("invalid keypair file at path {:?}: {e}", path)
+                            panic!("invalid keypair file at path {path:?}: {e}")
                         }),
                     )
                 }

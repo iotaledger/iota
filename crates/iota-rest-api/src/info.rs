@@ -52,11 +52,11 @@ impl ApiEndpoint<RestService> for GetNodeInfo {
 }
 
 async fn get_node_info(State(state): State<RestService>) -> Result<Json<NodeInfo>> {
-    let latest_checkpoint = state.reader.inner().get_latest_checkpoint()?;
+    let latest_checkpoint = state.reader.inner().try_get_latest_checkpoint()?;
     let lowest_available_checkpoint = state
         .reader
         .inner()
-        .get_lowest_available_checkpoint()?
+        .try_get_lowest_available_checkpoint()?
         .pipe(Some);
     let lowest_available_checkpoint_objects = state
         .reader

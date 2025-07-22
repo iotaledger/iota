@@ -608,7 +608,7 @@ impl TemporaryStore<'_> {
                 // For example, the ID is for a wrapped table or bag.
                 *container_id
             } else {
-                let Some(old_obj) = self.store.get_object(&to_authenticate)? else {
+                let Some(old_obj) = self.store.try_get_object(&to_authenticate)? else {
                     panic!(
                         "
                         Failed to load object {to_authenticate:?}. \n\
@@ -786,7 +786,7 @@ impl TemporaryStore<'_> {
             })
         } else {
             // not in input objects, must be a dynamic field
-            let Ok(Some(obj)) = self.store.get_object_by_key(id, expected_version) else {
+            let Ok(Some(obj)) = self.store.try_get_object_by_key(id, expected_version) else {
                 invariant_violation!(
                     "Failed looking up dynamic field {id} in IOTA conservation checking"
                 );
@@ -879,9 +879,8 @@ impl TemporaryStore<'_> {
             {
                 return Err(ExecutionError::invariant_violation(format!(
                     "IOTA conservation failed -- no storage charges in gas summary \
-                        and total storage input rebate {} not equal  \
-                        to total storage output rebate {}",
-                    total_input_rebate, total_output_rebate,
+                        and total storage input rebate {total_input_rebate} not equal  \
+                        to total storage output rebate {total_output_rebate}",
                 )));
             }
         } else {
@@ -961,9 +960,8 @@ impl TemporaryStore<'_> {
         }
         if total_input_iota != total_output_iota {
             return Err(ExecutionError::invariant_violation(format!(
-                "IOTA conservation failed: input={}, output={}, \
+                "IOTA conservation failed: input={total_input_iota}, output={total_output_iota}, \
                     this transaction either mints or burns IOTA",
-                total_input_iota, total_output_iota,
             )));
         }
         Ok(())

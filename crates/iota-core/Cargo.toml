@@ -81,6 +81,7 @@ iota-protocol-config.workspace = true
 iota-simulator.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
+iota-tls.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
@@ -142,10 +143,6 @@ harness = false
 [[bench]]
 name = "batch_verification_bench"
 harness = false
-required-features = ["test-utils"]
-
-[features]
-test-utils = []
 
 [package.metadata.cargo-udeps.ignore]
 development = ["pprof", "test-fuzz"]

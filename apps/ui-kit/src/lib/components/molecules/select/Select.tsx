@@ -3,7 +3,7 @@
 
 import { TriangleDown } from '@iota/apps-ui-icons';
 import cx from 'classnames';
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '@/components/atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
@@ -88,15 +88,34 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
     ) => {
         const [isOpen, setIsOpen] = useState<boolean>(false);
         const selectedValue = findValueByProps(value, options);
+        const wrapperRef = useRef<HTMLDivElement>(null);
 
         const selectorText = selectedValue || placeholder;
         const selectPadding = size === SelectSize.Small ? 'px-sm' : 'px-md';
         const textSize = size === SelectSize.Small ? 'text-body-md' : 'text-body-lg';
+
         useEffect(() => {
             if (disabled && isOpen) {
                 closeDropdown();
             }
         }, [disabled, isOpen]);
+
+        useEffect(() => {
+            if (!isOpen) return;
+
+            const handleClickOutside = (e: MouseEvent) => {
+                const target = e.target as Node;
+                if (wrapperRef.current && !wrapperRef.current.contains(target)) {
+                    closeDropdown();
+                }
+            };
+
+            document.addEventListener('mousedown', handleClickOutside);
+
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }, [isOpen]);
 
         function findValueByProps(value: SelectProps['value'], options: SelectOption[] = []) {
             return (
@@ -123,6 +142,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         function closeDropdown() {
             setIsOpen(false);
         }
+
         return (
             <InputWrapper
                 label={label}
@@ -131,27 +151,23 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 errorMessage={errorMessage}
                 labelHtmlTag={LabelHtmlTag.Div}
             >
-                <div className="relative flex w-full flex-col">
+                <div className="relative flex w-full flex-col" ref={wrapperRef}>
                     <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
                         disabled={disabled}
                         className={cx(
-                            'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5',
+                            'select-border-color focus-visible:enabled:select-border-focus-color active:enabled:select-border-focus-color group-[.errored]:select-border-error-color group-[.opened]:select-border-focus-color [&:is(:focus,_:focus-visible,_:active)]:enabled:select-border-focus-color hover:enabled:select-border-hover-color flex flex-row items-center gap-x-3 rounded-lg border py-sm disabled:cursor-not-allowed [&_svg]:h-5 [&_svg]:w-5',
                             selectPadding,
                         )}
                     >
-                        {leadingIcon && (
-                            <span className="text-neutral-10 dark:text-neutral-92">
-                                {leadingIcon}
-                            </span>
-                        )}
+                        {leadingIcon && <span className="select-icon-color">{leadingIcon}</span>}
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
                             {selectorText && (
                                 <div
                                     className={cx(
-                                        'block w-full text-start text-neutral-10 dark:text-neutral-92',
+                                        'select-label-color block w-full text-start',
                                         textSize,
                                     )}
                                 >
@@ -167,18 +183,15 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         </div>
 
                         <TriangleDown
-                            className={cx(
-                                'text-neutral-10 transition-transform dark:text-neutral-92',
-                                {
-                                    ' rotate-180': isOpen,
-                                },
-                            )}
+                            className={cx('select-icon-color transition-transform', {
+                                ' rotate-180': isOpen,
+                            })}
                         />
                     </ButtonUnstyled>
 
                     {isOpen && (
                         <div
-                            className="fixed left-0 top-0 z-[49] h-screen w-screen bg-transparent"
+                            className="fixed left-0 top-0 z-[49] bg-transparent"
                             onClick={closeDropdown}
                         />
                     )}

@@ -14,10 +14,11 @@ use std::{
 use anyhow::Result;
 use futures::future::try_join_all;
 use iota_config::{
-    IOTA_GENESIS_FILENAME, NodeConfig,
+    ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
 };
 use iota_macros::nondeterministic;
+use iota_names::config::IotaNamesConfig;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{
@@ -59,6 +60,7 @@ pub struct SwarmBuilder<R = OsRng> {
     jwk_fetch_interval: Option<Duration>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
@@ -67,6 +69,7 @@ pub struct SwarmBuilder<R = OsRng> {
     submit_delay_step_override_millis: Option<u64>,
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
+    iota_names_config: Option<IotaNamesConfig>,
 }
 
 impl SwarmBuilder {
@@ -88,6 +91,7 @@ impl SwarmBuilder {
             jwk_fetch_interval: None,
             num_unpruned_validators: None,
             authority_overload_config: None,
+            execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
@@ -96,6 +100,7 @@ impl SwarmBuilder {
             submit_delay_step_override_millis: None,
             state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
+            iota_names_config: None,
         }
     }
 }
@@ -119,6 +124,7 @@ impl<R> SwarmBuilder<R> {
             jwk_fetch_interval: self.jwk_fetch_interval,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
+            execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
             fullnode_policy_config: self.fullnode_policy_config,
@@ -127,6 +133,7 @@ impl<R> SwarmBuilder<R> {
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             state_accumulator_config: self.state_accumulator_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
+            iota_names_config: self.iota_names_config,
         }
     }
 
@@ -264,6 +271,14 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_execution_cache_config(
+        mut self,
+        execution_cache_config: ExecutionCacheConfig,
+    ) -> Self {
+        self.execution_cache_config = Some(execution_cache_config);
+        self
+    }
+
     pub fn with_data_ingestion_dir(mut self, path: PathBuf) -> Self {
         self.data_ingestion_dir = Some(path);
         self
@@ -311,6 +326,11 @@ impl<R> SwarmBuilder<R> {
         self.submit_delay_step_override_millis = Some(submit_delay_step_override_millis);
         self
     }
+
+    pub fn with_iota_names_config(mut self, iota_names_config: IotaNamesConfig) -> Self {
+        self.iota_names_config = Some(iota_names_config);
+        self
+    }
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
@@ -343,6 +363,10 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             if let Some(authority_overload_config) = self.authority_overload_config {
                 config_builder =
                     config_builder.with_authority_overload_config(authority_overload_config);
+            }
+
+            if let Some(execution_cache_config) = self.execution_cache_config {
+                config_builder = config_builder.with_execution_cache_config(execution_cache_config);
             }
 
             if let Some(path) = self.data_ingestion_dir {
@@ -400,7 +424,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .with_policy_config(self.fullnode_policy_config)
             .with_data_ingestion_dir(ingest_data)
             .with_fw_config(self.fullnode_fw_config)
-            .with_disable_pruning(self.disable_fullnode_pruning);
+            .with_disable_pruning(self.disable_fullnode_pruning)
+            .with_iota_names_config(self.iota_names_config);
 
         if let Some(spvc) = &self.fullnode_supported_protocol_versions_config {
             let supported_versions = match spvc {
