@@ -24,19 +24,21 @@ pub(crate) trait Transport {
     ) -> Result<APDUAnswer<Vec<u8>>, LedgerError>;
 }
 
-pub(crate) fn create_tcp_transport() -> Result<LedgerTransport, LedgerError> {
-    Ok(LedgerTransport::Simulator(TransportTCP::new(
-        "127.0.0.1",
-        9999,
-    )))
-}
+impl LedgerTransport {
+    pub(crate) fn new_simulator() -> Result<LedgerTransport, LedgerError> {
+        Ok(LedgerTransport::Simulator(TransportTCP::new(
+            "127.0.0.1",
+            9999,
+        )))
+    }
 
-pub(crate) fn create_hid_transport() -> Result<LedgerTransport, LedgerError> {
-    let api = hidapi::HidApi::new()?;
-    Ok(LedgerTransport::NativeHID(
-        TransportNativeHID::new(&api).map_err(|e| match e {
-            LedgerHIDError::DeviceNotFound => LedgerError::DeviceNotFound,
-            _ => e.into(),
-        })?,
-    ))
+    pub(crate) fn new_native_hid() -> Result<LedgerTransport, LedgerError> {
+        let api = hidapi::HidApi::new()?;
+        Ok(LedgerTransport::NativeHID(
+            TransportNativeHID::new(&api).map_err(|e| match e {
+                LedgerHIDError::DeviceNotFound => LedgerError::DeviceNotFound,
+                _ => e.into(),
+            })?,
+        ))
+    }
 }

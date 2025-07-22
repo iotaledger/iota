@@ -7,9 +7,7 @@ use hex::ToHex;
 use tracing::debug;
 mod transport;
 use serde::Serialize;
-use transport::{
-    APDUAnswer, APDUCommand, LedgerTransport, create_hid_transport, create_tcp_transport,
-};
+use transport::{APDUAnswer, APDUCommand, LedgerTransport};
 
 pub use crate::api::errors::LedgerError;
 mod api;
@@ -41,19 +39,19 @@ const DASHBOARD_APP_NAME: &str = "BOLOS";
 impl Ledger {
     pub fn new_with_default() -> Result<Ledger, LedgerError> {
         let transport = if std::env::var("LEDGER_SIMULATOR").is_ok() {
-            create_tcp_transport()?
+            LedgerTransport::new_simulator()?
         } else {
-            create_hid_transport()?
+            LedgerTransport::new_native_hid()?
         };
         Ok(crate::Ledger::new(transport))
     }
 
     pub fn new_with_native_hid() -> Result<Ledger, LedgerError> {
-        Ok(crate::Ledger::new(create_hid_transport()?))
+        Ok(crate::Ledger::new(LedgerTransport::new_native_hid()?))
     }
 
     pub fn new_with_simulator() -> Result<Ledger, LedgerError> {
-        Ok(crate::Ledger::new(create_tcp_transport()?))
+        Ok(crate::Ledger::new(LedgerTransport::new_simulator()?))
     }
 
     fn new(transport: LedgerTransport) -> Self {
@@ -68,10 +66,10 @@ impl Ledger {
         thread::sleep(time::Duration::from_secs(3));
         match &self.transport {
             LedgerTransport::Simulator(_) => {
-                self.transport = create_tcp_transport()?;
+                self.transport = LedgerTransport::new_simulator()?;
             }
             LedgerTransport::NativeHID(_) => {
-                self.transport = create_hid_transport()?;
+                self.transport = LedgerTransport::new_native_hid()?;
             }
         }
         Ok(())
