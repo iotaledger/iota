@@ -323,9 +323,9 @@ pub struct ExecutionCacheConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct WritebackCacheConfig {
     /// Maximum number of entries in each cache. (There are several
-    /// different caches). If None, the default of 10000 is used.
+    /// different caches).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_cache_size: Option<u64>,
+    pub max_cache_size: Option<u64>, // defaults to 100000
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_cache_size: Option<u64>, // defaults to 1000
@@ -349,6 +349,17 @@ pub struct WritebackCacheConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_objects_cache_size: Option<u64>, // defaults to 1000
+
+    /// Number of uncommitted transactions at which to pause consensus
+    /// handler.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_threshold: Option<u64>, // defaults to 100_000
+
+    /// Number of uncommitted transactions at which to refuse new
+    /// transaction submissions. Defaults to backpressure_threshold
+    /// if unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
 }
 
 impl WritebackCacheConfig {
@@ -430,6 +441,22 @@ impl WritebackCacheConfig {
             .and_then(|s| s.parse().ok())
             .or(self.transaction_objects_cache_size)
             .unwrap_or(1000)
+    }
+
+    pub fn backpressure_threshold(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_threshold)
+            .unwrap_or(100_000)
+    }
+
+    pub fn backpressure_threshold_for_rpc(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_THRESHOLD_FOR_RPC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_threshold_for_rpc)
+            .unwrap_or(self.backpressure_threshold())
     }
 }
 
