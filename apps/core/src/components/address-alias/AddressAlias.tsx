@@ -37,7 +37,7 @@ export function AddressAlias({
                         'flex items-center gap-xs text-iota-neutral-40 dark:text-iota-neutral-60',
                     )}
                 >
-                    <IotaLogoMark className="h-full aspect-square" />
+                    <IotaLogoMark className="h-full aspect-square shrink-0" />
                     {renderAlias?.(alias) ?? alias}
                 </div>
             )}
