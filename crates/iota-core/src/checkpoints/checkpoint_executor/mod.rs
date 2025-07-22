@@ -190,10 +190,10 @@ impl CheckpointExecutor {
     ) -> Self {
         Self::new(
             mailbox,
-            checkpoint_store,
+            checkpoint_store.clone(),
             state,
             accumulator,
-            BackpressureManager::new_for_tests(),
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store),
             Default::default(),
             CheckpointExecutorMetrics::new_for_tests(),
         )
