@@ -53,47 +53,44 @@ pub(crate) async fn sign_transaction(
     let iota_client = context.get_client().await?;
     let sender = &tx_data.sender();
 
-    let signature = {
-        let key = context.config().keystore().get_key(sender)?;
+    let key = context.config().keystore().get_key(sender)?;
 
-        match key {
-            StoredKey::KeyPair(_) => context.config().keystore().sign_secure(
-                sender,
-                tx_data,
-                Intent::iota_transaction(),
-            )?,
-            StoredKey::External {
-                derivation_path,
-                source,
-                ..
-            } => {
-                match ExternalKeySource::from(source.as_str()) {
-                    ExternalKeySource::Ledger => {
-                        let Some(derivation_path) = derivation_path else {
-                            bail!(
-                                "Derivation path is required for Ledger signing. Please specify it in the keystore."
-                            );
-                        };
+    match key {
+        StoredKey::KeyPair(_) => Ok(context.config().keystore().sign_secure(
+            sender,
+            tx_data,
+            Intent::iota_transaction(),
+        )?),
+        StoredKey::External {
+            derivation_path,
+            source,
+            ..
+        } => {
+            match ExternalKeySource::from(source.as_str()) {
+                ExternalKeySource::Ledger => {
+                    let Some(derivation_path) = derivation_path else {
+                        bail!(
+                            "Derivation path is required for Ledger signing. Please specify it in the keystore."
+                        );
+                    };
 
-                        let signer = LedgerSigner::new_with_default(
-                            derivation_path.clone(),
-                            Some(iota_client.clone()),
-                        )?;
-                        // pass the transaction sender to the signer to ensure the correct
-                        // key is used
-                        signer
-                            .sign_transaction(tx_data, sender)
-                            .await
-                            .map(|s| s.signature)?
-                    }
-                    ExternalKeySource::Unknown(name) => {
-                        bail!("External signing is not supported for source: {name}")
-                    }
+                    let signer = LedgerSigner::new_with_default(
+                        derivation_path.clone(),
+                        Some(iota_client.clone()),
+                    )?;
+                    // pass the transaction sender to the signer to ensure the correct
+                    // key is used
+                    Ok(signer
+                        .sign_transaction(tx_data, sender)
+                        .await
+                        .map(|s| s.signature)?)
+                }
+                ExternalKeySource::Unknown(name) => {
+                    bail!("External signing is not supported for source: {name}")
                 }
             }
         }
-    };
-    Ok(signature)
+    }
 }
 
 pub(crate) fn sign_secure<T>(
