@@ -1,5 +1,3 @@
-# Move
-
 Provides language support for the Move programming language. For information about Move visit the
 language [documentation](https://docs.iota.org/developer/iota-101/move-overview/). It also provides early-stage
 support for trace-debugging Move unit tests using a familiar VSCode debugging interface (e.g., stepping
