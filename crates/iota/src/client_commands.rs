@@ -325,7 +325,7 @@ pub enum IotaClientCommands {
     /// no extra gas coin is required.
     PayIota {
         /// The input coins to be used for pay recipients, including the gas
-        /// coin. If not provided, coins will be select automatically which
+        /// coin. If not provided, coins will be selected automatically which
         /// fulfill the requested amounts.
         #[arg(long, num_args(1..))]
         input_coins: Option<Vec<ObjectID>>,
