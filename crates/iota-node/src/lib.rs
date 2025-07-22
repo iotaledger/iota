@@ -35,9 +35,10 @@ use iota_config::{
 };
 use iota_core::{
     authority::{
-        AuthorityState, AuthorityStore, CHAIN_IDENTIFIER, RandomnessRoundReceiver,
+        AuthorityState, AuthorityStore, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
+        backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
@@ -237,6 +238,8 @@ pub struct IotaNode {
     /// Broadcast channel to notify [`DiscoveryEventLoop`] for new validator
     /// peers.
     trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
+
+    backpressure_manager: Arc<BackpressureManager>,
 
     _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
 
@@ -443,8 +446,6 @@ impl IotaNode {
         let genesis = config.genesis()?.clone();
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
-        // It's ok if the value is already set due to data races.
-        let _ = CHAIN_IDENTIFIER.set(chain_identifier);
         info!("IOTA chain identifier: {chain_identifier}");
 
         // Check and set the db_corrupted flag
@@ -507,6 +508,10 @@ impl IotaNode {
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
+        let checkpoint_store = CheckpointStore::new(&config.db_path().join("checkpoints"));
+        let backpressure_manager =
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
+
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -531,6 +536,7 @@ impl IotaNode {
             &epoch_start_configuration,
             &prometheus_registry,
             &store,
+            backpressure_manager.clone(),
         );
 
         let auth_agg = {
@@ -597,7 +603,6 @@ impl IotaNode {
 
         info!("creating checkpoint store");
 
-        let checkpoint_store = CheckpointStore::new(&config.db_path().join("checkpoints"));
         checkpoint_store.insert_genesis_checkpoint(
             genesis.checkpoint(),
             genesis.checkpoint_contents().clone(),
@@ -729,6 +734,7 @@ impl IotaNode {
             config.indirect_objects_threshold,
             archive_readers,
             validator_tx_finalizer,
+            chain_identifier,
         )
         .await;
 
@@ -848,6 +854,7 @@ impl IotaNode {
                     state_sync_handle.clone(),
                     randomness_handle.clone(),
                     Arc::downgrade(&accumulator),
+                    backpressure_manager.clone(),
                     connection_monitor_status.clone(),
                     &registry_service,
                     iota_node_metrics.clone(),
@@ -886,6 +893,7 @@ impl IotaNode {
             end_of_epoch_channel,
             connection_monitor_status,
             trusted_peer_change_tx,
+            backpressure_manager,
 
             _db_checkpoint_handle: db_checkpoint_handle,
 
@@ -1222,6 +1230,7 @@ impl IotaNode {
         state_sync_handle: state_sync::Handle,
         randomness_handle: randomness::Handle,
         accumulator: Weak<StateAccumulator>,
+        backpressure_manager: Arc<BackpressureManager>,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         registry_service: &RegistryService,
         iota_node_metrics: Arc<IotaNodeMetrics>,
@@ -1301,6 +1310,7 @@ impl IotaNode {
             consensus_manager,
             consensus_store_pruner,
             accumulator,
+            backpressure_manager,
             validator_server_handle,
             validator_server_cancel_handle,
             validator_overload_monitor_handle,
@@ -1325,6 +1335,7 @@ impl IotaNode {
         consensus_manager: ConsensusManager,
         consensus_store_pruner: ConsensusStorePruner,
         accumulator: Weak<StateAccumulator>,
+        backpressure_manager: Arc<BackpressureManager>,
         validator_server_handle: SpawnOnce,
         validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
@@ -1370,6 +1381,7 @@ impl IotaNode {
             checkpoint_service.clone(),
             epoch_store.clone(),
             low_scoring_authorities,
+            backpressure_manager,
         );
 
         consensus_manager
@@ -1705,6 +1717,7 @@ impl IotaNode {
                 self.checkpoint_store.clone(),
                 self.state.clone(),
                 accumulator.clone(),
+                self.backpressure_manager.clone(),
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
             );
@@ -1893,6 +1906,7 @@ impl IotaNode {
                             consensus_manager,
                             consensus_store_pruner,
                             weak_accumulator,
+                            self.backpressure_manager.clone(),
                             validator_server_handle,
                             validator_server_cancel_handle,
                             validator_overload_monitor_handle,
@@ -1953,6 +1967,7 @@ impl IotaNode {
                         self.state_sync_handle.clone(),
                         self.randomness_handle.clone(),
                         weak_accumulator,
+                        self.backpressure_manager.clone(),
                         self.connection_monitor_status.clone(),
                         &self.registry_service,
                         self.metrics.clone(),

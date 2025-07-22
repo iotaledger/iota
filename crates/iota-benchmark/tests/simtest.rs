@@ -29,7 +29,10 @@ mod test {
             workload_configuration::{WorkloadConfig, WorkloadConfiguration, WorkloadWeights},
         },
     };
-    use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME, node::AuthorityOverloadConfig};
+    use iota_config::{
+        AUTHORITIES_DB_NAME, ExecutionCacheConfig, ExecutionCacheType, IOTA_KEYSTORE_FILENAME,
+        node::AuthorityOverloadConfig,
+    };
     use iota_core::{
         authority::{
             AuthorityState, authority_store_tables::AuthorityPerpetualTables, framework_injection,
@@ -545,10 +548,13 @@ mod test {
             // Use shared_counter_max_tip to make transactions to have different gas prices.
             simulated_load_config.use_shared_counter_max_tip = rng.gen_bool(0.25);
             simulated_load_config.shared_counter_max_tip = rng.gen_range(1..=1000);
+
+            // Always enable the randomized tx workload in this test.
+            simulated_load_config.randomized_transaction_weight = 1;
             info!("Simulated load config: {:?}", simulated_load_config);
         }
 
-        test_simulated_load_with_test_config(test_cluster, 50, simulated_load_config, None, None)
+        test_simulated_load_with_test_config(test_cluster, 180, simulated_load_config, None, None)
             .await;
     }
 
@@ -856,6 +862,48 @@ mod test {
         test_simulated_load(test_cluster, 60).await
     }
 
+    #[sim_test(config = "test_config()")]
+    async fn test_backpressure() {
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
+
+        let mut cache_config: ExecutionCacheConfig = Default::default();
+        // make sure we don't halt even with absurdly low backpressure threshold
+        // To validate this, change
+        // backpressure::Watermarks::is_backpressure_suppressed() to
+        // always return false and verify the test fails.
+        cache_config.writeback_cache.backpressure_threshold = Some(1);
+
+        // for the tests to pass we still need to be able to submit transactions
+        // during backpressure.
+        cache_config.writeback_cache.backpressure_threshold_for_rpc = Some(10000);
+
+        let test_cluster = init_test_cluster_builder(4, 10000)
+            .with_authority_overload_config(AuthorityOverloadConfig {
+                // Disable system overload checks for the test - during tests with crashes,
+                // it is possible for overload protection to trigger due to validators
+                // having queued certs which are missing dependencies.
+                check_system_overload_at_execution: false,
+                check_system_overload_at_signing: false,
+                max_txn_age_in_queue: Duration::from_secs(10000),
+                max_transaction_manager_queue_length: 10000,
+                max_transaction_manager_per_object_queue_length: 10000,
+                ..Default::default()
+            })
+            .with_execution_cache_type(ExecutionCacheType::WritebackCache)
+            .with_execution_cache_config(cache_config)
+            .with_submit_delay_step_override_millis(3000)
+            .build()
+            .await
+            .into();
+
+        tokio::time::timeout(
+            Duration::from_secs(120),
+            test_simulated_load(test_cluster, 60),
+        )
+        .await
+        .expect("test_backpressure timed out");
+    }
+
     fn handle_bool_failpoint(
         eligible_nodes: &HashSet<iota_simulator::task::NodeId>, /* only given eligible nodes may
                                                                  * fail */
@@ -918,6 +966,7 @@ mod test {
         shared_deletion_weight: u32,
         shared_counter_hotness_factor: u32,
         randomness_weight: u32,
+        randomized_transaction_weight: u32,
         num_shared_counters: Option<u64>,
         use_shared_counter_max_tip: bool,
         shared_counter_max_tip: u64,
@@ -936,6 +985,7 @@ mod test {
                 shared_deletion_weight: 1,
                 shared_counter_hotness_factor: 50,
                 randomness_weight: 1,
+                randomized_transaction_weight: 0,
                 num_shared_counters: Some(1),
                 use_shared_counter_max_tip: false,
                 shared_counter_max_tip: 0,
@@ -996,7 +1046,7 @@ mod test {
 
         // The default test parameters are somewhat conservative in order to keep the
         // running time of the test reasonable in CI.
-        let target_qps = target_qps.unwrap_or(get_var("SIM_STRESS_TEST_QPS", 10));
+        let target_qps = target_qps.unwrap_or(get_var("SIM_STRESS_TEST_QPS", 20));
         let num_workers = num_workers.unwrap_or(get_var("SIM_STRESS_TEST_WORKERS", 10));
         let in_flight_ratio = get_var("SIM_STRESS_TEST_IFR", 2);
         let batch_payment_size = get_var("SIM_BATCH_PAYMENT_SIZE", 15);
@@ -1026,6 +1076,7 @@ mod test {
             randomness: config.randomness_weight,
             adversarial: adversarial_weight,
             expected_failure: config.expected_failure_weight,
+            randomized_transaction: config.randomized_transaction_weight,
         };
 
         let workload_config = WorkloadConfig {
