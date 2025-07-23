@@ -108,6 +108,16 @@ impl StateReader {
         ))
     }
 
+    pub fn get_transaction_checkpoint(
+        &self,
+        digest: &iota_types::digests::TransactionDigest,
+    ) -> Option<CheckpointSequenceNumber> {
+        self.inner()
+            .indexes()?
+            .get_transaction_checkpoint(digest)
+            .ok()?
+    }
+
     pub fn get_transaction_response(
         &self,
         digest: iota_sdk2::types::TransactionDigest,
@@ -121,7 +131,7 @@ impl StateReader {
             events,
         ) = self.get_transaction(digest)?;
 
-        let checkpoint = self.inner().get_transaction_checkpoint(&(digest.into()))?;
+        let checkpoint = self.get_transaction_checkpoint(&(digest.into()));
         let timestamp_ms = if let Some(checkpoint) = checkpoint {
             self.inner()
                 .try_get_checkpoint_by_sequence_number(checkpoint)?
