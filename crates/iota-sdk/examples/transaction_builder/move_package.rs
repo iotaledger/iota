@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 use iota_move_build::BuildConfig;
 use iota_sdk::{rpc_types::ObjectChange, types::move_package::UpgradeCap};
+use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -33,10 +34,15 @@ async fn main() -> Result<(), anyhow::Error> {
     .iter()
     .collect::<PathBuf>();
 
-    let run_bytecode_verifier = true;
-    let print_diags_to_stderr = false;
-    let chain_id = None;
-    let build_config = BuildConfig::new(run_bytecode_verifier, print_diags_to_stderr, chain_id);
+    let build_config = BuildConfig {
+        config: MoveBuildConfig {
+            default_flavor: Some(move_compiler::editions::Flavor::Iota),
+            ..MoveBuildConfig::default()
+        },
+        run_bytecode_verifier: true,
+        print_diags_to_stderr: false,
+        chain_id: None,
+    };
 
     let module = build_config.clone().build(&package_path)?;
 

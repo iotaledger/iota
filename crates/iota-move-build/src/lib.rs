@@ -85,29 +85,6 @@ pub struct BuildConfig {
 }
 
 impl BuildConfig {
-    /// Construct a [BuildConfig]
-    ///
-    /// The function does not give access to [MoveBuildConfig], because it is an
-    /// internal move type, which isn't exposed in the iota-sdk. While it is
-    /// public in [BuildConfig], the field can't be modified by the user, given
-    /// the previous constraints.
-    pub fn new(
-        run_bytecode_verifier: bool,
-        print_diags_to_stderr: bool,
-        chain_id: Option<String>,
-    ) -> Self {
-        let config = MoveBuildConfig {
-            default_flavor: Some(move_compiler::editions::Flavor::Iota),
-            ..MoveBuildConfig::default()
-        };
-        BuildConfig {
-            config,
-            run_bytecode_verifier,
-            print_diags_to_stderr,
-            chain_id,
-        }
-    }
-
     pub fn new_for_testing() -> Self {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
