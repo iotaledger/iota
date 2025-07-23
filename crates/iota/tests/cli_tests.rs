@@ -192,7 +192,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
     // Check network config
     let network_conf =
         PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
-    assert_eq!(4, network_conf.validator_configs().len());
+    assert_eq!(1, network_conf.validator_configs().len());
 
     // Check wallet config
     let wallet_conf =
