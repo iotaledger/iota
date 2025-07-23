@@ -2882,31 +2882,47 @@ async fn test_authority_store_init() {
     drop(authority);
 
     // Just in case, let rocksdb time to sync or something.
-    tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     // Create the test authority.
-    let _ = {
-        let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
-            .rng(&mut StdRng::from_seed(authority_seed))
-            // Add the relevant and target objects to the genesis.
-            // The object version will reset to 1 when genesis is created.
-            .with_objects([gas_obj, package_obj, parent_obj, child_obj, field_obj])
-            .build();
-        let genesis = network_config.genesis;
-        let authority_key = network_config.validator_configs[0]
-            .authority_key_pair()
-            .copy();
+    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+        .rng(&mut StdRng::from_seed(authority_seed))
+        // Add the relevant and target objects to the genesis.
+        // The object version will reset to 1 when genesis is created.
+        .with_objects([
+            gas_obj.clone(),
+            package_obj.clone(),
+            parent_obj.clone(),
+            child_obj.clone(),
+            field_obj.clone(),
+        ])
+        .build();
+    let genesis = network_config.genesis;
+    let authority_key = network_config.validator_configs[0]
+        .authority_key_pair()
+        .copy();
 
-        TestAuthorityBuilder::new()
-            // Reuse the object store, there's no index store at this point.
-            .with_store_base_path(store_base_path)
-            .with_genesis_and_keypair(&genesis, &authority_key)
-            // Index is enabled by default and empty.
-            // We don't care about writeback cache now.
-            // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
-            .build()
+    let authority_state = TestAuthorityBuilder::new()
+        // Reuse the object store, there's no index store at this point.
+        .with_store_base_path(store_base_path)
+        .with_genesis_and_keypair(&genesis, &authority_key)
+        // Do not execute genesis transactions again,
+        // otherwise we try to insert objects that are older than the ones that already exist in
+        // the cache, which will then panic.
+        .disable_execute_genesis_transactions()
+        // Index is enabled by default and empty.
+        // We don't care about writeback cache now.
+        // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
+        .build()
+        .await;
+
+    // Check that the objects are present in the store.
+    for obj in [gas_obj, package_obj, parent_obj, child_obj, field_obj] {
+        authority_state
+            .get_object(&obj.id())
             .await
-    };
+            .expect("failed to get object");
+    }
 
     // The test is passed if the build didn't panic and authority is created.
 }
