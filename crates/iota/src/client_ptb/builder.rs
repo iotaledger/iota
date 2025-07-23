@@ -33,7 +33,7 @@ use move_core_types::{
         parser::NumberFormat,
     },
 };
-use move_package::BuildConfig;
+use move_package::BuildConfig as MoveBuildConfig;
 
 use super::ast::{ModuleAccess as PTBModuleAccess, ParsedPTBCommand, Program};
 use crate::{
@@ -945,7 +945,7 @@ impl<'a> PTBBuilder<'a> {
             }
             ParsedPTBCommand::Publish(sp!(pkg_loc, package_path)) => {
                 let chain_id = self.reader.get_chain_identifier().await.ok();
-                let build_config = BuildConfig::default();
+                let build_config = MoveBuildConfig::default();
                 let package_path = Path::new(&package_path);
                 let build_config = resolve_lock_file_path(build_config.clone(), Some(package_path))
                     .map_err(|e| err!(pkg_loc, "{e}"))?;
@@ -1013,7 +1013,7 @@ impl<'a> PTBBuilder<'a> {
                     .await?;
 
                 let chain_id = self.reader.get_chain_identifier().await.ok();
-                let build_config = BuildConfig::default();
+                let build_config = MoveBuildConfig::default();
                 let package_path = Path::new(&package_path);
                 let build_config = resolve_lock_file_path(build_config.clone(), Some(package_path))
                     .map_err(|e| err!(path_loc, "{e}"))?;
