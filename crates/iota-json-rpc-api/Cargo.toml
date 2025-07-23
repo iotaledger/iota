@@ -29,5 +29,5 @@ iota-types.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
-    "iota-open-rpc", # imported through a procedural macro
+  "iota-open-rpc", # imported through a procedural macro
 ]

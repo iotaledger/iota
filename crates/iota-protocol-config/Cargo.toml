@@ -27,5 +27,5 @@ insta.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
-    "schemars", # imported through a procedural macro
+  "schemars", # imported through a procedural macro
 ]

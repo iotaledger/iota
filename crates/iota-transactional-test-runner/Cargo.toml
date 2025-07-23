@@ -58,5 +58,5 @@ msim.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
-    "eyre", # imported through a procedural macro
+  "eyre", # imported through a procedural macro
 ]
