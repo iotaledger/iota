@@ -4752,6 +4752,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
+name = "hidapi"
+version = "2.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03b876ecf37e86b359573c16c8366bc3eba52b689884a0fc42ba3f67203d2a8b"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "pkg-config",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5413,6 +5426,8 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-ledger",
+ "iota-ledger-signer",
  "iota-macros",
  "iota-metrics",
  "iota-move",
@@ -6709,6 +6724,44 @@ dependencies = [
  "serde",
  "strum 0.26.3",
  "telemetry-subscribers",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "iota-ledger"
+version = "1.4.0-alpha"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "bcs",
+ "bip32",
+ "clap",
+ "fastcrypto",
+ "hex",
+ "hidapi",
+ "iota-types",
+ "ledger-transport",
+ "ledger-transport-hid",
+ "serde",
+ "shared-crypto",
+ "thiserror 1.0.64",
+ "tracing",
+]
+
+[[package]]
+name = "iota-ledger-signer"
+version = "1.4.0-alpha"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "bcs",
+ "bip32",
+ "clap",
+ "iota-ledger",
+ "iota-sdk 1.4.0-alpha",
+ "shared-crypto",
+ "thiserror 1.0.64",
  "tokio",
  "tracing",
 ]
@@ -8489,6 +8542,43 @@ name = "leb128"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+
+[[package]]
+name = "ledger-apdu"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c21ffd28d97c9252671ab2ebe7078c9fa860ff3c5a125039e174d25ec6872169"
+dependencies = [
+ "arrayref",
+ "no-std-compat",
+ "snafu 0.8.6",
+]
+
+[[package]]
+name = "ledger-transport"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2f18de77d956a030dbc5869ced47d404bbd641216ef2f9dce7ca90833ca64ff"
+dependencies = [
+ "async-trait",
+ "ledger-apdu",
+]
+
+[[package]]
+name = "ledger-transport-hid"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4e34341e2708fbf805a9ada44ef6182170c6464c4fc068ab801abb7562fd5e8"
+dependencies = [
+ "byteorder",
+ "cfg-if",
+ "hex",
+ "hidapi",
+ "ledger-transport",
+ "libc",
+ "log",
+ "thiserror 1.0.64",
+]
 
 [[package]]
 name = "lexical-core"

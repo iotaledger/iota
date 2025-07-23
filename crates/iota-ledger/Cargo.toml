@@ -1,0 +1,32 @@
+[package]
+name = "iota-ledger"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+bcs.workspace = true
+bip32.workspace = true
+fastcrypto.workspace = true
+hex.workspace = true
+hidapi = { version = "2.6.3", features = ["linux-static-hidraw"], default-features = false }
+ledger-transport = "0.11.0"
+ledger-transport-hid = "0.11.0"
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-types.workspace = true
+shared-crypto.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+base64.workspace = true
+clap.workspace = true
