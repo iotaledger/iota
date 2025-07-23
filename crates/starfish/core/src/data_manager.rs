@@ -891,4 +891,71 @@ mod tests {
         assert_eq!(manager.pending_subdags.len(), 1); // subdag5 still pending
         assert_eq!(manager.last_committed_index, 3); // Unchanged
     }
+
+    #[test]
+    fn test_set_last_committed_index() {
+        let setup = Arc::new(TestSetup::new(3));
+        let mut manager = DataManager::new(setup.dag_state.clone());
+
+        // Initially should be 0
+        assert_eq!(manager.last_committed_index, 0);
+
+        // Set to a new value
+        manager.set_last_committed_index(5);
+        assert_eq!(manager.last_committed_index, 5);
+
+        // Can set to a lower value
+        manager.set_last_committed_index(3);
+        assert_eq!(manager.last_committed_index, 3);
+
+        // Can set to 0
+        manager.set_last_committed_index(0);
+        assert_eq!(manager.last_committed_index, 0);
+    }
+
+    #[test]
+    fn test_get_missing_transaction_data() {
+        let setup = Arc::new(TestSetup::new(4));
+        let (mut manager, selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3, 4],
+            vec![(1, 0), (2, 1)], // Exclude transactions from round 1 block 0 and round 2 block 1
+        );
+
+        // Create subdags that reference the missing transactions
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![BlockSpec::all_from_round(1)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()])
+            .build();
+
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::all_from_round(2)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(2..=2)[1].reference()])
+            .build();
+
+        // Add subdags to manager
+        manager.try_commit(&[subdag1, subdag2]);
+
+        // Get missing transactions
+        let missing = manager.get_missing_transaction_data();
+        assert_eq!(missing.len(), 2);
+        assert!(missing.contains(&setup.dag_builder.block_headers(1..=1)[0].reference()));
+        assert!(missing.contains(&setup.dag_builder.block_headers(2..=2)[1].reference()));
+
+        // Add one missing transaction
+        setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
+
+        // Check missing transactions again
+        let missing = manager.get_missing_transaction_data();
+        assert_eq!(missing.len(), 1);
+        assert!(missing.contains(&setup.dag_builder.block_headers(2..=2)[1].reference()));
+
+        // Add the remaining missing transaction
+        setup.add_missing_transactions(&selective_dag_state, &[(2, 1)]);
+
+        // Should now have no missing transactions
+        let missing = manager.get_missing_transaction_data();
+        assert!(missing.is_empty());
+    }
 }
