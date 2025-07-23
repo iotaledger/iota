@@ -273,6 +273,35 @@ pub enum ExecutionCacheType {
     PassthroughCache,
 }
 
+impl From<ExecutionCacheType> for u8 {
+    fn from(cache_type: ExecutionCacheType) -> Self {
+        match cache_type {
+            ExecutionCacheType::WritebackCache => 0,
+            ExecutionCacheType::PassthroughCache => 1,
+        }
+    }
+}
+
+impl From<&u8> for ExecutionCacheType {
+    fn from(cache_type: &u8) -> Self {
+        match cache_type {
+            0 => ExecutionCacheType::WritebackCache,
+            1 => ExecutionCacheType::PassthroughCache,
+            _ => unreachable!("Invalid value for ExecutionCacheType"),
+        }
+    }
+}
+
+/// Type alias for atomic representation of ExecutionCacheType for lock-free
+/// operations
+pub type ExecutionCacheTypeAtomicU8 = std::sync::atomic::AtomicU8;
+
+impl From<ExecutionCacheType> for ExecutionCacheTypeAtomicU8 {
+    fn from(cache_type: ExecutionCacheType) -> Self {
+        ExecutionCacheTypeAtomicU8::new(u8::from(cache_type))
+    }
+}
+
 impl ExecutionCacheType {
     pub fn cache_type(self) -> Self {
         if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
@@ -294,9 +323,9 @@ pub struct ExecutionCacheConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct WritebackCacheConfig {
     /// Maximum number of entries in each cache. (There are several
-    /// different caches). If None, the default of 10000 is used.
+    /// different caches).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_cache_size: Option<u64>,
+    pub max_cache_size: Option<u64>, // defaults to 100000
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_cache_size: Option<u64>, // defaults to 1000
@@ -320,6 +349,17 @@ pub struct WritebackCacheConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_objects_cache_size: Option<u64>, // defaults to 1000
+
+    /// Number of uncommitted transactions at which to pause consensus
+    /// handler.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_threshold: Option<u64>, // defaults to 100_000
+
+    /// Number of uncommitted transactions at which to refuse new
+    /// transaction submissions. Defaults to backpressure_threshold
+    /// if unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
 }
 
 impl WritebackCacheConfig {
@@ -401,6 +441,22 @@ impl WritebackCacheConfig {
             .and_then(|s| s.parse().ok())
             .or(self.transaction_objects_cache_size)
             .unwrap_or(1000)
+    }
+
+    pub fn backpressure_threshold(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_threshold)
+            .unwrap_or(100_000)
+    }
+
+    pub fn backpressure_threshold_for_rpc(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_THRESHOLD_FOR_RPC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_threshold_for_rpc)
+            .unwrap_or(self.backpressure_threshold())
     }
 }
 

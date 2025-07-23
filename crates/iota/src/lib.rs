@@ -18,6 +18,7 @@ pub mod key_identity;
 pub mod keytool;
 #[cfg(feature = "iota-names")]
 pub mod name_commands;
+mod signing;
 pub mod upgrade_compatibility;
 pub mod validator_commands;
 mod verifier_meter;

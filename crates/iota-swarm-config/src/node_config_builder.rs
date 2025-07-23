@@ -45,7 +45,7 @@ pub struct ValidatorConfigBuilder {
     force_unpruned_checkpoints: bool,
     jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    execution_cache: Option<ExecutionCacheType>,
+    execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -88,6 +88,11 @@ impl ValidatorConfigBuilder {
 
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_execution_cache_type(mut self, execution_cache_type: ExecutionCacheType) -> Self {
+        self.execution_cache_type = Some(execution_cache_type);
         self
     }
 
@@ -231,7 +236,7 @@ impl ValidatorConfigBuilder {
                 .unwrap_or(3600),
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
-            execution_cache: self.execution_cache.unwrap_or_default(),
+            execution_cache: self.execution_cache_type.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
             jsonrpc_server_type: None,

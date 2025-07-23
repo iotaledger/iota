@@ -738,9 +738,30 @@ impl IotaData for IotaParsedData {
     }
 
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error> {
-        Ok(Self::Package(IotaMovePackage {
-            disassembled: package.disassemble()?,
-        }))
+        let mut disassembled = BTreeMap::new();
+        for bytecode in package.serialized_module_map().values() {
+            // this function is only from JSON RPC - it is OK to deserialize with max Move
+            // binary version
+            let module = move_binary_format::CompiledModule::deserialize_with_defaults(bytecode)
+                .map_err(|error| IotaError::ModuleDeserializationFailure {
+                    error: error.to_string(),
+                })?;
+            let d = move_disassembler::disassembler::Disassembler::from_module(
+                &module,
+                move_ir_types::location::Spanned::unsafe_no_loc(()).loc,
+            )
+            .map_err(|e| IotaError::ObjectSerialization {
+                error: e.to_string(),
+            })?;
+            let bytecode_str = d
+                .disassemble()
+                .map_err(|e| IotaError::ObjectSerialization {
+                    error: e.to_string(),
+                })?;
+            disassembled.insert(module.name().to_string(), Value::String(bytecode_str));
+        }
+
+        Ok(Self::Package(IotaMovePackage { disassembled }))
     }
 
     fn try_as_move(&self) -> Option<&Self::ObjectType> {
