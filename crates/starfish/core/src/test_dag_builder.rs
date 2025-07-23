@@ -171,6 +171,22 @@ impl DagBuilder {
         self
     }
 
+    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlock> {
+        assert!(
+            !self.block_headers.is_empty(),
+            "No blocks have been created, please make sure that you have called build method"
+        );
+        self.block_headers
+            .iter()
+            .filter_map(|(block_ref, block_header)| {
+                rounds.contains(&block_ref.round).then_some(VerifiedBlock {
+                    verified_block_header: block_header.clone(),
+                    verified_transactions: self.transactions.get(block_ref).cloned()?,
+                })
+            })
+            .collect::<Vec<VerifiedBlock>>()
+    }
+
     pub(crate) fn block_headers(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlockHeader> {
         assert!(
             !self.block_headers.is_empty(),
@@ -199,21 +215,6 @@ impl DagBuilder {
             })
             .cloned()
             .collect::<Vec<VerifiedTransactions>>()
-    }
-    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlock> {
-        assert!(
-            !self.block_headers.is_empty(),
-            "No blocks have been created, please make sure that you have called build method"
-        );
-        self.block_headers
-            .iter()
-            .filter_map(|(block_ref, block_header)| {
-                rounds.contains(&block_ref.round).then_some(VerifiedBlock {
-                    verified_block_header: block_header.clone(),
-                    verified_transactions: self.transactions.get(block_ref).cloned()?,
-                })
-            })
-            .collect::<Vec<VerifiedBlock>>()
     }
 
     pub(crate) fn all_block_headers(&self) -> Vec<VerifiedBlockHeader> {
