@@ -27,10 +27,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    language_storage::{ModuleId, StructTag},
-    resolver::ModuleResolver,
-};
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use typed_store::{
@@ -689,13 +686,6 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 }
 
 impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
-    fn get_transaction_checkpoint(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
-        todo!()
-    }
-
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -708,38 +698,8 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
         Ok((*self.get_checkpoint_by_sequence_number(0).unwrap().digest()).into())
     }
 
-    fn account_owned_objects_info_iter(
-        &self,
-        _owner: IotaAddress,
-        _cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = iota_types::storage::AccountOwnedObjectInfo> + '_>,
-    > {
-        todo!()
-    }
-
-    fn dynamic_field_iter(
-        &self,
-        _parent: ObjectID,
-        _cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<
-            dyn Iterator<
-                    Item = (
-                        iota_types::storage::DynamicFieldKey,
-                        iota_types::storage::DynamicFieldIndexInfo,
-                    ),
-                > + '_,
-        >,
-    > {
-        todo!()
-    }
-
-    fn get_coin_info(
-        &self,
-        _coin_type: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
-        todo!()
+    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
+        None
     }
 
     fn get_epoch_last_checkpoint(

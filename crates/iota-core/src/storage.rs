@@ -17,7 +17,7 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestStateReader, WriteStore,
+        ObjectStore, ReadStore, RestIndexes, RestStateReader, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -499,16 +499,6 @@ impl ReadStore for RestReadStore {
 }
 
 impl RestStateReader for RestReadStore {
-    fn get_transaction_checkpoint(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
-        self.index()?
-            .get_transaction_info(digest)
-            .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
-            .map_err(StorageError::custom)
-    }
-
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -525,12 +515,33 @@ impl RestStateReader for RestReadStore {
         }
     }
 
-    fn get_chain_identifier(
+    fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {
+        Ok(self.state.get_chain_identifier())
+    }
+
+    fn get_epoch_last_checkpoint(
         &self,
-    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        self.state
-            .get_chain_identifier()
-            .ok_or_else(|| StorageError::missing("unable to query chain identifier"))
+        epoch_id: EpochId,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        self.rocks
+            .checkpoint_store
+            .get_epoch_last_checkpoint(epoch_id)
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
+    fn indexes(&self) -> Option<&dyn RestIndexes> {
+        self.index().ok().map(|index| index as _)
+    }
+}
+
+impl RestIndexes for RestIndexStore {
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        self.get_transaction_info(digest)
+            .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
+            .map_err(StorageError::custom)
     }
 
     fn account_owned_objects_info_iter(
@@ -538,7 +549,7 @@ impl RestStateReader for RestReadStore {
         owner: IotaAddress,
         cursor: Option<ObjectID>,
     ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
-        let iter = self.index()?.owner_iter(owner, cursor)?.map(
+        let iter = self.owner_iter(owner, cursor)?.map(
             |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
                 AccountOwnedObjectInfo {
                     owner,
@@ -559,7 +570,7 @@ impl RestStateReader for RestReadStore {
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>,
     > {
-        let iter = self.index()?.dynamic_field_iter(parent, cursor)?;
+        let iter = self.dynamic_field_iter(parent, cursor)?;
 
         Ok(Box::new(iter) as _)
     }
@@ -568,8 +579,7 @@ impl RestStateReader for RestReadStore {
         &self,
         coin_type: &StructTag,
     ) -> iota_types::storage::error::Result<Option<CoinInfo>> {
-        self.index()?
-            .get_coin_info(coin_type)?
+        self.get_coin_info(coin_type)?
             .map(
                 |CoinIndexInfo {
                      coin_metadata_object_id,
@@ -580,15 +590,5 @@ impl RestStateReader for RestReadStore {
                 },
             )
             .pipe(Ok)
-    }
-
-    fn get_epoch_last_checkpoint(
-        &self,
-        epoch_id: EpochId,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        self.rocks
-            .checkpoint_store
-            .get_epoch_last_checkpoint(epoch_id)
-            .map_err(iota_types::storage::error::Error::custom)
     }
 }

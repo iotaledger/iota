@@ -52,7 +52,6 @@ use iota_types::{
         VerifiedTransaction,
     },
 };
-use move_core_types::language_storage::StructTag;
 use rand::rngs::OsRng;
 
 pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
@@ -557,15 +556,6 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 }
 
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for Simulacrum<T, V> {
-    fn get_transaction_checkpoint(
-        &self,
-        _digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointSequenceNumber>,
-    > {
-        todo!()
-    }
-
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -584,45 +574,15 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
             .into())
     }
 
-    fn account_owned_objects_info_iter(
-        &self,
-        _owner: IotaAddress,
-        _cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = iota_types::storage::AccountOwnedObjectInfo> + '_>,
-    > {
-        todo!()
-    }
-
-    fn dynamic_field_iter(
-        &self,
-        _parent: ObjectID,
-        _cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<
-            dyn Iterator<
-                    Item = (
-                        iota_types::storage::DynamicFieldKey,
-                        iota_types::storage::DynamicFieldIndexInfo,
-                    ),
-                > + '_,
-        >,
-    > {
-        todo!()
-    }
-
-    fn get_coin_info(
-        &self,
-        _coin_type: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
-        todo!()
-    }
-
     fn get_epoch_last_checkpoint(
         &self,
         _epoch_id: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
+    }
+
+    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
+        None
     }
 }
 
