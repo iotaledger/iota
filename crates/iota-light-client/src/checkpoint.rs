@@ -43,6 +43,10 @@ impl CheckpointList {
     pub fn is_empty(&self) -> bool {
         self.checkpoints.is_empty()
     }
+
+    pub fn get_sequence_number_by_epoch(&self, epoch: u64) -> Option<u64> {
+        self.checkpoints.get(epoch as usize).copied()
+    }
 }
 
 pub fn read_checkpoint_list(config: &Config) -> Result<CheckpointList> {

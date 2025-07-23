@@ -309,7 +309,7 @@ passkey-types = "0.4.0"
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
-proptest = "1.1.0"
+proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.13"
 protobuf = { version = "3.7.2", features = ["with-bytes"] }
