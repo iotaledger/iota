@@ -74,6 +74,10 @@ iota-keys:
   - "crates/iota-keys/**"
 iota-kvstore:
   - "crates/iota-kvstore/**"
+iota-ledger:
+  - "crates/iota-ledger/**"
+iota-ledger-signer:
+  - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
 iota-macros:

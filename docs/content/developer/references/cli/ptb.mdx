@@ -20,37 +20,38 @@ Build, preview, and execute programmable transaction blocks. Depending on your s
 Usage: iota client ptb [OPTIONS]
 
 Options:
-      --assign <NAME> <VALUE>                                         Assign a value to a variable name to use later in the PTB.
-       If only a name is supplied, the result of the last transaction is bound to that name.
-           If a name and value are supplied, then the name is bound to that value.
+     --assign <NAME> <VALUE>                                              Assign a value to a variable name to use later in the PTB.
+        If a name and value are supplied, then the name is bound to that value.
 
-          Examples:
-           --assign MYVAR 100
-           --assign X [100,5000]
-           --split-coins gas [1000, 5000, 75000]
-           --assign new_coins # bound new_coins to the result of previous transaction
+        Examples:
+         --assign MYVAR 100
+         --assign X [100,5000]
+         --split-coins gas [1000, 5000, 75000]
+         --assign new_coins # bound new_coins to the result of previous transaction
 
-      --dry-run
-          Perform a dry run of the PTB instead of executing it.
-      --dev-inspect
-          Perform a dev inspect of the PTB instead of executing it.
-
-      --gas-coin <ID>                                                 The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
-      --make-move-vec <TYPE> <[VALUES]>                               Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
-      --merge-coins <INTO_COIN> <[COIN OBJECTS]>                      Merge N coins into the provided coin.
-      --move-call <PACKAGE::MODULE::FUNCTION> <TYPE> <FUNCTION_ARGS>  Make a Move call to a function.
-      --split-coins <COIN> <[AMOUNT]>                                 Split the coin into N coins as per the given array of amounts.
-      --transfer-objects <[OBJECTS]> <TO>                             Transfer objects to the specified address.
-      --publish <MOVE_PACKAGE_PATH>                                   Publish the Move package. It takes as input the folder where the package exists.
-      --upgrade <MOVE_PACKAGE_PATH>                                   Upgrade the Move package. It takes as input the folder where the package exists.
-      --preview                                                       Preview the list of PTB transactions instead of executing them.
-      --serialize-unsigned-transaction                                Instead of executing the transaction, serialize the bcs bytes of the unsigned transaction data using base64 encoding.
-      --serialize-signed-transaction                                  Instead of executing the transaction, serialize the bcs bytes of the signed transaction data using base64 encoding.
-      --summary                                                       Show only a short summary (digest, execution status, gas cost). Do not use this flag when you need all the transaction data and the execution effects.
-      --warn-shadows                                                  Enable shadow warning when the same variable name is declared multiple times. Off by default.
-      --json                                                          Return command outputs in json format.
-      --display                                                       Select which fields of the response to display. If not provided, all fields are displayed. The fields are: input, effects, events, object_changes, balance_changes. This option only works if it's passed as first argument to the command: `iota client ptb --display=effects --split-coins gas [1000]`
-  -h, --help                                                          Print help (see more with '--help')
+     --dry-run                                                            Perform a dry run of the PTB instead of executing it.
+     --dev-inspect                                                        Perform a dev-inspect of the PTB instead of executing it.
+     --gas-coin <ID>                                                      The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
+     --gas-budget <NANOS>                                                 An optional gas budget for this PTB (in NANOS). If gas budget is not provided, the tool will first perform a dry run to estimate the gas cost, and then it will execute the
+                                                                          transaction. Please note that this incurs a small cost in performance due to the additional dry run call.
+     --make-move-vec <TYPE> <[VALUES]>                                    Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
+     --merge-coins <INTO_COIN> <[COIN OBJECTS]>                           Merge N coins into the provided coin.
+     --move-call <PACKAGE::MODULE::FUNCTION> <TYPE_ARGS> <FUNCTION_ARGS>  Make a Move call to a function.
+     --split-coins <COIN> <[AMOUNT]>                                      Split the coin into N coins as per the given array of amounts.
+     --transfer-objects <[OBJECTS]> <TO>                                  Transfer objects to the specified address.
+     --publish <MOVE_PACKAGE_PATH>                                        Publish the Move package. It takes as input the folder where the package exists.
+     --upgrade <MOVE_PACKAGE_PATH>                                        Upgrade the Move package. It takes as input the folder where the package exists.
+     --preview                                                            Preview the list of PTB transactions instead of executing them.
+     --tx-digest                                                          Instead of executing the transaction, print its digest.
+     --sender <SENDER>                                                    Set the sender to this address instead of the active address.
+     --serialize-unsigned-transaction                                     Instead of executing the transaction, serialize the bcs bytes of the unsigned transaction data using base64 encoding.
+     --serialize-signed-transaction                                       Instead of executing the transaction, serialize the bcs bytes of the signed transaction data using base64 encoding.
+     --summary                                                            Show only a short summary (digest, execution status, gas cost). Do not use this flag when you need all the transaction data and the execution effects.
+     --warn-shadows                                                       Enable shadow warning when the same variable name is declared multiple times. Off by default.
+     --json                                                               Return command outputs in json format.
+     --display                                                            Select which fields of the response to display. If not provided, all fields are displayed. The fields are: input, effects, events, object_changes, balance_changes. This
+                                                                          option only works if it's passed as first argument to the command: `iota client ptb --display=effects --split-coins gas [1000]`
+  -h, --help                                                              Print help (see more with '--help')
 ```
 
 ## Design philosophy and concepts

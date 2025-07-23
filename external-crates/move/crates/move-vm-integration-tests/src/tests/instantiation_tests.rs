@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(dead_code)]
@@ -187,7 +187,7 @@ fn test_runner(
     // assert_eq!(err, StatusCode::OUT_OF_GAS, "Must finish OutOfGas");
     assert!(
         check_result(time, ref_time),
-        "Instantion test taking too long {}",
+        "Instantiation test taking too long {}",
         time
     );
 }
