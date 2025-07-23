@@ -227,12 +227,14 @@ impl GasPriceFeedbackTester {
         to_sender_signed_transaction(transaction_data, &self.sender_key)
     }
 
+    /// Certify a transaction signed by the user.
     async fn certify_transaction(&self, transaction: Transaction) -> VerifiedCertificate {
         certify_transaction(&self.authority_state, transaction)
             .await
             .unwrap()
     }
 
+    /// Send certificates to consensus for scheduling.
     async fn send_certificates_to_consensus_for_scheduling(
         &self,
         certificates: &[VerifiedCertificate],
@@ -240,6 +242,7 @@ impl GasPriceFeedbackTester {
         send_batch_consensus_no_execution(&self.authority_state, certificates, false).await
     }
 
+    /// Enqueue scheduled transactions and execute them to effects.
     async fn enqueue_and_execute_scheduled_transactions(
         &self,
         transactions: Vec<VerifiedExecutableTransaction>,
@@ -261,9 +264,14 @@ impl GasPriceFeedbackTester {
             .unwrap()
     }
 
-    async fn build_increment_both_counters_transaction(
+    /// Build and sign a programmable transaction that accesses both counters.
+    /// `counter_1_mutable` and `counter_2_mutable` flags control how the
+    /// counters are accessed: mutably or immutably.
+    async fn build_access_both_counters_transaction(
         &self,
         gas_data: GasDataForTests,
+        counter_1_mutable: bool,
+        counter_2_mutable: bool,
     ) -> Transaction {
         let mut txn_builder = ProgrammableTransactionBuilder::new();
 
@@ -271,7 +279,7 @@ impl GasPriceFeedbackTester {
             .obj(ObjectArg::SharedObject {
                 id: self.shared_counter_1.0,
                 initial_shared_version: self.shared_counter_1.1,
-                mutable: true,
+                mutable: counter_1_mutable,
             })
             .unwrap();
 
@@ -279,14 +287,31 @@ impl GasPriceFeedbackTester {
             .obj(ObjectArg::SharedObject {
                 id: self.shared_counter_2.0,
                 initial_shared_version: self.shared_counter_2.1,
-                mutable: true,
+                mutable: counter_2_mutable,
             })
             .unwrap();
 
-        move_call! {
-            txn_builder,
-            (self.package.0)::gas_price_feedback::increment_both(arg1, arg2)
-        };
+        if counter_1_mutable && counter_2_mutable {
+            move_call! {
+                txn_builder,
+                (self.package.0)::gas_price_feedback::increment_both(arg1, arg2)
+            };
+        } else if counter_1_mutable && !counter_2_mutable {
+            move_call! {
+                txn_builder,
+                (self.package.0)::gas_price_feedback::increment_first_read_second(arg1, arg2)
+            };
+        } else if !counter_1_mutable && counter_2_mutable {
+            move_call! {
+                txn_builder,
+                (self.package.0)::gas_price_feedback::read_first_increment_second(arg1, arg2)
+            };
+        } else {
+            move_call! {
+                txn_builder,
+                (self.package.0)::gas_price_feedback::read_both(arg1, arg2)
+            };
+        }
 
         let pt = txn_builder.finish();
 
@@ -320,7 +345,7 @@ async fn gas_price_feedback_mechanism() {
             DEFAULT_GAS_BUDGET_FOR_TESTS,
         );
         let transaction = tester
-            .build_increment_both_counters_transaction(gas_data)
+            .build_access_both_counters_transaction(gas_data, true, true)
             .await;
         let certificate = tester.certify_transaction(transaction).await;
 
