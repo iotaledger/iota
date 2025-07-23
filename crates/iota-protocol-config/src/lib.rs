@@ -2162,6 +2162,11 @@ impl ProtocolConfig {
     pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_smart_ancestor_selection = val;
     }
+
+    pub fn set_congestion_control_min_free_execution_slot_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot = val;
+    }
 }
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;

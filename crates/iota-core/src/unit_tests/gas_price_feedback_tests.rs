@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
@@ -13,7 +14,10 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, Transaction, VerifiedCertificate},
+    transaction::{
+        ObjectArg, ProgrammableTransaction, Transaction, TransactionData, VerifiedCertificate,
+    },
+    utils::to_sender_signed_transaction,
 };
 use move_core_types::ident_str;
 use rand::seq::SliceRandom;
@@ -22,8 +26,7 @@ use crate::{
     authority::{
         AuthorityState,
         authority_tests::{
-            build_programmable_transaction, certify_transaction, execute_programmable_transaction,
-            send_batch_consensus_no_execution,
+            certify_transaction, send_and_confirm_transaction_, send_batch_consensus_no_execution,
         },
         move_integration_tests::build_and_publish_test_package,
         test_authority_builder::TestAuthorityBuilder,
@@ -34,7 +37,25 @@ use crate::{
 /// Reference gas price used in gas price feedback mechanism tests.
 const REFERENCE_GAS_PRICE_FOR_TESTS: u64 = 1_000;
 
-const GAS_UNITS_FOR_TEST: u64 = 10_000;
+/// Default gas budget used in gas price feedback mechanism tests.
+const DEFAULT_GAS_BUDGET_FOR_TESTS: u64 = 10_000_000;
+
+/// Container holding gas object ID, gas price, and gas budget.
+struct GasDataForTests {
+    gas_object_id: ObjectID,
+    gas_price: u64,
+    gas_budget: u64,
+}
+
+impl GasDataForTests {
+    fn new(gas_object_id: ObjectID, gas_price: u64, gas_budget: u64) -> Self {
+        Self {
+            gas_object_id,
+            gas_price,
+            gas_budget,
+        }
+    }
+}
 
 struct GasPriceFeedbackTester {
     authority_state: Arc<AuthorityState>,
@@ -47,10 +68,16 @@ struct GasPriceFeedbackTester {
 }
 
 impl GasPriceFeedbackTester {
+    /// Create a new `GasPriceFeedbackTester`. Under the hood, this builds
+    /// a new `AuthorityState` with protocol config parameters related to
+    /// shared object congestion. This will also deploy a number of gas
+    /// objects needed to send test transactions, and deploy a package with
+    /// two shared counters and simple Move calls operating on those counters.
     async fn new(
         max_deferral_rounds_for_congestion_control: u64,
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
         max_execution_duration_per_commit: u64,
+        assign_min_free_execution_slot: bool,
         num_gas_objects: usize,
     ) -> Self {
         let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
@@ -65,7 +92,9 @@ impl GasPriceFeedbackTester {
         protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
             max_execution_duration_per_commit,
         );
-        protocol_config.set_min_checkpoint_interval_ms_for_testing(1000);
+        protocol_config.set_congestion_control_min_free_execution_slot_for_testing(
+            assign_min_free_execution_slot,
+        );
 
         let authority_state = TestAuthorityBuilder::new()
             .with_reference_gas_price(REFERENCE_GAS_PRICE_FOR_TESTS)
@@ -123,6 +152,7 @@ impl GasPriceFeedbackTester {
         }
     }
 
+    /// Build and execute a transaction that creates a shared counter.
     async fn create_shared_counter(
         authority_state: &AuthorityState,
         package_id: &ObjectID,
@@ -139,16 +169,28 @@ impl GasPriceFeedbackTester {
 
         let pt = builder.finish();
 
-        let effects = execute_programmable_transaction(
-            authority_state,
-            gas_object_id,
-            sender,
-            sender_key,
+        let gas_object_ref = authority_state
+            .get_object(gas_object_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .compute_object_reference();
+
+        let transaction_data = TransactionData::new_programmable(
+            *sender,
+            vec![gas_object_ref],
             pt,
-            GAS_UNITS_FOR_TEST,
-        )
-        .await
-        .unwrap();
+            DEFAULT_GAS_BUDGET_FOR_TESTS,
+            REFERENCE_GAS_PRICE_FOR_TESTS,
+        );
+
+        let transaction = to_sender_signed_transaction(transaction_data, sender_key);
+
+        let effects = send_and_confirm_transaction_(authority_state, None, transaction, false)
+            .await
+            .unwrap()
+            .1
+            .into_data();
 
         assert!(
             effects.status().is_ok(),
@@ -160,46 +202,29 @@ impl GasPriceFeedbackTester {
         effects.created()[0].0
     }
 
-    async fn build_increment_both_counters_transaction(
+    /// Build and sign a programmable transaction.
+    async fn build_programmable_transaction(
         &self,
-        gas_object_id: &ObjectID,
-        // gas_price: u64
+        pt: ProgrammableTransaction,
+        gas_data: GasDataForTests,
     ) -> Transaction {
-        let mut txn_builder = ProgrammableTransactionBuilder::new();
+        let gas_object_ref = self
+            .authority_state
+            .get_object(&gas_data.gas_object_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .compute_object_reference();
 
-        let arg1 = txn_builder
-            .obj(ObjectArg::SharedObject {
-                id: self.shared_counter_1.0,
-                initial_shared_version: self.shared_counter_1.1,
-                mutable: true,
-            })
-            .unwrap();
-
-        let arg2 = txn_builder
-            .obj(ObjectArg::SharedObject {
-                id: self.shared_counter_2.0,
-                initial_shared_version: self.shared_counter_2.1,
-                mutable: true,
-            })
-            .unwrap();
-
-        move_call! {
-            txn_builder,
-            (self.package.0)::gas_price_feedback::increment_both(arg1, arg2)
-        };
-
-        let pt = txn_builder.finish();
-
-        build_programmable_transaction(
-            &self.authority_state,
-            gas_object_id,
-            &self.sender,
-            &self.sender_key,
+        let transaction_data = TransactionData::new_programmable(
+            self.sender,
+            vec![gas_object_ref],
             pt,
-            GAS_UNITS_FOR_TEST,
-        )
-        .await
-        .unwrap()
+            gas_data.gas_budget,
+            gas_data.gas_price,
+        );
+
+        to_sender_signed_transaction(transaction_data, &self.sender_key)
     }
 
     async fn certify_transaction(&self, transaction: Transaction) -> VerifiedCertificate {
@@ -235,19 +260,53 @@ impl GasPriceFeedbackTester {
             .await
             .unwrap()
     }
+
+    async fn build_increment_both_counters_transaction(
+        &self,
+        gas_data: GasDataForTests,
+    ) -> Transaction {
+        let mut txn_builder = ProgrammableTransactionBuilder::new();
+
+        let arg1 = txn_builder
+            .obj(ObjectArg::SharedObject {
+                id: self.shared_counter_1.0,
+                initial_shared_version: self.shared_counter_1.1,
+                mutable: true,
+            })
+            .unwrap();
+
+        let arg2 = txn_builder
+            .obj(ObjectArg::SharedObject {
+                id: self.shared_counter_2.0,
+                initial_shared_version: self.shared_counter_2.1,
+                mutable: true,
+            })
+            .unwrap();
+
+        move_call! {
+            txn_builder,
+            (self.package.0)::gas_price_feedback::increment_both(arg1, arg2)
+        };
+
+        let pt = txn_builder.finish();
+
+        self.build_programmable_transaction(pt, gas_data).await
+    }
 }
 
-#[tokio::test]
+#[sim_test]
 async fn gas_price_feedback_mechanism() {
     let max_deferral_rounds_for_congestion_control = 1;
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
     let max_execution_duration_per_commit = 1;
+    let assign_min_free_execution_slot = false;
     let num_gas_objects = 2;
 
     let tester = GasPriceFeedbackTester::new(
         max_deferral_rounds_for_congestion_control,
         per_object_congestion_control_mode,
         max_execution_duration_per_commit,
+        assign_min_free_execution_slot,
         num_gas_objects,
     )
     .await;
@@ -255,8 +314,13 @@ async fn gas_price_feedback_mechanism() {
     // Prepare certificates
     let mut certificates = vec![];
     for gas_object_id in tester.gas_object_ids.iter() {
+        let gas_data = GasDataForTests::new(
+            *gas_object_id,
+            REFERENCE_GAS_PRICE_FOR_TESTS,
+            DEFAULT_GAS_BUDGET_FOR_TESTS,
+        );
         let transaction = tester
-            .build_increment_both_counters_transaction(gas_object_id)
+            .build_increment_both_counters_transaction(gas_data)
             .await;
         let certificate = tester.certify_transaction(transaction).await;
 
