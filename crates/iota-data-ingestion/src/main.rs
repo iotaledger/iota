@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use iota_data_ingestion::{
@@ -12,6 +12,7 @@ use iota_data_ingestion::{
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
 };
+use iota_kvstore::{BigTableClient, KvWorker};
 use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -22,8 +23,17 @@ use tokio_util::sync::CancellationToken;
 enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
+    BigTableKv(BigTableTaskConfig),
     Kv(KVStoreTaskConfig),
     Historical(HistoricalWriterConfig),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct BigTableTaskConfig {
+    instance_id: String,
+    column_family: String,
+    timeout_secs: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -168,6 +178,24 @@ async fn main() -> Result<()> {
 
                 let worker_pool = WorkerPool::new(
                     worker,
+                    task_config.name,
+                    task_config.concurrency,
+                    Default::default(),
+                );
+                executor.register(worker_pool).await?;
+            }
+            Task::BigTableKv(kv_config) => {
+                let client = BigTableClient::new_remote(
+                    kv_config.instance_id,
+                    false,
+                    Some(Duration::from_secs(kv_config.timeout_secs as u64)),
+                    "ingestion".to_string(),
+                    kv_config.column_family.clone(),
+                    None,
+                )
+                .await?;
+                let worker_pool = WorkerPool::new(
+                    KvWorker { client },
                     task_config.name,
                     task_config.concurrency,
                     Default::default(),
