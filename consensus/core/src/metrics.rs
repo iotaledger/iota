@@ -775,13 +775,13 @@ impl NodeMetrics {
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_counter_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
-                "Number of semantically invalid blocks per peer authority",
+                "Number of provably faulty blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
              ).unwrap(),
             faulty_blocks_unprovable_by_authority: register_int_counter_vec_with_registry!(
                 "faulty_blocks_unprovable_by_authority",
-                "Number of syntactically invalid blocks per peer authority",
+                "Number of unprovably faulty blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
