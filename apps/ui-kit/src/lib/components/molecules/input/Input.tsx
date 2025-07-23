@@ -23,7 +23,7 @@ export interface BaseInputProps extends InputWrapperProps {
     /**
      * A leading icon that is shown before the input
      */
-    leadingIcon?: React.JSX.Element;
+    leadingIcon?: React.ReactNode;
     /**
      * Supporting text that is shown at the end of the input component.
      */
@@ -35,7 +35,7 @@ export interface BaseInputProps extends InputWrapperProps {
     /**
      * Trailing element that is shown after the input
      */
-    trailingElement?: React.JSX.Element;
+    trailingElement?: React.ReactNode;
     /**
      * Is the content of the input visible
      */
@@ -44,6 +44,10 @@ export interface BaseInputProps extends InputWrapperProps {
      * Value of the input
      */
     value?: string | number;
+    /**
+     * Text that is shown below the value of the input.
+     */
+    supportingValue?: string | null;
     /**
      * Default value of the input
      */
@@ -72,6 +76,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
         trailingElement,
         isContentVisible,
         value,
+        supportingValue,
         defaultValue,
         onClearInput,
         isVisibilityToggleEnabled,
@@ -116,21 +121,30 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
                 ref={inputWrapperRef}
             >
                 {leadingIcon && <span className="input-icon-color">{leadingIcon}</span>}
-                <InputElement
-                    {...inputProps}
-                    inputRef={forwardRef}
-                    value={value}
-                    type={
-                        type === InputType.Password && isInputContentVisible ? InputType.Text : type
-                    }
-                    disabled={disabled}
-                    className={cx(
-                        INPUT_CLASSES,
-                        INPUT_TEXT_CLASSES,
-                        INPUT_PLACEHOLDER_CLASSES,
-                        INPUT_NUMBER_CLASSES,
+                <div className="flex flex-1 flex-col items-start">
+                    <InputElement
+                        {...inputProps}
+                        inputRef={forwardRef}
+                        value={value}
+                        type={
+                            type === InputType.Password && isInputContentVisible
+                                ? InputType.Text
+                                : type
+                        }
+                        disabled={disabled}
+                        className={cx(
+                            INPUT_CLASSES,
+                            INPUT_TEXT_CLASSES,
+                            INPUT_PLACEHOLDER_CLASSES,
+                            INPUT_NUMBER_CLASSES,
+                        )}
+                    />
+                    {supportingValue && (
+                        <span className="text-label-md text-iota-neutral-60 names:text-iota-neutral-60 dark:text-iota-neutral-40">
+                            {supportingValue}
+                        </span>
                     )}
-                />
+                </div>
 
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
                 <InputTrailingElement

@@ -35,6 +35,7 @@ url.workspace = true
 iota-archival.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
+iota-kvstore.workspace = true
 iota-metrics.workspace = true
 iota-rest-api.workspace = true
 iota-storage.workspace = true
