@@ -13,7 +13,6 @@ better_any = "0.1.1"
 clap.workspace = true
 colored.workspace = true
 const-str.workspace = true
-datatest-stable.workspace = true
 git-version.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true

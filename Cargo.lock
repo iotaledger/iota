@@ -6757,7 +6757,6 @@ dependencies = [
  "clap",
  "colored",
  "const-str",
- "datatest-stable",
  "futures",
  "git-version",
  "insta",
