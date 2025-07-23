@@ -7,14 +7,17 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
+    execution_status::{CongestedObjects, ExecutionFailureStatus, ExecutionStatus},
+    messages_consensus::ConsensusDeterminedVersionAssignments,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        ObjectArg, ProgrammableTransaction, Transaction, TransactionData, VerifiedCertificate,
+        ObjectArg, ProgrammableTransaction, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind, VerifiedCertificate,
     },
     utils::to_sender_signed_transaction,
 };
@@ -371,6 +374,10 @@ async fn congestion_control_is_turned_off() {
         // +1 because of consensus commit prologue transaction
         certificates.len() + 1,
     );
+    assert!(matches!(
+        scheduled_transactions[0].data().transaction_data().kind(),
+        TransactionKind::ConsensusCommitPrologueV1(..)
+    ));
 
     let effects_vec = tester
         .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
@@ -485,4 +492,153 @@ async fn max_execution_duration_per_commit_is_set_too_low_in_total_gas_budget_mo
     let _scheduled_transactions = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
+}
+
+// Test that everything works well if the gas price feedback mechanism is
+// turned off: specifically, old `ExecutionCancelledDueToSharedObjectCongestion`
+// and `SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK` should appear.
+#[tokio::test]
+async fn gas_price_feedback_mechanism_is_turned_off() {
+    let max_deferral_rounds_for_congestion_control = 0;
+    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
+    let max_execution_duration_per_commit = 1;
+    let assign_min_free_execution_slot = true;
+    let enable_gas_price_feedback_mechanism = false;
+    let num_gas_objects = 2;
+
+    let tester = GasPriceFeedbackTester::new(
+        max_deferral_rounds_for_congestion_control,
+        per_object_congestion_control_mode,
+        max_execution_duration_per_commit,
+        assign_min_free_execution_slot,
+        enable_gas_price_feedback_mechanism,
+        num_gas_objects,
+    )
+    .await;
+
+    // Prepare certificates
+    let mut certificates = vec![];
+    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
+        let gas_data = GasDataForTests::new(
+            *gas_object_id,
+            REFERENCE_GAS_PRICE_FOR_TESTS + i as u64,
+            DEFAULT_GAS_BUDGET_FOR_TESTS,
+        );
+        let transaction = tester
+            .build_access_both_counters_transaction(gas_data, true, true)
+            .await;
+        let certificate = tester.certify_transaction(transaction).await;
+
+        certificates.push(certificate);
+    }
+    // Shuffle certificates so that they do not have any specific order in
+    // terms of gas price.
+    certificates.shuffle(&mut rand::thread_rng());
+    assert_eq!(certificates.len(), num_gas_objects);
+
+    let scheduled_transactions = tester
+        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .await;
+    assert_eq!(
+        scheduled_transactions.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // The first executed transaction should be `ConsensusCommitPrologueV1`
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
+        scheduled_transactions[0].data().transaction_data().kind()
+    {
+        // Check if `ConsensusDeterminedVersionAssignments` are correct.
+        let cancelled_txs = vec![(
+            *scheduled_transactions[2].digest(),
+            vec![
+                (
+                    tester.shared_counter_1.0,
+                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+                ),
+                (
+                    tester.shared_counter_2.0,
+                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+                ),
+            ],
+        )];
+        assert_eq!(
+            prologue_tx.consensus_determined_version_assignments,
+            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+        );
+    } else {
+        panic!("First scheduled transaction must be a `ConsensusCommitPrologueV1` transaction.");
+    }
+
+    // Confirm that gas price order of scheduled transactions is descending
+    assert_eq!(
+        scheduled_transactions[1]
+            .data()
+            .transaction_data()
+            .gas_price(),
+        REFERENCE_GAS_PRICE_FOR_TESTS + 1
+    );
+    assert_eq!(
+        scheduled_transactions[2]
+            .data()
+            .transaction_data()
+            .gas_price(),
+        REFERENCE_GAS_PRICE_FOR_TESTS
+    );
+
+    let effects_vec = tester
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .await;
+    assert_eq!(
+        effects_vec.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // `ConsensusCommitPrologueV1` should be successfully executed
+    assert!(effects_vec[0].status().is_ok());
+    // The first transaction should be successfully executed
+    assert!(effects_vec[1].status().is_ok());
+
+    // The second transaction should be cancelled
+    if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
+        assert!(command.is_none());
+        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+            congested_objects,
+        } = error
+        {
+            // Check is returned congested_objects are correct.
+            assert_eq!(
+                *congested_objects,
+                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+            );
+        } else {
+            panic!(
+                "`ExecutionFailureStatus` must be `ExecutionCancelledDueToSharedObjectCongestion`."
+            );
+        }
+    } else {
+        panic!("The second transaction must be cancelled.")
+    }
+
+    // Check if unchanged_shared_objects in effects of the cancelled transaction
+    // are correct
+    assert_eq!(
+        effects_vec[2].unchanged_shared_objects(),
+        vec![
+            (
+                tester.shared_counter_1.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                )
+            ),
+            (
+                tester.shared_counter_2.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                )
+            ),
+        ]
+    );
 }
