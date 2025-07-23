@@ -189,6 +189,10 @@ impl DeferredTransaction {
             suggested_gas_price,
         }
     }
+
+    pub fn suggested_gas_price(&self) -> Option<u64> {
+        self.suggested_gas_price
+    }
 }
 
 /// Represents a scheduling result: a transaction can be either scheduled
