@@ -335,7 +335,7 @@ mod checked {
             } else if let Some((cancelled_objects, reason)) = cancelled_objects {
                 match reason {
                     version if version.is_congested() => Err(ExecutionError::new(
-                        if protocol_config.congested_objects_gas_price_feedback_mechanism() {
+                        if protocol_config.congestion_control_gas_price_feedback_mechanism() {
                             ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
                                 congested_objects: CongestedObjects(cancelled_objects),
                                 suggested_gas_price: version
@@ -343,7 +343,7 @@ mod checked {
                             }
                         } else {
                             // WARN: do not remove this `else` branch even after
-                            // `congested_objects_gas_price_feedback_mechanism` is enabled
+                            // `congestion_control_gas_price_feedback_mechanism` is enabled
                             // on the mainnet. It must be kept to be able to replay old
                             // transaction data.
                             ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {

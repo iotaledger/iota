@@ -82,7 +82,7 @@ impl SharedObjVerManager {
                 cancelled_txns,
                 epoch_store
                     .protocol_config()
-                    .congested_objects_gas_price_feedback_mechanism(),
+                    .congestion_control_gas_price_feedback_mechanism(),
             );
             assigned_versions.push((cert.key(), cert_assigned_versions));
         }
@@ -188,7 +188,7 @@ impl SharedObjVerManager {
                                 )
                             } else {
                                 // WARN: do not remove this `else` branch even after
-                                // `congested_objects_gas_price_feedback_mechanism` is enabled
+                                // `congestion_control_gas_price_feedback_mechanism` is enabled
                                 // on the mainnet. It must be kept to be able to replay old
                                 // transaction data.
                                 SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK

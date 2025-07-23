@@ -1782,7 +1782,7 @@ impl AuthorityPerEpochStore {
 
         if self
             .protocol_config
-            .congested_objects_gas_price_feedback_mechanism()
+            .congestion_control_gas_price_feedback_mechanism()
         {
             self.tables()?
                 .deferred_transactions_v2
@@ -2007,7 +2007,7 @@ impl AuthorityPerEpochStore {
     pub fn deferred_transactions_empty(&self) -> bool {
         if self
             .protocol_config
-            .congested_objects_gas_price_feedback_mechanism()
+            .congestion_control_gas_price_feedback_mechanism()
         {
             self.tables()
                 .expect("deferred transactions should not be read past end of epoch")
@@ -3006,7 +3006,7 @@ impl AuthorityPerEpochStore {
                         &mut shared_input_next_version,
                         cancelled_txns,
                         self.protocol_config
-                            .congested_objects_gas_price_feedback_mechanism(),
+                            .congestion_control_gas_price_feedback_mechanism(),
                     );
                     version_assignment.push((*txn.digest(), assigned_versions));
                 }
@@ -3616,7 +3616,7 @@ impl AuthorityPerEpochStore {
 
                                 let suggested_gas_price = if self
                                     .protocol_config
-                                    .congested_objects_gas_price_feedback_mechanism()
+                                    .congestion_control_gas_price_feedback_mechanism()
                                 {
                                     let current_commit_suggested_gas_price =
                                         suggested_gas_price_calculator
@@ -4356,7 +4356,7 @@ impl ConsensusCommitOutput {
 
         if epoch_store
             .protocol_config
-            .congested_objects_gas_price_feedback_mechanism()
+            .congestion_control_gas_price_feedback_mechanism()
         {
             batch.delete_batch(&tables.deferred_transactions_v2, self.deleted_deferred_txns)?;
             batch.insert_batch(&tables.deferred_transactions_v2, self.deferred_txns)?;

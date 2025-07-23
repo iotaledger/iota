@@ -1306,7 +1306,7 @@
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
-                "congested_objects_gas_price_feedback_mechanism": false,
+                "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,

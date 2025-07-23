@@ -77,6 +77,7 @@ impl GasPriceFeedbackTester {
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
         max_execution_duration_per_commit: u64,
         assign_min_free_execution_slot: bool,
+        enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
     ) -> Self {
         let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
@@ -93,6 +94,9 @@ impl GasPriceFeedbackTester {
         );
         protocol_config.set_congestion_control_min_free_execution_slot_for_testing(
             assign_min_free_execution_slot,
+        );
+        protocol_config.set_congestion_control_gas_price_feedback_mechanism_for_testing(
+            enable_gas_price_feedback_mechanism,
         );
 
         let authority_state = TestAuthorityBuilder::new()
@@ -326,6 +330,7 @@ async fn congestion_control_is_turned_off() {
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::None;
     let max_execution_duration_per_commit = 0;
     let assign_min_free_execution_slot = true;
+    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 10;
 
     let tester = GasPriceFeedbackTester::new(
@@ -333,6 +338,7 @@ async fn congestion_control_is_turned_off() {
         per_object_congestion_control_mode,
         max_execution_duration_per_commit,
         assign_min_free_execution_slot,
+        enable_gas_price_feedback_mechanism,
         num_gas_objects,
     )
     .await;
@@ -393,6 +399,7 @@ async fn max_execution_duration_per_commit_is_set_too_low_in_total_tx_count_mode
     // single commit.
     let max_execution_duration_per_commit = 0;
     let assign_min_free_execution_slot = true;
+    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
 
     let tester = GasPriceFeedbackTester::new(
@@ -400,6 +407,7 @@ async fn max_execution_duration_per_commit_is_set_too_low_in_total_tx_count_mode
         per_object_congestion_control_mode,
         max_execution_duration_per_commit,
         assign_min_free_execution_slot,
+        enable_gas_price_feedback_mechanism,
         num_gas_objects,
     )
     .await;
@@ -441,6 +449,7 @@ async fn max_execution_duration_per_commit_is_set_too_low_in_total_gas_budget_mo
     // single commit.
     let max_execution_duration_per_commit = DEFAULT_GAS_BUDGET_FOR_TESTS - 1;
     let assign_min_free_execution_slot = true;
+    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
 
     let tester = GasPriceFeedbackTester::new(
@@ -448,6 +457,7 @@ async fn max_execution_duration_per_commit_is_set_too_low_in_total_gas_budget_mo
         per_object_congestion_control_mode,
         max_execution_duration_per_commit,
         assign_min_free_execution_slot,
+        enable_gas_price_feedback_mechanism,
         num_gas_objects,
     )
     .await;
