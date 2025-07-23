@@ -44,6 +44,17 @@ impl IotaClientConfig {
         }
     }
 
+    /// Set the default [`IotaEnv`]s for mainnet, devnet, testnet, and localnet.
+    pub fn with_default_envs(mut self) -> Self {
+        self.set_envs(vec![
+            IotaEnv::mainnet(),
+            IotaEnv::devnet(),
+            IotaEnv::testnet(),
+            IotaEnv::localnet(),
+        ]);
+        self
+    }
+
     /// Set the [`IotaEnv`]s.
     pub fn with_envs(mut self, envs: impl IntoIterator<Item = IotaEnv>) -> Self {
         self.set_envs(envs);
@@ -98,7 +109,7 @@ impl IotaClientConfig {
             })
     }
 
-    /// Add an [`IotaEnv`].
+    /// Add an [`IotaEnv`] if there's no env with the same alias already.
     pub fn add_env(&mut self, env: IotaEnv) {
         if self.get_env(&env.alias).is_none() {
             if self
@@ -111,6 +122,12 @@ impl IotaClientConfig {
             }
             self.envs.push(env);
         }
+    }
+
+    /// Set an [`IotaEnv`]. Replaces any existing env with the same alias.
+    pub fn set_env(&mut self, env: IotaEnv) {
+        self.envs.retain(|e| e.alias != env.alias);
+        self.add_env(env);
     }
 }
 

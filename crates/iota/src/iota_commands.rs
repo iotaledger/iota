@@ -854,12 +854,7 @@ async fn start(
             let address: IotaAddress = kp.public().into();
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
-                .with_envs([
-                    IotaEnv::new("localnet", fullnode_url),
-                    IotaEnv::devnet(),
-                    IotaEnv::testnet(),
-                    IotaEnv::mainnet(),
-                ])
+                .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
                 .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
@@ -1149,7 +1144,7 @@ async fn genesis(
     let mut client_config = if client_path.exists() {
         PersistedConfig::read(&client_path)?
     } else {
-        IotaClientConfig::new(keystore)
+        IotaClientConfig::new(keystore).with_default_envs()
     };
 
     if client_config.active_address().is_none() {
@@ -1165,7 +1160,7 @@ async fn genesis(
         } else {
             fullnode_config.json_rpc_address.ip().to_string()
         };
-    client_config.add_env(IotaEnv::new(
+    client_config.set_env(IotaEnv::new(
         "localnet",
         format!(
             "http://{}:{}",
@@ -1173,9 +1168,6 @@ async fn genesis(
             fullnode_config.json_rpc_address.port()
         ),
     ));
-    client_config.add_env(IotaEnv::devnet());
-    client_config.add_env(IotaEnv::testnet());
-    client_config.add_env(IotaEnv::mainnet());
 
     if client_config.active_env().is_none() {
         client_config.set_active_env(client_config.envs().first().map(|env| env.alias().clone()));
@@ -1252,9 +1244,9 @@ fn prompt_if_no_config(
         }
         .join(IOTA_KEYSTORE_FILENAME);
         let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
-        let mut config = IotaClientConfig::new(keystore);
+        let mut config = IotaClientConfig::new(keystore).with_default_envs();
         if prompt_for_env {
-            config.add_env(prompt_for_environment(wallet_conf_path, accept_defaults)?);
+            config.set_env(prompt_for_environment(wallet_conf_path, accept_defaults)?);
         }
         // Get an existing address or generate a new one
         if let Some(existing_address) = config.keystore().addresses().first() {
