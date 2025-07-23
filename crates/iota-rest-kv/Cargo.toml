@@ -28,5 +28,6 @@ tracing-subscriber.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-config.workspace = true
+iota-kvstore.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true

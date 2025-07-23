@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
 use serde_json::json;
 
@@ -37,7 +37,7 @@ pub async fn query_last_checkpoint_of_epoch(config: &Config, epoch_id: u64) -> R
     let resp = client
         .execute_to_graphql(query.to_string(), true, variables, vec![])
         .await?;
-    anyhow::ensure!(resp.errors().is_empty(), "{:?}", resp.errors());
+    ensure!(resp.errors().is_empty(), "{:?}", resp.errors());
 
     let data = resp.response_body().data.clone().into_json()?;
 

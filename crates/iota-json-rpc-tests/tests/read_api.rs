@@ -1273,8 +1273,7 @@ async fn get_chain_identifier() {
     let fullnode_chain_identifier = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.state().get_chain_identifier())
-        .unwrap();
+        .with(|node| node.state().get_chain_identifier());
 
     let rpc_chain_identifier = http_client.get_chain_identifier().await.unwrap();
 

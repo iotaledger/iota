@@ -33,7 +33,7 @@ use iota_core::authority::{
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
-        ObjectStoreGetExt, ObjectStorePutExt,
+        ObjectStoreGetExt, ObjectStoreListExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
         util::{copy_file, copy_files, path_to_filesystem},
     },
@@ -79,6 +79,7 @@ impl StateSnapshotReaderV1 {
         indirect_objects_threshold: usize,
         download_concurrency: NonZeroUsize,
         multi_progress_bar: MultiProgress,
+        skip_reset_local_store: bool,
     ) -> Result<Self> {
         let epoch_dir = format!("epoch_{epoch}");
         let remote_object_store = if remote_store_config.no_sign_request {
@@ -88,16 +89,20 @@ impl StateSnapshotReaderV1 {
         };
         let local_object_store: Arc<dyn ObjectStorePutExt> =
             local_store_config.make().map(Arc::new)?;
+        let local_object_store_list: Arc<dyn ObjectStoreListExt> =
+            local_store_config.make().map(Arc::new)?;
         let local_staging_dir_root = local_store_config
             .directory
             .as_ref()
             .context("No directory specified")?
             .clone();
-        let local_epoch_dir_path = local_staging_dir_root.join(&epoch_dir);
-        if local_epoch_dir_path.exists() {
-            fs::remove_dir_all(&local_epoch_dir_path)?;
+        if !skip_reset_local_store {
+            let local_epoch_dir_path = local_staging_dir_root.join(&epoch_dir);
+            if local_epoch_dir_path.exists() {
+                fs::remove_dir_all(&local_epoch_dir_path)?;
+            }
+            fs::create_dir_all(&local_epoch_dir_path)?;
         }
-        fs::create_dir_all(&local_epoch_dir_path)?;
         // Downloads MANIFEST from remote store
         let manifest_file_path = Path::from(epoch_dir.clone()).child("MANIFEST");
         copy_file(
@@ -161,10 +166,28 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
 
+        let files_to_download = if skip_reset_local_store {
+            let mut list_stream = local_object_store_list
+                .list_objects(Some(&epoch_dir_path))
+                .await;
+            let mut existing_files = std::collections::HashSet::new();
+            while let Some(Ok(meta)) = list_stream.next().await {
+                existing_files.insert(meta.location);
+            }
+            let mut missing_files = Vec::new();
+            for file in &files {
+                if !existing_files.contains(file) {
+                    missing_files.push(file.clone());
+                }
+            }
+            missing_files
+        } else {
+            files
+        };
         let progress_bar = multi_progress_bar.add(
-            ProgressBar::new(files.len() as u64).with_style(
+            ProgressBar::new(files_to_download.len() as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .ref files done ({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} missing .ref files done ({msg})",
                 )
                 .unwrap(),
             ),
@@ -172,15 +195,15 @@ impl StateSnapshotReaderV1 {
         // Downloads all reference files from remote store to local store in parallel
         // and updates the progress bar accordingly
         copy_files(
-            &files,
-            &files,
+            &files_to_download,
+            &files_to_download,
             &remote_object_store,
             &local_object_store,
             download_concurrency,
             Some(progress_bar.clone()),
         )
         .await?;
-        progress_bar.finish_with_message("ref files download complete");
+        progress_bar.finish_with_message("Missing ref files download complete");
         Ok(StateSnapshotReaderV1 {
             epoch,
             local_staging_dir_root,

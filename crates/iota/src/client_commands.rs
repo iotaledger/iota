@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::{AccountKeystore, StoredKey};
+use iota_keys::keystore::AccountKeystore;
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
@@ -64,9 +64,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
-    transaction::{
-        SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{SenderSignedData, Transaction, TransactionData, TransactionKind},
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
@@ -77,7 +75,6 @@ use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
-use shared_crypto::intent::Intent;
 use strum::EnumString;
 use tabled::{
     builder::Builder as TableBuilder,
@@ -98,6 +95,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    signing::sign_transaction,
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
@@ -3060,20 +3058,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             tx_data,
         ))
     } else {
-        let signature = {
-            let key = context.config().keystore().get_key(&tx_data.sender())?;
-
-            match key {
-                StoredKey::KeyPair(_) => context.config().keystore().sign_secure(
-                    &tx_data.sender(),
-                    &tx_data,
-                    Intent::iota_transaction(),
-                )?,
-                StoredKey::External { source, .. } => {
-                    bail!("External signing is not supported for source: {source}")
-                }
-            }
-        };
+        let signature = sign_transaction(context, &tx_data).await?;
         let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
         if serialize_signed_transaction {
             Ok(IotaClientCommandResult::SerializedSignedTransaction(

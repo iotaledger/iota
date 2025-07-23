@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -1098,7 +1098,7 @@ impl AbsintVisitorContext<'_> {
     }
 }
 
-impl<'a> CFGIRVisitorContext for AbsintVisitorContext<'a> {
+impl CFGIRVisitorContext for AbsintVisitorContext<'_> {
     fn push_warning_filter_scope(&mut self, filters: WarningFilters) {
         self.reporter.push_warning_filter_scope(filters)
     }
