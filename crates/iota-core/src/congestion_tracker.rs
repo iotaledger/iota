@@ -126,7 +126,7 @@ impl CongestionTracker {
             checkpoint.timestamp_ms,
             &congestion_events,
             &cleared_events,
-        ).await;
+        );
     }
 
     /// For all the mutable shared inputs, get the highest minimum clearing
@@ -143,7 +143,7 @@ impl CongestionTracker {
 }
 
 impl CongestionTracker {
-    async fn process_per_checkpoint_events(
+    fn process_per_checkpoint_events(
         &self,
         now: CheckpointTimestamp,
         congestion_events: &[(u64, Vec<ObjectID>)],
@@ -151,29 +151,7 @@ impl CongestionTracker {
     ) {
         let congestion_info_map =
             self.compute_per_checkpoint_congestion_info(now, congestion_events, cleared_events);
-        let updated_weights = self.process_checkpoint_congestion(congestion_info_map);
-
-        println!( "updated_weights: {:?}", updated_weights);
-
-        if !updated_weights.is_empty() {
-        // Prepare payload
-            let payload = serde_json::json!({
-                "updates": updated_weights
-            });
-
-            // Send asynchronously in a background task to avoid blocking
-            let client = reqwest::Client::new();
-            
-                 let res = client.post("http://localhost:8000/update_weights")
-                    .json(&payload)
-                    .send()
-                    .await.unwrap();
-
-                println!("Response from OGD: {:?}", res);
-                
-            
-            
-    }
+        self.process_checkpoint_congestion(congestion_info_map);
     }
 
     fn get_suggested_gas_price_for_objects(
@@ -338,7 +316,7 @@ mod tests {
         let obj2 = ObjectID::random();
         let now = 1000;
 
-        tracker.process_per_checkpoint_events(now, &[(100, vec![obj1]), (200, vec![obj2])], &[]).await;
+        tracker.process_per_checkpoint_events(now, &[(100, vec![obj1]), (200, vec![obj2])], &[]);
 
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj1].into_iter()),
@@ -357,14 +335,14 @@ mod tests {
         let obj = ObjectID::random();
 
         // Cancellations only, no successes. Highest cancelled price is used.
-        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj]), (75, vec![obj])], &[]).await;
+        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj]), (75, vec![obj])], &[]);
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
             Some(100)
         );
 
         // No cancellations in last checkpoint, so no congestion
-        tracker.process_per_checkpoint_events(2000, &[], &[(150, vec![obj])]).await;
+        tracker.process_per_checkpoint_events(2000, &[], &[(150, vec![obj])]);
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
             None,
@@ -376,7 +354,7 @@ mod tests {
             3000,
             &[(100, vec![obj])],
             &[(175, vec![obj]), (125, vec![obj])],
-        ).await;
+        );
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
             Some(125)
@@ -390,7 +368,7 @@ mod tests {
         let obj2 = ObjectID::random();
 
         // Process different congestion events
-        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj1]), (200, vec![obj2])], &[]).await;
+        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj1]), (200, vec![obj2])], &[]);
 
         // Should suggest highest congestion price
         assert_eq!(
@@ -403,7 +381,7 @@ mod tests {
             2000,
             &[(100, vec![obj1]), (200, vec![obj2])],
             &[(100, vec![obj1]), (150, vec![obj2])],
-        ).await;
+        );
         // Should suggest the highest lowest success price
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj1, obj2].into_iter()),
