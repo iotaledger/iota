@@ -152,7 +152,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             tx_shutdown,
         }
     }
-
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.inner.context.own_index)))]
     async fn schedule_loop(mut self, mut rx_shutdown: oneshot::Receiver<()>) {
         let mut interval = tokio::time::interval(Duration::from_secs(2));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -449,6 +449,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
     // a request succeeds where at least a prefix of the commit range is
     // fetched. Returns the fetched commits and block headers referenced by the
     // commits.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %inner.context.own_index)))]
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
