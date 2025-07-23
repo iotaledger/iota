@@ -320,12 +320,12 @@ impl GasPriceFeedbackTester {
 }
 
 #[sim_test]
-async fn gas_price_feedback_mechanism() {
-    let max_deferral_rounds_for_congestion_control = 1;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
-    let max_execution_duration_per_commit = 1;
-    let assign_min_free_execution_slot = false;
-    let num_gas_objects = 2;
+async fn congestion_control_is_turned_off() {
+    let max_deferral_rounds_for_congestion_control = 0;
+    let per_object_congestion_control_mode = PerObjectCongestionControlMode::None;
+    let max_execution_duration_per_commit = 0;
+    let assign_min_free_execution_slot = true;
+    let num_gas_objects = 10;
 
     let tester = GasPriceFeedbackTester::new(
         max_deferral_rounds_for_congestion_control,
@@ -338,10 +338,10 @@ async fn gas_price_feedback_mechanism() {
 
     // Prepare certificates
     let mut certificates = vec![];
-    for gas_object_id in tester.gas_object_ids.iter() {
+    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
         let gas_data = GasDataForTests::new(
             *gas_object_id,
-            REFERENCE_GAS_PRICE_FOR_TESTS,
+            REFERENCE_GAS_PRICE_FOR_TESTS + i as u64,
             DEFAULT_GAS_BUDGET_FOR_TESTS,
         );
         let transaction = tester
@@ -351,6 +351,8 @@ async fn gas_price_feedback_mechanism() {
 
         certificates.push(certificate);
     }
+    // Shuffle certificates so that they do not have any specific order in
+    // terms of gas price.
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
@@ -360,13 +362,19 @@ async fn gas_price_feedback_mechanism() {
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        max_execution_duration_per_commit as usize + 1,
+        certificates.len() + 1,
     );
 
     let effects_vec = tester
         .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
         .await;
+    assert_eq!(
+        effects_vec.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
 
+    // All transactions should be successfully executed.
     for effects in effects_vec {
         assert!(effects.status().is_ok());
     }
