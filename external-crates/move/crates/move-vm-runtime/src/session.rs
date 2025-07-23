@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{borrow::Borrow, sync::Arc};
@@ -47,10 +47,9 @@ pub struct SerializedReturnValues {
     pub return_values: Vec<(Vec<u8>, MoveTypeLayout)>,
 }
 
-impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
-    /// Execute a Move function with the given arguments. This is mainly
-    /// designed for an external environment to invoke system logic written
-    /// in Move.
+impl<'r, S: MoveResolver> Session<'r, '_, S> {
+    /// Execute a Move function with the given arguments. This is mainly designed for an external
+    /// environment to invoke system logic written in Move.
     ///
     /// NOTE: There are NO checks on the `args` except that they can deserialize
     /// into the provided types.

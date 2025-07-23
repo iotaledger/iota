@@ -4,10 +4,11 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Input, InputType } from '@/lib/components/molecules/input';
-import { PlaceholderReplace } from '@iota/apps-ui-icons';
+import { CheckmarkFilled, Close, Loader2, PlaceholderReplace } from '@iota/apps-ui-icons';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { ButtonPill } from '@/lib/components/atoms/button';
+import { ButtonPill, ButtonUnstyled } from '@/lib/components/atoms/button';
+import classNames from 'classnames';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -160,3 +161,79 @@ export const NumericFormatInput: Story = {
         );
     },
 };
+
+export const NameResolverInput: Story = {
+    args: {
+        type: InputType.Text,
+    },
+    render: ({ type }) => {
+        const [value, setValue] = useState<string>('');
+        const { address, isLoading, error } = useNameResolver(value);
+
+        const ICON_COLORS =
+            'text-iota-primary-30 dark:text-iota-primary-70 names:text-names-primary-70';
+
+        return (
+            <Input
+                type={type}
+                placeholder="@name"
+                label="Name Resolver"
+                caption="Enter the name to resolve"
+                value={value}
+                onInput={(e) => setValue(e.currentTarget.value)}
+                supportingValue={address}
+                errorMessage={error || undefined}
+                trailingElement={
+                    <>
+                        {value.length > 0 && (
+                            <ButtonUnstyled
+                                className="input-icon-color"
+                                onClick={() => setValue('')}
+                                tabIndex={-1}
+                            >
+                                <Close className="h-5 w-5" />
+                            </ButtonUnstyled>
+                        )}
+                        {isLoading ? (
+                            <Loader2 className={classNames('h-5 w-5 animate-spin', ICON_COLORS)} />
+                        ) : address ? (
+                            <CheckmarkFilled className={classNames('h-5 w-5', ICON_COLORS)} />
+                        ) : null}
+                    </>
+                }
+            />
+        );
+    },
+};
+
+function useNameResolver(name: string) {
+    const [address, setAddress] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        setAddress(null);
+        setError(null);
+
+        if (!name) {
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+
+        const id = setTimeout(() => {
+            if (name.includes('@')) {
+                setAddress(`0x3c14…187b`);
+            } else {
+                setError("Only names with '@' are supported");
+                setAddress(null);
+            }
+            setIsLoading(false);
+        }, 1500);
+
+        return () => clearTimeout(id);
+    }, [name]);
+
+    return { address, isLoading, error };
+}

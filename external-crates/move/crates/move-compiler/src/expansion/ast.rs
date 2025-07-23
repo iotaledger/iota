@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::VecDeque, fmt, hash::Hash, sync::Arc};
@@ -823,7 +823,7 @@ impl Visibility {
 
 pub struct AbilitySetIter<'a>(unique_set::Iter<'a, Ability>);
 
-impl<'a> Iterator for AbilitySetIter<'a> {
+impl Iterator for AbilitySetIter<'_> {
     type Item = Ability;
 
     fn next(&mut self) -> Option<Self::Item> {

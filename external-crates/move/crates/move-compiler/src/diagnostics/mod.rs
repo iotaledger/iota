@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod codes;
@@ -874,12 +874,9 @@ macro_rules! ice_assert {
 pub fn print_stack_trace() {
     use std::backtrace::{Backtrace, BacktraceStatus};
     let stacktrace = Backtrace::capture();
-    match stacktrace.status() {
-        BacktraceStatus::Captured => {
-            eprintln!("stacktrace:");
-            eprintln!("{}", stacktrace);
-        }
-        BacktraceStatus::Unsupported | BacktraceStatus::Disabled | _ => (),
+    if stacktrace.status() == BacktraceStatus::Captured {
+        eprintln!("stacktrace:");
+        eprintln!("{}", stacktrace);
     }
 }
 
