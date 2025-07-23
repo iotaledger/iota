@@ -13899,6 +13899,7 @@ dependencies = [
  "iota-types",
  "jsonrpsee",
  "move-binary-format",
+ "prometheus",
  "rand 0.8.5",
  "tokio",
  "tracing",
