@@ -143,7 +143,6 @@ harness = false
 [[bench]]
 name = "batch_verification_bench"
 harness = false
-required-features = ["test-utils"]
 
 [package.metadata.cargo-udeps.ignore]
 development = ["pprof", "test-fuzz"]

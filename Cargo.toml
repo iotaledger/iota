@@ -101,6 +101,9 @@ members = [
   "crates/iota-json-rpc-tests",
   "crates/iota-json-rpc-types",
   "crates/iota-keys",
+  "crates/iota-kvstore",
+  "crates/iota-ledger",
+  "crates/iota-ledger-signer",
   "crates/iota-light-client",
   "crates/iota-macros",
   "crates/iota-mainnet-unlocks",
@@ -223,7 +226,7 @@ async-stream = "0.3.6"
 async-trait = "0.1.61"
 aws-config = "1.5.6"
 aws-sdk-dynamodb = "1.42"
-axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
+axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
 backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
@@ -402,6 +405,9 @@ iota-json-rpc = { path = "crates/iota-json-rpc" }
 iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
 iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
 iota-keys = { path = "crates/iota-keys" }
+iota-kvstore = { path = "crates/iota-kvstore" }
+iota-ledger = { path = "crates/iota-ledger" }
+iota-ledger-signer = { path = "crates/iota-ledger-signer" }
 iota-macros = { path = "crates/iota-macros" }
 iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }

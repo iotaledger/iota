@@ -30,6 +30,7 @@ use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
     key_identity::KeyIdentity,
     keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
+    signing::sign_secure,
 };
 
 const TEST_MNEMONIC: &str = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
@@ -67,7 +68,12 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
         .filter(|k| matches!(k, StoredKey::KeyPair(_)))
     {
         let pk = key.public();
-        let sig = keystore.sign_secure(&key.address(), b"hello", Intent::iota_transaction())?;
+        let sig = sign_secure(
+            &keystore,
+            &key.address(),
+            b"hello",
+            Intent::iota_transaction(),
+        )?;
         match sig {
             Signature::Ed25519IotaSignature(_) => {
                 // signature contains corresponding flag
