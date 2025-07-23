@@ -339,19 +339,13 @@ impl GasPriceFeedbackTester {
 // cancelled) if per-object congestion control mode is None.
 #[sim_test]
 async fn per_object_congestion_control_mode_is_none() {
-    let max_deferral_rounds_for_congestion_control = 0;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::None;
-    let max_execution_duration_per_commit = Some(1);
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 10;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
-        max_execution_duration_per_commit,
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        0,                                    // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::None, // per_object_congestion_control_mode
+        Some(1),                              // max_execution_duration_per_commit
+        true,                                 // assign_min_free_execution_slot
+        true,                                 // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -389,6 +383,16 @@ async fn per_object_congestion_control_mode_is_none() {
         scheduled_transactions[0].data().transaction_data().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
+
+    // Checks that there are no deferred transactions
+    assert!(
+        tester
+            .authority_state
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .unwrap()
+            .is_empty()
+    );
 
     let effects_vec = tester
         .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
@@ -409,19 +413,13 @@ async fn per_object_congestion_control_mode_is_none() {
 // cancelled) if `max_execution_duration_per_commit` is set None.
 #[sim_test]
 async fn max_execution_duration_per_commit_is_none() {
-    let max_deferral_rounds_for_congestion_control = 0;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
-    let max_execution_duration_per_commit = None;
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 10;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
-        max_execution_duration_per_commit,
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        0,                                            // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
+        None,                                         // max_execution_duration_per_commit
+        true,                                         // assign_min_free_execution_slot
+        true,                                         // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -459,6 +457,16 @@ async fn max_execution_duration_per_commit_is_none() {
         scheduled_transactions[0].data().transaction_data().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
+
+    // Checks that there are no deferred transactions
+    assert!(
+        tester
+            .authority_state
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .unwrap()
+            .is_empty()
+    );
 
     let effects_vec = tester
         .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
@@ -481,21 +489,13 @@ async fn max_execution_duration_per_commit_is_none() {
 #[tokio::test]
 #[should_panic] // because `max_execution_duration_per_commit` is set too low.
 async fn max_execution_duration_per_commit_too_low_in_total_tx_count_mode() {
-    let max_deferral_rounds_for_congestion_control = 10;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
-    // Intentionally set to 0 so that even one transaction will not fit in a
-    // single commit.
-    let max_execution_duration_per_commit = Some(0);
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
-        max_execution_duration_per_commit,
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        10,                                           // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
+        Some(0),                                      // max_execution_duration_per_commit
+        true,                                         // assign_min_free_execution_slot
+        true,                                         // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -532,22 +532,13 @@ async fn max_execution_duration_per_commit_too_low_in_total_tx_count_mode() {
 #[tokio::test]
 #[should_panic] // because `max_execution_duration_per_commit` is set too low.
 async fn max_execution_duration_per_commit_too_low_in_total_gas_budget_mode() {
-    let max_deferral_rounds_for_congestion_control = 10;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalGasBudget;
-    // Intentionally set too low so that even one transaction will not fit in a
-    // single commit.
-    let max_execution_duration_per_commit =
-        Some(REFERENCE_GAS_PRICE_FOR_TESTS * DEFAULT_GAS_UNITS_FOR_TESTS);
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
-        max_execution_duration_per_commit,
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        10,                                             // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalGasBudget, // per_object_congestion_control_mode
+        Some(REFERENCE_GAS_PRICE_FOR_TESTS * DEFAULT_GAS_UNITS_FOR_TESTS), // max_execution_duration_per_commit
+        true, // assign_min_free_execution_slot
+        true, // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -583,20 +574,13 @@ async fn max_execution_duration_per_commit_too_low_in_total_gas_budget_mode() {
 // and `SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK` should appear.
 #[sim_test]
 async fn gas_price_feedback_mechanism_is_turned_off() {
-    // All deferred transactions will be cancelled
-    let max_deferral_rounds_for_congestion_control = 0;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
-    let max_execution_duration_per_commit = Some(1);
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = false;
     let num_gas_objects = 2;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
-        max_execution_duration_per_commit,
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        0,                                            // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
+        Some(1),                                      // max_execution_duration_per_commit
+        true,                                         // assign_min_free_execution_slot
+        false,                                        // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -631,6 +615,16 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         certificates.len() + 1,
     );
 
+    // Checks that there are no deferred transactions
+    assert!(
+        tester
+            .authority_state
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .unwrap()
+            .is_empty()
+    );
+
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
         scheduled_transactions[0].data().transaction_data().kind()
@@ -654,7 +648,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
         );
     } else {
-        panic!("First scheduled transaction must be a `ConsensusCommitPrologueV1` transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
 
     // Confirm that gas price order of scheduled transactions is descending
@@ -700,9 +694,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
                 CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
             );
         } else {
-            panic!(
-                "`ExecutionFailureStatus` must be `ExecutionCancelledDueToSharedObjectCongestion`."
-            );
+            panic!("ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestion.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -734,21 +726,13 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
 #[sim_test]
 async fn gas_price_feedback_mechanism_with_max_gas_price() {
     let max_gas_price = 100_000;
-
-    // All deferred transactions will be cancelled
-    let max_deferral_rounds_for_congestion_control = 0;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalGasBudget;
-    let max_execution_duration_per_commit = Some(max_gas_price * DEFAULT_GAS_UNITS_FOR_TESTS);
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
-        max_execution_duration_per_commit,
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        0,                                                 // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalGasBudget,    // per_object_congestion_control_mode
+        Some(max_gas_price * DEFAULT_GAS_UNITS_FOR_TESTS), // max_execution_duration_per_commit
+        true,                                              // assign_min_free_execution_slot
+        true,                                              // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -783,7 +767,17 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         certificates.len() + 1,
     );
 
-    let suggested_gas_price = tester.protocol_config.max_gas_price();
+    // Checks that there are no deferred transactions
+    assert!(
+        tester
+            .authority_state
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .unwrap()
+            .is_empty()
+    );
+
+    let expected_suggested_gas_price = tester.protocol_config.max_gas_price();
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
@@ -795,11 +789,15 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             vec![
                 (
                     tester.shared_counter_1.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price),
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price,
+                    ),
                 ),
                 (
                     tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price),
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price,
+                    ),
                 ),
             ],
         )];
@@ -808,7 +806,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
         );
     } else {
-        panic!("First scheduled transaction must be a `ConsensusCommitPrologueV1` transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
 
     let effects_vec = tester
@@ -838,10 +836,10 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
                 *congested_objects,
                 CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
             );
-            assert_eq!(*suggested_gas_price, tester.protocol_config.max_gas_price());
+            assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
             panic!(
-                "`ExecutionFailureStatus` must be `ExecutionCancelledDueToSharedObjectCongestionV2`."
+                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
             );
         }
     } else {
@@ -856,13 +854,17 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             (
                 tester.shared_counter_1.0,
                 UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price
+                    )
                 )
             ),
             (
                 tester.shared_counter_2.0,
                 UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price
+                    )
                 )
             ),
         ]
@@ -874,19 +876,14 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
 // transaction was deferred.
 #[sim_test]
 async fn gas_price_feedback_mechanism_for_multiple_commits() {
-    let max_deferral_rounds_for_congestion_control = 1;
-    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
     let max_execution_duration_per_commit = 1;
-    let assign_min_free_execution_slot = true;
-    let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
-
     let tester = GasPriceFeedbackTester::new(
-        max_deferral_rounds_for_congestion_control,
-        per_object_congestion_control_mode,
+        1,                                            // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
         Some(max_execution_duration_per_commit),
-        assign_min_free_execution_slot,
-        enable_gas_price_feedback_mechanism,
+        true, // assign_min_free_execution_slot
+        true, // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
@@ -942,7 +939,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             ConsensusDeterminedVersionAssignments::CancelledTransactions(vec![])
         );
     } else {
-        panic!("First scheduled transaction must be a `ConsensusCommitPrologueV1` transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
     // The second scheduled transaction should be one paying higher gas price
     assert_eq!(
@@ -1041,7 +1038,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
         );
     } else {
-        panic!("First scheduled transaction must be a `ConsensusCommitPrologueV1` transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
     // The second scheduled transaction should be one paying higher gas price
     assert_eq!(
@@ -1084,7 +1081,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
             panic!(
-                "`ExecutionFailureStatus` must be `ExecutionCancelledDueToSharedObjectCongestionV2`."
+                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
             );
         }
     } else {
