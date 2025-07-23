@@ -32,7 +32,13 @@ async fn main() -> Result<(), anyhow::Error> {
     ]
     .iter()
     .collect::<PathBuf>();
-    let module = BuildConfig::new(true, false, None).build(&package_path)?;
+
+    let run_bytecode_verifier = true;
+    let print_diags_to_stderr = false;
+    let chain_id = None;
+    let build_config = BuildConfig::new(run_bytecode_verifier, print_diags_to_stderr, chain_id);
+
+    let module = build_config.clone().build(&package_path)?;
 
     let tx_data = client
         .transaction_builder()
@@ -85,7 +91,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .expect("missing upgrade cap");
 
     // In reality you would like to do some changes to the package before upgrading
-    let module = BuildConfig::new(true, false, None).build(&package_path)?;
+    let module = build_config.build(&package_path)?;
     let deps = module.get_dependency_storage_package_ids();
     let package_bytes = module.get_package_bytes(false);
 
