@@ -3,7 +3,6 @@
 
 use std::sync::Arc;
 
-use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
@@ -319,7 +318,9 @@ impl GasPriceFeedbackTester {
     }
 }
 
-#[sim_test]
+// Test that everything goes well (i.e., no transactions are deferred or
+// cancelled) if the congestion control is turned off.
+#[tokio::test]
 async fn congestion_control_is_turned_off() {
     let max_deferral_rounds_for_congestion_control = 0;
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::None;
@@ -378,4 +379,100 @@ async fn congestion_control_is_turned_off() {
     for effects in effects_vec {
         assert!(effects.status().is_ok());
     }
+}
+
+// Test that the suggested gas price calculator panics if
+// `max_execution_duration_per_commit` is set too low such that even
+// one transaction cannot fit in a commit.
+#[tokio::test]
+#[should_panic] // because `max_execution_duration_per_commit` is set too low.
+async fn max_execution_duration_per_commit_is_set_too_low_in_total_tx_count_mode() {
+    let max_deferral_rounds_for_congestion_control = 10;
+    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
+    // Intentionally set to 0 so that even one transaction will not fit in a
+    // single commit.
+    let max_execution_duration_per_commit = 0;
+    let assign_min_free_execution_slot = true;
+    let num_gas_objects = 2;
+
+    let tester = GasPriceFeedbackTester::new(
+        max_deferral_rounds_for_congestion_control,
+        per_object_congestion_control_mode,
+        max_execution_duration_per_commit,
+        assign_min_free_execution_slot,
+        num_gas_objects,
+    )
+    .await;
+
+    // Prepare certificates
+    let mut certificates = vec![];
+    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
+        let gas_data = GasDataForTests::new(
+            *gas_object_id,
+            REFERENCE_GAS_PRICE_FOR_TESTS + i as u64,
+            DEFAULT_GAS_BUDGET_FOR_TESTS,
+        );
+        let transaction = tester
+            .build_access_both_counters_transaction(gas_data, true, true)
+            .await;
+        let certificate = tester.certify_transaction(transaction).await;
+
+        certificates.push(certificate);
+    }
+    // Shuffle certificates so that they do not have any specific order in
+    // terms of gas price.
+    certificates.shuffle(&mut rand::thread_rng());
+    assert_eq!(certificates.len(), num_gas_objects);
+
+    let _scheduled_transactions = tester
+        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .await;
+}
+
+// Test that the suggested gas price calculator panics if
+// `max_execution_duration_per_commit` is set too low such that even
+// one transaction cannot fit in a commit.
+#[tokio::test]
+#[should_panic] // because `max_execution_duration_per_commit` is set too low.
+async fn max_execution_duration_per_commit_is_set_too_low_in_total_gas_budget_mode() {
+    let max_deferral_rounds_for_congestion_control = 10;
+    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalGasBudget;
+    // Intentionally set too low so that even one transaction will not fit in a
+    // single commit.
+    let max_execution_duration_per_commit = DEFAULT_GAS_BUDGET_FOR_TESTS - 1;
+    let assign_min_free_execution_slot = true;
+    let num_gas_objects = 2;
+
+    let tester = GasPriceFeedbackTester::new(
+        max_deferral_rounds_for_congestion_control,
+        per_object_congestion_control_mode,
+        max_execution_duration_per_commit,
+        assign_min_free_execution_slot,
+        num_gas_objects,
+    )
+    .await;
+
+    // Prepare certificates
+    let mut certificates = vec![];
+    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
+        let gas_data = GasDataForTests::new(
+            *gas_object_id,
+            REFERENCE_GAS_PRICE_FOR_TESTS + i as u64,
+            DEFAULT_GAS_BUDGET_FOR_TESTS,
+        );
+        let transaction = tester
+            .build_access_both_counters_transaction(gas_data, true, true)
+            .await;
+        let certificate = tester.certify_transaction(transaction).await;
+
+        certificates.push(certificate);
+    }
+    // Shuffle certificates so that they do not have any specific order in
+    // terms of gas price.
+    certificates.shuffle(&mut rand::thread_rng());
+    assert_eq!(certificates.len(), num_gas_objects);
+
+    let _scheduled_transactions = tester
+        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .await;
 }
