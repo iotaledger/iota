@@ -1,10 +1,11 @@
 ---
 source: crates/iota-move/tests/cli_tests.rs
-description: tests/tests/new_tests/new_then_test.sh
 ---
 success: true
 exit_code: 0
 ----- stdout -----
+INCLUDING DEPENDENCY IotaSystem
+INCLUDING DEPENDENCY Stardust
 INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING example
