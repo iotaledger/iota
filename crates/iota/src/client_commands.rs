@@ -34,9 +34,8 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
-    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
-    implicit_deps,
+    BuildConfig, CompiledPackage, build_from_resolution_graph, check_invalid_dependencies,
+    check_unpublished_dependencies, gather_published_ids, implicit_deps,
 };
 use iota_package_management::{
     LockCommand, PublishedAtError,
