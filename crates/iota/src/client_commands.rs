@@ -389,7 +389,6 @@ pub enum IotaClientCommands {
         #[command(flatten)]
         processing: TxProcessingArgs,
     },
-
     /// Execute, dry-run, dev-inspect or otherwise inspect an already serialized
     /// transaction kind.
     SerializedTxKind {
@@ -614,11 +613,10 @@ pub struct PaymentArgs {
 impl PaymentArgs {
     /// Output the payment args as a vec of strings for CLI usage.
     pub fn into_args(self) -> Vec<String> {
-        let mut args = Vec::new();
-        for gas_id in self.gas {
-            args.push(format!("--gas {}", gas_id));
-        }
-        args
+        self.gas
+            .into_iter()
+            .map(|gas_id| format!("--gas {}", gas_id))
+            .collect()
     }
 }
 
