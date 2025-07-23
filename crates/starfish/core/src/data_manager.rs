@@ -222,8 +222,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        VerifiedBlockHeader,
-        block_header::{BlockRef, genesis_blocks},
+        block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
         dag_state::DagState,
@@ -445,20 +444,13 @@ mod tests {
             let mut all_committed_block_headers = Vec::new();
 
             for spec in &self.block_specs {
-                let headers: Vec<VerifiedBlockHeader>;
-
-                if spec.round == 0 {
-                    let genesis_blocks = genesis_blocks(self.setup.context.clone());
-                    headers = genesis_blocks
-                        .iter()
-                        .map(|b| b.verified_block_header.clone())
-                        .collect();
+                let headers = if spec.round == 0 {
+                    genesis_block_headers(self.setup.context.clone())
                 } else {
-                    headers = self
-                        .setup
+                    self.setup
                         .dag_builder
-                        .block_headers(spec.round..=spec.round);
-                }
+                        .block_headers(spec.round..=spec.round)
+                };
 
                 match &spec.indices {
                     None => all_committed_block_headers.extend(headers),
