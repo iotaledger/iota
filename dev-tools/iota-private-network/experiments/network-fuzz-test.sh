@@ -40,6 +40,7 @@ end_time=$((start_time + duration_total))
 validators=()
 LOG_DIR="./logs"
 mkdir -p "$LOG_DIR"
+echo "Logging into $LOG_DIR"
 # Start script logging at the top
 TIMESTAMP_START=$(date +%Y%m%d-%H%M%S)
 SCRIPT_LOG="$LOG_DIR/fuzz-test-script-$TIMESTAMP_START.log"
