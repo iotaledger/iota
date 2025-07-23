@@ -3324,7 +3324,11 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::PayAllIota {
         input_coins: object_refs.data.iter().map(|o| o.coin_object_id).collect(),
         recipient: KeyIdentity::Address(address_1),
-        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
     }
     .execute(context)
     .await?;
@@ -3342,10 +3346,15 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
     let gas = object_refs.data.first().unwrap().coin_object_id;
     let resp = IotaClientCommands::SplitCoin {
-        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
         coin_id: gas,
         amounts: Some(vec![10, 1000]),
         count: None,
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
     }
     .execute(context)
     .await?;
