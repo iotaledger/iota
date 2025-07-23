@@ -6053,6 +6053,7 @@ dependencies = [
  "move-trace-format",
  "move-vm-config",
  "move-vm-runtime",
+ "move-vm-types",
  "petgraph 0.6.5",
 ]
 
@@ -7920,7 +7921,6 @@ dependencies = [
  "move-ir-types",
  "move-vm-profiler",
  "move-vm-test-utils",
- "move-vm-types",
  "nonempty",
  "num-bigint 0.4.6",
  "num-rational",
