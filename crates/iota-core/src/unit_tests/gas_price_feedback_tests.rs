@@ -9,10 +9,11 @@ use iota_protocol_config::{
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, get_key_pair},
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, Transaction},
+    transaction::{ObjectArg, Transaction, VerifiedCertificate},
 };
 use move_core_types::ident_str;
 use rand::seq::SliceRandom;
@@ -159,7 +160,7 @@ impl GasPriceFeedbackTester {
         effects.created()[0].0
     }
 
-    async fn build_increment_both_counters_tx(
+    async fn build_increment_both_counters_transaction(
         &self,
         gas_object_id: &ObjectID,
         // gas_price: u64
@@ -200,6 +201,40 @@ impl GasPriceFeedbackTester {
         .await
         .unwrap()
     }
+
+    async fn certify_transaction(&self, transaction: Transaction) -> VerifiedCertificate {
+        certify_transaction(&self.authority_state, transaction)
+            .await
+            .unwrap()
+    }
+
+    async fn send_certificates_to_consensus_for_scheduling(
+        &self,
+        certificates: &[VerifiedCertificate],
+    ) -> Vec<VerifiedExecutableTransaction> {
+        send_batch_consensus_no_execution(&self.authority_state, certificates, false).await
+    }
+
+    async fn enqueue_and_execute_scheduled_transactions(
+        &self,
+        transactions: Vec<VerifiedExecutableTransaction>,
+    ) -> Vec<TransactionEffects> {
+        let transaction_digests = transactions
+            .iter()
+            .map(|tx| *tx.digest())
+            .collect::<Vec<_>>();
+
+        self.authority_state.transaction_manager().enqueue(
+            transactions,
+            &self.authority_state.epoch_store_for_testing(),
+        );
+
+        self.authority_state
+            .get_transaction_cache_reader()
+            .notify_read_executed_effects(&transaction_digests)
+            .await
+            .unwrap()
+    }
 }
 
 #[tokio::test]
@@ -207,7 +242,7 @@ async fn gas_price_feedback_mechanism() {
     let max_deferral_rounds_for_congestion_control = 1;
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
     let max_execution_duration_per_commit = 1;
-    let num_gas_objects = 20;
+    let num_gas_objects = 2;
 
     let tester = GasPriceFeedbackTester::new(
         max_deferral_rounds_for_congestion_control,
@@ -220,37 +255,30 @@ async fn gas_price_feedback_mechanism() {
     // Prepare certificates
     let mut certificates = vec![];
     for gas_object_id in tester.gas_object_ids.iter() {
-        let transaction = tester.build_increment_both_counters_tx(gas_object_id).await;
+        let transaction = tester
+            .build_increment_both_counters_transaction(gas_object_id)
+            .await;
+        let certificate = tester.certify_transaction(transaction).await;
 
-        certificates.push(
-            certify_transaction(&tester.authority_state, transaction)
-                .await
-                .unwrap(),
-        );
+        certificates.push(certificate);
     }
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
-    let scheduled_certificates =
-        send_batch_consensus_no_execution(&tester.authority_state, &certificates, true).await;
+    let scheduled_transactions = tester
+        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .await;
     assert_eq!(
-        scheduled_certificates.len(),
-        max_execution_duration_per_commit as usize
+        scheduled_transactions.len(),
+        // +1 because of consensus commit prologue transaction
+        max_execution_duration_per_commit as usize + 1,
     );
 
-    tester.authority_state.transaction_manager().enqueue(
-        scheduled_certificates.clone(),
-        &tester.authority_state.epoch_store_for_testing(),
-    );
+    let effects_vec = tester
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .await;
 
-    for cert in scheduled_certificates {
-        let effects = tester
-            .authority_state
-            .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[*cert.digest()])
-            .await
-            .map(|mut r| r.pop().expect("must return correct number of effects"))
-            .unwrap();
+    for effects in effects_vec {
         assert!(effects.status().is_ok());
     }
 }
