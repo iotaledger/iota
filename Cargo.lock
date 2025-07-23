@@ -6761,7 +6761,6 @@ dependencies = [
  "futures",
  "git-version",
  "insta",
- "insta-cmd",
  "iota-macros",
  "iota-metrics",
  "iota-move-build",
@@ -6788,7 +6787,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "walkdir",
 ]
 
 [[package]]
