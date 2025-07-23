@@ -31,7 +31,7 @@ use crate::{
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-    /// Stores SignedBlock by refs.
+    /// Stores Transactions by refs.
     transactions: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
@@ -306,28 +306,21 @@ impl Store for RocksDBStore {
             .is_some();
         Ok(found)
     }
-
-    fn scan_block_headers_by_author(
+    fn scan_references_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
-        let mut refs = vec![];
-        for kv in self.digests_by_authorities.safe_range_iter((
-            Included((author, start_round, BlockHeaderDigest::MIN)),
-            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
-        )) {
-            let ((author, round, digest), _) = kv?;
-            refs.push(BlockRef::new(round, author, digest));
-        }
-        let results = self.read_block_headers(refs.as_slice())?;
-        let mut block_headers = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
-            block_headers.push(
-                block.unwrap_or_else(|| panic!("Storage inconsistency: block {:?} not found!", r)),
-            );
-        }
-        Ok(block_headers)
+    ) -> ConsensusResult<Vec<BlockRef>> {
+        self.digests_by_authorities
+            .safe_range_iter((
+                Included((author, start_round, BlockHeaderDigest::MIN)),
+                Included((author, Round::MAX, BlockHeaderDigest::MAX)),
+            ))
+            .map(|res| {
+                let ((author, round, digest), _) = res?;
+                Ok(BlockRef::new(round, author, digest))
+            })
+            .collect()
     }
 
     fn scan_blocks_by_author(

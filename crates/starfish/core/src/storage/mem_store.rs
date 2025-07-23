@@ -241,27 +241,21 @@ impl Store for MemStore {
         Ok(found)
     }
 
-    fn scan_block_headers_by_author(
+    fn scan_references_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+    ) -> ConsensusResult<Vec<BlockRef>> {
         let inner = self.inner.read();
-        let mut refs = vec![];
-        for &(author, round, digest) in inner.digests_by_authorities.range((
-            Included((author, start_round, BlockHeaderDigest::MIN)),
-            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
-        )) {
-            refs.push(BlockRef::new(round, author, digest));
-        }
-        let results = self.read_block_headers(refs.as_slice())?;
-        let mut block_headers = Vec::with_capacity(refs.len());
-        for (r, block_header) in refs.into_iter().zip(results.into_iter()) {
-            block_headers.push(block_header.unwrap_or_else(|| {
-                panic!("Storage inconsistency: block header {:?} not found!", r)
-            }));
-        }
-        Ok(block_headers)
+        let res = inner
+            .digests_by_authorities
+            .range((
+                Included((author, start_round, BlockHeaderDigest::MIN)),
+                Included((author, Round::MAX, BlockHeaderDigest::MAX)),
+            ))
+            .map(|(author, round, digest)| BlockRef::new(*round, *author, *digest))
+            .collect();
+        Ok(res)
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {
