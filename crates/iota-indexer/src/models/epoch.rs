@@ -36,6 +36,8 @@ pub struct StoredEpochInfo {
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
+    /// First transaction sequence number of this epoch.
+    pub first_tx_sequence_number: Option<i64>,
 }
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
