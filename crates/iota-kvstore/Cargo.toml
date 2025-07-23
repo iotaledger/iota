@@ -12,7 +12,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
-iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "60f2bc6655300cae5cadcb0ce231f6fdd9c99f42" }
+iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "c1a4c951473eafcd8bf841b9e7b82ee8c5b29b3e" }
 prometheus.workspace = true
 serde.workspace = true
 strum.workspace = true

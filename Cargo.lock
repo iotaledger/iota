@@ -5384,9 +5384,9 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
 name = "io-uring"
-version = "0.7.8"
+version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b86e202f00093dcba4275d4636b93ef9dd75d025ae560d2521b45ea28ab49013"
+checksum = "d93587f37623a1a17d94ef2bc9ada592f5465fe7732084ab7beefabe5c77c0c4"
 dependencies = [
  "bitflags 2.9.1",
  "cfg-if",
@@ -5716,7 +5716,7 @@ dependencies = [
 [[package]]
 name = "iota-bigtable"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-bigtable.git?rev=60f2bc6655300cae5cadcb0ce231f6fdd9c99f42#60f2bc6655300cae5cadcb0ce231f6fdd9c99f42"
+source = "git+https://github.com/iotaledger/iota-bigtable.git?rev=c1a4c951473eafcd8bf841b9e7b82ee8c5b29b3e#c1a4c951473eafcd8bf841b9e7b82ee8c5b29b3e"
 dependencies = [
  "gcp_auth",
  "http 1.3.1",
