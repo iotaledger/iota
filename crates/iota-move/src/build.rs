@@ -5,13 +5,10 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-use iota_move_build::{
-    BuildConfig, check_invalid_dependencies, check_unpublished_dependencies, implicit_deps,
-};
+use iota_move_build::{BuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
-use serde_json::json;
 
 use crate::manage_package::resolve_lock_file_path;
 
@@ -59,8 +56,6 @@ impl Build {
         Self::execute_internal(
             &rerooted_path,
             build_config,
-            self.with_unpublished_dependencies,
-            self.dump_bytecode_as_base64,
             self.generate_struct_layouts,
             self.chain_id.clone(),
         )
@@ -69,8 +64,6 @@ impl Build {
     pub fn execute_internal(
         rerooted_path: &Path,
         mut config: MoveBuildConfig,
-        with_unpublished_deps: bool,
-        dump_bytecode_as_base64: bool,
         generate_struct_layouts: bool,
         chain_id: Option<String>,
     ) -> anyhow::Result<()> {
@@ -82,21 +75,6 @@ impl Build {
             chain_id,
         }
         .build(rerooted_path)?;
-        if dump_bytecode_as_base64 {
-            check_invalid_dependencies(&pkg.dependency_ids.invalid)?;
-            if !with_unpublished_deps {
-                check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
-            }
-
-            println!(
-                "{}",
-                json!({
-                    "modules": pkg.get_package_base64(with_unpublished_deps),
-                    "dependencies": pkg.get_dependency_storage_package_ids(),
-                    "digest": pkg.get_package_digest(with_unpublished_deps),
-                })
-            )
-        }
 
         if generate_struct_layouts {
             let layout_str = serde_yaml::to_string(&pkg.generate_struct_layouts()).unwrap();

@@ -12,7 +12,6 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use getset::Getters;
 use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
@@ -31,10 +30,9 @@ use crate::{
 };
 
 // The list of checkpoints at the end of each epoch
-#[derive(Debug, Clone, Default, Deserialize, Serialize, Getters)]
-#[getset(get = "pub")]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct CheckpointList {
-    checkpoints: Vec<u64>,
+    pub checkpoints: Vec<u64>,
 }
 
 impl CheckpointList {
@@ -144,7 +142,7 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Che
 }
 
 /// Syncs the list of end-of-epoch checkpoints from GraphQL.
-async fn sync_checkpoint_list_to_latest_from_graphql(
+pub async fn sync_checkpoint_list_to_latest_from_graphql(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoint list from GraphQL.");
@@ -192,7 +190,7 @@ async fn sync_checkpoint_list_to_latest_from_graphql(
 }
 
 /// Syncs the list of end-of-epoch checkpoints from an archive store.
-async fn sync_checkpoint_list_to_latest_from_archive(
+pub async fn sync_checkpoint_list_to_latest_from_archive(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoint list from archive store.");
@@ -217,6 +215,56 @@ async fn sync_checkpoint_list_to_latest_from_archive(
     Ok(CheckpointList { checkpoints })
 }
 
+pub async fn download_summaries_from_archive_store(
+    config: &Config,
+    checkpoints: Vec<u64>,
+) -> anyhow::Result<()> {
+    info!("Downloading missing checkpoints from archive store.");
+
+    let Some(archive_store_config) = &config.archive_store_config else {
+        bail!("missing archive store config");
+    };
+
+    let archive_reader_config = ArchiveReaderConfig {
+        remote_store_config: archive_store_config.clone(),
+        download_concurrency: NonZeroUsize::new(5).unwrap(),
+        use_for_pruning_watermark: false,
+    };
+
+    let store = CheckpointSummaryFileStore::new(config.clone());
+    let counter = Arc::new(AtomicU64::new(0));
+    let metrics = ArchiveReaderMetrics::new(&Registry::default());
+    let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
+    archive_reader.sync_manifest_once().await?;
+    archive_reader
+        .read_summaries_for_list_no_verify(store, checkpoints, counter)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn download_summaries_from_checkpoint_store(
+    config: &Config,
+    checkpoints: Vec<u64>,
+) -> anyhow::Result<()> {
+    info!("Downloading summaries from checkpoint store.");
+
+    let checkpoint_store = CheckpointStore::new(config)?;
+    for seq in checkpoints {
+        info!("Downloading summary: {seq}.sum");
+
+        let summary = checkpoint_store
+            .fetch_checkpoint_summary(seq)
+            .await
+            .context(format!(
+                "Failed to download checkpoint summary '{seq}' from checkpoint store"
+            ))?;
+        write_checkpoint_summary(config, &summary)?;
+    }
+
+    Ok(())
+}
+
 pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> {
     let checkpoints_list = sync_checkpoint_list_to_latest(config)
         .await
@@ -239,48 +287,19 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
     }
 
     if !missing.is_empty() {
-        if let Some(archive_store_config) = &config.archive_store_config {
-            info!("Downloading missing checkpoints from archive store.");
-
-            // Download summaries from archive store
-            let archive_reader_config = ArchiveReaderConfig {
-                remote_store_config: archive_store_config.clone(),
-                download_concurrency: NonZeroUsize::new(5).unwrap(),
-                use_for_pruning_watermark: false,
-            };
-
-            let store = CheckpointSummaryFileStore::new(config);
-            let counter = Arc::new(AtomicU64::new(0));
-            let metrics = ArchiveReaderMetrics::new(&Registry::default());
-            let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
-            archive_reader.sync_manifest_once().await?;
-            archive_reader
-                .read_summaries_for_list_no_verify(store.clone(), missing, counter)
-                .await?;
-        } else if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
-            info!("Downloading missing checkpoints from checkpoint store.");
-
-            let checkpoint_store = CheckpointStore::new(config)?;
-            for seq in missing {
-                info!("Downloading checkpoint: {seq}");
-
-                let summary = checkpoint_store
-                    .fetch_checkpoint_summary(seq)
-                    .await
-                    .context(format!(
-                        "Failed to download checkpoint summary '{seq}' from checkpoint store"
-                    ))?;
-                write_checkpoint_summary(config, &summary)?;
-            }
+        if config.archive_store_config.is_some() {
+            download_summaries_from_archive_store(config, missing).await?;
+        } else if config.checkpoint_store_config.is_some() {
+            download_summaries_from_checkpoint_store(config, missing).await?;
         } else {
-            info!("Downloading missing checkpoints from node.");
+            info!("Downloading missing summaries from full node.");
 
             // Download summaries from the full node
             let client = iota_rest_api::Client::new(&config.rpc_url);
 
             // Download all missing checkpoints
             for seq in missing {
-                info!("Downloading checkpoint: {seq}");
+                info!("Downloading summary: {seq}");
 
                 let summary = client
                     .get_checkpoint_summary(seq)
@@ -292,7 +311,7 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
         }
     }
 
-    info!("Verifying checkpoints.");
+    info!("Verifying summaries.");
 
     // Check the signatures of all checkpoints
     let mut prev_committee = genesis_committee;
@@ -335,17 +354,17 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
 }
 
 #[derive(Clone, Debug)]
-struct CheckpointSummaryFileStore<'a> {
-    config: &'a Config,
+struct CheckpointSummaryFileStore {
+    config: Config,
 }
 
-impl<'a> CheckpointSummaryFileStore<'a> {
-    fn new(config: &'a Config) -> Self {
+impl CheckpointSummaryFileStore {
+    fn new(config: Config) -> Self {
         Self { config }
     }
 }
 
-impl WriteStore for CheckpointSummaryFileStore<'_> {
+impl WriteStore for CheckpointSummaryFileStore {
     fn try_insert_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -389,7 +408,7 @@ impl WriteStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
-impl ReadStore for CheckpointSummaryFileStore<'_> {
+impl ReadStore for CheckpointSummaryFileStore {
     fn try_get_committee(
         &self,
         _: iota_types::committee::EpochId,
@@ -493,7 +512,7 @@ impl ReadStore for CheckpointSummaryFileStore<'_> {
     }
 }
 
-impl ObjectStore for CheckpointSummaryFileStore<'_> {
+impl ObjectStore for CheckpointSummaryFileStore {
     fn try_get_object(
         &self,
         _: &iota_types::base_types::ObjectID,

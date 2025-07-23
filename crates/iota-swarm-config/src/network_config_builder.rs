@@ -11,7 +11,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
+    ExecutionCacheConfig, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
 };
@@ -86,6 +86,7 @@ pub struct ConfigBuilder<R = OsRng> {
     jwk_fetch_interval: Option<Duration>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
     firewall_config: Option<RemoteFirewallConfig>,
@@ -108,6 +109,7 @@ impl ConfigBuilder {
             jwk_fetch_interval: None,
             num_unpruned_validators: None,
             authority_overload_config: None,
+            execution_cache_config: None,
             data_ingestion_dir: None,
             policy_config: None,
             firewall_config: None,
@@ -250,6 +252,11 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
+    pub fn with_execution_cache_config(mut self, c: ExecutionCacheConfig) -> Self {
+        self.execution_cache_config = Some(c);
+        self
+    }
+
     pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.policy_config = config;
         self
@@ -285,6 +292,7 @@ impl<R> ConfigBuilder<R> {
             num_unpruned_validators: self.num_unpruned_validators,
             jwk_fetch_interval: self.jwk_fetch_interval,
             authority_overload_config: self.authority_overload_config,
+            execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
@@ -486,6 +494,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 if let Some(authority_overload_config) = &self.authority_overload_config {
                     builder =
                         builder.with_authority_overload_config(authority_overload_config.clone());
+                }
+
+                if let Some(execution_cache_config) = &self.execution_cache_config {
+                    builder = builder.with_execution_cache_config(execution_cache_config.clone());
                 }
 
                 if let Some(path) = &self.data_ingestion_dir {

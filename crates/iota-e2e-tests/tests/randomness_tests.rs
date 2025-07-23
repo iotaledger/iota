@@ -19,8 +19,7 @@ async fn test_check_randomness_state_object_exists() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .try_get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
-                .unwrap()
+                .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
                 .expect("randomness state object should exist");
         });
     }

@@ -1,7 +1,7 @@
 # Filter on owner
 {
   objects(filter: {
-    owner: "0x23b7b0e2badb01581ba9b3ab55587d8d9fdae087e0cfc79f2c72af36f5059439"
+    owner: "0x7d49a79ca16e3986b2221ee7bf93d9a34e2192517c7efea995b34f69615ee053"
   }) {
     edges {
       node {
