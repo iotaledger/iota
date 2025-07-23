@@ -65,3 +65,6 @@ harness = false
 
 [lints]
 workspace = true
+
+[features]
+tracing = []
