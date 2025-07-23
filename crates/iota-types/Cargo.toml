@@ -69,8 +69,6 @@ iota-stardust-sdk = { version = "1.1", default-features = false, features = ["ir
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-move-disassembler.workspace = true
-move-ir-types.workspace = true
 move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
 move-vm-types.workspace = true

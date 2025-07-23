@@ -18,6 +18,7 @@ export interface ImageIconProps {
     alt?: string;
     rounded?: boolean;
     size?: ImageIconSize;
+    fallbackSize?: ImageIconSize;
 }
 
 interface FallBackAvatarProps {
@@ -52,10 +53,18 @@ function FallBackAvatar({ str, rounded, size = ImageIconSize.Large }: FallBackAv
     );
 }
 
-export function ImageIcon({ src, label, alt = label, fallback, rounded, size }: ImageIconProps) {
+export function ImageIcon({
+    src,
+    label,
+    alt = label,
+    fallback,
+    rounded,
+    size,
+    fallbackSize,
+}: ImageIconProps) {
     const [error, setError] = useState(false);
     return error || !src ? (
-        <FallBackAvatar rounded={rounded} str={fallback} size={size} />
+        <FallBackAvatar rounded={rounded} str={fallback} size={fallbackSize || size} />
     ) : (
         <img
             src={src}
