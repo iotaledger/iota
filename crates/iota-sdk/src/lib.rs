@@ -137,6 +137,7 @@ pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
 pub const IOTA_TESTNET_GRAPHQL_URL: &str = "https://graphql.testnet.iota.cafe";
 pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
 pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
+pub const IOTA_MAINNET_GRAPHQL_URL: &str = "https://graphql.mainnet.iota.cafe";
 
 /// Builder for creating an [IotaClient] for connecting to the IOTA network.
 ///

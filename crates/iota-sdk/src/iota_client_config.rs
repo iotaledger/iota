@@ -14,8 +14,9 @@ use serde_with::serde_as;
 
 use crate::{
     IOTA_DEVNET_GAS_URL, IOTA_DEVNET_GRAPHQL_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
-    IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_GAS_URL,
-    IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
+    IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_URL, IOTA_MAINNET_GRAPHQL_URL,
+    IOTA_MAINNET_URL, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_URL, IotaClient,
+    IotaClientBuilder,
 };
 
 /// Configuration for the IOTA client, containing a
@@ -215,6 +216,18 @@ impl IotaEnv {
             builder = builder.max_concurrent_requests(max_concurrent_requests as usize);
         }
         Ok(builder.build(&self.rpc).await?)
+    }
+
+    /// Create the env with the default mainnet configuration.
+    pub fn mainnet() -> Self {
+        Self {
+            alias: "mainnet".to_string(),
+            rpc: IOTA_MAINNET_URL.into(),
+            graphql: Some(IOTA_MAINNET_GRAPHQL_URL.into()),
+            ws: None,
+            basic_auth: None,
+            faucet: None,
+        }
     }
 
     /// Create the env with the default devnet configuration.

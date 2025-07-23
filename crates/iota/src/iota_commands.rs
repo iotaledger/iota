@@ -854,7 +854,12 @@ async fn start(
             let address: IotaAddress = kp.public().into();
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
-                .with_envs([IotaEnv::new("localnet", fullnode_url)])
+                .with_envs([
+                    IotaEnv::new("localnet", fullnode_url),
+                    IotaEnv::devnet(),
+                    IotaEnv::testnet(),
+                    IotaEnv::mainnet(),
+                ])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
                 .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
@@ -1169,6 +1174,8 @@ async fn genesis(
         ),
     ));
     client_config.add_env(IotaEnv::devnet());
+    client_config.add_env(IotaEnv::testnet());
+    client_config.add_env(IotaEnv::mainnet());
 
     if client_config.active_env().is_none() {
         client_config.set_active_env(client_config.envs().first().map(|env| env.alias().clone()));
