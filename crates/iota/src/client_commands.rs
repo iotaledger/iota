@@ -1414,7 +1414,7 @@ impl IotaClientCommands {
                     .then(|x| async { get_identity_address(Some(x), context).await })
                     .try_collect::<Vec<IotaAddress>>()
                     .await?;
-                let signer = get_identity_address(opts.sender.map(Into::into), &context).await?;
+                let signer = get_identity_address(opts.sender.map(Into::into), context).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
@@ -3259,7 +3259,7 @@ async fn select_coins_for_amount(
         .map(|(_val, object)| GasCoin::try_from(object).unwrap())
         .collect::<Vec<_>>();
     // Sort in ascending order
-    gas_coins.sort_unstable_by(|c1, c2| c1.value().cmp(&c2.value()));
+    gas_coins.sort_unstable_by_key(|c| c.value());
     let mut amount_remaining = amount;
     while amount_remaining > 0 {
         if gas_coins.is_empty() {
