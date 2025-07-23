@@ -65,6 +65,7 @@ use crate::{
 };
 
 const CONCURRENCY_LIMIT: usize = 30;
+const DEFAULT_COMMITTEE_SIZE: usize = 1;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
 const DEFAULT_FAUCET_NUM_COINS: usize = 5;
 const DEFAULT_FAUCET_NANOS_AMOUNT: u64 = 200_000_000_000; // 200 IOTA
@@ -73,7 +74,6 @@ const DEFAULT_FAUCET_PORT: u16 = 9123;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
-const DEFAULT_COMMITTEE_SIZE: usize = 1;
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
