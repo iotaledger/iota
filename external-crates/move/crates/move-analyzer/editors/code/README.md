@@ -17,7 +17,7 @@ Installation of the extension will also install a platform-specific pre-built mo
 the default directory (see [here](#what-if-i-want-to-use-a-move-analyzer-binary-in-a-different-location)
 for information on the location of this directory), overwriting the existing binary if it already exists.
 The move-analyzer binary is responsible for the advanced features of this VSCode extension (e.g., go to
-definition, type on hover). Please see [Troubleshooting](#troubleshooting) for situations when
+definition, type on hover). Please see `Troubleshooting Section` for situations when
 the pre-built move-analyzer binary is not available for your platform or if you want to use move-analyzer
 binary stored in a different location.
 
