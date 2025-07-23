@@ -7,6 +7,7 @@ use std::{
 };
 
 use parking_lot::RwLock;
+use tracing::trace;
 
 use crate::{BlockRef, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
 
@@ -43,8 +44,8 @@ impl DataManager {
     /// # Returns
     /// A new `DataManager` instance.
     pub(crate) fn new(dag_state: Arc<RwLock<DagState>>) -> Self {
-        // last_committed_index is set non-trivially during recovery process before the
-        // first usage of try_commit method.
+        // the last_committed_index is set non-trivially during a recovery process
+        // before the first usage of try_commit method.
         let last_committed_index = 0;
         Self {
             dag_state,
@@ -87,8 +88,8 @@ impl DataManager {
     /// # Returns
     /// A tuple containing:
     /// - `Vec<CommittedSubDag>`: Successfully committed sub-dags.
-    /// - `Vec<BlockRef>`: References to missing blocks with missing
-    ///   transactions preventing further commits.
+    /// - `Vec<BlockRef>`: References to blocks with missing transactions
+    ///   preventing further commits.
     pub(crate) fn try_commit(
         &mut self,
         subdags: &[PendingSubDag],
@@ -102,7 +103,7 @@ impl DataManager {
         let mut committed = Vec::new();
         let mut last_committed = self.last_committed_index;
         let mut missing = BTreeSet::new();
-        let mut first_uncommitted_index: Option<u32> = None;
+
         // Try to commit in order
         loop {
             let next_index = last_committed + 1;
@@ -118,12 +119,12 @@ impl DataManager {
                     last_committed = next_index;
                 }
                 Err(missing_refs) => {
-                    for block_ref in missing_refs {
-                        if !missing.insert(block_ref) {
-                            panic!("Duplicate missing blockref detected: {:?}", block_ref);
-                        }
-                    }
-                    first_uncommitted_index = Some(next_index);
+                    // If we have missing refs, we cannot commit this subdag
+                    trace!(
+                        "Cannot create CommittedSubDag at index {}. Missing refs: {:?}",
+                        next_index, missing_refs
+                    );
+
                     break; // Can't commit further until this one is ready
                 }
             }
@@ -145,20 +146,22 @@ impl DataManager {
         // Update last_committed_index
         self.last_committed_index = last_committed;
 
-        // Collect all missing refs from all remaining pending subdags, skipping
-        // the first uncommitted (already processed)
-        for (idx, subdag) in self.pending_subdags.iter() {
-            if Some(*idx) == first_uncommitted_index {
-                continue;
-            }
-            // Query dag_state directly for missing transactions
-            let dag_state = self.dag_state.read();
-            let exists = dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
-            for (i, exists) in exists.iter().enumerate() {
-                if !exists {
-                    let block_ref = subdag.committed_transaction_refs[i];
-                    if !missing.insert(block_ref) {
-                        panic!("Duplicate missing blockref detected: {:?}", block_ref);
+        // Only check for missing refs in the newly passed subdags that weren't
+        // processed yet
+        for subdag in subdags {
+            if subdag.commit_ref.index > self.last_committed_index {
+                // Query dag_state directly for missing transactions
+                let dag_state = self.dag_state.read();
+                let exists =
+                    dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
+                for (i, exists) in exists.iter().enumerate() {
+                    if !exists {
+                        let block_ref = subdag.committed_transaction_refs[i];
+                        if !missing.insert(block_ref) {
+                            // Transactions should only be committed by a single subdag, so
+                            // duplicates should never happen.
+                            panic!("Duplicate missing blockref detected: {:?}", block_ref);
+                        }
                     }
                 }
             }
@@ -219,62 +222,302 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockRef, VerifiedBlockHeader},
+        block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
         dag_state::DagState,
         test_dag_builder::DagBuilder,
     };
 
-    fn make_pending_subdag(
-        index: u32,
-        leader: BlockRef,
-        blocks: Vec<VerifiedBlockHeader>,
-        committed_refs: Vec<BlockRef>,
-    ) -> PendingSubDag {
-        PendingSubDag::new(
-            leader,
-            blocks,
-            committed_refs,
-            123456,
-            CommitRef {
-                index,
-                digest: crate::commit::CommitDigest::MIN,
-            },
-            vec![],
-        )
+    /// Test helper struct to encapsulate common test setup and utilities
+    struct TestSetup {
+        dag_state: Arc<RwLock<DagState>>,
+        dag_builder: DagBuilder,
+        context: Arc<Context>,
     }
 
-    fn setup_manager_and_dag_with_builder(
-        num_rounds: u32,
-    ) -> (DataManager, Arc<RwLock<DagState>>, DagBuilder) {
-        let context = Arc::new(Context::new_for_test(2).0);
-        let dag_state = Arc::new(RwLock::new(DagState::new(
-            context.clone(),
-            Arc::new(crate::storage::mem_store::MemStore::new()),
-        )));
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder
-            .layers(1..=num_rounds)
-            .build()
-            .persist_layers(dag_state.clone());
-        let manager = DataManager::new(dag_state.clone());
-        (manager, dag_state, dag_builder)
+    impl TestSetup {
+        /// Creates a new test setup with a full DAG containing the specified
+        /// number of rounds
+        fn new(num_rounds: u32) -> Self {
+            let context = Arc::new(Context::new_for_test(2).0);
+            let dag_state = Arc::new(RwLock::new(DagState::new(
+                context.clone(),
+                Arc::new(crate::storage::mem_store::MemStore::new()),
+            )));
+            let mut dag_builder = DagBuilder::new(context.clone());
+            dag_builder
+                .layers(1..=num_rounds)
+                .build()
+                .persist_layers(dag_state.clone());
+
+            Self {
+                dag_state,
+                dag_builder,
+                context,
+            }
+        }
+
+        /// Creates a selective DAG state that only contains transactions from
+        /// specified rounds
+        ///
+        /// # Arguments
+        /// * `included_rounds` - Vector of round numbers whose transactions
+        ///   should be included
+        /// * `excluded_transactions` - Vector of (round, block_index) pairs to
+        ///   exclude transactions from specific blocks
+        fn create_selective_dag_state(
+            &self,
+            included_rounds: Vec<u32>,
+            excluded_transactions: Vec<(u32, usize)>,
+        ) -> Arc<RwLock<DagState>> {
+            let selective_dag_state = Arc::new(RwLock::new(DagState::new(
+                self.context.clone(),
+                Arc::new(crate::storage::mem_store::MemStore::new()),
+            )));
+
+            let mut state = selective_dag_state.write();
+
+            // Add genesis blocks if round 0 is included
+            if included_rounds.contains(&0) {
+                let genesis_blocks = genesis_blocks(self.context.clone());
+                for (i, block) in genesis_blocks.iter().enumerate() {
+                    state.accept_block_header(block.verified_block_header.clone());
+                    if !excluded_transactions.contains(&(0, i)) {
+                        state.add_transactions(block.verified_transactions.clone());
+                    }
+                }
+            }
+
+            // Add blocks from specified rounds
+            for &round in &included_rounds {
+                if round == 0 {
+                    continue;
+                } // Genesis blocks already handled
+
+                let blocks = self.dag_builder.blocks(round..=round);
+                for (i, block) in blocks.iter().enumerate() {
+                    state.accept_block_header(block.verified_block_header.clone());
+                    if !excluded_transactions.contains(&(round, i)) {
+                        state.add_transactions(block.verified_transactions.clone());
+                    }
+                }
+            }
+
+            drop(state);
+            selective_dag_state
+        }
+
+        /// Creates a DataManager with a selective DAG state
+        fn create_selective_manager(
+            &self,
+            included_rounds: Vec<u32>,
+            excluded_blocks: Vec<(u32, usize)>,
+        ) -> (DataManager, Arc<RwLock<DagState>>) {
+            let selective_dag_state =
+                self.create_selective_dag_state(included_rounds, excluded_blocks);
+            let manager = DataManager::new(selective_dag_state.clone());
+            (manager, selective_dag_state)
+        }
+
+        /// Adds missing transactions for specific blocks back to the DAG state
+        fn add_missing_transactions(
+            &self,
+            dag_state: &Arc<RwLock<DagState>>,
+            blocks: &[(u32, usize)],
+        ) {
+            let mut state = dag_state.write();
+            for &(round, block_index) in blocks {
+                if round == 0 {
+                    let genesis_blocks = genesis_blocks(self.context.clone());
+                    if let Some(block) = genesis_blocks.get(block_index) {
+                        state.add_transactions(block.verified_transactions.clone());
+                    }
+                } else {
+                    let blocks = self.dag_builder.blocks(round..=round);
+                    if let Some(block) = blocks.get(block_index) {
+                        state.add_transactions(block.verified_transactions.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Builder for creating PendingSubDag instances with a fluent API
+    struct SubDagBuilder {
+        index: u32,
+        leader_round: u32,
+        leader_index: usize,
+        block_specs: Vec<BlockSpec>,
+        committed_refs: Vec<BlockRef>,
+        setup: Arc<TestSetup>,
+    }
+
+    #[derive(Clone)]
+    struct BlockSpec {
+        round: u32,
+        indices: Option<Vec<usize>>, // None means all blocks, Some(vec) means specific indices
+    }
+
+    impl BlockSpec {
+        fn all_from_round(round: u32) -> Self {
+            Self {
+                round,
+                indices: None,
+            }
+        }
+
+        fn specific_from_round(round: u32, indices: Vec<usize>) -> Self {
+            Self {
+                round,
+                indices: Some(indices),
+            }
+        }
+
+        fn skip_first_from_round(round: u32) -> Self {
+            // Helper to skip the first block
+            Self {
+                round,
+                indices: Some(vec![]),
+            } // Will be populated dynamically
+        }
+    }
+
+    impl SubDagBuilder {
+        fn new(setup: Arc<TestSetup>, index: u32) -> Self {
+            Self {
+                index,
+                leader_round: 0,
+                leader_index: 0,
+                block_specs: Vec::new(),
+                committed_refs: Vec::new(),
+                setup,
+            }
+        }
+
+        fn leader(mut self, round: u32, index: usize) -> Self {
+            self.leader_round = round;
+            self.leader_index = index;
+            self
+        }
+
+        fn with_blocks(mut self, specs: Vec<BlockSpec>) -> Self {
+            self.block_specs = specs;
+            self
+        }
+
+        fn with_committed_refs_from_round(mut self, round: u32) -> Self {
+            let refs = if round == 0 {
+                genesis_blocks(self.setup.context.clone())
+                    .iter()
+                    .map(|b| b.reference())
+                    .collect()
+            } else {
+                self.setup
+                    .dag_builder
+                    .block_headers(round..=round)
+                    .iter()
+                    .map(|b| b.reference())
+                    .collect()
+            };
+            self.committed_refs = refs;
+            self
+        }
+
+        fn with_committed_refs(mut self, refs: Vec<BlockRef>) -> Self {
+            self.committed_refs = refs;
+            self
+        }
+
+        fn build(self) -> PendingSubDag {
+            // Get leader block
+            let leader = if self.leader_round == 0 {
+                genesis_blocks(self.setup.context.clone())[self.leader_index].reference()
+            } else {
+                self.setup
+                    .dag_builder
+                    .block_headers(self.leader_round..=self.leader_round)[self.leader_index]
+                    .reference()
+            };
+
+            // Collect all blocks based on specs
+            let mut all_committed_block_headers = Vec::new();
+
+            for spec in &self.block_specs {
+                let headers = if spec.round == 0 {
+                    genesis_block_headers(self.setup.context.clone())
+                } else {
+                    self.setup
+                        .dag_builder
+                        .block_headers(spec.round..=spec.round)
+                };
+
+                match &spec.indices {
+                    None => all_committed_block_headers.extend(headers),
+                    Some(indices) => {
+                        if indices.is_empty() {
+                            // Special case: skip first
+                            all_committed_block_headers.extend(headers.into_iter().skip(1));
+                        } else {
+                            for &i in indices {
+                                if let Some(header) = headers.get(i) {
+                                    all_committed_block_headers.push(header.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Add a leader block if not already included
+            let leader_header = if self.leader_round == 0 {
+                genesis_blocks(self.setup.context.clone())[self.leader_index]
+                    .verified_block_header
+                    .clone()
+            } else {
+                self.setup
+                    .dag_builder
+                    .block_headers(self.leader_round..=self.leader_round)[self.leader_index]
+                    .clone()
+            };
+
+            if !all_committed_block_headers
+                .iter()
+                .any(|b| b.reference() == leader)
+            {
+                all_committed_block_headers.push(leader_header);
+            }
+
+            PendingSubDag::new(
+                leader,
+                all_committed_block_headers,
+                self.committed_refs,
+                123456,
+                CommitRef {
+                    index: self.index,
+                    digest: crate::commit::CommitDigest::MIN,
+                },
+                vec![],
+            )
+        }
     }
 
     /// Tests the happy path where a single sub-dag is successfully committed.
     #[test]
-    fn test_happy_path_commit_with_dag_builder() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
-        // Use blocks from round 0 and 2
-        let block0s = dag_builder.block_headers(0..=0);
-        let block2s = dag_builder.block_headers(2..=2);
-        let leader = block2s[0].reference();
-        // committed_refs from round 0 (R-2)
-        let committed_refs = block0s.iter().map(|b| b.reference()).collect::<Vec<_>>();
-        let mut all_blocks = block2s.clone();
-        all_blocks.extend(block0s.clone());
-        let subdag = make_pending_subdag(1, leader, all_blocks, committed_refs);
+    fn test_happy_path_commit() {
+        let setup = Arc::new(TestSetup::new(3));
+        let mut manager = DataManager::new(setup.dag_state.clone());
+
+        let subdag = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs_from_round(1)
+            .build();
+
         let (committed, missing) = manager.try_commit(&[subdag]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
@@ -283,45 +526,61 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
-    fn test_missing_blocks_with_dag_builder() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block2s = dag_builder.block_headers(2..=2);
-        let leader = block2s[0].reference();
-        // Remove one block from dag_state to simulate missing
-        // dag_state
-        //     .write()
-        //     .recent_blocks
-        //     .remove(&block0s[0].reference());
-        let committed_refs = block0s.iter().map(|b| b.reference()).collect::<Vec<_>>();
-        let mut all_blocks = block2s.clone();
-        all_blocks.extend(block0s.clone());
-        let subdag = make_pending_subdag(1, leader, all_blocks, committed_refs);
+    fn test_missing_blocks() {
+        let setup = Arc::new(TestSetup::new(3));
+        let (mut manager, _selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3],
+            vec![(1, 0)], // Exclude the first transaction from round 1
+        );
+
+        let subdag = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()]) // Commit
+            .build();
+
         let (committed, missing) = manager.try_commit(&[subdag]);
         assert!(committed.is_empty());
-        assert_eq!(missing, vec![block0s[0].reference()]);
-        assert!(manager.pending_subdags.contains_key(&1));
+        assert_eq!(missing.len(), 1);
+        assert_eq!(
+            missing[0],
+            setup.dag_builder.block_headers(1..=1)[0].reference()
+        );
+        assert_eq!(manager.pending_subdags.len(), 1);
         assert_eq!(manager.last_committed_index, 0);
     }
 
     #[test]
-    #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
-    fn test_commit_after_missing_blocks_arrive_with_dag_builder() {
-        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block2s = dag_builder.block_headers(2..=2);
-        let leader = block2s[0].reference();
+    fn test_commit_after_missing_blocks_arrive() {
+        let setup = Arc::new(TestSetup::new(3));
+        let (mut manager, selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3],
+            vec![(1, 0)], // Exclude the first transactions from round 1
+        );
 
-        let committed_refs = block0s.iter().map(|b| b.reference()).collect::<Vec<_>>();
-        let mut all_blocks = block2s.clone();
-        all_blocks.extend(block0s.clone());
-        let subdag = make_pending_subdag(1, leader, all_blocks, committed_refs);
+        let subdag = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()])
+            .build();
+
+        // The first attempt should fail due to a missing block
         let (committed, missing) = manager.try_commit(&[subdag.clone()]);
         assert!(committed.is_empty());
-        assert_eq!(missing, vec![block0s[0].reference()]);
-        // Add the missing block back
-        dag_state.write().accept_block_header(block0s[0].clone());
+        assert_eq!(missing.len(), 1);
+
+        // Add the missing block
+        setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
+
+        // The second attempt should succeed
         let (committed, missing) = manager.try_commit(&[]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
@@ -330,83 +589,62 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_subdags_in_order_with_dag_builder() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
-        let block3s = dag_builder.block_headers(3..=3);
-        // subdag1: leader in round 2, committed_refs from round 0
-        let subdag1 = make_pending_subdag(
-            1,
-            block2s[0].reference(),
-            {
-                // committing all blocks from round 1 and 2
-                let mut v = block1s.clone();
-                v.extend(block0s.clone());
-                // and the leader block from round 2
-                v.push(block2s[0].clone());
-                v
-            },
-            block0s.iter().map(|b| b.reference()).collect(),
-        );
-        // subdag2: leader in round 3, committed_refs from round 1
-        let subdag2 = make_pending_subdag(
-            2,
-            block3s[0].reference(),
-            {
-                // committing all blocks from round 2 and the leader block from round 3
-                let mut v = block2s[1..].to_vec().clone();
-                v.push(block3s[0].clone());
-                v
-            },
-            block1s.iter().map(|b| b.reference()).collect(),
-        );
+    fn test_multiple_subdags_in_order() {
+        let setup = Arc::new(TestSetup::new(4));
+        let mut manager = DataManager::new(setup.dag_state.clone());
+
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs_from_round(1)
+            .build();
+
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
+            .with_committed_refs_from_round(2)
+            .build();
+
         let (committed, missing) = manager.try_commit(&[subdag1, subdag2]);
-        assert_eq!(
-            committed.len(),
-            2,
-            "Expected 2 subdags to be committed, got: {:?}",
-            committed
-        );
+        assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.is_empty());
         assert_eq!(manager.last_committed_index, 2);
     }
 
     #[test]
-    fn test_out_of_order_subdags_with_dag_builder() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
-        // subdag2: leader in round 2, committed_refs from round 0
-        let subdag2 = make_pending_subdag(
-            2,
-            block2s[0].reference(),
-            {
-                let mut v = block2s.clone();
-                v.extend(block0s.clone());
-                v
-            },
-            block0s.iter().map(|b| b.reference()).collect(),
-        );
-        // subdag1: leader in round 1, committed_refs from round 0
-        let subdag1 = make_pending_subdag(
-            1,
-            block1s[0].reference(),
-            {
-                let mut v = block1s.clone();
-                v.extend(block0s.clone());
-                v
-            },
-            block0s.iter().map(|b| b.reference()).collect(),
-        );
+    fn test_out_of_order_subdags() {
+        let setup = Arc::new(TestSetup::new(4));
+        let mut manager = DataManager::new(setup.dag_state.clone());
+
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs_from_round(1)
+            .build();
+
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
+            .with_committed_refs_from_round(2)
+            .build();
+
+        // Submit out of order
         let (committed, missing) = manager.try_commit(&[subdag2.clone(), subdag1.clone()]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.is_empty());
         assert_eq!(manager.last_committed_index, 2);
+
+        // The second call should be no-op
         let (committed, missing) = manager.try_commit(&[]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
@@ -416,7 +654,9 @@ mod tests {
 
     #[test]
     fn test_empty_subdag_commit() {
-        let (mut manager, _dag_state, _dag_builder) = setup_manager_and_dag_with_builder(2);
+        let setup = Arc::new(TestSetup::new(2));
+        let mut manager = DataManager::new(setup.dag_state.clone());
+
         let (committed, missing) = manager.try_commit(&[]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
@@ -426,22 +666,18 @@ mod tests {
 
     #[test]
     fn test_duplicate_subdag_commit() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2); // Adjusted to 3 rounds
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
+        let setup = Arc::new(TestSetup::new(3));
+        let mut manager = DataManager::new(setup.dag_state.clone());
 
-        let subdag1 = make_pending_subdag(
-            1,
-            block2s[0].reference(),
-            {
-                let mut v = block1s.clone();
-                v.extend(block0s.clone());
-                v.push(block2s[0].clone());
-                v
-            },
-            block0s.iter().map(|b| b.reference()).collect(),
-        );
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs_from_round(1)
+            .build();
 
         let (committed, missing) = manager.try_commit(&[subdag1.clone(), subdag1.clone()]);
         assert_eq!(committed.len(), 1);
@@ -452,263 +688,266 @@ mod tests {
 
     #[test]
     fn test_out_of_order_commit_calls() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3); // Adjusted to 3 rounds
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
-        let block3s = dag_builder.block_headers(3..=3);
+        let setup = Arc::new(TestSetup::new(4));
+        let mut manager = DataManager::new(setup.dag_state.clone());
 
-        let subdag2 = make_pending_subdag(
-            2,
-            block3s[0].reference(),
-            {
-                let mut v = block2s[1..].to_vec().clone();
-                v.push(block3s[0].clone());
-                v
-            },
-            block1s.iter().map(|b| b.reference()).collect(),
-        );
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs_from_round(1)
+            .build();
 
-        let subdag1 = make_pending_subdag(
-            1,
-            block2s[0].reference(),
-            {
-                let mut v = block1s.clone();
-                v.extend(block0s.clone());
-                v.push(block2s[0].clone());
-                v
-            },
-            block0s.iter().map(|b| b.reference()).collect(),
-        );
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
+            .with_committed_refs_from_round(2)
+            .build();
 
+        // First submit subdag2 (index 2)
         let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
-        assert!(
-            committed.is_empty(),
-            "Expected no committed subdags, got: {:?}",
-            committed
-        );
-        assert!(
-            missing.is_empty(),
-            "Expected no missing blocks, got: {:?}",
-            missing
-        );
-        assert!(
-            manager.pending_subdags.contains_key(&2),
-            "Expected pending subdag for index 2, got: {:?}",
-            manager.pending_subdags
-        );
-        assert_eq!(
-            manager.last_committed_index, 0,
-            "Expected last committed index to be 0, got: {}",
-            manager.last_committed_index
-        );
+        assert!(committed.is_empty());
+        assert!(missing.is_empty());
+        assert!(manager.pending_subdags.contains_key(&2));
+        assert_eq!(manager.last_committed_index, 0);
 
+        // Then submit subdag1 (index 1) - should commit both
         let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
-        assert_eq!(
-            committed.len(),
-            2,
-            "Expected 2 subdags to be committed, got: {:?}",
-            committed
-        );
-        assert!(
-            missing.is_empty(),
-            "Expected no missing blocks, got: {:?}",
-            missing
-        );
-        assert!(
-            manager.pending_subdags.is_empty(),
-            "Expected no pending subdags, got: {:?}",
-            manager.pending_subdags
-        );
-        assert_eq!(
-            manager.last_committed_index, 2,
-            "Expected last committed index to be 2, got: {}",
-            manager.last_committed_index
-        );
+        assert_eq!(committed.len(), 2);
+        assert!(missing.is_empty());
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 2);
     }
 
     #[test]
-    #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_all_missing_refs_are_collected() {
-        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(4);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
-        let block3s = dag_builder.block_headers(3..=3);
-        let block4s = dag_builder.block_headers(4..=4);
+        telemetry_subscribers::init_for_testing();
 
-        // Remove some blocks to simulate missing ones
-        // let mut state = dag_state.write();
-        // state.remove_block(&block0s[0].reference());
-        // state.remove_block(&block1s[0].reference());
-        // state.remove_block(&block2s[0].reference());
-        // drop(state);
-
-        // Create subdags that will be missing different blocks
-        let subdag1 = make_pending_subdag(
-            1,
-            block2s[0].reference(),
-            block1s.clone(),
-            vec![block0s[0].reference()], // Missing block from round 0
+        let setup = Arc::new(TestSetup::new(4));
+        let (mut manager, selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3, 4],
+            vec![(1, 0), (2, 0)], // Exclude the first transactions from rounds 1 and 2
         );
 
-        let subdag2 = make_pending_subdag(
-            2,
-            block3s[0].reference(),
-            block2s.clone(),
-            vec![block1s[0].reference()], // Missing block from round 1
-        );
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(2, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+            ])
+            .with_committed_refs(vec![]) // No committed refs
+            .build();
 
-        let subdag3 = make_pending_subdag(
-            3,
-            block4s[0].reference(),
-            block3s.clone(),
-            vec![block2s[0].reference()], // Missing block from round 2
-        );
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(3, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(2)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()])
+            .build();
 
-        // First attempt with subdag3 - highest index
+        let subdag3 = SubDagBuilder::new(setup.clone(), 3)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(2..=2)[0].reference()])
+            .build();
+
+        // Initial commit attempts
         let (committed, missing) = manager.try_commit(&[subdag3.clone()]);
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
-        assert!(missing.contains(&block2s[0].reference()));
         assert_eq!(manager.pending_subdags.len(), 1);
 
-        // Add subdag2
         let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
         assert!(committed.is_empty());
-        assert_eq!(missing.len(), 2);
-        assert!(missing.contains(&block1s[0].reference()));
-        assert!(missing.contains(&block2s[0].reference()));
+        assert_eq!(missing.len(), 1);
         assert_eq!(manager.pending_subdags.len(), 2);
 
-        // Add subdag1 - now all missing refs should be collected
         let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
-        assert!(committed.is_empty());
-        assert_eq!(missing.len(), 3);
-        assert!(missing.contains(&block0s[0].reference()));
-        assert!(missing.contains(&block1s[0].reference()));
-        assert!(missing.contains(&block2s[0].reference()));
-        assert_eq!(manager.pending_subdags.len(), 3);
-
-        // Add all missing blocks back
-        let mut state = dag_state.write();
-        state.accept_block_header(block0s[0].clone());
-        state.accept_block_header(block1s[0].clone());
-        state.accept_block_header(block2s[0].clone());
-        drop(state);
-
-        // Second attempt: all blocks should be committed in order
-        let (committed, missing) = manager.try_commit(&[]);
-        assert_eq!(committed.len(), 3);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(committed.len(), 1); // subdag1 can commit
+        assert_eq!(committed[0].commit_ref, subdag1.commit_ref);
+        assert_eq!(manager.pending_subdags.len(), 2);
+
+        // Add missing block from round 1
+        setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
+        let (committed, _missing) = manager.try_commit(&[]);
+        assert_eq!(committed.len(), 1); // subdag2 commits
+        assert_eq!(committed[0].commit_ref, subdag2.commit_ref);
+        assert_eq!(manager.last_committed_index, 2);
+
+        // Add missing block from round 2
+        setup.add_missing_transactions(&selective_dag_state, &[(2, 0)]);
+        let (committed, _missing) = manager.try_commit(&[]);
+        assert_eq!(committed.len(), 1); // subdag3 commits
+        assert_eq!(committed[0].commit_ref, subdag3.commit_ref);
         assert_eq!(manager.last_committed_index, 3);
+        assert!(manager.pending_subdags.is_empty());
     }
 
     #[test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
-    #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_duplicate_missing_refs_panic() {
-        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
-        let block3s = dag_builder.block_headers(3..=3);
-
-        // Remove a block that will be referenced by multiple subdags
-        // let mut state = dag_state.write();
-        // state.remove_block(&block1s[0].reference());
-        // drop(state);
-
-        // Create two subdags that reference the same missing block
-        let subdag1 = make_pending_subdag(
-            1,
-            block2s[0].reference(),
-            block1s.clone(),
-            vec![block0s[0].reference()], // Both subdags reference the same missing block
+        let setup = Arc::new(TestSetup::new(4));
+        let (mut manager, _selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3, 4],
+            vec![(1, 0)], // Exclude the first transactions from round 1
         );
 
-        let subdag2 = make_pending_subdag(
-            2,
-            block3s[0].reference(),
-            block2s.clone(),
-            vec![block0s[0].reference(), block1s[0].reference()], // This should cause a panic
-        );
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(2, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+            ])
+            .with_committed_refs(vec![])
+            .build();
 
-        // This should panic due to duplicate missing block ref
-        manager.try_commit(&[subdag1, subdag2]);
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(3, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(1)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()])
+            .build();
+
+        let subdag3 = SubDagBuilder::new(setup.clone(), 2) // Same index as subdag2
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
+            .with_committed_refs(vec![
+                setup.dag_builder.block_headers(1..=1)[0].reference(),
+                setup.dag_builder.block_headers(2..=2)[0].reference(),
+            ])
+            .build();
+
+        // This should panic due to a duplicate missing block ref
+        manager.try_commit(&[subdag1, subdag2, subdag3]);
     }
 
-    // TODO: Add tests for multiple subdags with the same leader block but different
-    // committed_refs  to ensure proper validation of transaction uniqueness
-    // across subdags.
+    #[test]
+    fn test_gaps_in_subdags_sequence() {
+        let setup = Arc::new(TestSetup::new(5));
+        let (mut manager, selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3, 4, 5],
+            vec![(1, 0), (3, 0)], // Exclude first transactions from rounds 1 and 3
+        );
+
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(1, 0)
+            .with_blocks(vec![BlockSpec::all_from_round(0)])
+            .with_committed_refs(vec![])
+            .build();
+
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(2, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(1)])
+            .with_committed_refs(vec![])
+            .build();
+
+        let subdag3 = SubDagBuilder::new(setup.clone(), 3)
+            .leader(4, 0)
+            .with_blocks(vec![
+                BlockSpec::skip_first_from_round(2),
+                BlockSpec::specific_from_round(3, vec![0]),
+            ])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()])
+            .build();
+
+        let subdag5 = SubDagBuilder::new(setup.clone(), 5) // Gap: missing index 4
+            .leader(5, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(4)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(3..=3)[0].reference()])
+            .build();
+
+        // Initial commit - should commit first two, buffer the rest
+        let (committed, missing) = manager.try_commit(&[
+            subdag1.clone(),
+            subdag2.clone(),
+            subdag3.clone(),
+            subdag5.clone(),
+        ]);
+        assert_eq!(committed.len(), 2);
+        assert_eq!(missing.len(), 2);
+        assert_eq!(manager.pending_subdags.len(), 2);
+        assert_eq!(manager.last_committed_index, 2);
+
+        // Add missing transaction for subdag3
+        setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
+        let (committed, _missing) = manager.try_commit(&[]);
+        assert_eq!(committed.len(), 1); // subdag3 commits
+        assert_eq!(manager.last_committed_index, 3);
+
+        // Add missing transaction for subdag5
+        setup.add_missing_transactions(&selective_dag_state, &[(3, 0)]);
+        let (committed, _missing) = manager.try_commit(&[]);
+        assert!(committed.is_empty()); // subdag5 can't commit due to a gap (missing index 4)
+        assert_eq!(manager.pending_subdags.len(), 1); // subdag5 still pending
+        assert_eq!(manager.last_committed_index, 3); // Unchanged
+    }
 
     #[test]
-    #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
-    fn test_gaps_in_subdags_sequence() {
-        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(4);
-        let block0s = dag_builder.block_headers(0..=0);
-        let block1s = dag_builder.block_headers(1..=1);
-        let block2s = dag_builder.block_headers(2..=2);
-        let block3s = dag_builder.block_headers(3..=3);
-        let block4s = dag_builder.block_headers(4..=4);
+    fn test_set_last_committed_index() {
+        let setup = Arc::new(TestSetup::new(3));
+        let mut manager = DataManager::new(setup.dag_state.clone());
 
-        // Remove some blocks to simulate missing ones
-        // let mut state = dag_state.write();
-        // state.remove_block(&block0s[0].reference());
-        // state.remove_block(&block2s[0].reference());
-        // drop(state);
-
-        // Create subdags with indices [1, 2, 4], skipping 3
-        let subdag1 = make_pending_subdag(
-            1,
-            block2s[0].reference(),
-            block1s.clone(),
-            vec![block0s[0].reference()], // Missing block from round 0
-        );
-
-        let subdag2 = make_pending_subdag(
-            2,
-            block3s[0].reference(),
-            block2s.clone(),
-            vec![block1s[0].reference()], // This block exists
-        );
-
-        let subdag4 = make_pending_subdag(
-            4, // Note the gap: index 3 is missing
-            block4s[0].reference(),
-            block3s.clone(),
-            vec![block2s[0].reference()], // Missing block from round 2
-        );
-
-        // First commit attempt - should only store subdags in buffer since blocks are
-        // missing
-        let (committed, missing) =
-            manager.try_commit(&[subdag1.clone(), subdag2.clone(), subdag4.clone()]);
-        assert!(committed.is_empty());
-        assert_eq!(missing.len(), 2);
-        assert!(missing.contains(&block1s[0].reference()));
-        assert_eq!(manager.pending_subdags.len(), 3);
+        // Initially should be 0
         assert_eq!(manager.last_committed_index, 0);
 
-        // Add missing block from subdag1 and try again - should commit subdags 1 and 2
-        dag_state.write().accept_block_header(block0s[0].clone());
-        let (committed, missing) = manager.try_commit(&[]);
-        assert_eq!(committed.len(), 2); // Should commit subdags 1 and 2
-        assert_eq!(missing.len(), 1); // Missing transaction from subdag4
-        assert!(missing.contains(&block3s[0].reference()));
-        assert_eq!(manager.pending_subdags.len(), 1); // subdag4 should still be pending
-        assert_eq!(manager.last_committed_index, 2); // Should stop at 2 due to missing subdag3
+        // Set to a new value
+        manager.set_last_committed_index(5);
+        assert_eq!(manager.last_committed_index, 5);
 
-        // Try to commit again - should not commit subdag4 due to missing with
-        // commit_ref.index=3
-        let (committed, missing) = manager.try_commit(&[]);
-        assert!(committed.is_empty()); // Nothing should commit
-        assert!(missing.is_empty()); // No missing blocks, but still can't commit due to gap
-        assert_eq!(manager.pending_subdags.len(), 1); // subdag4 should still be pending
-        assert_eq!(manager.last_committed_index, 2); // Should remain at 2
+        // Can set to a lower value
+        manager.set_last_committed_index(3);
+        assert_eq!(manager.last_committed_index, 3);
 
-        // subdag4 should remain pending indefinitely until subdag with
-        // commit_ref.index=3 arrives
+        // Can set to 0
+        manager.set_last_committed_index(0);
+        assert_eq!(manager.last_committed_index, 0);
+    }
+
+    #[test]
+    fn test_get_missing_transaction_data() {
+        let setup = Arc::new(TestSetup::new(4));
+        let (mut manager, selective_dag_state) = setup.create_selective_manager(
+            vec![1, 2, 3, 4],
+            vec![(1, 0), (2, 1)], // Exclude transactions from round 1 block 0 and round 2 block 1
+        );
+
+        // Create subdags that reference the missing transactions
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![BlockSpec::all_from_round(1)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()])
+            .build();
+
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::all_from_round(2)])
+            .with_committed_refs(vec![setup.dag_builder.block_headers(2..=2)[1].reference()])
+            .build();
+
+        // Add subdags to manager
+        manager.try_commit(&[subdag1, subdag2]);
+
+        // Get missing transactions
+        let missing = manager.get_missing_transaction_data();
+        assert_eq!(missing.len(), 2);
+        assert!(missing.contains(&setup.dag_builder.block_headers(1..=1)[0].reference()));
+        assert!(missing.contains(&setup.dag_builder.block_headers(2..=2)[1].reference()));
+
+        // Add one missing transaction
+        setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
+
+        // Check missing transactions again
+        let missing = manager.get_missing_transaction_data();
+        assert_eq!(missing.len(), 1);
+        assert!(missing.contains(&setup.dag_builder.block_headers(2..=2)[1].reference()));
+
+        // Add the remaining missing transaction
+        setup.add_missing_transactions(&selective_dag_state, &[(2, 1)]);
+
+        // Should now have no missing transactions
+        let missing = manager.get_missing_transaction_data();
+        assert!(missing.is_empty());
     }
 }
