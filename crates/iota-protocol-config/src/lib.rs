@@ -64,7 +64,6 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //             Enable the new consensus commit rule for mainnet.
 //             Enable consensus garbage collection for mainnet with GC depth set
 //             to 60 rounds.
-//             Enable Identifier input validation.
 //             Enable batching in synchronizer for testnet
 //             Enable Identifier input validation.
 
@@ -287,13 +286,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     accept_passkey_in_multisig: bool,
 
-    // Validate identifier inputs separately
-    #[serde(skip_serializing_if = "is_false")]
-    validate_identifier_inputs: bool,
-
     // If true, enabled batched block sync in consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_batched_block_sync: bool,
+
+    // Validate identifier inputs separately
+    #[serde(skip_serializing_if = "is_false")]
+    validate_identifier_inputs: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1267,12 +1266,12 @@ impl ProtocolConfig {
         self.feature_flags.accept_passkey_in_multisig
     }
 
-    pub fn validate_identifier_inputs(&self) -> bool {
-        self.feature_flags.validate_identifier_inputs
-    }
-
     pub fn consensus_batched_block_sync(&self) -> bool {
         self.feature_flags.consensus_batched_block_sync
+    }
+
+    pub fn validate_identifier_inputs(&self) -> bool {
+        self.feature_flags.validate_identifier_inputs
     }
 }
 
@@ -2052,8 +2051,6 @@ impl ProtocolConfig {
                     // blocks within a window of ~4 seconds
                     // to be included before be considered garbage collected.
                     cfg.consensus_gc_depth = Some(60);
-
-                    cfg.feature_flags.validate_identifier_inputs = true;
 
                     if chain != Chain::Mainnet {
                         // Enable batched block sync in devnet and testnet.
