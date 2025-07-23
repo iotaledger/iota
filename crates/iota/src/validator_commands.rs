@@ -60,7 +60,7 @@ use tabled::{
     },
 };
 
-use crate::{PrintableResult, fire_drill::get_gas_obj_ref};
+use crate::{PrintableResult, fire_drill::get_gas_obj_ref, signing::sign_transaction};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -613,13 +613,11 @@ async fn call_0x5(
     let sender = context.active_address()?;
     let tx_data =
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
-    let signature =
-        context
-            .config()
-            .keystore()
-            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-    let transaction = Transaction::from_data(tx_data, vec![signature]);
     let iota_client = context.get_client().await?;
+
+    let signature = sign_transaction(context, &tx_data).await?;
+    let transaction = Transaction::from_data(tx_data, vec![signature]);
+
     iota_client
         .quorum_driver_api()
         .execute_transaction_block(
