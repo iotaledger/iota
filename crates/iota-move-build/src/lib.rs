@@ -352,7 +352,8 @@ fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaRe
         })?;
         iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info)?;
     }
-    // TODO(https://github.com/iotaledger/iota/issues/69): Run Move linker
+    // Don't change the link components to iota. It is correct as it is.
+    // TODO(https://github.com/MystenLabs/sui/issues/69): Run Move linker
     Ok(())
 }
 
