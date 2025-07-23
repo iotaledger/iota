@@ -3700,8 +3700,10 @@ impl AuthorityPerEpochStore {
                         // - shared object execution slots (for congestion tracker);
                         // - shared object congestion info (for suggested gas price calculator).
                         if certificate.contains_shared_object() {
-                            shared_object_congestion_tracker
-                                .bump_object_execution_slots(&certificate, start_time);
+                            if self.get_max_execution_duration_per_commit().is_some() {
+                                shared_object_congestion_tracker
+                                    .bump_object_execution_slots(&certificate, start_time);
+                            }
 
                             suggested_gas_price_calculator.update_congestion_info(
                                 &certificate,

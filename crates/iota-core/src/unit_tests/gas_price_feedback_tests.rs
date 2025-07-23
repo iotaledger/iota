@@ -80,7 +80,7 @@ impl GasPriceFeedbackTester {
     async fn new(
         max_deferral_rounds_for_congestion_control: u64,
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
-        max_execution_duration_per_commit: u64,
+        max_execution_duration_per_commit: Option<u64>,
         assign_min_free_execution_slot: bool,
         enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
@@ -94,9 +94,15 @@ impl GasPriceFeedbackTester {
         );
         protocol_config
             .set_per_object_congestion_control_mode_for_testing(per_object_congestion_control_mode);
-        protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
-            max_execution_duration_per_commit,
-        );
+        if let Some(max_execution_duration_per_commit) = max_execution_duration_per_commit {
+            protocol_config
+                .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
+                    max_execution_duration_per_commit,
+                );
+        } else {
+            protocol_config
+                .disable_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing();
+        }
         protocol_config.set_congestion_control_min_free_execution_slot_for_testing(
             assign_min_free_execution_slot,
         );
@@ -334,7 +340,77 @@ impl GasPriceFeedbackTester {
 async fn per_object_congestion_control_mode_is_none() {
     let max_deferral_rounds_for_congestion_control = 0;
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::None;
-    let max_execution_duration_per_commit = 0;
+    let max_execution_duration_per_commit = Some(1);
+    let assign_min_free_execution_slot = true;
+    let enable_gas_price_feedback_mechanism = true;
+    let num_gas_objects = 10;
+
+    let tester = GasPriceFeedbackTester::new(
+        max_deferral_rounds_for_congestion_control,
+        per_object_congestion_control_mode,
+        max_execution_duration_per_commit,
+        assign_min_free_execution_slot,
+        enable_gas_price_feedback_mechanism,
+        num_gas_objects,
+    )
+    .await;
+
+    // Prepare certificates
+    let mut certificates = vec![];
+    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
+        let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + i as u64;
+        let gas_data = GasDataForTests::new(
+            *gas_object_id,
+            gas_price,
+            gas_price * DEFAULT_GAS_UNITS_FOR_TESTS,
+        );
+        let transaction = tester
+            .build_access_both_counters_transaction(gas_data, true, true)
+            .await;
+        let certificate = tester.certify_transaction(transaction).await;
+
+        certificates.push(certificate);
+    }
+    // Shuffle certificates so that they do not have any specific order in
+    // terms of gas price.
+    certificates.shuffle(&mut rand::thread_rng());
+    assert_eq!(certificates.len(), num_gas_objects);
+
+    let scheduled_transactions = tester
+        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .await;
+    assert_eq!(
+        scheduled_transactions.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+    assert!(matches!(
+        scheduled_transactions[0].data().transaction_data().kind(),
+        TransactionKind::ConsensusCommitPrologueV1(..)
+    ));
+
+    let effects_vec = tester
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .await;
+    assert_eq!(
+        effects_vec.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // All transactions should be successfully executed.
+    for effects in effects_vec {
+        assert!(effects.status().is_ok());
+    }
+}
+
+// Test that everything goes well (i.e., no transactions are deferred or
+// cancelled) if `max_execution_duration_per_commit` is set None.
+#[sim_test]
+async fn max_execution_duration_per_commit_is_none() {
+    let max_deferral_rounds_for_congestion_control = 0;
+    let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
+    let max_execution_duration_per_commit = None;
     let assign_min_free_execution_slot = true;
     let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 10;
@@ -408,7 +484,7 @@ async fn max_execution_duration_per_commit_too_low_in_total_tx_count_mode() {
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
     // Intentionally set to 0 so that even one transaction will not fit in a
     // single commit.
-    let max_execution_duration_per_commit = 0;
+    let max_execution_duration_per_commit = Some(0);
     let assign_min_free_execution_slot = true;
     let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
@@ -460,7 +536,7 @@ async fn max_execution_duration_per_commit_too_low_in_total_gas_budget_mode() {
     // Intentionally set too low so that even one transaction will not fit in a
     // single commit.
     let max_execution_duration_per_commit =
-        REFERENCE_GAS_PRICE_FOR_TESTS * DEFAULT_GAS_UNITS_FOR_TESTS;
+        Some(REFERENCE_GAS_PRICE_FOR_TESTS * DEFAULT_GAS_UNITS_FOR_TESTS);
     let assign_min_free_execution_slot = true;
     let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
@@ -509,7 +585,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     // All deferred transactions will be cancelled
     let max_deferral_rounds_for_congestion_control = 0;
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
-    let max_execution_duration_per_commit = 1;
+    let max_execution_duration_per_commit = Some(1);
     let assign_min_free_execution_slot = true;
     let enable_gas_price_feedback_mechanism = false;
     let num_gas_objects = 2;
@@ -661,7 +737,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     // All deferred transactions will be cancelled
     let max_deferral_rounds_for_congestion_control = 0;
     let per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalGasBudget;
-    let max_execution_duration_per_commit = max_gas_price * DEFAULT_GAS_UNITS_FOR_TESTS;
+    let max_execution_duration_per_commit = Some(max_gas_price * DEFAULT_GAS_UNITS_FOR_TESTS);
     let assign_min_free_execution_slot = true;
     let enable_gas_price_feedback_mechanism = true;
     let num_gas_objects = 2;
