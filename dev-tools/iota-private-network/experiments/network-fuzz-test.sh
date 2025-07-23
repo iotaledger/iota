@@ -235,4 +235,4 @@ done
 cp "$SCRIPT_LOG" "$LOG_DIR/fuzz-test-script-latest.log"
   log "Saved script log to $LOG_DIR/fuzz-test-script-$TIMESTAMP.log"
 
-log "Fuzz test completed and logs saved. "
+log "Fuzz test completed and logs saved."
