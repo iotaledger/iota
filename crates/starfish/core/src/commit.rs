@@ -861,7 +861,6 @@ mod tests {
     };
 
     #[tokio::test]
-    #[ignore = "Finish implementing this test when Transaction storage is ready"]
     async fn test_new_committed_subdag_from_commit() {
         let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
@@ -876,8 +875,9 @@ mod tests {
             .authorities()
             .map(|index| {
                 let author_idx = index.0.value() as u32;
-                let block = TestBlockHeader::new(0, author_idx).build();
-                VerifiedBlock::new_for_test(block)
+                let tx = index.0.value() as u8;
+                let block = TestBlockHeader::new_with_transaction(0, author_idx, tx).build();
+                VerifiedBlock::new_with_transaction_for_test(block, tx)
             })
             .map(|block| {
                 (
@@ -897,7 +897,6 @@ mod tests {
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
-        // TODO: create some data for blocks in the first round
 
         let mut ancestors = first_round_references.clone();
         let mut leader = None;
@@ -954,6 +953,13 @@ mod tests {
         assert_eq!(subdag.commit_ref, commit.reference());
         assert_eq!(subdag.committed_transaction_refs, first_round_references);
         assert_eq!(subdag.reputation_scores_desc, vec![]);
+        let transactions = store
+            .read_transactions(&subdag.committed_transaction_refs)
+            .expect("We should have the transactions referenced in the commit data")
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(transactions.len(), 4);
     }
 
     #[tokio::test]
