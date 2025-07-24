@@ -228,7 +228,6 @@ impl PTB {
             | IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                println!("{transaction_response}");
                 return Ok(PTBCommandResult::CommandResult(Box::new(
                     transaction_response,
                 )));
