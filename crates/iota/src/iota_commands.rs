@@ -1207,10 +1207,9 @@ fn prompt_for_environment(
             };
             match url.trim() {
                 "mainnet" => Ok(IotaEnv::mainnet()),
-                "testnet" => Ok(IotaEnv::testnet()),
+                "testnet" | "" => Ok(IotaEnv::testnet()),
                 "devnet" => Ok(IotaEnv::devnet()),
                 "localnet" => Ok(IotaEnv::localnet()),
-                "" => Ok(IotaEnv::testnet()),
                 url => {
                     if Url::parse(url).is_ok() {
                         print!("Environment alias for [{url}] : ");
