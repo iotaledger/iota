@@ -175,6 +175,7 @@ struct CoreThread {
 }
 
 impl CoreThread {
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     pub async fn run(mut self) -> ConsensusResult<()> {
         tracing::debug!("Started core thread");
 

@@ -355,6 +355,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     }
 
     // The main loop to listen for the submitted commands.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     async fn run(&mut self) {
         // We want the synchronizer to run periodically every 200ms to fetch any missing
         // blocks.
@@ -807,7 +808,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         };
         (resp, blocks_guard, retries, peer, highest_rounds)
     }
-
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     fn start_fetch_own_last_block_task(&mut self) {
         const FETCH_OWN_BLOCK_RETRY_DELAY: Duration = Duration::from_millis(1_000);
         const MAX_RETRY_DELAY_STEP: Duration = Duration::from_millis(4_000);
@@ -1105,6 +1106,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     /// successfully responded and any corresponding additional ancestor blocks.
     /// Each element of the vector is a tuple which contains the requested
     /// missing block refs, the returned blocks and the peer authority index.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %context.own_index)))]
     async fn fetch_block_headers_from_authorities(
         context: Arc<Context>,
         inflight_block_headers: Arc<InflightBlockHeadersMap>,
