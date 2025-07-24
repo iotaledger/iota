@@ -1189,11 +1189,11 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{wallet_conf_path:?}] with default (Testnet) Full node server and ed25519 key scheme."
+                "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
             );
         } else {
             print!(
-                "Config file [{wallet_conf_path:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?"
+                "Config file [{wallet_conf_path:?}] doesn't exist! Do you want to connect to an IOTA full node server? [y/N]: "
             );
         }
         if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {
@@ -1201,7 +1201,7 @@ fn prompt_for_environment(
                 String::new()
             } else {
                 print!(
-                    "[mainnet|testnet|devnet|localnet], or an IOTA Full node server URL (defaults to testnet if not specified) : "
+                    "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
                 );
                 read_line()?
             };
@@ -1212,7 +1212,7 @@ fn prompt_for_environment(
                 "localnet" => Ok(IotaEnv::localnet()),
                 url => {
                     if Url::parse(url).is_ok() {
-                        print!("Environment alias for [{url}] : ");
+                        print!("Environment alias for [{url}]: ");
                         let alias = read_line()?;
                         let alias = if alias.trim().is_empty() {
                             "custom".to_string()
@@ -1270,8 +1270,8 @@ fn prompt_if_no_config(
             let key_scheme = if accept_defaults {
                 SignatureScheme::ED25519
             } else {
-                println!(
-                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                print!(
+                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
@@ -1283,10 +1283,10 @@ fn prompt_if_no_config(
                 .generate_and_add_new_key(key_scheme, None, None, None)?;
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
-                "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
+                "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
                 scheme.to_string()
             );
-            println!("Secret Recovery Phrase : [{phrase}]");
+            println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);
         }
         config.persisted(wallet_conf_path).save()?;
