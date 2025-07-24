@@ -90,6 +90,7 @@ impl StoredEpochInfo {
         Self {
             epoch: e.epoch as i64,
             first_checkpoint_id: e.first_checkpoint_id as i64,
+            first_tx_sequence_number: Some(e.first_tx_sequence_number as i64),
             epoch_start_timestamp: e.epoch_start_timestamp as i64,
             reference_gas_price: e.reference_gas_price as i64,
             protocol_version: e.protocol_version as i64,
@@ -128,6 +129,7 @@ impl StoredEpochInfo {
             storage_fund_balance: 0,
             burnt_tokens_amount: e.burnt_tokens_amount.map(|v| v as i64),
             minted_tokens_amount: e.minted_tokens_amount.map(|v| v as i64),
+            first_tx_sequence_number: Some(0),
         }
     }
 }

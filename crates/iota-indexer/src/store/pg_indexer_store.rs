@@ -1179,31 +1179,8 @@ impl PgIndexerStore {
             &self.blocking_cp,
             |conn| {
                 if let Some(last_epoch) = &epoch.last_epoch {
-                    let last_epoch_id = last_epoch.epoch;
-                    // Overwrites the `epoch_total_transactions` field on `epoch.last_epoch` because
-                    // we are not guaranteed to have the latest data in db when this is set on
-                    // indexer's chain-reading side. However, when we `persist_epoch`, the
-                    // checkpoints from an epoch ago must have been indexed.
-                    let previous_epoch_network_total_transactions = match epoch_id {
-                        0 | 1 => 0,
-                        _ => {
-                            let prev_epoch_id = epoch_id - 2;
-                            let result = checkpoints::table
-                                .filter(checkpoints::epoch.eq(prev_epoch_id as i64))
-                                .select(max(checkpoints::network_total_transactions))
-                                .first::<Option<i64>>(conn)
-                                .map(|o| o.unwrap_or(0))?;
-
-                            result as u64
-                        }
-                    };
-
-                    let epoch_total_transactions = epoch.network_total_transactions
-                        - previous_epoch_network_total_transactions;
-
-                    let mut last_epoch = StoredEpochInfo::from_epoch_end_info(last_epoch);
-                    last_epoch.epoch_total_transactions = Some(epoch_total_transactions as i64);
-                    info!(last_epoch_id, "Persisting epoch end data.");
+                    info!(last_epoch.epoch, "Persisting epoch end data.");
+                    let last_epoch = StoredEpochInfo::from_epoch_end_info(last_epoch);
                     on_conflict_do_update!(
                         epochs::table,
                         vec![last_epoch],
@@ -1455,16 +1432,15 @@ impl PgIndexerStore {
     fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
-    ) -> Result<u64, IndexerError> {
+    ) -> Result<Option<u64>, IndexerError> {
         read_only_blocking!(&self.blocking_cp, |conn| {
-            checkpoints::table
-                .filter(checkpoints::epoch.eq(epoch as i64))
-                .select(checkpoints::network_total_transactions)
-                .order_by(checkpoints::sequence_number.desc())
-                .first::<i64>(conn)
+            epochs::table
+                .filter(epochs::epoch.eq(epoch as i64))
+                .select(epochs::first_tx_sequence_number + epochs::epoch_total_transactions)
+                .get_result::<Option<i64>>(conn)
         })
         .context("Failed to get network total transactions in epoch")
-        .map(|v| v as u64)
+        .map(|option| option.map(|v| v as u64))
     }
 
     fn refresh_participation_metrics(&self) -> Result<(), IndexerError> {
@@ -2268,7 +2244,7 @@ impl IndexerStore for PgIndexerStore {
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
-    ) -> Result<u64, IndexerError> {
+    ) -> Result<Option<u64>, IndexerError> {
         self.execute_in_blocking_worker(move |this| {
             this.get_network_total_transactions_by_end_of_epoch(epoch)
         })

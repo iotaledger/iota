@@ -176,6 +176,7 @@ impl CheckpointHandler {
                 new_epoch: IndexedEpochInfo::from_new_system_state_summary(
                     &system_state,
                     0, // first_checkpoint_id
+                    0, // first_tx_sequence_number
                     None,
                 ),
                 network_total_transactions: 0,
@@ -232,7 +233,12 @@ impl CheckpointHandler {
                 let last_epoch = epoch - 2;
                 state
                     .get_network_total_transactions_by_end_of_epoch(last_epoch)
-                    .await
+                    .await?
+                    .ok_or_else(|| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "Network total transactions for epoch {last_epoch} not found"
+                        ))
+                    })
             }
         }?;
 
@@ -246,6 +252,7 @@ impl CheckpointHandler {
             new_epoch: IndexedEpochInfo::from_new_system_state_summary(
                 &system_state,
                 checkpoint_summary.sequence_number + 1, // first_checkpoint_id
+                checkpoint_summary.network_total_transactions, // first_tx_sequence_number
                 Some(&event),
             ),
             network_total_transactions: checkpoint_summary.network_total_transactions,

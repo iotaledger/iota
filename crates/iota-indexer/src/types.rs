@@ -105,6 +105,7 @@ impl IndexedCheckpoint {
 pub struct IndexedEpochInfo {
     pub epoch: u64,
     pub first_checkpoint_id: u64,
+    pub first_tx_sequence_number: u64,
     pub epoch_start_timestamp: u64,
     pub reference_gas_price: u64,
     pub protocol_version: u64,
@@ -215,6 +216,7 @@ impl IndexedEpochInfo {
     pub fn from_new_system_state_summary(
         new_system_state_summary: &IotaSystemStateSummary,
         first_checkpoint_id: u64,
+        first_tx_sequence_number: u64,
         event: Option<&SystemEpochInfoEvent>,
     ) -> IndexedEpochInfo {
         // NOTE: total_stake and storage_fund_balance are about new epoch,
@@ -228,6 +230,7 @@ impl IndexedEpochInfo {
         Self {
             epoch: new_system_state_summary.epoch(),
             first_checkpoint_id,
+            first_tx_sequence_number,
             epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms(),
             reference_gas_price: new_system_state_summary.reference_gas_price(),
             protocol_version: new_system_state_summary.protocol_version(),
@@ -277,6 +280,7 @@ impl IndexedEpochInfo {
             burnt_tokens_amount: Some(event.burnt_tokens_amount),
             minted_tokens_amount: Some(event.minted_tokens_amount),
             tips_amount: Some(event.tips_amount),
+            first_tx_sequence_number: 0,
         }
     }
 }
