@@ -17,11 +17,8 @@ use crate::{
 /// encountering shutdown.
 #[derive(Clone, Debug, Error, IntoStaticStr)]
 pub(crate) enum ConsensusError {
-    #[error("Error deserializing block: {0}")]
-    MalformedBlock(bcs::Error),
-
     #[error("Error deserializing block header: {0}")]
-    MalformedBlockHeader(bcs::Error),
+    MalformedHeader(bcs::Error),
 
     #[error("Error deserializing block transactions: {0}")]
     MalformedTransactions(bcs::Error),
@@ -50,53 +47,48 @@ pub(crate) enum ConsensusError {
     #[error("Block has wrong epoch: expected {expected}, actual {actual}")]
     WrongEpoch { expected: Epoch, actual: Epoch },
 
-    #[error("Genesis blocks should only be generated from Committee!")]
-    UnexpectedGenesisBlock,
+    #[error("Genesis block headers should only be generated from Committee!")]
+    UnexpectedGenesisHeader,
 
-    #[error("Genesis blocks should not be queried!")]
-    UnexpectedGenesisBlockRequested,
+    #[error("Genesis transactions should not be queried!")]
+    UnexpectedGenesisTransactionsRequested,
 
     #[error("Genesis block headers should not be queried!")]
-    UnexpectedGenesisBlockHeaderRequested,
+    UnexpectedGenesisHeaderRequested,
 
     #[error(
-        "Expected {requested} but received {received_block_headers} block headers from authority {authority}"
+        "Expected {requested} but received {received_headers} block headers from authority {authority}"
     )]
-    UnexpectedNumberOfBlockHeadersFetched {
+    UnexpectedNumberOfHeadersFetched {
         authority: AuthorityIndex,
         requested: usize,
-        received_block_headers: usize,
+        received_headers: usize,
     },
 
-    #[error("Unexpected block returned while fetching missing blocks")]
-    UnexpectedFetchedBlock {
+    #[error("Unexpected block header returned while fetching missing block headers")]
+    UnexpectedFetchedHeader {
         index: AuthorityIndex,
         block_ref: BlockRef,
     },
 
     #[error(
-        "Unexpected block {block_ref} returned while fetching last own block from peer {index}"
+        "Unexpected block header {block_ref} returned while fetching last own header from peer {index}"
     )]
-    UnexpectedLastOwnBlock {
+    UnexpectedLastOwnHeader {
         index: AuthorityIndex,
         block_ref: BlockRef,
     },
-
-    #[error(
-        "Too many blocks have been returned from authority {0} when requesting to fetch missing blocks"
-    )]
-    TooManyFetchedBlocksReturned(AuthorityIndex),
 
     #[error(
         "Too many transactions have been returned from authority {0} when requesting to fetch missing transactions"
     )]
     TooManyFetchedTransactionsReturned(AuthorityIndex),
 
-    #[error("Too many blocks have been requested from authority {0}")]
-    TooManyFetchBlocksRequested(AuthorityIndex),
-
     #[error("Too many block headers have been requested from authority {0}")]
-    TooManyFetchBlockHeadersRequested(AuthorityIndex),
+    TooManyFetchHeadersRequested(AuthorityIndex),
+
+    #[error("Too many block headers have been rteurned from authority {0}")]
+    TooManyFetchedHeadersReturned(AuthorityIndex),
 
     #[error("Too many transaction bundles have been requested from authority {0}")]
     TooManyFetchTransactionsRequested(AuthorityIndex),

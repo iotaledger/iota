@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    pin::Pin,
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -32,9 +37,8 @@ use crate::{
     dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
     error::{ConsensusError, ConsensusResult},
     network::{
-        BlockBundle, BlockBundleStream, BlockStream, NetworkService, SerializedBlock,
-        SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
-        SerializedTransactions,
+        BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockAndHeaders,
+        SerializedBlockBundle, SerializedHeaderAndTransactions, SerializedTransactions,
     },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -140,205 +144,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
 #[async_trait]
 impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
-    #[cfg(test)]
-    async fn handle_subscribed_block(
-        &self,
-        peer: AuthorityIndex,
-        serialized_block: SerializedBlock,
-    ) -> ConsensusResult<()> {
-        fail_point_async!("consensus-rpc-response");
-
-        let peer_hostname = &self.context.committee.authority(peer).hostname;
-        let SerializedHeaderAndTransactions {
-            serialized_block_header,
-            serialized_transactions,
-        } = SerializedHeaderAndTransactions::try_from(serialized_block)?;
-        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedBlockHeader)?;
-
-        // Reject blocks not produced by the peer.
-        if peer != signed_block_header.author() {
-            self.context
-                .metrics
-                .node_metrics
-                .invalid_blocks
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_subscribed_block",
-                    "UnexpectedAuthority",
-                ])
-                .inc();
-            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
-            info!("Block with wrong authority from {}: {}", peer, e);
-            return Err(e);
-        }
-
-        if let Err(e) = self.block_verifier.verify(&signed_block_header) {
-            self.context
-                .metrics
-                .node_metrics
-                .invalid_blocks
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_subscribed_block",
-                    e.clone().name(),
-                ])
-                .inc();
-            info!("Invalid block from {}: {}", peer, e);
-            return Err(e);
-        }
-
-        if signed_block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("we should expect correct computation of the transactions commitment")
-        {
-            return Err(ConsensusError::TransactionCommitmentFailure {
-                round: signed_block_header.round(),
-                author: signed_block_header.author(),
-                peer,
-            });
-        }
-
-        let verified_block_header =
-            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
-        let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
-        self.block_verifier
-            .check_and_verify_transactions(&transactions)?;
-        let verified_transactions = VerifiedTransactions::new(
-            transactions,
-            verified_block_header.reference(),
-            verified_block_header.transactions_commitment(),
-            serialized_transactions,
-        );
-        let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
-
-        let block_ref = verified_block.reference();
-        debug!("Received block {} via subscribed block.", block_ref);
-
-        // Reject block with timestamp too far in the future.
-        let now = self.context.clock.timestamp_utc_ms();
-        let forward_time_drift =
-            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
-        if forward_time_drift > self.context.parameters.max_forward_time_drift {
-            self.context
-                .metrics
-                .node_metrics
-                .rejected_future_blocks
-                .with_label_values(&[peer_hostname])
-                .inc();
-            debug!(
-                "Block {:?} timestamp ({} > {}) is too far in the future, rejected.",
-                block_ref,
-                verified_block.timestamp_ms(),
-                now,
-            );
-            return Err(ConsensusError::BlockRejected {
-                block_ref,
-                reason: format!(
-                    "Block timestamp is too far in the future: {} > {}",
-                    verified_block.timestamp_ms(),
-                    now
-                ),
-            });
-        }
-
-        // Wait until the block's timestamp is current.
-        if forward_time_drift > Duration::ZERO {
-            self.context
-                .metrics
-                .node_metrics
-                .block_timestamp_drift_wait_ms
-                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block"])
-                .inc_by(forward_time_drift.as_millis() as u64);
-            debug!(
-                "Block {:?} timestamp ({} > {}) is in the future, waiting for {}ms",
-                block_ref,
-                verified_block.timestamp_ms(),
-                now,
-                forward_time_drift.as_millis(),
-            );
-            sleep(forward_time_drift).await;
-        }
-
-        // Observe the block for the commit votes. When local commit is lagging too
-        // much, commit sync loop will trigger fetching.
-        self.commit_vote_monitor.observe_block(&verified_block);
-
-        // Reject blocks when local commit index is lagging too far from quorum commit
-        // index.
-        //
-        // IMPORTANT: this must be done after observing votes from the block, otherwise
-        // observed quorum commit will no longer progress.
-        //
-        // Since the main issue with too many suspended blocks is memory usage not CPU,
-        // it is ok to reject after block verifications instead of before.
-        let last_commit_index = self.dag_state.read().last_commit_index();
-        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
-        // The threshold to ignore block should be larger than commit_sync_batch_size,
-        // to avoid excessive block rejections and synchronizations.
-        if last_commit_index
-            + self.context.parameters.commit_sync_batch_size * COMMIT_LAG_MULTIPLIER
-            < quorum_commit_index
-        {
-            self.context
-                .metrics
-                .node_metrics
-                .rejected_blocks
-                .with_label_values(&["commit_lagging"])
-                .inc();
-            debug!(
-                "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
-                block_ref, last_commit_index, quorum_commit_index,
-            );
-            return Err(ConsensusError::BlockRejected {
-                block_ref,
-                reason: format!(
-                    "Last commit index is lagging quorum commit index too much ({} < {})",
-                    last_commit_index, quorum_commit_index,
-                ),
-            });
-        }
-
-        self.context
-            .metrics
-            .node_metrics
-            .verified_blocks
-            .with_label_values(&[peer_hostname])
-            .inc();
-
-        let (missing_ancestors, missing_committed_txns) = self
-            .core_dispatcher
-            .add_blocks(vec![verified_block])
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-
-        if !missing_ancestors.is_empty() {
-            // schedule the fetching of them from this peer
-            if let Err(err) = self
-                .synchronizer
-                .fetch_block_headers(missing_ancestors, peer)
-                .await
-            {
-                warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
-            }
-        }
-        if !missing_committed_txns.is_empty() {
-            // Also fetch missing transactions for these blocks
-            if let Err(err) = self
-                .transactions_synchronizer
-                .fetch_transactions(missing_committed_txns)
-                .await
-            {
-                warn!(
-                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
-                );
-            }
-        }
-
-        Ok(())
-    }
-
     async fn handle_subscribed_block_bundle(
         &self,
         peer: AuthorityIndex,
@@ -357,8 +162,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             serialized_block: serialized_block_and_headers.serialized_block,
         })?;
 
-        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedBlockHeader)?;
+        let signed_block_header: SignedBlockHeader =
+            bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
 
         // Reject blocks not produced by the peer.
         if peer != signed_block_header.author() {
@@ -489,8 +294,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 continue;
             }
 
-            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
-                .map_err(ConsensusError::MalformedBlockHeader)?;
+            let signed_block_header: SignedBlockHeader =
+                bcs::from_bytes(&serialized_header).map_err(ConsensusError::MalformedHeader)?;
 
             let header_round = signed_block_header.round();
             if header_round >= verified_block.round() {
@@ -665,7 +470,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // 10. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
                 .synchronizer
-                .fetch_block_headers(missing_ancestors, peer)
+                .fetch_headers(missing_ancestors, peer)
                 .await
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
@@ -685,40 +490,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
         Ok(())
-    }
-
-    async fn handle_subscribe_blocks(
-        &self,
-        peer: AuthorityIndex,
-        last_received: Round,
-    ) -> ConsensusResult<BlockStream> {
-        fail_point_async!("consensus-rpc-response");
-
-        let dag_state = self.dag_state.read();
-        // Find recent own blocks that have not been received by the peer.
-        // If last_received is a valid and more blocks have been proposed since then,
-        // this call is guaranteed to return at least some recent blocks, which
-        // will help with liveness.
-        let missed_blocks = stream::iter(
-            dag_state
-                .get_cached_blocks(self.context.own_index, last_received + 1)
-                .into_iter()
-                // TODO::deal with possible error in try_from
-                .map(|block| SerializedBlock::try_from(block).unwrap()),
-        );
-
-        let broadcasted_blocks = BroadcastedBlockStream::new(
-            peer,
-            self.rx_block_broadcaster.resubscribe(),
-            self.subscription_counter.clone(),
-        );
-
-        // Return a stream of blocks that first yields missed blocks as requested, then
-        // new blocks.
-        // TODO::deal with possible error in try_from
-        Ok(Box::pin(missed_blocks.chain(
-            broadcasted_blocks.map(|block| SerializedBlock::try_from(block).unwrap()),
-        )))
     }
 
     async fn handle_subscribe_block_bundles_request(
@@ -767,17 +538,32 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         })))
     }
 
-    async fn handle_fetch_block_headers(
+    // Handles two types of fetch headers requests:
+    // 1. Missing block headers for regular sync:
+    //    - uses highest_accepted_rounds.
+    //    - at most max_blocks_per_regular_sync blocks should be returned.
+    // 2. Committed block headers for commit sync:
+    //    - does not use highest_accepted_rounds.
+    //    - at most max_blocks_per_commit_sync blocks should be returned.
+    async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
-        const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_block_headers_per_fetch {
-            return Err(ConsensusError::TooManyFetchBlockHeadersRequested(peer));
+        // Some quick validation of the requested block refs
+        for block in &block_refs {
+            if !self.context.committee.is_valid_index(block.author) {
+                return Err(ConsensusError::InvalidAuthorityIndex {
+                    index: block.author,
+                    max: self.context.committee.size(),
+                });
+            }
+            if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisHeaderRequested);
+            }
         }
 
         if !highest_accepted_rounds.is_empty()
@@ -789,118 +575,97 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             ));
         }
 
-        // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisBlockHeaderRequested);
-            }
+        // This method is used for both commit sync and periodic/live synchronizer.
+        // For commit sync, we do not use highest_accepted_rounds and the fetch size is
+        // larger.
+        let commit_sync_handle = highest_accepted_rounds.is_empty();
+
+        // For commit sync, the fetch size is larger. For periodic/live synchronizer,
+        // the fetch size is smaller.else { Instead of rejecting the request, we
+        // truncate the size to allow an easy update of this parameter in the future.
+        let max_fetch_size = if commit_sync_handle {
+            self.context.parameters.max_headers_per_commit_sync_fetch
+        } else {
+            self.context.parameters.max_headers_per_regular_sync_fetch
+        };
+
+        if block_refs.len() > max_fetch_size {
+            // TODO: we might need to reevaluate whether we want to reject such a request
+            // or just truncate the size. Simple truncating with warning allows for easier
+            // upgradability in future until the size of requests is settled
+            return Err(ConsensusError::TooManyFetchHeadersRequested(peer));
         }
 
-        // For now ask dag state directly
-        let block_headers = self.dag_state.read().get_block_headers(&block_refs);
-
-        // Now check if an ancestor's round is higher than the one that the peer has. If
-        // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
-        let mut ancestor_block_headers = vec![];
-        if !highest_accepted_rounds.is_empty() {
-            let all_ancestors = block_headers
-                .iter()
+        // Get requested blocks from store.
+        let blocks = if commit_sync_handle {
+            // For commit sync, we respond with all blocks from the store
+            self.dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
                 .flatten()
-                .flat_map(|block| block.ancestors().to_vec())
-                .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
-                .take(MAX_ADDITIONAL_BLOCKS)
+                .collect()
+        } else {
+            // For periodic or live synchronizer, we respond with requested blocks from the
+            // store and with additional blocks from the cache
+            block_refs.sort();
+            block_refs.dedup();
+            let dag_state = self.dag_state.read();
+            let mut blocks = dag_state
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .flatten()
                 .collect::<Vec<_>>();
 
-            if !all_ancestors.is_empty() {
-                ancestor_block_headers = self.dag_state.read().get_block_headers(&all_ancestors);
+            // Get additional blocks for authorities with missing block, if they are
+            // available in cache. Compute the lowest missing round per
+            // requested authority.
+            let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
+            for block_ref in blocks.iter().map(|b| b.reference()) {
+                let entry = lowest_missing_rounds
+                    .entry(block_ref.author)
+                    .or_insert(block_ref.round);
+                *entry = (*entry).min(block_ref.round);
             }
-        }
+            // Retrieve additional blocks per authority, from peer's highest accepted round
+            // + 1 to lowest missing round (exclusive) per requested authority. Start with
+            //   own blocks.
+            let own_index = self.context.own_index;
 
-        // Return the serialised blocks & the ancestor blocks
-        let result = block_headers
+            // Collect and sort so own_index comes first
+            let mut ordered_missing_rounds: Vec<_> = lowest_missing_rounds.into_iter().collect();
+            ordered_missing_rounds.sort_by_key(|(auth, _)| if *auth == own_index { 0 } else { 1 });
+
+            for (authority, lowest_missing_round) in ordered_missing_rounds {
+                let highest_accepted_round = highest_accepted_rounds[authority];
+                if highest_accepted_round >= lowest_missing_round {
+                    continue;
+                }
+
+                let missing_blocks = dag_state.get_cached_block_headers_in_range(
+                    authority,
+                    highest_accepted_round + 1,
+                    lowest_missing_round,
+                    self.context
+                        .parameters
+                        .max_headers_per_regular_sync_fetch
+                        .saturating_sub(blocks.len()),
+                );
+                blocks.extend(missing_blocks);
+                if blocks.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
+                    blocks.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
+                    break;
+                }
+            }
+
+            blocks
+        };
+        // Return the serialized blocks
+        let bytes = blocks
             .into_iter()
-            .chain(ancestor_block_headers)
-            .flatten()
-            .map(|block_header| block_header.serialized().clone())
-            .collect();
-
-        Ok(result)
-    }
-
-    async fn handle_fetch_blocks(
-        &self,
-        peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
-        highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>> {
-        fail_point_async!("consensus-rpc-response");
-
-        const MAX_ADDITIONAL_BLOCKS: usize = 10;
-        if block_refs.len() > self.context.parameters.max_block_headers_per_fetch {
-            return Err(ConsensusError::TooManyFetchBlocksRequested(peer));
-        }
-
-        if !highest_accepted_rounds.is_empty()
-            && highest_accepted_rounds.len() != self.context.committee.size()
-        {
-            return Err(ConsensusError::InvalidSizeOfHighestAcceptedRounds(
-                highest_accepted_rounds.len(),
-                self.context.committee.size(),
-            ));
-        }
-
-        // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisBlockRequested);
-            }
-        }
-
-        // For now ask dag state directly
-        let blocks = self.dag_state.read().get_blocks(&block_refs);
-
-        // Now check if an ancestor's round is higher than the one that the peer has. If
-        // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
-        let mut ancestor_blocks = vec![];
-        // TODO: remove additional blocks and highest_accepted_rounds
-        if !highest_accepted_rounds.is_empty() {
-            let all_ancestors = blocks
-                .iter()
-                .flatten()
-                .flat_map(|block| block.ancestors().to_vec())
-                .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
-                .take(MAX_ADDITIONAL_BLOCKS)
-                .collect::<Vec<_>>();
-
-            if !all_ancestors.is_empty() {
-                ancestor_blocks = self.dag_state.read().get_blocks(&all_ancestors);
-            }
-        }
-
-        // Return the serialised headers and transactions for blocks & their ancestors
-        let result = blocks
-            .into_iter()
-            .chain(ancestor_blocks)
-            .flatten()
-            .map(|block| {
-                // TODO::propagate error correctly
-                SerializedBlock::try_from(block).unwrap().serialized_block
-            })
-            .collect();
-
-        Ok(result)
+            .map(|block| block.serialized().clone())
+            .collect::<Vec<_>>();
+        Ok(bytes)
     }
 
     async fn handle_fetch_commits(
@@ -1051,7 +816,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 });
             }
             if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisBlockRequested);
+                return Err(ConsensusError::UnexpectedGenesisTransactionsRequested);
             }
         }
 
@@ -1328,8 +1093,8 @@ mod tests {
         error::ConsensusResult,
         leader_schedule::LeaderSchedule,
         network::{
-            BlockBundle, BlockBundleStream, BlockStream, NetworkClient, NetworkService,
-            SerializedBlock, SerializedBlockAndHeaders, SerializedBlockBundle,
+            BlockBundle, BlockBundleStream, NetworkClient, NetworkService,
+            SerializedBlockAndHeaders, SerializedBlockBundle,
         },
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
@@ -1343,31 +1108,12 @@ mod tests {
 
     #[async_trait]
     impl NetworkClient for FakeNetworkClient {
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            unimplemented!("Unimplemented")
-        }
-
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 
@@ -1411,7 +1157,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_subscribed_block() {
+    async fn test_handle_subscribed_block_bundle() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
@@ -1462,13 +1208,12 @@ mod tests {
         );
 
         let service = authority_service.clone();
-        let serialized_block = SerializedBlock::try_from(input_block.clone()).unwrap();
-
+        let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
         tokio::spawn(async move {
             service
-                .handle_subscribed_block(
+                .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
-                    serialized_block,
+                    serialized_block_bundle,
                 )
                 .await
                 .unwrap();

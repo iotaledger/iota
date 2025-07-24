@@ -54,8 +54,6 @@ pub(crate) mod tonic_network;
 pub mod tonic_network;
 mod tonic_tls;
 
-/// A stream of serialized filtered blocks returned over the network.
-pub(crate) type BlockStream = Pin<Box<dyn Stream<Item = SerializedBlock> + Send>>;
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
@@ -68,16 +66,6 @@ pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBun
 ///   incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
-    /// Subscribes to blocks from a peer after last_received round.
-    // TODO:: remove when block bundles logic is finalized
-    #[allow(dead_code)]
-    async fn subscribe_blocks(
-        &self,
-        peer: AuthorityIndex,
-        last_received: Round,
-        timeout: Duration,
-    ) -> ConsensusResult<BlockStream>;
-
     /// Subscribes to blocks from a peer after last_received round.
     #[allow(dead_code)]
     async fn subscribe_block_bundles(
@@ -92,21 +80,6 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
-        timeout: Duration,
-    ) -> ConsensusResult<Vec<Bytes>>;
-
-    /// Fetches serialized `SerializedBlocks` from a peer. It also might
-    /// return additional ancestor blocks of the requested blocks according
-    /// to the provided `highest_accepted_rounds`. The
-    /// `highest_accepted_rounds` length should be equal to the committee
-    /// size. If `highest_accepted_rounds` is empty then it will be simply
-    /// ignored.
-    #[expect(dead_code)]
-    async fn fetch_blocks(
-        &self,
-        peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
-        highest_accepted_rounds: Vec<Round>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -150,17 +123,6 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
 /// Network service for handling requests from peers.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
-    /// Handles the block sent from the peer via subscription stream. Peer value
-    /// can be trusted to be a valid authority index. But serialized_block
-    /// must be verified before its contents are trusted.
-    // TODO:: remove when block bundles logic is finalized
-    #[cfg(test)]
-    async fn handle_subscribed_block(
-        &self,
-        peer: AuthorityIndex,
-        serialized_block: SerializedBlock,
-    ) -> ConsensusResult<()>;
-
     /// Handles the block and headers sent from the peer via subscription
     /// stream. Peer value can be trusted to be a valid authority index. But
     /// serialized_block must be verified before its contents are trusted.
@@ -169,16 +131,6 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
     ) -> ConsensusResult<()>;
-
-    /// Handles the subscription request from the peer.
-    /// A stream of newly proposed blocks is returned to the peer.
-    /// The stream continues until the end of epoch, peer unsubscribes, or a
-    /// network error / crash occurs.
-    async fn handle_subscribe_blocks(
-        &self,
-        peer: AuthorityIndex,
-        last_received: Round,
-    ) -> ConsensusResult<BlockStream>;
 
     /// Handles the subscription request from the peer.
     /// A stream of newly proposed blocks with additional data (headers or
@@ -191,17 +143,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<BlockBundleStream>;
 
     /// Handles the request to fetch block headers by references from the peer.
-    async fn handle_fetch_block_headers(
-        &self,
-        peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
-        highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>>;
-
-    /// Handles the request to fetch blocks by references from the peer.
-    /// The function returns Vec<Bytes>. Each element is a serialization of
-    /// header and transactions of a block. Used only in commit syncer.
-    async fn handle_fetch_blocks(
+    async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
@@ -279,16 +221,6 @@ pub(crate) struct SerializedHeaderAndTransactions {
     pub(crate) serialized_transactions: Bytes,
 }
 
-impl SerializedHeaderAndTransactions {
-    #[cfg(test)]
-    pub(crate) fn new_for_test(bytes: Bytes) -> Self {
-        Self {
-            serialized_block_header: bytes.clone(),
-            serialized_transactions: bytes,
-        }
-    }
-}
-
 impl From<VerifiedBlock> for SerializedHeaderAndTransactions {
     fn from(verified_block: VerifiedBlock) -> Self {
         let (serialized_block_header, serialized_transactions) = verified_block.serialized();
@@ -303,7 +235,7 @@ impl TryFrom<SerializedBlock> for SerializedHeaderAndTransactions {
     type Error = ConsensusError;
 
     fn try_from(serialized_block: SerializedBlock) -> ConsensusResult<Self> {
-        bcs::from_bytes(&serialized_block.serialized_block).map_err(ConsensusError::MalformedBlock)
+        bcs::from_bytes(&serialized_block.serialized_block).map_err(ConsensusError::MalformedHeader)
     }
 }
 
