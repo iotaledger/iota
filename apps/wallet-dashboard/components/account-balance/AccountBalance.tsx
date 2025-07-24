@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import {
     useBalance,
     useFormatCoin,
@@ -24,7 +23,6 @@ export function AccountBalance() {
     const { id: networkId, explorer } = getNetwork(network);
     const fiatBalance = useGetFiatBalance(networkId);
     const { data: coinBalance, isPending } = useBalance(address!);
-    const formattedAddress = formatAddress(address!);
     const [formatted, symbol] = useFormatCoin({ balance: coinBalance?.totalBalance });
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const explorerLink = `${explorer}/address/${address}`;
@@ -57,7 +55,7 @@ export function AccountBalance() {
                             {address && (
                                 <div className="w-full" data-full-address={address}>
                                     <NamedAddress
-                                        address={formattedAddress}
+                                        address={address}
                                         isCopyable
                                         copyText={address}
                                         isExternal

@@ -6,6 +6,7 @@ import { useGetIotaName } from '../../hooks';
 import clsx from 'clsx';
 import { normalizeIotaName } from '@iota/iota-names-sdk';
 import { truncateString } from '../../utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface NamedAddressProps {
     address: string;
@@ -32,6 +33,8 @@ export function NamedAddress({
 }: NamedAddressProps): React.JSX.Element {
     const { data: defaultName } = useGetIotaName(address);
     const iotaName = defaultName && normalizeIotaName(defaultName);
+    const formattedAddress = formatAddress(address);
+
     return (
         <div
             className={clsx(
@@ -45,7 +48,7 @@ export function NamedAddress({
                 </span>
             ) : null}
             <Address
-                text={address}
+                text={formattedAddress}
                 isCopyable={isCopyable}
                 isExternal={isExternal}
                 externalLink={externalLink}
