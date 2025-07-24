@@ -271,6 +271,7 @@ mod test {
             .take(10);
             Ok(Box::pin(block_stream))
         }
+
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
