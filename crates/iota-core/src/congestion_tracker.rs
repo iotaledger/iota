@@ -22,41 +22,35 @@ use tracing::info;
 
 use crate::execution_cache::TransactionCacheRead;
 
+/// Holds congestion-related information for a single object
 #[derive(Clone, Copy, Debug)]
 pub struct CongestionInfo {
     pub last_cancellation_time: CheckpointTimestamp,
-
     pub highest_cancelled_gas_price: u64,
-
     pub last_success_time: Option<CheckpointTimestamp>,
     pub lowest_executed_gas_price: Option<u64>,
-    // /pub last_checkpoint_count: u64,
 }
 
 impl CongestionInfo {
-    /// Update the congestion info with the latest congestion info from a new
-    /// checkpoint
+    /// Updates this object with newer congestion info from a newer checkpoint
     fn update_for_new_checkpoint(&mut self, new: &CongestionInfo) {
-        // If there are more recent cancellations, we need to know the latest highest
-        // cancelled price
         if new.last_cancellation_time > self.last_cancellation_time {
             self.last_cancellation_time = new.last_cancellation_time;
             self.highest_cancelled_gas_price = new.highest_cancelled_gas_price;
         }
-        // If there are more recent successful transactions, we need to know the latest
-        // lowest executed price
         if new.last_success_time > self.last_success_time {
             self.last_success_time = new.last_success_time;
             self.lowest_executed_gas_price = new.lowest_executed_gas_price;
         }
     }
 
+    /// Records a cancellation event at a given checkpoint
     fn update_for_cancellation(&mut self, now: CheckpointTimestamp, gas_price: u64) {
         self.last_cancellation_time = now;
-        self.highest_cancelled_gas_price =
-            std::cmp::max(self.highest_cancelled_gas_price, gas_price);
+        self.highest_cancelled_gas_price = std::cmp::max(self.highest_cancelled_gas_price, gas_price);
     }
 
+    /// Records a successful execution at a given checkpoint
     fn update_for_success(&mut self, now: CheckpointTimestamp, gas_price: u64) {
         self.last_success_time = Some(now);
         self.lowest_executed_gas_price = Some(match self.lowest_executed_gas_price {
@@ -66,10 +60,11 @@ impl CongestionInfo {
     }
 }
 
+/// Main congestion tracker responsible for recording and serving congestion data
 pub struct CongestionTracker {
     pub congestion_clearing_prices: Cache<ObjectID, CongestionInfo>,
-    object_to_index: RwLock<BTreeMap<ObjectID, u64>>,
-    next_index: RwLock<u64>,
+    object_to_index: RwLock<BTreeMap<ObjectID, u64>>, // Maps object to feature vector index
+    next_index: RwLock<u64>, // Counter for next available index
 }
 
 impl Default for CongestionTracker {
@@ -79,6 +74,7 @@ impl Default for CongestionTracker {
 }
 
 impl CongestionTracker {
+    /// Creates a new congestion tracker instance
     pub fn new() -> Self {
         Self {
             congestion_clearing_prices: Cache::new(10_000),
@@ -87,66 +83,76 @@ impl CongestionTracker {
         }
     }
 
+    /// Processes a checkpoint by collecting features and sending a training batch to the model server
     pub async fn process_checkpoint_effects(
         &self,
         transaction_cache_reader: &dyn TransactionCacheRead,
         checkpoint: &VerifiedCheckpoint,
         effects: &[TransactionEffects],
     ) {
-        let mut congestion_events = Vec::with_capacity(effects.len());
-        let mut cleared_events = Vec::with_capacity(effects.len());
+        let mut training_data = Vec::new();
 
         for effect in effects {
+            // Extract the gas price from the transaction
             let gas_price = transaction_cache_reader
                 .get_transaction_block(effect.transaction_digest())
                 .unwrap()
                 .unwrap()
                 .transaction_data()
                 .gas_price();
-            if let Some(CongestedObjects(congested_objects)) =
-                effect.status().get_congested_objects()
-            {
-                congestion_events.push((gas_price, congested_objects.clone()));
-            } else {
-                cleared_events.push((
-                    gas_price,
-                    effect
-                        .input_shared_objects()
-                        .into_iter()
-                        .filter_map(|object| match object {
-                            InputSharedObject::Mutate((id, _, _)) => Some(id),
-                            InputSharedObject::Cancelled(_, _)
-                            | InputSharedObject::ReadOnly(_)
-                            | InputSharedObject::ReadDeleted(_, _)
-                            | InputSharedObject::MutateDeleted(_, _) => None,
-                        })
-                        .collect::<Vec<_>>(),
-                ));
+
+            // Collect all mutated shared object IDs for this transaction
+            let object_ids: Vec<ObjectID> = effect
+                .input_shared_objects()
+                .iter()
+                .filter_map(|obj| match obj {
+                    InputSharedObject::Mutate((id, _, _)) => Some(*id),
+                    _ => None,
+                })
+                .collect();
+
+            // Build feature vector from congestion info of each object
+            let mut features = vec![];
+            for object_id in &object_ids {
+                if let Some(info) = self.get_congestion_info(*object_id) {
+                    features.push(serde_json::json!({
+                        "tx_count": 1, // Placeholder — currently hardcoded
+                        "cancel_count": if info.last_cancellation_time >= checkpoint.timestamp_ms { 1 } else { 0 },
+                        "avg_gas_price": info.highest_cancelled_gas_price,
+                    }));
+                }
+            }
+
+            // Add to training batch if we have any features
+            if !features.is_empty() {
+                training_data.push(serde_json::json!({
+                    "features": features,
+                    "label": gas_price,
+                }));
             }
         }
 
-        self.process_per_checkpoint_events(
-            checkpoint.timestamp_ms,
-            &congestion_events,
-            &cleared_events,
-        ).await;
+        // Send batch to model server if we collected any training points
+        if !training_data.is_empty() {
+            let client = Client::new();
+            let payload = serde_json::json!({ "batch": training_data });
+
+            let res = client
+                .post("http://localhost:8000/batch_train")
+                .json(&payload)
+                .send()
+                .await;
+
+            match res {
+                Ok(r) => info!("Sent training batch, response: {:?}", r),
+                Err(e) => info!("Failed to send training batch: {:?}", e),
+            }
+        }
     }
 
-    /// For all the mutable shared inputs, get the highest minimum clearing
-    /// price (if any exists) and the lowest maximum cancelled price.
-    pub fn get_suggested_gas_prices(&self, transaction: &TransactionData) -> Option<u64> {
-        self.get_suggested_gas_price_for_objects(
-            transaction
-                .shared_input_objects()
-                .into_iter()
-                .filter(|id| id.mutable)
-                .map(|id| id.id),
-        )
-    }
-
-    /// Query AI model for the suggested gas price.
-    pub async fn get_suggested_gas_price_with_ogd(&self, tx: TransactionData) -> Option<u64> {
-        info!("Querying OGD for suggested gas price");
+    /// Queries the model server to get a predicted gas price for the given transaction
+    pub async fn get_suggested_gas_price(&self, tx: &TransactionData) -> Option<u64> {
+        // Extract mutable object IDs as strings
         let object_ids: Vec<String> = tx
             .shared_input_objects()
             .into_iter()
@@ -154,92 +160,21 @@ impl CongestionTracker {
             .map(|o| o.id.to_string())
             .collect();
 
-        // if object_ids.is_empty() {
-        // return None;
-        // }
-
         let client = Client::new();
 
         let response = client
-            .get("http://localhost:8000/predict")
+            .post("http://localhost:8000/predict")
+            .json(&serde_json::json!({"objects": object_ids}))
             .send()
             .await
-            .ok()?; // handle failure
+            .ok()?;
 
         let json: serde_json::Value = response.json().await.ok()?;
-        info!("Received response from OGD: {:?}", json);
-        let score = json.get("suggested_gas_price")?.as_u64()?; // e.g., 0.42
+        let score = json.get("suggested_gas_price")?.as_u64()?;
         Some(score)
     }
-}
 
-impl CongestionTracker {
-    async fn process_per_checkpoint_events(
-        &self,
-        now: CheckpointTimestamp,
-        congestion_events: &[(u64, Vec<ObjectID>)],
-        cleared_events: &[(u64, Vec<ObjectID>)],
-    ) {
-        let congestion_info_map =
-            self.compute_per_checkpoint_congestion_info(now, congestion_events, cleared_events);
-        let updated_weights = self.process_checkpoint_congestion(congestion_info_map);
-
-        println!( "updated_weights: {:?}", updated_weights);
-
-        if !updated_weights.is_empty() {
-        // Prepare payload
-            let payload = serde_json::json!({
-                "updates": updated_weights
-            });
-
-            // Send asynchronously in a background task to avoid blocking
-            let client = reqwest::Client::new();
-            
-                 let res = client.post("http://localhost:8000/update_weights")
-                    .json(&payload)
-                    .send()
-                    .await.unwrap();
-
-                println!("Response from OGD: {:?}", res);
-                
-            
-            
-    }
-    }
-
-    fn get_suggested_gas_price_for_objects(
-        &self,
-        objects: impl Iterator<Item = ObjectID>,
-    ) -> Option<u64> {
-        let mut clearing_price = None;
-        for object_id in objects {
-            if let Some(info) = self.get_congestion_info(object_id) {
-                let clearing_price_for_object = match info
-                    .last_success_time
-                    .cmp(&Some(info.last_cancellation_time))
-                {
-                    std::cmp::Ordering::Greater => {
-                        // there were no cancellations in the most recent checkpoint,
-                        // so the object is probably not congested any more
-                        None
-                    }
-                    std::cmp::Ordering::Less => {
-                        // there were no successes in the most recent checkpoint. This should be a
-                        // rare case, but we know we will have to bid at
-                        // least as much as the highest cancelled price.
-                        Some(info.highest_cancelled_gas_price)
-                    }
-                    std::cmp::Ordering::Equal => {
-                        // there were both successes and cancellations.
-                        info.lowest_executed_gas_price
-                    }
-                };
-                clearing_price = std::cmp::max(clearing_price, clearing_price_for_object);
-            }
-        }
-        clearing_price
-    }
-
+    /// Retrieves or assigns a unique index to a given object (used for vectorization)
     fn get_or_assign_index(&self, object: ObjectID) -> u64 {
         let mut map = self.object_to_index.write().unwrap();
         if let Some(&idx) = map.get(&object) {
@@ -253,192 +188,8 @@ impl CongestionTracker {
         }
     }
 
-    fn compute_per_checkpoint_congestion_info(
-        &self,
-        now: CheckpointTimestamp,
-        congestion_events: &[(u64, Vec<ObjectID>)],
-        cleared_events: &[(u64, Vec<ObjectID>)],
-    ) -> HashMap<ObjectID, CongestionInfo> {
-        let mut congestion_info_map: HashMap<ObjectID, CongestionInfo> = HashMap::new();
-        // let mut touch_counts: HashMap<ObjectID, usize> = HashMap::new();
-
-        for (gas_price, objects) in congestion_events {
-            for object in objects {
-                // let touch_count = touch_counts.get(object).cloned().unwrap_or(0);
-                match congestion_info_map.entry(*object) {
-                    Entry::Occupied(entry) => {
-                        entry.into_mut().update_for_cancellation(now, *gas_price);
-                    }
-                    Entry::Vacant(entry) => {
-                        let info = CongestionInfo {
-                            last_cancellation_time: now,
-                            highest_cancelled_gas_price: *gas_price,
-                            last_success_time: None,
-                            lowest_executed_gas_price: None,
-                            // last_checkpoint_count: touch_count as u64,
-                        };
-                        entry.insert(info);
-                    }
-                }
-            }
-        }
-
-        for (gas_price, objects) in cleared_events {
-            for object in objects {
-                // let count = touch_counts.get(object).cloned().unwrap_or(0);
-
-                // We only record clearing prices if the object has observed cancellations
-                // recently
-                match congestion_info_map.entry(*object) {
-                    Entry::Occupied(entry) => {
-                        entry.into_mut().update_for_success(now, *gas_price);
-                    }
-                    Entry::Vacant(entry) => {
-                        if let Some(prev) = self.get_congestion_info(*object) {
-                            let info = CongestionInfo {
-                                last_cancellation_time: prev.last_cancellation_time,
-                                highest_cancelled_gas_price: prev.highest_cancelled_gas_price,
-                                last_success_time: Some(now),
-                                lowest_executed_gas_price: Some(*gas_price),
-                                // last_checkpoint_count: count as u64,
-                            };
-                            entry.insert(info);
-                        }
-                    }
-                }
-            }
-        }
-
-        congestion_info_map
-    }
-
-    fn process_checkpoint_congestion(
-        &self,
-        congestion_info_map: HashMap<ObjectID, CongestionInfo>,
-    ) -> Vec<(u64, u64)> {
-        let mut updated_weights = Vec::new();
-        for (object_id, info) in congestion_info_map {
-            self.congestion_clearing_prices
-                .entry(object_id)
-                .and_compute_with(|maybe_entry| {
-                    if let Some(e) = maybe_entry {
-                        let mut e = e.into_value();
-                        e.update_for_new_checkpoint(&info);
-                        Op::Put(e)
-                    } else {
-                        Op::Put(info)
-                    }
-                });
-
-            let idx = self.get_or_assign_index(object_id);
-            let weight: u64 = match (info.lowest_executed_gas_price, info.last_success_time) {
-                (Some(success), Some(success_time)) => {
-                    if info.last_cancellation_time > success_time {
-                        // Last cancellation is more recent → congestion worsened → use highest
-                        // cancelled price
-                        info.highest_cancelled_gas_price
-                    } else {
-                        // Last success at or after last cancellation → congestion stable or
-                        // improved → use success price
-                        success
-                    }
-                }
-                // No successes recorded → fallback to highest cancelled price
-                _ => info.highest_cancelled_gas_price,
-            };
-
-            updated_weights.push((idx, weight));
-        }
-
-        updated_weights
-    }
-
+    /// Retrieves cached congestion info for a given object, if it exists
     fn get_congestion_info(&self, object_id: ObjectID) -> Option<CongestionInfo> {
         self.congestion_clearing_prices.get(&object_id)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_process_events_new_congestion() {
-        let tracker = CongestionTracker::new();
-        let obj1 = ObjectID::random();
-        let obj2 = ObjectID::random();
-        let now = 1000;
-
-        tracker.process_per_checkpoint_events(now, &[(100, vec![obj1]), (200, vec![obj2])], &[]).await;
-
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj1].into_iter()),
-            Some(100)
-        );
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj2].into_iter()),
-            Some(200)
-        );
-    }
-
-    #[tokio::test]
-
-    async fn test_process_events_congestion_then_success() {
-        let tracker = CongestionTracker::new();
-        let obj = ObjectID::random();
-
-        // Cancellations only, no successes. Highest cancelled price is used.
-        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj]), (75, vec![obj])], &[]).await;
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
-            Some(100)
-        );
-
-        // No cancellations in last checkpoint, so no congestion
-        tracker.process_per_checkpoint_events(2000, &[], &[(150, vec![obj])]).await;
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
-            None,
-        );
-
-        // next checkpoint has cancellations and successes, so the lowest success price
-        // is used.
-        tracker.process_per_checkpoint_events(
-            3000,
-            &[(100, vec![obj])],
-            &[(175, vec![obj]), (125, vec![obj])],
-        ).await;
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
-            Some(125)
-        );
-    }
-
-   #[tokio::test]
-    async fn test_get_suggested_gas_price_multiple_objects() {
-        let tracker = CongestionTracker::new();
-        let obj1 = ObjectID::random();
-        let obj2 = ObjectID::random();
-
-        // Process different congestion events
-        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj1]), (200, vec![obj2])], &[]).await;
-
-        // Should suggest highest congestion price
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj1, obj2].into_iter()),
-            Some(200)
-        );
-
-        // Process different congestion events
-        tracker.process_per_checkpoint_events(
-            2000,
-            &[(100, vec![obj1]), (200, vec![obj2])],
-            &[(100, vec![obj1]), (150, vec![obj2])],
-        ).await;
-        // Should suggest the highest lowest success price
-        assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj1, obj2].into_iter()),
-            Some(150)
-        );
     }
 }
