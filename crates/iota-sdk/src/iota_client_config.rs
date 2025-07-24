@@ -274,7 +274,7 @@ impl IotaEnv {
     /// Create the env with the default localnet configuration.
     pub fn localnet() -> Self {
         Self {
-            alias: "local".to_string(),
+            alias: "localnet".to_string(),
             rpc: IOTA_LOCAL_NETWORK_URL.into(),
             graphql: Some(IOTA_LOCAL_NETWORK_GRAPHQL_URL.into()),
             ws: None,

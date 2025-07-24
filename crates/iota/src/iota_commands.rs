@@ -52,6 +52,7 @@ use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{self, info};
+use url::Url;
 
 #[cfg(feature = "iota-names")]
 use crate::name_commands;
@@ -1199,23 +1200,34 @@ fn prompt_for_environment(
             let url = if accept_defaults {
                 String::new()
             } else {
-                print!("IOTA Full node server URL (Defaults to IOTA Testnet if not specified) : ");
+                print!(
+                    "[mainet|testnet|devnet|localnet], or an IOTA Full node server URL (defaults to testnet if not specified) : "
+                );
                 read_line()?
             };
-            if url.trim().is_empty() {
-                Ok(IotaEnv::testnet())
-            } else {
-                print!("Environment alias for [{url}] : ");
-                let alias = read_line()?;
-                let alias = if alias.trim().is_empty() {
-                    "custom".to_string()
-                } else {
-                    alias
-                };
-                Ok(IotaEnv::new(alias, url))
+            match url.trim() {
+                "mainnet" => Ok(IotaEnv::mainnet()),
+                "testnet" => Ok(IotaEnv::testnet()),
+                "devnet" => Ok(IotaEnv::devnet()),
+                "localnet" => Ok(IotaEnv::localnet()),
+                "" => Ok(IotaEnv::testnet()),
+                url => {
+                    if Url::parse(url).is_ok() {
+                        print!("Environment alias for [{url}] : ");
+                        let alias = read_line()?;
+                        let alias = if alias.trim().is_empty() {
+                            "custom".to_string()
+                        } else {
+                            alias
+                        };
+                        Ok(IotaEnv::new(alias, url))
+                    } else {
+                        bail!("Invalid custom URL");
+                    }
+                }
             }
         } else {
-            anyhow::bail!("no environment exists for the client")
+            bail!("no environment exists for the client")
         }
     }
 }
@@ -1246,7 +1258,10 @@ fn prompt_if_no_config(
         let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         let mut config = IotaClientConfig::new(keystore).with_default_envs();
         if prompt_for_env {
-            config.set_env(prompt_for_environment(wallet_conf_path, accept_defaults)?);
+            let env = prompt_for_environment(wallet_conf_path, accept_defaults)?;
+            let alias = env.alias().clone();
+            config.set_env(env);
+            config.set_active_env(alias);
         }
         // Get an existing address or generate a new one
         if let Some(existing_address) = config.keystore().addresses().first() {
