@@ -323,17 +323,21 @@ impl DagState {
 
     pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions) {
         let block_ref = transactions.block_ref();
-        self.recent_transactions
-            .insert(block_ref, transactions.clone());
+        if self
+            .recent_transactions
+            .insert(block_ref, transactions.clone())
+            .is_none()
+        {
+            tracing::debug!("Adding transactions for block ref: {block_ref}");
+            self.transactions_to_write.push(transactions);
+            // If a block is not very old, add it to pending acknowledgments
+            let clock_round = self.threshold_clock_round();
+            let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
 
-        // If a block is not very old, add it to pending acknowledgments
-        let clock_round = self.threshold_clock_round();
-        let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
-
-        if block_ref.round >= min_round {
-            self.add_pending_acknowledgment(block_ref);
+            if block_ref.round >= min_round {
+                self.add_pending_acknowledgment(block_ref);
+            }
         }
-        self.transactions_to_write.push(transactions);
     }
 
     pub fn update_last_available_commit_leader_round(&mut self, round: Round) {

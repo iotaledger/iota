@@ -364,7 +364,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .inc();
                     }
                     if !missing_committed_txns.is_empty() {
-                        debug!(
+                        info!(
                             "Fetched blocks have missing committed transactions: {:?} for commit range {:?}",
                             missing_committed_txns, fetched_commit_range
                         );

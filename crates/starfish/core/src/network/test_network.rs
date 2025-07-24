@@ -27,11 +27,11 @@ pub(crate) struct TestService {
 impl TestService {
     pub(crate) fn new() -> Self {
         Self {
+            own_block_bundles: Vec::new(),
             handle_subscribed_block_bundle: Vec::new(),
             handle_subscribed_block_bundle_requests: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
-            own_block_bundles: Vec::new(),
         }
     }
 

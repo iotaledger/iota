@@ -225,7 +225,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
         let block_ref = verified_block.reference();
-        debug!("Received block {} via send block.", block_ref);
+        debug!("Received block {} via stream block bundle.", block_ref);
 
         // 2. Reject block with timestamp too far in the future.
         let now = self.context.clock.timestamp_utc_ms();
@@ -529,6 +529,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let mut dag_state_guard = dag_state.write();
                 let block_headers =
                     dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
+                drop(dag_state_guard);
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
