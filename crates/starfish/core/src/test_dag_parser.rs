@@ -392,7 +392,7 @@ mod tests {
             assert!(expected_block_b6_ancestor_slots.contains(&Slot::from(*ancestor)));
         }
         // B -> ([*, A0],[B1, C1]),
-        for transaction_ack in block_a6.acknowledgments() {
+        for transaction_ack in block_b6.acknowledgments() {
             assert!(
                 expected_block_b6_acknowledgments_slots.contains(&Slot::from(*transaction_ack))
             );
