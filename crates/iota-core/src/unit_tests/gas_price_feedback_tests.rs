@@ -1204,7 +1204,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 
 // Test gas price feedback mechanism in `TotalTxCount` mode in non-trivial case.
 #[sim_test]
-async fn gas_price_feedback_mechanism_non_trivial_case_in_total_tx_count_mode() {
+async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     let num_gas_objects = 13;
     let tester = GasPriceFeedbackTester::new(
         0,                                            // max_deferral_rounds_for_congestion_control
@@ -1455,7 +1455,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_in_total_tx_count_mode() 
             ),]
         );
     }
-    // Transactions that both shared counters:
+    // Transactions that touch both shared counters:
     for effects in effects_vec.iter().skip(9).take(5) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
@@ -1499,6 +1499,323 @@ async fn gas_price_feedback_mechanism_non_trivial_case_in_total_tx_count_mode() 
                     UnchangedSharedKind::Cancelled(
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
+                        )
+                    )
+                ),
+            ]
+        );
+    }
+}
+
+// Test gas price feedback mechanism in `TotalGasBudget` mode in non-trivial
+// case.
+#[sim_test]
+async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
+    let num_gas_objects = 13;
+    let tester = GasPriceFeedbackTester::new(
+        0,                                              // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalGasBudget, // per_object_congestion_control_mode
+        Some(9_000_000_000),                            // max_execution_duration_per_commit
+        true,                                           // assign_min_free_execution_slot
+        true,                                           // enable_gas_price_feedback_mechanism
+        num_gas_objects,
+    )
+    .await;
+
+    // Prepare certificates
+    let certificates = tester.create_certificates_for_non_trivial_case().await;
+    assert_eq!(certificates.len(), num_gas_objects);
+    // Shuffle certificates so that they do not have any specific order in
+    // terms of gas price.
+    let mut shuffled_certificates = certificates.clone();
+    shuffled_certificates.shuffle(&mut rand::thread_rng());
+
+    let scheduled_transactions = tester
+        .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)
+        .await;
+    assert_eq!(
+        scheduled_transactions.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // Recall the structure of these certificates:
+    // (gas price, gas budget, counter_1_mutable, counter_2_mutable)
+    // [
+    //     (100K, 3_000_000_000, Some(true),  Some(false)), // 0
+    //     (1011, 1_000_000_000, Some(false), Some(true)),  // 1
+    //     (1010, 4_000_000_000, Some(false), Some(true)),  // 2
+    //     (1009, 2_000_000_000, None,        Some(true)),  // 3
+    //     (1008, 1_000_000_001, None,        Some(false)), // 4
+    //     (1007, 5_000_000_000, None,        Some(true)),  // 5
+    //     (1006, 5_000_000_001, Some(true),  Some(true)),  // 6
+    //     (1005, 8_000_000_000, Some(true),  Some(true)),  // 7
+    //     (1004, 4_000_000_000, Some(true),  None),        // 8
+    //     (1003, 2_000_000_000, Some(true),  None),        // 9
+    //     (1002, 1_000_000_001, Some(false), Some(false)), // 10
+    //     (1001, 5_000_000_001, Some(true),  Some(false)), // 11
+    //     (1000, 9_000_000_000, Some(false), Some(true)),  // 12
+    // ];
+
+    // Allocations of mutably accessed shared objects should look as follows:
+    // |-------------------------------------------------|------------|
+    // |        object_1        |        object_2        | start time |
+    // |________________________|________________________|____________|
+    // |------------------------|------------------------|---- 9B     |
+    // |                        |                        |            |
+    // | cert. 9 (g=5000, d=2B) |------------------------|---- 8B     |
+    // |                        |                        |            |
+    // |------------------------|                        |---- 7B     |
+    // |                        |                        |            |
+    // |                        | cert. 2 (g=8000, d=4B) |---- 6B     |
+    // |                        |                        |            |
+    // | cert. 8 (g=6000, d=4B) |                        |---- 5B     |
+    // |                        |                        |            |
+    // |                        |------------------------|---- 4B     |
+    // |                        | cert. 1 (g=9000, d=1B) |            |
+    // |------------------------|------------------------|---- 3B     |
+    // |                        |                        |            |
+    // |                        |------------------------|---- 2B     |
+    // | cert. 0 (g=100K, d=3M) |                        |            |
+    // |                        | cert. 3 (g=7000, d=2B) |---- 1B     |
+    // |                        |                        |            |
+    // |-------------------------------------------------|---- 0 -----|
+    // That is, certificates 4, 5, 6, 7, 10, 11, 12 should be cancelled.
+
+    // Checks that there are no deferred transactions
+    assert!(
+        tester
+            .authority_state
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .unwrap()
+            .is_empty()
+    );
+
+    // The first scheduled transaction should be `ConsensusCommitPrologueV1`
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
+        scheduled_transactions[0].data().transaction_data().kind()
+    {
+        // Check if `ConsensusDeterminedVersionAssignments` are correct.
+        let cancelled_txs = vec![
+            (
+                *certificates[4].digest(),
+                vec![(
+                    tester.shared_counter_2.0,
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        certificates[2].gas_price() + 1,
+                    ),
+                )],
+            ),
+            (
+                *certificates[5].digest(),
+                vec![(
+                    tester.shared_counter_2.0,
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        certificates[2].gas_price() + 1,
+                    ),
+                )],
+            ),
+            (
+                *certificates[6].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[1].gas_price() + 1,
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[1].gas_price() + 1,
+                        ),
+                    ),
+                ],
+            ),
+            (
+                *certificates[7].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[0].gas_price(),
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[0].gas_price(),
+                        ),
+                    ),
+                ],
+            ),
+            (
+                *certificates[10].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[2].gas_price() + 1,
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[2].gas_price() + 1,
+                        ),
+                    ),
+                ],
+            ),
+            (
+                *certificates[11].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[1].gas_price() + 1,
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[1].gas_price() + 1,
+                        ),
+                    ),
+                ],
+            ),
+            (
+                *certificates[12].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[0].gas_price(),
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            certificates[0].gas_price(),
+                        ),
+                    ),
+                ],
+            ),
+        ];
+        assert_eq!(
+            prologue_tx.consensus_determined_version_assignments,
+            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+        );
+    } else {
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
+    }
+
+    let effects_vec = tester
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .await;
+    assert_eq!(
+        effects_vec.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // `ConsensusCommitPrologueV1` and first 6 scheduled transactions should be
+    // successfully executed
+    for effects in effects_vec.iter().take(7) {
+        assert!(effects.status().is_ok());
+    }
+
+    // The rest of transactions should be cancelled:
+    //
+    // Transactions that touch shared counter 2:
+    let expected_suggested_gas_price = certificates[2].gas_price() + 1;
+    for effects in effects_vec.iter().skip(7).take(2) {
+        if let ExecutionStatus::Failure { error, command } = effects.status() {
+            assert!(command.is_none());
+            if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects,
+                suggested_gas_price,
+            } = error
+            {
+                // Check is returned congested_objects and suggested_gas_price are correct.
+                assert_eq!(
+                    *congested_objects,
+                    CongestedObjects(vec![tester.shared_counter_2.0])
+                );
+                assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
+            } else {
+                panic!(
+                    "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
+                );
+            }
+        } else {
+            panic!("Transaction should have been be cancelled.")
+        }
+        // Check if unchanged_shared_objects in effects of the cancelled transaction
+        // are correct
+        assert_eq!(
+            effects.unchanged_shared_objects(),
+            vec![(
+                tester.shared_counter_2.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price
+                    )
+                )
+            ),]
+        );
+    }
+    // Transactions that touch both shared counters:
+    for (i, effects) in effects_vec.iter().skip(9).take(5).enumerate() {
+        let expected_suggested_gas_price = if i == 0 || i == 3 {
+            certificates[1].gas_price() + 1
+        } else if i == 1 || i == 4 {
+            certificates[0].gas_price()
+        } else if i == 2 {
+            certificates[2].gas_price() + 1
+        } else {
+            panic!("Expected only 5 effects to iterate.")
+        };
+
+        if let ExecutionStatus::Failure { error, command } = effects.status() {
+            assert!(command.is_none());
+            if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects,
+                suggested_gas_price,
+            } = error
+            {
+                // Check is returned congested_objects and suggested_gas_price are correct.
+                assert_eq!(
+                    *congested_objects,
+                    CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                );
+                assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
+            } else {
+                panic!(
+                    "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
+                );
+            }
+        } else {
+            panic!("Transaction should have been be cancelled.")
+        }
+        // Check if unchanged_shared_objects in effects of the cancelled transaction
+        // are correct
+        assert_eq!(
+            effects.unchanged_shared_objects(),
+            vec![
+                (
+                    tester.shared_counter_1.0,
+                    UnchangedSharedKind::Cancelled(
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            expected_suggested_gas_price
+                        )
+                    )
+                ),
+                (
+                    tester.shared_counter_2.0,
+                    UnchangedSharedKind::Cancelled(
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            expected_suggested_gas_price
                         )
                     )
                 ),
