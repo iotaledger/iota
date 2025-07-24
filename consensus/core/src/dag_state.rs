@@ -249,17 +249,12 @@ impl DagState {
         // Initialize scoring metrics according to the metrics in store and the blocks
         // that were loaded to cache.
         let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
-        let blocks_in_cache = &state.recent_refs_by_authority;
-        let threshold_clock_round = state.threshold_clock_round();
-        let eviction_rounds = &state.evicted_rounds;
-        let context = &state.context;
-
         state.context.metrics.initialize_scoring_metrics(
             recovered_scoring_metrics,
-            blocks_in_cache,
-            threshold_clock_round,
-            eviction_rounds,
-            context,
+            &state.recent_refs_by_authority,
+            state.threshold_clock_round(),
+            &state.evicted_rounds,
+            state.context.clone(),
         );
 
         if state.gc_enabled() {

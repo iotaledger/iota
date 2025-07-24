@@ -128,7 +128,7 @@ impl Metrics {
             calculate_scoring_metrics_for_range(
                 cached_block_rounds,
                 eviction_round + 1,
-                threshold_clock_round - 1,
+                threshold_clock_round.saturating_sub(1),
             );
 
         self.update_missing_blocks_and_equivocations(
@@ -192,7 +192,7 @@ impl Metrics {
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
-        context: &Context,
+        context: Arc<Context>,
     ) {
         let hostnames = context
             .committee
