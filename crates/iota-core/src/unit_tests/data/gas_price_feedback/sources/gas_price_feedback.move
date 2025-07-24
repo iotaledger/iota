@@ -38,4 +38,13 @@ module gas_price_feedback::gas_price_feedback {
 
         let value = counter_2.value;
     }
+
+    public entry fun increment_one(counter:  &mut Counter) {
+        let value = counter.value + 1;
+        counter.value = value;
+    }
+
+    public entry fun read_one(counter:  &Counter) {
+        let value = counter.value;
+    }
 }
