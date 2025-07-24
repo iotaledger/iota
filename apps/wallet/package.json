@@ -100,6 +100,7 @@
         "@iota/ledgerjs-hw-app-iota": "workspace:*",
         "@iota/signers": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
+        "@iota/iota-names-sdk": "0.0.0-experimental-20250722084400", 
         "@ledgerhq/errors": "^6.12.4",
         "@ledgerhq/hw-transport": "^6.31.0",
         "@ledgerhq/hw-transport-webhid": "^6.27.15",

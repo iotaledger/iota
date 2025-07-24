@@ -32,6 +32,7 @@
         "@iota/graphql-transport": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
+        "@iota/iota-names-sdk": "0.0.0-experimental-20250722084400", 
         "@noble/hashes": "^1.4.0",
         "@sentry/react": "^7.120.3",
         "@tanstack/react-query": "^5.50.1",

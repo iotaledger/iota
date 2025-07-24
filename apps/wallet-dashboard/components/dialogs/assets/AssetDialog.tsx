@@ -12,6 +12,7 @@ import {
     useKioskClient,
     useNftDetails,
     toast,
+    SendNftFormValues,
 } from '@iota/core';
 import { DetailsView, SendView, KioskDetailsView } from './views';
 import { IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
@@ -19,6 +20,7 @@ import { AssetsDialogView } from './constants';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
 import { ampli } from '@/lib/utils/analytics';
+import { shouldResolveInputAsName } from '@iota/core/utils/validation/names';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -26,12 +28,9 @@ interface AssetsDialogProps {
     refetchAssets: () => void;
 }
 
-interface FormValues {
-    to: string;
-}
-
-const INITIAL_VALUES: FormValues = {
+const INITIAL_VALUES: SendNftFormValues = {
     to: '',
+    resolvedAddress: '',
 };
 
 export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
@@ -62,16 +61,20 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
         executeFn: signAndExecuteTransaction,
     });
 
-    const formik = useFormik<FormValues>({
+    const formik = useFormik<SendNftFormValues>({
         initialValues: INITIAL_VALUES,
-        validationSchema: validationSchema,
+        validationSchema,
         onSubmit: onSubmit,
-        validateOnChange: true,
+        validateOnChange: false,
+        validateOnBlur: false,
     });
 
-    async function onSubmit(values: FormValues) {
+    async function onSubmit(values: SendNftFormValues) {
         try {
-            const executed = await sendAsset(values.to);
+            const isNameInput = shouldResolveInputAsName(values.to);
+            const executed = await sendAsset(
+                isNameInput ? (values.resolvedAddress ?? '') : values.to,
+            );
 
             const tx = await iotaClient.waitForTransaction({
                 digest: executed.digest,
