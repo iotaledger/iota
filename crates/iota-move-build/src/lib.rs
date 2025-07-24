@@ -99,10 +99,11 @@ impl BuildConfig {
         let install_dir = tempfile::tempdir().unwrap().into_path();
         let config = MoveBuildConfig {
             default_flavor: Some(move_compiler::editions::Flavor::Iota),
-            implicit_dependencies: Dependencies::new(),
             lock_file: Some(install_dir.join("Move.lock")),
             install_dir: Some(install_dir),
             lint_flag: LintFlag::LEVEL_NONE,
+            // TODO: in the future, we may want to provide local implicit dependencies to tests
+            implicit_dependencies: Dependencies::new(),
             silence_warnings: true,
             ..MoveBuildConfig::default()
         };

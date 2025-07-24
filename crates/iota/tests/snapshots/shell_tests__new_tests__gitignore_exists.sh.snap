@@ -9,7 +9,7 @@ description: tests/shell_tests/new_tests/gitignore_exists.sh
 
 # check that iota move new correctly updates existing .gitignore
 mkdir example
-echo "existing_ignore" >> example/.gitignore
+echo "existing_ignore" > example/.gitignore
 iota move new example
 cat example/.gitignore
 
