@@ -554,8 +554,8 @@ impl VerifiedBlockHeader {
     }
 
     pub(crate) fn new_from_bytes(serialized_block_header: Bytes) -> ConsensusResult<Self> {
-        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedBlockHeader)?;
+        let signed_block_header: SignedBlockHeader =
+            bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
 
         // Only accepted blocks should have been written to storage.
         Ok(VerifiedBlockHeader::new_verified(
@@ -787,7 +787,7 @@ impl TryFrom<SerializedHeaderAndTransactions> for VerifiedBlock {
     fn try_from(serialized_block: SerializedHeaderAndTransactions) -> ConsensusResult<Self> {
         let signed_block_header: SignedBlockHeader =
             bcs::from_bytes(&serialized_block.serialized_block_header)
-                .map_err(ConsensusError::MalformedBlockHeader)?;
+                .map_err(ConsensusError::MalformedHeader)?;
         let transactions: Vec<Transaction> =
             bcs::from_bytes(&serialized_block.serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;

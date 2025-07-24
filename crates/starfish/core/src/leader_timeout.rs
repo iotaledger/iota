@@ -191,7 +191,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusResult,
         leader_timeout::LeaderTimeoutTask,
-        network::{BlockBundleStream, BlockStream, NetworkClient},
+        network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
@@ -201,15 +201,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl NetworkClient for FakeNetworkClient {
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            unimplemented!("Unimplemented")
-        }
-
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
@@ -223,16 +214,6 @@ mod tests {
             &self,
             _peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")

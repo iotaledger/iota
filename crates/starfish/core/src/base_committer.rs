@@ -197,7 +197,7 @@ impl BaseCommitter {
             let ancestor = self
                 .dag_state
                 .read()
-                .get_block(ancestor)
+                .get_block_header(ancestor)
                 .unwrap_or_else(|| panic!("Block not found in storage: {:?}", ancestor));
             if let Some(support) = self.find_supported_block(leader_slot, &ancestor) {
                 return Some(support);

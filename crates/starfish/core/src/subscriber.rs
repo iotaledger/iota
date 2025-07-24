@@ -241,10 +241,7 @@ mod test {
         block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{
-            BlockBundleStream, BlockStream, SerializedBlock, SerializedHeaderAndTransactions,
-            test_network::TestService,
-        },
+        network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
     };
 
@@ -258,49 +255,26 @@ mod test {
 
     #[async_trait]
     impl NetworkClient for SubscriberTestClient {
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            let block_stream = stream::unfold((), |_| async {
-                sleep(Duration::from_millis(1)).await;
-                Some((
-                    SerializedBlock::try_from(SerializedHeaderAndTransactions::new_for_test(
-                        Bytes::from(vec![1u8; 8]),
-                    ))
-                    .unwrap(),
-                    (),
-                ))
-            })
-            .take(10);
-            Ok(Box::pin(block_stream))
-        }
-
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
-            unimplemented!("Unimplemented")
+            let block_stream = stream::unfold((), |_| async {
+                sleep(Duration::from_millis(1)).await;
+                let block = SerializedBlockBundle {
+                    serialized_block_bundle: Bytes::from(vec![1u8; 8]),
+                };
+                Some((block, ()))
+            })
+            .take(10);
+            Ok(Box::pin(block_stream))
         }
-
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -353,11 +327,11 @@ mod test {
         let peer = context.committee.to_authority_index(2).unwrap();
         subscriber.subscribe(peer);
 
-        // Wait for enough blocks received.
+        // Wait for enough block bundles received.
         for _ in 0..10 {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_secs(1)).await;
             let service = authority_service.lock();
-            if service.handle_subscribed_block.len() >= 100 {
+            if service.handle_subscribed_block_bundle.len() >= 100 {
                 break;
             }
         }
@@ -365,15 +339,14 @@ mod test {
         // Even if the stream ends after 10 blocks, the subscriber should retry and get
         // enough blocks eventually.
         let service = authority_service.lock();
-        assert!(service.handle_subscribed_block.len() >= 100);
-        for (p, block) in service.handle_subscribed_block.iter() {
+        assert!(service.handle_subscribed_block_bundle.len() >= 100);
+        for (p, block) in service.handle_subscribed_block_bundle.iter() {
             assert_eq!(*p, peer);
             assert_eq!(
                 *block,
-                SerializedBlock::try_from(SerializedHeaderAndTransactions::new_for_test(
-                    Bytes::from(vec![1u8; 8])
-                ))
-                .unwrap()
+                SerializedBlockBundle {
+                    serialized_block_bundle: Bytes::from(vec![1u8; 8]),
+                }
             );
         }
     }

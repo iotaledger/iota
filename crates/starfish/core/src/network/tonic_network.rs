@@ -28,8 +28,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock,
-    SerializedBlockBundle,
+    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -99,42 +98,6 @@ impl TonicClient {
 // otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
-    async fn subscribe_blocks(
-        &self,
-        peer: AuthorityIndex,
-        last_received: Round,
-        timeout: Duration,
-    ) -> ConsensusResult<BlockStream> {
-        let mut client = self.get_client(peer, timeout).await?;
-        // TODO: add sampled block acknowledgments for latency measurements.
-        let request = Request::new(stream::once(async move {
-            SubscribeBlocksRequest {
-                last_received_round: last_received,
-            }
-        }));
-        let response = client.subscribe_blocks(request).await.map_err(|e| {
-            ConsensusError::NetworkRequest(format!("subscribe_blocks failed: {e:?}"))
-        })?;
-        let stream = response
-            .into_inner()
-            .take_while(|b| futures::future::ready(b.is_ok()))
-            .filter_map(move |b| async move {
-                match b {
-                    Ok(response) => Some(SerializedBlock {
-                        serialized_block: response.vec_serialized_blocks,
-                    }),
-                    Err(e) => {
-                        debug!("Network error received from {}: {e:?}", peer);
-                        None
-                    }
-                }
-            });
-        let rate_limited_stream =
-            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
-                .boxed();
-        Ok(rate_limited_stream)
-    }
-
     async fn subscribe_block_bundles(
         &self,
         peer: AuthorityIndex,
@@ -169,80 +132,6 @@ impl NetworkClient for TonicClient {
             tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
                 .boxed();
         Ok(rate_limited_stream)
-    }
-
-    // Returns a vector of serialized blocks. Used by commit synchronizer
-    async fn fetch_blocks(
-        &self,
-        peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
-        highest_accepted_rounds: Vec<Round>,
-        timeout: Duration,
-    ) -> ConsensusResult<Vec<Bytes>> {
-        let mut client = self.get_client(peer, timeout).await?;
-        let mut request = Request::new(FetchBlocksRequest {
-            block_refs: block_refs
-                .iter()
-                .filter_map(|r| match bcs::to_bytes(r) {
-                    Ok(serialized) => Some(serialized),
-                    Err(e) => {
-                        debug!("Failed to serialize block ref {:?}: {e:?}", r);
-                        None
-                    }
-                })
-                .collect(),
-            highest_accepted_rounds,
-        });
-        request.set_timeout(timeout);
-        let mut stream = client
-            .fetch_blocks(request)
-            .await
-            .map_err(|e| {
-                if e.code() == tonic::Code::DeadlineExceeded {
-                    ConsensusError::NetworkRequestTimeout(format!("fetch_blocks failed: {e:?}"))
-                } else {
-                    ConsensusError::NetworkRequest(format!("fetch_blocks failed: {e:?}"))
-                }
-            })?
-            .into_inner();
-        let mut total_fetched_bytes = 0;
-        let mut vec_serialized_blocks = vec![];
-        loop {
-            match stream.message().await {
-                Ok(Some(response)) => {
-                    for b in &response.vec_serialized_blocks {
-                        total_fetched_bytes += b.len();
-                    }
-                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
-                        info!(
-                            "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
-                        );
-                        break;
-                    }
-                    vec_serialized_blocks.extend(response.vec_serialized_blocks);
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => {
-                    if total_fetched_bytes == 0 {
-                        if e.code() == tonic::Code::DeadlineExceeded {
-                            return Err(ConsensusError::NetworkRequestTimeout(format!(
-                                "fetch_blocks failed mid-stream: {e:?}"
-                            )));
-                        }
-                        return Err(ConsensusError::NetworkRequest(format!(
-                            "fetch_blocks failed mid-stream: {e:?}"
-                        )));
-                    } else {
-                        warn!("fetch_blocks failed mid-stream: {e:?}");
-                        break;
-                    }
-                }
-            }
-        }
-        Ok(vec_serialized_blocks)
     }
 
     // Returns a vector of serialized block headers
@@ -604,50 +493,6 @@ impl<S: NetworkService> TonicServiceProxy<S> {
 
 #[async_trait]
 impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
-    type SubscribeBlocksStream =
-        Pin<Box<dyn Stream<Item = Result<SubscribeBlocksResponse, tonic::Status>> + Send>>;
-
-    async fn subscribe_blocks(
-        &self,
-        request: Request<Streaming<SubscribeBlocksRequest>>,
-    ) -> Result<Response<Self::SubscribeBlocksStream>, tonic::Status> {
-        let Some(peer_index) = request
-            .extensions()
-            .get::<PeerInfo>()
-            .map(|p| p.authority_index)
-        else {
-            return Err(tonic::Status::internal("PeerInfo not found"));
-        };
-        let mut request_stream = request.into_inner();
-        let first_request = match request_stream.next().await {
-            Some(Ok(r)) => r,
-            Some(Err(e)) => {
-                debug!(
-                    "subscribe_blocks() request from {} failed: {e:?}",
-                    peer_index
-                );
-                return Err(tonic::Status::invalid_argument("Request error"));
-            }
-            None => {
-                return Err(tonic::Status::invalid_argument("Missing request"));
-            }
-        };
-        let stream = self
-            .service
-            .handle_subscribe_blocks(peer_index, first_request.last_received_round)
-            .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
-            .map(|serialized_block| {
-                Ok(SubscribeBlocksResponse {
-                    vec_serialized_blocks: serialized_block.serialized_block,
-                })
-            });
-        let rate_limited_stream =
-            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
-                .boxed();
-        Ok(Response::new(rate_limited_stream))
-    }
-
     type SubscribeBlockBundlesStream =
         Pin<Box<dyn Stream<Item = Result<SubscribeBlockBundlesResponse, tonic::Status>> + Send>>;
 
@@ -721,7 +566,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let highest_accepted_rounds = inner.highest_accepted_rounds;
         let blocks = self
             .service
-            .handle_fetch_block_headers(peer_index, block_refs, highest_accepted_rounds)
+            .handle_fetch_headers(peer_index, block_refs, highest_accepted_rounds)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>> =
@@ -730,51 +575,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 .map(|block_headers| {
                     Ok(FetchBlockHeadersResponse {
                         vec_serialized_block_header: block_headers,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter();
-        let stream = iter(responses);
-        Ok(Response::new(stream))
-    }
-
-    type FetchBlocksStream = Iter<std::vec::IntoIter<Result<FetchBlocksResponse, tonic::Status>>>;
-
-    async fn fetch_blocks(
-        &self,
-        request: Request<FetchBlocksRequest>,
-    ) -> Result<Response<Self::FetchBlocksStream>, tonic::Status> {
-        let Some(peer_index) = request
-            .extensions()
-            .get::<PeerInfo>()
-            .map(|p| p.authority_index)
-        else {
-            return Err(tonic::Status::internal("PeerInfo not found"));
-        };
-        let inner = request.into_inner();
-        let block_refs = inner
-            .block_refs
-            .into_iter()
-            .filter_map(|serialized| match bcs::from_bytes(&serialized) {
-                Ok(r) => Some(r),
-                Err(e) => {
-                    debug!("Failed to deserialize block ref {:?}: {e:?}", serialized);
-                    None
-                }
-            })
-            .collect();
-        let highest_accepted_rounds = inner.highest_accepted_rounds;
-        let blocks = self
-            .service
-            .handle_fetch_blocks(peer_index, block_refs, highest_accepted_rounds)
-            .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
-        let responses: std::vec::IntoIter<Result<FetchBlocksResponse, tonic::Status>> =
-            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
-                .into_iter()
-                .map(|serialized_block| {
-                    Ok(FetchBlocksResponse {
-                        vec_serialized_blocks: serialized_block,
                     })
                 })
                 .collect::<Vec<_>>()
