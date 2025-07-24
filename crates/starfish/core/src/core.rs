@@ -393,10 +393,13 @@ impl Core {
         let _scope = monitored_scope("Core::add_transactions");
 
         // Add transactions to the dag state.
-        let mut dag_state = self.dag_state.write();
+        let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction);
         }
+        // Safe to drop the guard here as the write/read locks will be asquired in
+        // commit_observer
+        drop(dag_state_guard);
 
         // After adding transactions, some pending subdags might be committable.
         // Commit observer is called with an empty vector of new leaders to check if all
@@ -713,12 +716,14 @@ impl Core {
         assert_eq!(accepted_blocks.len(), 1);
         assert!(missing.is_empty());
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
-        self.dag_state.write().flush();
-
+        let mut dag_state_guard = self.dag_state.write();
+        dag_state_guard.flush();
+        drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
-        ack_transactions(verified_block.reference());
+        let block_ref = verified_block.reference();
+        ack_transactions(block_ref);
 
-        info!("Created block {verified_block:?} for round {clock_round}");
+        info!("Created block {block_ref} for round {clock_round}");
 
         self.context
             .metrics
