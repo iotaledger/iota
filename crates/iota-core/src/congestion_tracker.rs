@@ -84,6 +84,15 @@ impl CongestionTracker {
     }
 
     /// Processes a checkpoint by collecting features and sending a training batch to the model server
+    /// Processes a checkpoint, extracts aggregate transaction-level features, and sends a training batch to the model server
+    ///
+    /// For each transaction effect, this function:
+    ///   - Collects all shared, mutated object IDs touched by the transaction
+    ///   - Looks up per-object congestion stats (cancellation time, highest cancelled gas price, etc.)
+    ///   - Aggregates these stats across all objects (mean/avg/min/max/total, as needed)
+    ///   - Builds a single feature vector representing the whole transaction, not just individual objects
+    ///   - Uses this as input, and the transaction's actual gas price as label
+    ///   - Sends a batch of (features, label) samples to the ML model server for training
     pub async fn process_checkpoint_effects(
         &self,
         transaction_cache_reader: &dyn TransactionCacheRead,
@@ -93,7 +102,7 @@ impl CongestionTracker {
         let mut training_data = Vec::new();
 
         for effect in effects {
-            // Extract the gas price from the transaction
+            // 1. Extract actual gas price paid for this transaction (used as label)
             let gas_price = transaction_cache_reader
                 .get_transaction_block(effect.transaction_digest())
                 .unwrap()
@@ -101,7 +110,7 @@ impl CongestionTracker {
                 .transaction_data()
                 .gas_price();
 
-            // Collect all mutated shared object IDs for this transaction
+            // 2. Collect all mutated shared object IDs for this transaction
             let object_ids: Vec<ObjectID> = effect
                 .input_shared_objects()
                 .iter()
@@ -111,22 +120,62 @@ impl CongestionTracker {
                 })
                 .collect();
 
-            // Build feature vector from congestion info of each object
-            let mut features = vec![];
+            // 3. For each object, collect congestion stats if present and aggregate features
+            let mut cancel_count = 0;
+            let mut cancel_recent_count = 0;
+            let mut sum_cancel_price = 0u64;
+            let mut min_cancel_price = u64::MAX;
+            let mut max_cancel_price = u64::MIN;
+            let mut sum_success_price = 0u64;
+            let mut min_success_price = u64::MAX;
+            let mut max_success_price = u64::MIN;
+            let mut with_info = 0u64; // Number of objects with congestion info
+
             for object_id in &object_ids {
                 if let Some(info) = self.get_congestion_info(*object_id) {
-                    features.push(serde_json::json!({
-                        "tx_count": 1, // Placeholder — currently hardcoded
-                        "cancel_count": if info.last_cancellation_time >= checkpoint.timestamp_ms { 1 } else { 0 },
-                        "avg_gas_price": info.highest_cancelled_gas_price,
-                    }));
+                    // Track cancellation events
+                    cancel_count += 1;
+                    // Did this object have a cancellation this checkpoint?
+                    if info.last_cancellation_time >= checkpoint.timestamp_ms {
+                        cancel_recent_count += 1;
+                    }
+                    // Aggregate gas prices for cancelled tx
+                    sum_cancel_price += info.highest_cancelled_gas_price;
+                    min_cancel_price = min_cancel_price.min(info.highest_cancelled_gas_price);
+                    max_cancel_price = max_cancel_price.max(info.highest_cancelled_gas_price);
+
+                    // Aggregate gas prices for successful tx if available
+                    if let Some(price) = info.lowest_executed_gas_price {
+                        sum_success_price += price;
+                        min_success_price = min_success_price.min(price);
+                        max_success_price = max_success_price.max(price);
+                    }
+                    with_info += 1;
                 }
             }
 
-            // Add to training batch if we have any features
-            if !features.is_empty() {
+            // Only build a training sample if at least one object had congestion info
+            if with_info > 0 {
+                // Compute aggregate features for this transaction:
+                // These features are derived from all objects the tx touches that have congestion info:
+                let mean_cancel_price = sum_cancel_price as f64 / with_info as f64;
+                let mean_success_price = if sum_success_price > 0 { sum_success_price as f64 / with_info as f64 } else { 0.0 };
+                let feature_vector = serde_json::json!({
+                    // Counts
+                    "num_objects": object_ids.len(),
+                    "num_objects_with_congestion_info": with_info,
+                    "num_objects_with_recent_cancel": cancel_recent_count,
+                    // Gas price stats for cancelled txs (object-level maxes)
+                    "mean_cancelled_gas_price": mean_cancel_price,
+                    "min_cancelled_gas_price": if min_cancel_price != u64::MAX { min_cancel_price } else { 0 },
+                    "max_cancelled_gas_price": if max_cancel_price != u64::MIN { max_cancel_price } else { 0 },
+                    // Gas price stats for successes
+                    "mean_success_gas_price": mean_success_price,
+                    "min_success_gas_price": if min_success_price != u64::MAX { min_success_price } else { 0 },
+                    "max_success_gas_price": if max_success_price != u64::MIN { max_success_price } else { 0 },
+                });
                 training_data.push(serde_json::json!({
-                    "features": features,
+                    "features": feature_vector,
                     "label": gas_price,
                 }));
             }
