@@ -6,7 +6,7 @@ use core::result::Result::Ok;
 use std::{
     any::Any as StdAny,
     collections::{BTreeMap, HashMap},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -952,203 +952,39 @@ impl PgIndexerStore {
                 },
             );
 
-        let mut futures = vec![];
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let senders_len = senders.len();
-            let recipients_len = recipients.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in senders.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_senders::table, chunk, conn);
-                    }
-                    for chunk in recipients.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_recipients::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(
-                    elapsed,
-                    "Persisted {} rows to tx_senders and {} rows to tx_recipients",
-                    senders_len,
-                    recipients_len,
-                );
-            })
-            .tap_err(|e| {
-                tracing::error!(
-                    "Failed to persist tx_senders and tx_recipients with error: {}",
-                    e
-                );
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let input_objects_len = input_objects.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in input_objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_input_objects::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(
-                    elapsed,
-                    "Persisted {} rows to tx_input_objects", input_objects_len,
-                );
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_input_objects with error: {}", e);
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let changed_objects_len = changed_objects.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in changed_objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_changed_objects::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(
-                    elapsed,
-                    "Persisted {} rows to tx_changed_objects table", changed_objects_len,
-                );
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_changed_objects with error: {}", e);
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let rows_len = pkgs.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in pkgs.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_calls_pkg::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(
-                    elapsed,
-                    "Persisted {} rows to tx_calls_pkg tables", rows_len
-                );
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_calls_pkg with error: {}", e);
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let rows_len = mods.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in mods.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_calls_mod::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(elapsed, "Persisted {} rows to tx_calls_mod table", rows_len);
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_calls_mod with error: {}", e);
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let rows_len = funs.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in funs.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_calls_fun::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(elapsed, "Persisted {} rows to tx_calls_fun table", rows_len);
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_calls_fun with error: {}", e);
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let calls_len = digests.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in digests.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_digests::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                Duration::from_secs(60)
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(elapsed, "Persisted {} rows to tx_digests tables", calls_len);
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_digests with error: {}", e);
-            })
-        }));
-
-        futures.push(self.spawn_blocking_task(move |this| {
-            let now = Instant::now();
-            let rows_len = kinds.len();
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    for chunk in kinds.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!(tx_kinds::table, chunk, conn);
-                    }
-                    Ok::<(), IndexerError>(())
-                },
-                Duration::from_secs(60)
-            )
-            .tap_ok(|_| {
-                let elapsed = now.elapsed().as_secs_f64();
-                info!(elapsed, "Persisted {} rows to tx_kinds tables", rows_len);
-            })
-            .tap_err(|e| {
-                tracing::error!("Failed to persist tx_kinds with error: {}", e);
-            })
-        }));
+        let futures = [
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_senders::table, senders, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_recipients::table, recipients, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_input_objects::table, input_objects, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(
+                    tx_changed_objects::table,
+                    changed_objects,
+                    &this.blocking_cp
+                )
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_calls_pkg::table, pkgs, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_calls_mod::table, mods, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_calls_fun::table, funs, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_digests::table, digests, &this.blocking_cp)
+            }),
+            self.spawn_blocking_task(move |this| {
+                persist_chunk_into_table!(tx_kinds::table, kinds, &this.blocking_cp)
+            }),
+        ];
 
         futures::future::try_join_all(futures)
             .await
