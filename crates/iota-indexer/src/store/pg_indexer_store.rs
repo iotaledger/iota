@@ -1180,34 +1180,13 @@ impl PgIndexerStore {
             |conn| {
                 if let Some(last_epoch) = &epoch.last_epoch {
                     info!(last_epoch.epoch, "Persisting epoch end data.");
-                    let last_epoch = StoredEpochInfo::from_epoch_end_info(last_epoch);
-                    on_conflict_do_update!(
-                        epochs::table,
-                        vec![last_epoch],
-                        epochs::epoch,
-                        (
-                            // Note: Update only what is not present in epoch beginning info.
-                            epochs::epoch_total_transactions
-                                .eq(excluded(epochs::epoch_total_transactions)),
-                            epochs::last_checkpoint_id.eq(excluded(epochs::last_checkpoint_id)),
-                            epochs::epoch_end_timestamp.eq(excluded(epochs::epoch_end_timestamp)),
-                            epochs::storage_charge.eq(excluded(epochs::storage_charge)),
-                            epochs::storage_rebate.eq(excluded(epochs::storage_rebate)),
-                            epochs::total_gas_fees.eq(excluded(epochs::total_gas_fees)),
-                            epochs::total_stake_rewards_distributed
-                                .eq(excluded(epochs::total_stake_rewards_distributed)),
-                            epochs::epoch_commitments.eq(excluded(epochs::epoch_commitments)),
-                            epochs::burnt_tokens_amount.eq(excluded(epochs::burnt_tokens_amount)),
-                            epochs::minted_tokens_amount.eq(excluded(epochs::minted_tokens_amount)),
-                        ),
-                        conn
-                    );
+                    diesel::update(epochs::table.filter(epochs::epoch.eq(last_epoch.epoch)))
+                        .set(last_epoch)
+                        .execute(conn)?;
                 }
 
-                let epoch_id = epoch.new_epoch.epoch;
-                info!(epoch_id, "Persisting epoch beginning info");
-                let new_epoch = StoredEpochInfo::from_epoch_beginning_info(&epoch.new_epoch);
-                insert_or_ignore_into!(epochs::table, new_epoch, conn);
+                info!(epoch.new_epoch.epoch, "Persisting epoch beginning info");
+                insert_or_ignore_into!(epochs::table, &epoch.new_epoch, conn);
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -1228,7 +1207,7 @@ impl PgIndexerStore {
             let last_db_epoch: Option<StoredEpochInfo> =
                 read_only_blocking!(&self.blocking_cp, |conn| {
                     epochs::table
-                        .filter(epochs::epoch.eq(last_epoch_id as i64))
+                        .filter(epochs::epoch.eq(last_epoch_id))
                         .first::<StoredEpochInfo>(conn)
                         .optional()
                 })

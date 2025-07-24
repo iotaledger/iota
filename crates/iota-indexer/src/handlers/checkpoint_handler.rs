@@ -38,10 +38,14 @@ use crate::{
         tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
-    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
+    models::{
+        display::StoredDisplay,
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
+        obj_indices::StoredObjectVersion,
+    },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
         IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
         IotaSystemStateSummaryView, TxIndex,
     },
@@ -173,13 +177,12 @@ impl CheckpointHandler {
                 get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
-                new_epoch: IndexedEpochInfo::from_new_system_state_summary(
+                new_epoch: StartOfEpochUpdate::new(
                     &system_state,
                     0, // first_checkpoint_id
                     0, // first_tx_sequence_number
                     None,
                 ),
-                network_total_transactions: 0,
             }));
         }
 
@@ -226,7 +229,7 @@ impl CheckpointHandler {
         // db.
 
         let epoch = system_state.epoch();
-        let network_tx_count_prev_epoch = match epoch {
+        let last_epoch_first_tx_sequence_number = match epoch {
             // If first epoch change, this number is 0
             1 => Ok(0),
             _ => {
@@ -242,20 +245,19 @@ impl CheckpointHandler {
             }
         }?;
 
+        let event = IndexedEpochInfoEvent::from(&event);
         Ok(Some(EpochToCommit {
-            last_epoch: Some(IndexedEpochInfo::from_end_of_epoch_data(
-                &system_state,
+            last_epoch: Some(EndOfEpochUpdate::new(
                 checkpoint_summary,
                 &event,
-                network_tx_count_prev_epoch,
+                last_epoch_first_tx_sequence_number,
             )),
-            new_epoch: IndexedEpochInfo::from_new_system_state_summary(
+            new_epoch: StartOfEpochUpdate::new(
                 &system_state,
                 checkpoint_summary.sequence_number + 1, // first_checkpoint_id
                 checkpoint_summary.network_total_transactions, // first_tx_sequence_number
                 Some(&event),
             ),
-            network_total_transactions: checkpoint_summary.network_total_transactions,
         }))
     }
 

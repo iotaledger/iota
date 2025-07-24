@@ -78,10 +78,10 @@ impl EpochPartitionData {
     pub fn compose_data(epoch: EpochToCommit, last_db_epoch: StoredEpochInfo) -> Self {
         let last_epoch = last_db_epoch.epoch as u64;
         let last_epoch_start_cp = last_db_epoch.first_checkpoint_id as u64;
-        let next_epoch = epoch.new_epoch.epoch;
-        let next_epoch_start_cp = epoch.new_epoch.first_checkpoint_id;
+        let next_epoch = epoch.new_epoch.epoch as u64;
+        let next_epoch_start_cp = epoch.new_epoch.first_checkpoint_id as u64;
 
-        let next_epoch_start_tx = epoch.new_epoch.first_tx_sequence_number;
+        let next_epoch_start_tx = epoch.new_epoch.first_tx_sequence_number as u64;
         let last_epoch_start_tx = last_db_epoch.first_tx_sequence_number.unwrap() as u64;
 
         Self {
