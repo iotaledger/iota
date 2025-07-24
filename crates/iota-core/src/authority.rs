@@ -1769,6 +1769,7 @@ impl AuthorityState {
         )?;
 
         // make a gas object if one was not provided
+        let mut transaction = transaction;
         let mut gas_object_refs = transaction.gas().to_vec();
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
@@ -1785,6 +1786,8 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
+            // Add gas object to transaction gas payment
+            transaction.gas_data_mut().payment = gas_object_refs.clone();
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -1953,8 +1956,8 @@ impl AuthorityState {
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
-
         // make a gas object if one was not provided
+        let mut transaction = transaction;
         let mut gas_object_refs = transaction.gas().to_vec();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
@@ -1970,6 +1973,9 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
+
+            // Add the gas object to the transaction payment.
+            transaction.gas_data_mut().payment = gas_object_refs.clone();
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
