@@ -1,5 +1,3 @@
-# Move
-
 Provides language support for the Move programming language. For information about Move visit the
 language [documentation](https://docs.iota.org/developer/iota-101/move-overview/). It also provides early-stage
 support for trace-debugging Move unit tests using a familiar VSCode debugging interface (e.g., stepping
@@ -19,7 +17,7 @@ Installation of the extension will also install a platform-specific pre-built mo
 the default directory (see [here](#what-if-i-want-to-use-a-move-analyzer-binary-in-a-different-location)
 for information on the location of this directory), overwriting the existing binary if it already exists.
 The move-analyzer binary is responsible for the advanced features of this VSCode extension (e.g., go to
-definition, type on hover). Please see [Troubleshooting](#troubleshooting) for situations when
+definition, type on hover). Please see `Troubleshooting Section` for situations when
 the pre-built move-analyzer binary is not available for your platform or if you want to use move-analyzer
 binary stored in a different location.
 
@@ -62,7 +60,7 @@ If you are on Windows, the following answer assumes that your Windows user name 
 If your `move-analyzer` binary is in a different directory than the default one (`~/.iota/bin`
 on macOS or Linux, or `C:\Users\USER\.iota\bin` on Windows), you may have the extension look
 for the binary at this new location using VSCode's settings (`⌘` + `,` on macOS, or use the menu
-item _Code > Preferences > Settings_). Search for the `move.server.path` user setting,
+item _Code > Preferences > Settings_). Search for the `iota-move.server.path` user setting,
 set it to the new location of the `move-analyzer` binary, and restart VSCode.
 
 ## What if advanced features (e.g., go to def) do not work, particularly after re-install or upgrade
