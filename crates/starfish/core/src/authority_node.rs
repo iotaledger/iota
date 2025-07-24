@@ -324,7 +324,11 @@ impl ConsensusAuthority {
 mod tests {
     #![allow(non_snake_case)]
 
-    use std::{collections::BTreeMap, sync::Arc, time::Duration};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;
@@ -383,28 +387,30 @@ mod tests {
         authority.stop().await;
     }
 
-    // TODO: add transactions to control how the consensus works
+    /// This test checks that an authority can be restarted and still get synced
+    /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee() {
-        telemetry_subscribers::init_for_testing();
+    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
+        // telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
-        const NUM_OF_AUTHORITIES: usize = 4;
-        let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
+        let (committee, keypairs) =
+            local_committee_and_keys(0, vec![1; num_of_authorities].to_vec());
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
-        let temp_dirs = (0..NUM_OF_AUTHORITIES)
+        let temp_dirs = (0..num_of_authorities)
             .map(|_| TempDir::new().unwrap())
             .collect::<Vec<_>>();
 
         let mut output_receivers = Vec::with_capacity(committee.size());
         let mut authorities = Vec::with_capacity(committee.size());
-        let mut boot_counters = [0; NUM_OF_AUTHORITIES];
+        let mut boot_counters = vec![0; num_of_authorities];
+        let mut consumer_monitors = Vec::with_capacity(committee.size());
 
         for (index, _authority_info) in committee.authorities() {
-            let (authority, receiver) = make_authority(
+            let (authority, receiver, monitor) = make_authority(
                 index,
                 &temp_dirs[index.value()],
                 committee.clone(),
@@ -415,16 +421,79 @@ mod tests {
             .await;
             boot_counters[index] += 1;
             output_receivers.push(receiver);
+            consumer_monitors.push(monitor);
             authorities.push(authority);
         }
 
+        const NUM_TRANSACTIONS: u8 = 15;
+        let mut submitted_transactions = BTreeSet::<Vec<u8>>::new();
+        for i in 0..NUM_TRANSACTIONS {
+            let txn = vec![i; 16];
+            submitted_transactions.insert(txn.clone());
+            authorities[i as usize % authorities.len()]
+                .transaction_client()
+                .submit(vec![txn])
+                .await
+                .unwrap();
+        }
+
+        for (index, receiver) in output_receivers.iter_mut().enumerate() {
+            let mut expected_transactions = submitted_transactions.clone();
+            loop {
+                let committed_subdag =
+                    tokio::time::timeout(Duration::from_secs(1), receiver.recv())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                let commit_index = committed_subdag.commit_ref.index;
+                consumer_monitors[index].set_highest_handled_commit(commit_index);
+                for txns in committed_subdag.transactions {
+                    for txn in txns.transactions().iter().map(|t| t.data().to_vec()) {
+                        assert!(
+                            expected_transactions.remove(&txn),
+                            "Transaction not submitted or already seen: {txn:?}"
+                        );
+                    }
+                }
+
+                if expected_transactions.is_empty() {
+                    break;
+                }
+            }
+        }
         // Stop authority 1.
         let index = committee.to_authority_index(1).unwrap();
         authorities.remove(index.value()).stop().await;
-        sleep(Duration::from_secs(10)).await;
+
+        // Add some new transactions while authority 1 is down.
+        const BIG_NUM_TRANSACTIONS: u8 = 100;
+        for i in NUM_TRANSACTIONS..BIG_NUM_TRANSACTIONS {
+            let txn = vec![i; 16];
+            submitted_transactions.insert(txn.clone());
+            authorities[i as usize % authorities.len()]
+                .transaction_client()
+                .submit(vec![txn])
+                .await
+                .unwrap();
+        }
+
+        sleep(Duration::from_secs(5)).await;
+
+        // After a long sleep, add some new transactions while authority 1 is down.
+        // We expect that the transaction synchronizer of authority 1 will kick in to
+        // download the transactions that were submitted while it was down.
+        for i in BIG_NUM_TRANSACTIONS..2 * BIG_NUM_TRANSACTIONS {
+            let txn = vec![i; 16];
+            submitted_transactions.insert(txn.clone());
+            authorities[i as usize % authorities.len()]
+                .transaction_client()
+                .submit(vec![txn])
+                .await
+                .unwrap();
+        }
 
         // Restart authority 1 and let it run.
-        let (authority, receiver) = make_authority(
+        let (authority, receiver, monitor) = make_authority(
             index,
             &temp_dirs[index.value()],
             committee.clone(),
@@ -435,12 +504,86 @@ mod tests {
         .await;
         boot_counters[index] += 1;
         output_receivers[index] = receiver;
+        consumer_monitors[index] = monitor;
         authorities.insert(index.value(), authority);
-        sleep(Duration::from_secs(10)).await;
+
+        let mut expected_transactions = submitted_transactions.clone();
+
+        let start_time = Instant::now();
+        let mut last_committed_index = vec![0; num_of_authorities];
+        let mut last_round_committed_blocks = vec![0; num_of_authorities];
+        loop {
+            if start_time.elapsed() > Duration::from_secs(30) {
+                break;
+            }
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                // Manually update the commit consumer monitor with the highest handled commit
+                let deadline = Instant::now() + Duration::from_millis(25);
+                while Instant::now() < deadline {
+                    let remaining = deadline - Instant::now();
+                    if let Ok(Some(committed_subdag)) =
+                        tokio::time::timeout(remaining, receiver.recv()).await
+                    {
+                        for block in &committed_subdag.blocks {
+                            if block.round() > GENESIS_ROUND {
+                                let author_index = block.author();
+                                last_round_committed_blocks[author_index] = block.round();
+                            }
+                        }
+
+                        if index == 1 {
+                            for txns in &committed_subdag.transactions {
+                                for txn in txns.transactions().iter().map(|t| t.data().to_vec()) {
+                                    assert!(
+                                        expected_transactions.remove(&txn),
+                                        "Transaction not submitted or already seen: {txn:?}"
+                                    );
+                                }
+                            }
+                        }
+                        let commit_index = committed_subdag.commit_ref.index;
+                        last_committed_index[index] = commit_index;
+                        consumer_monitors[index].set_highest_handled_commit(commit_index);
+                    } else {
+                        // If we time out, we assume that no new dags were committed.
+                        break;
+                    }
+                }
+            }
+        }
+
         // Stop all authorities and exit.
         for authority in authorities {
             authority.stop().await;
         }
+
+        // Expect that authorities get synced and commit indices are close enough.
+        let min_commit_index = last_committed_index.iter().min().unwrap();
+        let max_commit_index = last_committed_index.iter().max().unwrap();
+        assert!(
+            max_commit_index - min_commit_index < 5,
+            "Commit indices are not close enough: min = {}, max = {}",
+            min_commit_index,
+            max_commit_index
+        );
+
+        // Expect that all transactions were submitted and processed.
+        assert!(
+            expected_transactions.is_empty(),
+            "Not all transactions were submitted or processed: {:?}",
+            expected_transactions
+        );
+
+        // Expect that all authorities have committed blocks in rounds that are close
+        // enough.
+        let min_round = last_round_committed_blocks.iter().min().unwrap();
+        let max_round = last_round_committed_blocks.iter().max().unwrap();
+        assert!(
+            max_round - min_round < 5,
+            "Committed block rounds are not close enough: min = {}, max = {}",
+            min_round,
+            max_round
+        );
     }
 
     // TODO: add transactions to control how the consensus works
@@ -462,7 +605,7 @@ mod tests {
         let mut boot_counters = vec![0; num_authorities];
 
         for (index, _authority_info) in committee.authorities() {
-            let (authority, receiver) = make_authority(
+            let (authority, receiver, _) = make_authority(
                 index,
                 &temp_dirs[index.value()],
                 committee.clone(),
@@ -482,7 +625,7 @@ mod tests {
         sleep(Duration::from_secs(10)).await;
 
         // Restart authority 0 and let it run.
-        let (authority, receiver) = make_authority(
+        let (authority, receiver, _) = make_authority(
             index,
             &temp_dirs[index.value()],
             committee.clone(),
@@ -521,7 +664,7 @@ mod tests {
 
         for (index, _authority_info) in committee.authorities() {
             let dir = TempDir::new().unwrap();
-            let (authority, receiver) = make_authority(
+            let (authority, receiver, _) = make_authority(
                 index,
                 &dir,
                 committee.clone(),
@@ -541,8 +684,7 @@ mod tests {
         }
 
         // Now we take the receiver of authority 1 and we wait until we see at least one
-        // block committed from this authority We wait until we see at least one
-        // committed block authored from this authority. That way we'll be 100% sure
+        // block committed from this authority. That way we'll be 100% sure
         // that at least one block has been proposed and successfully received
         // by a quorum of nodes.
         let index_1 = committee.to_authority_index(1).unwrap();
@@ -561,24 +703,23 @@ mod tests {
         // Stop authority 1 & 2.
         // * Authority 1 will be used to wipe out their DB and practically "force" the
         //   amnesia recovery.
-        // * Authority 2 is stopped in order to simulate less than f+1 availability
+        // * Authority 2 is stopped in order to simulate less than 2f+1 availability
         //   which will
         // make authority 1 retry during amnesia recovery until it has finally managed
-        // to successfully get back f+1 responses. once authority 2 is up and
+        // to successfully get back 2f+1 responses. once authority 2 is up and
         // running again.
         authorities.remove(&index_1).unwrap().stop().await;
         let index_2 = committee.to_authority_index(2).unwrap();
         authorities.remove(&index_2).unwrap().stop().await;
         sleep(Duration::from_secs(5)).await;
 
-        // Authority 1: create a new directory to simulate amnesia. The node will start
-        // having participated previously to consensus but now will attempt to
-        // synchronize the last own block and recover from there. It won't be able
-        // to do that successfully as authority 2 is still down.
+        // Authority 1: create a new directory to simulate amnesia. The node will
+        // attempt to synchronize the last own block and recover from there. It
+        // won't be able to do that successfully as authority 2 is still down.
         let dir = TempDir::new().unwrap();
         // We do reset the boot counter for this one to simulate a "binary" restart
         boot_counters[index_1] = 0;
-        let (authority, mut receiver) = make_authority(
+        let (authority, mut receiver, _) = make_authority(
             index_1,
             &dir,
             committee.clone(),
@@ -599,7 +740,7 @@ mod tests {
         // Now spin up authority 2 using its earlier directly - so no amnesia recovery
         // should be forced here. Authority 1 should be able to recover from
         // amnesia successfully.
-        let (authority, _receiver) = make_authority(
+        let (authority, _receiver, _) = make_authority(
             index_2,
             &temp_dirs[&index_2],
             committee.clone(),
@@ -640,7 +781,11 @@ mod tests {
         keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
         boot_counter: u64,
         protocol_config: ProtocolConfig,
-    ) -> (ConsensusAuthority, UnboundedReceiver<CommittedSubDag>) {
+    ) -> (
+        ConsensusAuthority,
+        UnboundedReceiver<CommittedSubDag>,
+        Arc<CommitConsumerMonitor>,
+    ) {
         let registry = Registry::new();
 
         // Cache less blocks to exercise commit sync.
@@ -660,6 +805,8 @@ mod tests {
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
 
+        let consensus_consumer_monitor = commit_consumer.monitor();
+
         let authority = ConsensusAuthority::start(
             index,
             committee,
@@ -674,6 +821,6 @@ mod tests {
         )
         .await;
 
-        (authority, receiver)
+        (authority, receiver, consensus_consumer_monitor)
     }
 }

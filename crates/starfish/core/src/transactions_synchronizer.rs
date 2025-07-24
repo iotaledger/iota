@@ -523,7 +523,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 .inc();
         }
 
-        debug!(
+        info!(
             "[{sync_method}] Synced {} missing transactions from peer {peer_index} {peer_hostname}: {}",
             transactions.len(),
             transactions

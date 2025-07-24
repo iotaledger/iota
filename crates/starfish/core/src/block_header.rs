@@ -761,6 +761,33 @@ impl VerifiedBlock {
         }
     }
 
+    #[cfg(test)]
+    pub fn new_with_transaction_for_test(block_header: BlockHeader, tx: u8) -> Self {
+        let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
+        let verified_transactions = VerifiedTransactions::new(
+            vec![],
+            BlockRef::new(
+                verified_block_header.round(),
+                verified_block_header.author(),
+                verified_block_header.digest(),
+            ),
+            verified_block_header.transactions_commitment(),
+            Bytes::from(
+                bcs::to_bytes::<Vec<Transaction>>(
+                    &vec![vec![tx; 16]]
+                        .into_iter()
+                        .map(Transaction::new)
+                        .collect(),
+                )
+                .unwrap(),
+            ),
+        );
+        Self {
+            verified_block_header,
+            verified_transactions,
+        }
+    }
+
     // This function returns a pair of serialized block header and serialized
     // transactions
     pub fn serialized(&self) -> (&Bytes, &Bytes) {
@@ -872,6 +899,28 @@ impl TestBlockHeader {
                 author: author.into(),
                 transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
                     &Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
+                )
+                .unwrap(),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub fn new_with_transaction(round: Round, author: u32, tx: u8) -> Self {
+        Self {
+            block_header: BlockHeaderV1 {
+                round,
+                author: author.into(),
+                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
+                    &Bytes::from(
+                        bcs::to_bytes::<Vec<Transaction>>(
+                            &vec![vec![tx; 16]]
+                                .into_iter()
+                                .map(Transaction::new)
+                                .collect(),
+                        )
+                        .unwrap(),
+                    ),
                 )
                 .unwrap(),
                 ..Default::default()
