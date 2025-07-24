@@ -17,13 +17,13 @@ cargo run -- --ingestion-dir ./path/to/checkpoints \
 
 ## Command Line Options
 
-`--ingestion-dir`: Directory to store checkpoint files.
+`--ingestion-dir`: Directory to write the ingestion data to.
 
-`--starting-checkpoint`: Starting checkpoint sequence number (`default: 0`).
+`--starting-checkpoint`: Starting checkpoint sequence number for workload generation (`default: 0`). Useful for benchmarking or testing against a non-empty database.
 
-`--num-checkpoints`: Total checkpoints to generate (`default: 2000`).
+`--num-checkpoints`: Number of checkpoints to generate (`default: 2000`). Creates an additional checkpoint for genesis and gas provisioning if workflow generation starts from checkpoint sequence number `0`.
 
-`--checkpoint-size`: Number of transactions per checkpoint (`default: 200`).
+`--checkpoint-size`: Number of transactions in a checkpoint (`default: 200`).
 
 ## Testing
 

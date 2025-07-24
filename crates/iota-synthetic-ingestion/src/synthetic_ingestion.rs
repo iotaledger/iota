@@ -26,12 +26,19 @@ pub struct Config {
     /// Directory to write the ingestion data to.
     #[arg(long)]
     pub ingestion_dir: PathBuf,
-    /// Customize the first checkpoint sequence number in the workload.
-    /// This is useful if we want to generate workload to benchmark a non-empty
-    /// database.
+    /// Starting checkpoint sequence number for workload generation.
+    /// Useful for benchmarking or testing against a non-empty database.
     #[arg(long, default_value_t = Self::DEFAULT_STARTING_CHECKPOINT)]
     pub starting_checkpoint: u64,
-    /// Total number of synthetic checkpoints to generate.
+    /// Number of checkpoints to generate.
+    /// If `starting_checkpoint` is 0 (default), two additional initial
+    /// checkpoints are generated:
+    /// - `0.chk`: genesis state
+    /// - `1.chk`: initial gas provisioning
+    ///
+    /// Thus, the total number of generated checkpoint files will be
+    /// `num_checkpoints + 2`. Otherwise, exactly `num_checkpoints`
+    /// checkpoints are generated.
     #[arg(long, default_value_t = Self::DEFAULT_NUM_CHECKPOINTS)]
     pub num_checkpoints: u64,
     /// Number of transactions in a checkpoint.
@@ -60,24 +67,29 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
         starting_checkpoint,
     } = config;
 
+    // Simulacrum will generate `0.chk` as the genesis checkpoint.
     let mut sim = Simulacrum::new();
     sim.set_data_ingestion_path(ingestion_dir.clone());
-    // Simulacrum will generate 0.chk as the genesis checkpoint.
-    // We do not need it and might even override if starting_checkpoint is 0.
-    fs::remove_file(ingestion_dir.join("0.chk")).await?;
 
     let gas_price = sim.reference_gas_price();
     let (sender, keypair) = get_account_key_pair();
     let mut gas_object = {
         let effects = sim.request_gas(sender, NANOS_PER_IOTA * 1000000)?;
-        // `request_gas` will create a transaction, which we don't want to include in
-        // the benchmark. Put it in a checkpoint and then remove the checkpoint
-        // file.
+        // Generate `1.chk` and includes the gas request transaction.
         sim.create_checkpoint();
-        fs::remove_file(ingestion_dir.join("1.chk")).await?;
         effects.created()[0].0
     };
-    sim.override_next_checkpoint_number(starting_checkpoint);
+
+    // When generating a workload that includes the genesis state, retain the
+    // initial checkpoints `0.chk` (genesis state) and `1.chk` (initial gas
+    // provisioning) to accurately represent the state history.
+    // For starting_checkpoint >= 1, remove existing checkpoints (0 and 1)
+    // and generate a consistent workload.
+    if starting_checkpoint > 0 {
+        fs::remove_file(ingestion_dir.join("0.chk")).await?;
+        fs::remove_file(ingestion_dir.join("1.chk")).await?;
+        sim.override_next_checkpoint_number(starting_checkpoint);
+    }
 
     let mut tx_count = 0;
     for i in 0..num_checkpoints {
@@ -92,7 +104,14 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
         }
 
         let checkpoint = sim.create_checkpoint();
-        assert_eq!(checkpoint.sequence_number, i + starting_checkpoint);
+
+        let expected_checkpoint_number = if starting_checkpoint == 0 {
+            i + 2 // offset by 2 because of the auto-generated `0.chk` and `1.chk` files
+        } else {
+            i + starting_checkpoint
+        };
+
+        assert_eq!(checkpoint.sequence_number, expected_checkpoint_number);
 
         if (i + 1) % 100 == 0 {
             info!("Generated {} checkpoints, {tx_count} transactions", i + 1);
@@ -100,7 +119,7 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
     }
 
     info!(
-        "Synthetic ingestion generation completed: {num_checkpoints} checkpoints, {tx_count} transactions in {:.2?}.",
+        "Synthetic ingestion generation completed: {num_checkpoints} checkpoints generated (excluding genesis and gas funding), {tx_count} transactions in {:.2?}.",
         timer.elapsed()
     );
 
@@ -125,7 +144,7 @@ pub async fn read_ingestion_data(path: &PathBuf) -> anyhow::Result<BTreeMap<u64,
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::Path;
 
     use iota_storage::blob::Blob;
     use iota_types::full_checkpoint_content::CheckpointData;
@@ -145,7 +164,13 @@ mod tests {
         };
 
         generate_ingestion(config).await.unwrap();
-        check_checkpoint_data(ingestion_dir, 0, 10, 2).await;
+
+        // Check for the genesis checkpoint (0.chk)
+        check_checkpoint_data(&ingestion_dir, 0, 1, 1).await;
+        // Check for the gas funding checkpoint (1.chk)
+        check_checkpoint_data(&ingestion_dir, 1, 1, 1).await;
+        // Rest of the checkpoints
+        check_checkpoint_data(&ingestion_dir, 2, 10, 2).await;
     }
 
     #[tokio::test]
@@ -161,11 +186,11 @@ mod tests {
         };
 
         generate_ingestion(config).await.unwrap();
-        check_checkpoint_data(ingestion_dir, 10, 10, 2).await;
+        check_checkpoint_data(&ingestion_dir, 10, 10, 2).await;
     }
 
     async fn check_checkpoint_data(
-        ingestion_dir: PathBuf,
+        ingestion_dir: &Path,
         first_checkpoint: u64,
         num_checkpoints: u64,
         checkpoint_size: u64,
