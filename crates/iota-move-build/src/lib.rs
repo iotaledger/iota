@@ -94,8 +94,6 @@ impl BuildConfig {
     pub fn new_for_testing() -> Self {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
-        // Note: in the future, consider changing this to dependencies on the local
-        // system packages:
         let install_dir = tempfile::tempdir().unwrap().into_path();
         let config = MoveBuildConfig {
             default_flavor: Some(move_compiler::editions::Flavor::Iota),
