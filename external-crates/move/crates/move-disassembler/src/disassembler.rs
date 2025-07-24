@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -97,7 +97,7 @@ struct BoundedBuffer<'a> {
     buf: &'a mut String,
 }
 
-impl<'a> Write for BoundedBuffer<'a> {
+impl Write for BoundedBuffer<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         if self.budget < s.len() {
             return Err(fmt::Error);
@@ -112,7 +112,7 @@ trait ByteLength {
     fn byte_len(&self) -> u32;
 }
 
-impl<'a> ByteLength for BoundedBuffer<'a> {
+impl ByteLength for BoundedBuffer<'_> {
     fn byte_len(&self) -> u32 {
         self.buf.len() as u32
     }
@@ -275,7 +275,7 @@ impl<'a> Disassembler<'a> {
 // Note on naming:
 // * disassemble_* and print_* functions are functions that output to the buffer
 // * format_* functions return a string that can be used in the buffer
-impl<'a> Disassembler<'a> {
+impl Disassembler<'_> {
     fn print_module(
         &self,
         buffer: &mut (impl Write + ByteLength),
@@ -754,8 +754,8 @@ impl<'a> Disassembler<'a> {
                 self.add_function_bytecode_map(
                     bcode_map,
                     function_definition_index,
-                    fun_name_loc,
                     fun_def_loc,
+                    fun_name_loc,
                     function.is_native(),
                     type_param_source_names,
                     param_source_names,
@@ -779,11 +779,11 @@ impl<'a> Disassembler<'a> {
 
         let fun_def_end_offset = buffer.byte_len();
         if let Some(bcode_map) = bcode_map_opt {
-            let fun_loc = Loc::new(FileHash::empty(), fun_def_start_offset, fun_def_end_offset);
+            let fun_def_loc = Loc::new(FileHash::empty(), fun_def_start_offset, fun_def_end_offset);
             self.add_function_bytecode_map(
                 bcode_map,
                 function_definition_index,
-                fun_loc,
+                fun_def_loc,
                 fun_name_loc,
                 function.is_native(),
                 type_param_source_names,
@@ -1647,7 +1647,7 @@ impl<'a> Disassembler<'a> {
     }
 }
 
-impl<'a> Disassembler<'a> {
+impl Disassembler<'_> {
     //***************************************************************************
     // Formatters (that produce formatted strings)
     //***************************************************************************

@@ -20,8 +20,8 @@ use serde::Serialize;
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
     client_commands::{
-        DisplayOption, IotaClientCommandResult, Opts, OptsWithGas, dry_run_or_execute_or_serialize,
-        parse_display_option,
+        DisplayOption, GasDataArgs, IotaClientCommandResult, TxProcessingArgs,
+        dry_run_or_execute_or_serialize, parse_display_option,
     },
     client_ptb::{
         ast::{ParsedProgram, Program},
@@ -149,7 +149,7 @@ impl PTB {
 
         let client = context.get_client().await?;
 
-        let (res, warnings) = Self::build_ptb(program, context, client).await;
+        let (res, warnings) = Self::build_ptb(program, context, client.clone()).await;
 
         // Render warnings
         if !warnings.is_empty() {
@@ -173,19 +173,18 @@ impl PTB {
             Ok(x) => x,
         };
 
-        // get all the metadata needed for executing the PTB: sender, gas, signing tx
-        let gas = program_metadata.gas_object_id.map(|x| x.value);
+        // TODO: support multiple gas objects
+        let gas: Vec<_> = program_metadata
+            .gas_object_id
+            .into_iter()
+            .map(|x| x.value)
+            .collect();
 
-        let sender = match program_metadata.sender {
-            Some(sender) => sender.value.into_inner().into(),
+        let sender = if let Some(sender) = program_metadata.sender {
+            sender.value.into_inner().into()
+        } else {
             // the sender is the gas object if gas is provided, otherwise the active address
-            None => match gas {
-                Some(gas) => context
-                    .get_object_owner(&gas)
-                    .await
-                    .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
-                None => context.active_address()?,
-            },
+            context.infer_sender(&gas).await?
         };
 
         // build the tx kind
@@ -194,29 +193,43 @@ impl PTB {
             commands: ptb.commands,
         });
 
-        let opts = OptsWithGas {
-            gas: program_metadata.gas_object_id.map(|x| x.value),
-            rest: Opts {
-                dry_run: program_metadata.dry_run_set,
-                dev_inspect: program_metadata.dev_inspect_set,
-                gas_budget: program_metadata.gas_budget.map(|x| x.value),
-                serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
-                serialize_signed_transaction: program_metadata.serialize_signed_set,
-                display: self.display,
-                sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
-            },
+        let gas_data = GasDataArgs {
+            gas_budget: program_metadata.gas_budget.map(|x| x.value),
+            gas_price: None,   // TODO: support gas price in PTB
+            gas_sponsor: None, // TODO: support gas sponsors in PTB
         };
 
-        let res = dry_run_or_execute_or_serialize(
-            sender, tx_kind, context, None, None, opts.gas, opts.rest,
+        let processing = TxProcessingArgs {
+            tx_digest: program_metadata.tx_digest_set,
+            dry_run: program_metadata.dry_run_set,
+            dev_inspect: program_metadata.dev_inspect_set,
+            serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
+            serialize_signed_transaction: program_metadata.serialize_signed_set,
+            sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
+            display: self.display,
+        };
+
+        let gas_payment = client.transaction_builder().input_refs(&gas).await?;
+
+        let transaction_response = dry_run_or_execute_or_serialize(
+            sender,
+            tx_kind,
+            context,
+            gas_payment,
+            gas_data,
+            processing,
         )
         .await?;
 
-        let transaction_response = match res {
-            IotaClientCommandResult::DryRun(_)
+        let transaction_response = match transaction_response {
+            IotaClientCommandResult::ComputeTransactionDigest(_)
+            | IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                return Ok(PTBCommandResult::CommandResult(Box::new(res)));
+                println!("{transaction_response}");
+                return Ok(PTBCommandResult::CommandResult(Box::new(
+                    transaction_response,
+                )));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
@@ -445,7 +458,11 @@ pub fn ptb_description() -> clap::Command {
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
             --"preview"
-            "Preview the list of PTB transactions instead of executing them."
+            "Instead of executing the transaction, preview its PTB commands."
+        ))
+        .arg(arg!(
+            --"tx-digest"
+            "Instead of executing the transaction, print its digest."
         ))
         .arg(arg!(
             --"sender" <SENDER>
