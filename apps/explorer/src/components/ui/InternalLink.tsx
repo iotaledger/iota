@@ -5,6 +5,7 @@
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
 import { AddressAlias } from '@iota/core';
+import { isValidIotaName } from '@iota/iota-names-sdk';
 import { formatAddress, formatDigest, formatType } from '@iota/iota-sdk/utils';
 import React, { type ReactNode } from 'react';
 
@@ -103,9 +104,13 @@ function createInternalLink<T extends string>(
 export const EpochLink = createInternalLink('epoch', 'epoch');
 export const CheckpointLink = createInternalLink('checkpoint', 'digest', formatAddress);
 export const CheckpointSequenceLink = createInternalLink('checkpoint', 'sequence');
-export const AddressLink = createInternalLink('address', 'address', (addressOrNs) =>
-    formatAddress(addressOrNs),
-);
+export const AddressLink = createInternalLink('address', 'address', (addressOrName) => {
+    if (isValidIotaName(addressOrName)) {
+        return addressOrName;
+    }
+
+    return formatAddress(addressOrName);
+});
 export const ObjectLink = createInternalLink('object', 'objectId', formatType);
 export const TransactionLink = createInternalLink('txblock', 'digest', formatDigest);
 export const ValidatorLink = createInternalLink('validator', 'address', formatAddress);

@@ -27,6 +27,7 @@ import {
     CoinFormat,
     useCoinMetadata,
     parseAmount,
+    useGetIotaNameRecord,
 } from '@iota/core';
 import { Loader } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '@/components';
@@ -55,6 +56,7 @@ export function ReviewValuesFormView({
     onBack,
     totalGas,
 }: ReviewValuesFormProps): JSX.Element {
+    const { data: nameRecord } = useGetIotaNameRecord(to);
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
     const [roundedAmount, symbol] = useFormatCoin({
@@ -103,8 +105,11 @@ export function ReviewValuesFormView({
                         <KeyValueInfo
                             keyText={'To'}
                             value={
-                                <ExplorerLink type={ExplorerLinkType.Address} address={to}>
-                                    {formatAddress(to || '')}
+                                <ExplorerLink
+                                    type={ExplorerLinkType.Address}
+                                    address={nameRecord?.targetAddress || to}
+                                >
+                                    {nameRecord ? nameRecord.name : formatAddress(to || '')}
                                 </ExplorerLink>
                             }
                             fullwidth

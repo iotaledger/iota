@@ -11,7 +11,7 @@ import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
-import { CoinFormat } from '../../hooks';
+import { CoinFormat, useResolveDefaultName } from '../../hooks';
 
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
@@ -25,30 +25,51 @@ export function BalanceChanges({ changes, renderExplorerLink: ExplorerLink }: Ba
         <>
             {Object.entries(changes).map(([owner, changes]) => {
                 return (
-                    <Panel key={owner} hasBorder>
-                        <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
-                            <Header title="Balance Changes" />
-                            <BalanceChangeEntries changes={changes} />
-                            <div className="flex flex-col gap-y-sm px-md pb-md">
-                                <Divider />
-                                <KeyValueInfo
-                                    keyText="Owner"
-                                    value={
-                                        <ExplorerLink
-                                            type={ExplorerLinkType.Address}
-                                            address={owner}
-                                        >
-                                            {formatAddress(owner)}
-                                        </ExplorerLink>
-                                    }
-                                    fullwidth
-                                />
-                            </div>
-                        </div>
-                    </Panel>
+                    <BalanceChangePanel
+                        key={owner}
+                        owner={owner}
+                        changes={changes}
+                        renderExplorerLink={ExplorerLink}
+                    />
                 );
             })}
         </>
+    );
+}
+
+interface BalanceChangePanelProps {
+    renderExplorerLink: RenderExplorerLink;
+    owner: string;
+    changes: BalanceChange[];
+}
+function BalanceChangePanel({
+    owner,
+    changes,
+    renderExplorerLink: ExplorerLink,
+}: BalanceChangePanelProps) {
+    const { data: name } = useResolveDefaultName(owner, true);
+
+    if (!changes) return null;
+
+    return (
+        <Panel hasBorder>
+            <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
+                <Header title="Balance Changes" />
+                <BalanceChangeEntries changes={changes} />
+                <div className="flex flex-col gap-y-sm px-md pb-md">
+                    <Divider />
+                    <KeyValueInfo
+                        keyText="Owner"
+                        value={
+                            <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                {name || formatAddress(owner)}
+                            </ExplorerLink>
+                        }
+                        fullwidth
+                    />
+                </div>
+            </div>
+        </Panel>
     );
 }
 

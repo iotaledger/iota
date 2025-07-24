@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats } from '@iota/apps-ui-kit';
-import { formatDate } from '@iota/core';
+import { formatDate, useResolveDefaultName } from '@iota/core';
 import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
 import { onCopySuccess } from '~/lib/utils';
 
@@ -20,12 +20,14 @@ export function TransactionDetails({
     executedEpoch,
     timestamp,
 }: TransactionDetailsProps): JSX.Element {
+    const { data: name } = useResolveDefaultName(sender, true);
+
     return (
         <div className="grid grid-cols-1 gap-sm md:grid-cols-4">
             {sender && (
                 <DisplayStats
                     label="Sender"
-                    value={<AddressLink address={sender} />}
+                    value={<AddressLink label={name} address={sender} />}
                     copyText={sender}
                     onCopySuccess={onCopySuccess}
                 />
