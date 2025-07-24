@@ -435,26 +435,6 @@ impl DagBuilder {
         blocks
     }
 
-    // Gets transactions in a slot.
-    pub(crate) fn get_transaction_block_refs_at_slot(&self, slot: Slot) -> Vec<BlockRef> {
-        let mut acks = Vec::new();
-        for verified_transaction in self.transactions.range((
-            Included(BlockRef::new(
-                slot.round,
-                slot.authority,
-                BlockHeaderDigest::MIN,
-            )),
-            Included(BlockRef::new(
-                slot.round,
-                slot.authority,
-                BlockHeaderDigest::MAX,
-            )),
-        )) {
-            acks.push(*verified_transaction.0);
-        }
-        acks
-    }
-
     pub(crate) fn genesis_block_refs(&self) -> Vec<BlockRef> {
         self.genesis.keys().cloned().collect()
     }
@@ -513,13 +493,13 @@ impl DagBuilder {
                     block_refs.extend(self.last_ancestors.clone());
                 }
                 AncestorSelection::ExcludeFrom(slot) => {
-                    let stored_block_refs = self.get_transaction_block_refs_at_slot(slot);
+                    let stored_block_refs = self.get_blocks(slot);
                     block_refs.extend(self.last_ancestors.clone());
 
                     block_refs.retain(|ancestor| !stored_block_refs.contains(ancestor));
                 }
                 AncestorSelection::IncludeFrom(slot) => {
-                    let stored_block_refs = self.get_transaction_block_refs_at_slot(slot);
+                    let stored_block_refs = self.get_blocks(slot);
                     block_refs.extend(stored_block_refs);
                 }
             }
