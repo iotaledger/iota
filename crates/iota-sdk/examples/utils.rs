@@ -14,7 +14,7 @@ use iota_config::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
-    iota_client_config::{IotaClientConfig, IotaEnv},
+    iota_client_config::IotaClientConfig,
     rpc_types::{
         Coin, IotaObjectDataOptions, IotaTransactionBlockResponse,
         IotaTransactionBlockResponseOptions,
