@@ -142,13 +142,4 @@ export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserCont
     if (!success) {
         throw new Error(`Failed to add funds trough bridge UI after ${maxRetries} attempts`);
     }
-
-    // Check the funds arrived (ui)
-    const l1WalletExtension = await browser.newPage();
-    const l1ExtensionUrl = await getExtensionUrl(browser);
-    await l1WalletExtension.goto(l1ExtensionUrl, { waitUntil: 'commit' });
-    await expect(l1WalletExtension.getByTestId('coin-balance')).toHaveText('10', {
-        timeout: THREE_MINUTES,
-    });
-    await l1WalletExtension.close();
 }

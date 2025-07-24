@@ -1,4 +1,5 @@
 export const WALLET_CUSTOMRPC_PLACEHOLDER = 'http://localhost:3000/';
+export const WALLET_PASSWORD = 'bridgee2etests';
 
 export const THREE_MINUTES = 180_000;
 

@@ -5,6 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
     testDir: './tests',
+    globalSetup: require.resolve('./tests/helpers/global-setup'),
+    globalTeardown: require.resolve('./tests/helpers/global-teardown'),
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,

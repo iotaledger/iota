@@ -1,7 +1,7 @@
 import { BrowserContext, Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
 import { HDNodeWallet, Wallet } from 'ethers';
-import { WALLET_CUSTOMRPC_PLACEHOLDER } from '../utils/constants';
+import { WALLET_CUSTOMRPC_PLACEHOLDER, WALLET_PASSWORD } from '../utils/constants';
 
 export async function createL1Wallet(page: Page, l1ExtensionUrl: string) {
     await page.goto(l1ExtensionUrl);
@@ -9,8 +9,8 @@ export async function createL1Wallet(page: Page, l1ExtensionUrl: string) {
     await page.getByRole('button', { name: /Add Profile/ }).click();
     await page.getByText('Create New').click();
 
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(WALLET_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(WALLET_PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.getByText('I saved my mnemonic').click();
@@ -46,8 +46,8 @@ export async function importL1WalletFromMnemonic(
     }
 
     await page.getByText('Add profile').click();
-    await page.getByTestId('password.input').fill('bridgee2etests');
-    await page.getByTestId('password.confirmation').fill('bridgee2etests');
+    await page.getByTestId('password.input').fill(WALLET_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(WALLET_PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
@@ -66,14 +66,12 @@ export async function importL1WalletFromMnemonic(
     await page.getByTestId('close-icon').click();
 }
 
-export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promise<string> {
+export async function createL2Wallet(page: Page, l2ExtensionUrl: string, mnemonic: string) {
     await page.goto(l2ExtensionUrl);
 
     await page.getByTestId('onboarding-terms-checkbox').click();
     await page.getByRole('button', { name: /Import an existing wallet/ }).click();
     await page.getByRole('button', { name: /No thanks/ }).click();
-
-    const { mnemonic, address } = getRandomL2MnemonicAndAddress();
 
     const mnemonicWords = mnemonic.split(' ');
     for (let i = 0; i < mnemonicWords.length; i++) {
@@ -81,15 +79,13 @@ export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promis
     }
 
     await page.getByRole('button', { name: /Confirm Secret/ }).click();
-    await page.getByTestId('create-password-new').fill('iotae2etests');
-    await page.getByTestId('create-password-confirm').fill('iotae2etests');
+    await page.getByTestId('create-password-new').fill(WALLET_PASSWORD);
+    await page.getByTestId('create-password-confirm').fill(WALLET_PASSWORD);
     await page.getByTestId(/create-password-terms/).click();
     await page.getByRole('button', { name: /Import my wallet/ }).click();
     await page.getByRole('button', { name: /Done/ }).click();
     await page.getByRole('button', { name: /Next/ }).click();
     await page.getByRole('button', { name: /Done/ }).click();
-
-    return address;
 }
 
 /**
@@ -169,4 +165,71 @@ export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: st
         mnemonic: mnemonic.phrase,
         address: HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/0`).address,
     };
+}
+
+/**
+ * Unlocks L1 IOTA Wallet
+ */
+export async function unlockIOTAWallet(page: Page): Promise<void> {
+    try {
+        await page.getByRole('button', { name: 'Unlock your Account' }).click();
+        // Check if the password field is visible
+        const passwordField = page.getByPlaceholder('Password');
+        if (await passwordField.isVisible({ timeout: 1000 })) {
+            console.log('🔓 Unlocking IOTA wallet...');
+            await passwordField.fill(WALLET_PASSWORD);
+            await page.getByRole('button', { name: 'Unlock' }).click();
+            await page.waitForTimeout(500);
+        }
+    } catch (error) {
+        console.log('IOTA Wallet appears to be already unlocked');
+    }
+}
+
+/**
+ * Unlocks MetaMask wallet
+ */
+export async function unlockMetaMask(page: Page): Promise<void> {
+    try {
+        await page.waitForTimeout(500); // Wait for MetaMask to load
+        // Check if unlock field is visible and use it
+        const unlockField = page.getByTestId('unlock-password');
+        if (await unlockField.isVisible({ timeout: 1000 })) {
+            console.log('🔓 Unlocking MetaMask...');
+            await unlockField.fill(WALLET_PASSWORD);
+            await page.getByRole('button', { name: 'Unlock' }).click();
+            await page.waitForTimeout(500);
+        }
+    } catch (error) {
+        console.log('MetaMask appears to be already unlocked');
+    }
+}
+
+export async function isL1WalletConnected(page: Page): Promise<boolean> {
+    try {
+        const connectButton = page.getByTestId('connect-l1-wallet');
+        const count = await connectButton.count();
+        console.log(`Found ${count} elements with test ID 'connect-l1-wallet'`);
+        return count === 0;
+    } catch (error) {
+        console.log('Error checking L1 wallet connection:', error);
+        return false; // Assume not connected on error
+    }
+}
+
+/**
+ * Check if MetaMask (L2) is connected
+ */
+export async function isL2WalletConnected(page: Page): Promise<boolean> {
+    try {
+        const accountButton = page.getByTestId('rk-account-button');
+
+        // Get the count of elements with this test ID
+        const count = await accountButton.count();
+        console.log(`Found ${count} elements with test ID 'rk-account-button'`);
+        return count > 0;
+    } catch (error) {
+        console.log('Error checking L2 wallet connection:', error);
+        return false;
+    }
 }
