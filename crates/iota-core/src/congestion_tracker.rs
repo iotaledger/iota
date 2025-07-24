@@ -361,7 +361,7 @@ mod tests {
         );
     }
 
-   #[tokio::test]
+    #[tokio::test]
     async fn test_get_suggested_gas_price_multiple_objects() {
         let tracker = CongestionTracker::new();
         let obj1 = ObjectID::random();
