@@ -1221,7 +1221,7 @@ fn prompt_for_environment(
                         };
                         Ok(IotaEnv::new(alias, url))
                     } else {
-                        bail!("Invalid custom URL");
+                        bail!("invalid custom URL");
                     }
                 }
             }

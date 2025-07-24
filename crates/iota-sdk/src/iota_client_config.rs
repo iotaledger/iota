@@ -46,12 +46,14 @@ impl IotaClientConfig {
 
     /// Set the default [`IotaEnv`]s for mainnet, devnet, testnet, and localnet.
     pub fn with_default_envs(mut self) -> Self {
-        self.set_envs(vec![
+        // We don't use `set_envs` for the default networks, because we don't want
+        // set any particular one of them as active.
+        self.envs = vec![
             IotaEnv::mainnet(),
             IotaEnv::devnet(),
             IotaEnv::testnet(),
             IotaEnv::localnet(),
-        ]);
+        ];
         self
     }
 
