@@ -41,9 +41,13 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_forward_time_drift")]
     pub max_forward_time_drift: Duration,
 
-    /// Number of blocks to fetch per request.
-    #[serde(default = "Parameters::default_max_block_headers_per_fetch")]
-    pub max_block_headers_per_fetch: usize,
+    /// Number of block headers to fetch per commit sync request.
+    #[serde(default = "Parameters::default_max_headers_per_commit_sync_fetch")]
+    pub max_headers_per_commit_sync_fetch: usize,
+
+    /// Number of block headers to fetch per periodic or live sync request
+    #[serde(default = "Parameters::default_max_headers_per_regular_sync_fetch")]
+    pub max_headers_per_regular_sync_fetch: usize,
 
     /// Number of transactions to fetch per request.
     #[serde(default = "Parameters::default_max_transactions_per_fetch")]
@@ -124,8 +128,8 @@ impl Parameters {
         Duration::from_millis(500)
     }
 
-    pub(crate) fn default_max_block_headers_per_fetch() -> usize {
-        // TODO: set some sensible value adjusted for Starfish
+    // Maximum number of block headers to fetch per commit sync request.
+    pub(crate) fn default_max_headers_per_commit_sync_fetch() -> usize {
         if cfg!(msim) {
             // Exercise hitting blocks per fetch limit.
             10
@@ -134,14 +138,20 @@ impl Parameters {
         }
     }
 
-    pub(crate) fn default_max_transactions_per_fetch() -> usize {
-        // TODO: set some sensible value adjusted for Starfish
+    // Maximum number of block headers to fetch per periodic or live sync request.
+    pub(crate) fn default_max_headers_per_regular_sync_fetch() -> usize {
         if cfg!(msim) {
             // Exercise hitting blocks per fetch limit.
             10
         } else {
-            1000
+            // TODO: This might should match the value of block headers in the bundle.
+            100
         }
+    }
+
+    // Maximum number of block headers to fetch per periodic or live sync request.
+    pub(crate) fn default_max_transactions_per_fetch() -> usize {
+        if cfg!(msim) { 10 } else { 1000 }
     }
 
     pub(crate) fn default_sync_last_known_own_block_timeout() -> Duration {
@@ -205,7 +215,10 @@ impl Default for Parameters {
             leader_timeout: Parameters::default_leader_timeout(),
             min_round_delay: Parameters::default_min_round_delay(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
-            max_block_headers_per_fetch: Parameters::default_max_block_headers_per_fetch(),
+            max_headers_per_commit_sync_fetch:
+                Parameters::default_max_headers_per_commit_sync_fetch(),
+            max_headers_per_regular_sync_fetch:
+                Parameters::default_max_headers_per_regular_sync_fetch(),
             max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),

@@ -171,6 +171,22 @@ impl DagBuilder {
         self
     }
 
+    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlock> {
+        assert!(
+            !self.block_headers.is_empty(),
+            "No blocks have been created, please make sure that you have called build method"
+        );
+        self.block_headers
+            .iter()
+            .filter_map(|(block_ref, block_header)| {
+                rounds.contains(&block_ref.round).then_some(VerifiedBlock {
+                    verified_block_header: block_header.clone(),
+                    verified_transactions: self.transactions.get(block_ref).cloned()?,
+                })
+            })
+            .collect::<Vec<VerifiedBlock>>()
+    }
+
     pub(crate) fn block_headers(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlockHeader> {
         assert!(
             !self.block_headers.is_empty(),
@@ -199,21 +215,6 @@ impl DagBuilder {
             })
             .cloned()
             .collect::<Vec<VerifiedTransactions>>()
-    }
-    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlock> {
-        assert!(
-            !self.block_headers.is_empty(),
-            "No blocks have been created, please make sure that you have called build method"
-        );
-        self.block_headers
-            .iter()
-            .filter_map(|(block_ref, block_header)| {
-                rounds.contains(&block_ref.round).then_some(VerifiedBlock {
-                    verified_block_header: block_header.clone(),
-                    verified_transactions: self.transactions.get(block_ref).cloned()?,
-                })
-            })
-            .collect::<Vec<VerifiedBlock>>()
     }
 
     pub(crate) fn all_block_headers(&self) -> Vec<VerifiedBlockHeader> {
@@ -434,26 +435,6 @@ impl DagBuilder {
         blocks
     }
 
-    // Gets transactions in a slot.
-    pub(crate) fn get_transaction_block_refs_at_slot(&self, slot: Slot) -> Vec<BlockRef> {
-        let mut acks = Vec::new();
-        for verified_transaction in self.transactions.range((
-            Included(BlockRef::new(
-                slot.round,
-                slot.authority,
-                BlockHeaderDigest::MIN,
-            )),
-            Included(BlockRef::new(
-                slot.round,
-                slot.authority,
-                BlockHeaderDigest::MAX,
-            )),
-        )) {
-            acks.push(*verified_transaction.0);
-        }
-        acks
-    }
-
     pub(crate) fn genesis_block_refs(&self) -> Vec<BlockRef> {
         self.genesis.keys().cloned().collect()
     }
@@ -512,13 +493,13 @@ impl DagBuilder {
                     block_refs.extend(self.last_ancestors.clone());
                 }
                 AncestorSelection::ExcludeFrom(slot) => {
-                    let stored_block_refs = self.get_transaction_block_refs_at_slot(slot);
+                    let stored_block_refs = self.get_blocks(slot);
                     block_refs.extend(self.last_ancestors.clone());
 
                     block_refs.retain(|ancestor| !stored_block_refs.contains(ancestor));
                 }
                 AncestorSelection::IncludeFrom(slot) => {
-                    let stored_block_refs = self.get_transaction_block_refs_at_slot(slot);
+                    let stored_block_refs = self.get_blocks(slot);
                     block_refs.extend(stored_block_refs);
                 }
             }

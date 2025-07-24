@@ -110,7 +110,7 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
         if block.round() == 0 {
-            return Err(ConsensusError::UnexpectedGenesisBlock);
+            return Err(ConsensusError::UnexpectedGenesisHeader);
         }
         if !committee.is_valid_index(block.author()) {
             return Err(ConsensusError::InvalidAuthorityIndex {
@@ -310,7 +310,7 @@ pub(crate) mod test {
             let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
             assert!(matches!(
                 verifier.verify(&signed_block),
-                Err(ConsensusError::UnexpectedGenesisBlock)
+                Err(ConsensusError::UnexpectedGenesisHeader)
             ));
         }
 
