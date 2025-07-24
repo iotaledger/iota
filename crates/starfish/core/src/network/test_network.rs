@@ -20,11 +20,6 @@ pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle: Vec<(AuthorityIndex, SerializedBlockBundle)>,
     pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,
     pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
-    pub(crate) handle_fetch_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)>,
-    pub(crate) handle_subscribe_blocks: Vec<(AuthorityIndex, Round)>,
-    pub(crate) handle_subscribed_block_bundle: Vec<(AuthorityIndex, SerializedBlockBundle)>,
-    pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,
-    pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
 }
@@ -35,10 +30,8 @@ impl TestService {
             own_block_bundles: Vec::new(),
             handle_subscribed_block_bundle: Vec::new(),
             handle_subscribed_block_bundle_requests: Vec::new(),
-            handle_subscribed_block: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
-            own_block_bundles: Vec::new(),
         }
     }
 
@@ -62,38 +55,7 @@ impl NetworkService for Mutex<TestService> {
         Ok(())
     }
 
-    async fn handle_subscribed_block_bundle(
-        &self,
-        peer: AuthorityIndex,
-        serialized_block_bundle: SerializedBlockBundle,
-    ) -> ConsensusResult<()> {
-        let mut state = self.lock();
-        state
-            .handle_subscribed_block_bundle
-            .push((peer, serialized_block_bundle));
-        Ok(())
-    }
-
     async fn handle_subscribe_block_bundles_request(
-        &self,
-        peer: AuthorityIndex,
-        last_received: Round,
-    ) -> ConsensusResult<BlockBundleStream> {
-        let mut state = self.lock();
-        state
-            .handle_subscribed_block_bundle_requests
-            .push((peer, last_received));
-        let own_blocks = state
-            .own_block_bundles
-            .iter()
-            // Let index in own_blocks be the round, and skip blocks <= last_received round.
-            .skip(last_received as usize + 1)
-            .cloned()
-            .collect::<Vec<_>>();
-        Ok(Box::pin(stream::iter(own_blocks)))
-    }
-
-    async fn handle_subscribe_blocks(
         &self,
         peer: AuthorityIndex,
         last_received: Round,

@@ -241,10 +241,7 @@ mod test {
         block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{
-            BlockBundleStream, BlockStream, SerializedBlock, SerializedBlockBundle,
-            SerializedHeaderAndTransactions, test_network::TestService,
-        },
+        network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
     };
 
@@ -270,25 +267,6 @@ mod test {
                     serialized_block_bundle: Bytes::from(vec![1u8; 8]),
                 };
                 Some((block, ()))
-            })
-            .take(10);
-            Ok(Box::pin(block_stream))
-        }
-
-        async fn subscribe_block_bundles(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockBundleStream> {
-            let block_stream = stream::unfold((), |_| async {
-                sleep(Duration::from_millis(1)).await;
-                Some((
-                    SerializedBlockBundle {
-                        serialized_block_bundle: Bytes::from(vec![1u8; 8]),
-                    },
-                    (),
-                ))
             })
             .take(10);
             Ok(Box::pin(block_stream))

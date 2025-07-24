@@ -526,22 +526,6 @@ impl DagState {
         transactions
     }
 
-    /// Gets blocks by reconstructing them from their headers and transactions.
-    /// Returns None for elements where the block is not found.
-    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
-        let headers = self.get_block_headers(block_refs);
-        let transactions = self.get_transactions(block_refs);
-
-        headers
-            .into_iter()
-            .zip(transactions)
-            .map(|(header, transaction)| match (header, transaction) {
-                (Some(header), Some(transaction)) => Some(VerifiedBlock::new(header, transaction)),
-                _ => None,
-            })
-            .collect()
-    }
-
     /// Gets a block header by checking cached recent blocks then storage.
     /// Returns None when the block is not found.
     pub(crate) fn get_block_header(&self, reference: &BlockRef) -> Option<VerifiedBlockHeader> {

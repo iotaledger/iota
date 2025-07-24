@@ -391,22 +391,22 @@ mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee() {
-        telemetry_subscribers::init_for_testing();
+    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
+        // telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
-        const NUM_OF_AUTHORITIES: usize = 4;
-        let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
+        let (committee, keypairs) =
+            local_committee_and_keys(0, vec![1; num_of_authorities].to_vec());
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
-        let temp_dirs = (0..NUM_OF_AUTHORITIES)
+        let temp_dirs = (0..num_of_authorities)
             .map(|_| TempDir::new().unwrap())
             .collect::<Vec<_>>();
 
         let mut output_receivers = Vec::with_capacity(committee.size());
         let mut authorities = Vec::with_capacity(committee.size());
-        let mut boot_counters = [0; NUM_OF_AUTHORITIES];
+        let mut boot_counters = vec![0; num_of_authorities];
         let mut consumer_monitors = Vec::with_capacity(committee.size());
 
         for (index, _authority_info) in committee.authorities() {
@@ -510,10 +510,10 @@ mod tests {
         let mut expected_transactions = submitted_transactions.clone();
 
         let start_time = Instant::now();
-        let mut last_committed_index = [0, 4];
-        let mut last_round_committed_blocks = [0, 4];
+        let mut last_committed_index = vec![0; num_of_authorities];
+        let mut last_round_committed_blocks = vec![0; num_of_authorities];
         loop {
-            if start_time.elapsed() > Duration::from_secs(15) {
+            if start_time.elapsed() > Duration::from_secs(30) {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
