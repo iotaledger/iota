@@ -966,7 +966,7 @@ mod tests {
         context::Context,
         core_thread::CoreError,
         dag_state::DagState,
-        network::{BlockBundleStream, BlockStream, NetworkClient, SerializedTransactions},
+        network::{BlockBundleStream, NetworkClient, SerializedTransactions},
         storage::mem_store::MemStore,
     };
 
@@ -1968,16 +1968,6 @@ mod tests {
 
     #[async_trait]
     impl NetworkClient for MockNetworkClient {
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            // Not needed for transactions synchronizer tests
-            unimplemented!("subscribe_blocks not implemented in mock")
-        }
-
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
@@ -2035,17 +2025,6 @@ mod tests {
                 }
             }
             Ok(result)
-        }
-
-        async fn fetch_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            // Not needed for transactions synchronizer tests
-            unimplemented!("fetch_blocks not implemented in mock")
         }
 
         async fn fetch_block_headers(

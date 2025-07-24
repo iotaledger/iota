@@ -386,7 +386,8 @@ mod tests {
     // TODO: add transactions to control how the consensus works
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_authority_committee() {
+    async fn test_restart_authority_committee() {
+        telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
@@ -436,7 +437,6 @@ mod tests {
         output_receivers[index] = receiver;
         authorities.insert(index.value(), authority);
         sleep(Duration::from_secs(10)).await;
-
         // Stop all authorities and exit.
         for authority in authorities {
             authority.stop().await;

@@ -599,10 +599,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
         let num_chunks = block_refs
             .len()
-            .div_ceil(inner.context.parameters.max_block_headers_per_fetch)
+            .div_ceil(inner.context.parameters.max_headers_per_commit_sync_fetch)
             as u32;
         let mut requests: FuturesOrdered<_> = block_refs
-            .chunks(inner.context.parameters.max_block_headers_per_fetch)
+            .chunks(inner.context.parameters.max_headers_per_commit_sync_fetch)
             .enumerate()
             .map(|(i, request_block_refs)| {
                 let inner = inner.clone();
@@ -622,10 +622,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         .await?;
                     // 5. Verify the same number of block headers is returned as requested.
                     if request_block_refs.len() != serialized_block_headers.len() {
-                        return Err(ConsensusError::UnexpectedNumberOfBlockHeadersFetched {
+                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
                             authority: target_authority,
                             requested: request_block_refs.len(),
-                            received_block_headers: serialized_block_headers.len(),
+                            received_headers: serialized_block_headers.len(),
                         });
                     }
                     // 6. Verify returned block headers have valid formats.
@@ -815,7 +815,7 @@ impl<C: NetworkClient> Inner<C> {
         let mut vote_block_headers = Vec::new();
         for serialized_block_header in serialized_vote_blocks_headers.into_iter() {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedBlock)?;
+                .map_err(ConsensusError::MalformedHeader)?;
             // The block signature needs to be verified.
             self.block_verifier.verify(&signed_block_header)?;
             for vote in signed_block_header.commit_votes() {
@@ -866,7 +866,7 @@ mod tests {
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         error::ConsensusResult,
-        network::{BlockBundleStream, BlockStream, NetworkClient},
+        network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
@@ -876,15 +876,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl NetworkClient for FakeNetworkClient {
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            unimplemented!("Unimplemented")
-        }
-
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
@@ -898,16 +889,6 @@ mod tests {
             &self,
             _peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -954,7 +935,7 @@ mod tests {
                 commit_sync_batch_size: 5,
                 commit_sync_batches_ahead: 5,
                 commit_sync_parallel_fetches: 5,
-                max_block_headers_per_fetch: 5,
+                max_headers_per_commit_sync_fetch: 5,
                 ..context.parameters
             },
             ..context
