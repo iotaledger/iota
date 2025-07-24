@@ -3472,19 +3472,15 @@ async fn select_coins_for_amount(
     gas_coins.sort_unstable_by_key(|c| c.value());
     let mut amount_remaining = amount;
     while amount_remaining > 0 {
-        if gas_coins.is_empty() {
+        if let Some(coin) = gas_coins.pop() {
+            amount_remaining = amount_remaining.saturating_sub(coin.value());
+            coins.push(*coin.id());
+        } else {
             anyhow::bail!(
                 "insufficient funds for requested amount: {amount}, available: {}",
                 amount - amount_remaining
             );
         }
-        let coin = if let Some(idx) = gas_coins.iter().position(|c| c.value() >= amount_remaining) {
-            gas_coins.remove(idx)
-        } else {
-            gas_coins.pop().expect("missing coins")
-        };
-        amount_remaining = amount_remaining.saturating_sub(coin.value());
-        coins.push(*coin.id());
     }
 
     Ok(coins)
