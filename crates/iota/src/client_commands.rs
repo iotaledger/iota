@@ -336,9 +336,10 @@ pub enum IotaClientCommands {
     /// no extra gas coin is required.
     PayIota {
         /// The input coins to be used for pay recipients, including the gas
-        /// coin.
+        /// coin. If not provided, coins will be selected automatically which
+        /// fulfill the requested amounts.
         #[arg(long, num_args(1..))]
-        input_coins: Vec<ObjectID>,
+        input_coins: Option<Vec<ObjectID>>,
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[arg(long, num_args(1..))]
@@ -1465,11 +1466,11 @@ impl IotaClientCommands {
                 input_coins,
                 recipients,
                 amounts,
-                gas_data,
+                mut gas_data,
                 processing,
             } => {
                 ensure!(
-                    !input_coins.is_empty(),
+                    !input_coins.as_ref().is_some_and(|v| v.is_empty()),
                     "PayIota transaction requires a non-empty list of input coins"
                 );
                 ensure!(
@@ -1484,15 +1485,45 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
+
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
                     .try_collect::<Vec<IotaAddress>>()
                     .await?;
-                let signer = context.get_object_owner(&input_coins[0]).await?;
+                let signer =
+                    get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
-                    .pay_iota_tx_kind(recipients, amounts)?;
+                    .pay_iota_tx_kind(recipients, amounts.clone())?;
+
+                let input_coins = if let Some(coins) = input_coins {
+                    coins
+                } else {
+                    // Estimate the gas cost if needed
+                    let gas_budget = if let Some(gas_budget) = gas_data.gas_budget {
+                        gas_budget
+                    } else {
+                        let gas_price = context.get_reference_gas_price().await?;
+                        estimate_gas_budget(
+                            context,
+                            signer,
+                            tx_kind.clone(),
+                            gas_price,
+                            Vec::new(),
+                            None,
+                        )
+                        .await?
+                    };
+                    // Ensure that we do not need to estimate again later
+                    gas_data.gas_budget = Some(gas_budget);
+                    select_coins_for_amount(
+                        amounts.iter().sum::<u64>() + gas_budget,
+                        signer,
+                        context,
+                    )
+                    .await?
+                };
 
                 let gas_payment = client
                     .transaction_builder()
@@ -1660,17 +1691,41 @@ impl IotaClientCommands {
                 match (amounts.as_ref(), count) {
                     (None, None) => bail!("You must use one of amounts or count options."),
                     (Some(_), Some(_)) => bail!("Cannot specify both amounts and count."),
-                    (None, Some(0)) => bail!("Coin split count must be greater than 0"),
+                    (None, Some(0)) | (None, Some(1)) => {
+                        bail!("Coin split count must be greater than 1.")
+                    }
                     _ => { /*no_op*/ }
                 }
 
                 let client = context.get_client().await?;
                 let signer = context.get_object_owner(&coin_id).await?;
-
-                let tx_kind = client
-                    .transaction_builder()
-                    .split_coin_tx_kind(coin_id, amounts, count)
+                let gas_coins_page = client
+                    .coin_read_api()
+                    .get_coins(signer, None, None, None)
                     .await?;
+                // If we only have a single coin, we have to split from the gas coin
+                let tx_kind = if gas_coins_page.data.len() == 1 {
+                    if let Some(amounts) = amounts {
+                        client
+                            .transaction_builder()
+                            .pay_iota_tx_kind(vec![signer; amounts.len()], amounts)?
+                    } else if let Some(count_to_compute) = count {
+                        let amount = gas_coins_page.data[0].balance / count_to_compute;
+                        // Reduce by 1 as the gas coin is not included in the split
+                        let count_to_split = count_to_compute.saturating_sub(1);
+                        client.transaction_builder().pay_iota_tx_kind(
+                            vec![signer; count_to_split as usize],
+                            vec![amount; count_to_split as usize],
+                        )?
+                    } else {
+                        unreachable!("amount or count must be provided")
+                    }
+                } else {
+                    client
+                        .transaction_builder()
+                        .split_coin_tx_kind(coin_id, amounts, count)
+                        .await?
+                };
 
                 let gas_payment = client
                     .transaction_builder()
@@ -3421,4 +3476,36 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
     }
 
     Ok(())
+}
+
+async fn select_coins_for_amount(
+    amount: u64,
+    sender: IotaAddress,
+    context: &mut WalletContext,
+) -> anyhow::Result<Vec<ObjectID>> {
+    let mut coins = Vec::new();
+
+    let mut gas_coins = context
+        .gas_objects(sender)
+        .await?
+        .iter()
+        // Ok to unwrap() since `gas_objects` guarantees gas
+        .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+        .collect::<Vec<_>>();
+    // Sort in ascending order
+    gas_coins.sort_unstable_by_key(|c| c.value());
+    let mut amount_remaining = amount;
+    while amount_remaining > 0 {
+        if let Some(coin) = gas_coins.pop() {
+            amount_remaining = amount_remaining.saturating_sub(coin.value());
+            coins.push(*coin.id());
+        } else {
+            anyhow::bail!(
+                "insufficient funds for requested amount: {amount}, available: {}",
+                amount - amount_remaining
+            );
+        }
+    }
+
+    Ok(coins)
 }
