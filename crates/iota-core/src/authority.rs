@@ -1827,8 +1827,7 @@ impl AuthorityState {
         let tracker_clone = self.congestion_tracker.clone();
 
         let suggested_gas_price = tracker_clone
-            .get_suggested_gas_price_with_ogd(tx_clone)
-            .await;
+            .get_suggested_gas_price_with_ogd(tx_clone);
 
         let mut layout_resolver =
             epoch_store
