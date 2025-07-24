@@ -17,11 +17,8 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag},
 };
-use move_disassembler::disassembler::Disassembler;
-use move_ir_types::location::Spanned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use serde_with::{Bytes, serde_as};
 
 use crate::{
@@ -515,10 +512,6 @@ impl MovePackage {
         })
     }
 
-    pub fn disassemble(&self) -> IotaResult<BTreeMap<String, Value>> {
-        disassemble_modules(self.module_map.values())
-    }
-
     pub fn normalize(
         &self,
         binary_config: &BinaryConfig,
@@ -590,35 +583,6 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
         Some(fn_info) => fn_info.is_test,
         None => false,
     }
-}
-
-pub fn disassemble_modules<'a, I>(modules: I) -> IotaResult<BTreeMap<String, Value>>
-where
-    I: Iterator<Item = &'a Vec<u8>>,
-{
-    let mut disassembled = BTreeMap::new();
-    for bytecode in modules {
-        // this function is only from JSON RPC - it is OK to deserialize with max Move
-        // binary version
-        let module = CompiledModule::deserialize_with_defaults(bytecode).map_err(|error| {
-            IotaError::ModuleDeserializationFailure {
-                error: error.to_string(),
-            }
-        })?;
-        let d =
-            Disassembler::from_module(&module, Spanned::unsafe_no_loc(()).loc).map_err(|e| {
-                IotaError::ObjectSerialization {
-                    error: e.to_string(),
-                }
-            })?;
-        let bytecode_str = d
-            .disassemble()
-            .map_err(|e| IotaError::ObjectSerialization {
-                error: e.to_string(),
-            })?;
-        disassembled.insert(module.name().to_string(), Value::String(bytecode_str));
-    }
-    Ok(disassembled)
 }
 
 pub fn normalize_modules<'a, I>(

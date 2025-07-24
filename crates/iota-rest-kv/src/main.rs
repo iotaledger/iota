@@ -5,19 +5,25 @@ use std::{fs, path::PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
-use kv_store_client::KvStoreConfig;
 use serde::{Deserialize, Serialize};
 use server::Server;
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
+/// This module contains the DynamoDb and S3 implementation of the KV store
+/// client.
+#[allow(dead_code)]
+mod aws;
+/// This module contains the Bigtable implementation of the KV store client.
+mod bigtable;
 mod errors;
 mod extractors;
-mod kv_store_client;
 mod routes;
 mod server;
 mod types;
+
+use bigtable::KvStoreConfig;
 
 /// The main CLI application.
 #[derive(Parser, Clone, Debug)]

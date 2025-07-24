@@ -1,22 +1,21 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
+use clap::Parser;
+use move_binary_format::file_format::CompiledModule;
+use move_bytecode_source_map::utils::source_map_from_file;
+use move_command_line_common::files::DEBUG_INFO_EXTENSION;
+use move_coverage::{coverage_map::CoverageMap, source_coverage::SourceCoverageBuilder};
 use std::{
     fs,
     fs::File,
     io::{self, Write},
     path::Path,
 };
-
-use clap::Parser;
-use move_binary_format::file_format::CompiledModule;
-use move_bytecode_source_map::utils::source_map_from_file;
-use move_command_line_common::files::SOURCE_MAP_EXTENSION;
-use move_coverage::{coverage_map::CoverageMap, source_coverage::SourceCoverageBuilder};
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -46,7 +45,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let source_map_extension = SOURCE_MAP_EXTENSION;
+    let debug_info_extension = DEBUG_INFO_EXTENSION;
     let coverage_map = if args.is_raw_trace_file {
         CoverageMap::from_trace_file(&args.input_trace_path)
     } else {
@@ -58,7 +57,7 @@ fn main() {
         .expect("Module blob can't be deserialized");
 
     let source_map = source_map_from_file(
-        &Path::new(&args.module_binary_path).with_extension(source_map_extension),
+        &Path::new(&args.module_binary_path).with_extension(debug_info_extension),
     )
     .unwrap();
     let source_path = Path::new(&args.source_file_path);

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -316,10 +316,7 @@ fn cursor_completion_items(
 /// Returns the token corresponding to the "trigger character" if it is one of `.`, `:`, '{', or
 /// `::`. Otherwise, returns `None` (position points at the potential trigger character itself).
 fn get_cursor_token(buffer: &str, position: &Position) -> Option<Tok> {
-    let line = match buffer.lines().nth(position.line as usize) {
-        Some(line) => line,
-        None => return None, // Our buffer does not contain the line, and so must be out of date.
-    };
+    let line = buffer.lines().nth(position.line as usize)?;
     match line.chars().nth(position.character as usize) {
         Some('.') => Some(Tok::Period),
         Some(':') => {

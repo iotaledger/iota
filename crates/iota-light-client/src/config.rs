@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use tokio::fs::{create_dir_all, read_to_string};
 use url::Url;
 
+use crate::checkpoint::{CheckpointList, write_checkpoint_list};
+
 const GENESIS_FILE_NAME: &str = "genesis.blob";
 const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
 
@@ -70,6 +72,10 @@ impl Config {
                 }
             }
         }
+        // Create an empty `checkpoints.yaml` if it doesn't exist yet
+        if !self.checkpoints_list_file_path().is_file() {
+            write_checkpoint_list(self, &CheckpointList::default())?;
+        }
         Ok(())
     }
 
@@ -119,7 +125,9 @@ impl Config {
             checkpoint_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::S3),
                 object_store_connection_limit: 20,
-                aws_endpoint: Some(format!("https://checkpoints.{network}.iota.cafe")),
+                aws_endpoint: Some(format!(
+                    "https://checkpoints.{network}.iota.cafe/ingestion/historical"
+                )),
                 aws_virtual_hosted_style_request: true,
                 aws_region: Some("weur".to_string()),
                 no_sign_request: true,
@@ -140,7 +148,6 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use iota_config::object_storage_config::ObjectStoreType;
     use tempfile::TempDir;
 
     use super::*;
