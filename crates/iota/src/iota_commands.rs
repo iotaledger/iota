@@ -1201,7 +1201,7 @@ fn prompt_for_environment(
                 String::new()
             } else {
                 print!(
-                    "[mainet|testnet|devnet|localnet], or an IOTA Full node server URL (defaults to testnet if not specified) : "
+                    "[mainnet|testnet|devnet|localnet], or an IOTA Full node server URL (defaults to testnet if not specified) : "
                 );
                 read_line()?
             };
