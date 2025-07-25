@@ -17,6 +17,7 @@ use iota_config::{
     ExecutionCacheConfig, ExecutionCacheType, IOTA_GENESIS_FILENAME, NodeConfig,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
 };
+use iota_grpc_api;
 use iota_macros::nondeterministic;
 use iota_names::config::IotaNamesConfig;
 use iota_node::IotaNodeHandle;
@@ -71,6 +72,7 @@ pub struct SwarmBuilder<R = OsRng> {
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
 }
 
 impl SwarmBuilder {
@@ -103,6 +105,7 @@ impl SwarmBuilder {
             state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
+            fullnode_grpc_api_config: None,
         }
     }
 }
@@ -137,6 +140,7 @@ impl<R> SwarmBuilder<R> {
             state_accumulator_config: self.state_accumulator_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
+            fullnode_grpc_api_config: self.fullnode_grpc_api_config,
         }
     }
 
@@ -310,6 +314,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_fullnode_grpc_api_config(mut self, config: iota_grpc_api::Config) -> Self {
+        self.fullnode_grpc_api_config = Some(config);
+        self
+    }
+
     fn get_or_init_genesis_config(&mut self) -> &mut GenesisConfig {
         if self.genesis_config.is_none() {
             assert!(self.network_config.is_none());
@@ -448,6 +457,12 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             };
             fullnode_config_builder =
                 fullnode_config_builder.with_supported_protocol_versions(supported_versions);
+        }
+
+        // Add gRPC config wiring
+        if let Some(grpc_config) = &self.fullnode_grpc_api_config {
+            fullnode_config_builder =
+                fullnode_config_builder.with_grpc_api_config(grpc_config.clone());
         }
 
         if self.fullnode_count > 0 {

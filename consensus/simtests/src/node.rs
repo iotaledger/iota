@@ -102,7 +102,7 @@ impl AuthorityNode {
 
     /// If this Node is currently running
     pub fn is_running(&self) -> bool {
-        self.inner.lock().as_ref().map_or(false, |c| c.is_alive())
+        self.inner.lock().as_ref().is_some_and(|c| c.is_alive())
     }
 }
 

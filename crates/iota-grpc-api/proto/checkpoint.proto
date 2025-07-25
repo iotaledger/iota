@@ -1,0 +1,40 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc;
+
+service CheckpointService {
+  // Checkpoint operations
+  rpc StreamCheckpoints (CheckpointStreamRequest) returns (stream Checkpoint);
+  rpc GetEpochFirstCheckpointSequenceNumber (EpochRequest) returns (CheckpointSequenceNumberResponse);
+}
+
+message CheckpointStreamRequest {
+  optional uint64 start_sequence_number = 1;
+  optional uint64 end_sequence_number = 2;
+  // If true, stream the full CheckpointData (not just the summary).
+  bool full = 3;
+}
+
+message EpochRequest {
+  uint64 epoch = 1;
+}
+
+message CheckpointSequenceNumberResponse {
+  uint64 sequence_number = 1;
+}
+
+// BCS-serialized data container
+message BcsData {
+  bytes data = 1;
+}
+
+message Checkpoint {
+  uint64 sequence_number = 1;
+  // Indicates whether bcs_data contains full CheckpointData (true) or just CertifiedCheckpointSummary (false)
+  bool is_full = 2;
+  // BCS-encoded CertifiedCheckpointSummary (default) or CheckpointData (if full=true)
+  BcsData bcs_data = 3;
+} 
