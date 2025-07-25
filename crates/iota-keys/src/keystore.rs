@@ -648,7 +648,7 @@ impl FileBasedKeystore {
 
             (keys, aliases)
         } else {
-            (BTreeMap::new(), BTreeMap::new())
+            bail!("keystore file not found at {}", path.display())
         };
 
         Ok(Self {
