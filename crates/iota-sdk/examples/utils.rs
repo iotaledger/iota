@@ -264,7 +264,8 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 
     if !wallet_conf.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
-        let client_config = IotaClientConfig::new(keystore).with_default_envs();
+        let mut client_config = IotaClientConfig::new(keystore).with_default_envs();
+        client_config.set_active_env("testnet".to_string());
         client_config.save(&wallet_conf)?;
         info!("Client config file is stored in {wallet_conf:?}.");
     }
