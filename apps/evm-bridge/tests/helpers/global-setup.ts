@@ -1,88 +1,105 @@
 // global-setup.ts
-import { chromium } from '@playwright/test';
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
-import path from 'path';
-import { generate24WordMnemonic, deriveAddressFromMnemonic } from '../utils/utils';
 import {
-    importL1WalletFromMnemonic,
-    createL2Wallet,
-    addNetworkToMetaMask,
-    getRandomL2MnemonicAndAddress,
-} from './wallet';
-import { waitForExtension } from './browser';
-import { STATE_FILE, STATE_DIR, USER_DATA_DIR_L1, USER_DATA_DIR_L2 } from './paths';
-
-// Extensions paths
-const EXTENSION_L1_PATH = path.join(__dirname, '../../../wallet/dist');
-const EXTENSION_L2_PATH = path.join(__dirname, '../../wallet-dist-L2');
-const COMMON_ARGS = ['--user-agent=Playwright', '--disable-dev-shm-usage', '--no-sandbox'];
+    generate24WordMnemonic,
+    deriveAddressFromMnemonic,
+    generateTestWallets,
+} from '../utils/utils';
+import { STATE_FILE, STATE_DIR } from './paths';
+import { requestFundsFromFaucet, sendIotaToAddress } from './transactions';
+import { MNEMONIC_TOOL_COIN } from '../utils/constants';
+import {
+    fundDepostiThenWithdrawNativeTokenTestWallets,
+    fundSendMaxIotaTestWallets,
+    fundSendMaxNativeTokenTestWallets,
+} from './test-funding';
 
 async function globalSetup() {
     // Create state directories
     if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
-    if (!existsSync(USER_DATA_DIR_L1)) mkdirSync(USER_DATA_DIR_L1, { recursive: true });
-    if (!existsSync(USER_DATA_DIR_L2)) mkdirSync(USER_DATA_DIR_L2, { recursive: true });
 
-    // Launch persistent contexts for L1 and L2
-    const browserL1 = await chromium.launchPersistentContext(USER_DATA_DIR_L1, {
-        headless: false,
-        args: [
-            ...COMMON_ARGS,
-            `--disable-extensions-except=${EXTENSION_L1_PATH}`,
-            `--load-extension=${EXTENSION_L1_PATH}`,
-        ],
-    });
+    // 1. Create global funding address for faucet requests
+    const globalMnemonicL1 = generate24WordMnemonic();
+    const { address: globalAddressL1, keypair: globalKeypair } =
+        deriveAddressFromMnemonic(globalMnemonicL1);
 
-    const browserL2 = await chromium.launchPersistentContext(USER_DATA_DIR_L2, {
-        headless: false,
-        args: [
-            ...COMMON_ARGS,
-            `--disable-extensions-except=${EXTENSION_L2_PATH}`,
-            `--load-extension=${EXTENSION_L2_PATH}`,
-        ],
-    });
+    const { address: toolCoinAddress, keypair: toolCoinKeypair } =
+        deriveAddressFromMnemonic(MNEMONIC_TOOL_COIN);
 
-    try {
-        // Get extension URLs
-        const extensionIdL1 = await waitForExtension(browserL1);
-        const extensionIdL2 = await waitForExtension(browserL2);
+    // 1. Generate addresses for sendMaxIotaAmount test
+    const sendMaxIotaWalletsL1 = generateTestWallets();
+    const sendMaxIotaWalletsL2 = generateTestWallets();
 
-        const l1ExtensionUrl = `chrome-extension://${extensionIdL1}/ui.html`;
-        const l2ExtensionUrl = `chrome-extension://${extensionIdL2}/home.html`;
+    // 2. Generate addresses for Send Max Native Token Amount test
+    const sendMaxNativeTokensWalletsL1 = generateTestWallets();
+    const sendMaxNativeTokensWalletsL2 = generateTestWallets();
 
-        // Create L1 wallet
-        const mnemonicL1 = generate24WordMnemonic();
-        const pageL1 = await browserL1.newPage();
-        await importL1WalletFromMnemonic(pageL1, l1ExtensionUrl, mnemonicL1);
-        const addressL1 = deriveAddressFromMnemonic(mnemonicL1);
-        await pageL1.close();
+    // 3. Generate addresses for roundtrip iota  test
+    const roundTripIotaWallets = generateTestWallets();
 
-        // Create L2 wallet
-        const { mnemonic: mnemonicL2, address: addressL2 } = getRandomL2MnemonicAndAddress();
+    // 4. Generate addresses for roundtrip native token test
+    const roundTripNativeTokenWallets = generateTestWallets();
 
-        const pageL2 = await browserL2.newPage();
-        await createL2Wallet(pageL2, l2ExtensionUrl, mnemonicL2);
-        await addNetworkToMetaMask(pageL2);
-        await pageL2.waitForTimeout(5000);
-        await pageL2.close();
+    // Store all addresses in shared state
+    const state = {
+        // Global addresses
+        global: {
+            addressL1: globalAddressL1,
+            mnemonicL1: globalMnemonicL1,
+        },
+        // Test-specific addresses
+        tests: {
+            sendMaxIotaAmountL1: sendMaxIotaWalletsL1,
+            sendMaxIotaAmountL2: sendMaxIotaWalletsL2,
+            sendMaxNativeTokenAmountL1: sendMaxNativeTokensWalletsL1,
+            sendMaxNativeTokenAmountL2: sendMaxNativeTokensWalletsL2,
+            depositThenWithdraw: roundTripIotaWallets,
+            depositThenWithdrawNativeToken: roundTripNativeTokenWallets,
+        },
 
-        // Save state to file
-        const state = {
-            extensionIdL1,
-            extensionIdL2,
-            addressL1,
-            addressL2,
-            mnemonicL1,
-            mnemonicL2,
-            createdAt: new Date().toISOString(),
-        };
+        createdAt: new Date().toISOString(),
+    };
 
-        writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-    } finally {
-        // Close browsers after setup
-        await browserL1.close();
-        await browserL2.close();
-    }
+    writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+
+    // Fund global wallet from faucet
+    await requestFundsFromFaucet(globalAddressL1);
+
+    // Fund sendMaxIotaAmount test addresses
+    await fundSendMaxIotaTestWallets(
+        globalAddressL1,
+        globalKeypair,
+        sendMaxIotaWalletsL1.addressL1,
+        sendMaxIotaWalletsL2.addressL2,
+    );
+
+    // Fund sendMaxNativeTokenAmount test addresses
+    await fundSendMaxNativeTokenTestWallets(
+        globalAddressL1,
+        globalKeypair,
+        toolCoinAddress,
+        toolCoinKeypair,
+        sendMaxNativeTokensWalletsL1.addressL1,
+        sendMaxNativeTokensWalletsL2.addressL2,
+    );
+
+    // Fund round trip iota wallets
+    await sendIotaToAddress(
+        globalAddressL1,
+        globalKeypair,
+        roundTripIotaWallets.addressL1,
+        4, // Amount of IOTA
+    );
+
+    // Fund round trip native token wallets
+    await fundDepostiThenWithdrawNativeTokenTestWallets(
+        globalAddressL1,
+        globalKeypair,
+        toolCoinAddress,
+        toolCoinKeypair,
+        roundTripNativeTokenWallets.addressL1,
+        roundTripNativeTokenWallets.addressL2,
+    );
 }
 
 export default globalSetup;

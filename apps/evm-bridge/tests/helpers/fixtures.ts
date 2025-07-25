@@ -1,17 +1,15 @@
 /* eslint-disable no-empty-pattern */
 import path from 'path';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
-import { closeBrowserTabsExceptLast } from './browser';
-import { setReceiverAddress, toggleBridgeDirection } from './ui';
+import { closeBrowserTabsExceptLast, waitForExtensions } from './browser';
 import {
     connectL1Wallet,
+    createL2Wallet,
+    addNetworkToMetaMask,
     connectL2Wallet,
-    unlockIOTAWallet,
-    unlockMetaMask,
-    isL1WalletConnected,
-    isL2WalletConnected,
+    importL1WalletFromMnemonic,
 } from './wallet';
-import { getSharedState, getUserDataPaths } from './shared-state';
+import { getSharedState } from './shared-state';
 
 const EXTENSION_L1_PATH = path.join(__dirname, '../../../wallet/dist');
 const EXTENSION_L2_PATH = path.join(__dirname, '../../wallet-dist-L2');
@@ -19,126 +17,114 @@ const EXTENSION_L2_PATH = path.join(__dirname, '../../wallet-dist-L2');
 const COMMON_ARGS = ['--user-agent=Playwright', '--disable-dev-shm-usage', '--no-sandbox'];
 
 type ExtensionFixtures = {
-    contextL1: BrowserContext;
-    contextL2: BrowserContext;
-    l1ExtensionUrl: string;
-    l2ExtensionUrl: string;
+    context: BrowserContext;
+    persistentContext: BrowserContext;
+    extensions: { l1ExtensionUrl: string; l2ExtensionUrl: string };
 };
 
 type BridgeSetupFixture = {
-    browserL1: BrowserContext;
-    browserL2: BrowserContext;
-    pageWithL1Wallet: Page;
-    pageWithL2Wallet: Page;
+    browser: BrowserContext;
+    page: Page;
     addressL1: string;
     addressL2: string;
 };
 
 export const baseTest = base.extend<ExtensionFixtures>({
-    contextL1: async ({}, use) => {
-        const paths = getUserDataPaths();
-
-        console.log('🔄 Using shared L1 wallet context');
-        const context = await chromium.launchPersistentContext(paths.userDataDirL1, {
+    context: async ({}, use) => {
+        console.log('🔄 Using wallet context');
+        const context = await chromium.launchPersistentContext('', {
             headless: false,
             args: [
                 ...COMMON_ARGS,
-                `--disable-extensions-except=${EXTENSION_L1_PATH}`,
-                `--load-extension=${EXTENSION_L1_PATH}`,
+                `--disable-extensions-except=${EXTENSION_L1_PATH},${EXTENSION_L2_PATH}`,
+                `--load-extension=${EXTENSION_L1_PATH},${EXTENSION_L2_PATH}`,
             ],
         });
 
         await use(context);
-        // await context.close();
+        await context.close();
     },
-
-    contextL2: async ({}, use) => {
-        const paths = getUserDataPaths();
-
-        console.log('🔄 Using shared L2 wallet context');
-        const context = await chromium.launchPersistentContext(paths.userDataDirL2, {
+    persistentContext: async ({}, use) => {
+        console.log('🔄 Usingpersistent wallet context');
+        const context = await chromium.launchPersistentContext('', {
             headless: false,
             args: [
                 ...COMMON_ARGS,
-                `--disable-extensions-except=${EXTENSION_L2_PATH}`,
-                `--load-extension=${EXTENSION_L2_PATH}`,
+                `--disable-extensions-except=${EXTENSION_L1_PATH},${EXTENSION_L2_PATH}`,
+                `--load-extension=${EXTENSION_L1_PATH},${EXTENSION_L2_PATH}`,
             ],
         });
 
         await use(context);
-        // await context.close();
     },
 
-    l1ExtensionUrl: async ({}, use) => {
-        const state = getSharedState();
-        const extensionUrl = `chrome-extension://${state.extensionIdL1}/ui.html`;
-        await use(extensionUrl);
-    },
-
-    l2ExtensionUrl: async ({}, use) => {
-        const state = getSharedState();
-        const extensionUrl = `chrome-extension://${state.extensionIdL2}/home.html`;
-        await use(extensionUrl);
+    extensions: async ({ context }, use) => {
+        const extensions = await waitForExtensions(context);
+        await use(extensions);
     },
 });
 
+// Create a generic setup fixture
 export const test = baseTest.extend<{
-    roundtripSetup: BridgeSetupFixture;
+    browserSetup: (testId: string, persistent?: boolean) => Promise<BridgeSetupFixture>;
 }>({
-    // Full roundtrip setup with both L1 and L2
-    roundtripSetup: async ({ contextL1, l1ExtensionUrl, contextL2, l2ExtensionUrl }, use) => {
-        const state = getSharedState();
-        const addressL1 = state.addressL1;
-        const addressL2 = state.addressL2;
+    browserSetup: async ({ context, persistentContext, extensions }, use) => {
+        // This function will be provided to each test
+        const setupFn = async (
+            testId: string,
+            persistent?: boolean,
+        ): Promise<BridgeSetupFixture> => {
+            console.log('Setting up browser for test:', testId);
+            // Determine which context to use
+            const usePersistent = persistent ?? false;
+            const activeContext = usePersistent ? persistentContext : context;
+            console.log(usePersistent ? 'Using persistent context' : 'Using auto-closing context');
 
-        console.log('📝 Using global wallet addresses:');
-        console.log(`   L1: ${addressL1}`);
-        console.log(`   L2: ${addressL2}`);
+            const state = getSharedState();
+            const testData = state.tests[testId];
+            if (!testData) throw new Error(`No test data found for ID: ${testId}`);
+            const { addressL1, addressL2, mnemonicL1, mnemonicL2 } = testData;
+            const { l1ExtensionUrl, l2ExtensionUrl } = extensions;
+            console.log('Setting up browser l1ExtensionUrl:', l1ExtensionUrl);
+            console.log('Setting up browser l2ExtensionUrl:', l2ExtensionUrl);
+            // Import/unlock wallets if mnemonics are provided
+            if (mnemonicL1) {
+                const walletPageL1 = await activeContext.newPage();
+                await walletPageL1.goto(l1ExtensionUrl);
+                await closeBrowserTabsExceptLast(activeContext);
+                await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonicL1);
+                await walletPageL1.close();
+            }
 
-        // Keep wallets unlocked by opening and unlocking
-        const extensionPageL1 = await contextL1.newPage();
-        await extensionPageL1.goto(l1ExtensionUrl);
-        await unlockIOTAWallet(extensionPageL1);
-        await extensionPageL1.close();
+            if (mnemonicL2) {
+                const walletPageL2 = await activeContext.newPage();
+                await walletPageL2.goto(l2ExtensionUrl);
+                await closeBrowserTabsExceptLast(activeContext);
+                await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonicL2);
+                await addNetworkToMetaMask(walletPageL2);
+                await walletPageL2.close();
+            }
 
-        const extensionPageL2 = await contextL2.newPage();
-        await extensionPageL2.waitForTimeout(500); // Wait for extension to load
-        await extensionPageL2.goto(l2ExtensionUrl);
-        await unlockMetaMask(extensionPageL2);
-        await extensionPageL2.close();
+            // Create page for evm bridge tests
+            const page = await activeContext.newPage();
+            await page.goto('/');
+            // await closeBrowserTabsExceptLast(context);
+            // Set up wallet connections
+            await page.waitForTimeout(500); // Wait for the app to load
+            await connectL1Wallet(page, activeContext);
+            await page.waitForTimeout(500);
+            await connectL2Wallet(page, activeContext);
 
-        // Create pages for testing
-        const pageWithL1Wallet = await contextL1.newPage();
-        const pageWithL2Wallet = await contextL2.newPage();
+            return {
+                browser: activeContext,
+                page,
+                addressL1,
+                addressL2,
+            };
+        };
 
-        // Go to app URL
-        await pageWithL1Wallet.goto('/');
-        await pageWithL2Wallet.goto('/');
-        await closeBrowserTabsExceptLast(contextL1);
-        await closeBrowserTabsExceptLast(contextL2);
-
-        // Set up wallet connections
-        if (!(await isL1WalletConnected(pageWithL1Wallet))) {
-            console.log('Connecting L1 wallet...');
-            await connectL1Wallet(pageWithL1Wallet, contextL1);
-        }
-        await setReceiverAddress(pageWithL1Wallet, addressL2);
-
-        if (!(await isL2WalletConnected(pageWithL2Wallet))) {
-            console.log('Connecting L2 wallet...');
-            await connectL2Wallet(pageWithL2Wallet, contextL2);
-        }
-        await toggleBridgeDirection(pageWithL2Wallet);
-        await setReceiverAddress(pageWithL2Wallet, addressL1);
-
-        await use({
-            browserL1: contextL1,
-            browserL2: contextL2,
-            pageWithL1Wallet,
-            pageWithL2Wallet,
-            addressL1,
-            addressL2,
-        });
+        // Provide the setup function to the test
+        await use(setupFn);
     },
 });
 

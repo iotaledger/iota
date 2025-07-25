@@ -1,6 +1,5 @@
 import { BrowserContext, Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
-import { HDNodeWallet, Wallet } from 'ethers';
 import { WALLET_CUSTOMRPC_PLACEHOLDER, WALLET_PASSWORD } from '../utils/constants';
 
 export async function createL1Wallet(page: Page, l1ExtensionUrl: string) {
@@ -152,19 +151,6 @@ export async function addNetworkToMetaMask(l2WalletPage: Page) {
 
     await l2WalletPage.click('[data-testid="network-display"]');
     await l2WalletPage.getByRole('button', { name: CONFIG.L2.chainName }).click();
-}
-
-export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: string } {
-    const mnemonic = Wallet.createRandom().mnemonic;
-
-    if (!mnemonic) {
-        throw new Error('Failed to generate mnemonic');
-    }
-
-    return {
-        mnemonic: mnemonic.phrase,
-        address: HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/0`).address,
-    };
 }
 
 /**
