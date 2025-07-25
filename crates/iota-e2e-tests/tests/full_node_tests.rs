@@ -5,7 +5,9 @@
 use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
-use iota::client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas};
+use iota::client_commands::{
+    GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
+};
 use iota_config::node::RunWithRange;
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
@@ -516,6 +518,7 @@ async fn do_test_full_node_sync_flood() {
     // Start a new fullnode that is not on the write path
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
+    let rgp = test_cluster.get_reference_gas_price().await;
     let context = test_cluster.wallet;
 
     let mut futures = Vec::new();
@@ -556,11 +559,14 @@ async fn do_test_full_node_sync_flood() {
                         amounts: Some(vec![1]),
                         count: None,
                         coin_id: object_to_split.0,
-                        opts: OptsWithGas::for_testing(
-                            Some(gas_object_id),
-                            TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN
-                                * context.get_reference_gas_price().await.unwrap(),
-                        ),
+                        payment: PaymentArgs {
+                            gas: vec![gas_object_id],
+                        },
+                        gas_data: GasDataArgs {
+                            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
+                            ..Default::default()
+                        },
+                        processing: TxProcessingArgs::default(),
                     }
                     .execute(context)
                     .await
