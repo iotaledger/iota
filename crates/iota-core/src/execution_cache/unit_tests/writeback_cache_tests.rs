@@ -1352,7 +1352,11 @@ async fn concurrent_latest_object_cache_race_test() {
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
     let mut writer = || {
-        let object = Object::with_id_owner_version_for_testing(object_id, write_version, owner);
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            write_version,
+            Owner::AddressOwner(owner),
+        );
 
         cache
             .write_object_entry(&object_id, write_version, object.into())
@@ -1400,7 +1404,11 @@ async fn concurrent_latest_object_cache_race_test() {
             .and_then(|e| e.value().get_highest().map(|v| v.0))
             .unwrap();
 
-        let object = Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            latest_version,
+            Owner::AddressOwner(owner),
+        );
 
         // preempt the reader to update the latest version and invalidate the cache
         {
@@ -1469,7 +1477,11 @@ async fn concurrent_latest_object_cache_collision_test() {
         } else {
             (&mut write2_version, owner2)
         };
-        let object = Object::with_id_owner_version_for_testing(object_id, *write_version, owner);
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            *write_version,
+            Owner::AddressOwner(owner),
+        );
 
         cache
             .write_object_entry(&object_id, *write_version, object.into())
@@ -1504,8 +1516,11 @@ async fn concurrent_latest_object_cache_collision_test() {
             .and_then(|e| e.value().get_highest().map(|v| v.0))
             .unwrap();
 
-        let object2 =
-            Object::with_id_owner_version_for_testing(object2_id, latest2_version, owner2);
+        let object2 = Object::with_id_owner_version_for_testing(
+            object2_id,
+            latest2_version,
+            Owner::AddressOwner(owner2),
+        );
 
         // preempt the reader
         {
