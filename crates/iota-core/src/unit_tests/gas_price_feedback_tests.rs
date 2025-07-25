@@ -572,90 +572,239 @@ async fn max_execution_duration_per_commit_is_none() {
     }
 }
 
-// Test that the suggested gas price calculator panics if
-// `max_execution_duration_per_commit` is set too low such that even
-// one transaction cannot fit in a commit.
-#[tokio::test]
-#[should_panic] // because `max_execution_duration_per_commit` is set too low.
-async fn max_execution_duration_per_commit_too_low_in_total_tx_count_mode() {
-    let num_gas_objects = 2;
+// Test that the suggested gas price calculator return the correct gas price
+// if there are transactions with estimated execution duration larger than
+// `max_execution_duration_per_commit`, that is such, transactions cannot
+// be scheduled.
+#[sim_test]
+async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
+    let num_gas_objects = 3;
+    let gas_budget_of_scheduled_tx =
+        (REFERENCE_GAS_PRICE_FOR_TESTS + 2) * DEFAULT_GAS_UNITS_FOR_TESTS;
     let tester = GasPriceFeedbackTester::new(
-        10,                                           // max_deferral_rounds_for_congestion_control
-        PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
-        Some(0),                                      // max_execution_duration_per_commit
-        true,                                         // assign_min_free_execution_slot
-        true,                                         // enable_gas_price_feedback_mechanism
-        num_gas_objects,
-    )
-    .await;
-
-    // Prepare certificates
-    let mut certificates = vec![];
-    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
-        let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + i as u64;
-        let gas_data = GasDataForTests::new(
-            *gas_object_id,
-            gas_price,
-            gas_price * DEFAULT_GAS_UNITS_FOR_TESTS,
-        );
-        let transaction = tester
-            .build_access_both_counters_transaction(gas_data, true, true)
-            .await;
-        let certificate = tester.certify_transaction(transaction).await;
-
-        certificates.push(certificate);
-    }
-    // Shuffle certificates so that they do not have any specific order in
-    // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
-    assert_eq!(certificates.len(), num_gas_objects);
-
-    let _scheduled_transactions = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
-        .await;
-}
-
-// Test that the suggested gas price calculator panics if
-// `max_execution_duration_per_commit` is set too low such that even
-// one transaction cannot fit in a commit.
-#[tokio::test]
-#[should_panic] // because `max_execution_duration_per_commit` is set too low.
-async fn max_execution_duration_per_commit_too_low_in_total_gas_budget_mode() {
-    let num_gas_objects = 2;
-    let tester = GasPriceFeedbackTester::new(
-        10,                                             // max_deferral_rounds_for_congestion_control
+        0,                                              // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalGasBudget, // per_object_congestion_control_mode
-        Some(REFERENCE_GAS_PRICE_FOR_TESTS * DEFAULT_GAS_UNITS_FOR_TESTS), // max_execution_duration_per_commit
-        true, // assign_min_free_execution_slot
-        true, // enable_gas_price_feedback_mechanism
+        Some(gas_budget_of_scheduled_tx),               // max_execution_duration_per_commit
+        true,                                           // assign_min_free_execution_slot
+        true,                                           // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
 
     // Prepare certificates
     let mut certificates = vec![];
-    for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
-        let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + i as u64;
-        let gas_data = GasDataForTests::new(
-            *gas_object_id,
-            gas_price,
-            gas_price * DEFAULT_GAS_UNITS_FOR_TESTS,
-        );
-        let transaction = tester
-            .build_access_both_counters_transaction(gas_data, true, true)
-            .await;
-        let certificate = tester.certify_transaction(transaction).await;
+    // Should be cancelled as it does not fit, suggested gas price must be equal
+    // the reference gas price as there are no congested objects.
+    let gas_data = GasDataForTests::new(
+        tester.gas_object_ids[0],
+        REFERENCE_GAS_PRICE_FOR_TESTS + 2,
+        tester.protocol_config.max_tx_gas(),
+    );
+    let transaction = tester
+        .build_access_both_counters_transaction(gas_data, true, true)
+        .await;
+    certificates.push(tester.certify_transaction(transaction).await);
+    // Should be scheduled.
+    let gas_data = GasDataForTests::new(
+        tester.gas_object_ids[1],
+        REFERENCE_GAS_PRICE_FOR_TESTS + 2,
+        gas_budget_of_scheduled_tx,
+    );
+    let transaction = tester
+        .build_access_both_counters_transaction(gas_data, true, true)
+        .await;
+    certificates.push(tester.certify_transaction(transaction).await);
+    // Should be cancelled as it does not fit, suggested gas price must be equal
+    // gas price of the scheduled transaction + 1.
+    let gas_data = GasDataForTests::new(
+        tester.gas_object_ids[2],
+        REFERENCE_GAS_PRICE_FOR_TESTS + 1,
+        tester.protocol_config.max_tx_gas(),
+    );
+    let transaction = tester
+        .build_access_both_counters_transaction(gas_data, true, true)
+        .await;
+    certificates.push(tester.certify_transaction(transaction).await);
 
-        certificates.push(certificate);
-    }
-    // Shuffle certificates so that they do not have any specific order in
-    // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
-    assert_eq!(certificates.len(), num_gas_objects);
-
-    let _scheduled_transactions = tester
+    let scheduled_transactions = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
+    assert_eq!(
+        scheduled_transactions.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // Checks that there are no deferred transactions
+    assert!(
+        tester
+            .authority_state
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .unwrap()
+            .is_empty()
+    );
+
+    let expected_suggested_gas_price_2 = scheduled_transactions[2]
+        .data()
+        .transaction_data()
+        .gas_price()
+        + 1;
+
+    // The first scheduled transaction should be `ConsensusCommitPrologueV1`
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
+        scheduled_transactions[0].data().transaction_data().kind()
+    {
+        // Check if `ConsensusDeterminedVersionAssignments` are correct.
+        let cancelled_txs = vec![
+            (
+                *scheduled_transactions[1].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            REFERENCE_GAS_PRICE_FOR_TESTS,
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            REFERENCE_GAS_PRICE_FOR_TESTS,
+                        ),
+                    ),
+                ],
+            ),
+            (
+                *scheduled_transactions[3].digest(),
+                vec![
+                    (
+                        tester.shared_counter_1.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            expected_suggested_gas_price_2,
+                        ),
+                    ),
+                    (
+                        tester.shared_counter_2.0,
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            expected_suggested_gas_price_2,
+                        ),
+                    ),
+                ],
+            ),
+        ];
+        assert_eq!(
+            prologue_tx.consensus_determined_version_assignments,
+            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+        );
+    } else {
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
+    }
+
+    let effects_vec = tester
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .await;
+    assert_eq!(
+        effects_vec.len(),
+        // +1 because of consensus commit prologue transaction
+        certificates.len() + 1,
+    );
+
+    // `ConsensusCommitPrologueV1` should be successfully executed
+    assert!(effects_vec[0].status().is_ok());
+    // The second transaction should be scheduled.
+    assert!(effects_vec[2].status().is_ok());
+
+    // The first transaction should be cancelled
+    if let ExecutionStatus::Failure { error, command } = effects_vec[1].status() {
+        assert!(command.is_none());
+        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            congested_objects,
+            suggested_gas_price,
+        } = error
+        {
+            // Check is returned congested_objects and suggested_gas_price are correct.
+            assert_eq!(
+                *congested_objects,
+                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+            );
+            assert_eq!(*suggested_gas_price, REFERENCE_GAS_PRICE_FOR_TESTS);
+        } else {
+            panic!(
+                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
+            );
+        }
+    } else {
+        panic!("The transaction must be cancelled.")
+    }
+    // Check if unchanged_shared_objects in effects of the cancelled transaction
+    // are correct
+    assert_eq!(
+        effects_vec[1].unchanged_shared_objects(),
+        vec![
+            (
+                tester.shared_counter_1.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        REFERENCE_GAS_PRICE_FOR_TESTS
+                    )
+                )
+            ),
+            (
+                tester.shared_counter_2.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        REFERENCE_GAS_PRICE_FOR_TESTS
+                    )
+                )
+            ),
+        ]
+    );
+
+    // The third transaction should be cancelled
+    if let ExecutionStatus::Failure { error, command } = effects_vec[3].status() {
+        assert!(command.is_none());
+        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            congested_objects,
+            suggested_gas_price,
+        } = error
+        {
+            // Check is returned congested_objects and suggested_gas_price are correct.
+            assert_eq!(
+                *congested_objects,
+                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+            );
+            assert_eq!(*suggested_gas_price, expected_suggested_gas_price_2);
+        } else {
+            panic!(
+                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
+            );
+        }
+    } else {
+        panic!("The transaction must be cancelled.")
+    }
+    // Check if unchanged_shared_objects in effects of the cancelled transaction
+    // are correct
+    assert_eq!(
+        effects_vec[3].unchanged_shared_objects(),
+        vec![
+            (
+                tester.shared_counter_1.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price_2
+                    )
+                )
+            ),
+            (
+                tester.shared_counter_2.0,
+                UnchangedSharedKind::Cancelled(
+                    SequenceNumber::new_congested_with_suggested_gas_price(
+                        expected_suggested_gas_price_2
+                    )
+                )
+            ),
+        ]
+    );
 }
 
 // Test that everything works well if the gas price feedback mechanism is

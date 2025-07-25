@@ -159,16 +159,6 @@ impl SuggestedGasPriceCalculator {
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
         if let Some(max_execution_duration_per_commit) = self.max_execution_duration_per_commit {
-            debug_assert!(
-                estimated_execution_duration <= max_execution_duration_per_commit,
-                "This certificate alone has estimated execution duration of \
-                {estimated_execution_duration}, which is larger than the maximum execution \
-                duration per commit {max_execution_duration_per_commit}, so the certificate \
-                cannot be scheduled regardless of suggested gas price. It is likely that \
-                {max_execution_duration_per_commit} was set too low in the protocol config, \
-                such that a commit cannot accommodate a single certificate."
-            );
-
             let clearing_gas_price = self.find_clearing_gas_price(
                 certificate,
                 estimated_execution_duration,
@@ -177,7 +167,8 @@ impl SuggestedGasPriceCalculator {
 
             // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
             // transaction would be scheduled if the same commit structure was repeated.
-            let suggested_gas_price = clearing_gas_price + 1;
+            let suggested_gas_price =
+                clearing_gas_price.map_or(self.reference_gas_price, |p| p + 1);
 
             // Make sure suggested gas price is not larger than the maximum possible gas
             // price.
@@ -197,13 +188,15 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
         max_execution_duration_per_commit: ExecutionTime,
-    ) -> u64 {
+    ) -> Option<u64> {
         // Imaginary start time of the deferred/cancelled certificate. We consider
         // only the highest possible (but sufficient for scheduling) start time as
         // it is very likely that scheduled certificates with lower gas prices
-        // appear have higher start times.
+        // appear have higher start times. If a transaction with its
+        // `estimated_execution_duration` cannot fit within
+        // `max_execution_duration_per_commit`, set its imaginary start time to 0.
         let start_time_of_deferred_cert =
-            max_execution_duration_per_commit - estimated_execution_duration;
+            max_execution_duration_per_commit.saturating_sub(estimated_execution_duration);
 
         certificate
             .shared_input_objects()
@@ -217,8 +210,7 @@ impl SuggestedGasPriceCalculator {
                                 let end_time_of_scheduled_cert = execution_start_time
                                     + tx_congestion_info.estimated_execution_duration;
 
-                                if end_time_of_scheduled_cert > start_time_of_deferred_cert
-                                {
+                                if end_time_of_scheduled_cert > start_time_of_deferred_cert {
                                     // Store gas price of that scheduled certificate
                                     Some(tx_congestion_info.gas_price)
                                 } else {
@@ -240,14 +232,6 @@ impl SuggestedGasPriceCalculator {
             // was repeated again in a commit.
             .max()
             .flatten()
-            .unwrap_or_else(|| {
-                panic!(
-                    "At least one of the shared input objects should have appeared in between \
-                    execution start time of {start_time_of_deferred_cert} and execution end time of \
-                    {max_execution_duration_per_commit}; otherwise, this deferred certificate \
-                    would be scheduled by the sequencer."
-                );
-            })
     }
 }
 
@@ -296,8 +280,8 @@ pub mod suggested_gas_price_calculator_test_utils {
                         *duration,
                     )
                     .expect(
-                        "initial value should be fit within the available range of slots \
-                            in the tracker",
+                        "initial value should fit within the available range of slots in the \
+                                tracker",
                     );
 
                     shared_object_congestion_tracker
@@ -319,8 +303,8 @@ pub mod suggested_gas_price_calculator_test_utils {
                             *duration,
                         )
                         .expect(
-                            "initial value should be fit within the available range of slots \
-                            in the tracker",
+                            "initial value should fit within the available range of slots in \
+                                    the tracker",
                         );
 
                         shared_object_congestion_tracker
