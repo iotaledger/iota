@@ -43,6 +43,8 @@ use tracing::error;
 
 use self::object_store::{ChildObjectEffectV0, ChildObjectEffects, ObjectResult};
 use super::get_object_id;
+use crate::object_runtime::object_store::ChildObjectEffectV1;
+mod fingerprint;
 
 pub enum ObjectEvent {
     /// Transfer to a new address or object. Or make it shared or immutable.
@@ -458,7 +460,9 @@ impl<'a> ObjectRuntime<'a> {
 
     pub fn finish(mut self) -> Result<RuntimeResults, ExecutionError> {
         let loaded_child_objects = self.loaded_runtime_objects();
-        let child_effects = self.child_object_store.take_effects();
+        let child_effects = self.child_object_store.take_effects().map_err(|e| {
+            ExecutionError::invariant_violation(format!("Failed to take child object effects: {e}"))
+        })?;
         self.state.finish(loaded_child_objects, child_effects)
     }
 
@@ -626,6 +630,9 @@ impl ObjectRuntimeState {
             ChildObjectEffects::V0(child_object_effects) => {
                 self.apply_child_object_effects_v0(loaded_child_objects, child_object_effects)
             }
+            ChildObjectEffects::V1(child_object_effects) => {
+                self.apply_child_object_effects_v1(loaded_child_objects, child_object_effects)
+            }
         }
     }
 
@@ -672,6 +679,99 @@ impl ObjectRuntimeState {
                         debug_assert!(!self.new_ids.contains(&child));
                     }
                 }
+            }
+        }
+    }
+
+    fn apply_child_object_effects_v1(
+        &mut self,
+        loaded_child_objects: &mut BTreeMap<ObjectID, LoadedRuntimeObject>,
+        child_object_effects: BTreeMap<ObjectID, ChildObjectEffectV1>,
+    ) {
+        for (child, child_object_effect) in child_object_effects {
+            let ChildObjectEffectV1 {
+                owner: parent,
+                ty,
+                final_value,
+                object_changed,
+            } = child_object_effect;
+
+            if object_changed {
+                if let Some(loaded_child) = loaded_child_objects.get_mut(&child) {
+                    loaded_child.is_modified = true;
+                }
+
+                match final_value {
+                    None => {
+                        // Value was changed and is no longer present, it may have been wrapped,
+                        // transferred, or deleted.
+
+                        // If it was transferred, it should not have been deleted
+                        // transferred ==> !deleted
+                        debug_assert!(
+                            !self.transfers.contains_key(&child)
+                                || !self.deleted_ids.contains(&child)
+                        );
+                        // If it was deleted, it should not have been transferred. Additionally,
+                        // if it was deleted, it should no longer be marked as new.
+                        // deleted ==> !transferred and !new
+                        debug_assert!(
+                            !self.deleted_ids.contains(&child)
+                                || (!self.transfers.contains_key(&child)
+                                    && !self.new_ids.contains(&child))
+                        );
+                    }
+                    Some(v) => {
+                        // Value was changed (or the owner was changed)
+
+                        // It is still a dynamic field so it should not be transferred or deleted
+                        debug_assert!(
+                            !self.transfers.contains_key(&child)
+                                && !self.deleted_ids.contains(&child)
+                        );
+                        // If it was loaded, it must have been new. But keep in mind if it was not
+                        // loaded, it is not necessarily new since it could have been
+                        // input/wrapped/received
+                        // loaded ==> !new
+                        debug_assert!(
+                            !loaded_child_objects.contains_key(&child)
+                                || !self.new_ids.contains(&child)
+                        );
+                        // Mark the mutation of the new value and/or parent.
+                        self.transfers
+                            .insert(child, (Owner::ObjectOwner(parent.into()), ty, v));
+                    }
+                }
+            } else {
+                // The object was not changed.
+                // If it was created,
+                //   it must now have been moved elsewhere (wrapped or transferred).
+                // If it was deleted or transferred,
+                //   it must have been an input/received/wrapped object.
+                // In either case, the value must now have been moved elsewhere, giving us:
+                // (new or deleted or transferred or received) ==> no value
+                // which is equivalent to:
+                // has value ==> (!deleted and !transferred and !input)
+                // If the value is still there, it must have been loaded.
+                // Combining these to give us the check:
+                // has value ==> (loaded and !deleted and !transferred and !input and !received)
+                // which is equivalent to:
+                // !(no value) ==> (loaded and !deleted and !transferred and !input and
+                // !received)
+                debug_assert!(
+                    final_value.is_none()
+                        || (loaded_child_objects.contains_key(&child)
+                            && !self.deleted_ids.contains(&child)
+                            && !self.transfers.contains_key(&child)
+                            && !self.input_objects.contains_key(&child)
+                            && !self.received.contains_key(&child))
+                );
+                // In any case, if it was not changed, it should not be marked as modified
+                debug_assert!(
+                    loaded_child_objects
+                        .get(&child)
+                        .is_none_or(|loaded_child| !loaded_child.is_modified)
+                );
             }
         }
     }
