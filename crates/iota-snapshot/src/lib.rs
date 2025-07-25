@@ -8,7 +8,6 @@
 mod tests;
 
 pub mod reader;
-pub mod stream_ext;
 pub mod uploader;
 mod writer;
 

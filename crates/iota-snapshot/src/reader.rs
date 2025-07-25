@@ -25,6 +25,7 @@ use futures::{
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
+use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::{
     AuthorityStore,
@@ -53,7 +54,6 @@ use tracing::{error, info};
 use crate::{
     FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
-    stream_ext::TrySpawnStreamExt,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, Accumulator);
