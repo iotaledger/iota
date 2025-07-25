@@ -3127,7 +3127,7 @@ pub async fn execute_dry_run(
                 let final_gas_budget = min(gas_budget, max_gas_budget);
                 if final_gas_budget == gas_budget {
                     let warn_msg = format!(
-                        "[warn] Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
+                        "Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
                     );
                     warn!(warn_msg);
                     eprintln!("{}", warn_msg.yellow().bold());
