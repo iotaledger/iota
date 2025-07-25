@@ -416,7 +416,7 @@ impl EventIndex {
     }
 }
 
-#[cfg(feature = "pg_integration")]
+#[cfg(any(test, feature = "pg_integration"))]
 impl EventIndex {
     /// Generate a random event index for testing purposes.
     pub fn random() -> Self {
@@ -564,7 +564,7 @@ pub struct TxIndex {
     pub move_calls: Vec<(ObjectID, String, String)>,
 }
 
-#[cfg(feature = "pg_integration")]
+#[cfg(any(test, feature = "pg_integration"))]
 impl TxIndex {
     /// Generate a random TxIndex for testing purposes.
     pub fn random() -> Self {
