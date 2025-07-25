@@ -82,7 +82,7 @@ impl EpochPartitionData {
         let next_epoch_start_cp = epoch.new_epoch.first_checkpoint_id as u64;
 
         let next_epoch_start_tx = epoch.new_epoch.first_tx_sequence_number as u64;
-        let last_epoch_start_tx = last_db_epoch.first_tx_sequence_number.unwrap() as u64;
+        let last_epoch_start_tx = last_db_epoch.first_tx_sequence_number as u64;
 
         Self {
             last_epoch,

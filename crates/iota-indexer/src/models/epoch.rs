@@ -44,14 +44,13 @@ pub struct StoredEpochInfo {
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
     /// First transaction sequence number of this epoch.
-    pub first_tx_sequence_number: Option<i64>,
+    pub first_tx_sequence_number: i64,
 }
 
 impl StoredEpochInfo {
     pub fn epoch_total_transactions(&self) -> Option<i64> {
         self.network_total_transactions
-            .zip(self.first_tx_sequence_number)
-            .map(|(total_tx, first_tx)| total_tx - first_tx)
+            .map(|total_tx| total_tx - self.first_tx_sequence_number)
     }
 }
 
@@ -92,14 +91,13 @@ pub struct QueryableEpochInfo {
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
-    pub first_tx_sequence_number: Option<i64>,
+    pub first_tx_sequence_number: i64,
 }
 
 impl QueryableEpochInfo {
     pub fn epoch_total_transactions(&self) -> Option<i64> {
         self.network_total_transactions
-            .zip(self.first_tx_sequence_number)
-            .map(|(total_tx, first_tx)| total_tx - first_tx)
+            .map(|total_tx| total_tx - self.first_tx_sequence_number)
     }
 }
 
