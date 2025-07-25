@@ -13,7 +13,10 @@ use std::{
 
 use anyhow::bail;
 use fastcrypto::encoding::Base64;
-use iota_package_management::{PublishedAtError, resolve_published_id};
+use iota_package_management::{
+    PublishedAtError, resolve_published_id,
+    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
+};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
@@ -45,7 +48,10 @@ use move_package::{
     },
     package_hooks::{PackageHooks, PackageIdentifier},
     resolution::{dependency_graph::DependencyGraph, resolution_graph::ResolvedGraph},
-    source_package::parsed_manifest::{Dependencies, OnChainInfo, PackageName, SourceManifest},
+    source_package::parsed_manifest::{
+        Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency, OnChainInfo,
+        PackageName, SourceManifest,
+    },
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
@@ -88,16 +94,14 @@ impl BuildConfig {
     pub fn new_for_testing() -> Self {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
-        // Note: in the future, consider changing this to dependencies on the local
-        // system packages:
-        let implicit_dependencies = Dependencies::new();
         let install_dir = tempfile::tempdir().unwrap().into_path();
         let config = MoveBuildConfig {
             default_flavor: Some(move_compiler::editions::Flavor::Iota),
-            implicit_dependencies,
             lock_file: Some(install_dir.join("Move.lock")),
             install_dir: Some(install_dir),
             lint_flag: LintFlag::LEVEL_NONE,
+            // TODO: in the future, we may want to provide local implicit dependencies to tests
+            implicit_dependencies: Dependencies::new(),
             silence_warnings: true,
             ..MoveBuildConfig::default()
         };
@@ -681,6 +685,31 @@ impl CompiledPackage {
             .filter(|(pkg_name, _)| pkgs_to_keep.contains(pkg_name))
             .collect())
     }
+}
+
+/// Create a set of [Dependencies] from a [SystemPackagesVersion]; the
+/// dependencies are override git dependencies to the specific revision given by
+/// the [SystemPackagesVersion]
+pub fn implicit_deps(packages: &SystemPackagesVersion) -> Dependencies {
+    packages
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.package_name.clone().into(),
+                Dependency::Internal(InternalDependency {
+                    kind: DependencyKind::Git(GitInfo {
+                        git_url: SYSTEM_GIT_REPO.into(),
+                        git_rev: packages.git_revision.clone().into(),
+                        subdir: package.repo_path.clone().into(),
+                    }),
+                    subst: None,
+                    digest: None,
+                    dep_override: true,
+                }),
+            )
+        })
+        .collect()
 }
 
 impl GetModule for CompiledPackage {
