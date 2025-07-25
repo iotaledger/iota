@@ -3116,9 +3116,9 @@ pub async fn execute_dry_run(
                         IotaObjectDataOptions::bcs_lossless(),
                     )
                     .await?;
-                for gas_obj in gas_coins {
+                for gas_coin in gas_coins {
                     gas_budget += get_gas_balance(
-                        &gas_obj
+                        &gas_coin
                             .into_object()?
                             .try_into()
                             .expect("couldn't convert gas coin into object"),
