@@ -90,8 +90,9 @@ pub enum NameCommand {
         /// records will be returned.
         key: Option<String>,
     },
-    /// List the names and node subnames owned by the given address, or the
-    /// active address. Note that leaf subnames are not listed by the CLI.
+    /// List the names and subnames owned by the given address, or the
+    /// active address. Note that leaf subnames are not listed by the `list`
+    /// command.
     List { address: Option<KeyIdentity> },
     /// Lookup the address of a name
     Lookup { name: Name },
@@ -1030,7 +1031,8 @@ impl AuctionCommand {
 #[command(rename_all = "kebab-case")]
 pub enum SubnameCommand {
     /// Register a new leaf subname, which will NOT create an NFT but instead
-    /// is managed by its parent NFT. Therefore it won't be listed by the CLI.
+    /// is managed by its parent NFT. Note that leave subnames are not listed by
+    /// the `list` command.
     RegisterLeaf {
         /// The subname. Ex. my-subname.my-name.iota
         name: Name,
@@ -1532,7 +1534,7 @@ impl std::fmt::Display for NameCommandResult {
                 writeln!(f, "\nTransaction digest: {transaction}")?;
                 write!(
                     f,
-                    "IMPORTANT NOTE: leaf subnames are not listed by the CLI. Make sure to keep track of them."
+                    "IMPORTANT NOTE: leaf subnames are not listed by the `list` command. Make sure to keep track of them."
                 )
             }
             Self::RegisterNodeSubname {
