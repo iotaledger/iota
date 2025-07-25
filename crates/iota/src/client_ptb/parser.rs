@@ -1072,7 +1072,7 @@ mod tests {
             "--gas-budget [1]",
             "--gas-budget @0x1",
             "--gas-budget woah",
-            // Gas coin
+            // Gas coins
             "--gas-coins nope",
             "--gas-coins",
             "--gas-coins 1",

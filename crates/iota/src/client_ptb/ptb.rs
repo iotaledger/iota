@@ -369,7 +369,7 @@ pub fn ptb_description() -> clap::Command {
             "Perform a dev-inspect of the PTB instead of executing it."
         ))
         .arg(arg!(
-            --"gas-coin" <ID> ...
+            --"gas-coins" <ID> ...
             "The object IDs for the gas coins to use. If not specified, it will try to use the first \
             gas coin that it finds that has at least the requested gas-budget balance."
         ))
