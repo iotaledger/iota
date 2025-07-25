@@ -3,41 +3,37 @@ import {
     checkL2CoinBalanceForAddressWithRetries,
     checkL1CoinBalanceForAddressWithRetries,
 } from './helpers/balances';
-import {
-    addL1FundsThroughBridgeUI,
-    fundL1AddressWithNativeTokens,
-    fundL2AddressWithIscClient,
-} from './helpers/transactions';
 import { THREE_MINUTES, TOOL_COIN_TYPE } from './utils/constants';
-import { clickMaxAmount, executeBridgeTransaction, selectCoin } from './helpers/ui';
+import {
+    clickMaxAmount,
+    executeBridgeTransaction,
+    selectCoin,
+    toggleBridgeDirection,
+} from './helpers/ui';
 import { test } from './helpers/fixtures';
 
 test.describe('Send MAX native token amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    test('should bridge successfully', async ({ l1Setup }) => {
-        const { browser: browserL1, page: testPageL1, receiverAddress } = l1Setup;
-        const addressL1 = await testPageL1.getByTestId('sender-address').inputValue();
-        const nativeTokenAmount = 2;
-
-        await addL1FundsThroughBridgeUI(testPageL1, browserL1);
-        await fundL1AddressWithNativeTokens(addressL1, nativeTokenAmount);
-
+    test('should bridge successfully', async ({ browserSetup }) => {
+        const setup = await browserSetup('sendMaxNativeTokenAmountL1');
+        const { browser, page, addressL2 } = setup;
+        const nativeTokenAmount = '3';
         // todo: add check for balance with retries instead of wait
-        await testPageL1.waitForTimeout(500);
+        await page.waitForTimeout(500);
 
-        await selectCoin(testPageL1, 'Tool');
+        await selectCoin(page, 'Tool');
 
-        await clickMaxAmount(testPageL1);
+        await clickMaxAmount(page);
 
-        const amountField = testPageL1.getByTestId('bridge-amount');
+        const amountField = page.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
-        await expect(amountField).toHaveValue(nativeTokenAmount.toString());
+        await expect(amountField).toHaveValue(nativeTokenAmount);
 
         // check est. gas fees and your receive
-        await testPageL1.waitForTimeout(2500);
+        await page.waitForTimeout(2500);
 
-        const gasFeeValue = await testPageL1
+        const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
             .locator('xpath=../div/span')
             .nth(1)
@@ -46,68 +42,58 @@ test.describe('Send MAX native token amount from L1', () => {
         expect(gasFeeFixed).toBeGreaterThanOrEqual(0.008);
         expect(gasFeeFixed).toBeLessThanOrEqual(0.01);
 
-        const gasFeeValueEVM = await testPageL1
+        const gasFeeValueEVM = await page
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
             .locator('xpath=../div/span')
             .nth(1)
             .textContent();
         expect(gasFeeValueEVM).toEqual('0.001');
 
-        await executeBridgeTransaction(testPageL1, browserL1, true);
+        await executeBridgeTransaction(page, browser, true);
 
-        const balance = await checkL2CoinBalanceForAddressWithRetries(
-            receiverAddress,
-            TOOL_COIN_TYPE,
-        );
-
-        expect(balance).toEqual(nativeTokenAmount.toString());
+        const balance = await checkL2CoinBalanceForAddressWithRetries(addressL2, TOOL_COIN_TYPE);
+        expect(balance).toEqual(nativeTokenAmount);
     });
 });
 
 test.describe('Send MAX native token amount from L2', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    test('should bridge successfully', async ({ l2Setup }) => {
-        const { browser: browserL2, page: testPageL2, receiverAddress } = l2Setup;
-        const addressL2 = await testPageL2.getByTestId('sender-address').inputValue();
-        const nativeTokenAmount = 2;
-
-        await fundL2AddressWithIscClient(addressL2, 9);
-        await fundL2AddressWithIscClient(addressL2, nativeTokenAmount, TOOL_COIN_TYPE);
-
+    test('should bridge successfully', async ({ browserSetup }) => {
+        const setup = await browserSetup('sendMaxNativeTokenAmountL2');
+        const { browser, page, addressL1, addressL2 } = setup;
+        const nativeTokenAmount = '3';
         const nativeTokenBalance = await checkL2CoinBalanceForAddressWithRetries(
             addressL2,
             TOOL_COIN_TYPE,
         );
-        expect(nativeTokenBalance).toEqual(nativeTokenAmount.toString());
+        expect(nativeTokenBalance).toEqual(nativeTokenAmount);
 
-        await testPageL2.waitForTimeout(500);
+        await page.waitForTimeout(500);
 
-        await selectCoin(testPageL2, 'Tool');
+        await toggleBridgeDirection(page);
 
-        await clickMaxAmount(testPageL2);
+        await selectCoin(page, 'Tool');
 
-        const amountField = testPageL2.getByTestId('bridge-amount');
+        await clickMaxAmount(page);
+
+        const amountField = page.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
-        await expect(amountField).toHaveValue(nativeTokenAmount.toString());
+        await expect(amountField).toHaveValue(nativeTokenAmount);
 
         // check est. gas fees and your receive
-        await testPageL2.waitForTimeout(2500);
+        await page.waitForTimeout(2500);
 
-        const gasFeeValue = await testPageL2
+        const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
             .locator('xpath=../div/span')
             .nth(1)
             .textContent();
         expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
 
-        await executeBridgeTransaction(testPageL2, browserL2, false);
+        await executeBridgeTransaction(page, browser, false);
 
-        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(
-            receiverAddress,
-            TOOL_COIN_TYPE,
-        );
-
-        expect(l1Balance).toEqual(nativeTokenAmount.toString());
+        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(addressL1, TOOL_COIN_TYPE);
+        expect(l1Balance).toEqual(nativeTokenAmount);
     });
 });

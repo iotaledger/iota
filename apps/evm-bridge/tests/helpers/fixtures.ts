@@ -110,9 +110,9 @@ export const test = baseTest.extend<{
             await page.goto('/');
             // await closeBrowserTabsExceptLast(context);
             // Set up wallet connections
-            await page.waitForTimeout(500); // Wait for the app to load
+            await page.waitForTimeout(2500); // Wait for the app to load
             await connectL1Wallet(page, activeContext);
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(2500);
             await connectL2Wallet(page, activeContext);
 
             return {

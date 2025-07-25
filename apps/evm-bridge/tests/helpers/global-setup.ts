@@ -92,14 +92,14 @@ async function globalSetup() {
     );
 
     // Fund round trip native token wallets
-    await fundDepostiThenWithdrawNativeTokenTestWallets(
-        globalAddressL1,
-        globalKeypair,
-        toolCoinAddress,
-        toolCoinKeypair,
-        roundTripNativeTokenWallets.addressL1,
-        roundTripNativeTokenWallets.addressL2,
-    );
+    // await fundDepostiThenWithdrawNativeTokenTestWallets(
+    //     globalAddressL1,
+    //     globalKeypair,
+    //     toolCoinAddress,
+    //     toolCoinKeypair,
+    //     roundTripNativeTokenWallets.addressL1,
+    //     roundTripNativeTokenWallets.addressL2,
+    // );
 }
 
 export default globalSetup;
