@@ -5,7 +5,9 @@
 use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
-use iota::client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas};
+use iota::client_commands::{
+    GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
+};
 use iota_config::node::RunWithRange;
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
@@ -69,8 +71,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     // A small delay is needed for post processing operations following the
     // transaction to finish.
@@ -116,8 +117,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     Ok(())
 }
@@ -487,8 +487,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     let info = fullnode
         .state()
@@ -519,6 +518,7 @@ async fn do_test_full_node_sync_flood() {
     // Start a new fullnode that is not on the write path
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
+    let rgp = test_cluster.get_reference_gas_price().await;
     let context = test_cluster.wallet;
 
     let mut futures = Vec::new();
@@ -559,11 +559,14 @@ async fn do_test_full_node_sync_flood() {
                         amounts: Some(vec![1]),
                         count: None,
                         coin_id: object_to_split.0,
-                        opts: OptsWithGas::for_testing(
-                            Some(gas_object_id),
-                            TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN
-                                * context.get_reference_gas_price().await.unwrap(),
-                        ),
+                        payment: PaymentArgs {
+                            gas: vec![gas_object_id],
+                        },
+                        gas_data: GasDataArgs {
+                            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
+                            ..Default::default()
+                        },
+                        processing: TxProcessingArgs::default(),
                     }
                     .execute(context)
                     .await
@@ -609,8 +612,7 @@ async fn do_test_full_node_sync_flood() {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .await;
 }
 
 // Test fullnode has event read jsonrpc endpoints working
@@ -796,8 +798,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
 
@@ -1095,8 +1096,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     node.state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     loop {
         // Ensure this full node is able to transition to the next epoch
@@ -1115,8 +1115,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     node.state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest_after_restore])
-        .await
-        .unwrap();
+        .await;
     Ok(())
 }
 
@@ -1246,7 +1245,6 @@ async fn test_access_old_object_pruned() {
                     state
                         .database_for_testing()
                         .get_object_by_key(&gas_object.0, gas_object.1)
-                        .unwrap()
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();

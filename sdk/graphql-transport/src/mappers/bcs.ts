@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 import type { BcsType } from '@iota/bcs';
 import { bcs } from '@iota/iota-sdk/bcs';
 
@@ -58,5 +58,5 @@ export function layoutToBcs(layout: MoveTypeLayout): BcsType<any> {
 
 export function mapJsonToBcs(json: unknown, layout: MoveTypeLayout) {
     const schema = layoutToBcs(layout);
-    return toB64(schema.serialize(json).toBytes());
+    return toBase64(schema.serialize(json).toBytes());
 }

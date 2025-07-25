@@ -1,0 +1,8 @@
+# Remote KV Store REST API config
+#
+# The Rest Api address
+server-address: "0.0.0.0:3555"
+
+instance-id: "iota"
+column-family: "iota"
+timeout-secs: 60

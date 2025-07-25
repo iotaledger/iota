@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod bcs;
@@ -101,10 +101,6 @@ impl GasParameters {
             },
             #[cfg(feature = "testing")]
             unit_test: unit_test::GasParameters {
-                create_signers_for_testing: unit_test::CreateSignersForTestingGasParameters {
-                    base_cost: 0.into(),
-                    unit_cost: 0.into(),
-                },
                 poison: unit_test::PoisonGasParameters {
                     base_cost: 0.into(),
                 },
@@ -132,10 +128,6 @@ impl GasParameters {
             },
             #[cfg(feature = "testing")]
             unit_test: unit_test::GasParameters {
-                create_signers_for_testing: unit_test::CreateSignersForTestingGasParameters {
-                    base_cost: 0.into(),
-                    unit_cost: 0.into(),
-                },
                 poison: unit_test::PoisonGasParameters {
                     base_cost: 0.into(),
                 },

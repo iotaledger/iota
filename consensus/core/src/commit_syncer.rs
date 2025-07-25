@@ -510,6 +510,15 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .authority(authority)
                             .hostname
                             .clone();
+                        inner
+                            .context
+                            .metrics
+                            .update_scoring_metrics_on_block_receival(
+                                authority,
+                                hostname.as_str(),
+                                e.clone(),
+                                "fetch_once",
+                            );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
                         let error: &'static str = e.into();
                         inner

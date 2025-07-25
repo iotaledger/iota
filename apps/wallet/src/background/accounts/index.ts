@@ -8,7 +8,7 @@ import {
     type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
 import { getAccountSourceByID } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
@@ -237,7 +237,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 {
                     type: 'method-payload',
                     method: 'signDataResponse',
-                    args: { signature: await account.signData(fromB64(data)) },
+                    args: { signature: await account.signData(fromBase64(data)) },
                 },
                 msg.id,
             ),

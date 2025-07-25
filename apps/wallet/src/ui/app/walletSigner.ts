@@ -9,7 +9,7 @@ import {
     type IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
 import { isTransaction, type Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 export interface SignedTransaction {
     bytes: string;
@@ -46,7 +46,7 @@ export abstract class WalletSigner {
         }
 
         if (typeof transaction === 'string') {
-            return fromB64(transaction);
+            return fromBase64(transaction);
         }
 
         if (transaction instanceof Uint8Array) {
