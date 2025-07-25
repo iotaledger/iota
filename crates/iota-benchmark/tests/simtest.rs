@@ -630,7 +630,7 @@ mod test {
     async fn test_data_ingestion_pipeline() {
         let path = nondeterministic!(TempDir::new().unwrap()).into_path();
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 1000)
+            init_test_cluster_builder(4, 5000)
                 .with_data_ingestion_dir(path.clone())
                 .build()
                 .await,

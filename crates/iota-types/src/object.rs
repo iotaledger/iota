@@ -1007,7 +1007,7 @@ impl Object {
     pub fn with_id_owner_version_for_testing(
         id: ObjectID,
         version: SequenceNumber,
-        owner: IotaAddress,
+        owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
@@ -1015,7 +1015,7 @@ impl Object {
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner,
             data,
             previous_transaction: TransactionDigest::genesis_marker(),
             storage_rebate: 0,
