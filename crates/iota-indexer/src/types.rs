@@ -566,16 +566,16 @@ pub struct TxIndex {
 
 #[cfg(feature = "pg_integration")]
 impl TxIndex {
-    const MAX_OBJECTS: usize = 1000;
-    const MAX_PAYERS: usize = 100;
-    const MAX_RECIPIENTS: usize = 1000;
-    const MAX_MOVE_CALLS: usize = 1000;
-
     /// Generate a random TxIndex for testing purposes.
     pub fn random() -> Self {
         use std::iter::repeat_with;
 
         use rand::Rng;
+
+        const MAX_OBJECTS: usize = 1000;
+        const MAX_PAYERS: usize = 100;
+        const MAX_RECIPIENTS: usize = 1000;
+        const MAX_MOVE_CALLS: usize = 1000;
 
         let mut rng = rand::thread_rng();
 
@@ -585,17 +585,13 @@ impl TxIndex {
             IotaTransactionKind::ProgrammableTransaction
         };
 
-        let input_objects = repeat_with(ObjectID::random)
-            .take(Self::MAX_OBJECTS)
-            .collect();
-        let changed_objects = repeat_with(ObjectID::random)
-            .take(Self::MAX_OBJECTS)
-            .collect();
+        let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
         let payers = repeat_with(IotaAddress::random_for_testing_only)
-            .take(rng.gen_range(0..Self::MAX_PAYERS))
+            .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
         let recipients = repeat_with(IotaAddress::random_for_testing_only)
-            .take(rng.gen_range(0..Self::MAX_RECIPIENTS))
+            .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = std::iter::repeat_with(|| {
             (
@@ -604,7 +600,7 @@ impl TxIndex {
                 rand::random::<u64>().to_string(),
             )
         })
-        .take(rng.gen_range(0..Self::MAX_MOVE_CALLS))
+        .take(rng.gen_range(0..MAX_MOVE_CALLS))
         .collect();
 
         TxIndex {
