@@ -128,8 +128,10 @@ mod tests {
     impl IngestionBackfill for BackfillDummyTable {
         type ProcessedType = usize;
 
-        fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType> {
-            vec![checkpoint.checkpoint_summary.sequence_number as usize]
+        fn process_checkpoint(
+            checkpoint: Arc<CheckpointData>,
+        ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
+            Ok(vec![checkpoint.checkpoint_summary.sequence_number as usize])
         }
 
         async fn persist_chunk(

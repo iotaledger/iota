@@ -20,28 +20,51 @@ pub(crate) struct TxWrappedOrDeletedObjectsBackfill;
 impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
     type ProcessedType = StoredTxWrappedOrDeletedObject;
 
-    fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType> {
-        let first_tx = checkpoint.checkpoint_summary.network_total_transactions as usize
-            - checkpoint.transactions.len();
+    fn process_checkpoint(
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
+        let checkpoint_summary = &checkpoint.checkpoint_summary;
+        let checkpoint_contents = &checkpoint.checkpoint_contents;
+        let transactions = &checkpoint.transactions;
+        let checkpoint_seq = checkpoint_summary.sequence_number;
 
-        checkpoint
-            .transactions
-            .iter()
-            .enumerate()
-            .flat_map(|(i, tx)| {
-                let effects = &tx.effects;
+        if checkpoint_contents.size() != transactions.len() {
+            return Err(IndexerError::FullNodeReading(format!(
+                "Checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
+                checkpoint_contents.size(),
+                transactions.len()
+            )));
+        }
 
-                effects
+        let tx_seq_numbers = checkpoint_contents
+            .enumerate_transactions(checkpoint_summary)
+            .map(|(seq, digest)| (digest.transaction, seq));
+
+        let mut results = Vec::new();
+
+        for (tx, (expected_digest, tx_sequence_number)) in transactions.iter().zip(tx_seq_numbers) {
+            let actual_digest = tx.transaction.digest();
+
+            if expected_digest != *actual_digest {
+                return Err(IndexerError::FullNodeReading(format!(
+                    "Digest mismatch at checkpoint {checkpoint_seq}: expected {expected_digest}, found {actual_digest}",
+                )));
+            }
+
+            results.extend(
+                tx.effects
                     .all_tombstones()
                     .into_iter()
-                    .chain(effects.created_then_wrapped_objects())
-                    .map(move |(object_id, _)| StoredTxWrappedOrDeletedObject {
-                        tx_sequence_number: (first_tx + i) as i64,
+                    .chain(tx.effects.created_then_wrapped_objects())
+                    .map(|(object_id, _)| StoredTxWrappedOrDeletedObject {
+                        tx_sequence_number: tx_sequence_number as i64,
                         object_id: object_id.to_vec(),
                         sender: tx.transaction.sender_address().to_vec(),
-                    })
-            })
-            .collect()
+                    }),
+            );
+        }
+
+        Ok(results)
     }
 
     async fn persist_chunk(
