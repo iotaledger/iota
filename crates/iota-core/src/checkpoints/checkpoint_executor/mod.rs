@@ -198,8 +198,8 @@ impl CheckpointExecutor {
         checkpoint_store: Arc<CheckpointStore>,
         state: Arc<AuthorityState>,
         accumulator: Arc<StateAccumulator>,
-    ) -> CheckpointExecutor {
-        CheckpointExecutor::new(
+    ) -> Self {
+        Self::new(
             mailbox,
             checkpoint_store.clone(),
             state,

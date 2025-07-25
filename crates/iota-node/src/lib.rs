@@ -77,7 +77,8 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_grpc_api::{
-    CheckpointGrpcService, GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster,
+    CheckpointDataBroadcaster, CheckpointGrpcService, CheckpointSummaryBroadcaster,
+    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster,
     checkpoint::checkpoint_service_server::CheckpointServiceServer,
 };
 use iota_json_rpc::{
@@ -1731,15 +1732,17 @@ impl IotaNode {
             let summary_sender = self.grpc_checkpoint_summary_tx.as_ref().map(|tx| {
                 let tx = tx.clone();
                 Box::new(move |summary: &CertifiedCheckpointSummary| {
-                    use iota_grpc_api::CheckpointSummaryBroadcaster;
-                    tx.send(summary);
+                    if let Err(e) = tx.send(summary) {
+                        tracing::warn!("Failed to send checkpoint summary: {e}");
+                    }
                 }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
             });
             let data_sender = self.grpc_checkpoint_data_tx.as_ref().map(|tx| {
                 let tx = tx.clone();
                 Box::new(move |data: &CheckpointData| {
-                    use iota_grpc_api::CheckpointDataBroadcaster;
-                    tx.send(data);
+                    if let Err(e) = tx.send(data) {
+                        tracing::warn!("Failed to send checkpoint data: {e}");
+                    }
                 }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
             });
 

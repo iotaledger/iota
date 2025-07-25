@@ -18,12 +18,15 @@ use crate::checkpoint::{BcsData, Checkpoint};
 
 /// Trait for broadcasting checkpoint summaries
 pub trait CheckpointSummaryBroadcaster {
-    fn send(&self, summary: &CertifiedCheckpointSummary);
+    fn send(
+        &self,
+        summary: &CertifiedCheckpointSummary,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// Trait for broadcasting checkpoint data
 pub trait CheckpointDataBroadcaster {
-    fn send(&self, data: &CheckpointData);
+    fn send(&self, data: &CheckpointData) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// Wrapper that converts native CertifiedCheckpointSummary to gRPC type before
@@ -42,9 +45,15 @@ impl GrpcCheckpointSummaryBroadcaster {
 }
 
 impl CheckpointSummaryBroadcaster for GrpcCheckpointSummaryBroadcaster {
-    fn send(&self, summary: &CertifiedCheckpointSummary) {
+    fn send(
+        &self,
+        summary: &CertifiedCheckpointSummary,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let grpc_summary = Arc::new(GrpcCertifiedCheckpointSummary::from(summary.clone()));
-        let _ = self.sender.send(grpc_summary);
+        self.sender
+            .send(grpc_summary)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok(())
     }
 }
 
@@ -61,9 +70,12 @@ impl GrpcCheckpointDataBroadcaster {
 }
 
 impl CheckpointDataBroadcaster for GrpcCheckpointDataBroadcaster {
-    fn send(&self, data: &CheckpointData) {
+    fn send(&self, data: &CheckpointData) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let grpc_data = Arc::new(GrpcCheckpointData::from(data.clone()));
-        let _ = self.sender.send(grpc_data);
+        self.sender
+            .send(grpc_data)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok(())
     }
 }
 
@@ -73,28 +85,42 @@ impl CheckpointDataBroadcaster for GrpcCheckpointDataBroadcaster {
 impl CheckpointSummaryBroadcaster
     for tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>
 {
-    fn send(&self, summary: &CertifiedCheckpointSummary) {
-        let _ = self.send(Arc::new(summary.clone()));
+    fn send(
+        &self,
+        summary: &CertifiedCheckpointSummary,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.send(Arc::new(summary.clone()))
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok(())
     }
 }
 
 /// Implementation for tokio broadcast sender
 impl CheckpointDataBroadcaster for tokio::sync::broadcast::Sender<Arc<CheckpointData>> {
-    fn send(&self, data: &CheckpointData) {
-        let _ = self.send(Arc::new(data.clone()));
+    fn send(&self, data: &CheckpointData) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.send(Arc::new(data.clone()))
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok(())
     }
 }
 
 /// No-op implementation for unit type (used in tests and when broadcasting is
 /// disabled)
 impl CheckpointSummaryBroadcaster for () {
-    fn send(&self, _summary: &CertifiedCheckpointSummary) {}
+    fn send(
+        &self,
+        _summary: &CertifiedCheckpointSummary,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
 }
 
 /// No-op implementation for unit type (used in tests and when broadcasting is
 /// disabled)
 impl CheckpointDataBroadcaster for () {
-    fn send(&self, _data: &CheckpointData) {}
+    fn send(&self, _data: &CheckpointData) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
 }
 
 type Receiver<T> = tokio::sync::broadcast::Receiver<T>;
