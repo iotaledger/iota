@@ -1132,7 +1132,7 @@ impl AuctionCommand {
 #[command(rename_all = "kebab-case")]
 pub enum SubnameCommand {
     /// Register a new leaf subname, which will NOT create an NFT but instead
-    /// is managed by its parent NFT. Note that leave subnames are not listed by
+    /// is managed by its parent NFT. Note that leaf subnames are not listed by
     /// the `list` command.
     RegisterLeaf {
         /// The subname. Ex. my-subname.my-name.iota
