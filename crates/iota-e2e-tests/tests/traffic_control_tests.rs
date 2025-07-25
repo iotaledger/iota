@@ -7,7 +7,7 @@
 //! simtest.
 
 use core::panic;
-use std::{fs::File, time::Duration};
+use std::{fs::File, num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::{
@@ -35,6 +35,7 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[tokio::test]
 async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -46,6 +47,7 @@ async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let test_cluster = TestClusterBuilder::new()
@@ -58,6 +60,7 @@ async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_noop() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -77,6 +80,7 @@ async fn test_fullnode_traffic_control_noop() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -96,6 +100,7 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let test_cluster = TestClusterBuilder::new()
@@ -108,6 +113,7 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -134,6 +140,7 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -147,6 +154,7 @@ async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let test_cluster = TestClusterBuilder::new()
@@ -159,6 +167,7 @@ async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -221,6 +230,7 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -232,6 +242,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let committee = network_config.committee_with_network();
@@ -267,6 +278,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
@@ -337,6 +349,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
@@ -393,6 +406,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
 
 #[tokio::test]
 async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let n = 5;
     let port = 65000;
     let policy_config = PolicyConfig {
@@ -413,6 +427,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
         drain_timeout_secs: 10,
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .with_firewall_config(Some(firewall_config))
         .build();
@@ -461,6 +476,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 10;
     let port = 65001;
     let policy_config = PolicyConfig {
@@ -540,6 +556,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
 
 #[tokio::test]
 async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
         spam_policy_type: PolicyType::TestNConnIP(10),
@@ -597,6 +614,7 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let drain_path = tempfile::tempdir().unwrap().into_path().join("drain");
     assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
     File::create(&drain_path).expect("Failed to touch nodefw drain file");
@@ -608,6 +626,7 @@ async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow
 
 #[sim_test]
 async fn test_traffic_sketch_no_blocks() {
+    telemetry_subscribers::init_for_testing();
     let sketch_config = FreqThresholdConfig {
         client_threshold: 5_050,
         proxied_client_threshold: 5_050,
@@ -651,6 +670,7 @@ async fn test_traffic_sketch_no_blocks() {
 #[ignore]
 #[sim_test]
 async fn test_traffic_sketch_with_slow_blocks() {
+    telemetry_subscribers::init_for_testing();
     let sketch_config = FreqThresholdConfig {
         client_threshold: 9_900,
         proxied_client_threshold: 9_900,
@@ -690,6 +710,7 @@ async fn test_traffic_sketch_with_slow_blocks() {
 
 #[sim_test]
 async fn test_traffic_sketch_with_sampled_spam() {
+    telemetry_subscribers::init_for_testing();
     let sketch_config = FreqThresholdConfig {
         client_threshold: 450,
         proxied_client_threshold: 450,
@@ -731,6 +752,7 @@ async fn test_traffic_sketch_with_sampled_spam() {
 
 #[sim_test]
 async fn test_traffic_sketch_allowlist_mode() {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
@@ -756,6 +778,7 @@ async fn test_traffic_sketch_allowlist_mode() {
 }
 
 async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let context = &mut test_cluster.wallet;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 

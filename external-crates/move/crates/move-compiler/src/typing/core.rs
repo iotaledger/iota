@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -943,6 +943,12 @@ impl MacroExpansion {
             MacroExpansion::Call(call) => Some((call.module, call.function)),
             MacroExpansion::Argument { .. } => None,
         }
+    }
+}
+
+impl Default for TVarCounter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

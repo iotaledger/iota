@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    mem::take,
     str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -50,7 +51,9 @@ use tabled::{
 
 use crate::{
     PrintableResult,
-    client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas},
+    client_commands::{
+        GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
+    },
     client_ptb::ptb::PTB,
     key_identity::{KeyIdentity, get_identity_address},
 };
@@ -80,7 +83,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Get user data by its key
     GetUserData {
@@ -119,7 +126,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Renew an existing name. Cost is the name price * years.
     Renew {
@@ -138,7 +149,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Lookup a name by its address if reverse lookup was set
     ReverseLookup {
@@ -154,7 +169,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Set the target address for a name
     SetTargetAddress {
@@ -167,7 +186,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Set arbitrary keyed user data
     SetUserData {
@@ -181,7 +204,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Commands for managing subnames
     #[command(subcommand)]
@@ -196,7 +223,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Unset reverse lookup
     UnsetReverseLookup {
@@ -204,7 +235,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Unset the target address for a name
     UnsetTargetAddress {
@@ -214,7 +249,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Unset keyed user data
     UnsetUserData {
@@ -226,7 +265,11 @@ pub enum NameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
 }
 
@@ -264,10 +307,12 @@ impl NameCommand {
             Self::Burn {
                 name,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
                 let nft =
-                    get_owned_nft_by_name::<NameRegistration>(&name, opts.rest.sender, context)
+                    get_owned_nft_by_name::<NameRegistration>(&name, processing.sender, context)
                         .await?;
 
                 if !nft.has_expired() {
@@ -294,8 +339,9 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -349,7 +395,9 @@ impl NameCommand {
                 set_reverse_lookup,
                 coupons,
                 verbose,
-                mut opts,
+                payment,
+                gas_data,
+                mut processing,
             } => {
                 ensure!(
                     name.num_labels() == 2,
@@ -367,7 +415,7 @@ impl NameCommand {
                         .await?;
                 }
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let name_str = name.to_string();
                 let coin =
                     select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
@@ -429,8 +477,10 @@ impl NameCommand {
                     ));
                 }
                 args.push("--transfer-objects [nft] sender".to_string());
-                let display = std::mem::take(&mut opts.rest.display);
-                args.extend(opts.into_args());
+                let display = take(&mut processing.display);
+                args.extend(payment.into_args());
+                args.extend(gas_data.into_args());
+                args.extend(processing.into_args());
                 let res = IotaClientCommands::PTB(PTB { args, display })
                     .execute(context)
                     .await?;
@@ -451,7 +501,9 @@ impl NameCommand {
                 coin,
                 coupons,
                 verbose,
-                mut opts,
+                payment,
+                gas_data,
+                mut processing,
             } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -469,7 +521,7 @@ impl NameCommand {
                         .await?;
                 }
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let name_str = name.to_string();
                 let coin =
                     select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
@@ -510,8 +562,10 @@ impl NameCommand {
                     ),
                 ]);
 
-                let display = std::mem::take(&mut opts.rest.display);
-                args.extend(opts.into_args());
+                let display = take(&mut processing.display);
+                args.extend(payment.into_args());
+                args.extend(gas_data.into_args());
+                args.extend(processing.into_args());
 
                 let res = IotaClientCommands::PTB(PTB { args, display })
                     .execute(context)
@@ -539,11 +593,13 @@ impl NameCommand {
             Self::SetReverseLookup {
                 name,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
                 let sender =
-                    get_identity_address(opts.rest.sender.map(Into::into), context).await?;
+                    get_identity_address(processing.sender.map(Into::into), context).await?;
                 get_proxy_nft_by_name(&name, Some(sender), context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -556,8 +612,9 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::new(serde_json::to_value(name.to_string())?)?,
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -580,7 +637,9 @@ impl NameCommand {
                 name,
                 new_address,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
                 let entry = get_registry_entry(&name, &iota_client).await?;
                 if entry.name_record.is_leaf_record() {
@@ -588,7 +647,7 @@ impl NameCommand {
                         "cannot set target address for leaf subname; try removing and recreating the subname instead."
                     );
                 }
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let new_address =
                     get_identity_address(new_address.or(sender.map(Into::into)), context).await?;
                 if entry
@@ -613,8 +672,9 @@ impl NameCommand {
                         IotaJsonValue::new(serde_json::to_value(vec![new_address])?)?,
                         IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -633,9 +693,11 @@ impl NameCommand {
                 key,
                 value,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -651,8 +713,9 @@ impl NameCommand {
                         IotaJsonValue::new(serde_json::Value::String(value.clone()))?,
                         IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -672,10 +735,12 @@ impl NameCommand {
                 name,
                 address,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
                 let address = get_identity_address(Some(address), context).await?;
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -688,8 +753,9 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::to_value(address)?)?,
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -703,10 +769,15 @@ impl NameCommand {
                 })
                 .await?
             }
-            Self::UnsetReverseLookup { verbose, opts } => {
+            Self::UnsetReverseLookup {
+                verbose,
+                payment,
+                gas_data,
+                processing,
+            } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
                 let address =
-                    get_identity_address(opts.rest.sender.map(Into::into), context).await?;
+                    get_identity_address(processing.sender.map(Into::into), context).await?;
 
                 let res = IotaClientCommands::Call {
                     package: iota_names_config.package_address.into(),
@@ -714,8 +785,9 @@ impl NameCommand {
                     function: "unset_reverse_lookup".to_owned(),
                     type_args: Default::default(),
                     args: vec![IotaJsonValue::from_object_id(iota_names_config.object_id)],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -730,7 +802,9 @@ impl NameCommand {
             }
             Self::UnsetTargetAddress {
                 name,
-                opts,
+                payment,
+                gas_data,
+                processing,
                 verbose,
             } => {
                 let entry = get_registry_entry(&name, &iota_client).await?;
@@ -741,7 +815,7 @@ impl NameCommand {
                     bail!("target address is already unset");
                 }
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
 
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
@@ -757,8 +831,9 @@ impl NameCommand {
                         IotaJsonValue::new(serde_json::to_value(Vec::<IotaAddress>::new())?)?,
                         IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -776,9 +851,11 @@ impl NameCommand {
                 name,
                 key,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -793,8 +870,9 @@ impl NameCommand {
                         IotaJsonValue::new(serde_json::Value::String(key.clone()))?,
                         IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -831,7 +909,11 @@ pub enum AuctionCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Claim the name if the auction winner is the sender
     Claim {
@@ -841,7 +923,11 @@ pub enum AuctionCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Get metadata of an auction
     Metadata { name: Name },
@@ -861,7 +947,11 @@ pub enum AuctionCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
 }
 
@@ -885,7 +975,9 @@ impl AuctionCommand {
                 amount,
                 coin,
                 verbose,
-                mut opts,
+                payment,
+                gas_data,
+                mut processing,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
@@ -898,7 +990,7 @@ impl AuctionCommand {
                     amount >= min_price,
                     "bid amount must be at least {min_price} for this name"
                 );
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let coin =
                     select_coin_arg_for_payment(&name.to_string(), coin, amount, sender, context)
                         .await?;
@@ -912,8 +1004,10 @@ impl AuctionCommand {
                         name.to_string(),
                     ),
                 ];
-                let display = std::mem::take(&mut opts.rest.display);
-                args.extend(opts.into_args());
+                let display = take(&mut processing.display);
+                args.extend(payment.into_args());
+                args.extend(gas_data.into_args());
+                args.extend(processing.into_args());
 
                 let res = IotaClientCommands::PTB(PTB { args, display })
                     .execute(context)
@@ -930,7 +1024,9 @@ impl AuctionCommand {
             Self::Claim {
                 name,
                 verbose,
-                mut opts,
+                payment,
+                gas_data,
+                mut processing,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
@@ -938,7 +1034,7 @@ impl AuctionCommand {
                 // Checking if the auction does not exist or has been already claimed
                 let _ = auction_house.get_auction(&name, &iota_client).await?;
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
 
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
@@ -950,8 +1046,10 @@ impl AuctionCommand {
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
                 ];
-                let display = std::mem::take(&mut opts.rest.display);
-                args.extend(opts.into_args());
+                let display = take(&mut processing.display);
+                args.extend(payment.into_args());
+                args.extend(gas_data.into_args());
+                args.extend(processing.into_args());
 
                 let res = IotaClientCommands::PTB(PTB { args, display })
                     .execute(context)
@@ -978,7 +1076,9 @@ impl AuctionCommand {
                 amount,
                 coin,
                 verbose,
-                mut opts,
+                payment,
+                gas_data,
+                mut processing,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
@@ -991,7 +1091,7 @@ impl AuctionCommand {
                     amount >= min_price,
                     "bid amount must be at least {min_price} for this name"
                 );
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let coin =
                     select_coin_arg_for_payment(&name.to_string(), coin, amount, sender, context)
                         .await?;
@@ -1008,8 +1108,10 @@ impl AuctionCommand {
                         name.to_string(),
                     ),
                 ];
-                let display = std::mem::take(&mut opts.rest.display);
-                args.extend(opts.into_args());
+                let display = take(&mut processing.display);
+                args.extend(payment.into_args());
+                args.extend(gas_data.into_args());
+                args.extend(processing.into_args());
 
                 let res = IotaClientCommands::PTB(PTB { args, display })
                     .execute(context)
@@ -1043,7 +1145,11 @@ pub enum SubnameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Register a new node subname, which will create an NFT for management
     RegisterNode {
@@ -1067,7 +1173,11 @@ pub enum SubnameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Update the metadata flags for a subname
     UpdateMetadata {
@@ -1083,7 +1193,11 @@ pub enum SubnameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
     /// Extend the expiration of a subname
     ExtendExpiration {
@@ -1100,7 +1214,11 @@ pub enum SubnameCommand {
         #[arg(long)]
         verbose: bool,
         #[command(flatten)]
-        opts: OptsWithGas,
+        payment: PaymentArgs,
+        #[command(flatten)]
+        gas_data: GasDataArgs,
+        #[command(flatten)]
+        processing: TxProcessingArgs,
     },
 }
 
@@ -1113,7 +1231,9 @@ impl SubnameCommand {
                 name,
                 target_address,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
                 let Some(parent) = name.parent() else {
                     bail!("invalid subname: {name}");
@@ -1121,7 +1241,7 @@ impl SubnameCommand {
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let parent = get_proxy_nft_by_name(&parent, sender, context).await?;
                 ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subname_package_id(&iota_client).await?;
@@ -1143,8 +1263,9 @@ impl SubnameCommand {
                         IotaJsonValue::new(JsonValue::String(name.to_string()))?,
                         IotaJsonValue::new(JsonValue::String(target_address.to_string()))?,
                     ],
-                    gas_price: None,
-                    opts,
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -1163,7 +1284,9 @@ impl SubnameCommand {
                 allow_creation,
                 allow_time_extension,
                 verbose,
-                mut opts,
+                payment,
+                gas_data,
+                mut processing,
             } => {
                 let Some(parent) = name.parent() else {
                     bail!("invalid subname: {name}");
@@ -1171,7 +1294,7 @@ impl SubnameCommand {
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let parent = get_proxy_nft_by_name(&parent, sender, context).await?;
                 ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subname_package_id(&iota_client).await?;
@@ -1202,8 +1325,10 @@ impl SubnameCommand {
                     "--assign nft".to_owned(),
                     "--transfer-objects [nft] sender".to_owned(),
                 ];
-                let display = std::mem::take(&mut opts.rest.display);
-                args.extend(opts.into_args());
+                let display = take(&mut processing.display);
+                args.extend(payment.into_args());
+                args.extend(gas_data.into_args());
+                args.extend(processing.into_args());
                 let res = IotaClientCommands::PTB(PTB { args, display })
                     .execute(context)
                     .await?;
@@ -1223,14 +1348,16 @@ impl SubnameCommand {
                 allow_creation,
                 allow_time_extension,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
                 let Some(parent) = name.parent() else {
                     bail!("invalid subname: {name}");
                 };
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let parent = get_proxy_nft_by_name(&parent, sender, context).await?;
                 let package_id = parent.subname_package_id(&iota_client).await?;
                 let module_name = parent.subname_module_name();
@@ -1248,8 +1375,9 @@ impl SubnameCommand {
                         IotaJsonValue::new(JsonValue::Bool(allow_creation))?,
                         IotaJsonValue::new(JsonValue::Bool(allow_time_extension))?,
                     ],
-                    gas_price: None,
-                    opts: opts.clone(),
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;
@@ -1266,9 +1394,11 @@ impl SubnameCommand {
                 name,
                 expiration_timestamp,
                 verbose,
-                opts,
+                payment,
+                gas_data,
+                processing,
             } => {
-                let sender = opts.rest.sender;
+                let sender = processing.sender;
                 let nft =
                     get_owned_nft_by_name::<SubnameRegistration>(&name, sender, context).await?;
                 ensure!(
@@ -1294,8 +1424,9 @@ impl SubnameCommand {
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(JsonValue::Number(expiration_timestamp.0.into()))?,
                     ],
-                    gas_price: None,
-                    opts: opts.clone(),
+                    payment,
+                    gas_data,
+                    processing,
                 }
                 .execute(context)
                 .await?;

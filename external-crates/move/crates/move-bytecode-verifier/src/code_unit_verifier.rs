@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements the checker for verifying correctness of function bodies.
@@ -135,7 +135,7 @@ fn verify_function<'env>(
     Ok(num_back_edges)
 }
 
-impl<'env, 'a> CodeUnitVerifier<'env, 'a> {
+impl<'env> CodeUnitVerifier<'env, '_> {
     fn verify_common(
         &self,
         verifier_config: &VerifierConfig,

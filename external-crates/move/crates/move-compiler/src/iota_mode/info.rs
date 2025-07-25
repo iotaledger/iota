@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! ProgramInfo extension for IOTA Flavor
@@ -272,7 +272,7 @@ fn add_private_transfers(
     struct TransferVisitor<'a> {
         transferred: &'a mut BTreeMap<(ModuleIdent, DatatypeName), TransferKind>,
     }
-    impl<'a> TypingVisitorContext for TransferVisitor<'a> {
+    impl TypingVisitorContext for TransferVisitor<'_> {
         fn push_warning_filter_scope(&mut self, _: WarningFilters) {
             unreachable!("no warning filters in function bodies")
         }

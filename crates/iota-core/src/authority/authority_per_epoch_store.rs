@@ -3505,7 +3505,13 @@ impl AuthorityPerEpochStore {
                         }
 
                         // This certificate will be scheduled. Update object execution slots.
-                        if certificate.contains_shared_object() {
+                        // We only need to do this if `max_execution_duration_per_commit` is
+                        // `Some`, since otherwise this bumping will panic as object
+                        // execution slots are only initialized if
+                        // `max_execution_duration_per_commit` is not `None`.
+                        if certificate.contains_shared_object()
+                            && self.get_max_execution_duration_per_commit().is_some()
+                        {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
                         }

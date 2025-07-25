@@ -128,7 +128,7 @@ impl BuildConfig {
     }
 
     fn compile_package<W: Write>(
-        resolution_graph: ResolvedGraph,
+        resolution_graph: &ResolvedGraph,
         writer: &mut W,
     ) -> anyhow::Result<(MoveCompiledPackage, FnInfoMap)> {
         let build_plan = BuildPlan::create(resolution_graph)?;
@@ -273,9 +273,9 @@ pub fn build_from_resolution_graph(
     }
 
     let result = if print_diags_to_stderr {
-        BuildConfig::compile_package(resolution_graph, &mut std::io::stderr())
+        BuildConfig::compile_package(&resolution_graph, &mut std::io::stderr())
     } else {
-        BuildConfig::compile_package(resolution_graph, &mut std::io::sink())
+        BuildConfig::compile_package(&resolution_graph, &mut std::io::sink())
     };
     // write build failure diagnostics to stderr, convert `error` to `String` using
     // `Debug` format to include anyhow's error context chain.
