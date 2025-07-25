@@ -37,7 +37,9 @@ pub const GAS_BUDGET: &str = "gas-budget";
 pub const GAS_PRICE: &str = "gas-price";
 pub const GAS_SPONSOR: &str = "gas-sponsor";
 pub const SUMMARY: &str = "summary";
+// Kept for backwards compatibility
 pub const GAS_COIN: &str = "gas-coin";
+pub const GAS_COINS: &str = "gas-coins";
 pub const JSON: &str = "json";
 pub const TX_DIGEST: &str = "tx-digest";
 pub const DRY_RUN: &str = "dry-run";
@@ -81,6 +83,7 @@ pub const COMMANDS: &[&str] = &[
     GAS_PRICE,
     SUMMARY,
     GAS_COIN,
+    GAS_COINS,
     JSON,
     DRY_RUN,
     DEV_INSPECT,

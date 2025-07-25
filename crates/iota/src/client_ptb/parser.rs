@@ -129,7 +129,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 L(T::Command, A::DEV_INSPECT) => flag!(dev_inspect_set),
                 L(T::Command, A::PREVIEW) => flag!(preview_set),
                 L(T::Command, A::WARN_SHADOWS) => flag!(warn_shadows_set),
-                L(T::Command, A::GAS_COIN) => {
+                L(T::Command, A::GAS_COIN | A::GAS_COINS) => {
                     let coins = try_!(self.parse_gas_coins());
                     self.state.gas_object_ids = Some(coins);
                 }
@@ -412,8 +412,8 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
         })
     }
 
-    /// Parse the gas payment
-    /// The expected format is: `--gas-coin <address> [<address> ...]`
+    /// Parse the gas payments
+    /// The expected format is: `--gas-coins <address> [<address> ...]`
     fn parse_gas_coins(&mut self) -> PTBResult<Vec<Spanned<ObjectID>>> {
         // Need at least one gas coin.
         let mut coins = vec![self.parse_object_id_literal()?];
@@ -1001,9 +1001,9 @@ mod tests {
             "--assign a vector[1, 2, 3]",
             "--assign a none",
             "--assign a some(1)",
-            // Gas coin
-            "--gas-coin @0x1",
-            "--gas-coin @0x1 @0x2",
+            // Gas coins
+            "--gas-coins @0x1",
+            "--gas-coins @0x1 @0x2",
             // Gas price
             "--gas-price 1000",
             // Gas sponsor
@@ -1073,9 +1073,9 @@ mod tests {
             "--gas-budget @0x1",
             "--gas-budget woah",
             // Gas coin
-            "--gas-coin nope",
-            "--gas-coin",
-            "--gas-coin 1",
+            "--gas-coins nope",
+            "--gas-coins",
+            "--gas-coins 1",
             // Gas price
             "--gas-price nuhuh",
             "--gas-price [1, 2, 3]",
