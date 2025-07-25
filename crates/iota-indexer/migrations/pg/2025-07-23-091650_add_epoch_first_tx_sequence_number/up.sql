@@ -18,3 +18,9 @@ SET first_tx_sequence_number = c.min_tx_sequence_number
 FROM checkpoints c
 WHERE e.first_checkpoint_id = c.sequence_number
 AND e.epoch = (SELECT MAX(epoch) FROM epochs);
+
+ALTER TABLE epochs RENAME COLUMN epoch_total_transactions TO network_total_transactions;
+
+-- Calculate network total transactions as `first_tx_sequence_number + epoch_total_transactions`
+UPDATE epochs
+SET network_total_transactions = first_tx_sequence_number + network_total_transactions;

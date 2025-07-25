@@ -32,7 +32,8 @@ pub struct StoredEpochInfo {
     pub total_stake: i64,
     pub storage_fund_balance: i64,
     pub system_state: Vec<u8>,
-    pub epoch_total_transactions: Option<i64>,
+    /// Total number of network transactions at the end of the epoch.
+    pub network_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
     pub storage_charge: Option<i64>,
@@ -44,6 +45,14 @@ pub struct StoredEpochInfo {
     pub minted_tokens_amount: Option<i64>,
     /// First transaction sequence number of this epoch.
     pub first_tx_sequence_number: Option<i64>,
+}
+
+impl StoredEpochInfo {
+    pub fn epoch_total_transactions(&self) -> Option<i64> {
+        self.network_total_transactions
+            .zip(self.first_tx_sequence_number)
+            .map(|(total_tx, first_tx)| total_tx - first_tx)
+    }
 }
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
@@ -73,7 +82,7 @@ pub struct QueryableEpochInfo {
     pub protocol_version: i64,
     pub total_stake: i64,
     pub storage_fund_balance: i64,
-    pub epoch_total_transactions: Option<i64>,
+    pub network_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
     pub storage_charge: Option<i64>,
@@ -84,6 +93,14 @@ pub struct QueryableEpochInfo {
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
     pub first_tx_sequence_number: Option<i64>,
+}
+
+impl QueryableEpochInfo {
+    pub fn epoch_total_transactions(&self) -> Option<i64> {
+        self.network_total_transactions
+            .zip(self.first_tx_sequence_number)
+            .map(|(total_tx, first_tx)| total_tx - first_tx)
+    }
 }
 
 #[derive(Queryable)]
@@ -112,7 +129,7 @@ pub(crate) struct StartOfEpochUpdate {
 #[diesel(table_name = epochs)]
 pub(crate) struct EndOfEpochUpdate {
     pub epoch: i64,
-    pub epoch_total_transactions: i64,
+    pub network_total_transactions: i64,
     pub last_checkpoint_id: i64,
     pub epoch_end_timestamp: i64,
     pub storage_charge: i64,
@@ -156,12 +173,10 @@ impl EndOfEpochUpdate {
     pub fn new(
         last_checkpoint_summary: &CertifiedCheckpointSummary,
         event: &IndexedEpochInfoEvent,
-        first_tx_sequence_number: u64,
     ) -> Self {
         Self {
             epoch: last_checkpoint_summary.epoch as i64,
-            epoch_total_transactions: (last_checkpoint_summary.network_total_transactions
-                - first_tx_sequence_number) as i64,
+            network_total_transactions: last_checkpoint_summary.network_total_transactions as i64,
             last_checkpoint_id: *last_checkpoint_summary.sequence_number() as i64,
             epoch_end_timestamp: last_checkpoint_summary.timestamp_ms as i64,
             storage_charge: event.storage_charge as i64,
@@ -245,7 +260,7 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
         Ok(EpochInfo {
             epoch: value.epoch as u64,
             validators: system_state.active_validators().to_vec(),
-            epoch_total_transactions: value.epoch_total_transactions.unwrap_or(0) as u64,
+            epoch_total_transactions: value.epoch_total_transactions().unwrap_or(0) as u64,
             first_checkpoint_id: value.first_checkpoint_id as u64,
             epoch_start_timestamp: value.epoch_start_timestamp as u64,
             end_of_epoch_info,

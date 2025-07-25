@@ -46,8 +46,7 @@ use crate::{
     store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
-        IotaSystemStateSummaryView, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
     },
 };
 
@@ -72,24 +71,18 @@ pub async fn new_handlers(
                 .with_label_values(&["checkpoint_indexing"]),
         );
 
-    let state_clone = state.clone();
     let metrics_clone = metrics.clone();
     spawn_monitored_task!(start_tx_checkpoint_commit_task(
-        state_clone,
+        state,
         metrics_clone,
         indexed_checkpoint_receiver,
         next_checkpoint_sequence_number,
         cancel.clone()
     ));
-    Ok(CheckpointHandler::new(
-        state,
-        metrics,
-        indexed_checkpoint_sender,
-    ))
+    Ok(CheckpointHandler::new(metrics, indexed_checkpoint_sender))
 }
 
 pub struct CheckpointHandler {
-    state: PgIndexerStore,
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
@@ -127,7 +120,6 @@ impl Worker for CheckpointHandler {
         );
 
         let checkpoint_data = Self::index_checkpoint(
-            self.state.clone().into(),
             &checkpoint,
             Arc::new(self.metrics.clone()),
             Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
@@ -147,21 +139,16 @@ impl Worker for CheckpointHandler {
 
 impl CheckpointHandler {
     fn new(
-        state: PgIndexerStore,
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     ) -> Self {
         Self {
-            state,
             metrics,
             indexed_checkpoint_sender,
         }
     }
 
-    async fn index_epoch(
-        state: Arc<PgIndexerStore>,
-        data: &CheckpointData,
-    ) -> Result<Option<EpochToCommit>, IndexerError> {
+    async fn index_epoch(data: &CheckpointData) -> Result<Option<EpochToCommit>, IndexerError> {
         let checkpoint_object_store = EpochEndIndexingObjectStore::new(data);
 
         let CheckpointData {
@@ -220,42 +207,15 @@ impl CheckpointHandler {
                 )
             });
 
-        // Now we just entered epoch X, we want to calculate the diff between
-        // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).
-        // Note that on the indexer's chain-reading side, this is not guaranteed
-        // to have the latest data. Rather than impose a wait on the reading
-        // side, however, we overwrite this on the persisting side, where we can
-        // guarantee that the previous epoch's checkpoints have been written to
-        // db.
-
-        let epoch = system_state.epoch();
-        let last_epoch_first_tx_sequence_number = match epoch {
-            // If first epoch change, this number is 0
-            1 => Ok(0),
-            _ => {
-                let last_epoch = epoch - 2;
-                state
-                    .get_network_total_transactions_by_end_of_epoch(last_epoch)
-                    .await?
-                    .ok_or_else(|| {
-                        IndexerError::PersistentStorageDataCorruption(format!(
-                            "Network total transactions for epoch {last_epoch} not found"
-                        ))
-                    })
-            }
-        }?;
-
         let event = IndexedEpochInfoEvent::from(&event);
+        let new_epoch_first_checkpoint_id = checkpoint_summary.sequence_number + 1;
+        let new_epoch_first_tx_sequence_number = checkpoint_summary.network_total_transactions;
         Ok(Some(EpochToCommit {
-            last_epoch: Some(EndOfEpochUpdate::new(
-                checkpoint_summary,
-                &event,
-                last_epoch_first_tx_sequence_number,
-            )),
+            last_epoch: Some(EndOfEpochUpdate::new(checkpoint_summary, &event)),
             new_epoch: StartOfEpochUpdate::new(
                 &system_state,
-                checkpoint_summary.sequence_number + 1, // first_checkpoint_id
-                checkpoint_summary.network_total_transactions, // first_tx_sequence_number
+                new_epoch_first_checkpoint_id,
+                new_epoch_first_tx_sequence_number,
                 Some(&event),
             ),
         }))
@@ -275,7 +235,6 @@ impl CheckpointHandler {
     }
 
     async fn index_checkpoint(
-        state: Arc<PgIndexerStore>,
         data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
@@ -284,7 +243,7 @@ impl CheckpointHandler {
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
         // Index epoch
-        let epoch = Self::index_epoch(state, data).await?;
+        let epoch = Self::index_epoch(data).await?;
 
         // Index Objects
         let object_changes: TransactionObjectChangesToCommit =

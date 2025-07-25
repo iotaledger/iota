@@ -1415,7 +1415,7 @@ impl PgIndexerStore {
         read_only_blocking!(&self.blocking_cp, |conn| {
             epochs::table
                 .filter(epochs::epoch.eq(epoch as i64))
-                .select(epochs::first_tx_sequence_number + epochs::epoch_total_transactions)
+                .select(epochs::network_total_transactions)
                 .get_result::<Option<i64>>(conn)
         })
         .context("Failed to get network total transactions in epoch")
