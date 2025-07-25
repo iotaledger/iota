@@ -1169,6 +1169,7 @@ async fn genesis(
             fullnode_config.json_rpc_address.port()
         ),
     ));
+    client_config.add_env(IotaEnv::devnet());
 
     if client_config.active_env().is_none() {
         client_config.set_active_env(client_config.envs().first().map(|env| env.alias().clone()));
