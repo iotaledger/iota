@@ -831,6 +831,8 @@ mod tests {
 
     #[test]
     fn test_move_call() {
+        use move_core_types::identifier::Identifier;
+
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
             .add_move_call(ObjectID::ZERO, "test", "test")
@@ -847,8 +849,8 @@ mod tests {
                 .any(|cmd| {
                     cmd == &Command::MoveCall(Box::new(ProgrammableMoveCall {
                         package: ObjectID::ZERO,
-                        module: "test".to_string(),
-                        function: "test".to_string(),
+                        module: Identifier::new("test").unwrap(),
+                        function: Identifier::new("test").unwrap(),
                         type_arguments: vec![],
                         arguments: vec![],
                     }))
