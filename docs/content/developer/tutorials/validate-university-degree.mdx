@@ -105,7 +105,7 @@ All communication happens via DIDs and JWT-based credentials published and resol
 
 ```bash
 git clone https://github.com/iota-community/digitally-validate-a-degree.git
-cd digitally_validate_degree
+cd digitally-validate-degree
 ```
 
 ## 2. Build the Project
@@ -148,7 +148,7 @@ This will:
 Alice receives the VC and creates a VP to send to the IOTA Foundation.
 
 ```bash
-IOTA_IDENTITY_PKG_ID=your-package-id cargo run --bin holder -- --vc "<PASTE_VC_JWT_HERE>"
+IOTA_IDENTITY_PKG_ID=your-package-id cargo run --bin holder "<PASTE_VC_JWT_HERE>"
 ```
 
 This will:
