@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@iota/bcs';
+import { fromBase64 } from '@iota/bcs';
 import type {
     MoveValue,
     ProtocolConfigValue,
@@ -1030,12 +1030,12 @@ export const RPC_METHODS: {
                                 : {
                                       Result: ref.input.cmd,
                                   },
-                        Array.from(fromB64(ref.bcs)),
+                        Array.from(fromBase64(ref.bcs)),
                         toShortTypeString(ref.type.repr),
                     ],
                 ),
                 returnValues: result.returnValues?.map((value) => [
-                    Array.from(fromB64(value.bcs)),
+                    Array.from(fromBase64(value.bcs)),
                     toShortTypeString(value.type.repr),
                 ]),
             })),
@@ -1161,7 +1161,7 @@ export const RPC_METHODS: {
         );
 
         if (!effects?.transactionBlock) {
-            const tx = Transaction.from(fromB64(txBytes));
+            const tx = Transaction.from(fromBase64(txBytes));
             return { errors: errors ?? undefined, digest: await tx.getDigest() };
         }
 
@@ -1174,7 +1174,7 @@ export const RPC_METHODS: {
         );
     },
     async dryRunTransactionBlock(transport, [txBytes]) {
-        const tx = Transaction.from(fromB64(txBytes));
+        const tx = Transaction.from(fromBase64(txBytes));
         const { transaction, error } = await transport.graphqlQuery(
             {
                 query: DryRunTransactionBlockDocument,

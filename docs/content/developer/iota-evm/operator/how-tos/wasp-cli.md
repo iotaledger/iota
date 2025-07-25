@@ -49,7 +49,7 @@ wasp-cli wallet-migrate (keychain) [flags]
 After this, you will need to tell the `wasp-cli` the location of the _Hornet node_ and the committee of Wasp nodes:
 
 ```shell
-wasp-cli set l1.apiaddress http://localhost:14265
+wasp-cli set l1.apiaddress http://localhost:9000
 # the faucet only exists for test networks
 wasp-cli set l1.faucetaddress http://localhost:8091
 

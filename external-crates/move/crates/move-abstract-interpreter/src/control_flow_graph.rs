@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module defines the control-flow graph uses for bytecode verification.
@@ -342,7 +342,7 @@ impl ControlFlowGraph for VMControlFlowGraph {
     fn is_back_edge(&self, cur: BlockId, next: BlockId) -> bool {
         self.loop_heads
             .get(&next)
-            .map_or(false, |back_edges| back_edges.contains(&cur))
+            .is_some_and(|back_edges| back_edges.contains(&cur))
     }
 
     fn num_back_edges(&self) -> usize {

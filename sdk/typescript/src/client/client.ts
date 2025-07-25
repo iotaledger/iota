@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
 import type { Transaction } from '../transactions/index.js';
@@ -436,7 +436,9 @@ export class IotaClient {
         const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',
             params: [
-                typeof transactionBlock === 'string' ? transactionBlock : toB64(transactionBlock),
+                typeof transactionBlock === 'string'
+                    ? transactionBlock
+                    : toBase64(transactionBlock),
                 Array.isArray(signature) ? signature : [signature],
                 options,
             ],
@@ -680,7 +682,7 @@ export class IotaClient {
         let devInspectTxBytes;
         if (isTransaction(input.transactionBlock)) {
             input.transactionBlock.setSenderIfNotSet(input.sender);
-            devInspectTxBytes = toB64(
+            devInspectTxBytes = toBase64(
                 await input.transactionBlock.build({
                     client: this,
                     onlyTransactionKind: true,
@@ -689,7 +691,7 @@ export class IotaClient {
         } else if (typeof input.transactionBlock === 'string') {
             devInspectTxBytes = input.transactionBlock;
         } else if (input.transactionBlock instanceof Uint8Array) {
-            devInspectTxBytes = toB64(input.transactionBlock);
+            devInspectTxBytes = toBase64(input.transactionBlock);
         } else {
             throw new Error('Unknown transaction block format.');
         }
@@ -711,7 +713,7 @@ export class IotaClient {
             params: [
                 typeof input.transactionBlock === 'string'
                     ? input.transactionBlock
-                    : toB64(input.transactionBlock),
+                    : toBase64(input.transactionBlock),
             ],
         });
     }

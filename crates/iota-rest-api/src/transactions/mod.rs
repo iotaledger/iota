@@ -158,8 +158,8 @@ async fn list_transactions(
     accept: AcceptFormat,
     State(state): State<StateReader>,
 ) -> Result<Page<TransactionResponse, TransactionCursor>> {
-    let latest_checkpoint = state.inner().get_latest_checkpoint()?.sequence_number;
-    let oldest_checkpoint = state.inner().get_lowest_available_checkpoint()?;
+    let latest_checkpoint = state.inner().try_get_latest_checkpoint()?.sequence_number;
+    let oldest_checkpoint = state.inner().try_get_lowest_available_checkpoint()?;
     let limit = parameters.limit();
     let start = parameters.start(latest_checkpoint);
     let direction = parameters.direction();

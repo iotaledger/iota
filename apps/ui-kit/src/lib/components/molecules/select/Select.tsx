@@ -3,7 +3,7 @@
 
 import { TriangleDown } from '@iota/apps-ui-icons';
 import cx from 'classnames';
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '@/components/atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
@@ -88,15 +88,34 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
     ) => {
         const [isOpen, setIsOpen] = useState<boolean>(false);
         const selectedValue = findValueByProps(value, options);
+        const wrapperRef = useRef<HTMLDivElement>(null);
 
         const selectorText = selectedValue || placeholder;
         const selectPadding = size === SelectSize.Small ? 'px-sm' : 'px-md';
         const textSize = size === SelectSize.Small ? 'text-body-md' : 'text-body-lg';
+
         useEffect(() => {
             if (disabled && isOpen) {
                 closeDropdown();
             }
         }, [disabled, isOpen]);
+
+        useEffect(() => {
+            if (!isOpen) return;
+
+            const handleClickOutside = (e: MouseEvent) => {
+                const target = e.target as Node;
+                if (wrapperRef.current && !wrapperRef.current.contains(target)) {
+                    closeDropdown();
+                }
+            };
+
+            document.addEventListener('mousedown', handleClickOutside);
+
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }, [isOpen]);
 
         function findValueByProps(value: SelectProps['value'], options: SelectOption[] = []) {
             return (
@@ -123,6 +142,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         function closeDropdown() {
             setIsOpen(false);
         }
+
         return (
             <InputWrapper
                 label={label}
@@ -131,7 +151,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 errorMessage={errorMessage}
                 labelHtmlTag={LabelHtmlTag.Div}
             >
-                <div className="relative flex w-full flex-col">
+                <div className="relative flex w-full flex-col" ref={wrapperRef}>
                     <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
@@ -171,7 +191,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
                     {isOpen && (
                         <div
-                            className="fixed left-0 top-0 z-[49] h-screen w-screen bg-transparent"
+                            className="fixed left-0 top-0 z-[49] bg-transparent"
                             onClick={closeDropdown}
                         />
                     )}

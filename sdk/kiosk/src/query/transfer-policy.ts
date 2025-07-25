@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaClient } from '@iota/iota-sdk/client';
-import { fromB64, isValidIotaAddress } from '@iota/iota-sdk/utils';
+import { fromBase64, isValidIotaAddress } from '@iota/iota-sdk/utils';
 
 import '../bcs.js';
 
@@ -53,7 +53,7 @@ export async function queryTransferPolicy(
                 );
             }
 
-            const parsed = TransferPolicyType.parse(fromB64(policy.bcs.bcsBytes));
+            const parsed = TransferPolicyType.parse(fromBase64(policy.bcs.bcsBytes));
 
             return {
                 id: policy?.objectId,

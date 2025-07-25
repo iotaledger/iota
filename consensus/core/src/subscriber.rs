@@ -230,6 +230,12 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .handle_send_block(peer, block.clone())
                             .await;
                         if let Err(e) = result {
+                            context.metrics.update_scoring_metrics_on_block_receival(
+                                peer,
+                                peer_hostname,
+                                e.clone(),
+                                "handle_send_block",
+                            );
                             match e {
                                 ConsensusError::BlockRejected { block_ref, reason } => {
                                     debug!(

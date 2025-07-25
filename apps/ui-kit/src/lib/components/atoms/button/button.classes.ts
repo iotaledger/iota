@@ -17,7 +17,7 @@ export const BACKGROUND_COLORS: Record<ButtonType, string> = {
     [ButtonType.Primary]: 'button-bg-color-primary',
     [ButtonType.Secondary]: 'button-bg-color-secondary',
     [ButtonType.Ghost]: 'bg-transparent',
-    [ButtonType.Outlined]: 'bg-transparent button-border-color-outline',
+    [ButtonType.Outlined]: 'button-outline-bg-color',
     [ButtonType.Destructive]: 'button-bg-color-error',
 };
 
@@ -25,7 +25,7 @@ export const DISABLED_BACKGROUND_COLORS: Record<ButtonType, string> = {
     [ButtonType.Primary]: 'button-bg-color-disabled-primary',
     [ButtonType.Secondary]: 'button-bg-color-secondary',
     [ButtonType.Ghost]: 'bg-transparent',
-    [ButtonType.Outlined]: 'bg-transparent button-border-color-outline',
+    [ButtonType.Outlined]: 'button-outline-bg-color',
     [ButtonType.Destructive]: 'button-bg-color-error',
 };
 

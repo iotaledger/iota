@@ -52,6 +52,8 @@ const developer = [
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
             'developer/getting-started/oracles',
+            'developer/getting-started/move-trace-debug',
+            'developer/getting-started/install-move-extension',
         ],
     },
     {
@@ -302,6 +304,7 @@ const developer = [
             },
             'developer/tutorials/live-concert',
             'developer/tutorials/retail-store',
+            'developer/tutorials/validate-university-degree',
         ],
     },
     {

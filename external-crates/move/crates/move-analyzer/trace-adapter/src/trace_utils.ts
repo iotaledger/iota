@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as fs from 'fs';
@@ -13,13 +13,13 @@ import {
     IRuntimeRefValue
 } from './runtime';
 import {
-    ISourceMap,
+    IDebugInfo,
     ILocalInfo,
     IFileLoc,
     IFileInfo,
     ILoc,
-    ISourceMapFunction
-} from './source_map_utils';
+    IDebugInfoFunction
+} from './debug_info_utils';
 
 
 // Data types corresponding to trace file JSON schema.
@@ -345,11 +345,11 @@ interface ITraceGenFrameInfo {
     /**
     * Information for a given function in a source file.
     */
-    srcFunEntry: ISourceMapFunction;
+    srcFunEntry: IDebugInfoFunction;
     /**
     * Information for a given function in a disassembled byc file.
     */
-    bcodeFunEntry: undefined | ISourceMapFunction;
+    bcodeFunEntry: undefined | IDebugInfoFunction;
 }
 
 /**
@@ -370,18 +370,17 @@ const INLINED_FRAME_ID_DIFFERENT_FILE = -2;
  * @param sourceMapsHashMap a map from file hash to a source map.
  * @param sourceMapsModMap a map from stringified module info to a source map.
  * @param bcodeMapModMap a map from stringified module info to a bytecode map.
- * @param srcFilesMap a map from source file hash to file info.
- * @param bcodeFilesMap a map from disassembled bytecode file hash to file info.
+ * @param filesMap a map from file hash to file info (for both source files
+ * and disassembled bytecode files).
  * @returns execution trace.
  * @throws Error with a descriptive error message if reading trace has failed.
  */
 export function readTrace(
     traceFilePath: string,
-    sourceMapsHashMap: Map<string, ISourceMap>,
-    sourceMapsModMap: Map<string, ISourceMap>,
-    bcodeMapModMap: Map<string, ISourceMap>,
-    srcFilesMap: Map<string, IFileInfo>,
-    bcodeFilesMap: Map<string, IFileInfo>
+    sourceMapsHashMap: Map<string, IDebugInfo>,
+    sourceMapsModMap: Map<string, IDebugInfo>,
+    bcodeMapModMap: Map<string, IDebugInfo>,
+    filesMap: Map<string, IFileInfo>,
 ): ITrace {
     const traceJSON: JSONTraceRootObject = JSON.parse(fs.readFileSync(traceFilePath, 'utf8'));
     if (traceJSON.events.length === 0) {
@@ -451,6 +450,10 @@ export function readTrace(
             if (!srcFunEntry) {
                 throw new Error('Cannot find function entry in source map for function '
                     + frame.function_name
+                    + ' in module '
+                    + modInfo.name
+                    + ' in package '
+                    + modInfo.addr
                     + ' when processing OpenFrame event');
             }
 
@@ -466,7 +469,7 @@ export function readTrace(
                 bcodeFileHash = bcodeMap.fileHash;
                 optimizedBcodeLines = bcodeMap.optimizedLines;
                 bcodeFunEntry = bcodeMap.functions.get(frame.function_name);
-                const currentBCodeFile = bcodeFilesMap.get(bcodeMap.fileHash);
+                const currentBCodeFile = filesMap.get(bcodeMap.fileHash);
                 if (currentBCodeFile) {
                     bcodeFilePath = currentBCodeFile.path;
                 }
@@ -485,7 +488,7 @@ export function readTrace(
                 optimizedSrcLines,
                 optimizedBcodeLines
             });
-            const currentSrcFile = srcFilesMap.get(sourceMap.fileHash);
+            const currentSrcFile = filesMap.get(sourceMap.fileHash);
 
             if (!currentSrcFile) {
                 throw new Error(`Cannot find file with hash: ${sourceMap.fileHash}`);
@@ -546,9 +549,9 @@ export function readTrace(
                 );
             }
 
-            recordTracedLine(srcFilesMap, tracedSrcLines, instSrcFileLoc);
+            recordTracedLine(filesMap, tracedSrcLines, instSrcFileLoc);
             if (instBcodeFileLoc) {
-                recordTracedLine(bcodeFilesMap, tracedBcodeLines, instBcodeFileLoc);
+                recordTracedLine(filesMap, tracedBcodeLines, instBcodeFileLoc);
             }
             // re-read frame info as it may have changed as a result of processing
             // and inlined call
@@ -680,7 +683,7 @@ function recordTracedLine(
  * an inlined macro defined in a different file, `false` otherwise.
  */
 function processInstructionIfMacro(
-    sourceMapsHashMap: Map<string, ISourceMap>,
+    sourceMapsHashMap: Map<string, IDebugInfo>,
     events: TraceEvent[],
     frameInfoStack: ITraceGenFrameInfo[],
     instPC: number,

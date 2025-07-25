@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Provides pragmas and properties of the specification language.
@@ -77,7 +77,7 @@ pub const DISABLE_INVARIANTS_IN_BODY_PRAGMA: &str = "disable_invariants_in_body"
 /// exit to this function
 pub const DELEGATE_INVARIANTS_TO_CALLER_PRAGMA: &str = "delegate_invariants_to_caller";
 
-/// # Pragmas for intrinsic table declaration
+// # Pragmas for intrinsic table declaration
 
 /// The intrinsic type for `Map<K, V>`
 pub const INTRINSIC_TYPE_MAP: &str = "map";

@@ -2,10 +2,10 @@
 # get the coin type, the number of objects, and the total balance
 {
   address(
-    address: "0x5094652429957619e6efa79a404a6714d1126e63f551f4b6c7fb76440f8118c9"
+    address: "0xd8c22c75ac470e99674fd6e73bb92955ce963c3c0b63c0100da3299f91759b07"
   ) {
     balance(
-      type: "0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN"
+      type: "0x346778989a9f57480ec3fee15f2cd68409c73a62112d40a3efd13987997be68c::cert::CERT"
     ) {
       coinObjectCount
       totalBalance

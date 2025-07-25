@@ -12,8 +12,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     RestApiConfig,
+    bigtable::KvStoreClient,
     errors::ApiError,
-    kv_store_client::KvStoreClient,
     routes::{health, kv_store},
 };
 

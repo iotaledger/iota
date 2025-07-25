@@ -156,6 +156,8 @@ jobs:
           sudo rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
           df -h /
 
+      - uses: taiki-e/install-action@protoc
+
       - name: Cargo build for ${{ matrix.os_type }} platform
         shell: bash
         run: |

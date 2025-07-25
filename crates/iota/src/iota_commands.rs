@@ -18,7 +18,8 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
+    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis,
+    p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
@@ -37,7 +38,7 @@ use iota_sdk::{
 };
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
-    genesis_config::{DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
+    genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
@@ -64,6 +65,7 @@ use crate::{
 };
 
 const CONCURRENCY_LIMIT: usize = 30;
+const DEFAULT_COMMITTEE_SIZE: usize = 1;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
 const DEFAULT_FAUCET_NUM_COINS: usize = 5;
 const DEFAULT_FAUCET_NANOS_AMOUNT: u64 = 200_000_000_000; // 200 IOTA
@@ -273,7 +275,7 @@ pub enum IotaCommand {
         #[arg(
             long,
             help = "The number of validators in the network.",
-            default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
+            default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
         /// The path to local migration snapshot files
@@ -607,9 +609,8 @@ async fn start(
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        let committee_size =
-            NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES))
-                .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
+            .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
@@ -654,7 +655,7 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES),
+                committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
@@ -697,6 +698,27 @@ async fn start(
         swarm_builder = swarm_builder
             .dir(config_path.clone())
             .with_network_config(network_config);
+
+        let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
+        if fullnode_config_path.exists() {
+            info!(
+                "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
+            );
+
+            let NodeConfig {
+                iota_names_config, ..
+            } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
+                err.context(format!(
+                    "Cannot open fullnode config file at {fullnode_config_path:?}"
+                ))
+            })?;
+
+            if let Some(iota_names_config) = iota_names_config {
+                swarm_builder = swarm_builder
+                    .dir(config_path.clone())
+                    .with_iota_names_config(iota_names_config);
+            }
+        }
     }
 
     // the indexer requires to set the fullnode's data ingestion directory

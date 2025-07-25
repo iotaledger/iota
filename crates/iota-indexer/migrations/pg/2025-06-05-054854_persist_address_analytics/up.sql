@@ -1,4 +1,4 @@
--- This procedure creates a temporary table to hold the the activity data
+-- This procedure creates a temporary table to hold the activity data
 -- for both senders and recipients, joining once with the transactions table,
 -- and ensuring partition pruning during query planning.
 --

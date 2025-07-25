@@ -608,7 +608,7 @@ impl TemporaryStore<'_> {
                 // For example, the ID is for a wrapped table or bag.
                 *container_id
             } else {
-                let Some(old_obj) = self.store.get_object(&to_authenticate)? else {
+                let Some(old_obj) = self.store.try_get_object(&to_authenticate)? else {
                     panic!(
                         "
                         Failed to load object {to_authenticate:?}. \n\
@@ -786,7 +786,7 @@ impl TemporaryStore<'_> {
             })
         } else {
             // not in input objects, must be a dynamic field
-            let Ok(Some(obj)) = self.store.get_object_by_key(id, expected_version) else {
+            let Ok(Some(obj)) = self.store.try_get_object_by_key(id, expected_version) else {
                 invariant_violation!(
                     "Failed looking up dynamic field {id} in IOTA conservation checking"
                 );

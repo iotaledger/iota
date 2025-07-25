@@ -755,12 +755,9 @@ fn start_summary_sync(
                     let epoch_last_checkpoint = checkpoint_store
                         .get_checkpoint_by_sequence_number(*epoch_last_cp_seq_num)?
                         .ok_or(anyhow!("Failed to read checkpoint"))?;
-                    let committee = state_sync_store
-                        .get_committee(cp_epoch as u64)
-                        .expect("store operation should not fail")
-                        .expect(
-                            "Expected committee to exist after syncing all end of epoch checkpoints",
-                        );
+                    let committee = state_sync_store.get_committee(cp_epoch as u64).expect(
+                        "Expected committee to exist after syncing all end of epoch checkpoints",
+                    );
                     epoch_last_checkpoint
                         .verify_authority_signatures(&committee)
                         .expect("Failed to verify checkpoint");
@@ -898,6 +895,7 @@ pub async fn download_formal_snapshot(
             usize::MAX,
             NonZeroUsize::new(num_parallel_downloads).unwrap(),
             m_clone,
+            false, // skip_reset_local_store
         )
         .await
         .unwrap_or_else(|err| panic!("Failed to create reader: {err}"));
@@ -1160,7 +1158,7 @@ pub async fn dump_checkpoints_from_archive(
     {
         let mut content = serde_json::to_string(
             &store
-                .get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
+                .try_get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
                 .unwrap(),
         )?;
         content.truncate(max_content_length);

@@ -24,7 +24,9 @@ pub mod transaction_deny_config;
 pub mod verifier_signing_config;
 
 use iota_types::multiaddr::Multiaddr;
-pub use node::{ConsensusConfig, ExecutionCacheConfig, NodeConfig};
+pub use node::{
+    ConsensusConfig, ExecutionCacheConfig, ExecutionCacheType, NodeConfig, WritebackCacheConfig,
+};
 
 const IOTA_DIR: &str = ".iota";
 pub const IOTA_CONFIG_DIR: &str = "iota_config";
@@ -32,7 +34,6 @@ pub const IOTA_NETWORK_CONFIG: &str = "network.yaml";
 pub const IOTA_FULLNODE_CONFIG: &str = "fullnode.yaml";
 pub const IOTA_CLIENT_CONFIG: &str = "client.yaml";
 pub const IOTA_KEYSTORE_FILENAME: &str = "iota.keystore";
-pub const IOTA_KEYSTORE_ALIASES_FILENAME: &str = "iota.aliases";
 pub const IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
 pub const IOTA_GENESIS_FILENAME: &str = "genesis.blob";
 pub const IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME: &str = "migration.blob";
