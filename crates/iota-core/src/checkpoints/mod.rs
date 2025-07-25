@@ -13,10 +13,9 @@ use std::{
     io::Write,
     path::Path,
     sync::{Arc, Weak},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
-use chrono::Utc;
 use diffy::create_patch;
 use iota_common::{debug_fatal, fatal};
 use iota_macros::fail_point;
@@ -2047,7 +2046,7 @@ async fn diagnose_split_brain(
         checkpoint_seq = local_summary.sequence_number,
         "Running split brain diagnostics..."
     );
-    let time = Utc::now();
+    let time = SystemTime::now();
     // collect one random disagreeing validator per differing digest
     let digest_to_validator = all_unique_values
         .iter()
@@ -2199,7 +2198,7 @@ async fn diagnose_split_brain(
 
     let header = format!(
         "Checkpoint Fork Dump - Authority {local_validator:?}: \n\
-        Datetime: {time}",
+        Datetime: {time:?}"
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
     let path = tempfile::tempdir()
