@@ -98,8 +98,7 @@ pub enum NameCommand {
         key: Option<String>,
     },
     /// List the names and subnames owned by the given address, or the
-    /// active address. Note that leaf subnames are not listed by the `list`
-    /// command.
+    /// active address. Note that leaf subnames are not listed.
     List { address: Option<KeyIdentity> },
     /// Lookup the address of a name
     Lookup { name: Name },
