@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -145,7 +145,7 @@ impl SimpleAbsIntConstructor for IDLeakVerifier {
     }
 }
 
-impl<'a> SimpleAbsInt for IDLeakVerifierAI<'a> {
+impl SimpleAbsInt for IDLeakVerifierAI<'_> {
     type State = State;
     type ExecutionContext = ExecutionContext;
 

@@ -328,7 +328,7 @@ impl GasStatus {
     }
 
     fn abstract_memory_size(&self, val: impl ValueView) -> AbstractMemorySize {
-        val.abstract_memory_size()
+        val.abstract_memory_size(false)
     }
 
     pub fn gas_price(&self) -> u64 {

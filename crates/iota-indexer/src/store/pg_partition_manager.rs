@@ -78,15 +78,11 @@ impl EpochPartitionData {
     pub fn compose_data(epoch: EpochToCommit, last_db_epoch: StoredEpochInfo) -> Self {
         let last_epoch = last_db_epoch.epoch as u64;
         let last_epoch_start_cp = last_db_epoch.first_checkpoint_id as u64;
-        let next_epoch = epoch.new_epoch.epoch;
-        let next_epoch_start_cp = epoch.new_epoch.first_checkpoint_id;
+        let next_epoch = epoch.new_epoch.epoch as u64;
+        let next_epoch_start_cp = epoch.new_epoch.first_checkpoint_id as u64;
 
-        // Determining the tx_sequence_number range for the epoch partition differs from
-        // the checkpoint_sequence_number range, because the former is a sum of
-        // total transactions - this sum already addresses the off-by-one.
-        let next_epoch_start_tx = epoch.network_total_transactions;
-        let last_epoch_start_tx =
-            next_epoch_start_tx - last_db_epoch.epoch_total_transactions.unwrap() as u64;
+        let next_epoch_start_tx = epoch.new_epoch.first_tx_sequence_number as u64;
+        let last_epoch_start_tx = last_db_epoch.first_tx_sequence_number as u64;
 
         Self {
             last_epoch,

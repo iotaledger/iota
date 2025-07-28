@@ -230,7 +230,7 @@ struct Inner {
 
     // Stores age info for all transactions depending on each object.
     // Used for throttling signing and submitting transactions depending on hot objects.
-    // An `IndexMap` is used to ensure that the insertion order is preserved.
+    // A `TransactionQueue` is used to ensure that the insertion order is preserved.
     input_objects: HashMap<ObjectID, TransactionQueue>,
 
     // Maps object IDs to the highest observed sequence number of the object. When the value is
