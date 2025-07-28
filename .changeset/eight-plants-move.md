@@ -2,4 +2,4 @@
 '@iota/apps-ui-kit': patch
 ---
 
-remove outline gradient
+remove gradient from outline button & add CSS clases to componets
