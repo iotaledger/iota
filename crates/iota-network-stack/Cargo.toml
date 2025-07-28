@@ -25,7 +25,6 @@ serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tokio-rustls.workspace = true
-tokio-stream.workspace = true
 tonic.workspace = true
 tonic-health.workspace = true
 tower.workspace = true

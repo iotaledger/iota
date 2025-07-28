@@ -128,7 +128,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
-    ) -> Result<u64, IndexerError>;
+    ) -> Result<Option<u64>, IndexerError>;
 
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError>;
 

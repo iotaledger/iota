@@ -9,7 +9,7 @@ use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     backfill::{
@@ -86,18 +86,24 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
         let end = *range.end();
 
         while start <= end {
-            while let Some((_, processed)) = self
+            if let Some((_, processed)) = self
                 .ready_checkpoints
                 .remove(&(start as CheckpointSequenceNumber))
             {
                 processed_data.extend(processed);
                 start += 1;
-            }
-
-            if start <= end {
+            } else {
+                info!("Waiting for processed data for checkpoint sequence number {start}");
                 self.notify.notified().await;
             }
         }
+
+        info!(
+            "Persisting backfill chunk from {} to {} with {} total items",
+            range.start(),
+            range.end(),
+            processed_data.len()
+        );
 
         // TODO: Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
@@ -187,21 +193,50 @@ mod tests {
             };
 
             // Simulate ready checkpoints for backfill
-            for seq in 1..=5 {
+            for seq in 0..20 {
                 ready_checkpoints.insert(seq as CheckpointSequenceNumber, vec![seq]);
             }
 
-            // Perform backfill
-            task.backfill_range(pool.clone(), &(1..=5))
+            // Perform backfill for checkpoint 0..=4
+            task.backfill_range(pool.clone(), &(0..=4))
                 .await
-                .expect("backfill_range failed");
+                .expect("Backfill failed for checkpoint range 0..=4");
+
+            // Validate checkpoints 0..=4 are consumed
+            for seq in 0..=4 {
+                assert!(
+                    !ready_checkpoints.contains_key(&seq),
+                    "Checkpoint {} should have been consumed",
+                    seq
+                );
+            }
+            // Validate checkpoints 5..=19 are still present
+            for seq in 5..=19 {
+                assert!(
+                    ready_checkpoints.contains_key(&seq),
+                    "Checkpoint {} should still be present",
+                    seq
+                );
+            }
+
+            assert_eq!(15, ready_checkpoints.len());
+
+            // Consume the rest of the checkpoints
+            task.backfill_range(pool.clone(), &(5..=19))
+                .await
+                .expect("Backfill failed for checkpoint range 5..=19");
+
+            assert!(
+                ready_checkpoints.is_empty(),
+                "All checkpoints should have been consumed"
+            );
 
             // Check if the data was written correctly
             let mut conn = pool.get().unwrap();
             let RowCount { cnt } = sql_query("SELECT COUNT(*) AS cnt FROM ingestion_items")
                 .get_result(&mut conn)
                 .unwrap();
-            assert_eq!(cnt, 5, "Should have 5 items in ingestion_items table");
+            assert_eq!(cnt, 20, "Should have 20 items in ingestion_items table");
         }
 
         db.drop_if_exists();

@@ -27,3 +27,8 @@ shared-crypto.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = [
+  "tiny-bip39", # it is used as "bip39"
+]

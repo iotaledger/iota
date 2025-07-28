@@ -31,7 +31,6 @@ iota-names.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-types.workspace = true
-move-bytecode-utils.workspace = true
 shared-crypto.workspace = true
 
 [target.'cfg(msim)'.dependencies]
