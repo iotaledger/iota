@@ -1,5 +1,3 @@
-# Move Trace Debugging
-
 Provides the ability to visualize Move trace files, which can be generated for a given package when running Move tests. These trace files contain information about which Move instructions are executed during a given test run. This extension leverages an implementation of the [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol) (DAP) that analyzes Move execution traces and presents them to the IDE client (in this case a VSCode extension) in a format that the client understands and can visualize using a familiar debugging interface.
 
 ## Supported features
@@ -29,9 +27,9 @@ Debugging a Move unit tests consists of two steps: generating a Move trace and a
 
 ## Generating a Move trace
 
-If you have [IOTA Foundation's Move extension](https://marketplace.visualstudio.com/items?itemName=iota.move) installed you can generate a Move trace for tests defined in a given file by navigating to this file in VSCode and running `Move: Trace Move test execution` from the command palette. See the description of [IOTA Foundation's Move extension](https://marketplace.visualstudio.com/items?itemName=iota.move) for pre-requisites needed to run this command.
+If you have [IOTA Foundation's Move extension](https://marketplace.visualstudio.com/items?itemName=iotaledger.iota-move) installed you can generate a Move trace for tests defined in a given file by navigating to this file in VSCode and running `Move: Trace Move test execution` from the command palette. See the description of [IOTA Foundation's Move extension](https://marketplace.visualstudio.com/items?itemName=iotaledger.iota-move) for pre-requisites needed to run this command.
 
-If you plan to use the Trace Debugging Extension by itself, you need to generate the traces using command-line interface of `iota` binary. See [here](https://docs.iota.org/guides/developer/getting-started/iota-install) for instructions on how to install `iota` binary. Note that the `iota` binary must be built with the `tracing` feature flag. If your version of the `iota` binary was not built with this feature flag, an attempt to trace test execution will fail. In this case you may have to build the `iota` binary from source following these [instructions](https://docs.iota.org/guides/developer/getting-started/iota-install#install-iota-binaries-from-source).
+If you plan to use the Trace Debugging Extension by itself, you need to generate the traces using command-line interface of `iota` binary. See [here](/developer/getting-started/install-iota#install-from-binaries) for instructions on how to install `iota` binary. Note that the `iota` binary must be built with the `tracing` feature flag. If your version of the `iota` binary was not built with this feature flag, an attempt to trace test execution will fail. In this case you may have to build the `iota` binary from source following these [instructions](/developer/getting-started/install-iota#install-iota-binaries-from-source).
 
 Once the `iota` binary is installed, you generate traces for all test files in a given package, as well as disassembled bytecode for all the modules (to support disassembly view) by running the following command in the package's root directory:
 

@@ -19,7 +19,6 @@ tracing.workspace = true
 
 # internal dependencies
 iota-types.workspace = true
-move-core-types.workspace = true
 
 [build-dependencies]
 cynic-codegen = "=3.7.3"

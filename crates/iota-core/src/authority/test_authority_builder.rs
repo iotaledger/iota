@@ -32,7 +32,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 
-use super::epoch_start_configuration::EpochFlag;
+use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{
     authority::{
         AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
@@ -71,6 +71,7 @@ pub struct TestAuthorityBuilder<'a> {
     authority_overload_config: Option<AuthorityOverloadConfig>,
     cache_type: Option<ExecutionCacheType>,
     cache_config: Option<ExecutionCacheConfig>,
+    disable_execute_genesis_transactions: bool,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -179,6 +180,11 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    pub fn disable_execute_genesis_transactions(mut self) -> Self {
+        self.disable_execute_genesis_transactions = true;
+        self
+    }
+
     pub async fn build(self) -> Arc<AuthorityState> {
         let mut local_network_config_builder =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
@@ -249,11 +255,16 @@ impl<'a> TestAuthorityBuilder<'a> {
         .unwrap();
         let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
 
+        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+        let backpressure_manager =
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
+
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
             &epoch_start_configuration,
             &registry,
             &authority_store,
+            backpressure_manager.clone(),
         );
 
         let epoch_store = AuthorityPerEpochStore::new(
@@ -276,7 +287,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
         ));
 
-        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
         if self.insert_genesis_checkpoint {
             checkpoint_store.insert_genesis_checkpoint(
                 genesis.checkpoint(),
@@ -318,6 +328,8 @@ impl<'a> TestAuthorityBuilder<'a> {
         config.authority_overload_config = authority_overload_config;
         config.authority_store_pruning_config = pruning_config;
 
+        let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
+
         let state = AuthorityState::new(
             name,
             secret,
@@ -336,6 +348,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             usize::MAX,
             ArchiveReaderBalancer::default(),
             None,
+            chain_identifier,
         )
         .await;
 
@@ -360,28 +373,30 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap();
         }
 
-        // For any type of local testing that does not actually spawn a node, the
-        // checkpoint executor won't be started, which means we won't actually
-        // execute the genesis transaction. In that case, the genesis objects
-        // (e.g. all the genesis test coins) won't be accessible. Executing it
-        // explicitly makes sure all genesis objects are ready for use.
-        state
-            .try_execute_immediately(
-                &VerifiedExecutableTransaction::new_from_checkpoint(
-                    VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
-                    genesis.epoch(),
-                    genesis.checkpoint().sequence_number,
-                ),
-                None,
-                &state.epoch_store_for_testing(),
-            )
-            .await
-            .unwrap();
+        if !self.disable_execute_genesis_transactions {
+            // For any type of local testing that does not actually spawn a node, the
+            // checkpoint executor won't be started, which means we won't actually
+            // execute the genesis transaction. In that case, the genesis objects
+            // (e.g. all the genesis test coins) won't be accessible. Executing it
+            // explicitly makes sure all genesis objects are ready for use.
+            state
+                .try_execute_immediately(
+                    &VerifiedExecutableTransaction::new_from_checkpoint(
+                        VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
+                        genesis.epoch(),
+                        genesis.checkpoint().sequence_number,
+                    ),
+                    None,
+                    &state.epoch_store_for_testing(),
+                )
+                .await
+                .unwrap();
 
-        state
-            .get_cache_commit()
-            .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
-            .await;
+            state
+                .get_cache_commit()
+                .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+                .await;
+        }
 
         // We want to insert these objects directly instead of relying on genesis
         // because genesis process would set the previous transaction field for

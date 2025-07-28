@@ -416,6 +416,27 @@ impl EventIndex {
     }
 }
 
+#[cfg(any(test, feature = "pg_integration"))]
+impl EventIndex {
+    /// Generate a random event index for testing purposes.
+    pub fn random() -> Self {
+        use rand::Rng;
+
+        let mut rng = rand::thread_rng();
+        EventIndex {
+            tx_sequence_number: rng.gen(),
+            event_sequence_number: rng.gen(),
+            sender: IotaAddress::random_for_testing_only(),
+            emit_package: ObjectID::random(),
+            emit_module: rng.gen::<u64>().to_string(),
+            type_package: ObjectID::random(),
+            type_module: rng.gen::<u64>().to_string(),
+            type_name: rng.gen::<u64>().to_string(),
+            type_instantiation: rng.gen::<u64>().to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum OwnerType {
     Immutable = 0,
@@ -541,6 +562,60 @@ pub struct TxIndex {
     pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,
     pub move_calls: Vec<(ObjectID, String, String)>,
+}
+
+#[cfg(any(test, feature = "pg_integration"))]
+impl TxIndex {
+    /// Generate a random TxIndex for testing purposes.
+    pub fn random() -> Self {
+        use std::iter::repeat_with;
+
+        use rand::Rng;
+
+        const MAX_OBJECTS: usize = 1000;
+        const MAX_PAYERS: usize = 100;
+        const MAX_RECIPIENTS: usize = 1000;
+        const MAX_MOVE_CALLS: usize = 1000;
+
+        let mut rng = rand::thread_rng();
+
+        let tx_kind = if rng.gen_bool(0.5) {
+            IotaTransactionKind::SystemTransaction
+        } else {
+            IotaTransactionKind::ProgrammableTransaction
+        };
+
+        let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let payers = repeat_with(IotaAddress::random_for_testing_only)
+            .take(rng.gen_range(0..MAX_PAYERS))
+            .collect();
+        let recipients = repeat_with(IotaAddress::random_for_testing_only)
+            .take(rng.gen_range(0..MAX_RECIPIENTS))
+            .collect();
+        let move_calls = std::iter::repeat_with(|| {
+            (
+                ObjectID::random(),
+                rand::random::<u64>().to_string(),
+                rand::random::<u64>().to_string(),
+            )
+        })
+        .take(rng.gen_range(0..MAX_MOVE_CALLS))
+        .collect();
+
+        TxIndex {
+            tx_sequence_number: rng.gen(),
+            tx_kind,
+            transaction_digest: TransactionDigest::random(),
+            checkpoint_sequence_number: rng.gen(),
+            input_objects,
+            changed_objects,
+            payers,
+            sender: IotaAddress::random_for_testing_only(),
+            recipients,
+            move_calls,
+        }
+    }
 }
 
 // ObjectChange is not bcs deserializable, IndexedObjectChange is.

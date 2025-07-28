@@ -47,6 +47,8 @@ To instantiate a `BigTableClient` for communicating with a remote Google Cloud B
   This can be found in the Google Cloud Console (e.g., `my-instance-id`).
 
 - **Credentials:**
+  Following the application default credentials [guidelines](https://cloud.google.com/docs/authentication/application-default-credentials) we will use the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to authenticate with the Google Cloud API.
+
   Download your service account credentials JSON file from the Google Cloud Console. Store this file securely on your local machine.
   The client will use this file via the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
   Example:
