@@ -821,11 +821,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // let mut assigned_block_refs = BTreeSet::new();
         let mut request_futures = FuturesUnordered::new();
 
-        // For each authority, randomize and try to lock up to
-        // maximum amount of acknowledged blocks.
+        // For each authority, randomize and try to lock up the
+        // maximum possible amount of acknowledged blocks.
         // The logic is as follows:
         // * Iterate all authorities that have acknowledged missing transactions.
-        // * Randomly select up to MAX_TRANSACTIONS_PER_FETCH missing transactions
+        // * Randomly select up to max_transactions_per_fetch missing transactions
         //   acknowledged by the authority.
         // * Attempt to lock the selected transactions using the
         //   inflight_transactions_map. Some transactions may already be locked by other
@@ -850,7 +850,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             vec.shuffle(&mut rng);
             Box::new(vec.into_iter())
         };
-        
+
 
         for (authority, authority_block_refs) in iter_authorities {
             let peer_hostname = &context.committee.authority(authority).hostname;
