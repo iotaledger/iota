@@ -10,7 +10,6 @@ description = "IOTA's network tooling"
 [dependencies]
 # external dependencies
 anemo.workspace = true
-async-stream.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 eyre.workspace = true

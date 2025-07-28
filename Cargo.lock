@@ -6965,7 +6965,6 @@ name = "iota-network-stack"
 version = "1.4.0-alpha"
 dependencies = [
  "anemo",
- "async-stream",
  "bcs",
  "bytes",
  "eyre",
