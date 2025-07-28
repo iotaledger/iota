@@ -79,7 +79,9 @@ pub async fn send_and_confirm_transaction(
 }
 
 #[cfg(test)]
-pub(crate) fn init_state_parameters_from_rng<R>(rng: &mut R) -> (iota_config::genesis::Genesis, AuthorityKeyPair)
+pub(crate) fn init_state_parameters_from_rng<R>(
+    rng: &mut R,
+) -> (iota_config::genesis::Genesis, AuthorityKeyPair)
 where
     R: rand::CryptoRng + rand::RngCore,
 {
