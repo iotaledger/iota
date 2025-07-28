@@ -32,7 +32,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, line 19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [150, 192, 49, 44, 222, 181, 247, 104, 204, 191, 25, 181, 245, 249, 104, 61, 2, 248, 166, 69, 160, 31, 247, 108, 25, 161, 206, 220, 214, 174, 179, 84, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [248, 95, 142, 193, 10, 34, 4, 6, 104, 46, 122, 98, 109, 102, 160, 206, 145, 33, 175, 54, 124, 53, 13, 51, 40, 82, 185, 230, 22, 202, 17, 229, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(5,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
@@ -86,7 +86,7 @@ Response: {
       "transactionBlocks": {
         "nodes": [
           {
-            "digest": "FDiAVXpovZsXMpTkikDV2fPXc6Tr29AWmJR2gofKMAbA"
+            "digest": "6aYQq2uM2kEcCFEJpmLwp8UZ9VfJUGycd1hZBawBJAvW"
           }
         ]
       },
@@ -151,7 +151,7 @@ Response: {
       "transactionBlocks": {
         "nodes": [
           {
-            "digest": "qY7b6LdzgsVuTi6uz9yDWfnaytt5BMpsp8UY9GfaUB2"
+            "digest": "FigWdren6TMtMrgHTr4FBV1pb5EPigbgoHnQqCK5RpJw"
           }
         ]
       },
