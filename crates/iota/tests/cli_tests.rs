@@ -5518,12 +5518,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_ptb_sender() -> Result<(), anyhow::Error> {
-    use std::collections::HashSet;
-
-    use iota::{
-        client_commands::IotaClientCommands, client_ptb::ptb::PTB, key_identity::KeyIdentity,
-    };
-    use iota_types::base_types::IotaAddress;
     // Hardcoded multisig address (generated with `iota keytool multi-sig-address
     // --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold
     // 1` where the pubKey is for the privKey with all zeros)
@@ -5581,6 +5575,131 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
         panic!("unexpected PTB result");
     };
     assert_eq!(tx_data.sender(), multisig_address);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_gas_coin_smashing() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(address, None, None, None)
+        .await?
+        .data;
+
+    let gas_coin_ids: Vec<String> = object_refs
+        .iter()
+        .flat_map(|obj_ref| obj_ref.object().map(|o| format!("@{}", o.object_id)))
+        .collect();
+    assert!(
+        gas_coin_ids.len() > 1,
+        "Not enough gas coins to test gas smashing"
+    );
+
+    let ptb_string = format!(
+        r#"
+        --split-coins gas [100]
+        --assign c
+        --transfer-objects [c.0] @{address}
+        --gas-coin {}
+        "#,
+        gas_coin_ids.join(" ")
+    );
+    let args = shlex::split(&ptb_string).unwrap();
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
+    let ptb_res = ptb.execute(context).await?;
+    let PTBCommandResult::CommandResult(res) = ptb_res else {
+        panic!("Command failed, expected CommandResult");
+    };
+
+    let IotaClientCommandResult::TransactionBlock(tx_block) = *res else {
+        panic!("Expected TransactionBlock result");
+    };
+    let payment_len = tx_block
+        .transaction
+        .as_ref()
+        .expect("Missing transaction")
+        .data
+        .gas_data()
+        .payment
+        .len();
+    assert!(
+        payment_len > 1,
+        "Expected more than one gas payment, got {payment_len}"
+    );
+
+    Ok(())
+}
+
+// Same as above, just with `gas-coins` instead of `gas-coin`
+#[sim_test]
+async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(address, None, None, None)
+        .await?
+        .data;
+
+    let gas_coin_ids: Vec<String> = object_refs
+        .iter()
+        .flat_map(|obj_ref| obj_ref.object().map(|o| format!("@{}", o.object_id)))
+        .collect();
+    assert!(
+        gas_coin_ids.len() > 1,
+        "Not enough gas coins to test gas smashing"
+    );
+
+    let ptb_string = format!(
+        r#"
+        --split-coins gas [100]
+        --assign c
+        --transfer-objects [c.0] @{address}
+        --gas-coins {}
+        "#,
+        gas_coin_ids.join(" ")
+    );
+    let args = shlex::split(&ptb_string).unwrap();
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
+    let ptb_res = ptb.execute(context).await?;
+    let PTBCommandResult::CommandResult(res) = ptb_res else {
+        panic!("Command failed, expected CommandResult");
+    };
+
+    let IotaClientCommandResult::TransactionBlock(tx_block) = *res else {
+        panic!("Expected TransactionBlock result");
+    };
+    let payment_len = tx_block
+        .transaction
+        .as_ref()
+        .expect("Missing transaction")
+        .data
+        .gas_data()
+        .payment
+        .len();
+    assert!(
+        payment_len > 1,
+        "Expected more than one gas payment, got {payment_len}"
+    );
 
     Ok(())
 }
