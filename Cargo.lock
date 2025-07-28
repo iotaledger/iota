@@ -7534,6 +7534,7 @@ dependencies = [
  "futures",
  "indicatif",
  "integer-encoding",
+ "iota-common",
  "iota-config",
  "iota-core",
  "iota-storage",

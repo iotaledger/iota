@@ -26,6 +26,7 @@ tokio-stream.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-storage.workspace = true
