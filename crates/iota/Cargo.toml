@@ -18,7 +18,6 @@ async-recursion.workspace = true
 async-trait.workspace = true
 aws-config = "1.5"
 aws-sdk-kms = "1.44.0"
-axum.workspace = true
 bcs.workspace = true
 bip32.workspace = true
 blake2 = { version = "0.10", optional = true }
@@ -26,18 +25,15 @@ camino.workspace = true
 chrono = { workspace = true, optional = true }
 clap.workspace = true
 clap_complete = { version = "4.5", optional = true }
-codespan-reporting.workspace = true
 colored.workspace = true
 csv.workspace = true
 fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 http.workspace = true
-im.workspace = true
 inquire = "0.6.0"
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
-num-bigint.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 regex.workspace = true
@@ -48,15 +44,10 @@ serde_yaml.workspace = true
 signature.workspace = true
 strum.workspace = true
 tabled.workspace = true
-tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tower.workspace = true
-tower-http.workspace = true
 tracing.workspace = true
-url.workspace = true
-uuid.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
@@ -82,7 +73,6 @@ iota-sdk.workspace = true
 iota-source-validation.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
-iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-analyzer.workspace = true
 move-binary-format.workspace = true
@@ -93,7 +83,6 @@ move-compiler.workspace = true
 move-core-types.workspace = true
 move-ir-types.workspace = true
 move-package.workspace = true
-move-vm-config.workspace = true
 move-vm-profiler.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true

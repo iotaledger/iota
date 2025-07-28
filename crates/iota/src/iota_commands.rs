@@ -52,6 +52,7 @@ use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{self, info};
+use url::Url;
 
 #[cfg(feature = "iota-names")]
 use crate::name_commands;
@@ -1144,7 +1145,7 @@ async fn genesis(
     let mut client_config = if client_path.exists() {
         PersistedConfig::read(&client_path)?
     } else {
-        IotaClientConfig::new(keystore)
+        IotaClientConfig::new(keystore).with_default_envs()
     };
 
     if client_config.active_address().is_none() {
@@ -1160,7 +1161,7 @@ async fn genesis(
         } else {
             fullnode_config.json_rpc_address.ip().to_string()
         };
-    client_config.add_env(IotaEnv::new(
+    client_config.set_env(IotaEnv::new(
         "localnet",
         format!(
             "http://{}:{}",
@@ -1189,34 +1190,44 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{wallet_conf_path:?}] with default (Testnet) Full node server and ed25519 key scheme."
+                "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
             );
         } else {
             print!(
-                "Config file [{wallet_conf_path:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?"
+                "Config file [{wallet_conf_path:?}] doesn't exist! Do you want to connect to an IOTA full node server? [y/N]: "
             );
         }
         if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {
             let url = if accept_defaults {
                 String::new()
             } else {
-                print!("IOTA Full node server URL (Defaults to IOTA Testnet if not specified) : ");
+                print!(
+                    "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
+                );
                 read_line()?
             };
-            if url.trim().is_empty() {
-                Ok(IotaEnv::testnet())
-            } else {
-                print!("Environment alias for [{url}] : ");
-                let alias = read_line()?;
-                let alias = if alias.trim().is_empty() {
-                    "custom".to_string()
-                } else {
-                    alias
-                };
-                Ok(IotaEnv::new(alias, url))
+            match url.trim() {
+                "mainnet" => Ok(IotaEnv::mainnet()),
+                "testnet" | "" => Ok(IotaEnv::testnet()),
+                "devnet" => Ok(IotaEnv::devnet()),
+                "localnet" => Ok(IotaEnv::localnet()),
+                url => {
+                    if Url::parse(url).is_ok() {
+                        print!("Environment alias for [{url}]: ");
+                        let alias = read_line()?;
+                        let alias = if alias.trim().is_empty() {
+                            "custom".to_string()
+                        } else {
+                            alias
+                        };
+                        Ok(IotaEnv::new(alias, url))
+                    } else {
+                        bail!("invalid custom URL");
+                    }
+                }
             }
         } else {
-            anyhow::bail!("no environment exists for the client")
+            bail!("no environment exists for the client")
         }
     }
 }
@@ -1245,9 +1256,12 @@ fn prompt_if_no_config(
         }
         .join(IOTA_KEYSTORE_FILENAME);
         let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
-        let mut config = IotaClientConfig::new(keystore);
+        let mut config = IotaClientConfig::new(keystore).with_default_envs();
         if prompt_for_env {
-            config.add_env(prompt_for_environment(wallet_conf_path, accept_defaults)?);
+            let env = prompt_for_environment(wallet_conf_path, accept_defaults)?;
+            let alias = env.alias().clone();
+            config.set_env(env);
+            config.set_active_env(alias);
         }
         // Get an existing address or generate a new one
         if let Some(existing_address) = config.keystore().addresses().first() {
@@ -1257,8 +1271,8 @@ fn prompt_if_no_config(
             let key_scheme = if accept_defaults {
                 SignatureScheme::ED25519
             } else {
-                println!(
-                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                print!(
+                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
@@ -1270,10 +1284,10 @@ fn prompt_if_no_config(
                 .generate_and_add_new_key(key_scheme, None, None, None)?;
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
-                "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
+                "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
                 scheme.to_string()
             );
-            println!("Secret Recovery Phrase : [{phrase}]");
+            println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);
         }
         config.persisted(wallet_conf_path).save()?;

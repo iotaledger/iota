@@ -13,7 +13,6 @@ async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "c1a4c951473eafcd8bf841b9e7b82ee8c5b29b3e" }
-prometheus.workspace = true
 serde.workspace = true
 strum.workspace = true
 tokio.workspace = true

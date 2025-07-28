@@ -3101,6 +3101,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
+    let address_1 = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
     let client = context.get_client().await?;
     let object_refs = client
@@ -3312,6 +3313,70 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     assert_eq!(get_gas_value(&updated_coin) + 1000 + 10, orig_value);
     assert!((get_gas_value(&new_coins[0]) == 1000) || (get_gas_value(&new_coins[0]) == 10));
     assert!((get_gas_value(&new_coins[1]) == 1000) || (get_gas_value(&new_coins[1]) == 10));
+
+    // Test with single gas coin
+    context.config_mut().set_active_address(Some(address_1));
+    let object_refs = client
+        .coin_read_api()
+        .get_coins(address_1, None, None, None)
+        .await?;
+    // First merge all coins so we only have a single one left
+    let resp = IotaClientCommands::PayAllIota {
+        input_coins: object_refs.data.iter().map(|o| o.coin_object_id).collect(),
+        recipient: KeyIdentity::Address(address_1),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+    if let IotaClientCommandResult::TransactionBlock(r) = resp {
+        assert!(r.status_ok().unwrap(), "Command PayAllIota failed: {r:?}");
+    } else {
+        panic!("Command PayAllIota failed")
+    };
+
+    let object_refs = client
+        .coin_read_api()
+        .get_coins(address_1, None, None, None)
+        .await?;
+    assert_eq!(object_refs.data.len(), 1, "More than one coin");
+
+    let gas = object_refs.data.first().unwrap().coin_object_id;
+    let resp = IotaClientCommands::SplitCoin {
+        coin_id: gas,
+        amounts: Some(vec![10, 1000]),
+        count: None,
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+
+    let new_coins = if let IotaClientCommandResult::TransactionBlock(r) = resp {
+        assert!(r.status_ok().unwrap(), "Command SplitCoin failed: {r:?}");
+        let effects = r.effects.as_ref().unwrap();
+        assert_eq!(effects.gas_object().object_id(), gas);
+
+        let new_object_refs = effects.created().to_vec();
+        let mut new_objects = Vec::with_capacity(new_object_refs.len());
+        for obj_ref in new_object_refs {
+            new_objects.push(
+                get_parsed_object_assert_existence(obj_ref.reference.object_id, context).await,
+            );
+        }
+        new_objects
+    } else {
+        panic!("Command SplitCoin failed")
+    };
+    assert!((get_gas_value(&new_coins[0]) == 10) || (get_gas_value(&new_coins[0]) == 1000));
+    assert!((get_gas_value(&new_coins[1]) == 1000) || (get_gas_value(&new_coins[1]) == 10));
     Ok(())
 }
 
@@ -3388,7 +3453,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let coin = object_refs.get(1).unwrap().object().unwrap().object_id;
 
     IotaClientCommands::PayIota {
-        input_coins: vec![coin],
+        input_coins: Some(vec![coin]),
         recipients: vec![KeyIdentity::Address(address1)],
         amounts: vec![1],
         gas_data: GasDataArgs::default(),
@@ -3398,7 +3463,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     .await?;
 
     IotaClientCommands::PayIota {
-        input_coins: vec![coin],
+        input_coins: Some(vec![coin]),
         recipients: vec![KeyIdentity::Address(address1)],
         amounts: vec![1],
         gas_data: GasDataArgs {
@@ -3412,7 +3477,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
 
     // use alias for transfer
     IotaClientCommands::PayIota {
-        input_coins: vec![coin],
+        input_coins: Some(vec![coin]),
         recipients: vec![KeyIdentity::Alias(alias1)],
         amounts: vec![1],
         gas_data: GasDataArgs {
@@ -3840,7 +3905,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 
     // === PAY IOTA === //
     let pay_iota_dry_run = IotaClientCommands::PayIota {
-        input_coins: vec![object_id],
+        input_coins: Some(vec![object_id]),
         recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
         amounts: vec![1],
         gas_data: GasDataArgs {
@@ -4048,7 +4113,7 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
     let amounts = [1000, 5000];
     let pay_iota = IotaClientCommands::PayIota {
-        input_coins: vec![object_id1, object_id2],
+        input_coins: Some(vec![object_id1, object_id2]),
         recipients: vec![recipient1.clone(), recipient2.clone()],
         amounts: amounts.into(),
         gas_data: GasDataArgs {
@@ -4513,7 +4578,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
 
     let pay_iota_cmd = IotaClientCommands::PayIota {
         recipients: vec![KeyIdentity::Address(address2)],
-        input_coins: vec![object_id1],
+        input_coins: Some(vec![object_id1]),
         amounts: vec![amount],
         gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
@@ -5453,12 +5518,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_ptb_sender() -> Result<(), anyhow::Error> {
-    use std::collections::HashSet;
-
-    use iota::{
-        client_commands::IotaClientCommands, client_ptb::ptb::PTB, key_identity::KeyIdentity,
-    };
-    use iota_types::base_types::IotaAddress;
     // Hardcoded multisig address (generated with `iota keytool multi-sig-address
     // --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold
     // 1` where the pubKey is for the privKey with all zeros)
@@ -5516,6 +5575,131 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
         panic!("unexpected PTB result");
     };
     assert_eq!(tx_data.sender(), multisig_address);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_gas_coin_smashing() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(address, None, None, None)
+        .await?
+        .data;
+
+    let gas_coin_ids: Vec<String> = object_refs
+        .iter()
+        .flat_map(|obj_ref| obj_ref.object().map(|o| format!("@{}", o.object_id)))
+        .collect();
+    assert!(
+        gas_coin_ids.len() > 1,
+        "Not enough gas coins to test gas smashing"
+    );
+
+    let ptb_string = format!(
+        r#"
+        --split-coins gas [100]
+        --assign c
+        --transfer-objects [c.0] @{address}
+        --gas-coin {}
+        "#,
+        gas_coin_ids.join(" ")
+    );
+    let args = shlex::split(&ptb_string).unwrap();
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
+    let ptb_res = ptb.execute(context).await?;
+    let PTBCommandResult::CommandResult(res) = ptb_res else {
+        panic!("Command failed, expected CommandResult");
+    };
+
+    let IotaClientCommandResult::TransactionBlock(tx_block) = *res else {
+        panic!("Expected TransactionBlock result");
+    };
+    let payment_len = tx_block
+        .transaction
+        .as_ref()
+        .expect("Missing transaction")
+        .data
+        .gas_data()
+        .payment
+        .len();
+    assert!(
+        payment_len > 1,
+        "Expected more than one gas payment, got {payment_len}"
+    );
+
+    Ok(())
+}
+
+// Same as above, just with `gas-coins` instead of `gas-coin`
+#[sim_test]
+async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(address, None, None, None)
+        .await?
+        .data;
+
+    let gas_coin_ids: Vec<String> = object_refs
+        .iter()
+        .flat_map(|obj_ref| obj_ref.object().map(|o| format!("@{}", o.object_id)))
+        .collect();
+    assert!(
+        gas_coin_ids.len() > 1,
+        "Not enough gas coins to test gas smashing"
+    );
+
+    let ptb_string = format!(
+        r#"
+        --split-coins gas [100]
+        --assign c
+        --transfer-objects [c.0] @{address}
+        --gas-coins {}
+        "#,
+        gas_coin_ids.join(" ")
+    );
+    let args = shlex::split(&ptb_string).unwrap();
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
+    let ptb_res = ptb.execute(context).await?;
+    let PTBCommandResult::CommandResult(res) = ptb_res else {
+        panic!("Command failed, expected CommandResult");
+    };
+
+    let IotaClientCommandResult::TransactionBlock(tx_block) = *res else {
+        panic!("Expected TransactionBlock result");
+    };
+    let payment_len = tx_block
+        .transaction
+        .as_ref()
+        .expect("Missing transaction")
+        .data
+        .gas_data()
+        .payment
+        .len();
+    assert!(
+        payment_len > 1,
+        "Expected more than one gas payment, got {payment_len}"
+    );
 
     Ok(())
 }

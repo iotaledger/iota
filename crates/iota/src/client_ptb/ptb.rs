@@ -173,10 +173,10 @@ impl PTB {
             Ok(x) => x,
         };
 
-        // TODO: support multiple gas objects
         let gas: Vec<_> = program_metadata
-            .gas_object_id
+            .gas_object_ids
             .into_iter()
+            .flatten()
             .map(|x| x.value)
             .collect();
 
@@ -195,8 +195,10 @@ impl PTB {
 
         let gas_data = GasDataArgs {
             gas_budget: program_metadata.gas_budget.map(|x| x.value),
-            gas_price: None,   // TODO: support gas price in PTB
-            gas_sponsor: None, // TODO: support gas sponsors in PTB
+            gas_price: program_metadata.gas_price.map(|x| x.value),
+            gas_sponsor: program_metadata
+                .gas_sponsor
+                .map(|x| x.value.into_inner().into()),
         };
 
         let processing = TxProcessingArgs {
@@ -226,7 +228,6 @@ impl PTB {
             | IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                println!("{transaction_response}");
                 return Ok(PTBCommandResult::CommandResult(Box::new(
                     transaction_response,
                 )));
@@ -368,8 +369,8 @@ pub fn ptb_description() -> clap::Command {
             "Perform a dev-inspect of the PTB instead of executing it."
         ))
         .arg(arg!(
-            --"gas-coin" <ID> ...
-            "The object ID of the gas coin to use. If not specified, it will try to use the first \
+            --"gas-coins" <ID> ...
+            "The object IDs for the gas coins to use. If not specified, it will try to use the first \
             gas coin that it finds that has at least the requested gas-budget balance."
         ))
         .arg(arg!(
@@ -378,6 +379,16 @@ pub fn ptb_description() -> clap::Command {
             tool will first perform a dry run to estimate the gas cost, and then it will execute \
             the transaction. Please note that this incurs a small cost in performance due to the \
             additional dry run call."
+        ))
+        .arg(arg!(
+            --"gas-price" <NANOS>
+            "An optional gas price for this PTB (in NANOS). If not specified, the reference gas price \
+            is fetched from RPC."
+        ))
+        .arg(arg!(
+            --"gas-sponsor" <ADDRESS>
+            "An optional gas sponsor for this PTB. If not specified, the sender is used as the gas \
+            sponsor."
         ))
         .arg(arg!(
             --"make-move-vec" <MAKE_MOVE_VEC>
