@@ -15,7 +15,7 @@ test.describe('Send MAX native token amount from L1', () => {
         const { browser, page, addressL2 } = setup;
         const nativeTokenAmount = '3';
         // todo: add check for balance with retries instead of wait
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(1500);
 
         await selectCoin(page, 'Tool');
 

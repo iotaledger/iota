@@ -22,11 +22,23 @@ export default defineConfig({
     },
     projects: [
         {
-            name: 'chromium',
+            name: 'send-max-tests',
+            testMatch: ['**/*sendMax*.spec.ts'], // Match any sendMax test files
             use: {
                 ...devices['Desktop Chrome'],
                 userAgent: 'Playwright',
-                // Remove after we don't need copy address anymore (tests/utils/auth.ts > line with clipboard)
+                contextOptions: {
+                    permissions: ['clipboard-read'],
+                },
+            },
+        },
+        {
+            name: 'deposit-tests',
+            testMatch: ['**/*deposit*.spec.ts'], // Match any deposit test files
+            dependencies: ['send-max-tests'], // This makes it wait for send-max-tests
+            use: {
+                ...devices['Desktop Chrome'],
+                userAgent: 'Playwright',
                 contextOptions: {
                     permissions: ['clipboard-read'],
                 },
