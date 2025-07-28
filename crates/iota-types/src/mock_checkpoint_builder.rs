@@ -29,7 +29,7 @@ pub trait ValidatorKeypairProvider {
 /// checkpoint builder. It's mostly used by simulations, tests and benchmarks.
 #[derive(Debug)]
 pub struct MockCheckpointBuilder {
-    previous_checkpoint: Option<VerifiedCheckpoint>,
+    previous_checkpoint: VerifiedCheckpoint,
     transactions: Vec<VerifiedExecutionData>,
     epoch_rolling_gas_cost_summary: GasCostSummary,
     epoch: u64,
@@ -42,7 +42,7 @@ impl MockCheckpointBuilder {
         let epoch = previous_checkpoint.epoch;
 
         Self {
-            previous_checkpoint: Some(previous_checkpoint),
+            previous_checkpoint,
             transactions: Vec::new(),
             epoch_rolling_gas_cost_summary,
             epoch,
@@ -72,25 +72,21 @@ impl MockCheckpointBuilder {
     /// checkpoint's number to checkpoint_number - 1. This ensures the next
     /// generated checkpoint has the exact sequence number provided. This
     /// can be useful to generate checkpoints with specific sequence
-    /// numbers.
+    /// numbers. Monotonicity of checkpoint numbers is enforced strictly.
     pub fn override_next_checkpoint_number(
         &mut self,
         checkpoint_number: u64,
         validator_keys: &impl ValidatorKeypairProvider,
     ) {
-        if checkpoint_number > 0 {
-            let mut summary = self
-                .previous_checkpoint
-                .as_ref()
-                .expect("Cannot set next checkpoint number without existing previous checkpoint")
-                .data()
-                .clone();
-            summary.sequence_number = checkpoint_number - 1;
-            let checkpoint = Self::create_certified_checkpoint(validator_keys, summary);
-            self.previous_checkpoint = Some(checkpoint);
-        } else {
-            self.previous_checkpoint = None;
-        }
+        assert!(
+            checkpoint_number > self.previous_checkpoint.sequence_number,
+            "Checkpoint number must strictly increase."
+        );
+
+        let mut summary = self.previous_checkpoint.data().clone();
+        summary.sequence_number = checkpoint_number - 1;
+        let checkpoint = Self::create_certified_checkpoint(validator_keys, summary);
+        self.previous_checkpoint = checkpoint;
     }
 
     /// Builds a checkpoint using internally buffered transactions.
@@ -168,17 +164,13 @@ impl MockCheckpointBuilder {
             epoch,
             sequence_number: self
                 .previous_checkpoint
-                .as_ref()
-                .map(|c| c.sequence_number + 1)
-                .unwrap_or(0),
-            network_total_transactions: self
-                .previous_checkpoint
-                .as_ref()
-                .map(|c| c.network_total_transactions)
-                .unwrap_or(0)
+                .sequence_number
+                .checked_add(1)
+                .expect("checkpoint sequence number overflow"),
+            network_total_transactions: self.previous_checkpoint.network_total_transactions
                 + contents.size() as u64,
             content_digest: *contents.digest(),
-            previous_digest: self.previous_checkpoint.as_ref().map(|c| *c.digest()),
+            previous_digest: Some(*self.previous_checkpoint.digest()),
             epoch_rolling_gas_cost_summary,
             end_of_epoch_data,
             timestamp_ms,
@@ -188,7 +180,7 @@ impl MockCheckpointBuilder {
         };
 
         let checkpoint = Self::create_certified_checkpoint(validator_keys, summary);
-        self.previous_checkpoint = Some(checkpoint.clone());
+        self.previous_checkpoint = checkpoint.clone();
         (checkpoint, contents, full_contents)
     }
 
