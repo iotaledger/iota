@@ -17,8 +17,8 @@ RUN apt update && apt install -y cmake clang lld
 RUN mkdir -p ~/.cargo && \
     echo -e "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=lld\"]" > ~/.cargo/config.toml
 
-# Install additional dependencies
-RUN apt install -y libpq5 libpq-dev ca-certificates
+# Install additional dependencies (git is needed when fetching move dependencies during builds)
+RUN apt install -y libpq5 libpq-dev ca-certificates git
 
 # Copy in all crates, Cargo.toml, and Cargo.lock
 COPY consensus consensus
