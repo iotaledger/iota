@@ -8,6 +8,7 @@ use iota_indexer::{
     models::transactions::StoredTransaction, store::package_resolver::IndexerStorePackageResolver,
     test_utils::TestDatabase,
 };
+use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
@@ -23,6 +24,7 @@ use iota_types::{
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
 };
+use itertools::Itertools;
 use serde_json::Value;
 
 use crate::{
@@ -32,7 +34,7 @@ use crate::{
         indexer_wait_for_transaction, rpc_call_error_msg_matches,
         start_test_cluster_with_read_write_indexer,
     },
-    write_api::{create_basic_object, deploy_basics_pkg, update_basic_object},
+    write_api::{create_basic_object, deploy_basics_pkg},
 };
 
 /// Utility function to convert hex strings in JSON values to byte arrays.
@@ -909,7 +911,7 @@ fn get_events() {
 }
 
 #[test]
-fn get_fresh_event() -> Result<(), anyhow::Error> {
+fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
         runtime,
         store,
@@ -933,17 +935,30 @@ fn get_fresh_event() -> Result<(), anyhow::Error> {
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
         let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
 
-        let (res, event_id) = update_basic_object(
+        // Update the object to generate new event
+        let res = crate::coin_api::execute_move_call(
+            client,
             sender,
             &sender_kp,
-            client,
-            &package_id,
-            &basic_obj_1,
-            &basic_obj_2,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
         )
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(res.status_ok(), Some(true));
+
+        let event_id = res
+            .events
+            .as_ref()
+            .unwrap()
+            .data
+            .iter()
+            .exactly_one()
+            .unwrap()
+            .id;
 
         // despite the naming, there is no 100% guarantee that the result here comes
         // from optimistic indexing, but it's very likely

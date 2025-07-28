@@ -1252,12 +1252,12 @@ impl IndexerReader {
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
         let checkpointed_events = self.try_get_checkpointed_transaction_events(digest).await?;
 
-        let (timestamp_ms, serialized_events) = match checkpointed_events {
-            Some((timestamp_ms, serialized_events)) => {
-                (Some(timestamp_ms as u64), serialized_events)
-            }
-            None => (None, self.get_optimistic_transaction_events(digest).await?),
-        };
+        let (timestamp_ms, serialized_events) =
+            if let Some((timestamp, events)) = checkpointed_events {
+                (Some(timestamp as u64), events)
+            } else {
+                (None, self.get_optimistic_transaction_events(digest).await?)
+            };
 
         let events = stored_events_to_events(serialized_events)?;
         let tx_events = TransactionEvents { data: events };
