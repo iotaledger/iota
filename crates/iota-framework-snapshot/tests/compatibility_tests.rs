@@ -75,7 +75,7 @@ mod compatibility_tests {
         );
     }
 
-    /// This test checks that the the `SinglePackage` entries in `manifest.json`
+    /// This test checks that the `SinglePackage` entries in `manifest.json`
     /// match the metadata in the `Move.toml` files in the repo for each
     /// revision.
     #[test]

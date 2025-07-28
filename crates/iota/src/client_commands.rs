@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::Eq,
+    cmp::{Eq, min},
     collections::{BTreeMap, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
@@ -54,7 +54,7 @@ use iota_types::{
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     error::IotaError,
-    gas::GasCostSummary,
+    gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
@@ -90,7 +90,7 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     PrintableResult,
@@ -3103,8 +3103,40 @@ pub async fn execute_dry_run(
     let client = context.get_client().await?;
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
-        None => max_gas_budget(&client).await?,
+        None => {
+            let max_gas_budget = max_gas_budget(&client).await?;
+            if gas_payment.is_empty() {
+                max_gas_budget
+            } else {
+                let mut gas_budget = 0;
+                let gas_coins = client
+                    .read_api()
+                    .multi_get_object_with_options(
+                        gas_payment.iter().map(|object_ref| object_ref.0).collect(),
+                        IotaObjectDataOptions::bcs_lossless(),
+                    )
+                    .await?;
+                for gas_coin in gas_coins {
+                    gas_budget += get_gas_balance(
+                        &gas_coin
+                            .into_object()?
+                            .try_into()
+                            .expect("couldn't convert gas coin into object"),
+                    )?
+                }
+                let final_gas_budget = min(gas_budget, max_gas_budget);
+                if final_gas_budget == gas_budget {
+                    let warn_msg = format!(
+                        "Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
+                    );
+                    warn!(warn_msg);
+                    eprintln!("{}", warn_msg.yellow().bold());
+                }
+                final_gas_budget
+            }
+        }
     };
+    debug!("Gas budget for dry run: {gas_budget}");
     let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
         kind,
         signer,
