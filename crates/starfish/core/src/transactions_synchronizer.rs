@@ -22,6 +22,7 @@ use rand::{
     rngs::{OsRng, StdRng},
     seq::IteratorRandom,
 };
+use rand::seq::SliceRandom;
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -49,14 +50,9 @@ const FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
 const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 
-/// Max number of transactions to fetch per request.
-/// This value should be chosen so even with transactions at max size, the
-/// requests can finish on hosts with good network using the timeouts above.
-const MAX_TRANSACTIONS_PER_FETCH: usize = 32;
-
 /// TODO: this should be calculated based on the number of authorities and
-///  should be at least 2/3 of all authorities by stake
-const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 2;
+///  should be at least 1/3 of all authorities + 1 by stake
+const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
 
 struct TransactionsGuard {
     map: Arc<InflightTransactionsMap>,
@@ -307,10 +303,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     }
 
     // The main loop to listen for the submitted commands.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     async fn run(&mut self) {
         // We want the transactions synchronizer to run periodically every 500ms to
         // fetch any missing transactions.
-        const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
+        const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(200);
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
 
         tokio::pin!(scheduler_timeout);
@@ -825,7 +822,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let mut request_futures = FuturesUnordered::new();
 
         // For each authority, randomize and try to lock up to
-        // MAX_TRANSACTIONS_PER_FETCH acknowledged blocks.
+        // maximum amount of acknowledged blocks.
         // The logic is as follows:
         // * Iterate all authorities that have acknowledged missing transactions.
         // * Randomly select up to MAX_TRANSACTIONS_PER_FETCH missing transactions
@@ -838,7 +835,24 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         //   random selection. TODO: This part of the logic needs to be improved!
         // * If transactions are successfully locked, then send a request to the network
         //   client to fetch the transactions from the authority.
-        for (authority, authority_block_refs) in blocks_by_authority {
+
+
+        // Create an iterator over authorities with their corresponding block refs
+        // This will allow us to iterate over authorities in a stable (for test) or random order
+
+        let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<BlockRef>)>> = if cfg!(test) {
+            // Stable order for tests
+            Box::new(blocks_by_authority.into_iter())
+        } else {
+            // Random order for production
+            let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
+            let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
+            vec.shuffle(&mut rng);
+            Box::new(vec.into_iter())
+        };
+        
+
+        for (authority, authority_block_refs) in iter_authorities {
             let peer_hostname = &context.committee.authority(authority).hostname;
             // Remove block_refs already assigned to another peer
             let mut available_refs: BTreeSet<_> = authority_block_refs.clone();
@@ -850,7 +864,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 //  randomly
                 let selected_block_refs = available_refs
                     .iter()
-                    .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)
+                    .choose_multiple(&mut rng, context.parameters.max_transactions_per_fetch)
                     .into_iter()
                     .cloned()
                     .collect::<BTreeSet<_>>();
@@ -1722,8 +1736,8 @@ mod tests {
         {
             let mut all_guards = Vec::new();
 
-            // Try to acquire the transaction locks for authorities 1 & 2
-            for i in 1..=2 {
+            // Try to acquire the transaction locks for authorities 0, 1 & 2
+            for i in 0..=2 {
                 let authority = AuthorityIndex::new_for_test(i);
 
                 let guard = map.lock_transactions(missing_block_refs.clone(), authority);
@@ -1738,7 +1752,7 @@ mod tests {
             }
 
             // Trying to acquire for authority 3 it will fail - as we have maxed out the
-            // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 2)
+            // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 3)
             let authority_3 = AuthorityIndex::new_for_test(3);
 
             let guard = map.lock_transactions(missing_block_refs.clone(), authority_3);

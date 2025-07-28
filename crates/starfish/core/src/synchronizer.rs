@@ -579,7 +579,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             return Err(ConsensusError::TooManyFetchedHeadersReturned(peer_index));
         }
 
-        // TODO : check if header is already accepted or suspended
 
         // Verify all the fetched block headers
         let block_headers = Handle::current()
@@ -598,27 +597,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // Get all the ancestors of the requested blocks only
-        let ancestors = block_headers
-            .iter()
-            .filter(|b| requested_blocks_guard.block_refs.contains(&b.reference()))
-            .flat_map(|b| b.ancestors().to_vec())
-            .collect::<BTreeSet<BlockRef>>();
-
-        // Now confirm that the blocks are either between the ones requested, or they
-        // are parents of the requested blocks
-        for block in &block_headers {
-            if !requested_blocks_guard
-                .block_refs
-                .contains(&block.reference())
-                && !ancestors.contains(&block.reference())
-            {
-                return Err(ConsensusError::UnexpectedFetchedHeader {
-                    index: peer_index,
-                    block_ref: block.reference(),
-                });
-            }
-        }
 
         // Record commit votes from the verified blocks.
         for block in &block_headers {
