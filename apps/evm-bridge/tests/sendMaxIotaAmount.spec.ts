@@ -1,14 +1,14 @@
 import { expect } from '@playwright/test';
 import { checkL2IotaBalanceWithRetries, checkL1IotaBalanceWithRetries } from './helpers/balances';
 import { THREE_MINUTES } from './utils/constants';
-import { clickMaxAmount, executeBridgeTransaction, toggleBridgeDirection } from './helpers/ui';
+import { clickMaxAmount, executeBridgeTransaction } from './helpers/ui';
 import { test } from './helpers/fixtures';
 
 test.describe('Send MAX Iota amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    test('should bridge successfully', async ({ browserSetup }) => {
-        const setup = await browserSetup('sendMaxIotaAmountL1');
+    test('should bridge successfully', async ({ browserWithL1Setup }) => {
+        const setup = await browserWithL1Setup('sendMaxIotaAmountL1');
         const { browser, page, addressL2 } = setup;
         await page.waitForTimeout(500);
 
@@ -45,14 +45,12 @@ test.describe('Send MAX Iota amount from L1', () => {
 test.describe('Send MAX Iota amount from L2', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    test('should bridge successfully', async ({ browserSetup }) => {
-        const setup = await browserSetup('sendMaxIotaAmountL2');
+    test('should bridge successfully', async ({ browserWithL2Setup }) => {
+        const setup = await browserWithL2Setup('sendMaxIotaAmountL2');
         const { browser, page, addressL2, addressL1 } = setup;
 
         const balance = await checkL2IotaBalanceWithRetries(addressL2);
         expect(Number(balance)).toEqual(2);
-
-        await toggleBridgeDirection(page);
 
         await clickMaxAmount(page);
 

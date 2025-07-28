@@ -4,19 +4,14 @@ import {
     checkL1CoinBalanceForAddressWithRetries,
 } from './helpers/balances';
 import { THREE_MINUTES, TOOL_COIN_TYPE } from './utils/constants';
-import {
-    clickMaxAmount,
-    executeBridgeTransaction,
-    selectCoin,
-    toggleBridgeDirection,
-} from './helpers/ui';
+import { clickMaxAmount, executeBridgeTransaction, selectCoin } from './helpers/ui';
 import { test } from './helpers/fixtures';
 
 test.describe('Send MAX native token amount from L1', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    test('should bridge successfully', async ({ browserSetup }) => {
-        const setup = await browserSetup('sendMaxNativeTokenAmountL1');
+    test('should bridge successfully', async ({ browserWithL1Setup }) => {
+        const setup = await browserWithL1Setup('sendMaxNativeTokenAmountL1');
         const { browser, page, addressL2 } = setup;
         const nativeTokenAmount = '3';
         // todo: add check for balance with retries instead of wait
@@ -59,8 +54,8 @@ test.describe('Send MAX native token amount from L1', () => {
 test.describe('Send MAX native token amount from L2', () => {
     test.describe.configure({ timeout: THREE_MINUTES });
 
-    test('should bridge successfully', async ({ browserSetup }) => {
-        const setup = await browserSetup('sendMaxNativeTokenAmountL2');
+    test('should bridge successfully', async ({ browserWithL2Setup }) => {
+        const setup = await browserWithL2Setup('sendMaxNativeTokenAmountL2');
         const { browser, page, addressL1, addressL2 } = setup;
         const nativeTokenAmount = '3';
         const nativeTokenBalance = await checkL2CoinBalanceForAddressWithRetries(
@@ -70,8 +65,6 @@ test.describe('Send MAX native token amount from L2', () => {
         expect(nativeTokenBalance).toEqual(nativeTokenAmount);
 
         await page.waitForTimeout(500);
-
-        await toggleBridgeDirection(page);
 
         await selectCoin(page, 'Tool');
 

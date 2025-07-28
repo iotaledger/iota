@@ -11,13 +11,13 @@ interface TestContext {
     addressL1: string;
     addressL2: string;
 }
-test.describe.skip('Deposit then withdraw Iota roundtrip', () => {
+test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
     test.setTimeout(THREE_MINUTES);
 
     let shared: TestContext;
 
-    test.beforeAll('setup L1/L2 wallets', async ({ browserSetup }) => {
-        const persistentSetup = await browserSetup('depositThenWithdraw', true);
+    test.beforeAll('setup L1/L2 wallets', async ({ roundtripIotaSetup }) => {
+        const persistentSetup = await roundtripIotaSetup('depositThenWithdraw');
         shared = persistentSetup;
     });
 
@@ -27,7 +27,7 @@ test.describe.skip('Deposit then withdraw Iota roundtrip', () => {
         await setBridgeAmount(page, iotaAmountToSend);
 
         // check est. gas fees and your receive
-        await page.waitForTimeout(2500);
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 10000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
@@ -60,7 +60,7 @@ test.describe.skip('Deposit then withdraw Iota roundtrip', () => {
         await setBridgeAmount(page, iotaAmountToSend);
 
         // check est. gas fees and your receive
-        await page.waitForTimeout(2500);
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 10000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
@@ -84,6 +84,6 @@ test.describe.skip('Deposit then withdraw Iota roundtrip', () => {
 
     test.afterAll(async () => {
         // Important: Close persistent context manually when done
-        await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
+        // await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
     });
 });
