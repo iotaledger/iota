@@ -106,9 +106,7 @@ impl Metrics {
         last_eviction_round: u32,
         threshold_clock_round: u32,
     ) -> Option<StoredScoringMetricsU64> {
-        // threshold_clock_round will be always at least 1. However, this method will
-        // panic if threshold_clock_round = 0 (subtraction with overflow). We
-        // run this check only to avoid this panic.
+        // threshold_clock_round should be always at least 1.
         // Analogously, authority_index should be a valid index.
         if threshold_clock_round == 0
             || authority_index.value() >= self.scoring_metrics.cached.len()
@@ -1563,8 +1561,13 @@ mod tests {
 
         // Test different unexpected combinations of eviction_round, last_evicted_round,
         // and threshold_clock_round. Since recent_refs_by_authority is empty, the
-        // function should not panic and return zero equivocations
-        // threshold_clock_round-eviction_round missing blocks.
+        // function should never panic or return more than zero equivocations.
+        // Each of the cases below have a small explanation of why they are unexpected
+        // and why they are supposed to return what they return.
+
+        // Unexpected because: threshold_clock_round = last_evicted_round means that a
+        // round with blocks from less than 2f+1 stake was evicted.
+        // Return: None, because nothing is currently being evicted.
         let last_evicted_round = 5;
         let eviction_round = 5;
         let threshold_clock_round = 5;
@@ -1578,6 +1581,8 @@ mod tests {
         );
         assert!(stored_metrics.is_none());
 
+        // Unexpected because: threshold_clock_round = 0 means that genesis is missing.
+        // Return: None, because nothing is currently being evicted.
         let last_evicted_round = 0;
         let eviction_round = 0;
         let threshold_clock_round = 0;
@@ -1591,6 +1596,9 @@ mod tests {
         );
         assert!(stored_metrics.is_none());
 
+        // Unexpected because: threshold_clock_round < eviction_round means that a
+        // round with blocks from less than 2f+1 stake in being evicted.
+        // Return: 3 missing proposals, from rounds 1 to 3 (eviction_round).
         let last_evicted_round = 0;
         let eviction_round = 3;
         let threshold_clock_round = 2;
@@ -1602,7 +1610,7 @@ mod tests {
             last_evicted_round,
             threshold_clock_round,
         );
-        matches!(
+        assert!(matches!(
             stored_metrics,
             Some(StoredScoringMetricsU64 {
                 faulty_blocks_provable: 0,
@@ -1610,8 +1618,12 @@ mod tests {
                 equivocations: 0,
                 missing_proposals: 3
             })
-        );
+        ));
 
+        // Unexpected because: eviction_round < last_evicted_round means that blocks
+        // below or in last_evicted_round were accepted.
+        // Return: metrics won't be updated here, so it should return the same as in the
+        // last step.
         let last_evicted_round = 1;
         let eviction_round = 0;
         let threshold_clock_round = 2;
@@ -1623,16 +1635,19 @@ mod tests {
             last_evicted_round,
             threshold_clock_round,
         );
-        matches!(
+        assert!(matches!(
             stored_metrics,
             Some(StoredScoringMetricsU64 {
                 faulty_blocks_provable: 0,
                 faulty_blocks_unprovable: 0,
                 equivocations: 0,
-                missing_proposals: 2
+                missing_proposals: 3
             })
-        );
+        ));
 
+        // Unexpected because: threshold_clock_round < eviction_round <
+        // last_evicted_round and threshold_clock_round. Return: metrics won't
+        // be updated here, so it should return the same as in the last step.
         let last_evicted_round = 2;
         let eviction_round = 0;
         let threshold_clock_round = 1;
@@ -1644,16 +1659,19 @@ mod tests {
             last_evicted_round,
             threshold_clock_round,
         );
-        matches!(
+        assert!(matches!(
             stored_metrics,
             Some(StoredScoringMetricsU64 {
                 faulty_blocks_provable: 0,
                 faulty_blocks_unprovable: 0,
                 equivocations: 0,
-                missing_proposals: 1
+                missing_proposals: 3
             })
-        );
+        ));
 
+        // Unexpected because: threshold_clock_round < last_evicted_round means that a
+        // round with blocks from less than 2f+1 stake was evicted.
+        // Return: None, because nothing is currently being evicted.
         let last_evicted_round = 1;
         let eviction_round = 2;
         let threshold_clock_round = 0;
@@ -1682,6 +1700,9 @@ mod tests {
 
         // The function should not panic if the authority index is out of
         // bounds.
+        // Unexpected because: threshold_clock_round = last_evicted_round means that a
+        // round with blocks from less than 2f+1 stake was evicted.
+        // Return: None, because nothing is currently being evicted.
         let out_of_bounds_authority_index = AuthorityIndex::new_for_test(4);
         let last_evicted_round = 1;
         let eviction_round = 2;
@@ -1694,15 +1715,7 @@ mod tests {
             last_evicted_round,
             threshold_clock_round,
         );
-        matches!(
-            stored_metrics,
-            Some(StoredScoringMetricsU64 {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 1
-            })
-        );
+        assert!(stored_metrics.is_none());
     }
 
     #[tokio::test]
