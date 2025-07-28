@@ -876,7 +876,7 @@ fn test_repeatedly_update_display() {
     });
 }
 
-async fn create_basic_object(
+pub(crate) async fn create_basic_object(
     address: IotaAddress,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
@@ -1121,7 +1121,7 @@ async fn create_new_bear(
     Ok((res, bear_id))
 }
 
-async fn deploy_basics_pkg(
+pub(crate) async fn deploy_basics_pkg(
     address: IotaAddress,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
