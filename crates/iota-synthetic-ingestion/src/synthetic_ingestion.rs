@@ -83,7 +83,7 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
     // When generating a workload that includes the genesis state, retain the
     // initial checkpoints `0.chk` (genesis state) and `1.chk` (initial gas
     // provisioning) to accurately represent the state history.
-    // For starting_checkpoint >= 1, remove existing checkpoints (0 and 1)
+    // For starting_checkpoint > 0, remove existing checkpoints (0 and 1)
     // and generate a consistent workload.
     if starting_checkpoint > 0 {
         fs::remove_file(ingestion_dir.join("0.chk")).await?;
