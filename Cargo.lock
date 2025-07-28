@@ -5721,6 +5721,7 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-move-build",
  "iota-sdk 1.4.0-alpha",
  "iota-swarm",
  "iota-swarm-config",
