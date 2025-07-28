@@ -82,7 +82,6 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - uses: taiki-e/install-action@protoc
       - name: Install postgresql-client
         run: sudo apt-get install -y postgresql-client
       - name: Setup db
@@ -141,7 +140,6 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - uses: taiki-e/install-action@protoc
       - name: Install postgresql-client
         run: sudo apt-get install -y postgresql-client
       - name: Setup db
@@ -180,7 +178,6 @@ jobs:
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - uses: taiki-e/install-action@protoc
       - name: Run Cargo Udeps
         run: cargo +nightly-2025-04-01 ci-udeps ${{ matrix.flags }}
       - name: Run Cargo Udeps (external crates)
@@ -201,7 +198,6 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - uses: taiki-e/install-action@protoc
       - name: benchmark (smoke)
         run: |
           cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
