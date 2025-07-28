@@ -53,6 +53,28 @@ use serde_reflection::Registry;
 #[path = "unit_tests/build_tests.rs"]
 mod build_tests;
 
+pub mod test_utils {
+    use std::path::PathBuf;
+
+    use crate::{BuildConfig, CompiledPackage, IotaPackageHooks};
+
+    pub fn compile_basics_package() -> CompiledPackage {
+        compile_example_package("../../examples/move/basics")
+    }
+
+    pub fn compile_managed_coin_package() -> CompiledPackage {
+        compile_example_package("../../crates/iota-core/src/unit_tests/data/managed_coin")
+    }
+
+    pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
+        move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push(relative_path);
+
+        BuildConfig::new_for_testing().build(&path).unwrap()
+    }
+}
+
 /// Wrapper around the core Move `CompiledPackage` with some IOTA-specific
 /// traits and info
 #[derive(Debug, Clone)]
@@ -589,6 +611,10 @@ impl CompiledPackage {
         Err(IotaError::ModulePublishFailure {
             error: error_message.join("\n"),
         })
+    }
+
+    pub fn published_dependency_ids(&self) -> Vec<ObjectID> {
+        self.dependency_ids.published.values().cloned().collect()
     }
 }
 

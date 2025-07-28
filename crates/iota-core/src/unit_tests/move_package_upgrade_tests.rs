@@ -31,7 +31,7 @@ use move_core_types::{ident_str, language_storage::StructTag};
 
 use crate::authority::{
     AuthorityState,
-    authority_test_utils::build_test_modules_with_dep_addr,
+    auth_unit_test_utils::build_test_modules_with_dep_addr,
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
         UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
@@ -561,7 +561,7 @@ async fn test_upgrade_package_invalid_dep_only_upgrade_pre_v5() {
         FileOverlay::Add {
             file_name: "new_friend_module.move",
             contents: r#"
-module base_addr::new_friend_module; 
+module base_addr::new_friend_module;
 public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
         "#,
         },
@@ -600,7 +600,7 @@ async fn test_invalid_dep_only_upgrades() {
         FileOverlay::Add {
             file_name: "new_friend_module.move",
             contents: r#"
-module base_addr::new_friend_module; 
+module base_addr::new_friend_module;
 public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
         "#,
         },
