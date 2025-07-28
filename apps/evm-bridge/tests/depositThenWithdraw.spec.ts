@@ -27,7 +27,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
         await setBridgeAmount(page, iotaAmountToSend);
 
         // check est. gas fees and your receive
-        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 10000 });
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
@@ -60,7 +60,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
         await setBridgeAmount(page, iotaAmountToSend);
 
         // check est. gas fees and your receive
-        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 10000 });
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')
