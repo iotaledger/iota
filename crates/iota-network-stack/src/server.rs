@@ -138,7 +138,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 
         let local_addr = update_tcp_port_in_multiaddr(addr, server_handle.local_addr().port());
         Ok(Server {
-            server: server_handle,
+            server_handle,
             local_addr,
             health_reporter: self.health_reporter,
         })
@@ -149,15 +149,19 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 pub const IOTA_TLS_SERVER_NAME: &str = "iota";
 
 pub struct Server {
-    server: iota_http::ServerHandle,
+    server_handle: iota_http::ServerHandle,
     local_addr: Multiaddr,
     health_reporter: tonic_health::server::HealthReporter,
 }
 
 impl Server {
     pub async fn serve(self) -> Result<(), tonic::transport::Error> {
-        self.server.wait_for_shutdown().await;
+        self.server_handle.wait_for_shutdown().await;
         Ok(())
+    }
+
+    pub fn trigger_shutdown(&self) {
+        self.server_handle.trigger_shutdown();
     }
 
     pub fn local_addr(&self) -> &Multiaddr {
@@ -169,7 +173,7 @@ impl Server {
     }
 
     pub fn handle(&self) -> &iota_http::ServerHandle {
-        &self.server
+        &self.server_handle
     }
 }
 
@@ -261,7 +265,7 @@ mod test {
             .await
             .unwrap();
 
-        server.server.shutdown().await;
+        server.server_handle.shutdown().await;
 
         assert!(metrics.metrics_called.lock().unwrap().deref());
     }
@@ -323,7 +327,7 @@ mod test {
             })
             .await;
 
-        server.server.shutdown().await;
+        server.server_handle.shutdown().await;
 
         assert!(metrics.metrics_called.lock().unwrap().deref());
     }
@@ -342,7 +346,7 @@ mod test {
             .await
             .unwrap();
 
-        server_handle.server.shutdown().await;
+        server_handle.server_handle.shutdown().await;
     }
 
     #[tokio::test]
