@@ -57,7 +57,10 @@ use iota_types::{
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
+    crypto::{
+        AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature, RandomnessRound, Signer,
+        default_hash,
+    },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
@@ -1688,6 +1691,27 @@ impl AuthorityState {
         let execution_guard = lock.try_read().unwrap();
 
         self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
+    }
+
+    /// Verifies the signature on the capability notification and updates the
+    /// authority capabilities after verifying the signature
+    pub async fn update_authority_capabilities(
+        &self,
+        capabilities: AuthorityCapabilitiesV1,
+        signature: &AuthoritySignInfo,
+    ) -> Result<(), IotaError> {
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+
+        // Verify that the signature is from a valid authority in the current epoch
+        let authority = epoch_store.committee().authority(&signature.authority)?;
+
+        // Verify the actual signature
+        signature.verify_secure(capabilities, authority)?;
+
+        // TODO: Store the new capabilities
+        // epoch_store.update_authority_capabilities(capabilities)?;
+
+        Ok(())
     }
 
     #[allow(clippy::type_complexity)]

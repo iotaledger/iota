@@ -25,6 +25,7 @@ use iota_storage::key_value_store::{
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
+    crypto::AuthoritySignInfoTrait,
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
@@ -254,16 +255,16 @@ impl StateRead for AuthorityState {
         Ok(self.get_object_read(object_id)?)
     }
 
-    async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
-        Ok(self.try_get_object(object_id).await?)
-    }
-
     fn get_past_object_read(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> StateReadResult<PastObjectRead> {
         Ok(self.get_past_object_read(object_id, version)?)
+    }
+
+    async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
+        Ok(self.get_object(object_id).await?)
     }
 
     fn load_epoch_store_one_call_per_task(&self) -> Guard<Arc<AuthorityPerEpochStore>> {

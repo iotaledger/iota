@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::hash::HashFunction;
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +10,8 @@ use crate::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
+    message_envelope::Message,
+    messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
     transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
 };
@@ -271,4 +274,13 @@ pub struct HandleSoftBundleCertificatesRequestV1 {
     pub include_input_objects: bool,
     pub include_output_objects: bool,
     pub include_auxiliary_data: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCapabilityNotificationV1Request {
+    pub message: SignedAuthorityCapabilitiesV1,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCapabilityNotificationV1Response {
+    // Currently empty, may be extended in the future
 }

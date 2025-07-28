@@ -28,6 +28,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
+        HandleCapabilityNotificationV1Request, HandleCapabilityNotificationV1Response,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
@@ -48,7 +49,7 @@ use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{Instrument, error, error_span, info};
+use tracing::{Instrument, error, error_span, info, warn};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -178,6 +179,7 @@ pub struct ValidatorServiceMetrics {
     pub handle_soft_bundle_certificates_consensus_latency: Histogram,
     pub handle_soft_bundle_certificates_count: Histogram,
     pub handle_soft_bundle_certificates_size_bytes: Histogram,
+    pub handle_capability_notification_latency: Histogram,
 
     num_rejected_tx_in_epoch_boundary: IntCounter,
     num_rejected_cert_in_epoch_boundary: IntCounter,
@@ -267,6 +269,13 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_soft_bundle_certificates_size_bytes",
                 "The size of soft bundle in bytes",
                 iota_metrics::BYTES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            handle_capability_notification_latency: register_histogram_with_registry!(
+                "validator_service_handle_capability_notification_latency",
+                "Latency of handling a capability notification",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -1105,6 +1114,65 @@ impl ValidatorService {
         }
         unwrapped_response
     }
+
+    async fn handle_capability_notification_v1_impl(
+        &self,
+        request: tonic::Request<HandleCapabilityNotificationV1Request>,
+    ) -> WrappedServiceResponse<HandleCapabilityNotificationV1Response> {
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let request = request.into_inner();
+
+        // Validate if cert can be executed
+        // Fullnode does not serve handle_certificate call.
+        fp_ensure!(
+            !self.state.is_fullnode(&epoch_store),
+            IotaError::FullNodeCantHandleCertificate.into()
+        );
+
+        if let Err(error) = self.consensus_adapter.check_consensus_overload() {
+            self.metrics
+                .num_rejected_capability_notifications_during_overload
+                .with_label_values(&[error.as_ref()])
+                .inc();
+            return Err(error.into());
+        }
+
+        let _handle_tx_metrics_guard = self
+            .metrics
+            .handle_capability_notification_latency
+            .start_timer();
+
+        // Verify the message signature
+        let verified_envelope = {
+            epoch_store
+                .signature_verifier
+                .verify_tx(request.message)
+                .await
+                .map_err(|e| {
+                    self.metrics.signature_errors.inc();
+                    e
+                })?
+        };
+
+        // Process the capabilities
+        info!(
+            "Received capability notification: {:?}",
+            verified_envelope.data().capabilities
+        );
+
+        // Store or process the capabilities as needed
+        self.state
+            .update_authority_capabilities(
+                verified_envelope.data().capabilities.clone(),
+                verified_envelope.auth_sig(),
+            )
+            .await?;
+
+        Ok((
+            tonic::Response::new(HandleCapabilityNotificationV1Response {}),
+            Weight::zero(),
+        ))
+    }
 }
 
 fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
@@ -1242,5 +1310,12 @@ impl Validator for ValidatorService {
         request: tonic::Request<SystemStateRequest>,
     ) -> Result<tonic::Response<IotaSystemState>, tonic::Status> {
         handle_with_decoration!(self, get_system_state_object_impl, request)
+    }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        request: tonic::Request<HandleCapabilityNotificationV1Request>,
+    ) -> Result<tonic::Response<HandleCapabilityNotificationV1Response>, tonic::Status> {
+        handle_with_decoration!(self, handle_capability_notification_v1_impl, request)
     }
 }

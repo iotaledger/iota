@@ -19,6 +19,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::SignedCheckpointSummary,
+    messages_consensus::AuthorityCapabilitiesDigest,
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
@@ -34,6 +35,7 @@ use tokio::{
     time::{Duration, timeout},
 };
 use tracing::debug;
+
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
@@ -96,6 +98,7 @@ pub struct SignatureVerifier {
     committee: Arc<Committee>,
     certificate_cache: VerifiedDigestCache<CertificateDigest>,
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
+    authority_capability_cache: VerifiedDigestCache<AuthorityCapabilitiesDigest>,
     zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 
     /// Map from JwkId (iss, kid) to the fetched JWK for that key.
