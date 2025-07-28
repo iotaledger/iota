@@ -305,7 +305,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     // The main loop to listen for the submitted commands.
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     async fn run(&mut self) {
-        // We want the transactions synchronizer to run periodically every 500ms to
+        // We want the transactions synchronizer to run periodically every 200ms to
         // fetch any missing transactions.
         const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(200);
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
