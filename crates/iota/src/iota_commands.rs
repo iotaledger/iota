@@ -33,8 +33,9 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move::{self, execute_move_command, manage_package::resolve_lock_file_path};
 use iota_move_build::{
     BuildConfig as IotaBuildConfig, IotaPackageHooks, check_invalid_dependencies,
-    check_unpublished_dependencies,
+    check_unpublished_dependencies, implicit_deps,
 };
+use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -584,7 +585,7 @@ impl IotaCommand {
             }
             IotaCommand::FireDrill { fire_drill } => run_fire_drill(fire_drill).await,
             IotaCommand::Analyzer => {
-                analyzer::run();
+                analyzer::run(implicit_deps(latest_system_packages()));
                 Ok(())
             }
             #[cfg(feature = "gen-completions")]
