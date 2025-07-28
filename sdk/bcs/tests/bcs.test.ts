@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { bcs, fromB64, toB64 } from './../src/index';
+import { bcs, fromBase64, toBase64 } from './../src/index';
 
 describe('BCS: Primitives', () => {
     it('should support growing size', () => {
@@ -23,7 +23,7 @@ describe('BCS: Primitives', () => {
 
         const setBytes = Coin.serialize(expected, { initialSize: 1, maxSize: 1024 });
 
-        expect(Coin.parse(fromB64(rustBcs))).toEqual(expected);
+        expect(Coin.parse(fromBase64(rustBcs))).toEqual(expected);
         expect(setBytes.toBase64()).toEqual(rustBcs);
     });
 
@@ -51,7 +51,7 @@ describe('BCS: Primitives', () => {
         });
 
         const rustBcs = 'gNGxBWAAAAAOQmlnIFdhbGxldCBHdXkA';
-        const bytes = fromB64(rustBcs);
+        const bytes = fromBase64(rustBcs);
 
         const buffer = new ArrayBuffer(bytes.length + 10);
         const array = new Uint8Array(buffer, 10, bytes.length);
@@ -59,8 +59,8 @@ describe('BCS: Primitives', () => {
             array[i] = bytes[i];
         }
 
-        expect(toB64(array)).toEqual(rustBcs);
-        expect(toB64(new Uint8Array(buffer).slice(10))).toEqual(rustBcs);
+        expect(toBase64(array)).toEqual(rustBcs);
+        expect(toBase64(new Uint8Array(buffer).slice(10))).toEqual(rustBcs);
 
         expect(Coin.parse(array)).toEqual({
             owner: 'Big Wallet Guy',

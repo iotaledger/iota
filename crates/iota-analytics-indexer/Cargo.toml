@@ -11,11 +11,7 @@ publish = false
 anyhow.workspace = true
 arrow-array = "53.1"
 async-trait.workspace = true
-axum.workspace = true
 bcs.workspace = true
-byteorder.workspace = true
-bytes.workspace = true
-chrono.workspace = true
 clap.workspace = true
 csv.workspace = true
 eyre.workspace = true
@@ -33,9 +29,7 @@ tap = "1.0"
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tokio-stream.workspace = true
 tracing.workspace = true
-url.workspace = true
 
 # internal dependencies
 iota-analytics-indexer-derive.workspace = true
@@ -48,8 +42,6 @@ iota-package-resolver.workspace = true
 iota-rest-api.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
-move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
@@ -60,3 +52,9 @@ simulacrum.workspace = true
 [[bin]]
 name = "iota-analytics-indexer"
 path = "src/main.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "eyre", # imported through a procedural macro
+  "tempfile", # imported through a procedural macro
+]

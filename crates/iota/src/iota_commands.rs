@@ -18,7 +18,8 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
+    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis,
+    p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
@@ -37,7 +38,7 @@ use iota_sdk::{
 };
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
-    genesis_config::{DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
+    genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
@@ -51,6 +52,7 @@ use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{self, info};
+use url::Url;
 
 #[cfg(feature = "iota-names")]
 use crate::name_commands;
@@ -64,6 +66,7 @@ use crate::{
 };
 
 const CONCURRENCY_LIMIT: usize = 30;
+const DEFAULT_COMMITTEE_SIZE: usize = 1;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
 const DEFAULT_FAUCET_NUM_COINS: usize = 5;
 const DEFAULT_FAUCET_NANOS_AMOUNT: u64 = 200_000_000_000; // 200 IOTA
@@ -273,7 +276,7 @@ pub enum IotaCommand {
         #[arg(
             long,
             help = "The number of validators in the network.",
-            default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
+            default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
         /// The path to local migration snapshot files
@@ -607,9 +610,8 @@ async fn start(
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        let committee_size =
-            NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES))
-                .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
+            .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
@@ -654,7 +656,7 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES),
+                committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
@@ -697,6 +699,27 @@ async fn start(
         swarm_builder = swarm_builder
             .dir(config_path.clone())
             .with_network_config(network_config);
+
+        let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
+        if fullnode_config_path.exists() {
+            info!(
+                "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
+            );
+
+            let NodeConfig {
+                iota_names_config, ..
+            } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
+                err.context(format!(
+                    "Cannot open fullnode config file at {fullnode_config_path:?}"
+                ))
+            })?;
+
+            if let Some(iota_names_config) = iota_names_config {
+                swarm_builder = swarm_builder
+                    .dir(config_path.clone())
+                    .with_iota_names_config(iota_names_config);
+            }
+        }
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -1122,7 +1145,7 @@ async fn genesis(
     let mut client_config = if client_path.exists() {
         PersistedConfig::read(&client_path)?
     } else {
-        IotaClientConfig::new(keystore)
+        IotaClientConfig::new(keystore).with_default_envs()
     };
 
     if client_config.active_address().is_none() {
@@ -1138,7 +1161,7 @@ async fn genesis(
         } else {
             fullnode_config.json_rpc_address.ip().to_string()
         };
-    client_config.add_env(IotaEnv::new(
+    client_config.set_env(IotaEnv::new(
         "localnet",
         format!(
             "http://{}:{}",
@@ -1167,34 +1190,44 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{wallet_conf_path:?}] with default (Testnet) Full node server and ed25519 key scheme."
+                "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
             );
         } else {
             print!(
-                "Config file [{wallet_conf_path:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?"
+                "Config file [{wallet_conf_path:?}] doesn't exist! Do you want to connect to an IOTA full node server? [y/N]: "
             );
         }
         if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {
             let url = if accept_defaults {
                 String::new()
             } else {
-                print!("IOTA Full node server URL (Defaults to IOTA Testnet if not specified) : ");
+                print!(
+                    "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
+                );
                 read_line()?
             };
-            if url.trim().is_empty() {
-                Ok(IotaEnv::testnet())
-            } else {
-                print!("Environment alias for [{url}] : ");
-                let alias = read_line()?;
-                let alias = if alias.trim().is_empty() {
-                    "custom".to_string()
-                } else {
-                    alias
-                };
-                Ok(IotaEnv::new(alias, url))
+            match url.trim() {
+                "mainnet" => Ok(IotaEnv::mainnet()),
+                "testnet" | "" => Ok(IotaEnv::testnet()),
+                "devnet" => Ok(IotaEnv::devnet()),
+                "localnet" => Ok(IotaEnv::localnet()),
+                url => {
+                    if Url::parse(url).is_ok() {
+                        print!("Environment alias for [{url}]: ");
+                        let alias = read_line()?;
+                        let alias = if alias.trim().is_empty() {
+                            "custom".to_string()
+                        } else {
+                            alias
+                        };
+                        Ok(IotaEnv::new(alias, url))
+                    } else {
+                        bail!("invalid custom URL");
+                    }
+                }
             }
         } else {
-            anyhow::bail!("no environment exists for the client")
+            bail!("no environment exists for the client")
         }
     }
 }
@@ -1223,9 +1256,12 @@ fn prompt_if_no_config(
         }
         .join(IOTA_KEYSTORE_FILENAME);
         let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
-        let mut config = IotaClientConfig::new(keystore);
+        let mut config = IotaClientConfig::new(keystore).with_default_envs();
         if prompt_for_env {
-            config.add_env(prompt_for_environment(wallet_conf_path, accept_defaults)?);
+            let env = prompt_for_environment(wallet_conf_path, accept_defaults)?;
+            let alias = env.alias().clone();
+            config.set_env(env);
+            config.set_active_env(alias);
         }
         // Get an existing address or generate a new one
         if let Some(existing_address) = config.keystore().addresses().first() {
@@ -1235,8 +1271,8 @@ fn prompt_if_no_config(
             let key_scheme = if accept_defaults {
                 SignatureScheme::ED25519
             } else {
-                println!(
-                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                print!(
+                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
@@ -1248,10 +1284,10 @@ fn prompt_if_no_config(
                 .generate_and_add_new_key(key_scheme, None, None, None)?;
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
-                "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
+                "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
                 scheme.to_string()
             );
-            println!("Secret Recovery Phrase : [{phrase}]");
+            println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);
         }
         config.persisted(wallet_conf_path).save()?;

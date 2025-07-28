@@ -56,11 +56,12 @@ pub enum RemoteUrl {
     /// A hybrid source combining historical object store and optional live
     /// object store.
     HybridHistoricalStore {
-        /// The URL of the historical object store.
+        /// The URL path to the historical object store that contains `*.chk`,
+        /// `*.sum` & `MANIFEST` files.
         ///
         /// # Example
         /// ```text
-        /// "https://checkpoints.mainnet.iota.cafe"
+        /// "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
         /// ```
         historical_url: String,
         /// The URL path to the live object store that contains `*.chk`

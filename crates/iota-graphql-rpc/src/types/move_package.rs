@@ -32,7 +32,7 @@ use crate::{
         coin::Coin,
         cursor::{BcsCursor, JsonCursor, Page, RawPaginated, ScanLimited, Target},
         iota_address::{IotaAddress, addr},
-        iota_names_registration::{IotaNamesRegistration, NameFormat},
+        iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
@@ -289,7 +289,7 @@ impl MovePackage {
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this package. These grant the
+    /// The NameRegistration NFTs owned by this package. These grant the
     /// owner the capability to manage the associated name.
     ///
     /// Note that objects owned by a package are inaccessible, because packages
@@ -301,7 +301,7 @@ impl MovePackage {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(&self.super_)
             .iota_names_registrations(ctx, first, after, last, before)
             .await

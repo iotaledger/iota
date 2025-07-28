@@ -4,6 +4,7 @@
 module iota_system::timelocked_staking;
 
 use iota::balance::{Self, Balance};
+use iota::clock::Clock;
 use iota::iota::IOTA;
 use iota::timelock::{Self, TimeLock};
 use iota_system::iota_system::IotaSystemState;
@@ -13,8 +14,11 @@ use std::string::String;
 
 /// For when trying to stake an expired time-locked balance.
 const ETimeLockShouldNotBeExpired: u64 = 0;
-/// Incompatible objects when joining TimelockedStakedIota
+/// Incompatible objects when joining `TimelockedStakedIota`.
 const EIncompatibleTimelockedStakedIota: u64 = 1;
+
+#[error(code = 2)]
+const ETimelockedStakedIotaShouldBeExpired: vector<u8> = b"TimelockedStakedIota is not expired.";
 
 /// A self-custodial object holding the timelocked staked IOTA tokens.
 public struct TimelockedStakedIota has key {
@@ -205,6 +209,30 @@ public fun request_withdraw_stake_non_entry(
         timelock::system_pack(sys_admin_cap, principal, expiration_timestamp_ms, label, ctx),
         withdraw_stake,
     )
+}
+
+// === Public non-entry methods ===
+
+/// Unlock the `StakedIota` from a `TimelockedStakedIota`  based on the epoch start time.
+public fun unlock(self: TimelockedStakedIota, ctx: &TxContext): StakedIota {
+    // Unpack the `TimelockedStakedIota`.
+    let (staked, expiration_timestamp_ms, _) = unpack(self);
+
+    // Check if the lock has expired.
+    assert!(expiration_timestamp_ms <= ctx.epoch_timestamp_ms(), ETimelockedStakedIotaShouldBeExpired);
+
+    staked
+}
+
+/// Unlock the `StakedIota` from a `TimelockedStakedIota` based on the `Clock` object.
+public fun unlock_with_clock(self: TimelockedStakedIota, clock: &Clock): StakedIota {
+    // Unpack the `TimelockedStakedIota`.
+    let (staked, expiration_timestamp_ms, _) = unpack(self);
+
+    // Check if the lock has expired.
+    assert!(expiration_timestamp_ms <= clock.timestamp_ms(), ETimelockedStakedIotaShouldBeExpired);
+
+    staked
 }
 
 // === TimelockedStakedIota balance functions ===

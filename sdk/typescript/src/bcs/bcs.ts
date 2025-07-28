@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { BcsType, BcsTypeOptions } from '@iota/bcs';
-import { bcs, fromB58, fromB64, fromHEX, toB58, toB64, toHEX } from '@iota/bcs';
+import { bcs, fromBase58, fromBase64, fromHex, toBase58, toBase64, toHex } from '@iota/bcs';
 
 import {
     isValidIotaAddress,
@@ -35,22 +35,22 @@ function optionEnum<T extends BcsType<any, any>>(type: T) {
 
 export const Address = bcs.bytes(IOTA_ADDRESS_LENGTH).transform({
     validate: (val) => {
-        const address = typeof val === 'string' ? val : toHEX(val);
+        const address = typeof val === 'string' ? val : toHex(val);
         if (!address || !isValidIotaAddress(normalizeIotaAddress(address))) {
             throw new Error(`Invalid IOTA address ${address}`);
         }
     },
     input: (val: string | Uint8Array) =>
-        typeof val === 'string' ? fromHEX(normalizeIotaAddress(val)) : val,
-    output: (val) => normalizeIotaAddress(toHEX(val)),
+        typeof val === 'string' ? fromHex(normalizeIotaAddress(val)) : val,
+    output: (val) => normalizeIotaAddress(toHex(val)),
 });
 
 export const ObjectDigest = bcs.vector(bcs.u8()).transform({
     name: 'ObjectDigest',
-    input: (value: string) => fromB58(value),
-    output: (value) => toB58(new Uint8Array(value)),
+    input: (value: string) => fromBase58(value),
+    output: (value) => toBase58(new Uint8Array(value)),
     validate: (value) => {
-        if (fromB58(value).length !== 32) {
+        if (fromBase58(value).length !== 32) {
             throw new Error('ObjectDigest must be 32 bytes');
         }
     },
@@ -86,8 +86,8 @@ export const Owner = bcs.enum('Owner', {
 export const CallArg = bcs.enum('CallArg', {
     Pure: bcs.struct('Pure', {
         bytes: bcs.vector(bcs.u8()).transform({
-            input: (val: string | Uint8Array) => (typeof val === 'string' ? fromB64(val) : val),
-            output: (val) => toB64(new Uint8Array(val)),
+            input: (val: string | Uint8Array) => (typeof val === 'string' ? fromBase64(val) : val),
+            output: (val) => toBase64(new Uint8Array(val)),
         }),
     }),
     Object: ObjectArg,
@@ -162,8 +162,9 @@ export const Command = bcs.enum('Command', {
     Publish: bcs.struct('Publish', {
         modules: bcs.vector(
             bcs.vector(bcs.u8()).transform({
-                input: (val: string | Uint8Array) => (typeof val === 'string' ? fromB64(val) : val),
-                output: (val) => toB64(new Uint8Array(val)),
+                input: (val: string | Uint8Array) =>
+                    typeof val === 'string' ? fromBase64(val) : val,
+                output: (val) => toBase64(new Uint8Array(val)),
             }),
         ),
         dependencies: bcs.vector(Address),
@@ -190,8 +191,9 @@ export const Command = bcs.enum('Command', {
     Upgrade: bcs.struct('Upgrade', {
         modules: bcs.vector(
             bcs.vector(bcs.u8()).transform({
-                input: (val: string | Uint8Array) => (typeof val === 'string' ? fromB64(val) : val),
-                output: (val) => toB64(new Uint8Array(val)),
+                input: (val: string | Uint8Array) =>
+                    typeof val === 'string' ? fromBase64(val) : val,
+                output: (val) => toBase64(new Uint8Array(val)),
             }),
         ),
         dependencies: bcs.vector(Address),
@@ -299,8 +301,8 @@ export const MultiSig = bcs.struct('MultiSig', {
 });
 
 export const base64String = bcs.vector(bcs.u8()).transform({
-    input: (val: string | Uint8Array) => (typeof val === 'string' ? fromB64(val) : val),
-    output: (val) => toB64(new Uint8Array(val)),
+    input: (val: string | Uint8Array) => (typeof val === 'string' ? fromBase64(val) : val),
+    output: (val) => toBase64(new Uint8Array(val)),
 });
 
 export const SenderSignedTransaction = bcs.struct('SenderSignedTransaction', {

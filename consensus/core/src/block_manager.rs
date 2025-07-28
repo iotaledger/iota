@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     sync::Arc,
     time::Instant,
 };
 
+use consensus_config::AuthorityIndex;
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -21,14 +22,15 @@ use crate::{
     dag_state::DagState,
 };
 
-struct SuspendedBlock {
+#[derive(Clone)]
+pub(crate) struct SuspendedBlock {
     block: VerifiedBlock,
     missing_ancestors: BTreeSet<BlockRef>,
     timestamp: Instant,
 }
 
 impl SuspendedBlock {
-    fn new(block: VerifiedBlock, missing_ancestors: BTreeSet<BlockRef>) -> Self {
+    pub(crate) fn new(block: VerifiedBlock, missing_ancestors: BTreeSet<BlockRef>) -> Self {
         Self {
             block,
             missing_ancestors,
@@ -59,10 +61,13 @@ pub(crate) struct BlockManager {
     /// already fetched but it self is still missing some of its ancestors to be
     /// processed.
     missing_ancestors: BTreeMap<BlockRef, BTreeSet<BlockRef>>,
-    /// Keeps all the blocks that we actually miss and haven't fetched them yet.
-    /// That set will basically contain all the keys from the
-    /// `missing_ancestors` minus any keys that exist in `suspended_blocks`.
-    missing_blocks: BTreeSet<BlockRef>,
+    /// A map of currently missing blocks to the set of authorities expected
+    /// to have them available locally. This set is approximated based on the
+    /// block's author and the authors of its direct children.
+    /// A block is considered missing if it appears in `missing_ancestors`
+    /// and has not yet been accepted or fetched. Blocks already stored or
+    /// present in `suspended_blocks` are excluded.
+    missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
     /// and resets during restarts.
@@ -82,7 +87,7 @@ impl BlockManager {
             block_verifier,
             suspended_blocks: BTreeMap::new(),
             missing_ancestors: BTreeMap::new(),
-            missing_blocks: BTreeSet::new(),
+            missing_blocks: BTreeMap::new(),
             received_block_rounds: vec![None; committee_size],
         }
     }
@@ -264,7 +269,11 @@ impl BlockManager {
             }
             // Fetches the block if it is not in dag state or suspended.
             missing_blocks.insert(*block_ref);
-            if self.missing_blocks.insert(*block_ref) {
+            if self
+                .missing_blocks
+                .insert(*block_ref, BTreeSet::from([block_ref.author]))
+                .is_none()
+            {
                 // We want to report this as a missing ancestor even if there is no block that
                 // is actually references it right now. That will allow us
                 // to seamlessly GC the block later if needed.
@@ -474,13 +483,23 @@ impl BlockManager {
                 if !self.suspended_blocks.contains_key(ancestor) {
                     // Fetches the block if it is not in dag state or suspended.
                     ancestors_to_fetch.insert(*ancestor);
-                    if self.missing_blocks.insert(*ancestor) {
-                        self.context
-                            .metrics
-                            .node_metrics
-                            .block_manager_missing_blocks_by_authority
-                            .with_label_values(&[ancestor_hostname])
-                            .inc();
+                    // We also want to keep track of the authorities that have this block.
+                    // This block could be already missing, so we just update the set  of
+                    // authorities who have it.
+                    let entry = self.missing_blocks.entry(*ancestor);
+                    match entry {
+                        Entry::Vacant(v) => {
+                            v.insert(BTreeSet::from([ancestor.author, block_ref.author]));
+                            self.context
+                                .metrics
+                                .node_metrics
+                                .block_manager_missing_blocks_by_authority
+                                .with_label_values(&[ancestor_hostname])
+                                .inc();
+                        }
+                        Entry::Occupied(mut o) => {
+                            o.get_mut().insert(block_ref.author);
+                        }
                     }
                 }
             }
@@ -676,9 +695,16 @@ impl BlockManager {
     }
 
     /// Returns all the blocks that are currently missing and needed in order to
-    /// accept suspended blocks.
-    pub(crate) fn missing_blocks(&self) -> BTreeSet<BlockRef> {
+    /// accept suspended blocks. For each block reference it returns the set of
+    /// authorities who have this block.
+    pub(crate) fn missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         self.missing_blocks.clone()
+    }
+
+    /// Returns all the block refs that are currently missing.
+    #[cfg(test)]
+    pub(crate) fn missing_block_refs(&self) -> BTreeSet<BlockRef> {
+        self.missing_blocks.keys().cloned().collect()
     }
 
     fn update_stats(&mut self, missing_blocks: u64) {
@@ -730,7 +756,7 @@ impl BlockManager {
     /// Returns all the suspended blocks whose causal history we miss hence we
     /// can't accept them yet.
     #[cfg(test)]
-    fn suspended_blocks(&self) -> Vec<BlockRef> {
+    fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
         self.suspended_blocks.keys().cloned().collect()
     }
 }
@@ -817,15 +843,32 @@ mod tests {
         // AND the missing blocks are the parents of the round 2 blocks. Since this is a
         // fully connected DAG taking the ancestors of the first element
         // suffices.
-        assert_eq!(block_manager.missing_blocks(), missing_block_refs);
+        assert_eq!(block_manager.missing_block_refs(), missing_block_refs);
 
         // AND suspended blocks should return the round_2_blocks
         assert_eq!(
-            block_manager.suspended_blocks(),
+            block_manager.suspended_blocks_refs(),
             round_2_blocks
                 .into_iter()
                 .map(|block| block.reference())
-                .collect::<Vec<_>>()
+                .collect::<BTreeSet<_>>()
+        );
+
+        // AND each missing block should be known to all authorities
+        let known_by_manager = block_manager
+            .missing_blocks()
+            .iter()
+            .next()
+            .expect("We should expect at least two elements there")
+            .1
+            .clone();
+        assert_eq!(
+            known_by_manager,
+            context
+                .committee
+                .authorities()
+                .map(|(a, _)| a)
+                .collect::<BTreeSet<_>>()
         );
     }
 
@@ -1108,6 +1151,81 @@ mod tests {
         }
     }
 
+    /// Tests that `missing_blocks()` correctly infers the authorities
+    /// referencing each missing block based on accepted blocks in the DAG.
+    #[tokio::test]
+    async fn authorities_that_know_missing_blocks() {
+        let (context, _key_pairs) = Context::new_for_test(4);
+
+        let context = Arc::new(context);
+
+        // create a DAG of rounds 1 ~ 3
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=3).build();
+
+        let all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
+
+        let blocks_round_2 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 2)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let blocks_round_1 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 1)
+            .map(|block| block.reference())
+            .collect::<BTreeSet<_>>();
+
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+
+        let (_, missing_blocks) = block_manager.try_accept_blocks(vec![blocks_round_2[0].clone()]);
+        // Blocks from round 1 are all missing, since the DAG is fully connected
+        assert_eq!(missing_blocks, blocks_round_1);
+
+        let missing_blocks_with_authorities = block_manager.missing_blocks();
+
+        let block_round_1_authority_0 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 1 && block.author() == AuthorityIndex::new_for_test(0))
+            .map(|block| block.reference())
+            .next()
+            .unwrap();
+        let block_round_1_authority_1 = all_blocks
+            .iter()
+            .filter(|block| block.round() == 1 && block.author() == AuthorityIndex::new_for_test(1))
+            .map(|block| block.reference())
+            .next()
+            .unwrap();
+        assert_eq!(
+            missing_blocks_with_authorities[&block_round_1_authority_0],
+            BTreeSet::from([AuthorityIndex::new_for_test(0)])
+        );
+        assert_eq!(
+            missing_blocks_with_authorities[&block_round_1_authority_1],
+            BTreeSet::from([
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(1)
+            ])
+        );
+
+        // Add a new block from round 2 from authority 1, which updates the set of
+        // authorities that are aware of the missing blocks
+        block_manager.try_accept_blocks(vec![blocks_round_2[1].clone()]);
+        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        assert_eq!(
+            missing_blocks_with_authorities[&block_round_1_authority_0],
+            BTreeSet::from([
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(1)
+            ])
+        );
+    }
+
     #[rstest]
     #[tokio::test]
     async fn unsuspend_blocks_for_latest_gc_round(#[values(5, 10, 14)] gc_depth: u32) {
@@ -1350,7 +1468,7 @@ mod tests {
 
         // Other blocks should be rejected and there should be no remaining suspended
         // block.
-        assert!(block_manager.suspended_blocks().is_empty());
+        assert!(block_manager.suspended_blocks_refs().is_empty());
     }
 
     #[tokio::test]
@@ -1402,7 +1520,7 @@ mod tests {
             missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
         assert_eq!(missing, missing_block_refs_from_accept);
         assert_eq!(
-            block_manager.missing_blocks(),
+            block_manager.missing_block_refs(),
             missing_block_refs_from_accept
         );
 
@@ -1433,7 +1551,7 @@ mod tests {
                 .all(|block_ref| block_ref.round == 3)
         );
         assert_eq!(
-            block_manager.missing_blocks(),
+            block_manager.missing_block_refs(),
             missing_block_refs_from_accept
                 .into_iter()
                 .chain(missing_block_refs_from_find.into_iter())

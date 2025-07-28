@@ -724,7 +724,7 @@ impl Core {
         // Now acknowledge the transactions for their inclusion to block
         ack_transactions(verified_block.reference());
 
-        debug!("Created block {verified_block:?} for round {clock_round}");
+        info!("Created block {verified_block:?} for round {clock_round}");
 
         self.context
             .metrics
@@ -939,7 +939,7 @@ impl Core {
         Ok(committed_sub_dags)
     }
 
-    pub(crate) fn get_missing_blocks(&self) -> BTreeSet<BlockRef> {
+    pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
     }

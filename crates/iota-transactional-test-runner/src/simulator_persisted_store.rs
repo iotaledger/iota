@@ -27,10 +27,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    language_storage::{ModuleId, StructTag},
-    resolver::ModuleResolver,
-};
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use typed_store::{
@@ -501,14 +498,14 @@ impl ModuleResolver for PersistedStore {
 }
 
 impl ObjectStore for PersistedStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(SimulatorStore::get_object(self, object_id))
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: iota_types::base_types::VersionNumber,
@@ -518,7 +515,7 @@ impl ObjectStore for PersistedStore {
 }
 
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
@@ -528,12 +525,12 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
             .live_objects
             .get(object_id)
             .expect("Fatal: DB read failed")
-            .map(|version| self.get_object_by_key(object_id, version))
+            .map(|version| self.try_get_object_by_key(object_id, version))
             .transpose()
             .map(|f| f.flatten())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -550,14 +547,14 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
 }
 
 impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
-    fn get_committee(
+    fn try_get_committee(
         &self,
         _epoch: EpochId,
     ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
         todo!()
     }
 
-    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.sync();
         self.inner
             .checkpoints
@@ -571,32 +568,32 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
-    fn get_highest_verified_checkpoint(
+    fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
-    fn get_highest_synced_checkpoint(
+    fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
-    fn get_lowest_available_checkpoint(
+    fn try_get_lowest_available_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
         Ok(0)
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         _digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
@@ -609,7 +606,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .map(|checkpoint| checkpoint.into()))
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
@@ -622,14 +619,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .expect("Fatal: DB read failed"))
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         todo!()
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
@@ -643,7 +640,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .map(|transaction| Arc::new(transaction.into())))
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
@@ -656,7 +653,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .expect("Fatal: DB read failed"))
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
@@ -669,7 +666,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .expect("Fatal: DB read failed"))
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
@@ -678,7 +675,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         todo!()
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         _digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
@@ -689,13 +686,6 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 }
 
 impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
-    fn get_transaction_checkpoint(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
-        todo!()
-    }
-
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -705,46 +695,11 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_chain_identifier(
         &self,
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        Ok((*self
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap()
-            .digest())
-        .into())
+        Ok((*self.get_checkpoint_by_sequence_number(0).unwrap().digest()).into())
     }
 
-    fn account_owned_objects_info_iter(
-        &self,
-        _owner: IotaAddress,
-        _cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = iota_types::storage::AccountOwnedObjectInfo> + '_>,
-    > {
-        todo!()
-    }
-
-    fn dynamic_field_iter(
-        &self,
-        _parent: ObjectID,
-        _cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<
-            dyn Iterator<
-                    Item = (
-                        iota_types::storage::DynamicFieldKey,
-                        iota_types::storage::DynamicFieldIndexInfo,
-                    ),
-                > + '_,
-        >,
-    > {
-        todo!()
-    }
-
-    fn get_coin_info(
-        &self,
-        _coin_type: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
-        todo!()
+    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
+        None
     }
 
     fn get_epoch_last_checkpoint(

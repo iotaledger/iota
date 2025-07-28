@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import type { IotaReportTransactionEffectsInput } from '@iota/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
@@ -76,7 +76,7 @@ export function useReportTransactionEffects({
 
             if (reportTransactionEffectsFeature) {
                 return await reportTransactionEffectsFeature.reportTransactionEffects({
-                    effects: Array.isArray(effects) ? toB64(new Uint8Array(effects)) : effects,
+                    effects: Array.isArray(effects) ? toBase64(new Uint8Array(effects)) : effects,
                     account,
                     chain: chain ?? currentWallet?.chains[0],
                 });

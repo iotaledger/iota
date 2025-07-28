@@ -29,7 +29,7 @@ rpc_url: "https://api.mainnet.iota.cafe"
 # A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (optional if archive store config is provided)
 graphql_url: "https://graphql.mainnet.iota.cafe"
 
-# Local directory to store checkpoint summaries and other synchronization data (mandatory) 
+# Local directory to store checkpoint summaries and other synchronization data (mandatory)
 checkpoints_dir: "checkpoints_mainnet"
 
 # A URL to download or copy the genesis blob file from (optional if genesis blob is already present in checkpoints_dir)
@@ -41,7 +41,7 @@ sync_before_check: true
 # A config for an object store that gets populated by a historical checkpoint writer (optional)
 checkpoint_store_config:
   object-store: "S3"
-  aws-endpoint: "https://checkpoints.mainnet.iota.cafe"
+  aws-endpoint: "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
   aws-virtual-hosted-style-request: true
   no-sign-request: true
   aws-region: "weur"
