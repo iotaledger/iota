@@ -7010,6 +7010,7 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
+ "iota-http",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-macros",

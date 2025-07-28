@@ -8,7 +8,6 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt,
     future::Future,
-    net::SocketAddr,
     path::PathBuf,
     str::FromStr,
     sync::{Arc, Weak},
@@ -219,7 +218,7 @@ pub struct IotaNode {
     validator_components: Mutex<Option<ValidatorComponents>>,
     /// The http server responsible for serving JSON-RPC as well as the
     /// experimental rest service
-    _http_server: Option<tokio::task::JoinHandle<()>>,
+    _http_server: Option<iota_http::ServerHandle>,
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
@@ -2233,7 +2232,7 @@ pub async fn build_http_server(
     prometheus_registry: &Registry,
     _custom_runtime: Option<Handle>,
     software_version: &'static str,
-) -> Result<Option<tokio::task::JoinHandle<()>>> {
+) -> Result<Option<iota_http::ServerHandle>> {
     // Validators do not expose these APIs
     if config.consensus_config().is_some() {
         return Ok(None);
@@ -2324,23 +2323,22 @@ pub async fn build_http_server(
         .route("/health", axum::routing::get(health_check_handler))
         .route_layer(axum::Extension(state));
 
-    let listener = tokio::net::TcpListener::bind(&config.json_rpc_address)
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
+    let layers = ServiceBuilder::new()
+        .map_request(|mut request: axum::http::Request<_>| {
+            if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
+                let axum_connect_info = axum::extract::ConnectInfo(connect_info.remote_addr);
+                request.extensions_mut().insert(axum_connect_info);
+            }
+            request
+        })
+        .layer(axum::middleware::from_fn(server_timing_middleware));
 
-    router = router.layer(axum::middleware::from_fn(server_timing_middleware));
+    router = router.layer(layers);
 
-    let handle = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .await
-        .unwrap()
-    });
-
-    info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
+    let handle = iota_http::Builder::new()
+        .serve(&config.json_rpc_address, router)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 
     Ok(Some(handle))
 }
