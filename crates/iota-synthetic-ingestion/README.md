@@ -9,7 +9,7 @@ Provides functionality to generate synthetic checkpoint data consisting of trans
 Use the CLI to generate synthetic checkpoint data:
 
 ```sh
-cargo run -- --ingestion-dir ./path/to/checkpoints \
+cargo run --bin iota-synthetic-ingestion -- --ingestion-dir ./path/to/checkpoints \
            --starting-checkpoint 0 \
            --num-checkpoints 1000 \
            --checkpoint-size 100
