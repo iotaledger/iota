@@ -800,7 +800,11 @@ pub async fn execute_move_call(
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_events(),
+            ),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
