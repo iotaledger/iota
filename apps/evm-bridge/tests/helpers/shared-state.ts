@@ -4,6 +4,11 @@ import { STATE_FILE } from './paths';
 import { TestWalletData } from '../utils/utils';
 
 export type WalletState = {
+    // Global address
+    global: {
+        addressL1: string;
+        mnemonicL1: string;
+    };
     tests: {
         sendMaxIotaAmountL1: TestWalletData;
         sendMaxIotaAmountL2: TestWalletData;

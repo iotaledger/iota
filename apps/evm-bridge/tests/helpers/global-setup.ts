@@ -13,6 +13,7 @@ import {
     fundSendMaxIotaTestWallets,
     fundSendMaxNativeTokenTestWallets,
 } from './test-funding';
+import { WalletState } from './shared-state';
 
 async function globalSetup() {
     // Create state directories
@@ -41,7 +42,7 @@ async function globalSetup() {
     const roundTripNativeTokenWallets = generateTestWallets();
 
     // Store all addresses in shared state
-    const state = {
+    const state: WalletState = {
         // Global addresses
         global: {
             addressL1: globalAddressL1,
@@ -63,6 +64,7 @@ async function globalSetup() {
     writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 
     // Fund global wallet from faucet
+    await requestFundsFromFaucet(globalAddressL1);
     await requestFundsFromFaucet(globalAddressL1);
 
     // Fund sendMaxIotaAmount test addresses
@@ -92,14 +94,14 @@ async function globalSetup() {
     );
 
     // Fund round trip native token wallets
-    // await fundDepostiThenWithdrawNativeTokenTestWallets(
-    //     globalAddressL1,
-    //     globalKeypair,
-    //     toolCoinAddress,
-    //     toolCoinKeypair,
-    //     roundTripNativeTokenWallets.addressL1,
-    //     roundTripNativeTokenWallets.addressL2,
-    // );
+    await fundDepostiThenWithdrawNativeTokenTestWallets(
+        globalAddressL1,
+        globalKeypair,
+        toolCoinAddress,
+        toolCoinKeypair,
+        roundTripNativeTokenWallets.addressL1,
+        roundTripNativeTokenWallets.addressL2,
+    );
 }
 
 export default globalSetup;

@@ -27,7 +27,7 @@ export async function toggleBridgeDirection(page: Page): Promise<void> {
  */
 export async function selectCoin(page: Page, coinName: string): Promise<void> {
     await page.getByTestId('coin-selector').click();
-    await page.getByText(coinName, { exact: true }).click();
+    await page.getByText(coinName, { exact: true }).first().click();
 }
 
 /**
