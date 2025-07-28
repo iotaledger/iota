@@ -97,7 +97,6 @@ impl CongestionTracker {
             let gas_price = transaction_cache_reader
                 .get_transaction_block(effect.transaction_digest())
                 .unwrap()
-                .unwrap()
                 .transaction_data()
                 .gas_price();
             if let Some(CongestedObjects(congested_objects)) =
@@ -361,7 +360,7 @@ mod tests {
         );
     }
 
-   #[tokio::test]
+    #[tokio::test]
     async fn test_get_suggested_gas_price_multiple_objects() {
         let tracker = CongestionTracker::new();
         let obj1 = ObjectID::random();

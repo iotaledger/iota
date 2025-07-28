@@ -809,7 +809,7 @@ pub struct AuthorityState {
     /// The chain identifier is derived from the digest of the genesis
     /// checkpoint.
     chain_identifier: ChainIdentifier,
-  
+
     pub(crate) congestion_tracker: Arc<CongestionTracker>,
 }
 
@@ -1852,7 +1852,7 @@ impl AuthorityState {
         let module_cache =
             TemporaryModuleResolver::new(&inner_temp_store, epoch_store.module_cache().clone());
 
-         let mut layout_resolver =
+        let mut layout_resolver =
             epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
