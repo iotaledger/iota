@@ -3496,7 +3496,7 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
         );
         let help_msg = if cli_protocol_version < on_chain_protocol_version {
             "Consider installing the latest version of the CLI - \
-            https://docs.iota.org/references/cli \n\n \
+            https://docs.iota.org/developer/references/cli \n\n \
             If publishing/upgrading returns a dependency verification error, then install the \
             latest CLI version."
         } else {
