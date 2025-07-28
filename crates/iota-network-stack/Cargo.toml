@@ -19,6 +19,7 @@ http-body.workspace = true
 hyper-rustls.workspace = true
 hyper-util.workspace = true
 multiaddr = "0.17.0"
+iota-http.workspace = true
 once_cell.workspace = true
 pin-project-lite = "0.2.13"
 serde.workspace = true

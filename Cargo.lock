@@ -6974,6 +6974,7 @@ dependencies = [
  "http-body 1.0.1",
  "hyper-rustls 0.27.3",
  "hyper-util",
+ "iota-http",
  "multiaddr",
  "once_cell",
  "pin-project-lite",
