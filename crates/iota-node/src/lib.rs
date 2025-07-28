@@ -1527,7 +1527,6 @@ impl IotaNode {
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
             IOTA_TLS_SERVER_NAME.to_string(),
-            iota_tls::AllowAll,
         );
         let mut server = server_builder
             .bind(config.network_address(), Some(tls_config))
