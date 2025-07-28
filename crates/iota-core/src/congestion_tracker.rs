@@ -27,7 +27,6 @@ pub struct CongestionInfo {
 
     pub last_success_time: Option<CheckpointTimestamp>,
     pub lowest_executed_gas_price: Option<u64>,
-    // /pub last_checkpoint_count: u64,
 }
 
 impl CongestionInfo {
@@ -48,8 +47,7 @@ impl CongestionInfo {
         }
     }
 
-    fn update_for_cancellation(&mut self, now: CheckpointTimestamp, gas_price: u64) {
-        self.last_cancellation_time = now;
+    fn update_cancellation_gas_price(&mut self, gas_price: u64) {
         self.highest_cancelled_gas_price =
             std::cmp::max(self.highest_cancelled_gas_price, gas_price);
     }
@@ -206,14 +204,12 @@ impl CongestionTracker {
         cleared_events: &[(u64, Vec<ObjectID>)],
     ) -> HashMap<ObjectID, CongestionInfo> {
         let mut congestion_info_map: HashMap<ObjectID, CongestionInfo> = HashMap::new();
-        // let mut touch_counts: HashMap<ObjectID, usize> = HashMap::new();
 
         for (gas_price, objects) in congestion_events {
             for object in objects {
-                // let touch_count = touch_counts.get(object).cloned().unwrap_or(0);
                 match congestion_info_map.entry(*object) {
                     Entry::Occupied(entry) => {
-                        entry.into_mut().update_for_cancellation(now, *gas_price);
+                        entry.into_mut().update_cancellation_gas_price(*gas_price);
                     }
                     Entry::Vacant(entry) => {
                         let info = CongestionInfo {
@@ -221,7 +217,6 @@ impl CongestionTracker {
                             highest_cancelled_gas_price: *gas_price,
                             last_success_time: None,
                             lowest_executed_gas_price: None,
-                            // last_checkpoint_count: touch_count as u64,
                         };
                         entry.insert(info);
                     }
@@ -231,8 +226,6 @@ impl CongestionTracker {
 
         for (gas_price, objects) in cleared_events {
             for object in objects {
-                // let count = touch_counts.get(object).cloned().unwrap_or(0);
-
                 // We only record clearing prices if the object has observed cancellations
                 // recently
                 match congestion_info_map.entry(*object) {
@@ -246,7 +239,6 @@ impl CongestionTracker {
                                 highest_cancelled_gas_price: prev.highest_cancelled_gas_price,
                                 last_success_time: Some(now),
                                 lowest_executed_gas_price: Some(*gas_price),
-                                // last_checkpoint_count: count as u64,
                             };
                             entry.insert(info);
                         }
