@@ -30,9 +30,7 @@ fastcrypto-tbls.workspace = true
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 im.workspace = true
-indexmap.workspace = true
 itertools.workspace = true
-jsonrpsee.workspace = true
 lru.workspace = true
 mockall.workspace = true
 nonempty.workspace = true
@@ -59,7 +57,6 @@ tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
 tokio-stream.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
-zeroize = "1.6"
 
 # internal dependencies
 consensus-config.workspace = true
@@ -92,7 +89,6 @@ move-symbol-pool.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
-typed-store-derive.workspace = true
 
 [dev-dependencies]
 # external dependencies

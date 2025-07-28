@@ -22,6 +22,11 @@
     --default-surface: theme('colors.names-primary.20');
     --on-default: theme('colors.names-neutral.90');
 
+    /* STATE LAYER */
+    --state-layer-bg-color: theme('colors.names-primary.60');
+    --state-layer-secondary-bg-color: theme('colors.shader-primary-dark.100');
+    --state-layer-inverted-bg-color: theme('colors.names-primary.80');
+
     /* ---------------- ATOMS ---------------- */
 
     /* BADGE */
@@ -44,11 +49,10 @@
     --button-bg-color-disabled-primary: theme('colors.names-neutral.30');
     --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
-    --button-border-color-outline: var(--names-gradient-primary);
+    --button-border-color-outline: theme('colors.names-neutral.60');
     --button-text-color-primary: theme('colors.names-primary.100');
     --button-text-color-neutral: theme('colors.names-neutral.92');
     --button-text-color-error: theme('colors.names-error.90');
-    --button-outline-bg-color: theme('colors.names-neutral.4');
 
     /* BUTTON PILL */
     --button-pill-border-color: theme('colors.names-neutral.40');

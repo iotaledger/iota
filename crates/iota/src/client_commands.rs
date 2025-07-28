@@ -1907,7 +1907,7 @@ impl IotaClientCommands {
                 faucet,
             } => {
                 if context.config().get_env(&alias).is_some() {
-                    bail!("Environment config with name [{alias}] already exists.");
+                    warn!("Environment config with name [{alias}] already exists.");
                 }
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
@@ -1917,7 +1917,7 @@ impl IotaClientCommands {
 
                 // Check urls are valid and server is reachable
                 env.create_rpc_client(None, None).await?;
-                context.config_mut().add_env(env.clone());
+                context.config_mut().set_env(env.clone());
                 context.config().save()?;
                 IotaClientCommandResult::NewEnv(env)
             }

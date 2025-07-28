@@ -69,7 +69,7 @@ export function ListItem({
                     !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',
                     {
                         'list-item-highlight-bg': isHighlighted,
-                        'state-layer': !isDisabled,
+                        'state-layer-secondary': !isDisabled,
                     },
                 )}
             >
