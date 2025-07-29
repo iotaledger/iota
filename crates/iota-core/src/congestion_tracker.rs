@@ -15,6 +15,9 @@ use moka::{ops::compute::Op, sync::Cache};
 
 use crate::execution_cache::TransactionCacheRead;
 
+/// Capacity of the congestion tracker's cache.
+const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
+
 #[derive(Clone, Copy, Debug)]
 pub struct CongestionInfo {
     pub last_cancellation_time: CheckpointTimestamp,
@@ -70,7 +73,7 @@ impl Default for CongestionTracker {
 impl CongestionTracker {
     pub fn new() -> Self {
         Self {
-            congestion_clearing_prices: Cache::new(10_000),
+            congestion_clearing_prices: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
         }
     }
 
