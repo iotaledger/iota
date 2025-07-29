@@ -138,7 +138,7 @@ export const test = baseTest.extend<{
             // Import/unlock wallets if mnemonics are provided
             console.log('Importing L1 wallet from mnemonic');
             const walletPageL1 = await roundtripIotaContext.newPage();
-            await walletPageL1.waitForTimeout(500); // Wait for the app to load
+            await walletPageL1.waitForTimeout(1500); // Wait for the app to load
             // await closeBrowserTabsExceptLast(roundtripIotaContext);
             await walletPageL1.goto(l1ExtensionUrl);
             await walletPageL1.bringToFront();
@@ -147,7 +147,7 @@ export const test = baseTest.extend<{
 
             console.log('Creating L2 wallet from mnemonic');
             const walletPageL2 = await roundtripIotaContext.newPage();
-            await walletPageL2.waitForTimeout(500);
+            await walletPageL2.waitForTimeout(1500);
             // await closeBrowserTabsExceptLast(roundtripIotaContext);
             await walletPageL2.goto(l2ExtensionUrl);
             await walletPageL2.bringToFront();
@@ -157,7 +157,7 @@ export const test = baseTest.extend<{
 
             // Create page for evm bridge tests
             const page = await roundtripIotaContext.newPage();
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(2500);
             // await closeBrowserTabsExceptLast(roundtripIotaContext);
             await page.goto('/');
             await page.bringToFront();
@@ -198,7 +198,7 @@ export const test = baseTest.extend<{
             // Import/unlock wallets if mnemonics are provided
             console.log('Importing L1 wallet from mnemonic');
             const walletPageL1 = await roundtripNativeTokenContext.newPage();
-            await walletPageL1.waitForTimeout(500); // Wait for the app to load
+            await walletPageL1.waitForTimeout(1500); // Wait for the app to load
             // await closeBrowserTabsExceptLast(roundtripNativeTokenContext);
             await walletPageL1.goto(l1ExtensionUrl);
             await walletPageL1.bringToFront();
@@ -207,7 +207,7 @@ export const test = baseTest.extend<{
 
             console.log('Creating L2 wallet from mnemonic');
             const walletPageL2 = await roundtripNativeTokenContext.newPage();
-            await walletPageL2.waitForTimeout(500); // Wait for the app to load
+            await walletPageL2.waitForTimeout(1500); // Wait for the app to load
             // await closeBrowserTabsExceptLast(roundtripNativeTokenContext);
             await walletPageL2.goto(l2ExtensionUrl);
             await walletPageL2.bringToFront();
@@ -217,16 +217,16 @@ export const test = baseTest.extend<{
 
             // Create page for evm bridge tests
             const page = await roundtripNativeTokenContext.newPage();
-            await page.waitForTimeout(500); // Wait for the app to load
+            await page.waitForTimeout(2500); // Wait for the app to load
             // await closeBrowserTabsExceptLast(roundtripNativeTokenContext);
             await page.goto('/');
             await page.bringToFront();
             // await closeBrowserTabsExceptLast(roundtripNativeTokenContext);
             // Set up wallet connections
-            await page.waitForTimeout(500); // Wait for the app to load
+            await page.waitForTimeout(1000); // Wait for the app to load
             await connectL1Wallet(page, roundtripNativeTokenContext);
 
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(1000);
             await connectL2Wallet(page, roundtripNativeTokenContext);
 
             return {
@@ -255,18 +255,19 @@ export const test = baseTest.extend<{
             // Import/unlock L1 wallet if mnemonic is provided
             console.log('Importing L1 wallet from mnemonic');
             const walletPageL1 = await contextL1.newPage();
+            await walletPageL1.waitForTimeout(2500);
             await walletPageL1.goto(l1ExtensionUrl);
             await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonicL1);
             await walletPageL1.close();
 
             // Create page for evm bridge tests
             const page = await contextL1.newPage();
-            // await page.waitForTimeout(2500); // Wait for the app to load
+            await page.waitForTimeout(2500); // Wait for the app to load
             await page.goto('/');
             await page.bringToFront();
             // Set up wallet connection
             await connectL1Wallet(page, contextL1);
-
+            await page.waitForTimeout(500);
             await setReceiverAddress(page, addressL2);
 
             return {
@@ -295,6 +296,7 @@ export const test = baseTest.extend<{
             // Import/unlock L2 wallet if mnemonic is provided
             console.log('Creating L2 wallet from mnemonic');
             const walletPageL2 = await contextL2.newPage();
+            await walletPageL2.waitForTimeout(2500);
             await walletPageL2.goto(l2ExtensionUrl);
             await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonicL2);
             await addNetworkToMetaMask(walletPageL2);
@@ -302,12 +304,14 @@ export const test = baseTest.extend<{
 
             // Create page for evm bridge tests
             const page = await contextL2.newPage();
-            // await page.waitForTimeout(500); // Wait for the app to load
+            await page.waitForTimeout(2500); // Wait for the app to load
             await page.goto('/');
             await page.bringToFront();
             // Set up wallet connection for L2
             await connectL2Wallet(page, contextL2);
+            await page.waitForTimeout(500);
             await toggleBridgeDirection(page);
+            await page.waitForTimeout(500);
             await setReceiverAddress(page, addressL1);
 
             return {

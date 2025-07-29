@@ -10,7 +10,7 @@ test.describe('Send MAX Iota amount from L1', () => {
     test('should bridge successfully', async ({ browserWithL1Setup }) => {
         const setup = await browserWithL1Setup('sendMaxIotaAmountL1');
         const { browser, page, addressL2 } = setup;
-        await page.waitForTimeout(2500);
+        await page.waitForTimeout(1500);
         await clickMaxAmount(page);
 
         const amountField = page.getByTestId('bridge-amount');

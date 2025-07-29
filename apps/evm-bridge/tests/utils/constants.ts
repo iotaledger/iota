@@ -1,7 +1,7 @@
 export const WALLET_CUSTOMRPC_PLACEHOLDER = 'http://localhost:3000/';
 export const WALLET_PASSWORD = 'bridgee2etests';
 
-export const THREE_MINUTES = 360_000;
+export const THREE_MINUTES = 180_000;
 
 // Mnemonic for the native token tests
 export const MNEMONIC_TOOL_COIN =
