@@ -370,6 +370,8 @@ impl ExecutionStatus {
     }
 
     pub fn get_congested_objects(&self) -> Option<&CongestedObjects> {
+        // TODO: we must also check ExecutionCancelledDueToSharedObjectCongestionV2
+        // once the gas price feedback mechanism is turned on.
         if let ExecutionStatus::Failure {
             error:
                 ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
