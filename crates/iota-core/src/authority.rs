@@ -1888,15 +1888,17 @@ impl AuthorityState {
             })
             .collect();
 
-        let events = IotaTransactionBlockEvents::try_from(
-            inner_temp_store.events.clone(),
-            tx_digest,
-            None,
-            layout_resolver.as_mut(),
-        )?;
-
         Ok((
             DryRunTransactionBlockResponse {
+                effects: effects.clone().try_into()?,
+                events: IotaTransactionBlockEvents::try_from(
+                    inner_temp_store.events.clone(),
+                    tx_digest,
+                    None,
+                    layout_resolver.as_mut(),
+                )?,
+                object_changes,
+                balance_changes,
                 input: IotaTransactionBlockData::try_from(
                     transaction.clone(),
                     &module_cache,
@@ -1907,10 +1909,6 @@ impl AuthorityState {
                         "Failed to convert transaction to IotaTransactionBlockData: {e}",
                     ),
                 })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
-                effects: effects.clone().try_into()?,
-                events,
-                object_changes,
-                balance_changes,
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_suggested_gas_prices(&transaction),
