@@ -38,7 +38,11 @@ export async function selectCoin(page: Page, coinName: string): Promise<void> {
         // Wait for the dropdown to appear
         await page.waitForTimeout(1000);
 
-        await page.getByText(coinName, { exact: true }).first().click();
+        await page
+            .locator('ul div[role="button"]')
+            .filter({ hasText: coinName })
+            .first()
+            .click({ timeout: 15000 });
     } catch (error) {
         console.error('Error in selectCoin:', error);
         throw error;
