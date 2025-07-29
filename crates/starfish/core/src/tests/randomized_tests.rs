@@ -11,7 +11,6 @@ use starfish_config::AuthorityIndex;
 use crate::{
     block_header::{BlockHeaderAPI, Slot},
     block_manager::BlockManager,
-    block_verifier::NoopBlockVerifier,
     commit::DecidedLeader,
     context::Context,
     dag_state::DagState,
@@ -210,11 +209,7 @@ fn authority_setup(num_authorities: usize, authority_index: u32) -> AuthorityTes
     let committer =
         UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
 
-    let block_manager = BlockManager::new(
-        context.clone(),
-        dag_state.clone(),
-        Arc::new(NoopBlockVerifier),
-    );
+    let block_manager = BlockManager::new(context.clone(), dag_state.clone());
 
     AuthorityTestFixture {
         context,

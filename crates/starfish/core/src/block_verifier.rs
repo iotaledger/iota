@@ -7,8 +7,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlockHeader,
-        VerifiedBlockHeader, genesis_block_headers,
+        BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, genesis_block_headers,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -20,17 +19,6 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     /// This is called before examining a block's causal history.
     fn verify(&self, block: &SignedBlockHeader) -> ConsensusResult<()>;
 
-    /// Verifies a block w.r.t. ancestor blocks.
-    /// This is called after a block has complete causal history locally,
-    /// and is ready to be accepted into the DAG.
-    ///
-    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1,
-    /// in the same order.
-    fn check_ancestors(
-        &self,
-        block: &VerifiedBlockHeader,
-        ancestors: &[Option<VerifiedBlockHeader>],
-    ) -> ConsensusResult<()>;
     fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
 }
 
@@ -193,31 +181,6 @@ impl BlockVerifier for SignedBlockVerifier {
             .verify_batch(&batch)
             .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
     }
-
-    fn check_ancestors(
-        &self,
-        block: &VerifiedBlockHeader,
-        ancestors: &[Option<VerifiedBlockHeader>],
-    ) -> ConsensusResult<()> {
-        assert_eq!(block.ancestors().len(), ancestors.len());
-        // This checks the invariant that block timestamp >= max ancestor timestamp.
-        let mut max_timestamp_ms = BlockTimestampMs::MIN;
-        for (ancestor_ref, ancestor_block) in block.ancestors().iter().zip(ancestors.iter()) {
-            let ancestor_block = ancestor_block
-                .as_ref()
-                .expect("There should never be an empty slot");
-            assert_eq!(ancestor_ref, &ancestor_block.reference());
-            max_timestamp_ms = max_timestamp_ms.max(ancestor_block.timestamp_ms());
-        }
-        if max_timestamp_ms > block.timestamp_ms() {
-            return Err(ConsensusError::InvalidBlockTimestamp {
-                max_timestamp_ms,
-                block_timestamp_ms: block.timestamp_ms(),
-            });
-        }
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -230,14 +193,6 @@ impl BlockVerifier for NoopBlockVerifier {
     }
 
     fn check_and_verify_transactions(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
-        Ok(())
-    }
-
-    fn check_ancestors(
-        &self,
-        _block: &VerifiedBlockHeader,
-        _ancestors: &[Option<VerifiedBlockHeader>],
-    ) -> ConsensusResult<()> {
         Ok(())
     }
 }
@@ -480,59 +435,6 @@ pub(crate) mod test {
             assert!(matches!(
                 verifier.verify(&signed_block),
                 Err(ConsensusError::DuplicatedAncestorsAuthority(_))
-            ));
-        }
-    }
-
-    /// Tests the block's ancestors for timestamp monotonicity.
-
-    #[tokio::test]
-    async fn test_check_ancestors() {
-        let num_authorities = 4;
-        let (context, _keypairs) = Context::new_for_test(num_authorities);
-        let context = Arc::new(context);
-        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
-
-        let mut ancestor_blocks = vec![];
-        for i in 0..num_authorities {
-            let test_block = TestBlockHeader::new(10, i as u32)
-                .set_timestamp_ms(1000 + 100 * i as BlockTimestampMs)
-                .build();
-            ancestor_blocks.push(Some(VerifiedBlockHeader::new_for_test(test_block)));
-        }
-        let ancestor_refs = ancestor_blocks
-            .iter()
-            .flatten()
-            .map(|block| block.reference())
-            .collect::<Vec<_>>();
-
-        // Block respecting timestamp invariant.
-        {
-            let block = TestBlockHeader::new(11, 0)
-                .set_ancestors(ancestor_refs.clone())
-                .set_timestamp_ms(1500)
-                .build();
-            let verified_block = VerifiedBlockHeader::new_for_test(block);
-            assert!(
-                verifier
-                    .check_ancestors(&verified_block, &ancestor_blocks)
-                    .is_ok()
-            );
-        }
-
-        // Block not respecting timestamp invariant.
-        {
-            let block = TestBlockHeader::new(11, 0)
-                .set_ancestors(ancestor_refs.clone())
-                .set_timestamp_ms(1000)
-                .build();
-            let verified_block = VerifiedBlockHeader::new_for_test(block);
-            assert!(matches!(
-                verifier.check_ancestors(&verified_block, &ancestor_blocks,),
-                Err(ConsensusError::InvalidBlockTimestamp {
-                    max_timestamp_ms: _,
-                    block_timestamp_ms: _
-                })
             ));
         }
     }
