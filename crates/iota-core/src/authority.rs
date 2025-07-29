@@ -1894,7 +1894,7 @@ impl AuthorityState {
                 // to avoid cloning `transaction`, fields are populated in this order
                 suggested_gas_price: self
                     .congestion_tracker
-                    .get_suggested_gas_prices(&transaction),
+                    .get_suggested_gas_price(&transaction),
                 input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
                     .map_err(|e| IotaError::TransactionSerialization {
                         error: format!(

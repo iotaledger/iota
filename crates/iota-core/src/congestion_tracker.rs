@@ -75,7 +75,10 @@ impl CongestionInfo {
     }
 }
 
+/// `CongestionTracker` tracks objects' congestion info.
+/// The info is then used to calculated a suggested gas price.
 pub struct CongestionTracker {
+    /// Key-value-based cache storing congestion info of objects.
     object_congestion_info: Cache<ObjectID, CongestionInfo>,
 }
 
@@ -86,12 +89,15 @@ impl Default for CongestionTracker {
 }
 
 impl CongestionTracker {
+    /// Create a new `CongestionTracker`. The cache capacity will be
+    /// set to `CONGESTION_TRACKER_CACHE_CAPACITY`, which is `10_000`.
     pub fn new() -> Self {
         Self {
             object_congestion_info: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
         }
     }
 
+    /// Process effects of all transactions included in a certain checkpoint.
     pub fn process_checkpoint_effects(
         &self,
         transaction_cache_reader: &dyn TransactionCacheRead,
@@ -104,6 +110,7 @@ impl CongestionTracker {
         for effect in effects {
             let gas_price = transaction_cache_reader
                 .get_transaction_block(effect.transaction_digest())
+                // TODO:
                 .unwrap()
                 .transaction_data()
                 .gas_price();
@@ -136,15 +143,16 @@ impl CongestionTracker {
         );
     }
 
-    /// For all the mutable shared inputs, get the highest minimum clearing
-    /// price (if any exists) and the lowest maximum cancelled price.
-    pub fn get_suggested_gas_prices(&self, transaction: &TransactionData) -> Option<u64> {
+    /// For all the mutable input shared objects accessed by `transaction`,
+    /// get the highest minimum clearing price, if any exists. The 'clearing'
+    /// gas price means its underlying transaction was scheduled for execution.
+    pub fn get_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
         self.get_suggested_gas_price_for_objects(
             transaction
                 .shared_input_objects()
                 .into_iter()
-                .filter(|id| id.mutable)
-                .map(|id| id.id),
+                .filter(|obj| obj.mutable)
+                .map(|obj| obj.id),
         )
     }
 }
@@ -166,6 +174,7 @@ impl CongestionTracker {
         objects: impl Iterator<Item = ObjectID>,
     ) -> Option<u64> {
         let mut clearing_price = None;
+
         for object_id in objects {
             if let Some(info) = self.get_congestion_info(object_id) {
                 let clearing_price_for_object =
@@ -189,6 +198,7 @@ impl CongestionTracker {
                 clearing_price = std::cmp::max(clearing_price, clearing_price_for_object);
             }
         }
+
         clearing_price
     }
 
