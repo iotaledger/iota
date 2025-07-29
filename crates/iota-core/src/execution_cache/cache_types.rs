@@ -295,6 +295,8 @@ where
             check_ticket()?;
 
             // Ticket expiry should make this assert impossible.
+            // Note: value and entry versions can be equal, which is allowed for genesis
+            // initialization
             if entry.is_newer_than(&value) {
                 debug_fatal!("entry is newer than value");
             } else {
