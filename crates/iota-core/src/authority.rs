@@ -1890,6 +1890,16 @@ impl AuthorityState {
 
         Ok((
             DryRunTransactionBlockResponse {
+                // to avoid cloning `transaction`, fields are populated in this order
+                suggested_gas_price: self
+                    .congestion_tracker
+                    .get_suggested_gas_prices(&transaction),
+                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
+                    .map_err(|e| IotaError::TransactionSerialization {
+                        error: format!(
+                            "Failed to convert transaction to IotaTransactionBlockData: {e}",
+                        ),
+                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
                 effects: effects.clone().try_into()?,
                 events: IotaTransactionBlockEvents::try_from(
                     inner_temp_store.events.clone(),
@@ -1899,19 +1909,6 @@ impl AuthorityState {
                 )?,
                 object_changes,
                 balance_changes,
-                input: IotaTransactionBlockData::try_from(
-                    transaction.clone(),
-                    &module_cache,
-                    tx_digest,
-                )
-                .map_err(|e| IotaError::TransactionSerialization {
-                    error: format!(
-                        "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                    ),
-                })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
-                suggested_gas_price: self
-                    .congestion_tracker
-                    .get_suggested_gas_prices(&transaction),
             },
             written_with_kind,
             effects,
