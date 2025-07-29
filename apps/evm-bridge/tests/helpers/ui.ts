@@ -20,14 +20,42 @@ export async function toggleBridgeDirection(page: Page): Promise<void> {
     const toggleButton = page.getByTestId('toggle-bridge-direction');
     await expect(toggleButton).toBeVisible();
     await toggleButton.click();
+    try {
+        if (page.isClosed()) {
+            console.error('Page is already closed in toggleBridgeDirection');
+            return;
+        }
+
+        const toggleButton = page.getByTestId('toggle-bridge-direction');
+        await expect(toggleButton).toBeVisible({ timeout: 5000 });
+        await toggleButton.click();
+    } catch (error) {
+        console.error('Error in toggleBridgeDirection:', error);
+        throw error;
+    }
 }
 
 /**
  * Select a coin in the bridge UI
  */
 export async function selectCoin(page: Page, coinName: string): Promise<void> {
-    await page.getByTestId('coin-selector').click();
-    await page.getByText(coinName, { exact: true }).first().click();
+    try {
+        if (page.isClosed()) {
+            console.error('Page is already closed in selectCoin');
+            return;
+        }
+
+        // Open the dropdown
+        await page.getByTestId('coin-selector').click();
+
+        // Wait for the dropdown to appear
+        await page.waitForTimeout(500);
+
+        await page.getByText(coinName, { exact: true }).first().click();
+    } catch (error) {
+        console.error('Error in selectCoin:', error);
+        throw error;
+    }
 }
 
 /**

@@ -263,7 +263,7 @@ export const test = baseTest.extend<{
             const page = await contextL1.newPage();
             // await page.waitForTimeout(2500); // Wait for the app to load
             await page.goto('/');
-
+            await page.bringToFront();
             // Set up wallet connection
             await connectL1Wallet(page, contextL1);
 
@@ -304,7 +304,7 @@ export const test = baseTest.extend<{
             const page = await contextL2.newPage();
             // await page.waitForTimeout(500); // Wait for the app to load
             await page.goto('/');
-
+            await page.bringToFront();
             // Set up wallet connection for L2
             await connectL2Wallet(page, contextL2);
             await toggleBridgeDirection(page);
