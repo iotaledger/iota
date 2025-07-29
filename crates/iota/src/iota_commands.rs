@@ -1186,37 +1186,36 @@ fn prompt_for_environment(
     accept_defaults: bool,
 ) -> anyhow::Result<IotaEnv> {
     if let Some(v) = std::env::var_os("IOTA_CONFIG_WITH_RPC_URL") {
-        Ok(IotaEnv::new("custom", v.into_string().unwrap()))
-    } else {
-        if accept_defaults {
-            print!(
-                "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
-            );
-            return Ok(IotaEnv::testnet());
-        }
+        return Ok(IotaEnv::new("custom", v.into_string().unwrap()));
+    }
 
+    if accept_defaults {
         print!(
-            "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
+            "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
         );
-        let url = read_line()?;
-        match url.trim() {
-            "mainnet" => Ok(IotaEnv::mainnet()),
-            "testnet" | "" => Ok(IotaEnv::testnet()),
-            "devnet" => Ok(IotaEnv::devnet()),
-            "localnet" => Ok(IotaEnv::localnet()),
-            url => {
-                if Url::parse(url).is_ok() {
-                    print!("Environment alias for [{url}]: ");
-                    let alias = read_line()?;
-                    let alias = if alias.trim().is_empty() {
-                        "custom".to_string()
-                    } else {
-                        alias
-                    };
-                    Ok(IotaEnv::new(alias, url))
+        return Ok(IotaEnv::testnet());
+    }
+
+    print!(
+        "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
+    );
+    match read_line()?.trim().to_lowercase().as_str() {
+        "mainnet" => Ok(IotaEnv::mainnet()),
+        "testnet" | "" => Ok(IotaEnv::testnet()),
+        "devnet" => Ok(IotaEnv::devnet()),
+        "localnet" => Ok(IotaEnv::localnet()),
+        input => {
+            if Url::parse(input).is_ok() {
+                print!("Environment alias for [{input}]: ");
+                let alias = read_line()?;
+                let alias = if alias.trim().is_empty() {
+                    "custom".to_string()
                 } else {
-                    bail!("invalid custom URL");
-                }
+                    alias
+                };
+                Ok(IotaEnv::new(alias, input))
+            } else {
+                bail!("invalid custom URL: {input}");
             }
         }
     }
