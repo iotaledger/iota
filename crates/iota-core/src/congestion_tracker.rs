@@ -18,14 +18,24 @@ use crate::execution_cache::TransactionCacheRead;
 /// Capacity of the congestion tracker's cache.
 const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 
+/// Holds per-object congestion info tracked.
 #[derive(Clone, Copy, Debug)]
-pub struct CongestionInfo {
-    pub last_cancellation_time: CheckpointTimestamp,
+struct CongestionInfo {
+    /// Timestamp of the last checkpoint which contains cancelled
+    /// transaction(s) accessing the object.
+    last_cancel_time: CheckpointTimestamp,
 
-    pub highest_cancelled_gas_price: u64,
+    /// Highest gas price of cancelled transaction(s) accessing the
+    /// object.
+    highest_cancel_gas_price: u64,
 
-    pub last_success_time: Option<CheckpointTimestamp>,
-    pub lowest_executed_gas_price: Option<u64>,
+    /// Timestamp of the last checkpoint which contains successfully
+    /// executed transaction(s) accessing the object.
+    last_success_time: Option<CheckpointTimestamp>,
+
+    /// Lowest gas price of successfully executed transaction(s) accessing
+    /// the object.
+    lowest_success_gas_price: Option<u64>,
 }
 
 impl CongestionInfo {
@@ -34,26 +44,25 @@ impl CongestionInfo {
     fn update_for_new_checkpoint(&mut self, new: &CongestionInfo) {
         // If there are more recent cancellations, we need to know the latest highest
         // cancelled price
-        if new.last_cancellation_time > self.last_cancellation_time {
-            self.last_cancellation_time = new.last_cancellation_time;
-            self.highest_cancelled_gas_price = new.highest_cancelled_gas_price;
+        if new.last_cancel_time > self.last_cancel_time {
+            self.last_cancel_time = new.last_cancel_time;
+            self.highest_cancel_gas_price = new.highest_cancel_gas_price;
         }
         // If there are more recent successful transactions, we need to know the latest
         // lowest executed price
         if new.last_success_time > self.last_success_time {
             self.last_success_time = new.last_success_time;
-            self.lowest_executed_gas_price = new.lowest_executed_gas_price;
+            self.lowest_success_gas_price = new.lowest_success_gas_price;
         }
     }
 
     fn update_cancellation_gas_price(&mut self, gas_price: u64) {
-        self.highest_cancelled_gas_price =
-            std::cmp::max(self.highest_cancelled_gas_price, gas_price);
+        self.highest_cancel_gas_price = std::cmp::max(self.highest_cancel_gas_price, gas_price);
     }
 
     fn update_for_success(&mut self, now: CheckpointTimestamp, gas_price: u64) {
         self.last_success_time = Some(now);
-        self.lowest_executed_gas_price = Some(match self.lowest_executed_gas_price {
+        self.lowest_success_gas_price = Some(match self.lowest_success_gas_price {
             Some(current_min) => std::cmp::min(current_min, gas_price),
             None => gas_price,
         });
@@ -153,26 +162,24 @@ impl CongestionTracker {
         let mut clearing_price = None;
         for object_id in objects {
             if let Some(info) = self.get_congestion_info(object_id) {
-                let clearing_price_for_object = match info
-                    .last_success_time
-                    .cmp(&Some(info.last_cancellation_time))
-                {
-                    std::cmp::Ordering::Greater => {
-                        // there were no cancellations in the most recent checkpoint,
-                        // so the object is probably not congested any more
-                        None
-                    }
-                    std::cmp::Ordering::Less => {
-                        // there were no successes in the most recent checkpoint. This should be a
-                        // rare case, but we know we will have to bid at
-                        // least as much as the highest cancelled price.
-                        Some(info.highest_cancelled_gas_price)
-                    }
-                    std::cmp::Ordering::Equal => {
-                        // there were both successes and cancellations.
-                        info.lowest_executed_gas_price
-                    }
-                };
+                let clearing_price_for_object =
+                    match info.last_success_time.cmp(&Some(info.last_cancel_time)) {
+                        std::cmp::Ordering::Greater => {
+                            // There were no cancellations in the most recent checkpoint,
+                            // so the object is probably not congested any more
+                            None
+                        }
+                        std::cmp::Ordering::Less => {
+                            // There were no successes in the most recent checkpoint.
+                            // This should be a rare case, but we know we will have
+                            // to bid at least as much as the highest cancelled price.
+                            Some(info.highest_cancel_gas_price)
+                        }
+                        std::cmp::Ordering::Equal => {
+                            // There were both successes and cancellations.
+                            info.lowest_success_gas_price
+                        }
+                    };
                 clearing_price = std::cmp::max(clearing_price, clearing_price_for_object);
             }
         }
@@ -195,10 +202,10 @@ impl CongestionTracker {
                     }
                     Entry::Vacant(entry) => {
                         let info = CongestionInfo {
-                            last_cancellation_time: now,
-                            highest_cancelled_gas_price: *gas_price,
+                            last_cancel_time: now,
+                            highest_cancel_gas_price: *gas_price,
                             last_success_time: None,
-                            lowest_executed_gas_price: None,
+                            lowest_success_gas_price: None,
                         };
 
                         entry.insert(info);
@@ -218,10 +225,10 @@ impl CongestionTracker {
                     Entry::Vacant(entry) => {
                         if let Some(prev) = self.get_congestion_info(*object) {
                             let info = CongestionInfo {
-                                last_cancellation_time: prev.last_cancellation_time,
-                                highest_cancelled_gas_price: prev.highest_cancelled_gas_price,
+                                last_cancel_time: prev.last_cancel_time,
+                                highest_cancel_gas_price: prev.highest_cancel_gas_price,
                                 last_success_time: Some(now),
-                                lowest_executed_gas_price: Some(*gas_price),
+                                lowest_success_gas_price: Some(*gas_price),
                             };
                             entry.insert(info);
                         }
