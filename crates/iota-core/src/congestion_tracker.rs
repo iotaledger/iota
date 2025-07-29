@@ -3,10 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap, hash_map::Entry},
-    sync::RwLock,
-};
+use std::collections::{HashMap, hash_map::Entry};
 
 use iota_types::{
     base_types::ObjectID,
@@ -30,7 +27,7 @@ pub struct CongestionInfo {
                        * successful execution */
 }
 
-const LEARNING_RATE: f64 = 0.01;
+const LEARNING_RATE: f64 = 0.2;
 
 impl CongestionInfo {
     /// Update the congestion info with the latest congestion info from a new
@@ -82,7 +79,7 @@ impl CongestionTracker {
         }
     }
 
-    pub async fn process_checkpoint_effects(
+    pub fn process_checkpoint_effects(
         &self,
         transaction_cache_reader: &dyn TransactionCacheRead,
         checkpoint: &VerifiedCheckpoint,
@@ -251,11 +248,17 @@ impl CongestionTracker {
                 }
                 object_id_per_tx.push(*object);
             }
+            // We create an auxiliary map of objects summing object hotness minus gas price
+            // feedback
             for object in &object_id_per_tx {
                 object_hotness_map
                     .entry(*object)
-                    .and_modify(|v| *v += hotness_per_tx - *gas_price_feedback as f64 + 1_000.0)
+                    .and_modify(|v| *v += hotness_per_tx - *gas_price_feedback as f64 + 1_000.0) // TODO: Replace 1_000 with base gas price
                     .or_insert(hotness_per_tx - *gas_price_feedback as f64 + 1_000.0);
+                println!(
+                    "Object: {}, Hotness: {}",
+                    object, object_hotness_map[object]
+                );
             }
         }
 
@@ -283,7 +286,9 @@ impl CongestionTracker {
             }
         }
 
-        // Update hotness based on the congestion events
+        // Update hotness per object based on the congestion events according to the
+        // formula: hotness(i) -= SUM(tx)[hotness(i) - gas_price_feedback(tx)] *
+        // LEARNING_RATE / number_congested_transactions
         for object in object_hotness_map.keys() {
             if let Some(info) = congestion_info_map.get_mut(object) {
                 info.hotness -=
@@ -324,8 +329,8 @@ impl CongestionTracker {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_process_events_new_congestion() {
+    #[test]
+    fn test_process_events_new_congestion() {
         let tracker = CongestionTracker::new();
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
@@ -347,9 +352,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test]
 
-    async fn test_process_events_congestion_then_success() {
+    fn test_process_events_congestion_then_success() {
         let tracker = CongestionTracker::new();
         let obj = ObjectID::random();
 
@@ -384,8 +389,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_get_suggested_gas_price_multiple_objects() {
+    #[test]
+    fn test_get_suggested_gas_price_multiple_objects() {
         let tracker = CongestionTracker::new();
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
@@ -413,6 +418,50 @@ mod tests {
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj1, obj2].into_iter()),
             Some(150)
+        );
+    }
+
+    #[test]
+    fn test_compute_per_checkpoint_congestion_info_hotness_update() {
+        let tracker = CongestionTracker::new();
+        let obj1 = ObjectID::random();
+        let obj2 = ObjectID::random();
+
+        let now = 1_000;
+
+        // Congestion events: both objects are congested with different gas price
+        // feedback
+        let congestion_events = vec![
+            (100, vec![obj1], 1200), // should result in positive hotness adjustment for obj1
+            (200, vec![obj2], 1500), // likewise for obj2
+        ];
+
+        let cleared_events = vec![]; // no clearing in this round
+
+        let congestion_info_map = tracker.compute_per_checkpoint_congestion_info(
+            now,
+            &congestion_events,
+            &cleared_events,
+        );
+
+        // Extract congestion info
+        let info1 = congestion_info_map
+            .get(&obj1)
+            .expect("obj1 should be in map");
+        let info2 = congestion_info_map
+            .get(&obj2)
+            .expect("obj2 should be in map");
+
+        // Verify that hotness was updated
+        println!("Hotness for obj1: {}", info1.hotness);
+        println!("Hotness for obj2: {}", info2.hotness);
+        assert!(
+            info1.hotness == LEARNING_RATE * 100 as f64,
+            "obj1 should have increased hotness"
+        );
+        assert!(
+            info2.hotness == LEARNING_RATE * 250 as f64,
+            "obj2 should have increased hotness"
         );
     }
 }
