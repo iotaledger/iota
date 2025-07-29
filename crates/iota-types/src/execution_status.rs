@@ -381,13 +381,23 @@ impl ExecutionStatus {
         }
     }
 
+    /// Returns congested objects if a transaction was cancelled due to
+    /// shared object congestion, else returns `None`.
     pub fn get_congested_objects(&self) -> Option<&CongestedObjects> {
-        // TODO: we must also check ExecutionCancelledDueToSharedObjectCongestionV2
-        // once the gas price feedback mechanism is turned on.
         if let ExecutionStatus::Failure {
             error:
                 ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
                     congested_objects,
+                },
+            ..
+        } = self
+        {
+            Some(congested_objects)
+        } else if let ExecutionStatus::Failure {
+            error:
+                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                    congested_objects,
+                    ..
                 },
             ..
         } = self
