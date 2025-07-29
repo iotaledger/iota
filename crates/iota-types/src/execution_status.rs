@@ -381,7 +381,7 @@ impl ExecutionStatus {
         }
     }
 
-    /// Returns congested objects if a transaction was cancelled due to
+    /// Returns congested objects if the transaction was cancelled due to
     /// shared object congestion, else returns `None`.
     pub fn get_congested_objects(&self) -> Option<&CongestedObjects> {
         if let ExecutionStatus::Failure {
@@ -403,6 +403,25 @@ impl ExecutionStatus {
         } = self
         {
             Some(congested_objects)
+        } else {
+            None
+        }
+    }
+
+    /// Returns a suggested gas price if the transaction was cancelled due to
+    /// shared object congestion (subject to the gas price mechansim is
+    /// enabled), otherwise returns `None`.
+    pub fn get_suggested_gas_price(&self) -> Option<u64> {
+        if let ExecutionStatus::Failure {
+            error:
+                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                    suggested_gas_price,
+                    ..
+                },
+            ..
+        } = self
+        {
+            Some(*suggested_gas_price)
         } else {
             None
         }
