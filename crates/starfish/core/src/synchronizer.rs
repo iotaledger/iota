@@ -657,15 +657,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 missing_committed_txns
             );
             // TODO: decide whether remove this live transactions synchronizer
-            // here or not. if let Err(err) =
-            // transactions_synchronizer
-            //     .fetch_transactions(missing_committed_txns)
-            //     .await
-            // {
-            //     warn!(
-            //         "Error while trying to fetch missing transactions via
-            // transactions synchronizer: {err}"     );
-            // }
+            // here or not.
+            if let Err(err) = transactions_synchronizer
+                .fetch_transactions(missing_committed_txns)
+                .await
+            {
+                warn!(
+                    "Error while trying to fetch missing transactions via
+             transactions synchronizer: {err}"
+                );
+            }
         }
 
         Ok(())

@@ -370,17 +370,17 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         );
                         // TODO: decide whether to rely on periodic transactions
                         // synchronizer or make use of live one
-                        // if let Err(err) = self
-                        //     .inner
-                        //     .transactions_synchronizer
-                        //     .fetch_transactions(missing_committed_txns)
-                        //     .await
-                        // {
-                        //     warn!(
-                        //         "Error while trying to fetch missing
-                        // transactions via transactions synchronizer: {err}"
-                        //     );
-                        // }
+                        if let Err(err) = self
+                            .inner
+                            .transactions_synchronizer
+                            .fetch_transactions(missing_committed_txns)
+                            .await
+                        {
+                            warn!(
+                                "Error while trying to fetch missing
+                         transactions via transactions synchronizer: {err}"
+                            );
+                        }
                     }
                 }
                 Err(e) => {
