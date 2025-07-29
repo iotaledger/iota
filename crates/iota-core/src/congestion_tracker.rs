@@ -67,8 +67,6 @@ impl CongestionInfo {
 
 pub struct CongestionTracker {
     pub congestion_clearing_prices: Cache<ObjectID, CongestionInfo>,
-    object_to_index: RwLock<BTreeMap<ObjectID, u64>>,
-    next_index: RwLock<u64>,
 }
 
 impl Default for CongestionTracker {
@@ -81,8 +79,6 @@ impl CongestionTracker {
     pub fn new() -> Self {
         Self {
             congestion_clearing_prices: Cache::new(10_000),
-            object_to_index: RwLock::new(BTreeMap::new()),
-            next_index: RwLock::new(0),
         }
     }
 
@@ -220,19 +216,6 @@ impl CongestionTracker {
             }
         }
         Some(total_hotness as u64)
-    }
-
-    fn get_or_assign_index(&self, object: ObjectID) -> u64 {
-        let mut map = self.object_to_index.write().unwrap();
-        if let Some(&idx) = map.get(&object) {
-            idx
-        } else {
-            let mut next_idx = self.next_index.write().unwrap();
-            let idx = *next_idx;
-            map.insert(object, idx);
-            *next_idx += 1;
-            idx
-        }
     }
 
     fn compute_per_checkpoint_congestion_info(
