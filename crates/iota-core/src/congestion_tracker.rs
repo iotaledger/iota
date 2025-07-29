@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+// Modifications Copyright (c) 2025 IOTA Stiftung
 
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
