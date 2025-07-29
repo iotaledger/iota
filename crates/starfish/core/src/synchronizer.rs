@@ -579,7 +579,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             return Err(ConsensusError::TooManyFetchedHeadersReturned(peer_index));
         }
 
-
         // Verify all the fetched block headers
         let block_headers = Handle::current()
             .spawn_blocking({
@@ -596,7 +595,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             })
             .await
             .expect("Spawn blocking should not fail")?;
-
 
         // Record commit votes from the verified blocks.
         for block in &block_headers {
@@ -658,14 +656,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 "Missing committed transactions after fetching blocks: {:?}",
                 missing_committed_txns
             );
-            // TODO: decide whether remove this live transactions synchronizer here or not.
-            // if let Err(err) = transactions_synchronizer
+            // TODO: decide whether remove this live transactions synchronizer
+            // here or not. if let Err(err) =
+            // transactions_synchronizer
             //     .fetch_transactions(missing_committed_txns)
             //     .await
             // {
             //     warn!(
-            //         "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
-            //     );
+            //         "Error while trying to fetch missing transactions via
+            // transactions synchronizer: {err}"     );
             // }
         }
 

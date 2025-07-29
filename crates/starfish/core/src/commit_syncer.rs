@@ -222,9 +222,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         // executed on later.
         let step = self.inner.context.parameters.commit_sync_batch_size;
 
-        for prev_end in (fetch_after_index..=quorum_commit_index)
-            .step_by(step as usize)
-        {
+        for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
             // Create range with inclusive start and end.
             let range_start = prev_end + 1;
             let range_end = prev_end + step;
@@ -370,7 +368,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             "Fetched blocks have missing committed transactions: {:?} for commit range {:?}",
                             missing_committed_txns, fetched_commit_range
                         );
-                        // TODO: decide whether to rely on periodic transactions synchronizer or make use of live one
+                        // TODO: decide whether to rely on periodic transactions
+                        // synchronizer or make use of live one
                         // if let Err(err) = self
                         //     .inner
                         //     .transactions_synchronizer
@@ -378,7 +377,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         //     .await
                         // {
                         //     warn!(
-                        //         "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                        //         "Error while trying to fetch missing
+                        // transactions via transactions synchronizer: {err}"
                         //     );
                         // }
                     }
@@ -430,8 +430,12 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 break;
             }
             if !self.pending_fetches.is_empty() {
-                info!("Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
-                    self.pending_fetches, target_parallel_fetches, self.inflight_fetches.len());
+                info!(
+                    "Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
+                    self.pending_fetches,
+                    target_parallel_fetches,
+                    self.inflight_fetches.len()
+                );
             }
             let Some(commit_range) = self.pending_fetches.pop_first() else {
                 break;

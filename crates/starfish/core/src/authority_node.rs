@@ -391,7 +391,7 @@ mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(#[values(4,6,8)] num_of_authorities: usize) {
+    async fn test_restart_authority_committee(#[values(4, 6, 8)] num_of_authorities: usize) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);

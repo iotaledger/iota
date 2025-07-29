@@ -20,9 +20,8 @@ use parking_lot::{Mutex, RwLock};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
-    seq::IteratorRandom,
+    seq::{IteratorRandom, SliceRandom},
 };
-use rand::seq::SliceRandom;
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -818,11 +817,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             }
         }
 
-        // let mut assigned_block_refs = BTreeSet::new();
         let mut request_futures = FuturesUnordered::new();
 
         // For each authority, randomize and try to lock up the
-        // maximum possible amount of acknowledged blocks.
+        // maximum possible amount of acknowledged transactions in blocks.
         // The logic is as follows:
         // * Iterate all authorities that have acknowledged missing transactions.
         // * Randomly select up to max_transactions_per_fetch missing transactions
@@ -836,21 +834,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // * If transactions are successfully locked, then send a request to the network
         //   client to fetch the transactions from the authority.
 
-
         // Create an iterator over authorities with their corresponding block refs
-        // This will allow us to iterate over authorities in a stable (for test) or random order
+        // This will allow us to iterate over authorities in a stable (for test) or
+        // random order
 
-        let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<BlockRef>)>> = if cfg!(test) {
-            // Stable order for tests
-            Box::new(blocks_by_authority.into_iter())
-        } else {
-            // Random order for production
-            let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
-            let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
-            vec.shuffle(&mut rng);
-            Box::new(vec.into_iter())
-        };
-
+        let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<BlockRef>)>> =
+            if cfg!(test) {
+                // Stable order for tests
+                Box::new(blocks_by_authority.into_iter())
+            } else {
+                // Random order for production
+                let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
+                let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
+                vec.shuffle(&mut rng);
+                Box::new(vec.into_iter())
+            };
 
         for (authority, authority_block_refs) in iter_authorities {
             let peer_hostname = &context.committee.authority(authority).hostname;
@@ -938,7 +936,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             }
                         },
                         Err(e) => {
-                            warn!("Error while trying to fetch blocks from peer {peer_index} {peer_hostname}. Error: {e}");
+                            warn!("Error while trying to fetch transactions from peer {peer_index} {peer_hostname}. Error: {e}");
                             // we don't necessarily need to do, but dropping the guard here to unlock the blocks
                             drop(transactions_guard);
 
