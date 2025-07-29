@@ -1,15 +1,9 @@
 // tests/helpers/global-teardown.ts
 import fs from 'fs';
-import path from 'path';
 import { rmSync, existsSync } from 'fs';
 import { STATE_FILE, USER_DATA_DIR, USER_DATA_DIR_L1, USER_DATA_DIR_L2 } from '../helpers/paths';
 
 async function globalTeardown() {
-    // Log teardown execution
-    const logPath = path.join(__dirname, 'teardown-log.txt');
-    const timestamp = new Date().toISOString();
-    fs.appendFileSync(logPath, `${timestamp}: Global teardown executed\n`);
-
     console.log('🧹 Cleaning up wallet data for next run');
 
     // Clean up state file

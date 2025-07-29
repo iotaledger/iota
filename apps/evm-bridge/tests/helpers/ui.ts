@@ -26,27 +26,8 @@ export async function toggleBridgeDirection(page: Page): Promise<void> {
  * Select a coin in the bridge UI
  */
 export async function selectCoin(page: Page, coinName: string): Promise<void> {
-    try {
-        if (page.isClosed()) {
-            console.error('Page is already closed in selectCoin');
-            return;
-        }
-
-        // Open the dropdown
-        await page.getByTestId('coin-selector').click();
-
-        // Wait for the dropdown to appear
-        await page.waitForTimeout(1000);
-
-        await page
-            .locator('ul div[role="button"]')
-            .filter({ hasText: coinName })
-            .first()
-            .click({ timeout: 15000 });
-    } catch (error) {
-        console.error('Error in selectCoin:', error);
-        throw error;
-    }
+    await page.getByTestId('coin-selector').click();
+    await page.getByText(coinName, { exact: true }).first().click();
 }
 
 /**
