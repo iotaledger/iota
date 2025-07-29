@@ -112,7 +112,7 @@ impl Epoch {
         // TODO: this currently returns None for the current epoch. Fix this.
         Ok(self
             .stored
-            .epoch_total_transactions
+            .epoch_total_transactions()
             .map(|v| UInt53::from(v as u64)))
     }
 

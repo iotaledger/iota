@@ -10,10 +10,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     errors::IndexerError,
-    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
+    models::{
+        display::StoredDisplay,
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
+        obj_indices::StoredObjectVersion,
+    },
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
+        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
     },
 };
 
@@ -49,9 +53,8 @@ pub struct TransactionObjectChangesToCommit {
 
 #[derive(Clone, Debug)]
 pub struct EpochToCommit {
-    pub last_epoch: Option<IndexedEpochInfo>,
-    pub new_epoch: IndexedEpochInfo,
-    pub network_total_transactions: u64,
+    pub(crate) last_epoch: Option<EndOfEpochUpdate>,
+    pub(crate) new_epoch: StartOfEpochUpdate,
 }
 
 pub struct CommonHandler<T> {

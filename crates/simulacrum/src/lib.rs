@@ -387,6 +387,17 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .unwrap();
     }
 
+    /// Overrides the next checkpoint number indirectly by setting the previous
+    /// checkpoint's number to checkpoint_number - 1. This ensures the next
+    /// generated checkpoint has the exact sequence number provided. This
+    /// can be useful to generate checkpoints with specific sequence
+    /// numbers. Monotonicity of checkpoint numbers is enforced strictly.
+    pub fn override_next_checkpoint_number(&mut self, number: CheckpointSequenceNumber) {
+        let committee = CommitteeWithKeys::new(&self.keystore, self.epoch_state.committee());
+        self.checkpoint_builder
+            .override_next_checkpoint_number(number, &committee);
+    }
+
     fn process_data_ingestion(
         &self,
         checkpoint: VerifiedCheckpoint,

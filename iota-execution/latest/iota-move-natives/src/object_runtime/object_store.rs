@@ -615,8 +615,13 @@ impl<'a> ChildObjectStore<'a> {
             btree_map::Entry::Vacant(e) => {
                 let child_move_type = field_setting_object_type;
                 let inner = &self.inner;
-                let obj_opt =
-                    fetch_child_object_unbounded!(inner, parent, child, SequenceNumber::MAX, true);
+                let obj_opt = fetch_child_object_unbounded!(
+                    inner,
+                    parent,
+                    child,
+                    SequenceNumber::MAX_VALID_EXCL,
+                    true
+                );
                 let Some(move_obj) = obj_opt.as_ref().map(|obj| obj.data.try_as_move().unwrap())
                 else {
                     return Ok(ObjectResult::Loaded(None));

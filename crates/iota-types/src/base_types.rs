@@ -1137,12 +1137,67 @@ impl TxContext {
 
 // TODO: rename to version
 impl SequenceNumber {
-    pub const MIN: SequenceNumber = SequenceNumber(u64::MIN);
-    pub const MAX: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
-    pub const CANCELLED_READ: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 1);
-    pub const CONGESTED: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 2);
+    /// An inclusive lower limit on a valid sequence number.
+    ///
+    /// A valid sequence number means an object, which this sequence number
+    /// is assigned to, does not appear in a cancelled transaction.
+    pub const MIN_VALID_INCL: SequenceNumber = SequenceNumber(u64::MIN);
+
+    /// An exclusive upper limit on a valid sequence number: sequence numbers
+    /// strictly smaller than this limit are valid sequence numbers.
+    ///
+    /// A valid sequence number means an object, which this sequence number
+    /// is assigned to, does not appear in a cancelled transaction.
+    /// Sequence numbers larger than this value are "special" and
+    /// assigned to objects that appear in cancelled transactions.
+    pub const MAX_VALID_EXCL: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
+
+    /// Special sequence number that is assigned to objects which are accessed
+    /// immutably in a cancelled transaction.
+    pub const CANCELLED_READ: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() + 1);
+
+    /// Special sequence number that was assigned to congested objects which
+    /// cause transaction cancellations. Note that this special sequence
+    /// number was only used prior to the introduction of a gas price feedback
+    /// mechanism, but it is kept for backward compatibility.
+    pub const CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() + 2);
+
+    /// Special sequence number that is assigned the randomness state object
+    /// if randomness is unavailable.
     pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX.value() + 3);
+        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() + 3);
+
+    // NOTE: if you want to add new SequenceNumber constants used for cancellation
+    // reasons different than those used for cancellations due to shared object
+    // congestion, please make sure their offset is less than
+    // CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK
+
+    /// The meaning of this constant is as follows:
+    ///
+    /// In the gas price feedback mechanism, sequence numbers >=
+    /// `SequenceNumber::MAX_VALID_EXCL` +
+    /// `CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK` are assigned to
+    /// objects that cause transactions cancellations due to congestion.
+    ///
+    /// Sequence numbers larger than `SequenceNumber::MAX_VALID_EXCL` but
+    /// smaller than `SequenceNumber::MAX_VALID_EXCL` +
+    /// `CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK` are
+    /// intended for other transaction cancellation reasons.
+    ///
+    /// There unlikely will be more than 1000 non-congestion cancellation
+    /// reasons, but this offset can be increased if needed, as long as
+    /// (`SequenceNumber::MIN_CONGESTED.value()` + maximum gas price) does not
+    /// overflow `u64::MAX`.
+    const CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK: u64 = 1_000;
+
+    /// Minimum congested sequence number used in the gas price feedback
+    /// mechanism. A congested sequence number is assigned to objects that
+    /// cause transaction cancellations.
+    const MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK: SequenceNumber = SequenceNumber(
+        SequenceNumber::MAX_VALID_EXCL.value() + Self::CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK,
+    );
 
     pub const fn new() -> Self {
         SequenceNumber(0)
@@ -1156,8 +1211,50 @@ impl SequenceNumber {
         SequenceNumber(u)
     }
 
+    /// Returns a special sequence number used for congested shared objects:
+    /// `SequenceNumber::MIN_CONGESTED.value()` + `suggested_gas_price`,
+    /// where `suggested_gas_price` is embedded into a congested sequence
+    /// number to facilitate a gas price feedback mechanism for transactions
+    /// cancelled due to shared object congestion.
+    pub fn new_congested_with_suggested_gas_price(suggested_gas_price: u64) -> Self {
+        let (version, overflows) = Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
+            .value()
+            .overflowing_add(suggested_gas_price);
+        debug_assert!(
+            !overflows,
+            "the calculated version for a congested shared objects overflows"
+        );
+
+        Self(version)
+    }
+
+    /// Check if this sequence number is congested, i.e., the corresponding
+    /// object is the reason for transaction cancellation.
+    pub fn is_congested(&self) -> bool {
+        *self == Self::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+            || self >= &Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
+    }
+
+    /// Returns the `suggested_gas_price` embedded in this congested shared
+    /// object sequence number. The `suggested_gas_price` here is used for a
+    /// gas price feedback mechanism for transactions cancelled due to
+    /// shared object congestion.
+    pub fn get_congested_version_suggested_gas_price(&self) -> u64 {
+        assert!(
+            *self >= Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK,
+            "this is not a version used for congested shared objects in the gas price feedback \
+                mechanism"
+        );
+
+        self.value() - Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK.value()
+    }
+
     pub fn increment(&mut self) {
-        assert_ne!(self.0, u64::MAX);
+        assert!(
+            self.is_valid(),
+            "cannot increment a sequence number: \
+                maximum valid sequence number has already been reached"
+        );
         self.0 += 1;
     }
 
@@ -1167,7 +1264,12 @@ impl SequenceNumber {
     }
 
     pub fn decrement(&mut self) {
-        assert_ne!(self.0, 0);
+        assert_ne!(
+            *self,
+            Self::MIN_VALID_INCL,
+            "cannot decrement a sequence number: \
+                minimum valid sequence number has already been reached"
+        );
         self.0 -= 1;
     }
 
@@ -1186,19 +1288,27 @@ impl SequenceNumber {
         // Option 1: Freeze the object when sequence number reaches MAX.
         // Option 2: Reject tx with MAX sequence number.
         // Issue #182.
-        assert_ne!(max_input.0, u64::MAX);
+        assert!(
+            max_input.is_valid(),
+            "cannot increment a sequence number: \
+                maximum valid sequence number has already been reached"
+        );
 
         SequenceNumber(max_input.0 + 1)
     }
 
+    /// Checks if this sequence number is cancelled, i.e., the corresponding
+    /// object appears in a cancelled transaction.
     pub fn is_cancelled(&self) -> bool {
         self == &SequenceNumber::CANCELLED_READ
-            || self == &SequenceNumber::CONGESTED
             || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
+            || self.is_congested()
     }
 
+    /// Checks if this sequence number is valid, i.e., the corresponding
+    /// object does not appear in a cancelled transaction.
     pub fn is_valid(&self) -> bool {
-        self < &SequenceNumber::MAX
+        self < &SequenceNumber::MAX_VALID_EXCL
     }
 }
 

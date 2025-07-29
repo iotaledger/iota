@@ -216,7 +216,7 @@ impl AuthorityStorePruner {
             let mut object_keys_to_delete = vec![];
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
                 for result in perpetual_db.objects.safe_iter_with_bounds(
-                    Some(ObjectKey(object_id, VersionNumber::MIN)),
+                    Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
                     Some(ObjectKey(object_id, seq_number.next())),
                 ) {
                     let (object_key, _) = result?;
@@ -786,8 +786,8 @@ impl AuthorityStorePruner {
     /// invoking a range compaction on the database.
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
-            &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN),
-            &ObjectKey(ObjectID::MAX, SequenceNumber::MAX),
+            &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL),
+            &ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL),
         )
     }
 }
@@ -1070,8 +1070,8 @@ mod tests {
         }
 
         let db_path = primary_path.clone().join("perpetual");
-        let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN);
-        let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX);
+        let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
+        let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
 
         perpetual_db.objects.rocksdb.flush()?;
         perpetual_db.objects.compact_range_to_bottom(&start, &end)?;
@@ -1171,7 +1171,10 @@ mod pprof_tests {
     ) -> Result<(), anyhow::Error> {
         let mut i = 0;
         while i < num_reads {
-            let _res = objects.get(&ObjectKey(ObjectID::random(), VersionNumber::MAX))?;
+            let _res = objects.get(&ObjectKey(
+                ObjectID::random(),
+                VersionNumber::MAX_VALID_EXCL,
+            ))?;
             i += 1;
         }
         Ok(())

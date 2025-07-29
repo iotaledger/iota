@@ -513,6 +513,12 @@ ExecutionFailureStatus:
           - coin_type: STR
     36:
       ExecutionCancelledDueToRandomnessUnavailable: UNIT
+    37:
+      ExecutionCancelledDueToSharedObjectCongestionV2:
+        STRUCT:
+          - congested_objects:
+              TYPENAME: CongestedObjects
+          - suggested_gas_price: U64
 ExecutionStatus:
   ENUM:
     0:

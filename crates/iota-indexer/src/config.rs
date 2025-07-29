@@ -205,7 +205,7 @@ pub enum Command {
     /// Backfill DB tables for some ID range [start, end].
     /// The tool will automatically slice it into smaller ranges and for each
     /// range, it first makes a read query to the DB to get data needed for
-    /// backfil if needed, which then can be processed and written back to
+    /// backfill if needed, which then can be processed and written back to
     /// the DB. To add a new backfill, add a new module and implement the
     /// `BackfillTask` trait.
     RunBackfill {
