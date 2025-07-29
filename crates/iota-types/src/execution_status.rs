@@ -409,7 +409,7 @@ impl ExecutionStatus {
     }
 
     /// Returns a suggested gas price if the transaction was cancelled due to
-    /// shared object congestion (subject to the gas price mechansim is
+    /// shared object congestion (subject to the gas price mechanism is
     /// enabled), otherwise returns `None`.
     pub fn get_suggested_gas_price(&self) -> Option<u64> {
         if let ExecutionStatus::Failure {
