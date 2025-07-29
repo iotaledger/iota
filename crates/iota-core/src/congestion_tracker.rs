@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap, hash_map::Entry},
-    sync::RwLock,
-};
+use std::collections::{HashMap, hash_map::Entry};
 
 use iota_types::{
     base_types::ObjectID,
@@ -62,8 +59,6 @@ impl CongestionInfo {
 
 pub struct CongestionTracker {
     pub congestion_clearing_prices: Cache<ObjectID, CongestionInfo>,
-    object_to_index: RwLock<BTreeMap<ObjectID, u64>>,
-    next_index: RwLock<u64>,
 }
 
 impl Default for CongestionTracker {
@@ -76,12 +71,10 @@ impl CongestionTracker {
     pub fn new() -> Self {
         Self {
             congestion_clearing_prices: Cache::new(10_000),
-            object_to_index: RwLock::new(BTreeMap::new()),
-            next_index: RwLock::new(0),
         }
     }
 
-    pub async fn process_checkpoint_effects(
+    pub fn process_checkpoint_effects(
         &self,
         transaction_cache_reader: &dyn TransactionCacheRead,
         checkpoint: &VerifiedCheckpoint,
@@ -183,19 +176,6 @@ impl CongestionTracker {
         clearing_price
     }
 
-    fn get_or_assign_index(&self, object: ObjectID) -> u64 {
-        let mut map = self.object_to_index.write().unwrap();
-        if let Some(&idx) = map.get(&object) {
-            idx
-        } else {
-            let mut next_idx = self.next_index.write().unwrap();
-            let idx = *next_idx;
-            map.insert(object, idx);
-            *next_idx += 1;
-            idx
-        }
-    }
-
     fn compute_per_checkpoint_congestion_info(
         &self,
         now: CheckpointTimestamp,
@@ -217,6 +197,7 @@ impl CongestionTracker {
                             last_success_time: None,
                             lowest_executed_gas_price: None,
                         };
+
                         entry.insert(info);
                     }
                 }
@@ -252,8 +233,7 @@ impl CongestionTracker {
     fn process_checkpoint_congestion(
         &self,
         congestion_info_map: HashMap<ObjectID, CongestionInfo>,
-    ) -> Vec<(u64, u64)> {
-        let mut updated_weights = Vec::new();
+    ) {
         for (object_id, info) in congestion_info_map {
             self.congestion_clearing_prices
                 .entry(object_id)
@@ -266,28 +246,7 @@ impl CongestionTracker {
                         Op::Put(info)
                     }
                 });
-
-            let idx = self.get_or_assign_index(object_id);
-            let weight: u64 = match (info.lowest_executed_gas_price, info.last_success_time) {
-                (Some(success), Some(success_time)) => {
-                    if info.last_cancellation_time > success_time {
-                        // Last cancellation is more recent → congestion worsened → use highest
-                        // cancelled price
-                        info.highest_cancelled_gas_price
-                    } else {
-                        // Last success at or after last cancellation → congestion stable or
-                        // improved → use success price
-                        success
-                    }
-                }
-                // No successes recorded → fallback to highest cancelled price
-                _ => info.highest_cancelled_gas_price,
-            };
-
-            updated_weights.push((idx, weight));
         }
-
-        updated_weights
     }
 
     fn get_congestion_info(&self, object_id: ObjectID) -> Option<CongestionInfo> {
@@ -299,8 +258,8 @@ impl CongestionTracker {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_process_events_new_congestion() {
+    #[test]
+    fn test_process_events_new_congestion() {
         let tracker = CongestionTracker::new();
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
@@ -318,9 +277,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-
-    async fn test_process_events_congestion_then_success() {
+    #[test]
+    fn test_process_events_congestion_then_success() {
         let tracker = CongestionTracker::new();
         let obj = ObjectID::random();
 
@@ -351,8 +309,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_get_suggested_gas_price_multiple_objects() {
+    #[test]
+    fn test_get_suggested_gas_price_multiple_objects() {
         let tracker = CongestionTracker::new();
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
