@@ -42,8 +42,8 @@ use crate::{
     network::{NetworkClient, SerializedTransactions},
 };
 
-/// The number of concurrent fetch transactions requests per authority
-const FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
+/// The number of concurrent live transaction fetch requests
+const LIVE_FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
 
 /// Timeouts when fetching transactions.
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
@@ -258,7 +258,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // Create a channel for live fetch requests
         let (live_fetch_sender, live_fetch_receiver) = channel(
             "consensus_transactions_synchronizer_live_fetches",
-            FETCH_TRANSACTIONS_CONCURRENCY,
+            LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
         );
 
         let mut tasks = JoinSet::new();
@@ -389,7 +389,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         loop {
             tokio::select! {
-                Some(missing_block_refs) = receiver.recv(), if requests.len() < FETCH_TRANSACTIONS_CONCURRENCY => {
+                Some(missing_block_refs) = receiver.recv(), if requests.len() < LIVE_FETCH_TRANSACTIONS_CONCURRENCY => {
                     requests.push(Self::fetch_transactions_from_authorities(
                         context.clone(),
                         inflight_transactions_map.clone(),
@@ -831,8 +831,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         //   locked. If no transactions can be locked and there are remaining missing
         //   transactions acknowledged by the authority, then try again with a new
         //   random selection. TODO: This part of the logic needs to be improved!
-        // * If transactions are successfully locked, then send a request to the network
-        //   client to fetch the transactions from the authority.
 
         // Create an iterator over authorities with their corresponding block refs
         // This will allow us to iterate over authorities in a stable (for test) or
@@ -843,8 +841,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 // Stable order for tests
                 Box::new(blocks_by_authority.into_iter())
             } else {
-                // Random order for production
-                let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
                 let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
                 vec.shuffle(&mut rng);
                 Box::new(vec.into_iter())
@@ -871,6 +867,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     break;
                 }
 
+                // * If transactions are successfully locked, then send a request to the network
+                //   client to fetch the transactions from the authority.
                 if let Some(transactions_guard) = inflight_transactions_map
                     .lock_transactions(selected_block_refs.clone(), authority)
                 {
@@ -888,7 +886,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     // assigned_block_refs.extend(&selected_block_refs);
                     // TODO: we need to measure how many requests are sent in each run and possibly
                     //  limit that. This can be limited after we implement Starfish with shards as
-                    //  there will definitely be more requests perform.
+                    //  there will definitely be more requests performed
                     request_futures.push(Self::fetch_transactions_request(
                         network_client.clone(),
                         authority,
@@ -1101,7 +1099,7 @@ mod tests {
         );
 
         // Create block round author pairs
-        let block_round_authors = (1..FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
+        let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
             .map(|i| (i as Round, 1u32))
             .collect::<Vec<_>>();
 
@@ -1152,7 +1150,7 @@ mod tests {
         // WHEN
         // Send many requests to saturate the tasks
         let mut results = Vec::new();
-        for _ in 0..FETCH_TRANSACTIONS_CONCURRENCY * 3 {
+        for _ in 0..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3 {
             results.push(
                 handle
                     .fetch_transactions(missing_transactions.clone())
@@ -1175,13 +1173,13 @@ mod tests {
 
         assert_eq!(
             successes,
-            FETCH_TRANSACTIONS_CONCURRENCY * 2,
+            LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2,
             "Expected {} requests to succeed",
-            FETCH_TRANSACTIONS_CONCURRENCY * 2
+            LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2
         );
         assert_eq!(
-            saturated, FETCH_TRANSACTIONS_CONCURRENCY,
-            "Expected {FETCH_TRANSACTIONS_CONCURRENCY} requests to be saturated"
+            saturated, LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
+            "Expected {LIVE_FETCH_TRANSACTIONS_CONCURRENCY} requests to be saturated"
         );
 
         // Clean up
