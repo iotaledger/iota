@@ -61,7 +61,7 @@ impl CongestionInfo {
 }
 
 pub struct CongestionTracker {
-    pub congestion_clearing_prices: Cache<ObjectID, CongestionInfo>,
+    object_congestion_info: Cache<ObjectID, CongestionInfo>,
 }
 
 impl Default for CongestionTracker {
@@ -73,7 +73,7 @@ impl Default for CongestionTracker {
 impl CongestionTracker {
     pub fn new() -> Self {
         Self {
-            congestion_clearing_prices: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
+            object_congestion_info: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
         }
     }
 
@@ -238,7 +238,7 @@ impl CongestionTracker {
         congestion_info_map: HashMap<ObjectID, CongestionInfo>,
     ) {
         for (object_id, info) in congestion_info_map {
-            self.congestion_clearing_prices
+            self.object_congestion_info
                 .entry(object_id)
                 .and_compute_with(|maybe_entry| {
                     if let Some(e) = maybe_entry {
@@ -253,7 +253,7 @@ impl CongestionTracker {
     }
 
     fn get_congestion_info(&self, object_id: ObjectID) -> Option<CongestionInfo> {
-        self.congestion_clearing_prices.get(&object_id)
+        self.object_congestion_info.get(&object_id)
     }
 }
 
