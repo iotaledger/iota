@@ -426,6 +426,34 @@ impl ExecutionStatus {
             None
         }
     }
+
+    /// Check is the transaction was cancelled due to shared object congestion.
+    pub fn is_cancelled_due_to_congestion(&self) -> bool {
+        matches!(
+            self,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion { .. },
+                ..
+            }
+        ) || matches!(
+            self,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 { .. },
+                ..
+            }
+        )
+    }
+
+    /// Check is the transaction was cancelled due to randomness unavailable.
+    pub fn is_cancelled_due_to_randomness(&self) -> bool {
+        matches!(
+            self,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable,
+                ..
+            }
+        )
+    }
 }
 
 pub type CommandIndex = usize;
