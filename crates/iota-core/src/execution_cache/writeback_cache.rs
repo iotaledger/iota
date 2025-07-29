@@ -2233,8 +2233,7 @@ impl StateSyncAPI for WritebackCache {
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
         self.store
-            .insert_transaction_and_effects(transaction, transaction_effects)
-            .map_err(IotaError::from)?;
+            .insert_transaction_and_effects(transaction, transaction_effects)?;
 
         // Cache operations should not fail the entire operation after DB write succeeds
         // Use .ok() to ignore cache failures and avoid data inconsistency
@@ -2263,8 +2262,7 @@ impl StateSyncAPI for WritebackCache {
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult {
         self.store
-            .multi_insert_transaction_and_effects(transactions_and_effects.iter())
-            .map_err(IotaError::from)?;
+            .multi_insert_transaction_and_effects(transactions_and_effects.iter())?;
         for VerifiedExecutionData {
             transaction,
             effects,

@@ -1329,6 +1329,11 @@ async fn latest_object_cache_race_test() {
 }
 
 #[tokio::test]
+// This test verifies that concurrent transaction insertions and reads work
+// correctly without race conditions. It specifically tests the fix that ensures
+// store operations happen before cache operations. It ensures atomicity by
+// writing to the persistent store first, then updating the cache, so readers
+// never see stale or inconsistent data.
 async fn test_transaction_cache_race() {
     telemetry_subscribers::init_for_testing();
     let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
@@ -1369,8 +1374,6 @@ async fn test_transaction_cache_race() {
     };
 
     let t2 = {
-        let txns = txns.clone();
-        let cache = cache.clone();
         let barrier = barrier.clone();
         std::thread::spawn(move || {
             for (tx, _) in txns {
