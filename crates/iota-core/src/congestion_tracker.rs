@@ -63,18 +63,20 @@ impl CongestionInfo {
 }
 
 pub struct CongestionTracker {
+    pub reference_gas_price: u64,
     pub congestion_clearing_prices: Cache<ObjectID, CongestionInfo>,
 }
 
 impl Default for CongestionTracker {
     fn default() -> Self {
-        Self::new()
+        Self::new(1000) // Default reference gas price
     }
 }
 
 impl CongestionTracker {
-    pub fn new() -> Self {
+    pub fn new(reference_gas_price: u64) -> Self {
         Self {
+            reference_gas_price,
             congestion_clearing_prices: Cache::new(10_000),
         }
     }
@@ -253,8 +255,13 @@ impl CongestionTracker {
             for object in &object_id_per_tx {
                 object_hotness_map
                     .entry(*object)
-                    .and_modify(|v| *v += hotness_per_tx - *gas_price_feedback as f64 + 1_000.0) // TODO: Replace 1_000 with base gas price
-                    .or_insert(hotness_per_tx - *gas_price_feedback as f64 + 1_000.0);
+                    .and_modify(|v| {
+                        *v +=
+                            hotness_per_tx - (*gas_price_feedback - self.reference_gas_price) as f64
+                    })
+                    .or_insert(
+                        hotness_per_tx - (*gas_price_feedback - self.reference_gas_price) as f64,
+                    );
                 println!(
                     "Object: {}, Hotness: {}",
                     object, object_hotness_map[object]
@@ -331,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_process_events_new_congestion() {
-        let tracker = CongestionTracker::new();
+        let rgp_test = 1000;
+        let tracker = CongestionTracker::new(rgp_test);
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
         let now = 1000;
@@ -355,7 +363,8 @@ mod tests {
     #[test]
 
     fn test_process_events_congestion_then_success() {
-        let tracker = CongestionTracker::new();
+        let rgp_test = 1000;
+        let tracker = CongestionTracker::new(rgp_test);
         let obj = ObjectID::random();
 
         // Cancellations only, no successes. Highest cancelled price is used.
@@ -391,7 +400,8 @@ mod tests {
 
     #[test]
     fn test_get_suggested_gas_price_multiple_objects() {
-        let tracker = CongestionTracker::new();
+        let rgp_test = 1000;
+        let tracker = CongestionTracker::new(rgp_test);
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
 
@@ -423,11 +433,12 @@ mod tests {
 
     #[test]
     fn test_compute_per_checkpoint_congestion_info_hotness_update() {
-        let tracker = CongestionTracker::new();
+        let rgp_test = 1000;
+        let tracker = CongestionTracker::new(rgp_test);
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
 
-        let now = 1_000;
+        let now = 1000;
 
         // Congestion events: both objects are congested with different gas price
         // feedback
@@ -452,7 +463,9 @@ mod tests {
             .get(&obj2)
             .expect("obj2 should be in map");
 
-        // Verify that hotness was updated
+        // New hotness value should be 20 for obj1 and 50 for obj2
+        // For obj1, this is calculated as:
+        // LEARNING_RATE * [hotness (1200) - gas_price_feedback (1000)] / num_txs (2)
         println!("Hotness for obj1: {}", info1.hotness);
         println!("Hotness for obj2: {}", info2.hotness);
         assert!(

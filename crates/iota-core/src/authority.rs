@@ -2872,6 +2872,7 @@ impl AuthorityState {
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
+        let rgp = epoch_store.reference_gas_price();
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -2893,7 +2894,7 @@ impl AuthorityState {
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
-            congestion_tracker: Arc::new(CongestionTracker::new()),
+            congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
         });
 
         // Start a task to execute ready certificates.
