@@ -472,7 +472,10 @@ mod tests {
 
         // Stop authority 0.
         let stopped_authority_index = committee.to_authority_index(0).unwrap();
-        authorities.remove(stopped_authority_index.value()).stop().await;
+        authorities
+            .remove(stopped_authority_index.value())
+            .stop()
+            .await;
 
         // Add some new transactions while authority 0 is down.
         const BIG_NUM_TRANSACTIONS: u8 = 100;
@@ -696,7 +699,8 @@ mod tests {
         }
     }
 
-    /// This test checks that an authority can recover from amnesia successfully.
+    /// This test checks that an authority can recover from amnesia
+    /// successfully.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_amnesia_recovery_success() {
@@ -755,12 +759,12 @@ mod tests {
         // * Authority 1 will be used to wipe out their DB and practically "force" the
         //   amnesia recovery.
         // * Authorities 2 and 3 are stopped to simulate less than 2f+1 availability,
-        //   which will
-        //   make authority 1 retry during amnesia recovery until it has finally managed
-        //   to successfully get back 2f+1 responses, once authority 2 is up and
-        //   running again.
+        //   which will make authority 1 retry during amnesia recovery until it has
+        //   finally managed to successfully get back 2f+1 responses, once authority 2
+        //   is up and running again.
         authorities.remove(&index_1).unwrap().stop().await;
-        // We wait for the rest of the authorities to create some blocks without authority 1.
+        // We wait for the rest of the authorities to create some blocks without
+        // authority 1.
         sleep(Duration::from_secs(5)).await;
         let index_2 = committee.to_authority_index(2).unwrap();
         authorities.remove(&index_2).unwrap().stop().await;
@@ -790,7 +794,8 @@ mod tests {
         boot_counters[index_1] += 1;
         authorities.insert(index_1, authority);
         temp_dirs.insert(index_1, dir);
-        let received_from_authority_1 = timeout(Duration::from_secs(10), output_receivers[index_1].recv()).await;
+        let received_from_authority_1 =
+            timeout(Duration::from_secs(10), output_receivers[index_1].recv()).await;
         match received_from_authority_1 {
             Ok(Some(result)) => {
                 panic!("Expected no result, but received: {:?}", result);
@@ -799,7 +804,6 @@ mod tests {
                 // Timeout or channel closed as expected, test passes
             }
         }
-
 
         // Now spin up authority 2 using its earlier directory - so no amnesia recovery
         // should be forced here. Authority 1 should be able to recover from
@@ -831,10 +835,13 @@ mod tests {
                     }
                 }
             }
-        }).await;
+        })
+        .await;
 
         if received_from_authority_1.is_err() {
-            panic!("Timed out while waiting for at least one committed block from authority {index_1}");
+            panic!(
+                "Timed out while waiting for at least one committed block from authority {index_1}"
+            );
         }
 
         // Stop all authorities and exit.
