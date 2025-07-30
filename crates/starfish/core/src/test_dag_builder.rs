@@ -618,6 +618,8 @@ pub struct LayerBuilder<'a> {
     fully_linked_acknowledgments: bool,
     // Ancestors to link to the current layer
     ancestors: Vec<BlockRef>,
+    // add timestamp delay
+    timestamp_delay_ms: Option<u64>,
 
     // Accumulated blocks to write to dag state
     block_headers: Vec<VerifiedBlockHeader>,
@@ -650,6 +652,7 @@ impl<'a> LayerBuilder<'a> {
             fully_linked_acknowledgments: true,
             skip_acknowledgements: None,
             only_acknowledge: None,
+            timestamp_delay_ms: None,
             ancestors,
             block_headers: vec![],
             transactions: vec![],
@@ -823,6 +826,11 @@ impl<'a> LayerBuilder<'a> {
         for transactions in self.transactions.clone() {
             dag_state.add_transactions(transactions);
         }
+    }
+
+    pub fn configure_timestamp_delay_ms(mut self, timestamp_delay_ms: u64) -> Self {
+        self.timestamp_delay_ms = Some(timestamp_delay_ms);
+        self
     }
 
     // Layer round is minimally and randomly connected with ancestors.
@@ -1006,7 +1014,10 @@ impl<'a> LayerBuilder<'a> {
 
             for num_block in 0..num_blocks {
                 let author = authority.value() as u32;
-                let base_ts = round as BlockTimestampMs * 1000;
+                let base_ts = match self.timestamp_delay_ms {
+                    Some(delay) => (round as BlockTimestampMs * 1000) + delay,
+                    None => round as BlockTimestampMs * 1000,
+                };
 
                 // Create random transactions and their commitment.
                 let mut tx_bytes = [0u8; 32];
