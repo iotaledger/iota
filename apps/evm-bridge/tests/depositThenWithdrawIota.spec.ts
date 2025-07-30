@@ -24,9 +24,11 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
     test('should successfully process an L1 deposit', async () => {
         const { page, browser, addressL2 } = shared;
         const iotaAmountToSend = '3';
+
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
+
         await setBridgeAmount(page, iotaAmountToSend);
 
-        // check est. gas fees and your receive
         await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
@@ -53,9 +55,9 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
         const { page, browser } = shared;
         const iotaAmountToSend = '2';
 
-        await page.waitForTimeout(500);
-
         await toggleBridgeDirection(page);
+
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
 
         await setBridgeAmount(page, iotaAmountToSend);
 
@@ -82,8 +84,8 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
         await pageWithL1WalletExtension.close();
     });
 
-    test.afterAll(async () => {
-        // Important: Close persistent context manually when done
-        // await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
-    });
+    // test.afterAll(async () => {
+    //     // Close persistent context manually when done
+    //     await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
+    // });
 });

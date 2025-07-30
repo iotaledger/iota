@@ -14,10 +14,10 @@ test.describe('Send MAX native token amount from L1', () => {
         const setup = await browserWithL1Setup('sendMaxNativeTokenAmountL1');
         const { browser, page, addressL2 } = setup;
         const nativeTokenAmount = '3';
-        // todo: add check for balance with retries instead of wait
-        await page.waitForTimeout(1500);
 
         await selectCoin(page, 'Tool');
+
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
 
         await clickMaxAmount(page);
 
@@ -25,8 +25,7 @@ test.describe('Send MAX native token amount from L1', () => {
         await expect(amountField).toBeVisible();
         await expect(amountField).toHaveValue(nativeTokenAmount);
 
-        // check est. gas fees and your receive
-        await page.waitForTimeout(2500);
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
@@ -56,17 +55,12 @@ test.describe('Send MAX native token amount from L2', () => {
 
     test('should bridge successfully', async ({ browserWithL2Setup }) => {
         const setup = await browserWithL2Setup('sendMaxNativeTokenAmountL2');
-        const { browser, page, addressL1, addressL2 } = setup;
+        const { browser, page, addressL1 } = setup;
         const nativeTokenAmount = '3';
-        const nativeTokenBalance = await checkL2CoinBalanceForAddressWithRetries(
-            addressL2,
-            TOOL_COIN_TYPE,
-        );
-        expect(nativeTokenBalance).toEqual(nativeTokenAmount);
-
-        await page.waitForTimeout(500);
 
         await selectCoin(page, 'Tool');
+
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
 
         await clickMaxAmount(page);
 
@@ -75,7 +69,7 @@ test.describe('Send MAX native token amount from L2', () => {
         await expect(amountField).toHaveValue(nativeTokenAmount);
 
         // check est. gas fees and your receive
-        await page.waitForTimeout(2500);
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')

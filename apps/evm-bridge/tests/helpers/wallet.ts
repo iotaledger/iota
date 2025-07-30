@@ -145,7 +145,6 @@ export async function setupL1Wallet(
     console.log('Setting up L1 wallet with mnemonic');
     const walletPageL1 = await createPage(context, l1ExtensionUrl);
     try {
-        await walletPageL1.bringToFront();
         await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonic);
     } catch (error) {
         console.error('Error setting up L1 wallet:', error);
@@ -167,7 +166,6 @@ export async function setupL2Wallet(
     console.log('Setting up L2 wallet with mnemonic');
     const walletPageL2 = await createPage(context, l2ExtensionUrl);
     try {
-        await walletPageL2.bringToFront();
         await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonic);
         await addNetworkToMetaMask(walletPageL2);
     } catch (error) {

@@ -10,15 +10,16 @@ test.describe('Send MAX Iota amount from L1', () => {
     test('should bridge successfully', async ({ browserWithL1Setup }) => {
         const setup = await browserWithL1Setup('sendMaxIotaAmountL1');
         const { browser, page, addressL2 } = setup;
-        await page.waitForTimeout(1500);
+
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
+
         await clickMaxAmount(page);
 
         const amountField = page.getByTestId('bridge-amount');
         await expect(amountField).toBeVisible();
         await expect(amountField).toHaveValue('~ 1.990388');
 
-        // check est. gas fees and your receive
-        await page.waitForTimeout(2500);
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA Gas Fees"))')
@@ -46,10 +47,9 @@ test.describe('Send MAX Iota amount from L2', () => {
 
     test('should bridge successfully', async ({ browserWithL2Setup }) => {
         const setup = await browserWithL2Setup('sendMaxIotaAmountL2');
-        const { browser, page, addressL2, addressL1 } = setup;
+        const { browser, page, addressL1 } = setup;
 
-        const balance = await checkL2IotaBalanceWithRetries(addressL2);
-        expect(Number(balance)).toEqual(2);
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
 
         await clickMaxAmount(page);
 
@@ -57,8 +57,7 @@ test.describe('Send MAX Iota amount from L2', () => {
         await expect(amountField).toBeVisible();
         await expect(amountField).toHaveValue(/~ 1\.9996[0-9]*/);
 
-        // check est. gas fees and your receive
-        await page.waitForTimeout(2500);
+        await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
             .locator('div:has(> span:text("Est. IOTA EVM Gas Fees"))')

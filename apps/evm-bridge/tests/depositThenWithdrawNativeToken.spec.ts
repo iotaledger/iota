@@ -11,6 +11,7 @@ import {
     toggleBridgeDirection,
 } from './helpers/ui';
 import { test } from './helpers/fixtures';
+import { getExtensionUrl } from './helpers/browser';
 
 interface TestContext {
     browser: BrowserContext;
@@ -41,7 +42,11 @@ test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
         );
         expect(Number(l1CoinBalance)).toBeGreaterThan(nativeTokenAmount);
 
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
+
         await selectCoin(page, 'Tool');
+
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
 
         await setBridgeAmount(page, nativeTokenAmount);
         // check est. gas fees and your receive
@@ -73,16 +78,17 @@ test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
     });
 
     test('should successfully process an L2 deposit', async () => {
-        const { page, browser, addressL1 } = shared;
+        const { page, browser } = shared;
         const nativeTokenAmount = '2';
 
         await toggleBridgeDirection(page);
 
         await selectCoin(page, 'Tool');
 
+        await expect(page.getByText(/Available/i)).toBeVisible({ timeout: 10000 });
+
         await setBridgeAmount(page, nativeTokenAmount);
 
-        // check est. gas fees and your receive
         await expect(page.getByText('Bridge Assets')).toBeEnabled({ timeout: 30000 });
 
         const gasFeeValue = await page
@@ -93,17 +99,20 @@ test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
         expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
 
         await executeBridgeTransaction(page, browser, false);
-        await page.waitForTimeout(2500);
-        // Check funds on L1 wallet
-        const l1Balance = await checkL1CoinBalanceForAddressWithRetries(
-            addressL1 ?? '',
-            TOOL_COIN_TYPE,
-        );
-        expect(l1Balance).toEqual('3');
-    });
 
-    test.afterAll(async () => {
-        // Important: Close persistent context manually when done
-        // await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
+        // Check funds on L1 wallet
+        const pageWithL1WalletExtension = await browser.newPage();
+        const l1ExtensionUrl = await getExtensionUrl(browser);
+        await pageWithL1WalletExtension.goto(l1ExtensionUrl, { waitUntil: 'commit' });
+        // Wait for div containing "3 TOOL" text to be visible
+        await expect(
+            pageWithL1WalletExtension.locator('div', { hasText: '3 TOOL' }).first(),
+        ).toBeVisible({
+            timeout: THREE_MINUTES,
+        });
     });
+    // test.afterAll(async () => {
+    //     // Close persistent context manually when done
+    //     await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
+    // });
 });
