@@ -106,7 +106,7 @@ impl Default for ReaderOptions {
 
 enum RemoteStore {
     ObjectStore(Box<dyn ObjectStore>),
-    Rest(iota_rest_api::Client),
+    Fullnode(iota_rest_api::Client),
     Hybrid(Box<dyn ObjectStore>, iota_rest_api::Client),
 }
 
@@ -119,7 +119,7 @@ impl CheckpointReader {
             RemoteStore::ObjectStore(store) => {
                 fetch_from_object_store(store, checkpoint_number).await
             }
-            RemoteStore::Rest(client) => fetch_from_full_node(client, checkpoint_number).await,
+            RemoteStore::Fullnode(client) => fetch_from_full_node(client, checkpoint_number).await,
             RemoteStore::Hybrid(store, client) => {
                 match fetch_from_full_node(client, checkpoint_number).await {
                     Ok(result) => Ok(result),
@@ -175,7 +175,7 @@ impl CheckpointReader {
             .expect("failed to create remote store client");
             RemoteStore::Hybrid(object_store, iota_rest_api::Client::new(fn_url))
         } else if url.ends_with("/api/v1") {
-            RemoteStore::Rest(iota_rest_api::Client::new(url))
+            RemoteStore::Fullnode(iota_rest_api::Client::new(url))
         } else {
             let object_store = create_remote_store_client(
                 url,

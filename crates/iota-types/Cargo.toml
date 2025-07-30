@@ -70,7 +70,6 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
-move-vm-types.workspace = true
 shared-crypto.workspace = true
 typed-store-error.workspace = true
 

@@ -194,7 +194,7 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
 
-    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}")]
+    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}.")]
     ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
@@ -208,6 +208,18 @@ pub enum ExecutionFailureStatus {
 
     #[error("Certificate is cancelled because randomness could not be generated this epoch")]
     ExecutionCancelledDueToRandomnessUnavailable,
+
+    // Certificate is cancelled due to congestion on shared objects;
+    // suggested gas price can be used to give this certificate more priority.
+    #[error(
+        "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
+            To give this certificate more priority to be executed, its gas price can be increased \
+            to at least {suggested_gas_price}."
+    )]
+    ExecutionCancelledDueToSharedObjectCongestionV2 {
+        congested_objects: CongestedObjects,
+        suggested_gas_price: u64,
+    },
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.
 }

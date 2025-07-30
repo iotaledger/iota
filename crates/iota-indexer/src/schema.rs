@@ -91,7 +91,7 @@ diesel::table! {
         total_stake -> Int8,
         storage_fund_balance -> Int8,
         system_state -> Bytea,
-        epoch_total_transactions -> Nullable<Int8>,
+        network_total_transactions -> Nullable<Int8>,
         last_checkpoint_id -> Nullable<Int8>,
         epoch_end_timestamp -> Nullable<Int8>,
         storage_charge -> Nullable<Int8>,
@@ -101,6 +101,7 @@ diesel::table! {
         epoch_commitments -> Nullable<Bytea>,
         burnt_tokens_amount -> Nullable<Int8>,
         minted_tokens_amount -> Nullable<Int8>,
+        first_tx_sequence_number -> Int8,
     }
 }
 

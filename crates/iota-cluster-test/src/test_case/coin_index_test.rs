@@ -4,11 +4,11 @@
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use iota_core::test_utils::compile_managed_coin_package;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Balance, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
+use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{

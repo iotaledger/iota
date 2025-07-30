@@ -29,8 +29,8 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, lines 52-54:
 //# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(3,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6832400,  storage_rebate: 6832400, non_refundable_storage_fee: 0
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4377600,  storage_rebate: 4377600, non_refundable_storage_fee: 0
 
 task 5, lines 55-57:
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B true --sender A

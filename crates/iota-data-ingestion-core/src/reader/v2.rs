@@ -47,12 +47,14 @@ use crate::{
 /// backend or combination of backends for checkpoint retrieval.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RemoteUrl {
-    /// A REST API endpoint for checkpoint data.
+    /// The URL to the Fullnode server that exposes
+    /// checkpoint data.
+    ///
     /// # Example
     /// ```text
     /// "http://127.0.0.1:9000/api/v1"
     /// ```
-    Rest(String),
+    Fullnode(String),
     /// A hybrid source combining historical object store and optional live
     /// object store.
     HybridHistoricalStore {
@@ -81,7 +83,7 @@ pub enum RemoteUrl {
 /// used by the ingestion framework to fetch checkpoint data. Each variant
 /// corresponds to a different type of remote source.
 enum RemoteStore {
-    Rest(iota_rest_api::Client),
+    Fullnode(iota_rest_api::Client),
     HybridHistoricalStore {
         historical: HistoricalReader,
         live: Option<Box<dyn ObjectStore>>,
@@ -95,7 +97,7 @@ impl RemoteStore {
         timeout_secs: u64,
     ) -> IngestionResult<Self> {
         let store = match remote_url {
-            RemoteUrl::Rest(url) => RemoteStore::Rest(iota_rest_api::Client::new(url)),
+            RemoteUrl::Fullnode(url) => RemoteStore::Fullnode(iota_rest_api::Client::new(url)),
             RemoteUrl::HybridHistoricalStore {
                 historical_url,
                 live_url,
@@ -278,7 +280,7 @@ impl CheckpointReaderActor {
         };
         let batch_size = self.reader_options.batch_size;
         match remote_store.as_ref() {
-            RemoteStore::Rest(client) => {
+            RemoteStore::Fullnode(client) => {
                 let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
                     .map(|checkpoint_number| fetch_from_full_node(client, checkpoint_number))
                     .pipe(futures::stream::iter)

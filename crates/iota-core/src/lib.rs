@@ -50,6 +50,9 @@ pub mod verify_indexes;
 #[path = "unit_tests/congestion_control_tests.rs"]
 mod congestion_control_tests;
 #[cfg(test)]
+#[path = "unit_tests/gas_price_feedback_tests.rs"]
+mod gas_price_feedback_tests;
+#[cfg(test)]
 #[path = "unit_tests/move_package_management_tests.rs"]
 mod move_package_management_tests;
 #[cfg(test)]
@@ -74,6 +77,9 @@ mod transfer_to_object_tests;
 #[cfg(test)]
 #[path = "unit_tests/type_param_tests.rs"]
 mod type_param_tests;
+#[cfg(test)]
+#[path = "unit_tests/unit_test_utils.rs"]
+mod unit_test_utils;
 
 pub mod signature_verifier;
 
