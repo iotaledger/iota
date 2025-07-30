@@ -303,92 +303,112 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_process_events_new_congestion() {
+    fn process_checkpoint_congestion_and_clearing_txs_data_for_new_congestion() {
         let tracker = CongestionTracker::new();
-        let obj1 = ObjectID::random();
-        let obj2 = ObjectID::random();
-        let now = 1000;
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+
+        let time = 1_000;
+        let congestion_txs_data = vec![(100, vec![object_1]), (200, vec![object_2])];
+        let clearing_txs_data = vec![];
 
         tracker.process_checkpoint_congestion_and_clearing_txs_data(
-            now,
-            &[(100, vec![obj1]), (200, vec![obj2])],
-            &[],
+            time,
+            &congestion_txs_data,
+            &clearing_txs_data,
         );
 
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj1].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object_1].into_iter()),
             Some(100)
         );
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj2].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object_2].into_iter()),
             Some(200)
         );
     }
 
     #[test]
-    fn test_process_events_congestion_then_success() {
+    fn process_checkpoint_congestion_and_clearing_txs_data_for_congestion_then_success() {
         let tracker = CongestionTracker::new();
-        let obj = ObjectID::random();
+        let object = ObjectID::random();
 
-        // Cancellations only, no successes. Highest cancelled price is used.
+        // Congestion transactions only, no clearing ones. The highest congestion
+        // gas price should be used.
+        let time = 1_000;
+        let congestion_txs_data = vec![(100, vec![object]), (75, vec![object])];
+        let clearing_txs_data = vec![];
         tracker.process_checkpoint_congestion_and_clearing_txs_data(
-            1000,
-            &[(100, vec![obj]), (75, vec![obj])],
-            &[],
+            time,
+            &congestion_txs_data,
+            &clearing_txs_data,
         );
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object].into_iter()),
             Some(100)
         );
 
-        // No cancellations in last checkpoint, so no congestion
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(2000, &[], &[(150, vec![obj])]);
+        // No congestion transactions data in last checkpoint, so no congestion.
+        let time = 2_000;
+        let congestion_txs_data = vec![];
+        let clearing_txs_data = vec![(150, vec![object])];
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+            time,
+            &congestion_txs_data,
+            &clearing_txs_data,
+        );
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object].into_iter()),
             None,
         );
 
-        // next checkpoint has cancellations and successes, so the lowest success price
-        // is used.
+        // Next checkpoint has both congestion and clearing transactions,
+        // so the lowest clearing gas price should be used.
+        let time = 3_000;
+        let congestion_txs_data = vec![(100, vec![object])];
+        let clearing_txs_data = vec![(175, vec![object]), (125, vec![object])];
         tracker.process_checkpoint_congestion_and_clearing_txs_data(
-            3000,
-            &[(100, vec![obj])],
-            &[(175, vec![obj]), (125, vec![obj])],
+            time,
+            &congestion_txs_data,
+            &clearing_txs_data,
         );
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object].into_iter()),
             Some(125)
         );
     }
 
     #[test]
-    fn test_get_suggested_gas_price_multiple_objects() {
+    fn get_suggested_gas_price_for_multiple_objects() {
         let tracker = CongestionTracker::new();
-        let obj1 = ObjectID::random();
-        let obj2 = ObjectID::random();
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
 
-        // Process different congestion events
+        let time = 1_000;
+        let congestion_txs_data = vec![(100, vec![object_1]), (200, vec![object_2])];
+        let clearing_txs_data = vec![];
         tracker.process_checkpoint_congestion_and_clearing_txs_data(
-            1000,
-            &[(100, vec![obj1]), (200, vec![obj2])],
-            &[],
+            time,
+            &congestion_txs_data,
+            &clearing_txs_data,
         );
-
-        // Should suggest highest congestion price
+        // Should suggest the highest congestion gas price
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj1, obj2].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object_1, object_2].into_iter()),
             Some(200)
         );
 
-        // Process different congestion events
+        let time = 2_000;
+        let congestion_txs_data = vec![(100, vec![object_1]), (200, vec![object_2])];
+        let clearing_txs_data = vec![(100, vec![object_1]), (150, vec![object_2])];
         tracker.process_checkpoint_congestion_and_clearing_txs_data(
-            2000,
-            &[(100, vec![obj1]), (200, vec![obj2])],
-            &[(100, vec![obj1]), (150, vec![obj2])],
+            time,
+            &congestion_txs_data,
+            &clearing_txs_data,
         );
-        // Should suggest the highest lowest success price
+        // Should suggest the maximum (over objects) lowest clearing gas price
         assert_eq!(
-            tracker.get_suggested_gas_price_for_objects(vec![obj1, obj2].into_iter()),
+            tracker.get_suggested_gas_price_for_objects(vec![object_1, object_2].into_iter()),
             Some(150)
         );
     }
