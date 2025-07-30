@@ -36,7 +36,6 @@ pub struct IngestionBackfillTask<T: IngestionBackfill> {
 
 impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
     // Creates and starts a new ingestion‐driven backfill task using processor `T`.
-    #[expect(dead_code)]
     pub(crate) async fn new(
         remote_store_url: String,
         start_checkpoint: CheckpointSequenceNumber,
@@ -135,8 +134,10 @@ mod tests {
     impl IngestionBackfill for BackfillDummyTable {
         type ProcessedType = usize;
 
-        fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType> {
-            vec![checkpoint.checkpoint_summary.sequence_number as usize]
+        fn process_checkpoint(
+            checkpoint: Arc<CheckpointData>,
+        ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
+            Ok(vec![checkpoint.checkpoint_summary.sequence_number as usize])
         }
 
         async fn persist_chunk(

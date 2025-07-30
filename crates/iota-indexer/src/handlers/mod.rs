@@ -17,7 +17,7 @@ use crate::{
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
+        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexV2,
     },
 };
 
@@ -43,6 +43,21 @@ pub struct CheckpointDataToCommit {
     pub object_versions: Vec<StoredObjectVersion>,
     pub packages: Vec<IndexedPackage>,
     pub epoch: Option<EpochToCommit>,
+}
+
+#[derive(Debug)]
+pub(crate) struct CheckpointDataToCommitV2 {
+    pub(crate) checkpoint: IndexedCheckpoint,
+    pub(crate) transactions: Vec<IndexedTransaction>,
+    pub(crate) events: Vec<IndexedEvent>,
+    pub(crate) event_indices: Vec<EventIndex>,
+    pub(crate) tx_indices: Vec<TxIndexV2>,
+    pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
+    pub(crate) object_changes: TransactionObjectChangesToCommit,
+    pub(crate) object_history_changes: TransactionObjectChangesToCommit,
+    pub(crate) object_versions: Vec<StoredObjectVersion>,
+    pub(crate) packages: Vec<IndexedPackage>,
+    pub(crate) epoch: Option<EpochToCommit>,
 }
 
 #[derive(Clone, Debug)]
