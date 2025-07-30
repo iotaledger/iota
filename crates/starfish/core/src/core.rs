@@ -26,10 +26,7 @@ use tokio::{
 use tracing::{debug, info, trace, warn};
 
 #[cfg(test)]
-use crate::{
-    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
-    storage::mem_store::MemStore,
-};
+use crate::{CommitConsumer, TransactionClient, storage::mem_store::MemStore};
 // TODO: remove this once CommittedSubDag is properly used again
 #[allow(unused_imports)]
 use crate::{
@@ -1209,11 +1206,7 @@ impl CoreTextFixture {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(
             LeaderSchedule::from_store(context.clone(), dag_state.clone())
                 .with_num_commits_per_schedule(10),
@@ -1276,7 +1269,6 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
             genesis_blocks,
         },
-        block_verifier::NoopBlockVerifier,
         commit::CommitAPI,
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -1338,11 +1330,7 @@ mod test {
 
         // create dag state after all blocks have been written to store
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
@@ -1470,11 +1458,7 @@ mod test {
 
         // create dag state after all blocks have been written to store
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
@@ -1563,11 +1547,7 @@ mod test {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
@@ -1717,11 +1697,7 @@ mod test {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
@@ -1809,11 +1785,7 @@ mod test {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
@@ -2015,11 +1987,7 @@ mod test {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
@@ -2672,11 +2640,7 @@ mod test {
 
         // create dag state after all blocks have been written to store
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
