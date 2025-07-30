@@ -13,6 +13,7 @@ import {
     fundDepostiThenWithdrawNativeTokenTestWallets,
     fundSendMaxIotaTestWallets,
     fundSendMaxNativeTokenTestWallets,
+    getTotalFundingUsage,
 } from './test-funding';
 import { WalletState } from './shared-state';
 
@@ -66,6 +67,10 @@ async function globalSetup() {
     await requestFundsFromFaucet(globalAddressL1);
     await requestFundsFromFaucet(globalAddressL1);
 
+    const { totalIota, totalTool } = getTotalFundingUsage();
+    console.log('💰 Test Funding Summary:');
+    console.log(`   Total IOTA required: ${totalIota}`);
+    console.log(`   Total TOOL required: ${totalTool}`);
     // Fund Test Addresses
     await fundSendMaxIotaTestWallets(
         globalAddressL1,
