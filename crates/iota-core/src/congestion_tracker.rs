@@ -106,10 +106,10 @@ impl CongestionTracker {
         checkpoint: &VerifiedCheckpoint,
         effects: &[TransactionEffects],
     ) {
-        // Containers for checkpoint's congested and cleared transactions info.
-        let mut congested_txs_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
+        // Containers for checkpoint's congestion and clearing transactions info.
+        let mut congestion_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
             Vec::with_capacity(effects.len());
-        let mut cleared_txs_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
+        let mut clearing_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
             Vec::with_capacity(effects.len());
 
         for effects in effects {
@@ -127,9 +127,9 @@ impl CongestionTracker {
             if let Some(CongestedObjects(congested_objects)) =
                 effects.status().get_congested_objects()
             {
-                congested_txs_info.push((gas_price, congested_objects.clone()));
+                congestion_info.push((gas_price, congested_objects.clone()));
             } else {
-                cleared_txs_info.push((
+                clearing_info.push((
                     gas_price,
                     effects
                         .input_shared_objects()
@@ -146,10 +146,10 @@ impl CongestionTracker {
             }
         }
 
-        self.process_per_checkpoint_events(
+        self.process_checkpoint_congestion_and_clearing_info(
             checkpoint.timestamp_ms,
-            &congested_txs_info,
-            &cleared_txs_info,
+            &congestion_info,
+            &clearing_info,
         );
     }
 
@@ -169,14 +169,15 @@ impl CongestionTracker {
 }
 
 impl CongestionTracker {
-    fn process_per_checkpoint_events(
+    /// Process checkpoint's congestion and clearing transactions info.
+    fn process_checkpoint_congestion_and_clearing_info(
         &self,
-        now: CheckpointTimestamp,
-        congestion_events: &[TransactionGasPriceMutSharedObjectsPair],
-        cleared_events: &[TransactionGasPriceMutSharedObjectsPair],
+        time: CheckpointTimestamp,
+        congestion_info: &[TransactionGasPriceMutSharedObjectsPair],
+        clearing_info: &[TransactionGasPriceMutSharedObjectsPair],
     ) {
         let congestion_info_map =
-            self.compute_per_checkpoint_congestion_info(now, congestion_events, cleared_events);
+            self.compute_per_checkpoint_congestion_info(time, congestion_info, clearing_info);
         self.process_checkpoint_congestion(congestion_info_map);
     }
 
@@ -307,7 +308,11 @@ mod tests {
         let obj2 = ObjectID::random();
         let now = 1000;
 
-        tracker.process_per_checkpoint_events(now, &[(100, vec![obj1]), (200, vec![obj2])], &[]);
+        tracker.process_checkpoint_congestion_and_clearing_info(
+            now,
+            &[(100, vec![obj1]), (200, vec![obj2])],
+            &[],
+        );
 
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj1].into_iter()),
@@ -325,14 +330,18 @@ mod tests {
         let obj = ObjectID::random();
 
         // Cancellations only, no successes. Highest cancelled price is used.
-        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj]), (75, vec![obj])], &[]);
+        tracker.process_checkpoint_congestion_and_clearing_info(
+            1000,
+            &[(100, vec![obj]), (75, vec![obj])],
+            &[],
+        );
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
             Some(100)
         );
 
         // No cancellations in last checkpoint, so no congestion
-        tracker.process_per_checkpoint_events(2000, &[], &[(150, vec![obj])]);
+        tracker.process_checkpoint_congestion_and_clearing_info(2000, &[], &[(150, vec![obj])]);
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
             None,
@@ -340,7 +349,7 @@ mod tests {
 
         // next checkpoint has cancellations and successes, so the lowest success price
         // is used.
-        tracker.process_per_checkpoint_events(
+        tracker.process_checkpoint_congestion_and_clearing_info(
             3000,
             &[(100, vec![obj])],
             &[(175, vec![obj]), (125, vec![obj])],
@@ -358,7 +367,11 @@ mod tests {
         let obj2 = ObjectID::random();
 
         // Process different congestion events
-        tracker.process_per_checkpoint_events(1000, &[(100, vec![obj1]), (200, vec![obj2])], &[]);
+        tracker.process_checkpoint_congestion_and_clearing_info(
+            1000,
+            &[(100, vec![obj1]), (200, vec![obj2])],
+            &[],
+        );
 
         // Should suggest highest congestion price
         assert_eq!(
@@ -367,7 +380,7 @@ mod tests {
         );
 
         // Process different congestion events
-        tracker.process_per_checkpoint_events(
+        tracker.process_checkpoint_congestion_and_clearing_info(
             2000,
             &[(100, vec![obj1]), (200, vec![obj2])],
             &[(100, vec![obj1]), (150, vec![obj2])],
