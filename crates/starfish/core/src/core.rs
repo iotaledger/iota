@@ -852,16 +852,19 @@ impl Core {
             fail_point!("consensus-after-handle-commit");
         }
 
-        // Notify about our own committed blocks
-        let committed_block_refs = committed_sub_dags
+        // Notify about our own committed transactions
+        let committed_transaction_refs = committed_sub_dags
             .iter()
-            .flat_map(|sub_dag| sub_dag.blocks.iter())
-            .filter_map(|block| {
-                (block.author() == self.context.own_index).then_some(block.reference())
+            .flat_map(|sub_dag| sub_dag.committed_transaction_refs.iter())
+            .filter_map(|block_ref| {
+                (block_ref.author == self.context.own_index).then_some(*block_ref)
             })
             .collect::<Vec<_>>();
-        self.transaction_consumer
-            .notify_own_blocks_status(committed_block_refs);
+
+        self.transaction_consumer.notify_own_transactions_status(
+            committed_transaction_refs,
+            self.dag_state.read().gc_round(),
+        );
 
         Ok((committed_sub_dags, all_missing_committed_txns))
     }
@@ -1273,7 +1276,6 @@ mod test {
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
-        test_dag_parser::parse_dag,
         transaction::{BlockStatus, TransactionClient},
     };
 
@@ -1289,44 +1291,30 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
-        // Create test blocks for all the authorities for 4 rounds and populate them in
-        // store
-        let mut last_round_blocks = genesis_blocks(context.clone());
-        let mut all_blocks: Vec<VerifiedBlock> = last_round_blocks.clone();
-        for round in 1..=4 {
-            let mut this_round_blocks = Vec::new();
-            for (index, _authority) in context.committee.authorities() {
-                let block = VerifiedBlock::new_for_test(
-                    TestBlockHeader::new(round, index.value() as u32)
-                        .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
-                        .build(),
-                );
+        // Create a fully connected DAG with 6 rounds.
+        let num_rounds = 6;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        dag_builder.print();
 
-                // If it's round 1, that one will be committed later on, and it's our "own"
-                // block, then subscribe to listen for the block status.
-                if round == 1 && index == context.own_index {
-                    let subscription =
-                        transaction_consumer.subscribe_for_block_status_testing(block.reference());
-                    block_status_subscriptions.push(subscription);
-                }
-
-                this_round_blocks.push(block);
+        // Subscribe to all created "own" blocks. We know that for our node (A) we'll be
+        // able to commit transactions up to round 2.
+        for block in dag_builder.block_headers(1..=2) {
+            if block.author() == context.own_index {
+                let subscription =
+                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                block_status_subscriptions.push(subscription);
             }
-            all_blocks.extend(this_round_blocks.clone());
-            last_round_blocks = this_round_blocks;
         }
-        // write them in store
-        let (block_headers, block_transactions) = all_blocks
-            .into_iter()
-            .map(|b| (b.verified_block_header, b.verified_transactions))
-            .unzip();
+
+        // write headers and transactions in store
         store
             .write(
                 WriteBatch::default()
-                    .block_headers(block_headers)
-                    .transactions(block_transactions),
+                    .block_headers(dag_builder.block_headers(1..=num_rounds))
+                    .transactions(dag_builder.transactions(1..=num_rounds)),
             )
-            .expect("Storage error");
+            .expect("We should expect a successful storing of headers");
 
         // create dag state after all blocks have been written to store
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1367,38 +1355,38 @@ mod test {
             false,
         );
 
-        // New round should be 5
+        // New round should be num_round + 1
         let mut new_round = signal_receivers.new_round_receiver();
-        assert_eq!(*new_round.borrow_and_update(), 5);
+        assert_eq!(*new_round.borrow_and_update(), num_rounds + 1);
 
-        // Block for round 5 should have been proposed.
+        // Block for round 6 should have been proposed.
         let proposed_block = block_receiver
             .recv()
             .await
             .expect("A block should have been created");
-        assert_eq!(proposed_block.round(), 5);
+        assert_eq!(proposed_block.round(), num_rounds + 1);
         let ancestors = proposed_block.ancestors();
 
         // Only ancestors of round 4 should be included.
         assert_eq!(ancestors.len(), 4);
         for ancestor in ancestors {
-            assert_eq!(ancestor.round, 4);
+            assert_eq!(ancestor.round, num_rounds);
         }
 
         let last_commit = store
             .read_last_commit()
             .unwrap()
-            .expect("last commit should be set");
+            .expect("We expect that the last commit is properly defined");
 
-        // There were no commits prior to the core starting up but there was completed
-        // rounds up to and including round 4. So we should commit leaders in round 1 &
-        // 2 as soon as the new block for round 5 is proposed.
-        assert_eq!(last_commit.index(), 2);
-        assert_eq!(dag_state.read().last_commit_index(), 2);
+        // We should commit leaders in round 1 & 2 & 3 & 4 as the new block for round 7
+        // is proposed.
+        assert_eq!(last_commit.index(), num_rounds - 2);
+        assert_eq!(dag_state.read().last_commit_index(), num_rounds - 2);
         let all_stored_commits = store.scan_commits((0..=CommitIndex::MAX).into()).unwrap();
-        assert_eq!(all_stored_commits.len(), 2);
+        assert_eq!(all_stored_commits.len(), num_rounds as usize - 2);
 
-        // And ensure that our "own" block 1 sent to TransactionConsumer as notification
+        // And ensure that our "own" transaction data of blocks from rounds 1 & 2 sent
+        // to TransactionConsumer as notification
         while let Some(result) = block_status_subscriptions.next().await {
             let status = result.unwrap();
             assert!(matches!(status, BlockStatus::Sequenced(_)));
@@ -2594,38 +2582,14 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
-        let dag_str = "DAG {
-            Round 0 : { 4 },
-            Round 1 : { * },
-            Round 2 : { * },
-            Round 3 : {
-                A -> [*],
-                B -> [-A2],
-                C -> [-A2],
-                D -> [-A2],
-            },
-            Round 4 : {
-                B -> [-A3],
-                C -> [-A3],
-                D -> [-A3],
-            },
-            Round 5 : {
-                A -> [A3, B4, C4, D4]
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 6 : { * },
-            Round 7 : { * },
-            Round 8 : { * },
-        }";
-
-        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+        // Create a fully connected DAG with 8 rounds.
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=8).build();
         dag_builder.print();
 
         // Subscribe to all created "own" blocks. We know that for our node (A) we'll be
-        // able to commit up to round 5.
-        for block in dag_builder.block_headers(1..=5) {
+        // able to commit transactions up to round 4.
+        for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
                 let subscription =
                     transaction_consumer.subscribe_for_block_status_testing(block.reference());
@@ -2633,10 +2597,15 @@ mod test {
             }
         }
 
-        // write them in store
+        // write headers in store
         store
             .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)))
-            .expect("Storage error");
+            .expect("We should expect a successful storing of headers");
+
+        // write transactions in store
+        store
+            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)))
+            .expect("We should expect a successful storing of transactions");
 
         // create dag state after all blocks have been written to store
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -2683,7 +2652,8 @@ mod test {
             .unwrap()
             .expect("last commit should be set");
 
-        assert_eq!(last_commit.index(), 5);
+        // The latest committed leader is from round 6 as the DAG is fully connected
+        assert_eq!(last_commit.index(), 6);
 
         while let Some(result) = block_status_subscriptions.next().await {
             let status = result.unwrap();
