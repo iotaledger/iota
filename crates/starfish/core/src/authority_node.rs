@@ -437,9 +437,17 @@ mod tests {
                 .unwrap();
         }
 
+        let total_timeout = Duration::from_secs(30);
+        let start = Instant::now();
         for (index, receiver) in output_receivers.iter_mut().enumerate() {
             let mut expected_transactions = submitted_transactions.clone();
             loop {
+                if start.elapsed() > total_timeout {
+                    panic!(
+                        "Test failed: Not all transactions were committed after {:?}. Missing: {:?}",
+                        total_timeout, expected_transactions
+                    );
+                }
                 let committed_subdag =
                     tokio::time::timeout(Duration::from_secs(1), receiver.recv())
                         .await
@@ -461,11 +469,12 @@ mod tests {
                 }
             }
         }
-        // Stop authority 1.
-        let index = committee.to_authority_index(1).unwrap();
-        authorities.remove(index.value()).stop().await;
 
-        // Add some new transactions while authority 1 is down.
+        // Stop authority 0.
+        let stopped_authority_index = committee.to_authority_index(0).unwrap();
+        authorities.remove(stopped_authority_index.value()).stop().await;
+
+        // Add some new transactions while authority 0 is down.
         const BIG_NUM_TRANSACTIONS: u8 = 100;
         for i in NUM_TRANSACTIONS..BIG_NUM_TRANSACTIONS {
             let txn = vec![i; 16];
@@ -479,8 +488,8 @@ mod tests {
 
         sleep(Duration::from_secs(5)).await;
 
-        // After a long sleep, add some new transactions while authority 1 is down.
-        // We expect that the transaction synchronizer of authority 1 will kick in to
+        // After a long sleep, add some new transactions while authority 0 is down.
+        // We expect that the transaction synchronizer of authority 0 will kick in to
         // download the transactions that were submitted while it was down.
         for i in BIG_NUM_TRANSACTIONS..2 * BIG_NUM_TRANSACTIONS {
             let txn = vec![i; 16];
@@ -492,20 +501,20 @@ mod tests {
                 .unwrap();
         }
 
-        // Restart authority 1 and let it run.
+        // Restart authority 0 and let it run.
         let (authority, receiver, monitor) = make_authority(
-            index,
-            &temp_dirs[index.value()],
+            stopped_authority_index,
+            &temp_dirs[stopped_authority_index.value()],
             committee.clone(),
             keypairs.clone(),
-            boot_counters[index],
+            boot_counters[stopped_authority_index],
             protocol_config.clone(),
         )
         .await;
-        boot_counters[index] += 1;
-        output_receivers[index] = receiver;
-        consumer_monitors[index] = monitor;
-        authorities.insert(index.value(), authority);
+        boot_counters[stopped_authority_index] += 1;
+        output_receivers[stopped_authority_index] = receiver;
+        consumer_monitors[stopped_authority_index] = monitor;
+        authorities.insert(stopped_authority_index.value(), authority);
 
         let mut expected_transactions = submitted_transactions.clone();
 
@@ -531,7 +540,7 @@ mod tests {
                             }
                         }
 
-                        if index == 1 {
+                        if index == stopped_authority_index.value() {
                             for txns in &committed_subdag.transactions {
                                 for txn in txns.transactions().iter().map(|t| t.data().to_vec()) {
                                     assert!(
@@ -586,7 +595,6 @@ mod tests {
         );
     }
 
-    // TODO: add transactions to control how the consensus works
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_small_committee(#[values(1, 2, 3)] num_authorities: usize) {
@@ -619,6 +627,49 @@ mod tests {
             authorities.push(authority);
         }
 
+        const NUM_TRANSACTIONS: u8 = 15;
+        let mut submitted_transactions = BTreeSet::<Vec<u8>>::new();
+        for i in 0..NUM_TRANSACTIONS {
+            let txn = vec![i; 16];
+            submitted_transactions.insert(txn.clone());
+            authorities[i as usize % authorities.len()]
+                .transaction_client()
+                .submit(vec![txn])
+                .await
+                .unwrap();
+        }
+
+        let total_timeout = Duration::from_secs(30);
+        let start = Instant::now();
+        for receiver in output_receivers.iter_mut() {
+            let mut expected_transactions = submitted_transactions.clone();
+            loop {
+                if start.elapsed() > total_timeout {
+                    panic!(
+                        "Test failed: Not all transactions were committed after {:?}. Missing: {:?}",
+                        total_timeout, expected_transactions
+                    );
+                }
+                let committed_subdag =
+                    tokio::time::timeout(Duration::from_secs(1), receiver.recv())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                for txns in committed_subdag.transactions {
+                    for txn in txns.transactions().iter().map(|t| t.data().to_vec()) {
+                        assert!(
+                            expected_transactions.remove(&txn),
+                            "Transaction not submitted or already seen: {txn:?}"
+                        );
+                    }
+                }
+
+                if expected_transactions.is_empty() {
+                    break;
+                }
+            }
+        }
+
         // Stop authority 0.
         let index = committee.to_authority_index(0).unwrap();
         authorities.remove(index.value()).stop().await;
@@ -645,7 +696,7 @@ mod tests {
         }
     }
 
-    // TODO: test is not doing what is described in the comments
+    /// This test checks that an authority can recover from amnesia successfully.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_amnesia_recovery_success() {
@@ -700,17 +751,21 @@ mod tests {
             }
         }
 
-        // Stop authority 1 & 2.
+        // Stop authorities 1, 2 & 3.
         // * Authority 1 will be used to wipe out their DB and practically "force" the
         //   amnesia recovery.
-        // * Authority 2 is stopped in order to simulate less than 2f+1 availability
+        // * Authorities 2 and 3 are stopped to simulate less than 2f+1 availability,
         //   which will
-        // make authority 1 retry during amnesia recovery until it has finally managed
-        // to successfully get back 2f+1 responses. once authority 2 is up and
-        // running again.
+        //   make authority 1 retry during amnesia recovery until it has finally managed
+        //   to successfully get back 2f+1 responses, once authority 2 is up and
+        //   running again.
         authorities.remove(&index_1).unwrap().stop().await;
+        // We wait for the rest of the authorities to create some blocks without authority 1.
+        sleep(Duration::from_secs(5)).await;
         let index_2 = committee.to_authority_index(2).unwrap();
         authorities.remove(&index_2).unwrap().stop().await;
+        let index_3 = committee.to_authority_index(3).unwrap();
+        authorities.remove(&index_3).unwrap().stop().await;
         sleep(Duration::from_secs(5)).await;
 
         // Authority 1: create a new directory to simulate amnesia. The node will
@@ -719,7 +774,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         // We do reset the boot counter for this one to simulate a "binary" restart
         boot_counters[index_1] = 0;
-        let (authority, mut receiver, _) = make_authority(
+        let (authority, mut receiver_1, _) = make_authority(
             index_1,
             &dir,
             committee.clone(),
@@ -737,7 +792,7 @@ mod tests {
         temp_dirs.insert(index_1, dir);
         sleep(Duration::from_secs(5)).await;
 
-        // Now spin up authority 2 using its earlier directly - so no amnesia recovery
+        // Now spin up authority 2 using its earlier directory - so no amnesia recovery
         // should be forced here. Authority 1 should be able to recover from
         // amnesia successfully.
         let (authority, _receiver, _) = make_authority(
@@ -759,7 +814,7 @@ mod tests {
 
         // We wait until we see at least one committed block authored from this
         // authority
-        'outer: while let Some(result) = receiver.recv().await {
+        'outer: while let Some(result) = receiver_1.recv().await {
             for block in &result.blocks {
                 if block.round() > GENESIS_ROUND && block.author() == index_1 {
                     break 'outer;
