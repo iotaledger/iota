@@ -251,13 +251,13 @@ impl CongestionTracker {
                     .entry(*object)
                     .and_modify(|v| {
                         *v +=
-                            hotness_per_tx - (*gas_price_feedback - self.reference_gas_price) as f64
+                            hotness_per_tx - *gas_price_feedback as f64 + self.reference_gas_price as f64
                     })
                     .or_insert(
-                        hotness_per_tx - (*gas_price_feedback - self.reference_gas_price) as f64,
+                        hotness_per_tx - *gas_price_feedback as f64 + self.reference_gas_price as f64,
                     );
                 println!(
-                    "Object: {}, Hotness: {}",
+                    "Object: {}, Hotness adjustment: {}",
                     object, object_hotness_map[object]
                 );
             }
@@ -294,6 +294,7 @@ impl CongestionTracker {
             if let Some(info) = congestion_info_map.get_mut(object) {
                 info.hotness -=
                     object_hotness_map[object] * LEARNING_RATE / congestion_events.len() as f64;
+                info.hotness = info.hotness.max(0.0);   // Ensure hotness is non-negative
             } else {
                 info!("Object {} not found in congestion info map", object);
             }
@@ -438,7 +439,7 @@ mod tests {
         // feedback
         let congestion_events = vec![
             (100, vec![obj1], 1200), // should result in positive hotness adjustment for obj1
-            (200, vec![obj2], 1500), // likewise for obj2
+            (200, vec![obj2], 900),  // should result in unchanged hotness for obj2
         ];
 
         let cleared_events = vec![]; // no clearing in this round
@@ -457,7 +458,7 @@ mod tests {
             .get(&obj2)
             .expect("obj2 should be in map");
 
-        // New hotness value should be 20 for obj1 and 50 for obj2
+        // New hotness value should be 20 for obj1 and 0 for obj2
         // For obj1, this is calculated as:
         // LEARNING_RATE * [hotness (1200) - gas_price_feedback (1000)] / num_txs (2)
         println!("Hotness for obj1: {}", info1.hotness);
@@ -467,8 +468,8 @@ mod tests {
             "obj1 should have increased hotness"
         );
         assert!(
-            info2.hotness == LEARNING_RATE * 250 as f64,
-            "obj2 should have increased hotness"
+            info2.hotness == 0.0,
+            "obj2 should have unchanged hotness"
         );
     }
 }
