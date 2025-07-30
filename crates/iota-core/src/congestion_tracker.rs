@@ -67,12 +67,6 @@ pub struct CongestionTracker {
     pub congestion_clearing_prices: Cache<ObjectID, CongestionInfo>,
 }
 
-impl Default for CongestionTracker {
-    fn default() -> Self {
-        Self::new(1000) // Default reference gas price
-    }
-}
-
 impl CongestionTracker {
     pub fn new(reference_gas_price: u64) -> Self {
         Self {
