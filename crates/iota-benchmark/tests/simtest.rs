@@ -630,7 +630,7 @@ mod test {
     async fn test_data_ingestion_pipeline() {
         let path = nondeterministic!(TempDir::new().unwrap()).into_path();
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 1000)
+            init_test_cluster_builder(4, 5000)
                 .with_data_ingestion_dir(path.clone())
                 .build()
                 .await,
@@ -676,7 +676,10 @@ mod test {
             let num_objs = thread_rng().gen_range(1..15);
             let mut assigned_object_versions = Vec::new();
             for _ in 0..num_objs {
-                assigned_object_versions.push((ObjectID::random(), SequenceNumber::CONGESTED));
+                assigned_object_versions.push((
+                    ObjectID::random(),
+                    SequenceNumber::new_congested_with_suggested_gas_price(1_000),
+                ));
             }
             additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
         }

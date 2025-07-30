@@ -65,11 +65,8 @@
     }
 
     .button-border-color-outline {
-        background: var(--button-border-color-outline);
-    }
-
-    .button-outline-bg-color {
-        background-color: var(--button-outline-bg-color);
+        border-width: 1px;
+        border-color: var(--button-border-color-outline);
     }
 
     .button-text-color-primary {

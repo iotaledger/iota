@@ -116,7 +116,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
             required={inputProps.required}
         >
             <div
-                className={cx('relative flex flex-row items-center gap-x-3', BORDER_CLASSES)}
+                className={cx(
+                    'input-container relative flex flex-row items-center gap-x-3',
+                    BORDER_CLASSES,
+                )}
                 onClick={focusOnInput}
                 ref={inputWrapperRef}
             >

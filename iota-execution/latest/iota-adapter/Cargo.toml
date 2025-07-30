@@ -27,7 +27,6 @@ iota-protocol-config.workspace = true
 iota-types.workspace = true
 iota-verifier = { path = "../iota-verifier", package = "iota-verifier-latest" }
 move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
 move-bytecode-verifier = { path = "../../../external-crates/move/crates/move-bytecode-verifier" }
 move-bytecode-verifier-meter.workspace = true
 move-core-types.workspace = true
@@ -35,7 +34,7 @@ move-trace-format.workspace = true
 move-vm-config.workspace = true
 move-vm-profiler = { path = "../../../external-crates/move/crates/move-vm-profiler" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
-move-vm-types.workspace = true
+move-vm-types = { path = "../../../external-crates/move/crates/move-vm-types" }
 
 [features]
 tracing = [

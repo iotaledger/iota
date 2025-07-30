@@ -99,7 +99,7 @@ fn test_signatures_serde() {
 
 #[test]
 fn test_max_sequence_number() {
-    let max = SequenceNumber::MAX;
+    let max = SequenceNumber::MAX_VALID_EXCL;
     assert_eq!(max.0 * 2 + 1, u64::MAX);
 }
 

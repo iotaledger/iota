@@ -93,14 +93,13 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
                     required={required}
                     ref={ref}
                     className={cx(
-                        'peer block min-h-[50px]',
+                        'text-area-container peer block min-h-[50px]',
                         BORDER_CLASSES,
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,
                         INPUT_PLACEHOLDER_CLASSES,
                         isInputContentVisible && isResizeEnabled ? 'resize-y' : 'resize-none',
-                        !isInputContentVisible &&
-                            'not-visible select-none text-transparent dark:text-transparent',
+                        !isInputContentVisible && 'not-visible select-none text-transparent',
                     )}
                     value={isInputContentVisible ? value : ''}
                     {...textareaProps}

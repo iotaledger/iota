@@ -17,19 +17,15 @@ base64-url.workspace = true
 bcs.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
-fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
-rand.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
-url.workspace = true
 
 # internal dependencies
 iota-archival.workspace = true
@@ -43,5 +39,4 @@ iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-rand.workspace = true
 tempfile.workspace = true

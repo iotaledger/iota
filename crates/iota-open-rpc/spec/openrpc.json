@@ -1306,6 +1306,7 @@
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
+                "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_batched_block_sync": false,
                 "consensus_distributed_vote_scoring_strategy": false,
@@ -1322,6 +1323,7 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "minimize_child_object_mutations": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
@@ -1329,6 +1331,7 @@
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "uncompressed_g1_group_elements": true,
+                "validate_identifier_inputs": false,
                 "variant_nodes": false,
                 "zklogin_auth": false
               },

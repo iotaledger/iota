@@ -24,3 +24,8 @@ move-vm-config.workspace = true
 
 [target.'cfg(not(msim))'.dev-dependencies]
 insta.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = [
+  "schemars", # imported through a procedural macro
+]

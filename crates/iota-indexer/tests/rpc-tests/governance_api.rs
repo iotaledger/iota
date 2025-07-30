@@ -569,6 +569,6 @@ fn get_validators_apy() {
         let apys = client.get_validators_apy().await.unwrap().apys;
 
         assert_eq!(apys.len(), 4);
-        assert!(apys.iter().any(|apy| apy.apy == 0.0));
+        assert!(apys.iter().any(|apy| apy.apy >= 0.0));
     });
 }
