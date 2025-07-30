@@ -22,6 +22,9 @@ const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 /// congested) shared objects.
 type TransactionGasPriceMutSharedObjectsPair = (u64, Vec<ObjectID>);
 
+/// Alias for type holding congestion info per checkpoint.
+type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
+
 /// Holds tracked per-object congestion info.
 #[derive(Clone, Copy, Debug)]
 struct CongestionInfo {
@@ -106,10 +109,10 @@ impl CongestionTracker {
         checkpoint: &VerifiedCheckpoint,
         effects: &[TransactionEffects],
     ) {
-        // Containers for checkpoint's congestion and clearing transactions info.
-        let mut congestion_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
+        // Containers for checkpoint's congestion and clearing transactions data.
+        let mut congestion_txs_data: Vec<TransactionGasPriceMutSharedObjectsPair> =
             Vec::with_capacity(effects.len());
-        let mut clearing_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
+        let mut clearing_txs_data: Vec<TransactionGasPriceMutSharedObjectsPair> =
             Vec::with_capacity(effects.len());
 
         for effects in effects {
@@ -127,9 +130,9 @@ impl CongestionTracker {
             if let Some(CongestedObjects(congested_objects)) =
                 effects.status().get_congested_objects()
             {
-                congestion_info.push((gas_price, congested_objects.clone()));
+                congestion_txs_data.push((gas_price, congested_objects.clone()));
             } else {
-                clearing_info.push((
+                clearing_txs_data.push((
                     gas_price,
                     effects
                         .input_shared_objects()
@@ -146,10 +149,10 @@ impl CongestionTracker {
             }
         }
 
-        self.process_checkpoint_congestion_and_clearing_info(
+        self.process_checkpoint_congestion_and_clearing_txs_data(
             checkpoint.timestamp_ms,
-            &congestion_info,
-            &clearing_info,
+            &congestion_txs_data,
+            &clearing_txs_data,
         );
     }
 
@@ -170,15 +173,18 @@ impl CongestionTracker {
 
 impl CongestionTracker {
     /// Process checkpoint's congestion and clearing transactions info.
-    fn process_checkpoint_congestion_and_clearing_info(
+    fn process_checkpoint_congestion_and_clearing_txs_data(
         &self,
         time: CheckpointTimestamp,
-        congestion_info: &[TransactionGasPriceMutSharedObjectsPair],
-        clearing_info: &[TransactionGasPriceMutSharedObjectsPair],
+        congestion_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
+        clearing_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
     ) {
-        let congestion_info_map =
-            self.compute_per_checkpoint_congestion_info(time, congestion_info, clearing_info);
-        self.process_checkpoint_congestion(congestion_info_map);
+        let congestion_info_map = self.compute_checkpoint_congestion_info_map(
+            time,
+            congestion_txs_data,
+            clearing_txs_data,
+        );
+        self.process_checkpoint_congestion_info_map(congestion_info_map);
     }
 
     /// Get the highest minimum clearing price, if any exists, for a list of
@@ -219,66 +225,56 @@ impl CongestionTracker {
         clearing_gas_price
     }
 
-    fn compute_per_checkpoint_congestion_info(
+    /// Compute a congestion info map from checkpoint's congestion and
+    /// clearing transactions data.
+    fn compute_checkpoint_congestion_info_map(
         &self,
-        now: CheckpointTimestamp,
-        congestion_events: &[TransactionGasPriceMutSharedObjectsPair],
-        cleared_events: &[TransactionGasPriceMutSharedObjectsPair],
-    ) -> HashMap<ObjectID, CongestionInfo> {
-        let mut congestion_info_map: HashMap<ObjectID, CongestionInfo> = HashMap::new();
+        time: CheckpointTimestamp,
+        congestion_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
+        clearing_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
+    ) -> CongestionInfoMap {
+        let mut congestion_info_map = CongestionInfoMap::new();
 
-        for (gas_price, objects) in congestion_events {
-            for object in objects {
-                match congestion_info_map.entry(*object) {
-                    Entry::Occupied(entry) => {
-                        entry
-                            .into_mut()
-                            .update_highest_congestion_gas_price(*gas_price);
-                    }
-                    Entry::Vacant(entry) => {
-                        let info = CongestionInfo {
-                            latest_congestion_time: now,
-                            highest_congestion_gas_price: *gas_price,
-                            latest_clearing_time: None,
-                            lowest_clearing_gas_price: None,
-                        };
-
-                        entry.insert(info);
-                    }
-                }
-            }
+        for (gas_price, objects) in congestion_txs_data {
+            objects.iter().for_each(|object_id| {
+                congestion_info_map
+                    .entry(*object_id)
+                    .and_modify(|entry| entry.update_highest_congestion_gas_price(*gas_price))
+                    .or_insert(CongestionInfo {
+                        latest_congestion_time: time,
+                        highest_congestion_gas_price: *gas_price,
+                        latest_clearing_time: None,
+                        lowest_clearing_gas_price: None,
+                    });
+            });
         }
 
-        for (gas_price, objects) in cleared_events {
-            for object in objects {
-                // We only record clearing prices if the object has experienced congestion
-                // recently
-                match congestion_info_map.entry(*object) {
+        for (gas_price, objects) in clearing_txs_data {
+            objects.iter().for_each(|object_id| {
+                match congestion_info_map.entry(*object_id) {
                     Entry::Occupied(entry) => {
-                        entry.into_mut().update_for_clearing_tx(now, *gas_price);
+                        entry.into_mut().update_for_clearing_tx(time, *gas_price);
                     }
                     Entry::Vacant(entry) => {
-                        if let Some(prev) = self.get_congestion_info(*object) {
-                            let info = CongestionInfo {
+                        // We only record clearing prices if the object has experienced
+                        // congestion recently.
+                        if let Some(prev) = self.get_congestion_info(*object_id) {
+                            entry.insert(CongestionInfo {
                                 latest_congestion_time: prev.latest_congestion_time,
                                 highest_congestion_gas_price: prev.highest_congestion_gas_price,
-                                latest_clearing_time: Some(now),
+                                latest_clearing_time: Some(time),
                                 lowest_clearing_gas_price: Some(*gas_price),
-                            };
-                            entry.insert(info);
+                            });
                         }
                     }
                 }
-            }
+            });
         }
 
         congestion_info_map
     }
 
-    fn process_checkpoint_congestion(
-        &self,
-        congestion_info_map: HashMap<ObjectID, CongestionInfo>,
-    ) {
+    fn process_checkpoint_congestion_info_map(&self, congestion_info_map: CongestionInfoMap) {
         for (object_id, new_congestion_info) in congestion_info_map {
             self.object_congestion_info
                 .entry(object_id)
@@ -312,7 +308,7 @@ mod tests {
         let obj2 = ObjectID::random();
         let now = 1000;
 
-        tracker.process_checkpoint_congestion_and_clearing_info(
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(
             now,
             &[(100, vec![obj1]), (200, vec![obj2])],
             &[],
@@ -334,7 +330,7 @@ mod tests {
         let obj = ObjectID::random();
 
         // Cancellations only, no successes. Highest cancelled price is used.
-        tracker.process_checkpoint_congestion_and_clearing_info(
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(
             1000,
             &[(100, vec![obj]), (75, vec![obj])],
             &[],
@@ -345,7 +341,7 @@ mod tests {
         );
 
         // No cancellations in last checkpoint, so no congestion
-        tracker.process_checkpoint_congestion_and_clearing_info(2000, &[], &[(150, vec![obj])]);
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(2000, &[], &[(150, vec![obj])]);
         assert_eq!(
             tracker.get_suggested_gas_price_for_objects(vec![obj].into_iter()),
             None,
@@ -353,7 +349,7 @@ mod tests {
 
         // next checkpoint has cancellations and successes, so the lowest success price
         // is used.
-        tracker.process_checkpoint_congestion_and_clearing_info(
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(
             3000,
             &[(100, vec![obj])],
             &[(175, vec![obj]), (125, vec![obj])],
@@ -371,7 +367,7 @@ mod tests {
         let obj2 = ObjectID::random();
 
         // Process different congestion events
-        tracker.process_checkpoint_congestion_and_clearing_info(
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(
             1000,
             &[(100, vec![obj1]), (200, vec![obj2])],
             &[],
@@ -384,7 +380,7 @@ mod tests {
         );
 
         // Process different congestion events
-        tracker.process_checkpoint_congestion_and_clearing_info(
+        tracker.process_checkpoint_congestion_and_clearing_txs_data(
             2000,
             &[(100, vec![obj1]), (200, vec![obj2])],
             &[(100, vec![obj1]), (150, vec![obj2])],
