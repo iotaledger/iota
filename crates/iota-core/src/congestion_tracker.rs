@@ -181,15 +181,17 @@ impl CongestionTracker {
         self.process_checkpoint_congestion(congestion_info_map);
     }
 
+    /// Get the highest minimum clearing price, if any exists, for a list of
+    /// (input shared) objects.
     fn get_suggested_gas_price_for_objects(
         &self,
         objects: impl Iterator<Item = ObjectID>,
     ) -> Option<u64> {
-        let mut clearing_price = None;
+        let mut clearing_gas_price = None;
 
         for object_id in objects {
             if let Some(info) = self.get_congestion_info(object_id) {
-                let clearing_price_for_object = match info
+                let clearing_gas_price_for_object = match info
                     .latest_clearing_time
                     .cmp(&Some(info.latest_congestion_time))
                 {
@@ -209,11 +211,12 @@ impl CongestionTracker {
                         info.lowest_clearing_gas_price
                     }
                 };
-                clearing_price = std::cmp::max(clearing_price, clearing_price_for_object);
+
+                clearing_gas_price = clearing_gas_price_for_object.max(clearing_gas_price);
             }
         }
 
-        clearing_price
+        clearing_gas_price
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -292,6 +295,7 @@ impl CongestionTracker {
         }
     }
 
+    /// Get congestion info for a given object.
     fn get_congestion_info(&self, object_id: ObjectID) -> Option<CongestionInfo> {
         self.object_congestion_info.get(&object_id)
     }
