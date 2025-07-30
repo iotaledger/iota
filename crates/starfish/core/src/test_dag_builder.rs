@@ -618,7 +618,7 @@ pub struct LayerBuilder<'a> {
     fully_linked_acknowledgments: bool,
     // Ancestors to link to the current layer
     ancestors: Vec<BlockRef>,
-    // add timestamp dealy
+    // add timestamp delay
     timestamp_delay_ms: Option<u64>,
 
     // Accumulated blocks to write to dag state
