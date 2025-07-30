@@ -478,14 +478,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if !missing_committed_txns.is_empty() {
-            // Also, fetch missing committed transactions after adding the blocks.
+            // TODO: decide whether to remove the live transaction fetcher
+
             if let Err(err) = self
                 .transactions_synchronizer
                 .fetch_transactions(missing_committed_txns)
                 .await
             {
                 warn!(
-                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
+                    "Errored while trying to fetch missing transactions via
+             transactions synchronizer: {err}"
                 );
             }
         }
