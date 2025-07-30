@@ -25,53 +25,52 @@ type TransactionGasPriceMutSharedObjectsPair = (u64, Vec<ObjectID>);
 /// Holds tracked per-object congestion info.
 #[derive(Clone, Copy, Debug)]
 struct CongestionInfo {
-    /// Timestamp of the latest checkpoint which contains cancelled
-    /// transaction(s) accessing the object.
-    latest_cancelled_time: CheckpointTimestamp,
+    /// Timestamp of the latest checkpoint which contains transaction(s)
+    /// with this object being congested.
+    latest_congestion_time: CheckpointTimestamp,
 
-    /// Highest gas price of cancelled transaction(s) accessing the
-    /// object.
-    highest_cancelled_gas_price: u64,
+    /// Highest gas price of transaction(s) in which the accessed
+    /// object has been congested.
+    highest_congestion_gas_price: u64,
 
-    /// Timestamp of the latest checkpoint which contains scheduled
-    /// for execution transaction(s) accessing the object.
-    latest_scheduled_time: Option<CheckpointTimestamp>,
+    /// Timestamp of the latest checkpoint which contains transaction(s)
+    /// with this object being not congested (cleared).
+    latest_clearing_time: Option<CheckpointTimestamp>,
 
-    /// Lowest gas price of scheduled for execution transaction(s)
-    /// accessing the object.
-    lowest_scheduled_gas_price: Option<u64>,
+    /// Lowest gas price of clearing transaction(s) accessing the object.
+    lowest_clearing_gas_price: Option<u64>,
 }
 
 impl CongestionInfo {
     /// Update this congestion info with the congestion info from a new
     /// checkpoint.
     fn update_with_new_congestion_info(&mut self, new_congestion_info: &CongestionInfo) {
-        // If there are more recent cancellations, we need to update the latest
-        // highest gas price of cancelled transactions, as well as the latest
-        // cancellation time.
-        if new_congestion_info.latest_cancelled_time > self.latest_cancelled_time {
-            self.latest_cancelled_time = new_congestion_info.latest_cancelled_time;
-            self.highest_cancelled_gas_price = new_congestion_info.highest_cancelled_gas_price;
+        // If there is recent congestion, we need to update the latest highest
+        // gas price of transactions with congested objects, as well as the latest
+        // congestion time.
+        if new_congestion_info.latest_congestion_time > self.latest_congestion_time {
+            self.latest_congestion_time = new_congestion_info.latest_congestion_time;
+            self.highest_congestion_gas_price = new_congestion_info.highest_congestion_gas_price;
         }
 
-        // If there are more recent scheduled for execution transactions, we need
-        // to update the latest time and lowest gas price of such transactions.
-        if new_congestion_info.latest_scheduled_time > self.latest_scheduled_time {
-            self.latest_scheduled_time = new_congestion_info.latest_scheduled_time;
-            self.lowest_scheduled_gas_price = new_congestion_info.lowest_scheduled_gas_price;
+        // If there are more recent clearing transactions, we need to update
+        // the latest time and lowest gas price of such transactions.
+        if new_congestion_info.latest_clearing_time > self.latest_clearing_time {
+            self.latest_clearing_time = new_congestion_info.latest_clearing_time;
+            self.lowest_clearing_gas_price = new_congestion_info.lowest_clearing_gas_price;
         }
     }
 
-    /// Update the highest cancellation gas price with the new `gas_price`.
-    fn update_highest_cancel_gas_price(&mut self, gas_price: u64) {
-        self.highest_cancelled_gas_price = self.highest_cancelled_gas_price.max(gas_price);
+    /// Update the highest congestion gas price with the new `gas_price`.
+    fn update_highest_congestion_gas_price(&mut self, gas_price: u64) {
+        self.highest_congestion_gas_price = self.highest_congestion_gas_price.max(gas_price);
     }
 
     /// Update the lowest gas price and the latest time with the data from a
-    /// transaction that was scheduled for execution.
-    fn update_for_scheduled(&mut self, time: CheckpointTimestamp, gas_price: u64) {
-        self.latest_scheduled_time = Some(time);
-        self.lowest_scheduled_gas_price = Some(match self.lowest_scheduled_gas_price {
+    /// clearing transaction.
+    fn update_for_clearing_tx(&mut self, time: CheckpointTimestamp, gas_price: u64) {
+        self.latest_clearing_time = Some(time);
+        self.lowest_clearing_gas_price = Some(match self.lowest_clearing_gas_price {
             Some(current_lowest) => current_lowest.min(gas_price),
             None => gas_price,
         });
@@ -156,7 +155,8 @@ impl CongestionTracker {
 
     /// For all the mutable input shared objects accessed by `transaction`,
     /// get the highest minimum clearing price, if any exists. The 'clearing'
-    /// gas price means its underlying transaction was scheduled for execution.
+    /// gas price means the underlying transaction was not cancelled due
+    /// congestion.
     pub fn get_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
         self.get_suggested_gas_price_for_objects(
             transaction
@@ -189,23 +189,23 @@ impl CongestionTracker {
         for object_id in objects {
             if let Some(info) = self.get_congestion_info(object_id) {
                 let clearing_price_for_object = match info
-                    .latest_scheduled_time
-                    .cmp(&Some(info.latest_cancelled_time))
+                    .latest_clearing_time
+                    .cmp(&Some(info.latest_congestion_time))
                 {
                     std::cmp::Ordering::Greater => {
-                        // There were no cancellations in the most recent checkpoint,
+                        // There were no congestion transactions in the most recent checkpoint,
                         // so the object is probably not congested any more
                         None
                     }
                     std::cmp::Ordering::Less => {
-                        // There were no scheduling in the most recent checkpoint.
-                        // This should be a rare case, but we know we will have
-                        // to bid at least as much as the highest cancelled price.
-                        Some(info.highest_cancelled_gas_price)
+                        // There were no clearing transactions in the most recent checkpoint.
+                        // This should be a rare case, but we know we will have to bid at least as
+                        // much as the highest congestion price.
+                        Some(info.highest_congestion_gas_price)
                     }
                     std::cmp::Ordering::Equal => {
-                        // There were both scheduling and cancellations.
-                        info.lowest_scheduled_gas_price
+                        // There were both clearing and congestion transactions.
+                        info.lowest_clearing_gas_price
                     }
                 };
                 clearing_price = std::cmp::max(clearing_price, clearing_price_for_object);
@@ -227,14 +227,16 @@ impl CongestionTracker {
             for object in objects {
                 match congestion_info_map.entry(*object) {
                     Entry::Occupied(entry) => {
-                        entry.into_mut().update_highest_cancel_gas_price(*gas_price);
+                        entry
+                            .into_mut()
+                            .update_highest_congestion_gas_price(*gas_price);
                     }
                     Entry::Vacant(entry) => {
                         let info = CongestionInfo {
-                            latest_cancelled_time: now,
-                            highest_cancelled_gas_price: *gas_price,
-                            latest_scheduled_time: None,
-                            lowest_scheduled_gas_price: None,
+                            latest_congestion_time: now,
+                            highest_congestion_gas_price: *gas_price,
+                            latest_clearing_time: None,
+                            lowest_clearing_gas_price: None,
                         };
 
                         entry.insert(info);
@@ -245,19 +247,19 @@ impl CongestionTracker {
 
         for (gas_price, objects) in cleared_events {
             for object in objects {
-                // We only record clearing prices if the object has observed cancellations
+                // We only record clearing prices if the object has experienced congestion
                 // recently
                 match congestion_info_map.entry(*object) {
                     Entry::Occupied(entry) => {
-                        entry.into_mut().update_for_scheduled(now, *gas_price);
+                        entry.into_mut().update_for_clearing_tx(now, *gas_price);
                     }
                     Entry::Vacant(entry) => {
                         if let Some(prev) = self.get_congestion_info(*object) {
                             let info = CongestionInfo {
-                                latest_cancelled_time: prev.latest_cancelled_time,
-                                highest_cancelled_gas_price: prev.highest_cancelled_gas_price,
-                                latest_scheduled_time: Some(now),
-                                lowest_scheduled_gas_price: Some(*gas_price),
+                                latest_congestion_time: prev.latest_congestion_time,
+                                highest_congestion_gas_price: prev.highest_congestion_gas_price,
+                                latest_clearing_time: Some(now),
+                                lowest_clearing_gas_price: Some(*gas_price),
                             };
                             entry.insert(info);
                         }
