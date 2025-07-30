@@ -18,7 +18,11 @@ use crate::execution_cache::TransactionCacheRead;
 /// Capacity of the congestion tracker's cache.
 const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 
-/// Holds per-object congestion info tracked.
+/// Alias type for holding transaction's gas price and mutable (or
+/// congested) shared objects.
+type TransactionGasPriceMutSharedObjectsPair = (u64, Vec<ObjectID>);
+
+/// Holds tracked per-object congestion info.
 #[derive(Clone, Copy, Debug)]
 struct CongestionInfo {
     /// Timestamp of the latest checkpoint which contains cancelled
@@ -103,29 +107,32 @@ impl CongestionTracker {
         checkpoint: &VerifiedCheckpoint,
         effects: &[TransactionEffects],
     ) {
-        let mut congestion_events = Vec::with_capacity(effects.len());
-        let mut cleared_events = Vec::with_capacity(effects.len());
+        // Containers for checkpoint's congested and cleared transactions info.
+        let mut congested_txs_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
+            Vec::with_capacity(effects.len());
+        let mut cleared_txs_info: Vec<TransactionGasPriceMutSharedObjectsPair> =
+            Vec::with_capacity(effects.len());
 
-        for effect in effects {
+        for effects in effects {
             let gas_price = transaction_cache_reader
-                .get_transaction_block(effect.transaction_digest())
+                .get_transaction_block(effects.transaction_digest())
                 .unwrap_or_else(|| {
                     panic!(
                         "Could not get transaction block {} from transaction cache reader.",
-                        effect.transaction_digest()
+                        effects.transaction_digest()
                     )
                 })
                 .transaction_data()
                 .gas_price();
 
             if let Some(CongestedObjects(congested_objects)) =
-                effect.status().get_congested_objects()
+                effects.status().get_congested_objects()
             {
-                congestion_events.push((gas_price, congested_objects.clone()));
+                congested_txs_info.push((gas_price, congested_objects.clone()));
             } else {
-                cleared_events.push((
+                cleared_txs_info.push((
                     gas_price,
-                    effect
+                    effects
                         .input_shared_objects()
                         .into_iter()
                         .filter_map(|object| match object {
@@ -142,8 +149,8 @@ impl CongestionTracker {
 
         self.process_per_checkpoint_events(
             checkpoint.timestamp_ms,
-            &congestion_events,
-            &cleared_events,
+            &congested_txs_info,
+            &cleared_txs_info,
         );
     }
 
@@ -165,8 +172,8 @@ impl CongestionTracker {
     fn process_per_checkpoint_events(
         &self,
         now: CheckpointTimestamp,
-        congestion_events: &[(u64, Vec<ObjectID>)],
-        cleared_events: &[(u64, Vec<ObjectID>)],
+        congestion_events: &[TransactionGasPriceMutSharedObjectsPair],
+        cleared_events: &[TransactionGasPriceMutSharedObjectsPair],
     ) {
         let congestion_info_map =
             self.compute_per_checkpoint_congestion_info(now, congestion_events, cleared_events);
@@ -211,8 +218,8 @@ impl CongestionTracker {
     fn compute_per_checkpoint_congestion_info(
         &self,
         now: CheckpointTimestamp,
-        congestion_events: &[(u64, Vec<ObjectID>)],
-        cleared_events: &[(u64, Vec<ObjectID>)],
+        congestion_events: &[TransactionGasPriceMutSharedObjectsPair],
+        cleared_events: &[TransactionGasPriceMutSharedObjectsPair],
     ) -> HashMap<ObjectID, CongestionInfo> {
         let mut congestion_info_map: HashMap<ObjectID, CongestionInfo> = HashMap::new();
 
