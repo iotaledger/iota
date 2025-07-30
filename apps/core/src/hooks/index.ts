@@ -64,6 +64,7 @@ export * from './useGetNextEpochCommitteeMember';
 export * from './useAddressAliasLookup';
 export * from './useNFTMediaHeaders';
 export * from './useGetIotaNameRecord';
+export * from './useGetDefaultName';
 
 export * from './stake';
 export * from './ui';

@@ -576,6 +576,14 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    tx_wrapped_or_deleted_objects (object_id, tx_sequence_number) {
+        tx_sequence_number -> Int8,
+        object_id -> Bytea,
+        sender -> Bytea,
+    }
+}
+
 diesel::joinable!(optimistic_event_emit_module -> optimistic_transactions (tx_insertion_order));
 diesel::joinable!(optimistic_event_emit_package -> optimistic_transactions (tx_insertion_order));
 diesel::joinable!(optimistic_event_senders -> optimistic_transactions (tx_insertion_order));
@@ -651,7 +659,8 @@ macro_rules! for_all_tables {
             tx_insertion_order,
             tx_kinds,
             tx_recipients,
-            tx_senders
+            tx_senders,
+            tx_wrapped_or_deleted_objects
         );
     };
 }

@@ -9,6 +9,8 @@ import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
+import { useGetIotaName } from '@iota/core';
+import { normalizeIotaName } from '@iota/iota-names-sdk';
 
 interface AccountItemProps {
     accountID: string;
@@ -29,7 +31,10 @@ export function AccountItem({
 }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
-    const accountName = formatAccountName(account?.nickname, account?.address);
+    const { data: defaultName } = useGetIotaName(account?.address || '');
+    const iotaName = defaultName && normalizeIotaName(defaultName);
+
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const copyAddress = useCopyToClipboard(account?.address || '', {
         copySuccessMessage: 'Address copied',
     });
