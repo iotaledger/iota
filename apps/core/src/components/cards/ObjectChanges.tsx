@@ -9,7 +9,7 @@ import {
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     ExplorerLinkType,
-    useGetDefaultName,
+    useGetDefaultIotaName,
 } from '../../';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
@@ -169,7 +169,7 @@ function ObjectChangeByOwnerPanel({
 }: ObjectChangesByOwnerPanelProps) {
     const [open, setOpen] = useState(false);
 
-    const { data: name } = useGetDefaultName(owner, true);
+    const { data: name } = useGetDefaultIotaName(owner, true);
 
     const label = getObjectChangeLabel(type);
 

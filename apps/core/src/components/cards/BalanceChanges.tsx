@@ -11,7 +11,7 @@ import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
-import { CoinFormat, useGetDefaultName } from '../../hooks';
+import { CoinFormat, useGetDefaultIotaName } from '../../hooks';
 
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
@@ -47,7 +47,7 @@ function BalanceChangePanel({
     changes,
     renderExplorerLink: ExplorerLink,
 }: BalanceChangePanelProps) {
-    const { data: name } = useGetDefaultName(owner, true);
+    const { data: name } = useGetDefaultIotaName(owner, true);
 
     if (!changes) return null;
 
