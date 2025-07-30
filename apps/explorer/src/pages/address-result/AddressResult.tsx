@@ -14,7 +14,7 @@ import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
-import { AddressAlias, useCopyToClipboard, useResolveDefaultName } from '@iota/core';
+import { AddressAlias, useCopyToClipboard, useGetDefaultIotaName } from '@iota/core';
 import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
 import { onCopySuccess } from '~/lib';
 import { isValidIotaName } from '@iota/iota-names-sdk';
@@ -27,7 +27,7 @@ interface AddressResultPageHeaderProps {
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): React.JSX.Element {
     const copyToClipboard = useCopyToClipboard(onCopySuccess);
-    const { data: name, isLoading: isLoadingName } = useResolveDefaultName(address, true);
+    const { data: name, isLoading: isLoadingName } = useGetDefaultIotaName(address, true);
 
     return (
         <PageHeader
@@ -50,7 +50,7 @@ function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): Rea
 
 function AddressOrNameResult({ addressOrName }: { addressOrName: string }): JSX.Element {
     const isName = isValidIotaName(addressOrName);
-    const { data } = useResolveDefaultName(isName ? addressOrName : undefined, true);
+    const { data } = useGetDefaultIotaName(isName ? addressOrName : undefined, true);
 
     return (
         <>

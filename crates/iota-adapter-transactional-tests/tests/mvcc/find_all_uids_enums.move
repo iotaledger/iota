@@ -13,7 +13,7 @@ module test::m {
 
     public struct S has key, store {
         id: UID,
-        other: EnumWrapper, 
+        other: EnumWrapper,
         wrapped: Wrapped,
         many: vector<Wrapped>,
     }

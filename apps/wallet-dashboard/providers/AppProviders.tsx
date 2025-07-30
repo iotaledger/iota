@@ -43,9 +43,9 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                     defaultNetwork={persistedNetwork}
                     onNetworkChange={handleNetworkChange}
                 >
-                    <IotaNamesClientProvider>
-                        <StardustIndexerClientProvider>
-                            <IotaGraphQLClientProvider>
+                    <StardustIndexerClientProvider>
+                        <IotaGraphQLClientProvider>
+                            <IotaNamesClientProvider>
                                 <KioskClientProvider>
                                     <WalletProvider
                                         autoConnect={true}
@@ -67,9 +67,9 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                         </ClipboardPasteSafetyWrapper>
                                     </WalletProvider>
                                 </KioskClientProvider>
-                            </IotaGraphQLClientProvider>
-                        </StardustIndexerClientProvider>
-                    </IotaNamesClientProvider>
+                            </IotaNamesClientProvider>
+                        </IotaGraphQLClientProvider>
+                    </StardustIndexerClientProvider>
                 </IotaClientProvider>
                 <ReactQueryDevtools initialIsOpen={false} />
             </QueryClientProvider>

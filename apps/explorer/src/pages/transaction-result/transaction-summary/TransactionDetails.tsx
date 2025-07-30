@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats } from '@iota/apps-ui-kit';
-import { formatDate, useResolveDefaultName } from '@iota/core';
+import { formatDate, useGetDefaultIotaName } from '@iota/core';
 import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
 import { onCopySuccess } from '~/lib/utils';
 
@@ -20,7 +20,7 @@ export function TransactionDetails({
     executedEpoch,
     timestamp,
 }: TransactionDetailsProps): JSX.Element {
-    const { data: name } = useResolveDefaultName(sender, true);
+    const { data: name } = useGetDefaultIotaName(sender, true);
 
     return (
         <div className="grid grid-cols-1 gap-sm md:grid-cols-4">

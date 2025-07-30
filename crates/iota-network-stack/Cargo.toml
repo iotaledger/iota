@@ -8,8 +8,8 @@ publish = false
 description = "IOTA's network tooling"
 
 [dependencies]
+# external dependencies
 anemo.workspace = true
-async-stream.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 eyre.workspace = true
@@ -30,3 +30,6 @@ tonic-health.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+
+# internal dependencies
+iota-http.workspace = true

@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use clap::Parser;
 use move_analyzer::analyzer;
 
@@ -14,6 +16,5 @@ fn main() {
     // For now, move-analyzer only responds to options built-in to clap,
     // such as `--help` or `--version`.
     Options::parse();
-
-    analyzer::run();
+    analyzer::run(BTreeMap::new());
 }

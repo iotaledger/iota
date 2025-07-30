@@ -22,7 +22,7 @@ import {
     useFormatCoin,
     ImageIconSize,
     CoinIcon,
-    useResolveDefaultName,
+    useGetDefaultIotaName,
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
@@ -81,7 +81,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
 
 function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner: string }) {
     const isName = isValidIotaName(owner);
-    const { data: name } = useResolveDefaultName(isName ? owner : undefined, true);
+    const { data: name } = useGetDefaultIotaName(isName ? owner : undefined, true);
     const { recognizedTokenChanges, unRecognizedTokenChanges } = useMemo(
         () => getRecognizedUnRecognizedTokenChanges(changes),
         [changes],

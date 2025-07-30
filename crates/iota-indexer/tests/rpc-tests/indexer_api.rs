@@ -8,8 +8,9 @@ use iota_json_rpc_api::{IndexerApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
     IotaObjectResponseQuery, IotaTransactionBlockData, IotaTransactionBlockKind,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, IotaTransactionKind,
-    ObjectsPage, TransactionFilter,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
+    TransactionFilterV2,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -520,10 +521,10 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
 
         // match with None function, the DB should have 2 records, but both points to
         // the same tx
-        let filter = TransactionFilter::FromAddress(signer);
-        let move_call_query = IotaTransactionBlockResponseQuery::new_with_filter(filter);
+        let filter = TransactionFilterV2::FromAddress(signer);
+        let move_call_query = IotaTransactionBlockResponseQueryV2::new_with_filter(filter);
         let res = client
-            .query_transaction_blocks(move_call_query, None, Some(20), Some(true))
+            .query_transaction_blocks_v2(move_call_query, None, Some(20), Some(true))
             .await
             .unwrap();
 
@@ -825,10 +826,10 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
 
         // Test `ProgrammableTransaction` transaction kind filter
         let filter =
-            TransactionFilter::TransactionKind(IotaTransactionKind::ProgrammableTransaction);
-        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+            TransactionFilterV2::TransactionKind(IotaTransactionKind::ProgrammableTransaction);
+        let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options.clone()));
         let res = client
-            .query_transaction_blocks(query, None, Some(1), Some(true))
+            .query_transaction_blocks_v2(query, None, Some(1), Some(true))
             .await
             .unwrap();
         assert_eq!(1, res.data.len());
@@ -848,10 +849,10 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         ));
 
         // Test `Genesis` transaction kind filter
-        let filter = TransactionFilter::TransactionKind(IotaTransactionKind::Genesis);
-        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+        let filter = TransactionFilterV2::TransactionKind(IotaTransactionKind::Genesis);
+        let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options.clone()));
         let res = client
-            .query_transaction_blocks(query, None, Some(2), Some(false))
+            .query_transaction_blocks_v2(query, None, Some(2), Some(false))
             .await
             .unwrap();
 
@@ -873,10 +874,10 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         ));
 
         // Test `SystemTransaction` transaction kind filter
-        let filter = TransactionFilter::TransactionKind(IotaTransactionKind::SystemTransaction);
-        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+        let filter = TransactionFilterV2::TransactionKind(IotaTransactionKind::SystemTransaction);
+        let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options.clone()));
         let res = client
-            .query_transaction_blocks(query, None, Some(1), Some(true))
+            .query_transaction_blocks_v2(query, None, Some(1), Some(true))
             .await
             .unwrap();
 
@@ -896,10 +897,10 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
 
         // Test `ConsensusCommitPrologueV1` transaction kind filter
         let filter =
-            TransactionFilter::TransactionKind(IotaTransactionKind::ConsensusCommitPrologueV1);
-        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+            TransactionFilterV2::TransactionKind(IotaTransactionKind::ConsensusCommitPrologueV1);
+        let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options.clone()));
         let res = client
-            .query_transaction_blocks(query, None, Some(1), Some(true))
+            .query_transaction_blocks_v2(query, None, Some(1), Some(true))
             .await
             .unwrap();
 
@@ -921,13 +922,13 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         ));
 
         // Test `TransactionKindIn` filter
-        let filter = TransactionFilter::TransactionKindIn(vec![
+        let filter = TransactionFilterV2::TransactionKindIn(vec![
             IotaTransactionKind::ConsensusCommitPrologueV1,
             IotaTransactionKind::ProgrammableTransaction,
         ]);
-        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options));
+        let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options));
         let res = client
-            .query_transaction_blocks(query, None, Some(2), Some(true))
+            .query_transaction_blocks_v2(query, None, Some(2), Some(true))
             .await
             .unwrap();
 

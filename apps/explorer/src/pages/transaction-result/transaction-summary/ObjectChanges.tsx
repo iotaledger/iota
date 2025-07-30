@@ -6,7 +6,7 @@ import {
     ObjectChangeLabels,
     useFormatCoin,
     useGetObject,
-    useResolveDefaultName,
+    useGetDefaultIotaName,
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     type ObjectChangesByOwner,
@@ -272,7 +272,7 @@ function ObjectChangeEntriesCardFooter({
     ownerType,
     ownerAddress,
 }: ObjectChangeEntriesCardFooterProps): JSX.Element {
-    const { data: name } = useResolveDefaultName(ownerAddress, true);
+    const { data: name } = useGetDefaultIotaName(ownerAddress, true);
     return (
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
             <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">

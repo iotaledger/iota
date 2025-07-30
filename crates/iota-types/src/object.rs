@@ -116,18 +116,13 @@ impl MoveObject {
         }
     }
 
-    pub fn new_coin(
-        coin_type: MoveObjectType,
-        version: SequenceNumber,
-        id: ObjectID,
-        value: u64,
-    ) -> Self {
+    pub fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                coin_type,
+                MoveObjectType::coin(coin_type),
                 version,
-                GasCoin::new(id, value).to_bcs_bytes(),
+                Coin::new(id, value).to_bcs_bytes(),
                 256,
             )
             .unwrap()
@@ -1007,7 +1002,7 @@ impl Object {
     pub fn with_id_owner_version_for_testing(
         id: ObjectID,
         version: SequenceNumber,
-        owner: IotaAddress,
+        owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
@@ -1015,7 +1010,7 @@ impl Object {
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner,
             data,
             previous_transaction: TransactionDigest::genesis_marker(),
             storage_rebate: 0,
