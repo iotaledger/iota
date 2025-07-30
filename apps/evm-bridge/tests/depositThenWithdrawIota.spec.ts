@@ -83,9 +83,4 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
         });
         await pageWithL1WalletExtension.close();
     });
-
-    // test.afterAll(async () => {
-    //     // Close persistent context manually when done
-    //     await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
-    // });
 });

@@ -111,8 +111,4 @@ test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
             timeout: THREE_MINUTES,
         });
     });
-    // test.afterAll(async () => {
-    //     // Close persistent context manually when done
-    //     await shared.browser.close().catch((e) => console.error('Error closing browser:', e));
-    // });
 });
