@@ -1,13 +1,4 @@
-import { type BrowserContext } from '@playwright/test';
-
-export async function closeBrowserTabsExceptLast(browserContext: BrowserContext) {
-    const pages = browserContext.pages();
-    if (pages.length > 1) {
-        for (let i = 0; i < pages.length - 1; i++) {
-            await pages[i].close();
-        }
-    }
-}
+import { Page, type BrowserContext } from '@playwright/test';
 
 export async function getExtensionUrl(browserContext: BrowserContext): Promise<string> {
     let [background] = browserContext.serviceWorkers();
@@ -36,7 +27,7 @@ export async function waitForExtensions(
     context: BrowserContext,
 ): Promise<{ l1ExtensionUrl: string; l2ExtensionUrl: string }> {
     // Wait for both extension service workers to start
-    const serviceWorkers = [];
+    const serviceWorkers: string[] = [];
     let l1ExtensionId = '';
     let l2ExtensionId = '';
 
@@ -77,7 +68,20 @@ export async function waitForExtensions(
 
     const l1ExtensionUrl = `chrome-extension://${l1ExtensionId}/ui.html`;
     const l2ExtensionUrl = `chrome-extension://${l2ExtensionId}/home.html`;
-    console.log(`L1 Extension URL: ${l1ExtensionUrl}`);
-    console.log(`L2 Extension URL: ${l2ExtensionUrl}`);
+
     return { l1ExtensionUrl, l2ExtensionUrl };
+}
+
+/**
+ * Create a new page and navigate to URL with error handling
+ */
+export async function createPage(context: BrowserContext, url = '/'): Promise<Page> {
+    try {
+        const page = await context.newPage();
+        await page.goto(url);
+        return page;
+    } catch (error) {
+        console.error('Failed to create page:', error);
+        throw error;
+    }
 }

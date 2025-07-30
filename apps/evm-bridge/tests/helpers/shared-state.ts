@@ -29,3 +29,19 @@ export function getSharedState(): WalletState {
         throw new Error('Failed to read wallet state. Make sure global setup has run.');
     }
 }
+
+/**
+ * Get test data for a specific test with type safety
+ */
+export function getTestData<T extends keyof WalletState['tests']>(
+    testId: T,
+): WalletState['tests'][T] {
+    const state = getSharedState();
+    const testData = state.tests[testId];
+
+    if (!testData) {
+        throw new Error(`No test data found for ID: ${testId}`);
+    }
+
+    return testData;
+}

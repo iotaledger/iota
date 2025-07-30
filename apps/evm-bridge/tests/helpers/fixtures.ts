@@ -1,15 +1,15 @@
 /* eslint-disable no-empty-pattern */
 import path from 'path';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
-import { waitForExtension, waitForExtensions } from './browser';
+import { createPage, waitForExtension, waitForExtensions } from './browser';
 import {
     connectL1Wallet,
-    createL2Wallet,
-    addNetworkToMetaMask,
     connectL2Wallet,
-    importL1WalletFromMnemonic,
+    setupBridgeWallets,
+    setupL1Wallet,
+    setupL2Wallet,
 } from './wallet';
-import { getSharedState } from './shared-state';
+import { getTestData, WalletState } from './shared-state';
 import { setReceiverAddress, toggleBridgeDirection } from './ui';
 import { TestWalletData } from '../utils/utils';
 
@@ -111,13 +111,15 @@ export const baseTest = base.extend<{
 
 // Create a generic setup fixture
 export const test = baseTest.extend<{
-    browserWithBothExtensionsSetup: (testId: string) => Promise<BridgeSetupFixture>;
-    browserWithL1Setup: (testId: string) => Promise<BridgeSetupFixture>;
-    browserWithL2Setup: (testId: string) => Promise<BridgeSetupFixture>;
+    browserWithBothExtensionsSetup: (
+        testId: keyof WalletState['tests'],
+    ) => Promise<BridgeSetupFixture>;
+    browserWithL1Setup: (testId: keyof WalletState['tests']) => Promise<BridgeSetupFixture>;
+    browserWithL2Setup: (testId: keyof WalletState['tests']) => Promise<BridgeSetupFixture>;
 }>({
     // Both L1 and L2 setup
     browserWithBothExtensionsSetup: async ({ createContext }, use) => {
-        const setupFn = async (testId: string): Promise<BridgeSetupFixture> => {
+        const setupFn = async (testId: keyof WalletState['tests']): Promise<BridgeSetupFixture> => {
             console.log('Setting up browser for test:', testId);
             const context = await createContext({
                 persistent: true,
@@ -129,36 +131,20 @@ export const test = baseTest.extend<{
             console.log('Setting up browser l1ExtensionUrl:', l1ExtensionUrl);
             console.log('Setting up browser l2ExtensionUrl:', l2ExtensionUrl);
 
-            const state = getSharedState();
-            const testData: TestWalletData = state.tests[testId];
+            const testData: TestWalletData = getTestData(testId);
             if (!testData) throw new Error(`No test data found for ID: ${testId}`);
             const { addressL1, addressL2, mnemonicL1, mnemonicL2 } = testData;
 
-            // Import/unlock wallets if mnemonics are provided
-            console.log('Importing L1 wallet from mnemonic');
-            const walletPageL1 = await context.newPage();
-            await walletPageL1.waitForTimeout(1500); // Wait for the app to load
-            // await closeBrowserTabsExceptLast(roundtripIotaContext);
-            await walletPageL1.goto(l1ExtensionUrl);
-            await walletPageL1.bringToFront();
-            await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonicL1);
-            await walletPageL1.close();
-
-            console.log('Creating L2 wallet from mnemonic');
-            const walletPageL2 = await context.newPage();
-            await walletPageL2.waitForTimeout(1500);
-            // await closeBrowserTabsExceptLast(roundtripIotaContext);
-            await walletPageL2.goto(l2ExtensionUrl);
-            await walletPageL2.bringToFront();
-            await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonicL2);
-            await addNetworkToMetaMask(walletPageL2);
-            await walletPageL2.close();
+            await setupBridgeWallets(
+                context,
+                l1ExtensionUrl,
+                l2ExtensionUrl,
+                mnemonicL1,
+                mnemonicL2,
+            );
 
             // Create page for evm bridge tests
-            const page = await context.newPage();
-            await page.waitForTimeout(2500);
-            // await closeBrowserTabsExceptLast(roundtripIotaContext);
-            await page.goto('/');
+            const page = await createPage(context);
             await page.bringToFront();
             // Set up wallet connections
             await page.waitForTimeout(500); // Wait for the app to load
@@ -175,13 +161,11 @@ export const test = baseTest.extend<{
             };
         };
 
-        // Provide the setup function to the test
         await use(setupFn);
     },
     // L1-only setup (IOTA Wallet)
     browserWithL1Setup: async ({ createContext }, use) => {
-        // This function will be provided to each test
-        const setupFn = async (testId: string): Promise<BridgeSetupFixture> => {
+        const setupFn = async (testId: keyof WalletState['tests']): Promise<BridgeSetupFixture> => {
             console.log('Setting up L1 browser for test:', testId);
             const context = await createContext({
                 name: `${testId}-context`,
@@ -191,25 +175,16 @@ export const test = baseTest.extend<{
             const extensionId = await waitForExtension(context);
             const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
 
-            const state = getSharedState();
-            const testData: TestWalletData = state.tests[testId];
+            const testData: TestWalletData = getTestData(testId);
             if (!testData) throw new Error(`No test data found for ID: ${testId}`);
             const { addressL1, mnemonicL1, addressL2 } = testData;
 
             console.log('Setting up L1 browser with extension URL:', extensionUrl);
 
-            // Import/unlock L1 wallet if mnemonic is provided
-            console.log('Importing L1 wallet from mnemonic');
-            const walletPageL1 = await context.newPage();
-            await walletPageL1.waitForTimeout(2500);
-            await walletPageL1.goto(extensionUrl);
-            await importL1WalletFromMnemonic(walletPageL1, extensionUrl, mnemonicL1);
-            await walletPageL1.close();
+            await setupL1Wallet(context, extensionUrl, mnemonicL1);
 
             // Create page for evm bridge tests
-            const page = await context.newPage();
-            await page.waitForTimeout(2500); // Wait for the app to load
-            await page.goto('/');
+            const page = await createPage(context);
             await page.bringToFront();
             // Set up wallet connection
             await connectL1Wallet(page, context);
@@ -224,13 +199,11 @@ export const test = baseTest.extend<{
             };
         };
 
-        // Provide the setup function to the test
         await use(setupFn);
     },
     // L2-only setup (MetaMask)
     browserWithL2Setup: async ({ createContext }, use) => {
-        // This function will be provided to each test
-        const setupFn = async (testId: string): Promise<BridgeSetupFixture> => {
+        const setupFn = async (testId: keyof WalletState['tests']): Promise<BridgeSetupFixture> => {
             console.log('Setting up L2 browser for test:', testId);
             const context = await createContext({
                 name: `${testId}-context`,
@@ -240,26 +213,16 @@ export const test = baseTest.extend<{
             const extensionId = await waitForExtension(context);
             const extensionUrl = `chrome-extension://${extensionId}/home.html`;
 
-            const state = getSharedState();
-            const testData: TestWalletData = state.tests[testId];
+            const testData: TestWalletData = getTestData(testId);
             if (!testData) throw new Error(`No test data found for ID: ${testId}`);
             const { addressL2, mnemonicL2, addressL1 } = testData;
 
             console.log('Setting up L2 browser with extension URL:', extensionUrl);
 
-            // Import/unlock L2 wallet if mnemonic is provided
-            console.log('Creating L2 wallet from mnemonic');
-            const walletPageL2 = await context.newPage();
-            await walletPageL2.waitForTimeout(2500);
-            await walletPageL2.goto(extensionUrl);
-            await createL2Wallet(walletPageL2, extensionUrl, mnemonicL2);
-            await addNetworkToMetaMask(walletPageL2);
-            await walletPageL2.close();
+            await setupL2Wallet(context, extensionUrl, mnemonicL2);
 
             // Create page for evm bridge tests
-            const page = await context.newPage();
-            await page.waitForTimeout(2500); // Wait for the app to load
-            await page.goto('/');
+            const page = await createPage(context);
             await page.bringToFront();
             // Set up wallet connection for L2
             await connectL2Wallet(page, context);
@@ -276,7 +239,6 @@ export const test = baseTest.extend<{
             };
         };
 
-        // Provide the setup function to the test
         await use(setupFn);
     },
 });
