@@ -5365,6 +5365,7 @@ export type TransactionBlockFilter = {
   recvAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
   signAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
   transactionIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  wrappedOrDeletedObject?: InputMaybe<Scalars['IotaAddress']['input']>;
 };
 
 /**

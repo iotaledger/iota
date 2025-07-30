@@ -3620,12 +3620,15 @@ impl AuthorityPerEpochStore {
                                             |deferral_key_suggested_gas_price_pair| {
                                                 deferral_key_suggested_gas_price_pair
                                                     .1
-                                                    .expect(
-                                                        "Suggested gas price for transactions \
-                                                        previously deferred due to congestion must \
-                                                        not be None if the gas price feedback is \
-                                                        enabled.",
-                                                    )
+                                                    // If None, this could mean the certificate was
+                                                    // deferred due to randomness unavailable in
+                                                    // the previous round, but in the current
+                                                    // round, it gets deferred due to congestion.
+                                                    // Since this is the first round the
+                                                    // certificate is deferred due to congestion,
+                                                    // we return the suggested gas price from the
+                                                    // current round.
+                                                    .unwrap_or(current_commit_suggested_gas_price)
                                                     .min(current_commit_suggested_gas_price)
                                             },
                                         );
