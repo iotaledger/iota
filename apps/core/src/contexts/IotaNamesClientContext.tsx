@@ -10,7 +10,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { useIotaGraphQLClientContext } from './IotaGraphQLClientContext';
 
 export const IotaNamesClientProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-    const { iotaNamesClient } = useIotaNamesClient();
+    const iotaNamesClient = useIotaNamesClient();
 
     return (
         <IotaNamesClientContext.Provider value={{ iotaNamesClient }}>
@@ -40,14 +40,18 @@ export function useIotaNamesClient() {
     const network = getNetwork(ctx.network);
     const { iotaGraphQLClient } = useIotaGraphQLClientContext();
 
-    const iotaNamesClient = useMemo(() => {
-        if (!iotaGraphQLClient) return null;
+    if (!iotaGraphQLClient) {
+        throw new Error('useIotaNamesClient must be used within a IotaGraphQLClientProvider');
+    }
 
-        return new IotaNamesClient({
-            graphQlClient: iotaGraphQLClient,
-            network: network.id,
-        });
-    }, [iotaGraphQLClient, network.id]);
+    const iotaNamesClient = useMemo(
+        () =>
+            new IotaNamesClient({
+                graphQlClient: iotaGraphQLClient,
+                network: network.id,
+            }),
+        [iotaGraphQLClient, network.id],
+    );
 
-    return { iotaNamesClient };
+    return iotaNamesClient;
 }

@@ -4,13 +4,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useIotaNamesClient } from '../contexts';
 
-export function useGetIotaName(address: string) {
-    const { iotaNamesClient } = useIotaNamesClient();
+export function useGetDefaultName(address: string) {
+    const iotaNamesClient = useIotaNamesClient();
 
     return useQuery({
         queryKey: ['iota-name', 'default-name', address],
         async queryFn() {
-            const defaultName = await iotaNamesClient?.getDefaultName(address);
+            const defaultName = await iotaNamesClient.getDefaultName(address);
 
             return defaultName;
         },
