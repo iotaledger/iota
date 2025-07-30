@@ -109,10 +109,15 @@ impl CongestionTracker {
         for effect in effects {
             let gas_price = transaction_cache_reader
                 .get_transaction_block(effect.transaction_digest())
-                // TODO:
-                .unwrap()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Could not get transaction block {} from transaction cache reader.",
+                        effect.transaction_digest()
+                    )
+                })
                 .transaction_data()
                 .gas_price();
+
             if let Some(CongestedObjects(congested_objects)) =
                 effect.status().get_congested_objects()
             {
