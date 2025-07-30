@@ -56,6 +56,8 @@ struct CheckpointBuilder {
     checkpoint: u64,
     /// Epoch number for the current checkpoint we are building.
     epoch: u64,
+    /// Counter for the total number of transactions added to the builder.
+    network_total_transactions: u64,
     /// Transactions that have been added to the current checkpoint.
     transactions: Vec<CheckpointTransaction>,
     /// The current transaction being built.
@@ -99,6 +101,7 @@ impl TestCheckpointDataBuilder {
             checkpoint_builder: CheckpointBuilder {
                 checkpoint,
                 epoch: 0,
+                network_total_transactions: 0,
                 transactions: vec![],
                 next_transaction: None,
             },
@@ -461,11 +464,14 @@ impl TestCheckpointDataBuilder {
                 .iter()
                 .map(|tx| ExecutionDigests::new(*tx.transaction.digest(), tx.effects.digest())),
         );
+
+        self.checkpoint_builder.network_total_transactions += transactions.len() as u64;
+
         let checkpoint_summary = CheckpointSummary::new(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             self.checkpoint_builder.epoch,
             self.checkpoint_builder.checkpoint,
-            transactions.len() as u64,
+            self.checkpoint_builder.network_total_transactions,
             &contents,
             None,
             Default::default(),
@@ -473,12 +479,15 @@ impl TestCheckpointDataBuilder {
             0,
             vec![],
         );
+
         let (committee, keys) = Committee::new_simple_test_committee();
+
         let checkpoint_cert = CertifiedCheckpointSummary::new_from_keypairs_for_testing(
             checkpoint_summary,
             &keys,
             &committee,
         );
+
         self.checkpoint_builder.checkpoint += 1;
         CheckpointData {
             checkpoint_summary: checkpoint_cert,
