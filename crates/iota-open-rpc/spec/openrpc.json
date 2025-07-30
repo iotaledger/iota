@@ -12350,7 +12350,7 @@
             "default": null,
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransactionFilter"
+                "$ref": "#/components/schemas/TransactionFilterV2"
               },
               {
                 "type": "null"
@@ -12451,6 +12451,196 @@
             ],
             "properties": {
               "ChangedObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by sender address.",
+            "type": "object",
+            "required": [
+              "FromAddress"
+            ],
+            "properties": {
+              "FromAddress": {
+                "$ref": "#/components/schemas/IotaAddress"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by recipient address.",
+            "type": "object",
+            "required": [
+              "ToAddress"
+            ],
+            "properties": {
+              "ToAddress": {
+                "$ref": "#/components/schemas/IotaAddress"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by sender and recipient address.",
+            "type": "object",
+            "required": [
+              "FromAndToAddress"
+            ],
+            "properties": {
+              "FromAndToAddress": {
+                "type": "object",
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "from": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  },
+                  "to": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query txs that have a given address as sender or recipient.",
+            "type": "object",
+            "required": [
+              "FromOrToAddress"
+            ],
+            "properties": {
+              "FromOrToAddress": {
+                "type": "object",
+                "required": [
+                  "addr"
+                ],
+                "properties": {
+                  "addr": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by transaction kind",
+            "type": "object",
+            "required": [
+              "TransactionKind"
+            ],
+            "properties": {
+              "TransactionKind": {
+                "$ref": "#/components/schemas/IotaTransactionKind"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query transactions of any given kind in the input.",
+            "type": "object",
+            "required": [
+              "TransactionKindIn"
+            ],
+            "properties": {
+              "TransactionKindIn": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IotaTransactionKind"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "TransactionFilterV2": {
+        "oneOf": [
+          {
+            "description": "Query by checkpoint.",
+            "type": "object",
+            "required": [
+              "Checkpoint"
+            ],
+            "properties": {
+              "Checkpoint": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by move function.",
+            "type": "object",
+            "required": [
+              "MoveFunction"
+            ],
+            "properties": {
+              "MoveFunction": {
+                "type": "object",
+                "required": [
+                  "package"
+                ],
+                "properties": {
+                  "function": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "module": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "package": {
+                    "$ref": "#/components/schemas/ObjectID"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by input object.",
+            "type": "object",
+            "required": [
+              "InputObject"
+            ],
+            "properties": {
+              "InputObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by changed object, including created, mutated and unwrapped objects.",
+            "type": "object",
+            "required": [
+              "ChangedObject"
+            ],
+            "properties": {
+              "ChangedObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query transactions that wrapped or deleted the specified object. Includes transactions that either created and immediately wrapped the object or unwrapped and immediately deleted it.",
+            "type": "object",
+            "required": [
+              "WrappedOrDeletedObject"
+            ],
+            "properties": {
+              "WrappedOrDeletedObject": {
                 "$ref": "#/components/schemas/ObjectID"
               }
             },

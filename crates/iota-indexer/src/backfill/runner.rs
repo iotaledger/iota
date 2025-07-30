@@ -38,7 +38,7 @@ impl BackfillRunner {
         backfill_config: BackfillConfig,
         total_range: RangeInclusive<usize>,
     ) -> Result<(), IndexerError> {
-        let backfill = get_backfill(runner_kind, *total_range.start()).await;
+        let backfill = get_backfill(runner_kind, *total_range.start()).await?;
         Self::run_impl(pool, backfill_config, total_range, backfill).await
     }
 
