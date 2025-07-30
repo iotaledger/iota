@@ -24,8 +24,10 @@ test.describe.serial('Deposit then withdraw native tokens roundtrip', () => {
 
     let shared: TestContext;
 
-    test.beforeAll('setup L1/L2 wallets', async ({ roundtripNativeTokenSetup }) => {
-        const persistentSetup = await roundtripNativeTokenSetup('depositThenWithdrawNativeToken');
+    test.beforeAll('setup L1/L2 wallets', async ({ browserWithBothExtensionsSetup }) => {
+        const persistentSetup = await browserWithBothExtensionsSetup(
+            'depositThenWithdrawNativeToken',
+        );
         shared = persistentSetup;
     });
 
