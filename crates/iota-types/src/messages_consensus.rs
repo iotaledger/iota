@@ -189,13 +189,14 @@ impl AuthorityCapabilitiesV1 {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
-    UserTransaction(Box<CertifiedTransaction>),
+    CertifiedTransaction(Box<CertifiedTransaction>),
     CheckpointSignature(Box<CheckpointSignatureMessage>),
     EndOfPublish(AuthorityName),
 
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
+
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
     // Contents are a serialized `fastcrypto_tbls::dkg::Message`.
@@ -303,7 +304,7 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransaction(Box::new(certificate)),
+            kind: ConsensusTransactionKind::CertifiedTransaction(Box::new(certificate)),
         }
     }
 
@@ -350,7 +351,7 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransaction(Box::new(certificate)),
+            kind: ConsensusTransactionKind::CertifiedTransaction(Box::new(certificate)),
         }
     }
 
@@ -401,7 +402,7 @@ impl ConsensusTransaction {
 
     pub fn key(&self) -> ConsensusTransactionKey {
         match &self.kind {
-            ConsensusTransactionKind::UserTransaction(cert) => {
+            ConsensusTransactionKind::CertifiedTransaction(cert) => {
                 ConsensusTransactionKey::Certificate(*cert.digest())
             }
             ConsensusTransactionKind::CheckpointSignature(data) => {
@@ -433,7 +434,7 @@ impl ConsensusTransaction {
     }
 
     pub fn is_user_certificate(&self) -> bool {
-        matches!(self.kind, ConsensusTransactionKind::UserTransaction(_))
+        matches!(self.kind, ConsensusTransactionKind::CertifiedTransaction(_))
     }
 
     pub fn is_end_of_publish(&self) -> bool {

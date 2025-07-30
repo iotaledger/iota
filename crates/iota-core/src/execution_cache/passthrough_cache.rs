@@ -10,7 +10,6 @@ use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::{Bridge, get_bridge},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
@@ -79,6 +78,14 @@ impl PassthroughCache {
                 tracing::error!(?e, "Failed to clear object per-epoch marker table");
             })
             .ok();
+    }
+
+    fn bulk_insert_genesis_objects_impl(&self, objects: &[Object]) -> IotaResult {
+        self.store.bulk_insert_genesis_objects(objects)
+    }
+
+    fn insert_genesis_object_impl(&self, object: Object) -> IotaResult {
+        self.store.insert_genesis_object(object)
     }
 }
 
@@ -160,10 +167,6 @@ impl ObjectCacheRead for PassthroughCache {
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
-    }
-
-    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
-        get_bridge(self)
     }
 
     fn get_marker_value(

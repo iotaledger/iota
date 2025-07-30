@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use dashmap::{DashMap, DashSet};
 use futures::future::join_all;
@@ -423,10 +423,10 @@ fn read_data_from_file<T: DeserializeOwned>(file_path: &str) -> Result<T, anyhow
 
     let path = path_buf.as_path();
     if !path.exists() {
-        return Err(anyhow!("File not found: {}", file_path));
+        bail!("File not found: {}", file_path);
     }
 
-    let file = File::open(path).map_err(|e| anyhow::anyhow!("Error opening file: {}", e))?;
+    let file = File::open(path).map_err(|e| anyhow!("Error opening file: {}", e))?;
     let deserialized_data: T =
         serde_json::from_reader(file).map_err(|e| anyhow!("Deserialization error: {}", e))?;
 

@@ -15,19 +15,23 @@ curl -s localhost:9184/metrics | grep -E "^last_executed_checkpoint|^highest_syn
 
 For instance, for a validator node, the output would be:
 ```sh
-consensus_proposed_blocks{force="false"} 840272
-consensus_proposed_blocks{force="true"} 2255
-consensus_threshold_clock_round 1318080
-highest_known_checkpoint 60575714
-highest_synced_checkpoint 60575710
-last_executed_checkpoint 60575714
-last_executed_checkpoint_age_ms{pct="50"} 0
-last_executed_checkpoint_age_ms{pct="95"} 0
-last_executed_checkpoint_age_ms{pct="99"} 0
-last_executed_checkpoint_age_ms_count 1342973
-last_executed_checkpoint_age_ms_sum 367068033
-last_executed_checkpoint_timestamp_ms 1745504535018
-uptime{chain_identifier="2304aa97",is_docker="false",os_version="Linux (Ubuntu 24.04)",process="validator",version="0.12.0-rc-7e49c58b826b"} 700369
+consensus_proposed_blocks{force="false"} 247
+consensus_proposed_blocks{force="true"} 1
+consensus_threshold_clock_round 257
+highest_known_checkpoint 555
+highest_synced_checkpoint 886
+last_executed_checkpoint 890
+last_executed_checkpoint_age_bucket{le="0.001"} 0
+last_executed_checkpoint_age_bucket{le="0.005"} 0
+last_executed_checkpoint_age_bucket{le="0.01"} 0
+...
+last_executed_checkpoint_age_bucket{le="60"} 891
+last_executed_checkpoint_age_bucket{le="90"} 891
+last_executed_checkpoint_age_bucket{le="+Inf"} 891
+last_executed_checkpoint_age_sum 156.52341099999992
+last_executed_checkpoint_age_count 891
+last_executed_checkpoint_timestamp_ms 1748335503888
+uptime{chain_identifier="b5d7e5c8",is_docker="false",os_version="macOS 15.5 Sequoia",process="validator",version="1.1.0"} 196
 ```
 
 ### Ensure node health using last checkpoint timestamp

@@ -23,14 +23,12 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
+        base_types::IotaAddress,
+        crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
+        signature::GenericSignature,
         transaction::TransactionData,
     },
-};
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
-    signature::GenericSignature,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentMessage};
