@@ -16,10 +16,12 @@ use tracing::{debug, warn};
 
 use crate::{
     Round,
-    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlock, VerifiedBlockHeader},
-    block_verifier::BlockVerifier,
+    block_header::{
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, VerifiedBlock, VerifiedBlockHeader,
+    },
     context::Context,
     dag_state::DagState,
+    error::{ConsensusError, ConsensusResult},
 };
 
 struct SuspendedBlockHeader {
@@ -46,7 +48,6 @@ impl SuspendedBlockHeader {
 pub(crate) struct BlockManager {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
-    block_verifier: Arc<dyn BlockVerifier>,
 
     /// Keeps all the suspended block headers. A suspended block header is a
     /// header that is missing part of its causal history and thus can't be
@@ -79,16 +80,11 @@ pub(crate) struct BlockManager {
 }
 
 impl BlockManager {
-    pub(crate) fn new(
-        context: Arc<Context>,
-        dag_state: Arc<RwLock<DagState>>,
-        block_verifier: Arc<dyn BlockVerifier>,
-    ) -> Self {
+    pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
         let committee_size = context.committee.size();
         Self {
             context,
             dag_state,
-            block_verifier,
             suspended_block_headers: BTreeMap::new(),
             suspended_blocks: BTreeMap::new(),
             missing_ancestors: BTreeMap::new(),
@@ -281,7 +277,32 @@ impl BlockManager {
 
         missing_blocks
     }
-
+    /// Verifies a block w.r.t. ancestor blocks.
+    /// This is called after a block has complete causal history locally,
+    /// and is ready to be accepted into the DAG.
+    ///
+    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1,
+    /// in the same order.
+    fn check_ancestors(
+        &self,
+        block: &VerifiedBlockHeader,
+        ancestors: &[VerifiedBlockHeader],
+    ) -> ConsensusResult<()> {
+        assert_eq!(block.ancestors().len(), ancestors.len());
+        // This checks the invariant that block timestamp >= max ancestor timestamp.
+        let mut max_timestamp_ms = BlockTimestampMs::MIN;
+        for (ancestor_ref, ancestor_block) in block.ancestors().iter().zip(ancestors.iter()) {
+            assert_eq!(ancestor_ref, &ancestor_block.reference());
+            max_timestamp_ms = max_timestamp_ms.max(ancestor_block.timestamp_ms());
+        }
+        if max_timestamp_ms > block.timestamp_ms() {
+            return Err(ConsensusError::InvalidBlockTimestamp {
+                max_timestamp_ms,
+                block_timestamp_ms: block.timestamp_ms(),
+            });
+        }
+        Ok(())
+    }
     // TODO: remove once timestamping is refactored to the new approach.
     // Verifies each block's timestamp based on its ancestors, and persists in store
     // all the valid blocks that should be accepted. Method returns the accepted
@@ -304,13 +325,13 @@ impl BlockManager {
                     if let Some(found_block) = found {
                         // This invariant should be guaranteed by DagState.
                         assert_eq!(ancestor_ref, &found_block.reference());
-                        ancestor_blocks.push(Some(found_block));
+                        ancestor_blocks.push(found_block);
                         continue 'ancestor;
                     }
                     // blocks_to_accept have not been added to DagState yet, but they
                     // can appear in ancestors.
                     if blocks_to_accept.contains_key(ancestor_ref) {
-                        ancestor_blocks.push(Some(blocks_to_accept[ancestor_ref].clone()));
+                        ancestor_blocks.push(blocks_to_accept[ancestor_ref].clone());
                         continue 'ancestor;
                     }
                     // If an ancestor is already rejected, reject this block as well.
@@ -326,7 +347,7 @@ impl BlockManager {
                         );
                     }
                 }
-                if let Err(e) = self.block_verifier.check_ancestors(&b, &ancestor_blocks) {
+                if let Err(e) = self.check_ancestors(&b, &ancestor_blocks) {
                     warn!("Block {:?} failed to verify ancestors: {}", b, e);
                     blocks_to_reject.insert(b.reference(), b);
                 } else {
@@ -643,13 +664,12 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
-        Transaction,
-        block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
+        TestBlockHeader,
+        block_header::{BlockHeaderAPI, BlockRef, BlockTimestampMs, VerifiedBlockHeader},
         block_manager::BlockManager,
-        block_verifier::{BlockVerifier, NoopBlockVerifier},
         context::Context,
         dag_state::DagState,
-        error::{ConsensusError, ConsensusResult},
+        error::ConsensusError,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -662,8 +682,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -735,8 +754,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -781,8 +799,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG of 2 rounds
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -845,8 +862,7 @@ mod tests {
             let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-            let mut block_manager =
-                BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
             // WHEN
             let mut all_accepted_block_headers = vec![];
@@ -903,8 +919,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         let (_, missing_blocks) =
             block_manager.try_accept_block_headers(vec![blocks_round_2[0].clone()]);
@@ -950,44 +965,6 @@ mod tests {
         );
     }
 
-    struct TestBlockVerifier {
-        fail: BTreeSet<BlockRef>,
-    }
-
-    impl TestBlockVerifier {
-        fn new(fail: BTreeSet<BlockRef>) -> Self {
-            Self { fail }
-        }
-    }
-
-    impl BlockVerifier for TestBlockVerifier {
-        fn verify(&self, _block: &SignedBlockHeader) -> ConsensusResult<()> {
-            Ok(())
-        }
-
-        fn check_and_verify_transactions(
-            &self,
-            _transactions: &[Transaction],
-        ) -> ConsensusResult<()> {
-            Ok(())
-        }
-
-        fn check_ancestors(
-            &self,
-            block: &VerifiedBlockHeader,
-            _ancestors: &[Option<VerifiedBlockHeader>],
-        ) -> ConsensusResult<()> {
-            if self.fail.contains(&block.reference()) {
-                Err(ConsensusError::InvalidBlockTimestamp {
-                    max_timestamp_ms: 0,
-                    block_timestamp_ms: block.timestamp_ms(),
-                })
-            } else {
-                Ok(())
-            }
-        }
-    }
-
     #[tokio::test]
     async fn reject_blocks_failing_verifications() {
         let (context, _key_pairs) = Context::new_for_test(4);
@@ -995,7 +972,14 @@ mod tests {
 
         // create a DAG of rounds 1 ~ 5.
         let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=5).build();
+        dag_builder.layer(1).build();
+        // trigger failed verification by setting a timestamp delay
+        // on layer 2 which are ancestors to round 3.
+        dag_builder
+            .layer(2)
+            .configure_timestamp_delay_ms(5000)
+            .build();
+        dag_builder.layers(3..=5).build();
 
         let all_block_headers = dag_builder
             .block_headers
@@ -1003,20 +987,10 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
 
-        // Create a test verifier that fails the blocks of round 3
-        let test_verifier = TestBlockVerifier::new(
-            all_block_headers
-                .iter()
-                .filter(|block_header| block_header.round() == 3)
-                .map(|block_header| block_header.reference())
-                .collect(),
-        );
-
         // Create BlockManager.
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(test_verifier));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
         // be suspended.
@@ -1064,8 +1038,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -1151,5 +1124,58 @@ mod tests {
                 .chain(missing_block_refs_from_find.into_iter())
                 .collect()
         );
+    }
+
+    #[tokio::test]
+    async fn test_check_ancestors() {
+        let num_authorities = 4;
+        let (context, _keypairs) = Context::new_for_test(num_authorities);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state);
+
+        let mut ancestor_blocks = vec![];
+        for i in 0..num_authorities {
+            let test_block = TestBlockHeader::new(10, i as u32)
+                .set_timestamp_ms(1000 + 100 * i as BlockTimestampMs)
+                .build();
+            ancestor_blocks.push(VerifiedBlockHeader::new_for_test(test_block));
+        }
+        let ancestor_refs = ancestor_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+
+        // Block respecting timestamp invariant.
+        {
+            let block = TestBlockHeader::new(11, 0)
+                .set_ancestors(ancestor_refs.clone())
+                .set_timestamp_ms(1500)
+                .build();
+            let verified_block = VerifiedBlockHeader::new_for_test(block);
+            assert!(
+                block_manager
+                    .check_ancestors(&verified_block, &ancestor_blocks)
+                    .is_ok()
+            );
+        }
+
+        // Block not respecting timestamp invariant.
+        {
+            let block = TestBlockHeader::new(11, 0)
+                .set_ancestors(ancestor_refs.clone())
+                .set_timestamp_ms(1000)
+                .build();
+            let verified_block = VerifiedBlockHeader::new_for_test(block);
+            assert!(matches!(
+                block_manager.check_ancestors(&verified_block, &ancestor_blocks,),
+                Err(ConsensusError::InvalidBlockTimestamp {
+                    max_timestamp_ms: _,
+                    block_timestamp_ms: _
+                })
+            ));
+        }
     }
 }
