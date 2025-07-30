@@ -7,7 +7,7 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
-import { useGetDefaultName } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/core';
 
 interface AccountItemApproveConnectionProps {
     account: SerializedUIAccount;
@@ -20,7 +20,7 @@ export function AccountItemApproveConnection({
     selected,
     onLock,
 }: AccountItemApproveConnectionProps) {
-    const { data: iotaName } = useGetDefaultName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
 
     const { unlockAccount, lockAccount } = useUnlockAccount();

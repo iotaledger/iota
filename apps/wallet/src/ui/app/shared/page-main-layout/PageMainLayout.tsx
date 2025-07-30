@@ -16,7 +16,7 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
-import { useGetDefaultName } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/core';
 import { formatAccountName } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
@@ -96,7 +96,7 @@ function LeftContent({
     isLegacyAccount?: boolean;
     isMainAccount?: boolean;
 }) {
-    const { data: iotaName } = useGetDefaultName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
