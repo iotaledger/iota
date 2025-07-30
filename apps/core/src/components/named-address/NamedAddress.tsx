@@ -8,15 +8,8 @@ import { normalizeIotaName } from '@iota/iota-names-sdk';
 import { truncateString } from '../../utils';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
-interface NamedAddressProps {
+interface NamedAddressProps extends Omit<React.ComponentProps<typeof Address>, 'text'> {
     address: string;
-    isCopyable?: boolean;
-    isExternal?: boolean;
-    externalLink?: string;
-    copyText?: string;
-    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
-    onCopyError?: (e: unknown, text: string) => void;
-    onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     addMarginRightToCenter?: boolean;
 }
 
