@@ -29,7 +29,7 @@ export function NavbarItemHorizontal({
     const backgroundColors = isSelected && SELECTED_BACKGROUND;
     const badgePositionClasses = text ? BADGE_WITH_TEXT : BADGE_WITHOUT_TEXT;
     const textClasses = isSelected ? SELECTED_TEXT : UNSELECTED_TEXT;
-    const disabledClasses = isDisabled ? 'cursor-not-allowed opacity-60' : 'state-layer';
+    const disabledClasses = isDisabled ? 'cursor-not-allowed opacity-60' : 'state-layer-secondary';
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (isDisabled) {
             e.preventDefault();

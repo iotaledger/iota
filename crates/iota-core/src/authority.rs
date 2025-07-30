@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, atomic::Ordering},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
     vec,
 };
 
@@ -20,7 +20,6 @@ use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
-use chrono::prelude::*;
 use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
@@ -111,7 +110,6 @@ use iota_types::{
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
-use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -121,7 +119,7 @@ use prometheus::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
-use tap::{TapFallible, TapOptional};
+use tap::TapFallible;
 use tokio::{
     sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
     task::JoinHandle,
@@ -197,6 +195,10 @@ mod batch_verification_tests;
 #[path = "unit_tests/coin_deny_list_tests.rs"]
 mod coin_deny_list_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/auth_unit_test_utils.rs"]
+pub mod auth_unit_test_utils;
+
 pub mod authority_test_utils;
 
 pub mod authority_per_epoch_store;
@@ -208,12 +210,12 @@ pub mod authority_store_types;
 pub mod epoch_start_configuration;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
+pub mod suggested_gas_price_calculator;
 pub mod test_authority_builder;
 pub mod transaction_deferral;
 
 pub(crate) mod authority_store;
-
-pub static CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
+pub mod backpressure;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
@@ -806,6 +808,10 @@ pub struct AuthorityState {
     pub overload_info: AuthorityOverloadInfo,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
+
+    /// The chain identifier is derived from the digest of the genesis
+    /// checkpoint.
+    chain_identifier: ChainIdentifier,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -1001,6 +1007,22 @@ impl AuthorityState {
         consensus_adapter.check_consensus_overload().tap_err(|_| {
             self.update_overload_metrics("consensus");
         })?;
+
+        let pending_tx_count = self
+            .get_cache_commit()
+            .approximate_pending_transaction_count();
+        if pending_tx_count
+            > self
+                .config
+                .execution_cache_config
+                .writeback_cache
+                .backpressure_threshold_for_rpc()
+        {
+            return Err(IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 10,
+            });
+        }
+
         Ok(())
     }
 
@@ -1751,10 +1773,11 @@ impl AuthorityState {
         )?;
 
         // make a gas object if one was not provided
+        let mut transaction = transaction;
         let mut gas_object_refs = transaction.gas().to_vec();
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
-            let sender = transaction.sender();
+            let sender = transaction.gas_owner();
             // use a 1B iota coin
             const NANOS_TO_IOTA: u64 = 1_000_000_000;
             const DRY_RUN_IOTA: u64 = 1_000_000_000;
@@ -1767,6 +1790,8 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
+            // Add gas object to transaction gas payment
+            transaction.gas_data_mut().payment = gas_object_refs.clone();
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -1935,11 +1960,11 @@ impl AuthorityState {
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
-
         // make a gas object if one was not provided
+        let mut transaction = transaction;
         let mut gas_object_refs = transaction.gas().to_vec();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
-            let sender = transaction.sender();
+            let sender = transaction.gas_owner();
             // use a 1B iota coin
             const NANOS_TO_IOTA: u64 = 1_000_000_000;
             const DRY_RUN_IOTA: u64 = 1_000_000_000;
@@ -1952,6 +1977,9 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
+
+            // Add the gas object to the transaction payment.
+            transaction.gas_data_mut().payment = gas_object_refs.clone();
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -2677,8 +2705,11 @@ impl AuthorityState {
     }
 
     pub fn unixtime_now_ms() -> u64 {
-        let ts_ms = Utc::now().timestamp_millis();
-        u64::try_from(ts_ms).expect("Travelling in time machine")
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis();
+        u64::try_from(now).expect("Travelling in time machine")
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2836,6 +2867,7 @@ impl AuthorityState {
         indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
+        chain_identifier: ChainIdentifier,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -2892,6 +2924,7 @@ impl AuthorityState {
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
+            chain_identifier,
         });
 
         // Start a task to execute ready certificates.
@@ -3431,19 +3464,8 @@ impl AuthorityState {
     }
 
     /// Chain Identifier is the digest of the genesis checkpoint.
-    pub fn get_chain_identifier(&self) -> Option<ChainIdentifier> {
-        if let Some(digest) = CHAIN_IDENTIFIER.get() {
-            return Some(*digest);
-        }
-
-        let checkpoint = self
-            .get_checkpoint_by_sequence_number(0)
-            .tap_err(|e| error!("Failed to get genesis checkpoint: {:?}", e))
-            .ok()?
-            .tap_none(|| error!("Genesis checkpoint is missing from DB"))?;
-        // It's ok if the value is already set due to data races.
-        let _ = CHAIN_IDENTIFIER.set(ChainIdentifier::from(*checkpoint.digest()));
-        Some(ChainIdentifier::from(*checkpoint.digest()))
+    pub fn get_chain_identifier(&self) -> ChainIdentifier {
+        self.chain_identifier
     }
 
     #[instrument(level = "trace", skip_all)]

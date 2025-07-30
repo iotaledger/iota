@@ -8,12 +8,6 @@ use clap::Parser;
 use move_cli::base::new;
 use move_package::source_package::layout::SourcePackageLayout;
 
-const IOTA_PKG_NAME: &str = "Iota";
-
-// Use testnet by default. Probably want to add options to make this
-// configurable later
-const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\", subdir = \"crates/iota-framework/packages/iota-framework\", rev = \"testnet\", override = true }";
-
 #[derive(Parser)]
 #[group(id = "iota-move-new")]
 pub struct New {
@@ -27,7 +21,7 @@ impl New {
         let provided_name = &self.new.name.to_string();
 
         self.new
-            .execute(path, [(IOTA_PKG_NAME, IOTA_PKG_PATH)], [(name, "0x0")], "")?;
+            .execute(path, [] as [(&str, &str); 0], [(name, "0x0")], "")?;
         let p = path.unwrap_or_else(|| Path::new(&provided_name));
         let mut w = std::fs::File::create(
             p.join(SourcePackageLayout::Sources.path())

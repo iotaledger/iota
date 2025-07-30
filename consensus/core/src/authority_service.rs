@@ -841,7 +841,7 @@ async fn make_recv_future<T: Clone>(
 // TODO: add a unit test for BroadcastStream.
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
         sync::Arc,
@@ -871,12 +871,12 @@ mod tests {
         test_dag_builder::DagBuilder,
     };
 
-    struct FakeCoreThreadDispatcher {
+    pub(crate) struct FakeCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
     }
 
     impl FakeCoreThreadDispatcher {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 blocks: Mutex::new(vec![]),
             }

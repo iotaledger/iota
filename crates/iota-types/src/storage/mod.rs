@@ -20,7 +20,7 @@ use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStore,
-    RestStateReader,
+    RestIndexes, RestStateReader,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -474,14 +474,14 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
 pub struct ObjectKey(pub ObjectID, pub VersionNumber);
 
 impl ObjectKey {
-    pub const ZERO: ObjectKey = ObjectKey(ObjectID::ZERO, VersionNumber::MIN);
+    pub const ZERO: ObjectKey = ObjectKey(ObjectID::ZERO, VersionNumber::MIN_VALID_INCL);
 
     pub fn max_for_id(id: &ObjectID) -> Self {
-        Self(*id, VersionNumber::MAX)
+        Self(*id, VersionNumber::MAX_VALID_EXCL)
     }
 
     pub fn min_for_id(id: &ObjectID) -> Self {
-        Self(*id, VersionNumber::MIN)
+        Self(*id, VersionNumber::MIN_VALID_INCL)
     }
 }
 

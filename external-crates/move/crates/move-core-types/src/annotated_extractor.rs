@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 ///
 /// - Selectors, which recurse into the sub-structure.
 /// - Filters, which check properties of the value at that position in the sub-structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Element<'e> {
     // Selectors
     /// Select a named field, assuming the value in question is a struct or an enum variant.
@@ -87,7 +87,7 @@ where
     }
 }
 
-impl<'p, 'v, 'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'p, 'v, V> {
+impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V> {
     type Value = Option<V::Value>;
     type Error = V::Error;
 

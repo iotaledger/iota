@@ -481,7 +481,7 @@ mod tests {
                     owner,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN,
+                    SequenceNumber::MIN_VALID_INCL,
                 )
                 .unwrap()
             })
@@ -494,12 +494,12 @@ mod tests {
                     address,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN,
+                    SequenceNumber::MIN_VALID_INCL,
                 )
                 .unwrap()
             });
         let non_matching_objects = (0..8)
-            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN))
+            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
                     Data::Move(move_object),
@@ -538,12 +538,12 @@ mod tests {
                     address,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN,
+                    SequenceNumber::MIN_VALID_INCL,
                 )
                 .unwrap()
             });
         let expected_gas_coins = (0..8)
-            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN))
+            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
                     Data::Move(move_object),

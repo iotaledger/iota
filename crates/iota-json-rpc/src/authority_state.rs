@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
@@ -541,9 +540,7 @@ impl StateRead for AuthorityState {
     }
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier> {
-        Ok(self
-            .get_chain_identifier()
-            .ok_or(anyhow!("Chain identifier not found"))?)
+        Ok(self.get_chain_identifier())
     }
 }
 

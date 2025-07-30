@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
 };
 
-use crate::proof::{Proof, ProofTarget, TransactionProof};
+use crate::proof::{Proof, ProofTargets, TransactionProof};
 
 /// Construct a proof from the given checkpoint data and proof targets.
 ///
@@ -16,9 +16,9 @@ use crate::proof::{Proof, ProofTarget, TransactionProof};
 /// you need guaranteed validity consider calling `verify_proof` function on the
 /// constructed proof. It either returns `Ok` with a proof, or `Err` with a
 /// description of the error.
-pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::Result<Proof> {
-    let checkpoint_summary = data.checkpoint_summary.clone();
-    let mut this_proof = Proof {
+pub fn construct_proof(targets: ProofTargets, checkpoint: &CheckpointData) -> Result<Proof> {
+    let checkpoint_summary = checkpoint.checkpoint_summary.clone();
+    let mut proof = Proof {
         targets,
         checkpoint_summary,
         contents_proof: None,
@@ -26,14 +26,14 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
 
     // Do a minimal check that the given checkpoint data is consistent with the
     // committee
-    if let Some(committee) = &this_proof.targets.committee {
+    if let Some(committee_target) = &proof.targets.committee {
         // Check we have the correct epoch
-        if this_proof.checkpoint_summary.epoch() + 1 != committee.epoch {
+        if proof.checkpoint_summary.epoch() + 1 != committee_target.epoch {
             bail!("Epoch mismatch between checkpoint and committee");
         }
 
         // Check its an end of epoch checkpoint
-        if this_proof.checkpoint_summary.end_of_epoch_data.is_none() {
+        if proof.checkpoint_summary.end_of_epoch_data.is_none() {
             bail!("Expected end of epoch checkpoint");
         }
     }
@@ -41,16 +41,12 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
     // If proof targets include objects or events, we need to include the contents
     // proof Need to ensure that all targets refer to the same transaction first
     // of all
-    let object_tx = this_proof
+    let object_tx = proof
         .targets
         .objects
         .iter()
         .map(|(_, o)| o.previous_transaction);
-    let event_tx = this_proof
-        .targets
-        .events
-        .iter()
-        .map(|(eid, _)| eid.tx_digest);
+    let event_tx = proof.targets.events.iter().map(|(eid, _)| eid.tx_digest);
     let mut all_tx = object_tx.chain(event_tx);
 
     // Get the first tx ID
@@ -58,7 +54,7 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
         first_tx
     } else {
         // Since there is no target we just return the summary proof
-        return Ok(this_proof);
+        return Ok(proof);
     };
 
     // Basic check that all targets refer to the same transaction
@@ -67,7 +63,7 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
     }
 
     // Find the transaction in the checkpoint data
-    let tx = data
+    let tx = checkpoint
         .transactions
         .iter()
         .find(|t| t.effects.transaction_digest() == &target_tx_id)
@@ -82,8 +78,8 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
     } = tx;
 
     // Add all the transaction data in there
-    this_proof.contents_proof = Some(TransactionProof {
-        checkpoint_contents: data.checkpoint_contents.clone(),
+    proof.contents_proof = Some(TransactionProof {
+        checkpoint_contents: checkpoint.checkpoint_contents.clone(),
         transaction,
         effects,
         events,
@@ -93,5 +89,5 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
     //       avoid constructing invalid proofs? I opt to not check because the check
     //       is expensive (sequential scan of all objects).
 
-    Ok(this_proof)
+    Ok(proof)
 }

@@ -2610,10 +2610,12 @@ type MoveType {
 	signature: MoveTypeSignature!
 	"""
 	Structured representation of the "shape" of values that match this type.
+	May return MoveTypeLayout::InvalidType for malformed types.
 	"""
 	layout: MoveTypeLayout!
 	"""
-	The abilities this concrete type has.
+	The abilities this concrete type has. Returns no abilities if the type
+	is invalid.
 	"""
 	abilities: [MoveAbility!]!
 }

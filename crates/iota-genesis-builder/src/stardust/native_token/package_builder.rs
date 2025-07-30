@@ -4,10 +4,11 @@
 
 //! The `package_builder` module provides functions for building and
 //! compiling Stardust native token packages.
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
 use anyhow::Result;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use tempfile::tempdir;
 
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
@@ -88,7 +89,9 @@ pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPack
 
     // Compile the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let compiled_package = BuildConfig::default().build(&package_path)?;
+
+    let build_config = genesis_build_configuration();
+    let compiled_package = build_config.build(&package_path)?;
 
     // Step 5: Clean up the temporary directory
     tmp_dir.close()?;
@@ -183,6 +186,43 @@ fn format_string_as_move_vector(string: &str) -> String {
     byte_string.push(']');
 
     byte_string
+}
+
+/// Construct the [BuildConfig] for genesis builder
+///
+/// All the configurations are explicitly specified, regardless
+/// of their verbosity so that when any underlying configuration struct is
+/// changed the developer may observe a build error and be able to appropriately
+/// decide which setting should be used here.
+/// In addition we do not rely on silent changes stemming for default
+/// settings being changed erroneously.
+fn genesis_build_configuration() -> BuildConfig {
+    let config = MoveBuildConfig {
+        default_flavor: Some(move_compiler::editions::Flavor::Iota),
+        dev_mode: false,
+        test_mode: false,
+        generate_docs: false,
+        save_disassembly: false,
+        install_dir: None,
+        force_recompilation: false,
+        lock_file: None,
+        fetch_deps_only: false,
+        skip_fetch_latest_git_deps: false,
+        default_edition: None,
+        deps_as_root: false,
+        silence_warnings: false,
+        warnings_are_errors: false,
+        json_errors: false,
+        additional_named_addresses: BTreeMap::default(),
+        lint_flag: LintFlag::LEVEL_DEFAULT,
+        implicit_dependencies: BTreeMap::default(),
+    };
+    BuildConfig {
+        config,
+        run_bytecode_verifier: true,
+        print_diags_to_stderr: false,
+        chain_id: None,
+    }
 }
 
 #[cfg(test)]
