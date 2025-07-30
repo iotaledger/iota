@@ -256,13 +256,11 @@ impl BlockManager {
                 // is actually references it right now.
                 self.missing_ancestors.entry(*block_ref).or_default();
 
-                let block_ref_hostname =
-                    &self.context.committee.authority(block_ref.author).hostname;
                 self.context
                     .metrics
                     .node_metrics
                     .block_manager_missing_blocks_by_authority
-                    .with_label_values(&[block_ref_hostname])
+                    .with_label_values(&[self.context.authority_hostname(block_ref.author)])
                     .inc();
             }
         }
@@ -358,18 +356,15 @@ impl BlockManager {
 
         // TODO: report blocks_to_reject to peers.
         for (block_ref, block) in blocks_to_reject {
-            let hostname = self
-                .context
-                .committee
-                .authority(block_ref.author)
-                .hostname
-                .clone();
-
             self.context
                 .metrics
                 .node_metrics
                 .invalid_blocks
-                .with_label_values(&[hostname.as_str(), "accept_block", "InvalidAncestors"])
+                .with_label_values(&[
+                    self.context.authority_hostname(block_ref.author),
+                    "accept_block",
+                    "InvalidAncestors",
+                ])
                 .inc();
             warn!("Invalid block {:?} is rejected", block);
         }
@@ -407,7 +402,7 @@ impl BlockManager {
                 .metrics
                 .node_metrics
                 .block_manager_filtered_processed_headers_by_authority
-                .with_label_values(&[&self.context.committee.authority(block_ref.author).hostname])
+                .with_label_values(&[self.context.authority_hostname(block_ref.author)])
                 .inc();
             return TryAcceptResult::Processed;
         }
@@ -429,12 +424,11 @@ impl BlockManager {
                     .or_default()
                     .insert(block_ref);
 
-                let ancestor_hostname = &self.context.committee.authority(ancestor.author).hostname;
                 self.context
                     .metrics
                     .node_metrics
                     .block_manager_missing_ancestors_by_authority
-                    .with_label_values(&[ancestor_hostname])
+                    .with_label_values(&[self.context.authority_hostname(ancestor.author)])
                     .inc();
 
                 // Add the ancestor to the missing blocks set only if it doesn't already exist
@@ -454,7 +448,9 @@ impl BlockManager {
                                 .metrics
                                 .node_metrics
                                 .block_manager_missing_blocks_by_authority
-                                .with_label_values(&[ancestor_hostname])
+                                .with_label_values(&[self
+                                    .context
+                                    .authority_hostname(ancestor.author)])
                                 .inc();
                         }
                         Entry::Occupied(mut o) => {
@@ -471,17 +467,11 @@ impl BlockManager {
         self.missing_blocks.remove(&block_header.reference());
 
         if !missing_ancestors.is_empty() {
-            let hostname = self
-                .context
-                .committee
-                .authority(block_header.author())
-                .hostname
-                .as_str();
             self.context
                 .metrics
                 .node_metrics
                 .block_suspensions
-                .with_label_values(&[hostname])
+                .with_label_values(&[self.context.authority_hostname(block_header.author())])
                 .inc();
             self.suspended_block_headers.insert(
                 block_ref,
@@ -522,23 +512,17 @@ impl BlockManager {
 
         // Report the unsuspended blocks
         for block in &unsuspended_blocks {
-            let hostname = self
-                .context
-                .committee
-                .authority(block.block_header.author())
-                .hostname
-                .as_str();
             self.context
                 .metrics
                 .node_metrics
                 .block_unsuspensions
-                .with_label_values(&[hostname])
+                .with_label_values(&[self.context.authority_hostname(block.block_header.author())])
                 .inc();
             self.context
                 .metrics
                 .node_metrics
                 .suspended_block_time
-                .with_label_values(&[hostname])
+                .with_label_values(&[self.context.authority_hostname(block.block_header.author())])
                 .observe(now.saturating_duration_since(block.timestamp).as_secs_f64());
         }
 
@@ -612,18 +596,17 @@ impl BlockManager {
             };
         self.received_block_rounds[block.author()] = Some((min_round, max_round));
 
-        let hostname = &self.context.committee.authority(block.author()).hostname;
         self.context
             .metrics
             .node_metrics
             .lowest_verified_authority_round
-            .with_label_values(&[hostname])
+            .with_label_values(&[self.context.authority_hostname(block.author())])
             .set(min_round.into());
         self.context
             .metrics
             .node_metrics
             .highest_verified_authority_round
-            .with_label_values(&[hostname])
+            .with_label_values(&[self.context.authority_hostname(block.author())])
             .set(max_round.into());
     }
 
