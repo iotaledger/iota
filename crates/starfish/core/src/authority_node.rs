@@ -790,7 +790,16 @@ mod tests {
         boot_counters[index_1] += 1;
         authorities.insert(index_1, authority);
         temp_dirs.insert(index_1, dir);
-        sleep(Duration::from_secs(5)).await;
+        let received_from_authority_1 = timeout(Duration::from_secs(10), output_receivers[index_1].recv()).await;
+        match received_from_authority_1 {
+            Ok(Some(result)) => {
+                panic!("Expected no result, but received: {:?}", result);
+            }
+            Ok(None) | Err(_) => {
+                // Timeout or channel closed as expected, test passes
+            }
+        }
+
 
         // Now spin up authority 2 using its earlier directory - so no amnesia recovery
         // should be forced here. Authority 1 should be able to recover from
@@ -814,12 +823,18 @@ mod tests {
 
         // We wait until we see at least one committed block authored from this
         // authority
-        'outer: while let Some(result) = receiver_1.recv().await {
-            for block in &result.blocks {
-                if block.round() > GENESIS_ROUND && block.author() == index_1 {
-                    break 'outer;
+        let received_from_authority_1 = timeout(Duration::from_secs(10), async {
+            'outer: while let Some(result) = receiver_1.recv().await {
+                for block in &result.blocks {
+                    if block.round() > GENESIS_ROUND && block.author() == index_1 {
+                        break 'outer;
+                    }
                 }
             }
+        }).await;
+
+        if received_from_authority_1.is_err() {
+            panic!("Timed out while waiting for at least one committed block from authority {index_1}");
         }
 
         // Stop all authorities and exit.
