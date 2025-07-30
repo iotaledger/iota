@@ -274,6 +274,7 @@ impl CongestionTracker {
         congestion_info_map
     }
 
+    /// Process a congestion info map for a single checkpoint.
     fn process_checkpoint_congestion_info_map(&self, congestion_info_map: CongestionInfoMap) {
         for (object_id, new_congestion_info) in congestion_info_map {
             self.object_congestion_info
