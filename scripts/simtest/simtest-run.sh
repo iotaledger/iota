@@ -77,16 +77,19 @@ scripts/simtest/cargo-simtest simtest \
   --profile simtestnightly \
   -E "$FINAL_TEST_FILTER" 2>&1 | tee "$LOG_FILE"
 
+# define the worker count, it's max of NUM_CPUS or 8
+WORKERS_COUNT=$(($NUM_CPUS > 8 ? 8 : $NUM_CPUS))
+
 echo ""
 echo "============================================="
-echo "Running $NUM_CPUS stress simtests in parallel"
+echo "Running $WORKERS_COUNT stress simtests in parallel"
 echo "============================================="
 date
 
-for CPU_NUMBER in `seq 1 $NUM_CPUS`; do
-  SUB_SEED="$CPU_NUMBER$DATE"
+for WORKER_NUMBER in `seq 1 $WORKERS_COUNT`; do
+  SUB_SEED="$WORKER_NUMBER$DATE"
   LOG_FILE="$LOG_DIR/log-$SUB_SEED"
-  echo "Iteration $CPU_NUMBER using MSIM_TEST_SEED=${SUB_SEED}, MSIM_TEST_NUM=1, SIM_STRESS_TEST_DURATION_SECS=300, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
+  echo "Iteration $WORKER_NUMBER using MSIM_TEST_SEED=${SUB_SEED}, MSIM_TEST_NUM=1, SIM_STRESS_TEST_DURATION_SECS=300, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
   # --test-threads 1 is important: parallelism is achieved via the for loop
   MSIM_TEST_SEED="$SUB_SEED" \

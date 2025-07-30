@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, atomic::Ordering},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
     vec,
 };
 
@@ -20,7 +20,6 @@ use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
-use chrono::prelude::*;
 use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
@@ -196,6 +195,10 @@ mod batch_verification_tests;
 #[cfg(test)]
 #[path = "unit_tests/coin_deny_list_tests.rs"]
 mod coin_deny_list_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/auth_unit_test_utils.rs"]
+pub mod auth_unit_test_utils;
 
 pub mod authority_test_utils;
 
@@ -2709,8 +2712,11 @@ impl AuthorityState {
     }
 
     pub fn unixtime_now_ms() -> u64 {
-        let ts_ms = Utc::now().timestamp_millis();
-        u64::try_from(ts_ms).expect("Travelling in time machine")
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis();
+        u64::try_from(now).expect("Travelling in time machine")
     }
 
     #[instrument(level = "trace", skip_all)]

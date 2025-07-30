@@ -14,7 +14,7 @@ use tokio::{
     sync::mpsc,
     time::{Instant, sleep},
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use typed_store::rocks::safe_drop_db;
 
 struct Metrics {
@@ -165,7 +165,7 @@ impl ConsensusStorePruner {
 
             if file_epoch < drop_boundary {
                 if let Err(e) = safe_drop_db(f.path()) {
-                    error!(
+                    warn!(
                         "Could not prune old consensus storage \"{:?}\" directory with safe approach. Will fallback to force delete: {:?}",
                         f.path(),
                         e
