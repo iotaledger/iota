@@ -5801,6 +5801,7 @@ dependencies = [
  "async-trait",
  "axum 0.8.4",
  "bcs",
+ "bincode",
  "bytes",
  "clap",
  "consensus-config",
