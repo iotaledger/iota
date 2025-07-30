@@ -65,12 +65,6 @@ pub(crate) enum ConsensusError {
         received_headers: usize,
     },
 
-    #[error("Unexpected block header returned while fetching missing block headers")]
-    UnexpectedFetchedHeader {
-        index: AuthorityIndex,
-        block_ref: BlockRef,
-    },
-
     #[error(
         "Unexpected block header {block_ref} returned while fetching last own header from peer {index}"
     )]

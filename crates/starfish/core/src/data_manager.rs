@@ -7,7 +7,7 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use tracing::trace;
+use tracing::debug;
 
 use crate::{BlockRef, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
 
@@ -120,7 +120,7 @@ impl DataManager {
                 }
                 Err(missing_refs) => {
                     // If we have missing refs, we cannot commit this subdag
-                    trace!(
+                    debug!(
                         "Cannot create CommittedSubDag at index {}. Missing refs: {:?}",
                         next_index, missing_refs
                     );
@@ -133,14 +133,15 @@ impl DataManager {
         // Update dag state with the round of the leader in the last committed subdag
         // This will allow to evict transactions from the DAG state
         if !committed.is_empty() {
-            self.dag_state
-                .write()
-                .update_last_available_commit_leader_round(
-                    committed
-                        .last()
-                        .expect("We should expect at least one committed subdag")
-                        .leader_round(),
-                );
+            let mut dag_state_guard = self.dag_state.write();
+
+            dag_state_guard.update_last_available_commit_leader_round(
+                committed
+                    .last()
+                    .expect("We should expect at least one committed subdag")
+                    .leader_round(),
+            );
+            drop(dag_state_guard);
         }
 
         // Update last_committed_index
@@ -151,9 +152,10 @@ impl DataManager {
         for subdag in subdags {
             if subdag.commit_ref.index > self.last_committed_index {
                 // Query dag_state directly for missing transactions
-                let dag_state = self.dag_state.read();
-                let exists =
-                    dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
+                let dag_state_guard = self.dag_state.read();
+                let exists = dag_state_guard
+                    .contains_transactions(subdag.committed_transaction_refs.clone());
+                drop(dag_state_guard);
                 for (i, exists) in exists.iter().enumerate() {
                     if !exists {
                         let block_ref = subdag.committed_transaction_refs[i];
