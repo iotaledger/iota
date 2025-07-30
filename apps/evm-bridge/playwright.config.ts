@@ -41,8 +41,8 @@ export default defineConfig({
             timeout: 30 * 1000,
             reuseExistingServer: !process.env.CI,
         },
-         // Apps-backend:
-         {
+        // Apps-backend:
+        {
             command: 'cd ../apps-backend && pnpm run preview',
             port: 3003,
             timeout: 120 * 1000,

@@ -78,7 +78,33 @@ export async function fundSendMaxNativeTokenTestWallets(
 }
 
 /**
- * Fund wallets for the sendMaxNativeToken test suite
+ * Fund wallets for the depositThenWithdrawIota test suite
+ * @param globalAddress Global funding address
+ * @param globalKeypair Global funding keypair
+ * @param toolCoinAddress Tool coin source address
+ * @param toolCoinKeypair Tool coin keypair
+ * @param addressL1 Wallet address l1 for the test
+ * @param addressL2 Wallet address l2 for the test
+ */
+export async function fundDepostiThenWithdrawIotaTestWallets(
+    globalAddress: string,
+    globalKeypair: Ed25519Keypair,
+    addressL1: string,
+): Promise<void> {
+    console.log('📝 Funding depositThenWithdrawIota test wallets...');
+
+    // Send IOTA to L1 address for gas
+    await sendIotaToAddress(
+        globalAddress,
+        globalKeypair,
+        addressL1,
+        4, // Amount of IOTA
+    );
+    console.log('✅ depositThenWithdrawIota test wallets funded successfully');
+}
+
+/**
+ * Fund wallets for the depositThenWithdrawNativeToken test suite
  * @param globalAddress Global funding address
  * @param globalKeypair Global funding keypair
  * @param toolCoinAddress Tool coin source address
@@ -110,5 +136,5 @@ export async function fundDepostiThenWithdrawNativeTokenTestWallets(
     // Send IOTA to L2 address for gas
     await fundL2AddressWithIscClient(globalAddress, globalKeypair, addressL2, 1);
 
-    console.log('✅ deposit then withdraw native token test wallets funded successfully');
+    console.log('✅ depositThenWithdrawNativeToken test wallets funded successfully');
 }

@@ -8,7 +8,7 @@ import { CONFIG } from '../config/config';
 import { TOOL_COIN_OBJECT_ID, TOOL_COIN_TYPE } from '../utils/constants';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { bcs } from '@iota/iota-sdk/bcs';
-import { BrowserContext, Page } from '@playwright/test';
+import { Page } from '@playwright/test';
 
 export async function fundL1AddressWithNativeTokens(
     senderAddress: string,
@@ -16,28 +16,40 @@ export async function fundL1AddressWithNativeTokens(
     addressL1: string,
     amount: number,
 ) {
-    const { L1 } = CONFIG;
+    console.log(
+        `fundL1AddressWithNativeTokens: Sending ${amount} TOOL from ${senderAddress} to ${addressL1}`,
+    );
+    try {
+        const { L1 } = CONFIG;
 
-    const client = new IotaClient({
-        url: L1.rpcUrl,
-    });
+        const client = new IotaClient({
+            url: L1.rpcUrl,
+        });
 
-    const tx = new Transaction();
+        const tx = new Transaction();
 
-    const tokenCoin = tx.splitCoins(tx.object(TOOL_COIN_OBJECT_ID), [
-        tx.pure(bcs.U64.serialize(amount)),
-    ]);
-    tx.transferObjects([tokenCoin], addressL1);
-    tx.setSender(senderAddress);
+        const tokenCoin = tx.splitCoins(tx.object(TOOL_COIN_OBJECT_ID), [
+            tx.pure(bcs.U64.serialize(amount)),
+        ]);
+        tx.transferObjects([tokenCoin], addressL1);
+        tx.setSender(senderAddress);
 
-    const { digest } = await client.signAndExecuteTransaction({
-        signer: senderKeypair,
-        transaction: tx,
-    });
+        const { digest } = await client.signAndExecuteTransaction({
+            signer: senderKeypair,
+            transaction: tx,
+        });
 
-    await client.waitForTransaction({
-        digest,
-    });
+        await client.waitForTransaction({
+            digest,
+        });
+        console.log(`fundL1AddressWithNativeTokens transaction digest: ${digest}`);
+        return true;
+    } catch (error) {
+        console.error(
+            `❌ fundL1AddressWithNativeTokens: Failed to send ${amount} TOOL from ${senderAddress} to ${addressL1}`,
+            error,
+        );
+    }
 }
 
 export async function fundL2AddressWithIscClient(
@@ -47,49 +59,61 @@ export async function fundL2AddressWithIscClient(
     amount: number,
     coinType = IOTA_TYPE_ARG,
 ) {
-    const { L1 } = CONFIG;
-    const chain = {
-        chainId: L1.chainId,
-        packageId: L1.packageId,
-    };
+    console.log(
+        `fundL2AddressWithIscClient: Sending ${amount} ${coinType} from ${senderAddress} to ${addressL2}`,
+    );
+    try {
+        const { L1 } = CONFIG;
+        const chain = {
+            chainId: L1.chainId,
+            packageId: L1.packageId,
+        };
 
-    const client = new IotaClient({
-        url: L1.rpcUrl,
-    });
-    const coinData = await client.getCoinMetadata({ coinType });
-    const amountToSend = parseAmount(
-        amount.toString(),
-        coinData?.decimals ?? IOTA_DECIMALS,
-    ) as bigint;
-
-    let coins: CoinStruct[] = [];
-
-    if (coinType !== IOTA_TYPE_ARG) {
-        const { data: toolCoins } = await client.getCoins({
-            coinType: TOOL_COIN_TYPE,
-            owner: senderAddress,
+        const client = new IotaClient({
+            url: L1.rpcUrl,
         });
-        coins = toolCoins;
+        const coinData = await client.getCoinMetadata({ coinType });
+        const amountToSend = parseAmount(
+            amount.toString(),
+            coinData?.decimals ?? IOTA_DECIMALS,
+        ) as bigint;
+
+        let coins: CoinStruct[] = [];
+
+        if (coinType !== IOTA_TYPE_ARG) {
+            const { data: toolCoins } = await client.getCoins({
+                coinType: TOOL_COIN_TYPE,
+                owner: senderAddress,
+            });
+            coins = toolCoins;
+        }
+
+        const transaction = createDepositTransactionL1({
+            amount: amountToSend,
+            receivingAddress: addressL2,
+            coins,
+            coinType,
+            chain,
+        });
+        transaction.setSender(senderAddress);
+        await transaction.build({ client });
+
+        const { digest } = await client.signAndExecuteTransaction({
+            signer: senderKeypair,
+            transaction,
+        });
+        await client.waitForTransaction({
+            digest,
+        });
+        console.log(`fundL2AddressWithIscClient transaction digest: ${digest}`);
+        return true;
+    } catch (error) {
+        console.error(
+            `❌ fundL2AddressWithIscClient: Failed to send ${amount} IOTA from ${senderAddress} to ${addressL2}`,
+            error,
+        );
+        return false;
     }
-
-    const transaction = createDepositTransactionL1({
-        amount: amountToSend,
-        receivingAddress: addressL2,
-        coins,
-        coinType,
-        chain,
-    });
-    transaction.setSender(senderAddress);
-    await transaction.build({ client });
-
-    const { digest } = await client.signAndExecuteTransaction({
-        signer: senderKeypair,
-        transaction,
-    });
-    console.log(`Transaction digest: ${digest}`);
-    await client.waitForTransaction({
-        digest,
-    });
 }
 
 export async function requestFundsFromFaucet(addressL1: string) {
@@ -107,7 +131,7 @@ export async function requestFundsFromFaucet(addressL1: string) {
     }
 }
 
-export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserContext) {
+export async function addL1FundsThroughBridgeUI(page: Page) {
     const maxRetries = 3; // Maximum number of retry attempts
     let attempt = 1;
     let success = false;
@@ -176,7 +200,9 @@ export async function sendIotaToAddress(
     receiverAddress: string,
     amount: number | string,
 ) {
-    console.log(`Sending ${amount} IOTA from ${senderAddress} to ${receiverAddress}`);
+    console.log(
+        `sendIotaToAddress: Sending ${amount} IOTA from ${senderAddress} to ${receiverAddress}`,
+    );
 
     try {
         const { L1 } = CONFIG;
@@ -208,10 +234,11 @@ export async function sendIotaToAddress(
             digest,
         });
 
-        console.log(
-            `✅ Transaction successful: Sent ${amount} IOTA to ${receiverAddress}, digest: ${digest}`,
-        );
+        console.log(`sendIotaToAddress transaction digest: ${digest}`);
     } catch (error) {
-        console.error(`❌ Transaction failed:`, error);
+        console.error(
+            `❌ sendIotaToAddress: Failed to send ${amount} IOTA from ${senderAddress} to ${receiverAddress}`,
+            error,
+        );
     }
 }

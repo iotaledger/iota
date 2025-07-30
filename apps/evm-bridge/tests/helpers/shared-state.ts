@@ -4,7 +4,6 @@ import { STATE_FILE } from './paths';
 import { TestWalletData } from '../utils/utils';
 
 export type WalletState = {
-    // Global address
     global: {
         addressL1: string;
         mnemonicL1: string;
@@ -14,11 +13,9 @@ export type WalletState = {
         sendMaxIotaAmountL2: TestWalletData;
         sendMaxNativeTokenAmountL1: TestWalletData;
         sendMaxNativeTokenAmountL2: TestWalletData;
-        depositThenWithdraw: TestWalletData;
+        depositThenWithdrawIota: TestWalletData;
         depositThenWithdrawNativeToken: TestWalletData;
     };
-    // Metadata
-    createdAt: string;
 };
 export function getSharedState(): WalletState {
     try {

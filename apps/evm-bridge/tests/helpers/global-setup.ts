@@ -6,9 +6,10 @@ import {
     generateTestWallets,
 } from '../utils/utils';
 import { STATE_FILE, STATE_DIR } from './paths';
-import { requestFundsFromFaucet, sendIotaToAddress } from './transactions';
+import { requestFundsFromFaucet } from './transactions';
 import { MNEMONIC_TOOL_COIN } from '../utils/constants';
 import {
+    fundDepostiThenWithdrawIotaTestWallets,
     fundDepostiThenWithdrawNativeTokenTestWallets,
     fundSendMaxIotaTestWallets,
     fundSendMaxNativeTokenTestWallets,
@@ -27,18 +28,18 @@ async function globalSetup() {
     const { address: toolCoinAddress, keypair: toolCoinKeypair } =
         deriveAddressFromMnemonic(MNEMONIC_TOOL_COIN);
 
-    // 1. Generate addresses for sendMaxIotaAmount test
+    // 2. Generate addresses for sendMaxIotaAmount test
     const sendMaxIotaWalletsL1 = generateTestWallets();
     const sendMaxIotaWalletsL2 = generateTestWallets();
 
-    // 2. Generate addresses for Send Max Native Token Amount test
+    // 3. Generate addresses for Send Max Native Token Amount test
     const sendMaxNativeTokensWalletsL1 = generateTestWallets();
     const sendMaxNativeTokensWalletsL2 = generateTestWallets();
 
-    // 3. Generate addresses for roundtrip iota  test
+    // 4. Generate addresses for roundtrip iota  test
     const roundTripIotaWallets = generateTestWallets();
 
-    // 4. Generate addresses for roundtrip native token test
+    // 5. Generate addresses for roundtrip native token test
     const roundTripNativeTokenWallets = generateTestWallets();
 
     // Store all addresses in shared state
@@ -54,11 +55,9 @@ async function globalSetup() {
             sendMaxIotaAmountL2: sendMaxIotaWalletsL2,
             sendMaxNativeTokenAmountL1: sendMaxNativeTokensWalletsL1,
             sendMaxNativeTokenAmountL2: sendMaxNativeTokensWalletsL2,
-            depositThenWithdraw: roundTripIotaWallets,
+            depositThenWithdrawIota: roundTripIotaWallets,
             depositThenWithdrawNativeToken: roundTripNativeTokenWallets,
         },
-
-        createdAt: new Date().toISOString(),
     };
 
     writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
@@ -67,7 +66,7 @@ async function globalSetup() {
     await requestFundsFromFaucet(globalAddressL1);
     await requestFundsFromFaucet(globalAddressL1);
 
-    // Fund sendMaxIotaAmount test addresses
+    // Fund Test Addresses
     await fundSendMaxIotaTestWallets(
         globalAddressL1,
         globalKeypair,
@@ -75,7 +74,6 @@ async function globalSetup() {
         sendMaxIotaWalletsL2.addressL2,
     );
 
-    // Fund sendMaxNativeTokenAmount test addresses
     await fundSendMaxNativeTokenTestWallets(
         globalAddressL1,
         globalKeypair,
@@ -85,15 +83,12 @@ async function globalSetup() {
         sendMaxNativeTokensWalletsL2.addressL2,
     );
 
-    // Fund round trip iota wallets
-    await sendIotaToAddress(
+    await fundDepostiThenWithdrawIotaTestWallets(
         globalAddressL1,
         globalKeypair,
         roundTripIotaWallets.addressL1,
-        4, // Amount of IOTA
     );
 
-    // Fund round trip native token wallets
     await fundDepostiThenWithdrawNativeTokenTestWallets(
         globalAddressL1,
         globalKeypair,

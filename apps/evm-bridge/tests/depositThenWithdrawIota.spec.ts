@@ -17,7 +17,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
     let shared: TestContext;
 
     test.beforeAll('setup L1/L2 wallets', async ({ roundtripIotaSetup }) => {
-        const persistentSetup = await roundtripIotaSetup('depositThenWithdraw');
+        const persistentSetup = await roundtripIotaSetup('depositThenWithdrawIota');
         shared = persistentSetup;
     });
 
