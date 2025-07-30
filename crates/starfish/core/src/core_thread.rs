@@ -476,6 +476,7 @@ pub(crate) mod tests {
         missing_blocks: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
+        quorum_subscribers_exists: Mutex<bool>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -595,8 +596,9 @@ pub(crate) mod tests {
             Ok(result)
         }
 
-        fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            unimplemented!()
+        fn set_quorum_subscribers_exists(&self, exists: bool) -> Result<(), CoreError> {
+            *self.quorum_subscribers_exists.lock() = exists;
+            Ok(())
         }
 
         fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError> {

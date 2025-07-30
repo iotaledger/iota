@@ -104,9 +104,9 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
     /// A set contains BlockHeaderDigests for block headers, received from
-    /// streaming Used to filter the headers if they are received multiple
-    /// times. The size is limited by MAX_FILTER_SIZE, elements are evicted
-    /// when the threshold is exceeded
+    /// streaming. It is used to filter the headers if they are received
+    /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
+    /// evicted when the threshold is exceeded
     received_block_headers: FilterForHeaders,
 }
 
@@ -927,6 +927,10 @@ impl SubscriptionCounter {
         let mut counter = self.counter.lock();
         counter.count -= 1;
         let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
+
+        if counter.subscriptions_by_authority[peer] == 0 {
+            panic!("Subscription count for peer {peer} is already zero, cannot decrement");
+        }
         counter.subscriptions_by_authority[peer] -= 1;
         let mut total_stake = 0;
         for (authority_index, _) in self.context.committee.authorities() {
@@ -1023,14 +1027,11 @@ impl<T: 'static + Clone + Send> Stream for BroadcastStream<T> {
             match result {
                 Ok(item) => break Some(item),
                 Err(broadcast::error::RecvError::Closed) => {
-                    info!("Block BroadcastedBlockStream {} closed", peer);
+                    info!("BroadcastedBlockStream {} closed", peer);
                     break None;
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
-                    warn!(
-                        "Block BroadcastedBlockStream {} lagged by {} messages",
-                        peer, n
-                    );
+                    warn!("BroadcastedBlockStream {} lagged by {} messages", peer, n);
                     continue;
                 }
             }
@@ -1060,8 +1061,6 @@ async fn make_recv_future<T: Clone>(
     (result, rx)
 }
 
-// TODO: add a unit test for BroadcastStream.
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -1072,6 +1071,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
+    use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use starfish_config::AuthorityIndex;
@@ -1079,7 +1079,7 @@ mod tests {
 
     use crate::{
         CommitConsumer, Round, TransactionClient,
-        authority_service::AuthorityService,
+        authority_service::{AuthorityService, BroadcastedBlockStream, SubscriptionCounter},
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
             VerifiedBlockHeader, VerifiedTransactions,
@@ -1660,5 +1660,32 @@ mod tests {
                 assert_eq!(block.round(), round);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_stream_receives_and_closes() {
+        let (tx, rx) = broadcast::channel(10);
+        let subscription_counter = Arc::new(SubscriptionCounter::new(
+            Arc::new(Context::new_for_test(4).0),
+            Arc::new(MockCoreThreadDispatcher::default()),
+        ));
+        let peer = AuthorityIndex::new_for_test(0);
+
+        let mut stream = BroadcastedBlockStream::new(peer, rx, subscription_counter);
+
+        // Send a block
+        let verified_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+        tx.send(verified_block.clone()).unwrap();
+
+        // Should receive the block
+        let received = stream.next().await;
+        assert_eq!(received, Some(verified_block));
+
+        // Drop the sender to close the channel
+        drop(tx);
+
+        // Stream should end (return None)
+        let received = stream.next().await;
+        assert_eq!(received, None);
     }
 }
