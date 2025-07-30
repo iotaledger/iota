@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Address } from '@iota/apps-ui-kit';
-import { useGetDefaultName } from '../../hooks';
+import { useGetDefaultIotaName } from '../../hooks';
 import clsx from 'clsx';
 import { truncateString } from '../../utils';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -23,7 +23,7 @@ export function NamedAddress({
     onOpen,
     addMarginRightToCenter = false,
 }: NamedAddressProps): React.JSX.Element {
-    const { data: iotaName } = useGetDefaultName(address, true);
+    const { data: iotaName } = useGetDefaultIotaName(address, true);
     const formattedAddress = formatAddress(address);
 
     return (

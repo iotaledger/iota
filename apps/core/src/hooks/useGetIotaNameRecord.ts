@@ -14,7 +14,7 @@ export function useGetIotaNameRecord(value: string | null | undefined) {
     const networkName = useNetwork();
     const network = getNetwork(networkName).id;
 
-    const iotaNamesClient = useIotaNamesClient();
+    const { iotaNamesClient } = useIotaNamesClient();
 
     const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.NameAddressResolution, network);
 
@@ -24,7 +24,7 @@ export function useGetIotaNameRecord(value: string | null | undefined) {
     return useQuery({
         queryKey: ['iota-name', 'get-name-record', value, iotaNamesClient],
         queryFn: async () => {
-            const nameRecord = await iotaNamesClient.getNameRecord(value ?? '');
+            const nameRecord = await iotaNamesClient?.getNameRecord(value ?? '');
 
             if (!nameRecord) return null;
             return nameRecord;
