@@ -341,9 +341,14 @@ impl DagState {
     }
 
     pub fn update_last_available_commit_leader_round(&mut self, round: Round) {
-        debug!(
-            "Last commit with available transactions has leader at round {}",
-            round
+        let max_commit_round = self
+            .last_committed_rounds
+            .iter()
+            .max()
+            .expect("There should be at least one last committed round");
+        info!(
+            "Last commit with available transactions has leader at round {}; last commit leader round was {}",
+            round, max_commit_round
         );
         self.last_available_commit_leader_round = Some(round);
     }

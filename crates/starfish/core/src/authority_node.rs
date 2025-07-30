@@ -390,8 +390,8 @@ mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
-        // telemetry_subscribers::init_for_testing();
+    async fn test_restart_authority_committee(#[values(4, 6, 8)] num_of_authorities: usize) {
+        telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
@@ -792,7 +792,7 @@ mod tests {
             db_path: db_dir.path().to_path_buf(),
             dag_state_cached_rounds: 5,
             commit_sync_parallel_fetches: 2,
-            commit_sync_batch_size: 3,
+            commit_sync_batch_size: 10,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
         };

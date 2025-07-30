@@ -20,7 +20,7 @@ use parking_lot::{Mutex, RwLock};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
-    seq::IteratorRandom,
+    seq::{IteratorRandom, SliceRandom},
 };
 use starfish_config::AuthorityIndex;
 use tokio::{
@@ -42,21 +42,16 @@ use crate::{
     network::{NetworkClient, SerializedTransactions},
 };
 
-/// The number of concurrent fetch transactions requests per authority
-const FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
+/// The number of concurrent live transaction fetch requests
+const LIVE_FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
 
 /// Timeouts when fetching transactions.
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
 const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 
-/// Max number of transactions to fetch per request.
-/// This value should be chosen so even with transactions at max size, the
-/// requests can finish on hosts with good network using the timeouts above.
-const MAX_TRANSACTIONS_PER_FETCH: usize = 32;
-
 /// TODO: this should be calculated based on the number of authorities and
-///  should be at least 2/3 of all authorities by stake
-const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 2;
+///  should be at least 1/3 of all authorities + 1 by stake
+const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
 
 struct TransactionsGuard {
     map: Arc<InflightTransactionsMap>,
@@ -263,7 +258,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // Create a channel for live fetch requests
         let (live_fetch_sender, live_fetch_receiver) = channel(
             "consensus_transactions_synchronizer_live_fetches",
-            FETCH_TRANSACTIONS_CONCURRENCY,
+            LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
         );
 
         let mut tasks = JoinSet::new();
@@ -307,10 +302,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     }
 
     // The main loop to listen for the submitted commands.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     async fn run(&mut self) {
-        // We want the transactions synchronizer to run periodically every 500ms to
+        // We want the transactions synchronizer to run periodically every 200ms to
         // fetch any missing transactions.
-        const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
+        const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(200);
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
 
         tokio::pin!(scheduler_timeout);
@@ -393,7 +389,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         loop {
             tokio::select! {
-                Some(missing_block_refs) = receiver.recv(), if requests.len() < FETCH_TRANSACTIONS_CONCURRENCY => {
+                Some(missing_block_refs) = receiver.recv(), if requests.len() < LIVE_FETCH_TRANSACTIONS_CONCURRENCY => {
                     requests.push(Self::fetch_transactions_from_authorities(
                         context.clone(),
                         inflight_transactions_map.clone(),
@@ -821,14 +817,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             }
         }
 
-        // let mut assigned_block_refs = BTreeSet::new();
         let mut request_futures = FuturesUnordered::new();
 
-        // For each authority, randomize and try to lock up to
-        // MAX_TRANSACTIONS_PER_FETCH acknowledged blocks.
+        // For each authority, randomize and try to lock up the
+        // maximum possible amount of acknowledged transactions in blocks.
         // The logic is as follows:
         // * Iterate all authorities that have acknowledged missing transactions.
-        // * Randomly select up to MAX_TRANSACTIONS_PER_FETCH missing transactions
+        // * Randomly select up to max_transactions_per_fetch missing transactions
         //   acknowledged by the authority.
         // * Attempt to lock the selected transactions using the
         //   inflight_transactions_map. Some transactions may already be locked by other
@@ -836,9 +831,22 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         //   locked. If no transactions can be locked and there are remaining missing
         //   transactions acknowledged by the authority, then try again with a new
         //   random selection. TODO: This part of the logic needs to be improved!
-        // * If transactions are successfully locked, then send a request to the network
-        //   client to fetch the transactions from the authority.
-        for (authority, authority_block_refs) in blocks_by_authority {
+
+        // Create an iterator over authorities with their corresponding block refs
+        // This will allow us to iterate over authorities in a stable (for test) or
+        // random order
+
+        let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<BlockRef>)>> =
+            if cfg!(test) {
+                // Stable order for tests
+                Box::new(blocks_by_authority.into_iter())
+            } else {
+                let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
+                vec.shuffle(&mut rng);
+                Box::new(vec.into_iter())
+            };
+
+        for (authority, authority_block_refs) in iter_authorities {
             let peer_hostname = &context.committee.authority(authority).hostname;
             // Remove block_refs already assigned to another peer
             let mut available_refs: BTreeSet<_> = authority_block_refs.clone();
@@ -850,7 +858,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 //  randomly
                 let selected_block_refs = available_refs
                     .iter()
-                    .choose_multiple(&mut rng, MAX_TRANSACTIONS_PER_FETCH)
+                    .choose_multiple(&mut rng, context.parameters.max_transactions_per_fetch)
                     .into_iter()
                     .cloned()
                     .collect::<BTreeSet<_>>();
@@ -859,6 +867,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     break;
                 }
 
+                // * If transactions are successfully locked, then send a request to the network
+                //   client to fetch the transactions from the authority.
                 if let Some(transactions_guard) = inflight_transactions_map
                     .lock_transactions(selected_block_refs.clone(), authority)
                 {
@@ -876,7 +886,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     // assigned_block_refs.extend(&selected_block_refs);
                     // TODO: we need to measure how many requests are sent in each run and possibly
                     //  limit that. This can be limited after we implement Starfish with shards as
-                    //  there will definitely be more requests perform.
+                    //  there will definitely be more requests performed
                     request_futures.push(Self::fetch_transactions_request(
                         network_client.clone(),
                         authority,
@@ -924,7 +934,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             }
                         },
                         Err(e) => {
-                            warn!("Error while trying to fetch blocks from peer {peer_index} {peer_hostname}. Error: {e}");
+                            warn!("Error while trying to fetch transactions from peer {peer_index} {peer_hostname}. Error: {e}");
                             // we don't necessarily need to do, but dropping the guard here to unlock the blocks
                             drop(transactions_guard);
 
@@ -1089,7 +1099,7 @@ mod tests {
         );
 
         // Create block round author pairs
-        let block_round_authors = (1..FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
+        let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
             .map(|i| (i as Round, 1u32))
             .collect::<Vec<_>>();
 
@@ -1140,7 +1150,7 @@ mod tests {
         // WHEN
         // Send many requests to saturate the tasks
         let mut results = Vec::new();
-        for _ in 0..FETCH_TRANSACTIONS_CONCURRENCY * 3 {
+        for _ in 0..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3 {
             results.push(
                 handle
                     .fetch_transactions(missing_transactions.clone())
@@ -1163,13 +1173,13 @@ mod tests {
 
         assert_eq!(
             successes,
-            FETCH_TRANSACTIONS_CONCURRENCY * 2,
+            LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2,
             "Expected {} requests to succeed",
-            FETCH_TRANSACTIONS_CONCURRENCY * 2
+            LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2
         );
         assert_eq!(
-            saturated, FETCH_TRANSACTIONS_CONCURRENCY,
-            "Expected {FETCH_TRANSACTIONS_CONCURRENCY} requests to be saturated"
+            saturated, LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
+            "Expected {LIVE_FETCH_TRANSACTIONS_CONCURRENCY} requests to be saturated"
         );
 
         // Clean up
@@ -1722,8 +1732,8 @@ mod tests {
         {
             let mut all_guards = Vec::new();
 
-            // Try to acquire the transaction locks for authorities 1 & 2
-            for i in 1..=2 {
+            // Try to acquire the transaction locks for authorities 0, 1 & 2
+            for i in 0..=2 {
                 let authority = AuthorityIndex::new_for_test(i);
 
                 let guard = map.lock_transactions(missing_block_refs.clone(), authority);
@@ -1738,7 +1748,7 @@ mod tests {
             }
 
             // Trying to acquire for authority 3 it will fail - as we have maxed out the
-            // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 2)
+            // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 3)
             let authority_3 = AuthorityIndex::new_for_test(3);
 
             let guard = map.lock_transactions(missing_block_refs.clone(), authority_3);
