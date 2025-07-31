@@ -5,6 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
     testDir: './tests',
+    globalSetup: require.resolve('./tests/helpers/global-setup'),
+    globalTeardown: require.resolve('./tests/helpers/global-teardown'),
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,
@@ -37,6 +39,13 @@ export default defineConfig({
             command: 'pnpm run preview',
             port: 4173,
             timeout: 30 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
+        // Apps-backend:
+        {
+            command: 'cd ../apps-backend && pnpm run preview',
+            port: 3003,
+            timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,
         },
     ],
