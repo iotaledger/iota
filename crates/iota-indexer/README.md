@@ -107,11 +107,11 @@ You can use the following parameters to optimize performance:
 
 #### Error Handling
 
-If any errors occur during the backfill, the error log will specify the checkpoint sequence number where the failure happened. To ensure no data gaps remain, restart the backfill from:
+If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To avoid any data gaps, restart the backfill from the calculated restart point:
 
-`checkpoint_seq_num = failing_checkpoint_seq_num - (concurrency * chunk_size)`
+`restart_from = failed_chunk_start - (concurrency * chunk_size)`
 
-This approach covers potential edge cases and ensures data integrity.
+This ensures any unprocessed chunks are covered, preventing data gaps.
 
 ### DB reset
 
