@@ -83,6 +83,36 @@ cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localho
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
 
+### Backfilling of data
+
+When a new database table is introduced, backfilling may be required to populate historical data.
+The CLI provides a `run-backfill` command to facilitate this process.
+
+#### Backfill job: `tx-wrapped-or-deleted-objects`
+
+This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes transactions that either wrapped or deleted given objects.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
+
+```sh
+cargo run --bin iota-indexer -- --database-url "postgres://postgres:postgrespw@localhost/iota_indexer" run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
+```
+
+#### Configuring concurrency and chunk size
+
+You can use the following parameters to optimize performance:
+
+`--max-concurrency`: Maximum number of concurrent tasks to run (default: `10`).
+
+`--chunk-size`: Size of the data chunks processed per task (default: `1000`).
+
+#### Error Handling
+
+If any errors occur during the backfill, the error log will specify the checkpoint sequence number where the failure happened. To ensure no data gaps remain, restart the backfill from:
+
+`checkpoint_seq_num = failing_checkpoint_seq_num - (concurrency * chunk_size)`
+
+This approach covers potential edge cases and ensures data integrity.
+
 ### DB reset
 
 To wipe the database, make sure you are in the `iota/crates/iota-indexer` directory and run following command. In case of schema changes in `.sql` files, this will also update corresponding `schema.rs` file:
