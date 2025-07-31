@@ -22,7 +22,7 @@ export function useGetIotaNameRecord(value: string | null | undefined) {
     const isNameInput = shouldResolveInputAsName(value ?? '');
 
     return useQuery({
-        queryKey: ['iota-name', 'get-name-record', value, iotaNamesClient],
+        queryKey: ['iota-name', 'get-name-record', value, iotaNamesClient, isFeatureEnabled],
         queryFn: async () => {
             const nameRecord = await iotaNamesClient?.getNameRecord(value ?? '');
 
