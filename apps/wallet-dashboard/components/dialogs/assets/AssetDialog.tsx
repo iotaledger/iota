@@ -57,10 +57,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
     const networkId = useNetwork();
     const network = getNetwork(networkId).id;
-    const isNameResolutionEnabled = useFeatureEnabledByNetwork(
-        Feature.NameAddressResolution,
-        network,
-    );
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     const validationSchema = useMemo(
         () => createNftSendValidationSchema(activeAddress, objectId, isNameResolutionEnabled),

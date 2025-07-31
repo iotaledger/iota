@@ -64,7 +64,7 @@ function SendTokenDialogBody({
     const networkId = useNetwork();
     const network = getNetwork(networkId).id;
 
-    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.NameAddressResolution, network);
+    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     const validationSchemaStepOne = useMemo(
         () =>

@@ -76,10 +76,7 @@ function GasBudgetComponent({
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
     const network = useAppSelector((state) => state.app.network);
-    const isNameResolutionEnabled = useFeatureEnabledByNetwork(
-        Feature.NameAddressResolution,
-        network,
-    );
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     const validationSchema = useMemo(
         () => createNftSendValidationSchema(activeAddress || '', objectId, isNameResolutionEnabled),

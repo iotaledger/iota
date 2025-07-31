@@ -66,10 +66,7 @@ export function TransferCoinPage() {
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
 
     const network = useAppSelector((state) => state.app.network);
-    const isNameResolutionEnabled = useFeatureEnabledByNetwork(
-        Feature.NameAddressResolution,
-        network,
-    );
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     const validationSchemaStepOne = useMemo(
         () =>
