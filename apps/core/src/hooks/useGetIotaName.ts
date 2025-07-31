@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useQuery } from '@tanstack/react-query';
-import { useIotaNamesClientContext } from '../contexts';
+import { useIotaNamesClient } from '../contexts';
 
 export function useGetIotaName(address: string) {
-    const { iotaNamesClient } = useIotaNamesClientContext();
+    const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery({
         queryKey: ['iota-name', 'default-name', address],
