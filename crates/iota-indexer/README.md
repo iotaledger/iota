@@ -109,7 +109,7 @@ You can use the following parameters to optimize performance:
 
 If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To avoid any data gaps, restart the backfill from the calculated restart point:
 
-`restart_from = failed_chunk_start - (concurrency * chunk_size)`
+`restart_from = failed_chunk_start - (max_concurrency * chunk_size)`
 
 This ensures any unprocessed chunks are covered, preventing data gaps.
 
