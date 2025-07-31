@@ -160,7 +160,7 @@ impl CongestionTracker {
     /// get the highest minimum clearing price, if any exists. The 'clearing'
     /// gas price means the underlying transaction was not cancelled due
     /// congestion.
-    pub fn get_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
+    pub fn get_prediction_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
         self.get_suggested_gas_price_for_objects(
             transaction
                 .shared_input_objects()
