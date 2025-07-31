@@ -181,7 +181,7 @@ impl CongestionTracker {
     ) {
         let congestion_info_map =
             self.compute_congestion_info_map(time, congestion_txs_data, clearing_txs_data);
-        self.process_congestion_info_map(congestion_info_map);
+        self.update_congestion_info_cache(congestion_info_map);
     }
 
     /// Get the highest minimum clearing price, if any exists, for a list of
@@ -271,8 +271,9 @@ impl CongestionTracker {
         congestion_info_map
     }
 
-    /// Process a congestion info map for a single checkpoint.
-    fn process_congestion_info_map(&self, congestion_info_map: CongestionInfoMap) {
+    /// Update tracker's congestion info cache using checkpoint's congestion
+    /// info map.
+    fn update_congestion_info_cache(&self, congestion_info_map: CongestionInfoMap) {
         for (object_id, new_congestion_info) in congestion_info_map {
             self.object_congestion_info
                 .entry(object_id)
