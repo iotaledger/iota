@@ -125,7 +125,7 @@ impl ConfigBuilder {
     }
 
     pub fn new_with_temp_dir() -> Self {
-        Self::new(nondeterministic!(tempfile::tempdir().unwrap()).into_path())
+        Self::new(nondeterministic!(tempfile::tempdir().unwrap()).keep())
     }
 }
 
