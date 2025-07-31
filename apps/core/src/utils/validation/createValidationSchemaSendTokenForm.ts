@@ -8,10 +8,11 @@ import { createTokenValidation } from './createTokenValidation';
 import { SendTokenFormValues } from './formTypes';
 
 export function createValidationSchemaSendTokenForm(
+    isNameResolutionEnabled: boolean = false,
     ...args: Parameters<typeof createTokenValidation>
 ) {
     return Yup.object({
-        ...createReceivingAddressInputSchema(),
+        ...createReceivingAddressInputSchema(isNameResolutionEnabled),
         amount: createTokenValidation(...args),
     } satisfies Record<keyof SendTokenFormValues, Yup.AnySchema>);
 }

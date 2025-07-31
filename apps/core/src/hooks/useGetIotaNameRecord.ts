@@ -16,13 +16,13 @@ export function useGetIotaNameRecord(value: string | null | undefined) {
 
     const { iotaNamesClient } = useIotaNamesClient();
 
-    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.NameAddressResolution, network);
+    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     const isValid = isValidIotaName(value ?? '');
     const isNameInput = shouldResolveInputAsName(value ?? '');
 
     return useQuery({
-        queryKey: ['iota-name', 'get-name-record', value, iotaNamesClient],
+        queryKey: ['iota-name', 'get-name-record', value, iotaNamesClient, isFeatureEnabled],
         queryFn: async () => {
             const nameRecord = await iotaNamesClient?.getNameRecord(value ?? '');
 

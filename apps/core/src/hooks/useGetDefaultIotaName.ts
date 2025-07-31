@@ -14,7 +14,7 @@ export function useGetDefaultIotaName(address: string | null | undefined, normal
     const network = getNetwork(networkName).id;
 
     const { iotaNamesClient } = useIotaNamesClient();
-    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.NameAddressResolution, network);
+    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     return useQuery({
         queryKey: ['iota-name', 'default-name', address, normalized],

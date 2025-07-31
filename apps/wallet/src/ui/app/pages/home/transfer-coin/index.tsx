@@ -5,7 +5,13 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
+import {
+    useSigner,
+    useActiveAccount,
+    useUnlockedGuard,
+    usePinnedCoinTypes,
+    useAppSelector,
+} from '_hooks';
 import {
     CoinSelector,
     useSortedCoinsByCategories,
@@ -17,6 +23,8 @@ import {
     useCoinMetadata,
     createValidationSchemaSendTokenForm,
     type SendTokenFormValues,
+    useFeatureEnabledByNetwork,
+    Feature,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -57,14 +65,18 @@ export function TransferCoinPage() {
     const coinMetadata = useCoinMetadata(selectedCoinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
 
+    const network = useAppSelector((state) => state.app.network);
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
+
     const validationSchemaStepOne = useMemo(
         () =>
             createValidationSchemaSendTokenForm(
+                isNameResolutionEnabled,
                 coinBalance,
                 coinMetadata.data?.symbol ?? '',
                 coinDecimals,
             ),
-        [coinBalance, coinMetadata.data, coinDecimals],
+        [isNameResolutionEnabled, coinBalance, coinMetadata.data, coinDecimals],
     );
 
     const formik = useFormik<SendTokenFormValues>({
