@@ -42,7 +42,7 @@ export function useIotaNamesClient(): IotaNamesClientContextType {
     const context = useContext(IotaNamesClientContext);
 
     if (!context) {
-        throw new Error('useIotaNamesClientContext must be used within a IotaNamesClientProvider');
+        throw new Error('useIotaNamesClient must be used within a IotaNamesClientProvider');
     }
 
     return context;
