@@ -34,7 +34,7 @@ use move_core_types::ident_str;
 use crate::{
     authority::{
         AuthorityState,
-        authority_test_utils::{
+        auth_unit_test_utils::{
             publish_package_on_single_authority, upgrade_package_on_single_authority,
         },
         test_authority_builder::TestAuthorityBuilder,

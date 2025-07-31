@@ -1149,7 +1149,7 @@ impl AuthorityStore {
             .live_owned_object_markers
             .unbounded_iter()
             // Make the max possible entry for this object ID.
-            .skip_prior_to(&(object_id, SequenceNumber::MAX, ObjectDigest::MAX))?;
+            .skip_prior_to(&(object_id, SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX))?;
         Ok(iterator
             .next()
             .and_then(|value| {
@@ -1799,8 +1799,8 @@ impl AuthorityStore {
         self.perpetual_tables
             .objects
             .safe_iter_with_bounds(
-                Some(ObjectKey(object_id, VersionNumber::MIN)),
-                Some(ObjectKey(object_id, VersionNumber::MAX)),
+                Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
+                Some(ObjectKey(object_id, VersionNumber::MAX_VALID_EXCL)),
             )
             .collect::<Result<Vec<_>, _>>()
             .unwrap()

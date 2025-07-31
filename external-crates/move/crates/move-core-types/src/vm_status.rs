@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(clippy::unit_arg)]
@@ -452,7 +452,7 @@ impl<'de> de::Deserialize<'de> for StatusCode {
         D: de::Deserializer<'de>,
     {
         struct StatusCodeVisitor;
-        impl<'de> de::Visitor<'de> for StatusCodeVisitor {
+        impl de::Visitor<'_> for StatusCodeVisitor {
             type Value = StatusCode;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

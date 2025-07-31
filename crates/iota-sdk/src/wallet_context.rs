@@ -4,9 +4,9 @@
 
 use std::{collections::BTreeSet, path::Path, sync::Arc};
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, future};
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
 use iota_json_rpc_types::{
@@ -195,6 +195,28 @@ impl WalletContext {
         } else {
             Ok(None)
         }
+    }
+
+    /// Infer the sender of a transaction based on the gas objects provided. If
+    /// no gas objects are provided, assume the active address is the
+    /// sender.
+    pub async fn infer_sender(&mut self, gas: &[ObjectID]) -> Result<IotaAddress, anyhow::Error> {
+        if gas.is_empty() {
+            return self.active_address();
+        }
+
+        // Find the owners of all supplied object IDs
+        let owners = future::try_join_all(gas.iter().map(|id| self.get_object_owner(id))).await?;
+
+        // SAFETY `gas` is non-empty.
+        let owner = owners[0];
+
+        ensure!(
+            owners.iter().all(|o| o == &owner),
+            "Cannot infer sender, not all gas objects have the same owner."
+        );
+
+        Ok(owner)
     }
 
     /// Find a gas object which fits the budget.

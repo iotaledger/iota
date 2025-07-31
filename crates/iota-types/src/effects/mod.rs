@@ -185,6 +185,26 @@ impl TransactionEffects {
             .collect()
     }
 
+    /// Returns all objects that were created + wrapped in the same transaction.
+    pub fn created_then_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)> {
+        // Filter `ObjectChange` where:
+        // - `input_digest` and `output_digest` are `None`, and
+        // - `id_operation` is `Created`.
+        self.object_changes()
+            .into_iter()
+            .filter_map(|change| {
+                if change.input_digest.is_none()
+                    && change.output_digest.is_none()
+                    && change.id_operation == IDOperation::Created
+                {
+                    Some((change.id, change.output_version.unwrap_or_default()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
     /// Return an iterator of mutated objects, but excluding the gas object.
     pub fn mutated_excluding_gas(&self) -> Vec<(ObjectRef, Owner)> {
         self.mutated()

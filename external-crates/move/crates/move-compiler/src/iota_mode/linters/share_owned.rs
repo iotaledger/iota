@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This analysis flags making objects passed as function parameters or
@@ -118,7 +118,7 @@ impl SimpleAbsIntConstructor for ShareOwnedVerifier {
     }
 }
 
-impl<'a> SimpleAbsInt for ShareOwnedVerifierAI<'a> {
+impl SimpleAbsInt for ShareOwnedVerifierAI<'_> {
     type State = State;
     type ExecutionContext = ExecutionContext;
 

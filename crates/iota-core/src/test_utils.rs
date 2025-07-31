@@ -2,17 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
-use futures::future::join_all;
-use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
-use iota_framework::BuiltInFramework;
-use iota_genesis_builder::{
-    genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
-};
-use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
         AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
@@ -21,13 +13,11 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
-        AuthoritySignature, IotaKeyPair, NetworkKeyPair, Signer, generate_proof_of_possession,
-        get_key_pair,
+        AuthoritySignature, Signer,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
     message_envelope::Message,
-    object::Object,
     signature_verification::VerifiedDigestCache,
     transaction::{
         CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
@@ -40,12 +30,7 @@ use shared_crypto::intent::{Intent, IntentScope};
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::{
-    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
-    authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder, TimeoutConfig},
-    state_accumulator::StateAccumulator,
-    test_authority_clients::LocalAuthorityClient,
-};
+use crate::{authority::AuthorityState, state_accumulator::StateAccumulator};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -94,7 +79,9 @@ pub async fn send_and_confirm_transaction(
 }
 
 #[cfg(test)]
-pub(crate) fn init_state_parameters_from_rng<R>(rng: &mut R) -> (Genesis, AuthorityKeyPair)
+pub(crate) fn init_state_parameters_from_rng<R>(
+    rng: &mut R,
+) -> (iota_config::genesis::Genesis, AuthorityKeyPair)
 where
     R: rand::CryptoRng + rand::RngCore,
 {
@@ -175,145 +162,6 @@ pub fn create_fake_cert_and_effect_digest<'a>(
         ExecutionDigests::new(*transaction.digest(), effects.digest()),
         cert,
     )
-}
-
-pub fn compile_basics_package() -> CompiledPackage {
-    compile_example_package("../../examples/move/basics")
-}
-
-pub fn compile_managed_coin_package() -> CompiledPackage {
-    compile_example_package("../../crates/iota-core/src/unit_tests/data/managed_coin")
-}
-
-pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
-    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push(relative_path);
-
-    BuildConfig::new_for_testing().build(&path).unwrap()
-}
-
-async fn init_genesis(
-    committee_size: usize,
-    mut genesis_objects: Vec<Object>,
-) -> (
-    Genesis,
-    Vec<(AuthorityPublicKeyBytes, AuthorityKeyPair)>,
-    ObjectID,
-) {
-    // add object_basics package object to genesis
-    let modules: Vec<_> = compile_basics_package().get_modules().cloned().collect();
-    let genesis_move_packages: Vec<_> = BuiltInFramework::genesis_move_packages().collect();
-    let config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let pkg = Object::new_package(
-        &modules,
-        TransactionDigest::genesis_marker(),
-        config.max_move_package_size(),
-        config.move_binary_format_version(),
-        &genesis_move_packages,
-    )
-    .unwrap();
-    let pkg_id = pkg.id();
-    genesis_objects.push(pkg);
-
-    let mut builder = iota_genesis_builder::Builder::new().add_objects(genesis_objects);
-    let mut key_pairs = Vec::new();
-    for i in 0..committee_size {
-        let authority_key_pair: AuthorityKeyPair = get_key_pair().1;
-        let authority_pubkey_bytes = authority_key_pair.public().into();
-        let protocol_key_pair: NetworkKeyPair = get_key_pair().1;
-        let protocol_pubkey = protocol_key_pair.public().clone();
-        let account_key_pair: IotaKeyPair = get_key_pair::<AccountKeyPair>().1.into();
-        let network_key_pair: NetworkKeyPair = get_key_pair().1;
-        let validator_info = ValidatorInfo {
-            name: format!("validator-{i}"),
-            authority_key: authority_pubkey_bytes,
-            protocol_key: protocol_pubkey,
-            account_address: IotaAddress::from(&account_key_pair.public()),
-            network_key: network_key_pair.public().clone(),
-            gas_price: 1,
-            commission_rate: 0,
-            network_address: local_ip_utils::new_local_tcp_address_for_testing(),
-            p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-            primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-            description: String::new(),
-            image_url: String::new(),
-            project_url: String::new(),
-        };
-        let pop =
-            generate_proof_of_possession(&authority_key_pair, (&account_key_pair.public()).into());
-        builder = builder.add_validator(validator_info, pop);
-        key_pairs.push((authority_pubkey_bytes, authority_key_pair));
-    }
-    for (_, key) in &key_pairs {
-        builder = builder.add_validator_signature(key);
-    }
-
-    let GenesisBuildEffects { genesis, .. } = builder.build();
-    (genesis, key_pairs, pkg_id)
-}
-
-pub async fn init_local_authorities(
-    committee_size: usize,
-    genesis_objects: Vec<Object>,
-) -> (
-    AuthorityAggregator<LocalAuthorityClient>,
-    Vec<Arc<AuthorityState>>,
-    Genesis,
-    ObjectID,
-) {
-    let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
-    let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {
-        TestAuthorityBuilder::new()
-            .with_genesis_and_keypair(&genesis, key_pair)
-            .build()
-    }))
-    .await;
-    let aggregator = init_local_authorities_with_genesis(&genesis, authorities.clone()).await;
-    (aggregator, authorities, genesis, framework)
-}
-
-pub async fn init_local_authorities_with_overload_thresholds(
-    committee_size: usize,
-    genesis_objects: Vec<Object>,
-    overload_thresholds: AuthorityOverloadConfig,
-) -> (
-    AuthorityAggregator<LocalAuthorityClient>,
-    Vec<Arc<AuthorityState>>,
-    Genesis,
-    ObjectID,
-) {
-    let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
-    let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {
-        TestAuthorityBuilder::new()
-            .with_genesis_and_keypair(&genesis, key_pair)
-            .with_authority_overload_config(overload_thresholds.clone())
-            .build()
-    }))
-    .await;
-    let aggregator = init_local_authorities_with_genesis(&genesis, authorities.clone()).await;
-    (aggregator, authorities, genesis, framework)
-}
-
-pub async fn init_local_authorities_with_genesis(
-    genesis: &Genesis,
-    authorities: Vec<Arc<AuthorityState>>,
-) -> AuthorityAggregator<LocalAuthorityClient> {
-    telemetry_subscribers::init_for_testing();
-    let mut clients = BTreeMap::new();
-    for state in authorities {
-        let name = state.name;
-        let client = LocalAuthorityClient::new_from_authority(state);
-        clients.insert(name, client);
-    }
-    let timeouts = TimeoutConfig {
-        pre_quorum_timeout: Duration::from_secs(5),
-        post_quorum_timeout: Duration::from_secs(5),
-        serial_authority_request_interval: Duration::from_secs(1),
-    };
-    AuthorityAggregatorBuilder::from_genesis(genesis)
-        .with_timeouts_config(timeouts)
-        .build_custom_clients(clients)
 }
 
 pub fn make_transfer_iota_transaction(

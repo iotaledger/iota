@@ -169,7 +169,7 @@ task 13, line 175:
 Checkpoint created: 2
 
 task 14, lines 177-237:
-//# run-graphql --cursors @{obj_5_0,1} @{obj_5_0,2}
+//# run-graphql --cursors bcs(@{obj_5_0},1) bcs(@{obj_5_0},2)
 Response: {
   "data": {
     "parent_version_4_show_dof_and_dfs": {
@@ -379,7 +379,7 @@ task 19, line 286:
 Checkpoint created: 3
 
 task 20, lines 288-338:
-//# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,3}
+//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},3)
 Response: {
   "data": {
     "parent_version_4_has_4_children": {
@@ -608,7 +608,7 @@ task 24, line 347:
 Checkpoint created: 4
 
 task 25, lines 349-399:
-//# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,4}
+//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 Response: {
   "data": {
     "parent_version_4_has_df1_2_3": {
@@ -798,7 +798,7 @@ task 34, line 448:
 Checkpoint created: 8
 
 task 35, lines 450-508:
-//# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,4}
+//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 Response: {
   "data": {
     "availableRange": {

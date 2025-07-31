@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -384,7 +384,7 @@ pub fn parse_dependency(mut tval: TV) -> Result<PM::Dependency> {
         .remove("override")
         .map(parse_dep_override)
         .transpose()?
-        .map_or(false, |o| o);
+        .is_some_and(|o| o);
 
     let kind = match (
         table.remove("local"),

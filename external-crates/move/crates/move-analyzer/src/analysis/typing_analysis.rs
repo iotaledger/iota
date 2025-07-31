@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -660,7 +660,7 @@ impl TypingAnalysisContext<'_> {
     }
 }
 
-impl<'a> TypingVisitorContext for TypingAnalysisContext<'a> {
+impl TypingVisitorContext for TypingAnalysisContext<'_> {
     // Nothing to do -- we're not producing errors.
     fn push_warning_filter_scope(&mut self, _filter: WarningFilters) {}
 

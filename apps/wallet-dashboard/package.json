@@ -28,6 +28,7 @@
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
+        "@iota/iota-names-sdk": "0.0.0-experimental-20250722084400",
         "@iota/iota-sdk": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
         "@sentry/nextjs": "^7.120.3",

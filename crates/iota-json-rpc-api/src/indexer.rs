@@ -5,7 +5,8 @@
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaNameRecord, IotaObjectDataOptions,
     IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffects,
-    IotaTransactionBlockResponseQuery, ObjectsPage, TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -45,11 +46,26 @@ pub trait IndexerApi {
 
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
-    #[method(name = "queryTransactionBlocks")]
+    #[method(name = "queryTransactionBlocks", version <= "1.2.10")]
     async fn query_transaction_blocks(
         &self,
         /// the transaction query criteria.
         query: IotaTransactionBlockResponseQuery,
+        /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
+        cursor: Option<TransactionDigest>,
+        /// Maximum item returned per page, default to QUERY_MAX_RESULT_LIMIT if not specified.
+        limit: Option<usize>,
+        /// query result ordering, default to false (ascending order), oldest record first.
+        descending_order: Option<bool>,
+    ) -> RpcResult<TransactionBlocksPage>;
+
+    /// Return list of transactions for a specified query criteria.
+    #[rustfmt::skip]
+    #[method(name = "queryTransactionBlocks")]
+    async fn query_transaction_blocks_v2(
+        &self,
+        /// the transaction query criteria.
+        query: IotaTransactionBlockResponseQueryV2,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<TransactionDigest>,
         /// Maximum item returned per page, default to QUERY_MAX_RESULT_LIMIT if not specified.

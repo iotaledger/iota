@@ -241,7 +241,7 @@ mod checked {
         } in receiving_objects.iter()
         {
             fp_ensure!(
-                *version < SequenceNumber::MAX,
+                *version < SequenceNumber::MAX_VALID_EXCL,
                 UserInputError::InvalidSequenceNumber.into()
             );
 
@@ -448,7 +448,7 @@ mod checked {
                     UserInputError::MovePackageAsObject { object_id }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX,
+                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 
@@ -547,7 +547,7 @@ mod checked {
                 ..
             } => {
                 fp_ensure!(
-                    object.version() < SequenceNumber::MAX,
+                    object.version() < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 

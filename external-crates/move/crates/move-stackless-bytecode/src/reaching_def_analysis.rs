@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Reaching definition analysis with subsequent copy propagation.
@@ -181,9 +181,9 @@ struct ReachingDefAnalysis<'a> {
     borrowed_locals: BTreeSet<TempIndex>,
 }
 
-impl<'a> ReachingDefAnalysis<'a> {}
+impl ReachingDefAnalysis<'_> {}
 
-impl<'a> TransferFunctions for ReachingDefAnalysis<'a> {
+impl TransferFunctions for ReachingDefAnalysis<'_> {
     type State = ReachingDefState;
     const BACKWARD: bool = false;
 
@@ -225,7 +225,7 @@ impl<'a> TransferFunctions for ReachingDefAnalysis<'a> {
     }
 }
 
-impl<'a> DataflowAnalysis for ReachingDefAnalysis<'a> {}
+impl DataflowAnalysis for ReachingDefAnalysis<'_> {}
 
 impl AbstractDomain for ReachingDefState {
     fn join(&mut self, other: &Self) -> JoinResult {

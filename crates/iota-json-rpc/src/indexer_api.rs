@@ -16,8 +16,9 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
+    TransactionFilter,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_names::{
@@ -30,7 +31,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::IotaObjectResponseError,
+    error::{IotaObjectResponseError, UserInputError},
     event::EventID,
 };
 use jsonrpsee::{
@@ -317,6 +318,35 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         .trace()
         .await
     }
+
+    #[instrument(skip(self))]
+    async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        // If `Some`, the query will start from the next item after the specified cursor
+        cursor: Option<TransactionDigest>,
+        limit: Option<usize>,
+        descending_order: Option<bool>,
+    ) -> RpcResult<TransactionBlocksPage> {
+        let v1_filter = query
+            .filter
+            .map(|f| {
+                f.as_v1().ok_or_else(|| {
+                    Error::UserInput(UserInputError::Unsupported(
+                        "transaction filter is not supported".to_string(),
+                    ))
+                })
+            })
+            .transpose()?;
+
+        let v1_query = IotaTransactionBlockResponseQuery {
+            filter: v1_filter,
+            options: query.options,
+        };
+        self.query_transaction_blocks(v1_query, cursor, limit, descending_order)
+            .await
+    }
+
     #[instrument(skip(self))]
     async fn query_events(
         &self,
