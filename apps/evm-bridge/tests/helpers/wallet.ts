@@ -190,3 +190,39 @@ export async function setupBridgeWallets(
     await setupL1Wallet(context, l1ExtensionUrl, mnemonicL1);
     await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2);
 }
+
+export async function isL1WalletConnected(page: Page): Promise<boolean> {
+    try {
+        const connectButton = page.getByTestId('connect-l1-wallet');
+        const count = await connectButton.count();
+        console.log(`Found ${count} elements with test ID 'connect-l1-wallet'`);
+        return count === 0;
+    } catch (error) {
+        console.log('Error checking L1 wallet connection:', error);
+        return false; // Assume not connected on error
+    }
+}
+
+/**
+ * Wait for L1 wallet to connect with timeout and polling
+ */
+export async function waitForL1WalletConnected(
+    page: Page,
+    { timeout = 20000, pollInterval = 500 } = {},
+): Promise<boolean> {
+    console.log('Waiting for L1 wallet to connect...');
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+        if (await isL1WalletConnected(page)) {
+            console.log('✅ L1 wallet finished connecting successfully');
+            return true;
+        }
+
+        console.log(`L1 wallet not connected yet, waiting ${pollInterval}ms...`);
+        await page.waitForTimeout(pollInterval);
+    }
+
+    console.log(`❌ L1 wallet connection timed out after ${timeout}ms`);
+    return false;
+}

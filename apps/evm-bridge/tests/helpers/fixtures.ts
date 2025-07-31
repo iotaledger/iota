@@ -8,6 +8,7 @@ import {
     setupBridgeWallets,
     setupL1Wallet,
     setupL2Wallet,
+    waitForL1WalletConnected,
 } from './wallet';
 import { getTestData, WalletState } from './shared-state';
 import { setReceiverAddress, toggleBridgeDirection } from './ui';
@@ -150,7 +151,12 @@ export const test = baseTest.extend<{
             await page.waitForTimeout(500); // Wait for the app to load
             await connectL1Wallet(page, context);
 
-            await page.waitForTimeout(500);
+            // Wait for L1 wallet to be connected before proceeding
+            const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
+            if (!l1Connected) {
+                throw new Error('L1 wallet failed to connect within timeout');
+            }
+
             await connectL2Wallet(page, context);
 
             return {
