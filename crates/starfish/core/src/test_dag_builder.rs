@@ -572,6 +572,32 @@ impl DagBuilder {
             references.push(block.reference());
             self.block_headers.insert(block.reference(), block.clone());
         }
+        let mut rng = StdRng::from_entropy();
+        let unique_transaction_acks: Vec<BlockRef> = transaction_acks
+            .values()
+            .flatten()
+            .cloned()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        for block_ref in unique_transaction_acks {
+            // Create random transactions and their commitment.
+            let mut tx_bytes = [0u8; 32];
+            rng.fill(&mut tx_bytes[..]);
+            let transactions = vec![Transaction::new(tx_bytes.to_vec())];
+            let serialized_transactions = Transaction::serialize(&transactions).unwrap();
+            let commitment =
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap();
+
+            let verified_transactions = VerifiedTransactions::new(
+                transactions,
+                block_ref,
+                commitment,
+                serialized_transactions,
+            );
+            self.transactions.insert(block_ref, verified_transactions);
+        }
         self.last_ancestors = references;
     }
 }
