@@ -62,14 +62,16 @@ impl WalletContext {
             };
             ensure!(
                 addresses.contains(active_address),
-                "active address does not belong to configured keystore"
+                "error in '{}': active address not found in the keystore",
+                config_path.display()
             );
         }
 
         if let Some(active_env) = &config.active_env {
             ensure!(
                 config.get_env(active_env).is_some(),
-                "unknown active environment"
+                "error in '{}': active environment not found in the envs list",
+                config_path.display()
             );
         }
 
