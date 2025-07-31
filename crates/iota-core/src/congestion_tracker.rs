@@ -149,7 +149,7 @@ impl CongestionTracker {
             }
         }
 
-        self.process_checkpoint_congestion_and_clearing_txs_data(
+        self.process_congestion_and_clearing_txs_data(
             checkpoint.timestamp_ms,
             &congestion_txs_data,
             &clearing_txs_data,
@@ -173,18 +173,15 @@ impl CongestionTracker {
 
 impl CongestionTracker {
     /// Process checkpoint's congestion and clearing transactions info.
-    fn process_checkpoint_congestion_and_clearing_txs_data(
+    fn process_congestion_and_clearing_txs_data(
         &self,
         time: CheckpointTimestamp,
         congestion_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
         clearing_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
     ) {
-        let congestion_info_map = self.compute_checkpoint_congestion_info_map(
-            time,
-            congestion_txs_data,
-            clearing_txs_data,
-        );
-        self.process_checkpoint_congestion_info_map(congestion_info_map);
+        let congestion_info_map =
+            self.compute_congestion_info_map(time, congestion_txs_data, clearing_txs_data);
+        self.process_congestion_info_map(congestion_info_map);
     }
 
     /// Get the highest minimum clearing price, if any exists, for a list of
@@ -227,7 +224,7 @@ impl CongestionTracker {
 
     /// Compute a congestion info map from checkpoint's congestion and
     /// clearing transactions data.
-    fn compute_checkpoint_congestion_info_map(
+    fn compute_congestion_info_map(
         &self,
         time: CheckpointTimestamp,
         congestion_txs_data: &[TransactionGasPriceMutSharedObjectsPair],
@@ -275,7 +272,7 @@ impl CongestionTracker {
     }
 
     /// Process a congestion info map for a single checkpoint.
-    fn process_checkpoint_congestion_info_map(&self, congestion_info_map: CongestionInfoMap) {
+    fn process_congestion_info_map(&self, congestion_info_map: CongestionInfoMap) {
         for (object_id, new_congestion_info) in congestion_info_map {
             self.object_congestion_info
                 .entry(object_id)
@@ -312,7 +309,7 @@ mod tests {
         let congestion_txs_data = vec![(100, vec![object_1]), (200, vec![object_2])];
         let clearing_txs_data = vec![];
 
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+        tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
             &clearing_txs_data,
@@ -338,7 +335,7 @@ mod tests {
         let time = 1_000;
         let congestion_txs_data = vec![(100, vec![object]), (75, vec![object])];
         let clearing_txs_data = vec![];
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+        tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
             &clearing_txs_data,
@@ -352,7 +349,7 @@ mod tests {
         let time = 2_000;
         let congestion_txs_data = vec![];
         let clearing_txs_data = vec![(150, vec![object])];
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+        tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
             &clearing_txs_data,
@@ -367,7 +364,7 @@ mod tests {
         let time = 3_000;
         let congestion_txs_data = vec![(100, vec![object])];
         let clearing_txs_data = vec![(175, vec![object]), (125, vec![object])];
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+        tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
             &clearing_txs_data,
@@ -387,7 +384,7 @@ mod tests {
         let time = 1_000;
         let congestion_txs_data = vec![(100, vec![object_1]), (200, vec![object_2])];
         let clearing_txs_data = vec![];
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+        tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
             &clearing_txs_data,
@@ -401,7 +398,7 @@ mod tests {
         let time = 2_000;
         let congestion_txs_data = vec![(100, vec![object_1]), (200, vec![object_2])];
         let clearing_txs_data = vec![(100, vec![object_1]), (150, vec![object_2])];
-        tracker.process_checkpoint_congestion_and_clearing_txs_data(
+        tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
             &clearing_txs_data,
