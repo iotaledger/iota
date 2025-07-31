@@ -6,8 +6,12 @@ import * as Yup from 'yup';
 import { createReceivingAddressInputSchema, ReceiverInputFormValues } from '../validation';
 import { ValidationError } from 'yup';
 
-export function createNftSendValidationSchema(senderAddress: string, objectId: string) {
-    const baseSchema = createReceivingAddressInputSchema();
+export function createNftSendValidationSchema(
+    senderAddress: string,
+    objectId: string,
+    isNameResolutionEnabled: boolean = false,
+) {
+    const baseSchema = createReceivingAddressInputSchema(isNameResolutionEnabled);
 
     return Yup.object({
         ...baseSchema,

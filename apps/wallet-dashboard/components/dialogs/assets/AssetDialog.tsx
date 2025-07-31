@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
 import { useIotaClient, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -13,14 +13,17 @@ import {
     useNftDetails,
     toast,
     SendNftFormValues,
+    useFeatureEnabledByNetwork,
+    Feature,
 } from '@iota/core';
 import { DetailsView, SendView, KioskDetailsView } from './views';
-import { IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { getNetwork, IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
 import { ampli } from '@/lib/utils/analytics';
 import { shouldResolveInputAsName } from '@iota/core/utils/validation/names';
+import { useNetwork } from '@iota/core/src/hooks/useNetwork';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -51,7 +54,18 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
     const activeAsset = chosenKioskAsset || asset;
     const objectId = chosenKioskAsset ? chosenKioskAsset.objectId : asset ? asset.objectId : '';
-    const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
+
+    const networkId = useNetwork();
+    const network = getNetwork(networkId).id;
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(
+        Feature.NameAddressResolution,
+        network,
+    );
+
+    const validationSchema = useMemo(
+        () => createNftSendValidationSchema(activeAddress, objectId, isNameResolutionEnabled),
+        [activeAddress, objectId, isNameResolutionEnabled],
+    );
     const { objectData } = useNftDetails(objectId, activeAddress);
 
     const { mutateAsync: sendAsset } = useTransferAsset({

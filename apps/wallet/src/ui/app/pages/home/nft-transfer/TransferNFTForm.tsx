@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useActiveAccount, useSigner, useActiveAddress } from '_hooks';
+import { useActiveAccount, useSigner, useActiveAddress, useAppSelector } from '_hooks';
 import {
     createNftSendValidationSchema,
     AddressInput,
@@ -16,6 +16,8 @@ import {
     toast,
     type SendNftFormValues,
     RECEIVING_ADDRESS_FIELD_IDS,
+    useFeatureEnabledByNetwork,
+    Feature,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
@@ -23,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
 import { type WalletSigner } from '_src/ui/app/walletSigner';
+import { useMemo } from 'react';
 
 interface TransferNFTFormProps {
     objectId: string;
@@ -72,7 +75,16 @@ function GasBudgetComponent({
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
-    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
+    const network = useAppSelector((state) => state.app.network);
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(
+        Feature.NameAddressResolution,
+        network,
+    );
+
+    const validationSchema = useMemo(
+        () => createNftSendValidationSchema(activeAddress || '', objectId, isNameResolutionEnabled),
+        [activeAddress, objectId, isNameResolutionEnabled],
+    );
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
