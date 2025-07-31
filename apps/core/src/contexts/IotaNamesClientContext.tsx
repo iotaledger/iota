@@ -35,11 +35,13 @@ export function useIotaNamesClientContext(): IotaNamesClientContextType {
     return context;
 }
 
-export function useIotaNamesClient() {
+function useIotaNamesClient() {
     const ctx = useIotaClientContext();
     const network = getNetwork(ctx.network);
     const { iotaGraphQLClient } = useIotaGraphQLClientContext();
 
+    // The GraphQL client is too expensive to memoize
+    // but we know for sure it will only be recrated when the network changes
     const iotaNamesClient = useMemo(() => {
         if (!iotaGraphQLClient) return null;
 
@@ -47,7 +49,7 @@ export function useIotaNamesClient() {
             graphQlClient: iotaGraphQLClient,
             network: network.id,
         });
-    }, [iotaGraphQLClient, network.id]);
+    }, [network.id]);
 
     return { iotaNamesClient };
 }
