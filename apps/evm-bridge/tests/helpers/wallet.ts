@@ -1,27 +1,7 @@
-import { Page } from '@playwright/test';
+import { BrowserContext, Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
-import { HDNodeWallet, Wallet } from 'ethers';
-import { WALLET_CUSTOMRPC_PLACEHOLDER } from '../utils/constants';
-
-export async function createL1Wallet(page: Page, l1ExtensionUrl: string) {
-    await page.goto(l1ExtensionUrl);
-
-    await page.getByRole('button', { name: /Add Profile/ }).click();
-    await page.getByText('Create New').click();
-
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
-    await page.getByText('I read and agree').click();
-    await page.getByRole('button', { name: /Create Wallet/ }).click();
-    await page.getByText('I saved my mnemonic').click();
-    await page.getByRole('button', { name: /Open Wallet/ }).click();
-    await page.getByLabel(/Open settings menu/).click();
-    await page.getByText(/Network/).click();
-    await page.getByText(/Custom RPC/).click();
-    await page.getByPlaceholder(WALLET_CUSTOMRPC_PLACEHOLDER).fill(CONFIG.L1.rpcUrl);
-    await page.getByText(/Save/).click();
-    await page.getByTestId('close-icon').click();
-}
+import { WALLET_CUSTOMRPC_PLACEHOLDER, WALLET_PASSWORD } from '../utils/constants';
+import { createPage } from './browser';
 
 export async function importL1WalletFromMnemonic(
     page: Page,
@@ -46,8 +26,8 @@ export async function importL1WalletFromMnemonic(
     }
 
     await page.getByText('Add profile').click();
-    await page.getByTestId('password.input').fill('bridgee2etests');
-    await page.getByTestId('password.confirmation').fill('bridgee2etests');
+    await page.getByTestId('password.input').fill(WALLET_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(WALLET_PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
@@ -66,14 +46,12 @@ export async function importL1WalletFromMnemonic(
     await page.getByTestId('close-icon').click();
 }
 
-export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promise<string> {
+export async function createL2Wallet(page: Page, l2ExtensionUrl: string, mnemonic: string) {
     await page.goto(l2ExtensionUrl);
 
     await page.getByTestId('onboarding-terms-checkbox').click();
     await page.getByRole('button', { name: /Import an existing wallet/ }).click();
     await page.getByRole('button', { name: /No thanks/ }).click();
-
-    const { mnemonic, address } = getRandomL2MnemonicAndAddress();
 
     const mnemonicWords = mnemonic.split(' ');
     for (let i = 0; i < mnemonicWords.length; i++) {
@@ -81,15 +59,49 @@ export async function createL2Wallet(page: Page, l2ExtensionUrl: string): Promis
     }
 
     await page.getByRole('button', { name: /Confirm Secret/ }).click();
-    await page.getByTestId('create-password-new').fill('iotae2etests');
-    await page.getByTestId('create-password-confirm').fill('iotae2etests');
+    await page.getByTestId('create-password-new').fill(WALLET_PASSWORD);
+    await page.getByTestId('create-password-confirm').fill(WALLET_PASSWORD);
     await page.getByTestId(/create-password-terms/).click();
     await page.getByRole('button', { name: /Import my wallet/ }).click();
     await page.getByRole('button', { name: /Done/ }).click();
     await page.getByRole('button', { name: /Next/ }).click();
     await page.getByRole('button', { name: /Done/ }).click();
+}
 
-    return address;
+/**
+ * Connect L1 wallet to the bridge UI
+ */
+export async function connectL1Wallet(page: Page, browserContext: BrowserContext): Promise<void> {
+    const connectButtonId = 'connect-l1-wallet';
+    const connectButton = await page.waitForSelector(`[data-testid="${connectButtonId}"]`, {
+        state: 'visible',
+    });
+
+    await connectButton.click();
+    const approveWalletConnectPage = browserContext.waitForEvent('page');
+    await page.getByText('IOTA Wallet').click();
+
+    const walletPage = await approveWalletConnectPage;
+    await walletPage.getByRole('button', { name: 'Continue' }).click();
+    await walletPage.getByRole('button', { name: 'Connect' }).click();
+}
+
+/**
+ * Connect L2 wallet to the bridge UI
+ */
+export async function connectL2Wallet(page: Page, browserContext: BrowserContext): Promise<void> {
+    const connectButtonId = 'connect-l2-wallet';
+    const connectButton = await page.waitForSelector(`[data-testid="${connectButtonId}"]`, {
+        state: 'visible',
+    });
+
+    await connectButton.click();
+    const approveDialog = browserContext.waitForEvent('page', { timeout: 20_000 });
+    await page.getByTestId(/metamask/).click();
+
+    const walletModal = await approveDialog;
+    await walletModal.waitForLoadState();
+    await walletModal.getByRole('button', { name: 'Connect' }).click();
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
@@ -122,15 +134,95 @@ export async function addNetworkToMetaMask(l2WalletPage: Page) {
     await l2WalletPage.getByRole('button', { name: CONFIG.L2.chainName }).click();
 }
 
-export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: string } {
-    const mnemonic = Wallet.createRandom().mnemonic;
+/**
+ * Set up L1 wallet with mnemonic
+ */
+export async function setupL1Wallet(
+    context: BrowserContext,
+    l1ExtensionUrl: string,
+    mnemonic: string,
+): Promise<void> {
+    console.log('Setting up L1 wallet with mnemonic');
+    const walletPageL1 = await createPage(context, l1ExtensionUrl);
+    try {
+        await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonic);
+    } catch (error) {
+        console.error('Error setting up L1 wallet:', error);
+        throw error;
+    } finally {
+        await walletPageL1.close().catch((e) => console.error('Error closing L1 wallet page:', e));
+    }
+    console.log('✅ L1 wallet setup complete');
+}
 
-    if (!mnemonic) {
-        throw new Error('Failed to generate mnemonic');
+/**
+ * Set up L2 wallet with mnemonic
+ */
+export async function setupL2Wallet(
+    context: BrowserContext,
+    l2ExtensionUrl: string,
+    mnemonic: string,
+): Promise<void> {
+    console.log('Setting up L2 wallet with mnemonic');
+    const walletPageL2 = await createPage(context, l2ExtensionUrl);
+    try {
+        await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonic);
+        await addNetworkToMetaMask(walletPageL2);
+    } catch (error) {
+        console.error('Error setting up L2 wallet:', error);
+        throw error;
+    } finally {
+        await walletPageL2.close().catch((e) => console.error('Error closing L2 wallet page:', e));
+    }
+    console.log('✅ L2 wallet setup complete');
+}
+
+/**
+ * Set up both wallets for bridge testing
+ */
+export async function setupBridgeWallets(
+    context: BrowserContext,
+    l1ExtensionUrl: string,
+    l2ExtensionUrl: string,
+    mnemonicL1: string,
+    mnemonicL2: string,
+): Promise<void> {
+    await setupL1Wallet(context, l1ExtensionUrl, mnemonicL1);
+    await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2);
+}
+
+export async function isL1WalletConnected(page: Page): Promise<boolean> {
+    try {
+        const connectButton = page.getByTestId('connect-l1-wallet');
+        const count = await connectButton.count();
+        console.log(`Found ${count} elements with test ID 'connect-l1-wallet'`);
+        return count === 0;
+    } catch (error) {
+        console.log('Error checking L1 wallet connection:', error);
+        return false; // Assume not connected on error
+    }
+}
+
+/**
+ * Wait for L1 wallet to connect with timeout and polling
+ */
+export async function waitForL1WalletConnected(
+    page: Page,
+    { timeout = 20000, pollInterval = 500 } = {},
+): Promise<boolean> {
+    console.log('Waiting for L1 wallet to connect...');
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+        if (await isL1WalletConnected(page)) {
+            console.log('✅ L1 wallet finished connecting successfully');
+            return true;
+        }
+
+        console.log(`L1 wallet not connected yet, waiting ${pollInterval}ms...`);
+        await page.waitForTimeout(pollInterval);
     }
 
-    return {
-        mnemonic: mnemonic.phrase,
-        address: HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/0`).address,
-    };
+    console.log(`❌ L1 wallet connection timed out after ${timeout}ms`);
+    return false;
 }

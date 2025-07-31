@@ -1,19 +1,17 @@
-import path from 'path';
-import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { Page, type BrowserContext } from '@playwright/test';
 
-const EXTENSION_L1_PATH = path.join(__dirname, '../../../wallet/dist');
-const EXTENSION_L2_PATH = path.join(__dirname, '../../wallet-dist-L2');
+export async function getExtensionUrl(browserContext: BrowserContext): Promise<string> {
+    let [background] = browserContext.serviceWorkers();
 
-const COMMON_ARGS = ['--user-agent=Playwright', '--disable-dev-shm-usage', '--no-sandbox'];
+    if (!background) {
+        background = await browserContext.waitForEvent('serviceworker', { timeout: 30000 });
+    }
 
-type ExtensionFixtures = {
-    contextL1: BrowserContext;
-    contextL2: BrowserContext;
-    l1ExtensionUrl: string;
-    l2ExtensionUrl: string;
-};
+    const extensionId = background.url().split('/')[2];
+    return `chrome-extension://${extensionId}/ui.html`;
+}
 
-async function waitForExtension(context: BrowserContext): Promise<string> {
+export async function waitForExtension(context: BrowserContext): Promise<string> {
     let [background] = context.serviceWorkers();
     if (!background) {
         background = await context.waitForEvent('serviceworker', { timeout: 30000 });
@@ -25,64 +23,65 @@ async function waitForExtension(context: BrowserContext): Promise<string> {
     return extensionId;
 }
 
-export const test = base.extend<ExtensionFixtures>({
-    contextL1: async ({}, use) => {
-        const context = await chromium.launchPersistentContext('', {
-            headless: false,
-            args: [
-                ...COMMON_ARGS,
-                `--disable-extensions-except=${EXTENSION_L1_PATH}`,
-                `--load-extension=${EXTENSION_L1_PATH}`,
-            ],
-        });
+export async function waitForExtensions(
+    context: BrowserContext,
+): Promise<{ l1ExtensionUrl: string; l2ExtensionUrl: string }> {
+    // Wait for both extension service workers to start
+    const serviceWorkers: string[] = [];
+    let l1ExtensionId = '';
+    let l2ExtensionId = '';
 
-        await use(context);
-    },
+    // Find extension IDs
+    for (const worker of context.serviceWorkers()) {
+        const url = worker.url();
+        console.log(`Found service worker: ${url}`);
+        serviceWorkers.push(url);
 
-    contextL2: async ({}, use) => {
-        const context = await chromium.launchPersistentContext('', {
-            headless: false,
-            args: [
-                ...COMMON_ARGS,
-                `--disable-extensions-except=${EXTENSION_L2_PATH}`,
-                `--load-extension=${EXTENSION_L2_PATH}`,
-            ],
-        });
+        // Check if this is L1 extension (IOTA wallet)
+        if (url.includes('background.js')) {
+            l1ExtensionId = url.split('/')[2];
+        }
 
-        await use(context);
-    },
-
-    l1ExtensionUrl: async ({ contextL1 }, use) => {
-        const extensionId = await waitForExtension(contextL1);
-        const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
-        await use(extensionUrl);
-    },
-
-    l2ExtensionUrl: async ({ contextL2 }, use) => {
-        const extensionId = await waitForExtension(contextL2);
-        const extensionUrl = `chrome-extension://${extensionId}/home.html`;
-        await use(extensionUrl);
-    },
-});
-
-export const expect = test.expect;
-
-export async function closeBrowserTabsExceptLast(browserContext: BrowserContext) {
-    const pages = browserContext.pages();
-    if (pages.length > 1) {
-        for (let i = 0; i < pages.length - 1; i++) {
-            await pages[i].close();
+        // Check if this is L2 extension (MetaMask)
+        if (url.includes('app-init.js')) {
+            l2ExtensionId = url.split('/')[2];
         }
     }
-}
 
-export async function getExtensionUrl(browserContext: BrowserContext): Promise<string> {
-    let [background] = browserContext.serviceWorkers();
+    // If extensions are not found, wait for them to load
+    if (!l1ExtensionId || !l2ExtensionId) {
+        console.log('Waiting for extensions to load...');
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    if (!background) {
-        background = await browserContext.waitForEvent('serviceworker', { timeout: 30000 });
+        for (const worker of context.serviceWorkers()) {
+            const url = worker.url();
+
+            if (url.includes('background.js')) {
+                l1ExtensionId = url.split('/')[2];
+            }
+
+            if (url.includes('app-init.js')) {
+                l2ExtensionId = url.split('/')[2];
+            }
+        }
     }
 
-    const extensionId = background.url().split('/')[2];
-    return `chrome-extension://${extensionId}/ui.html`;
+    const l1ExtensionUrl = `chrome-extension://${l1ExtensionId}/ui.html`;
+    const l2ExtensionUrl = `chrome-extension://${l2ExtensionId}/home.html`;
+
+    return { l1ExtensionUrl, l2ExtensionUrl };
+}
+
+/**
+ * Create a new page and navigate to URL with error handling
+ */
+export async function createPage(context: BrowserContext, url = '/'): Promise<Page> {
+    try {
+        const page = await context.newPage();
+        await page.goto(url);
+        return page;
+    } catch (error) {
+        console.error('Failed to create page:', error);
+        throw error;
+    }
 }
