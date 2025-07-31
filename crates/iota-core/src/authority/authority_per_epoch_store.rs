@@ -1339,8 +1339,10 @@ impl AuthorityPerEpochStore {
         &self,
         digests: impl IntoIterator<Item = &'a TransactionDigest>,
     ) -> IotaResult<Vec<bool>> {
-        let tables = self.tables()?;
-        Ok(tables.executed_in_epoch.multi_contains_keys(digests)?)
+        Ok(self
+            .tables()?
+            .executed_in_epoch
+            .multi_contains_keys(digests)?)
     }
 
     pub fn get_effects_signature(
