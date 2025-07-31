@@ -10,7 +10,20 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { useIotaGraphQLClientContext } from './IotaGraphQLClientContext';
 
 export const IotaNamesClientProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-    const { iotaNamesClient } = useIotaNamesClient();
+    const ctx = useIotaClientContext();
+    const network = getNetwork(ctx.network);
+    const { iotaGraphQLClient } = useIotaGraphQLClientContext();
+
+    // The GraphQL client is too expensive to memoize
+    // but we know for sure it will only be recrated when the network changes
+    const iotaNamesClient = useMemo(() => {
+        if (!iotaGraphQLClient) return null;
+
+        return new IotaNamesClient({
+            graphQlClient: iotaGraphQLClient,
+            network: network.id,
+        });
+    }, [network.id]);
 
     return (
         <IotaNamesClientContext.Provider value={{ iotaNamesClient }}>
@@ -25,29 +38,12 @@ type IotaNamesClientContextType = {
 
 export const IotaNamesClientContext = createContext<IotaNamesClientContextType | null>(null);
 
-export function useIotaNamesClientContext(): IotaNamesClientContextType {
+export function useIotaNamesClient(): IotaNamesClientContextType {
     const context = useContext(IotaNamesClientContext);
 
     if (!context) {
-        throw new Error('useIotaNamesClientContext must be used within a IotaNamesClientProvider');
+        throw new Error('useIotaNamesClient must be used within a IotaNamesClientProvider');
     }
 
     return context;
-}
-
-export function useIotaNamesClient() {
-    const ctx = useIotaClientContext();
-    const network = getNetwork(ctx.network);
-    const { iotaGraphQLClient } = useIotaGraphQLClientContext();
-
-    const iotaNamesClient = useMemo(() => {
-        if (!iotaGraphQLClient) return null;
-
-        return new IotaNamesClient({
-            graphQlClient: iotaGraphQLClient,
-            network: network.id,
-        });
-    }, [iotaGraphQLClient, network.id]);
-
-    return { iotaNamesClient };
 }
