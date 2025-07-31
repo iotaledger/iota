@@ -18,10 +18,7 @@ name = "iota-source-validation-service"
 anyhow = { version = "1.0.64", features = ["backtrace"] }
 axum.workspace = true
 clap.workspace = true
-const-str.workspace = true
-git-version.workspace = true
 hyper.workspace = true
-jsonrpsee.workspace = true
 prometheus.workspace = true
 serde = { version = "1.0.144", features = ["derive"] }
 tempfile = "3.3.0"
@@ -37,9 +34,9 @@ bin-version.workspace = true
 iota-metrics.workspace = true
 iota-move.workspace = true
 iota-move-build.workspace = true
+iota-package-management.workspace = true
 iota-sdk.workspace = true
 iota-source-validation.workspace = true
-move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true

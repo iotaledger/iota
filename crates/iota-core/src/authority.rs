@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, atomic::Ordering},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
     vec,
 };
 
@@ -20,7 +20,6 @@ use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
-use chrono::prelude::*;
 use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
@@ -196,6 +195,10 @@ mod batch_verification_tests;
 #[path = "unit_tests/coin_deny_list_tests.rs"]
 mod coin_deny_list_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/auth_unit_test_utils.rs"]
+pub mod auth_unit_test_utils;
+
 pub mod authority_test_utils;
 
 pub mod authority_per_epoch_store;
@@ -207,6 +210,7 @@ pub mod authority_store_types;
 pub mod epoch_start_configuration;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
+pub mod suggested_gas_price_calculator;
 pub mod test_authority_builder;
 pub mod transaction_deferral;
 
@@ -1769,10 +1773,11 @@ impl AuthorityState {
         )?;
 
         // make a gas object if one was not provided
+        let mut transaction = transaction;
         let mut gas_object_refs = transaction.gas().to_vec();
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
-            let sender = transaction.sender();
+            let sender = transaction.gas_owner();
             // use a 1B iota coin
             const NANOS_TO_IOTA: u64 = 1_000_000_000;
             const DRY_RUN_IOTA: u64 = 1_000_000_000;
@@ -1785,6 +1790,8 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
+            // Add gas object to transaction gas payment
+            transaction.gas_data_mut().payment = gas_object_refs.clone();
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -1953,11 +1960,11 @@ impl AuthorityState {
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
-
         // make a gas object if one was not provided
+        let mut transaction = transaction;
         let mut gas_object_refs = transaction.gas().to_vec();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
-            let sender = transaction.sender();
+            let sender = transaction.gas_owner();
             // use a 1B iota coin
             const NANOS_TO_IOTA: u64 = 1_000_000_000;
             const DRY_RUN_IOTA: u64 = 1_000_000_000;
@@ -1970,6 +1977,9 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
+
+            // Add the gas object to the transaction payment.
+            transaction.gas_data_mut().payment = gas_object_refs.clone();
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -2695,8 +2705,11 @@ impl AuthorityState {
     }
 
     pub fn unixtime_now_ms() -> u64 {
-        let ts_ms = Utc::now().timestamp_millis();
-        u64::try_from(ts_ms).expect("Travelling in time machine")
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis();
+        u64::try_from(now).expect("Travelling in time machine")
     }
 
     #[instrument(level = "trace", skip_all)]

@@ -19,8 +19,9 @@ mod ingestion_tests {
             transactions::StoredTransaction,
         },
         schema::{objects, objects_snapshot, transactions, tx_insertion_order},
-        store::PgIndexerStore,
+        store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
+        types::{EventIndex, TxIndex},
     };
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
@@ -327,6 +328,81 @@ mod ingestion_tests {
         .context("Failed reading tx insertion order from PostgresDB")?;
 
         assert_eq!(actual_insertion_order, pre_existing_insertion_order);
+        Ok(())
+    }
+
+    /// This test case verifies that pg_store.persist_tx_indices correctly
+    /// splits large vectors of TxIndex into smaller chunks of size
+    /// PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
+    ///
+    /// This prevents the Postgres error:
+    /// ```text
+    /// "error encoding message to server: value too large to transmit"
+    /// ```
+    #[tokio::test]
+    pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
+        let tempdir = tempdir().unwrap();
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir.path().to_path_buf();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tx_indices_db"),
+            None,
+        )
+        .await;
+
+        // By creating 1000 random tx indices we ensure that the
+        // persist_event_indices function will flatten each TxIndex by
+        // extracting all field data and collecting each field type
+        // into its own separate vector (each field has one element or more
+        // elements). This will result in having n vectors with length
+        // greater than PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX, which will
+        // trigger the large vectors to be split into chunks of
+        // PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
+        let tx_indices = std::iter::repeat_with(TxIndex::random).take(1000).collect();
+        pg_store.persist_tx_indices(tx_indices).await?;
+        Ok(())
+    }
+
+    /// This test case verifies that pg_store.persist_tx_indices correctly
+    /// splits large vectors of EventIndex into smaller chunks of size
+    /// PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
+    ///
+    /// This prevents the Postgres error:
+    /// ```text
+    /// "error encoding message to server: value too large to transmit"
+    /// ```
+    #[tokio::test]
+    pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
+        let tempdir = tempdir().unwrap();
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir.path().to_path_buf();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_event_indices_db"),
+            None,
+        )
+        .await;
+
+        // By creating 2000 random event indices we ensure that the
+        // persist_event_indices function will flatten each EventIndex by
+        // extracting all field data and collecting each field type
+        // into its own separate vector (each field has one element). This will
+        // result in having n vectors with length of 2000, which will
+        // trigger the large vectors to be split into chunks of
+        // PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
+        let event_indices = std::iter::repeat_with(EventIndex::random)
+            .take(2000)
+            .collect();
+        pg_store.persist_event_indices(event_indices).await?;
         Ok(())
     }
 }

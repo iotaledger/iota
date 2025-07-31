@@ -137,6 +137,13 @@ The Indexer pulls checkpoint data from the full node and populates the tables sh
 | tx_changed_objects_tx_sequence_number_index | tx_sequence_number                    |
 | tx_changed_objects_sender                   | sender, object_id, tx_sequence_number |
 
+### Table `tx_wrapped_or_deleted_objects`
+
+| Index name                                             | Keys                                  | Condition |
+| ------------------------------------------------------ | ------------------------------------- | --------- |
+| tx_wrapped_or_deleted_objects_tx_sequence_number_index | tx_sequence_number                    |           |
+| tx_wrapped_or_deleted_objects_sender                   | sender, object_id, tx_sequence_number |           |
+
 ### Table `tx_calls_pkg`
 
 | Index name          | Keys                                |

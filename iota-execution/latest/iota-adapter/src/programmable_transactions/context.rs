@@ -60,6 +60,7 @@ mod checked {
             ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
         },
         gas_charger::GasCharger,
+        gas_meter::IotaGasMeter,
         programmable_transactions::linkage_view::LinkageView,
         type_resolver::TypeTagResolver,
     };
@@ -207,10 +208,9 @@ mod checked {
 
                 let tx_digest = tx_context.digest();
                 let remaining_gas: u64 =
-                    move_vm_types::gas::GasMeter::remaining_gas(gas_charger.move_gas_status())
+                    move_vm_types::gas::GasMeter::remaining_gas(&IotaGasMeter(gas_charger.move_gas_status_mut()))
                         .into();
-                gas_charger
-                    .move_gas_status_mut()
+                IotaGasMeter(gas_charger.move_gas_status_mut())
                     .set_profiler(GasProfiler::init(
                         &vm.config().profiler_config,
                         format!("{tx_digest}"),
@@ -958,7 +958,7 @@ mod checked {
                 ty_args,
                 args,
                 &mut data_store,
-                gas_status,
+                &mut IotaGasMeter(gas_status),
                 &mut self.native_extensions,
                 tracer.as_mut(),
             )
@@ -1019,7 +1019,7 @@ mod checked {
                 modules,
                 sender,
                 &mut data_store,
-                self.gas_charger.move_gas_status_mut(),
+                &mut IotaGasMeter(self.gas_charger.move_gas_status_mut()),
             )
         }
     }

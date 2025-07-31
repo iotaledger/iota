@@ -9,6 +9,7 @@ use std::{
     sync::{Arc, atomic::AtomicU64},
 };
 
+use iota_common::debug_fatal;
 use iota_types::base_types::SequenceNumber;
 use moka::sync::Cache as MokaCache;
 use parking_lot::Mutex;
@@ -293,10 +294,14 @@ where
             let mut entry = entry.value().lock();
             check_ticket()?;
 
-            // Ticket expiry makes this assert impossible.
-            // TODO: relax to debug_assert?
-            assert!(!entry.is_newer_than(&value), "entry is newer than value");
-            *entry = value;
+            // Ticket expiry should make this assert impossible.
+            // Note: value and entry versions can be equal, which is allowed for genesis
+            // initialization
+            if entry.is_newer_than(&value) {
+                debug_fatal!("entry is newer than value");
+            } else {
+                *entry = value;
+            }
         }
 
         Ok(())

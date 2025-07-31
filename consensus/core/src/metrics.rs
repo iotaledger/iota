@@ -11,6 +11,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
+use itertools::izip;
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     exponential_buckets, register_histogram_vec_with_registry, register_histogram_with_registry,
@@ -18,7 +19,7 @@ use prometheus::{
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
-use crate::{BlockRef, error::ConsensusError, network::metrics::NetworkMetrics};
+use crate::{BlockRef, context::Context, error::ConsensusError, network::metrics::NetworkMetrics};
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -98,15 +99,23 @@ enum MetricType {
 impl Metrics {
     pub(crate) fn update_scoring_metrics_on_eviction(
         &self,
-        validator: AuthorityIndex,
+        authority_index: AuthorityIndex,
         hostname: &str,
+        recent_refs: &BTreeSet<BlockRef>,
         eviction_round: u32,
-        last_evicted_round: u32,
-        recent_refs_by_authority: &BTreeSet<BlockRef>,
+        last_eviction_round: u32,
         threshold_clock_round: u32,
     ) -> Option<StoredScoringMetricsU64> {
+        // threshold_clock_round should be always at least 1.
+        // Analogously, authority_index should be a valid index.
+        if threshold_clock_round == 0
+            || authority_index.value() >= self.scoring_metrics.cached.len()
+        {
+            return None;
+        }
+
         // Get the blocks rounds that were not evicted.
-        let cached_block_rounds = recent_refs_by_authority
+        let cached_block_rounds = recent_refs
             .iter()
             .map(|block| block.round)
             .filter(|&round| round > eviction_round && round < threshold_clock_round)
@@ -117,23 +126,24 @@ impl Metrics {
             calculate_scoring_metrics_for_range(
                 cached_block_rounds,
                 eviction_round + 1,
-                threshold_clock_round - 1,
+                threshold_clock_round.saturating_sub(1),
             );
+
         self.update_missing_blocks_and_equivocations(
             missing_blocks_in_cached_rounds,
             cached_equivocations,
             hostname,
-            validator,
+            authority_index,
             MetricType::Cached,
         );
 
         // If no eviction happened, we do not update the metrics on storage.
-        if eviction_round == last_evicted_round {
+        if eviction_round == last_eviction_round {
             return None;
         }
 
         // Get the evicted blocks rounds.
-        let evicted_block_rounds = recent_refs_by_authority
+        let evicted_block_rounds = recent_refs
             .iter()
             .map(|block| block.round)
             .filter(|&round| round <= eviction_round)
@@ -143,101 +153,106 @@ impl Metrics {
         let (evicted_equivocations, missing_blocks_in_evicted_rounds) =
             calculate_scoring_metrics_for_range(
                 evicted_block_rounds,
-                last_evicted_round + 1,
+                last_eviction_round + 1,
                 eviction_round,
             );
+
         self.update_missing_blocks_and_equivocations(
             missing_blocks_in_evicted_rounds,
             evicted_equivocations,
             hostname,
-            validator,
+            authority_index,
             MetricType::Uncached,
         );
 
         // Update score
-        self.update_authority_score(validator);
+        self.update_authority_score(authority_index, hostname);
 
         Some(StoredScoringMetricsU64 {
-            faulty_blocks_provable_by_authority: self.scoring_metrics.uncached[validator]
-                .faulty_blocks_provable_by_authority
+            faulty_blocks_provable: self.scoring_metrics.uncached[authority_index]
+                .faulty_blocks_provable
                 .load(Ordering::Relaxed),
-            faulty_blocks_unprovable_by_authority: self.scoring_metrics.uncached[validator]
-                .faulty_blocks_unprovable_by_authority
+            faulty_blocks_unprovable: self.scoring_metrics.uncached[authority_index]
+                .faulty_blocks_unprovable
                 .load(Ordering::Relaxed),
-            equivocations_by_authority: self.scoring_metrics.uncached[validator]
-                .equivocations_by_authority
+            equivocations: self.scoring_metrics.uncached[authority_index]
+                .equivocations
                 .load(Ordering::Relaxed),
-            missing_proposals_by_authority: self.scoring_metrics.uncached[validator]
-                .missing_proposals_by_authority
+            missing_proposals: self.scoring_metrics.uncached[authority_index]
+                .missing_proposals
                 .load(Ordering::Relaxed),
         })
     }
 
-    pub(crate) fn initialize_uncached_scoring_metrics(
+    pub(crate) fn initialize_scoring_metrics(
         &self,
-        metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
-        hostnames: &Vec<&str>,
+        recovered_scoring_metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
+        blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
+        threshold_clock_round: u32,
+        eviction_rounds: &Vec<u32>,
+        context: Arc<Context>,
     ) {
-        for ((authority, metrics), &hostname) in metrics.into_iter().zip(hostnames.iter()) {
-            let StoredScoringMetricsU64 {
-                faulty_blocks_provable_by_authority,
-                faulty_blocks_unprovable_by_authority,
-                equivocations_by_authority,
-                missing_proposals_by_authority,
-            } = metrics;
+        let hostnames = context
+            .committee
+            .authorities()
+            .map(|(_, x)| x.hostname.as_str())
+            .collect::<Vec<_>>();
 
-            self.update_missing_blocks_and_equivocations(
-                missing_proposals_by_authority,
-                equivocations_by_authority,
+        for ((authority_index, metrics), hostname, blocks_in_cache, &eviction_round) in izip!(
+            recovered_scoring_metrics,
+            hostnames,
+            blocks_in_cache_by_authority,
+            eviction_rounds
+        ) {
+            // Initialize the uncached scoring metrics according to
+            // recovered_scoring_metrics
+            let StoredScoringMetricsU64 {
+                faulty_blocks_provable,
+                faulty_blocks_unprovable,
+                equivocations,
+                missing_proposals,
+            } = metrics;
+            self.initialize_faulty_blocks_metrics(
+                faulty_blocks_provable,
+                faulty_blocks_unprovable,
                 hostname,
-                authority,
+                authority_index,
+            );
+            self.update_missing_blocks_and_equivocations(
+                missing_proposals,
+                equivocations,
+                hostname,
+                authority_index,
                 MetricType::Uncached,
             );
 
-            self.node_metrics
-                .faulty_blocks_provable_by_authority
-                .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
-                .inc_by(faulty_blocks_provable_by_authority);
-            self.node_metrics
-                .faulty_blocks_unprovable_by_authority
-                .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
-                .inc_by(faulty_blocks_unprovable_by_authority);
-            self.scoring_metrics.uncached[authority]
-                .faulty_blocks_provable_by_authority
-                .store(faulty_blocks_provable_by_authority, Ordering::Relaxed);
-            self.scoring_metrics.uncached[authority]
-                .faulty_blocks_unprovable_by_authority
-                .store(faulty_blocks_unprovable_by_authority, Ordering::Relaxed);
-
-            // Update score
-            self.update_authority_score(authority);
+            // Initialize the cached scoring metrics according to blocks_in_cache.
+            let block_rounds_in_cache = blocks_in_cache
+                .iter()
+                .map(|block_ref| block_ref.round)
+                .collect();
+            let (cached_equivocations, missing_blocks_in_cached_rounds) =
+                calculate_scoring_metrics_for_range(
+                    block_rounds_in_cache,
+                    eviction_round + 1,
+                    threshold_clock_round - 1,
+                );
+            self.update_missing_blocks_and_equivocations(
+                missing_blocks_in_cached_rounds,
+                cached_equivocations,
+                hostname,
+                authority_index,
+                MetricType::Cached,
+            );
+            // Initiatize score
+            self.update_authority_score(authority_index, hostname);
         }
     }
 
-    pub(crate) fn initialize_cached_scoring_metrics(
-        &self,
-        validator: AuthorityIndex,
-        hostname: &str,
-        block_rounds_in_cache: Vec<u32>,
-        threshold_clock_round: u32,
-        eviction_round: u32,
-    ) {
-        // Update metrics according to the blocks that are loaded to cache.
-        let (cached_equivocations, missing_blocks_in_cached_rounds) =
-            calculate_scoring_metrics_for_range(
-                block_rounds_in_cache,
-                eviction_round + 1,
-                threshold_clock_round - 1,
-            );
-        self.update_missing_blocks_and_equivocations(
-            missing_blocks_in_cached_rounds,
-            cached_equivocations,
-            hostname,
-            validator,
-            MetricType::Cached,
-        );
-    }
-
+    // Auxiliary function to update scoring metrics relative to missing blocks
+    // and equivocations. The `authority` parameter should be a valid index,
+    // otherwise the function will panic. This check is not performed here, as
+    // it is assumed that the caller has already checked it.
     fn update_missing_blocks_and_equivocations(
         &self,
         missing_blocks: u64,
@@ -249,10 +264,10 @@ impl Metrics {
         match metric_type {
             MetricType::Cached => {
                 self.scoring_metrics.cached[authority]
-                    .equivocations_by_authority
+                    .equivocations
                     .store(equivocations, Ordering::Relaxed);
                 self.scoring_metrics.cached[authority]
-                    .missing_proposals_by_authority
+                    .missing_proposals
                     .store(missing_blocks, Ordering::Relaxed);
                 self.node_metrics
                     .equivocations_in_cache_by_authority
@@ -266,10 +281,10 @@ impl Metrics {
 
             MetricType::Uncached => {
                 self.scoring_metrics.uncached[authority]
-                    .equivocations_by_authority
+                    .equivocations
                     .fetch_add(equivocations, Ordering::Relaxed);
                 self.scoring_metrics.uncached[authority]
-                    .missing_proposals_by_authority
+                    .missing_proposals
                     .fetch_add(missing_blocks, Ordering::Relaxed);
                 self.node_metrics
                     .uncached_equivocations_by_authority
@@ -283,52 +298,87 @@ impl Metrics {
         }
     }
 
-    fn update_authority_score(&self, authority: AuthorityIndex) {
-        let StoredScoringMetricsU64 {
-            faulty_blocks_provable_by_authority,
-            faulty_blocks_unprovable_by_authority,
-            equivocations_by_authority,
-            missing_proposals_by_authority,
-        } = StoredScoringMetricsU64 {
-            faulty_blocks_provable_by_authority: self.scoring_metrics.uncached[authority]
-                .faulty_blocks_provable_by_authority
+    // Auxiliary function used to update scores. The `authority` parameter should be
+    // a valid index, otherwise the function will panic. This check is not
+    // performed here, as it is assumed that the caller has already checked it.
+    fn update_authority_score(&self, authority: AuthorityIndex, hostname: &str) {
+        let (faulty_blocks_provable, faulty_blocks_unprovable, equivocations, missing_proposals) = (
+            self.scoring_metrics.uncached[authority]
+                .faulty_blocks_provable
                 .load(Ordering::Relaxed),
-            faulty_blocks_unprovable_by_authority: self.scoring_metrics.uncached[authority]
-                .faulty_blocks_unprovable_by_authority
+            self.scoring_metrics.uncached[authority]
+                .faulty_blocks_unprovable
                 .load(Ordering::Relaxed),
-            equivocations_by_authority: self.scoring_metrics.uncached[authority]
-                .equivocations_by_authority
+            self.scoring_metrics.uncached[authority]
+                .equivocations
                 .load(Ordering::Relaxed),
-            missing_proposals_by_authority: self.scoring_metrics.uncached[authority]
-                .missing_proposals_by_authority
+            self.scoring_metrics.uncached[authority]
+                .missing_proposals
                 .load(Ordering::Relaxed),
-        };
+        );
 
-        let misbehaviour_count = missing_proposals_by_authority
-            + equivocations_by_authority
-            + faulty_blocks_provable_by_authority
-            + faulty_blocks_unprovable_by_authority;
-        self.scoring_metrics.score[authority].store(u32::MAX as u64 / (1 + misbehaviour_count));
+        let misbehaviour_count =
+            missing_proposals + equivocations + faulty_blocks_provable + faulty_blocks_unprovable;
+        let score = u32::MAX as u64 / (1 + misbehaviour_count);
+        self.scoring_metrics.score[authority].store(score);
+        self.node_metrics
+            .score_by_authority
+            .with_label_values(&[hostname])
+            .set(score as i64);
+    }
+
+    // Auxiliary function to initialize scoring metrics relative to faulty blocks.
+    // The `authority` parameter should be a valid index, otherwise the function
+    // will panic. This check is not performed here, as it is assumed that the
+    // caller has already checked it.
+    fn initialize_faulty_blocks_metrics(
+        &self,
+        faulty_blocks_provable: u64,
+        faulty_blocks_unprovable: u64,
+        hostname: &str,
+        authority_index: AuthorityIndex,
+    ) {
+        self.node_metrics
+            .faulty_blocks_provable_by_authority
+            .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
+            .inc_by(faulty_blocks_provable);
+        self.node_metrics
+            .faulty_blocks_unprovable_by_authority
+            .with_label_values(&[hostname, "loaded from storage", "loaded from storage"])
+            .inc_by(faulty_blocks_unprovable);
+        self.scoring_metrics.uncached[authority_index]
+            .faulty_blocks_provable
+            .store(faulty_blocks_provable, Ordering::Relaxed);
+        self.scoring_metrics.uncached[authority_index]
+            .faulty_blocks_unprovable
+            .store(faulty_blocks_unprovable, Ordering::Relaxed);
     }
 
     pub(crate) fn update_scoring_metrics_on_block_receival(
         &self,
-        index: AuthorityIndex,
+        authority_index: AuthorityIndex,
         hostname: &str,
         error: ConsensusError,
         source: &str,
     ) {
+        // authority_index will be always a valid index. However, this method will
+        // panic if authority_index >= committee_size. We run this check only to avoid
+        // this panic.
+        if authority_index.value() >= self.scoring_metrics.cached.len() {
+            return;
+        }
+
         if should_update_provable_metrics(&error, source) {
-            self.scoring_metrics.uncached[index]
-                .faulty_blocks_provable_by_authority
+            self.scoring_metrics.uncached[authority_index]
+                .faulty_blocks_provable
                 .fetch_add(1, Ordering::Relaxed);
             self.node_metrics
                 .faulty_blocks_provable_by_authority
                 .with_label_values(&[hostname, source, error.name()])
                 .inc();
         } else if should_update_unprovable_metrics(&error, source) {
-            self.scoring_metrics.uncached[index]
-                .faulty_blocks_unprovable_by_authority
+            self.scoring_metrics.uncached[authority_index]
+                .faulty_blocks_unprovable
                 .fetch_add(1, Ordering::Relaxed);
             self.node_metrics
                 .faulty_blocks_unprovable_by_authority
@@ -341,6 +391,7 @@ impl Metrics {
 }
 
 pub(crate) struct Score(AtomicU64);
+
 impl Score {
     pub(crate) fn new() -> Self {
         Self(AtomicU64::new(u64::MAX))
@@ -399,6 +450,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
     pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
+    pub(crate) score_by_authority: IntGaugeVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -721,13 +773,13 @@ impl NodeMetrics {
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_counter_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
-                "Number of semantically invalid blocks per peer authority",
+                "Number of provably faulty blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
              ).unwrap(),
             faulty_blocks_unprovable_by_authority: register_int_counter_vec_with_registry!(
                 "faulty_blocks_unprovable_by_authority",
-                "Number of syntactically invalid blocks per peer authority",
+                "Number of unprovably faulty blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
@@ -752,6 +804,12 @@ impl NodeMetrics {
             missing_proposals_in_cache_by_authority: register_int_gauge_vec_with_registry!(
                 "missing_proposals_in_cache_by_authority",
                 "Registers the number of blocks on the cache that an authority failed to send.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            score_by_authority: register_int_gauge_vec_with_registry!(
+                "score_by_authority",
+                "Registers the authority score.",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -1138,41 +1196,41 @@ impl ValidatorScoringMetrics {
 pub(crate) struct UncachedScoringMetrics {
     // Counts the number of times that a faulty block signed by the validator was already verified
     // in the epoch.
-    pub(crate) faulty_blocks_provable_by_authority: AtomicU64,
+    pub(crate) faulty_blocks_provable: AtomicU64,
     // Counts the number of times that a faulty block not signed by the validator was already
     // verified in the epoch.
-    pub(crate) faulty_blocks_unprovable_by_authority: AtomicU64,
+    pub(crate) faulty_blocks_unprovable: AtomicU64,
     // Counts the number of equivocations that were already evicted from cache in the epoch.
-    pub(crate) equivocations_by_authority: AtomicU64,
+    pub(crate) equivocations: AtomicU64,
     // Counts the number of blocks that the validator failed to propose, or that the node did not
     // receive, from the rounds already evicted from cache in the epoch.
-    pub(crate) missing_proposals_by_authority: AtomicU64,
+    pub(crate) missing_proposals: AtomicU64,
 }
 
 impl UncachedScoringMetrics {
     pub(crate) fn new() -> Self {
         Self {
-            faulty_blocks_provable_by_authority: AtomicU64::new(0),
-            faulty_blocks_unprovable_by_authority: AtomicU64::new(0),
-            equivocations_by_authority: AtomicU64::new(0),
-            missing_proposals_by_authority: AtomicU64::new(0),
+            faulty_blocks_provable: AtomicU64::new(0),
+            faulty_blocks_unprovable: AtomicU64::new(0),
+            equivocations: AtomicU64::new(0),
+            missing_proposals: AtomicU64::new(0),
         }
     }
 }
 
 pub(crate) struct CachedScoringMetrics {
     // Counts the number of equivocations in cache, below the threshold clock round.
-    pub(crate) equivocations_by_authority: AtomicU64,
+    pub(crate) equivocations: AtomicU64,
     // Counts the number of blocks that the validator failed to propose, or that the node did not
     // receive yet, from the rounds stored in cache and below the threshold clock round.
-    pub(crate) missing_proposals_by_authority: AtomicU64,
+    pub(crate) missing_proposals: AtomicU64,
 }
 
 impl CachedScoringMetrics {
     pub(crate) fn new() -> Self {
         Self {
-            equivocations_by_authority: AtomicU64::new(0),
-            missing_proposals_by_authority: AtomicU64::new(0),
+            equivocations: AtomicU64::new(0),
+            missing_proposals: AtomicU64::new(0),
         }
     }
 }
@@ -1181,10 +1239,10 @@ impl CachedScoringMetrics {
 // `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct StoredScoringMetricsU64 {
-    pub(crate) faulty_blocks_provable_by_authority: u64,
-    pub(crate) faulty_blocks_unprovable_by_authority: u64,
-    pub(crate) equivocations_by_authority: u64,
-    pub(crate) missing_proposals_by_authority: u64,
+    pub(crate) faulty_blocks_provable: u64,
+    pub(crate) faulty_blocks_unprovable: u64,
+    pub(crate) equivocations: u64,
+    pub(crate) missing_proposals: u64,
 }
 
 pub(crate) fn initialise_metrics(registry: Registry, committee_size: usize) -> Arc<Metrics> {
@@ -1306,6 +1364,7 @@ pub(crate) fn test_metrics(committee_size: usize) -> Arc<Metrics> {
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::BTreeSet,
         sync::{Arc, atomic::Ordering},
         time::Duration,
         vec,
@@ -1315,6 +1374,7 @@ mod tests {
     use bytes::Bytes;
     use consensus_config::{AuthorityIndex, NetworkKeyPair, ProtocolKeyPair};
     use parking_lot::RwLock;
+    use prometheus::Registry;
     use tokio::sync::broadcast;
 
     use crate::{
@@ -1327,13 +1387,14 @@ mod tests {
         context::Context,
         dag_state::DagState,
         error::ConsensusResult,
-        metrics::{ConsensusError, ValidatorScoringMetrics},
+        metrics::{
+            ConsensusError, StoredScoringMetricsU64, ValidatorScoringMetrics, initialise_metrics,
+        },
         network::{BlockStream, NetworkClient},
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };
-
     struct TxnSizeVerifier {}
 
     impl TransactionVerifier for TxnSizeVerifier {
@@ -1451,60 +1512,210 @@ mod tests {
         pub(crate) fn uncached_missing_proposals_by_authority(&self) -> Vec<u64> {
             self.uncached
                 .iter()
-                .map(|metrics| {
-                    metrics
-                        .missing_proposals_by_authority
-                        .load(Ordering::Relaxed)
-                })
+                .map(|metrics| metrics.missing_proposals.load(Ordering::Relaxed))
                 .collect()
         }
 
         pub(crate) fn equivocations_in_cache_by_authority(&self) -> Vec<u64> {
             self.cached
                 .iter()
-                .map(|metrics| metrics.equivocations_by_authority.load(Ordering::Relaxed))
+                .map(|metrics| metrics.equivocations.load(Ordering::Relaxed))
                 .collect()
         }
 
         pub(crate) fn missing_proposals_in_cache_by_authority(&self) -> Vec<u64> {
             self.cached
                 .iter()
-                .map(|metrics| {
-                    metrics
-                        .missing_proposals_by_authority
-                        .load(Ordering::Relaxed)
-                })
+                .map(|metrics| metrics.missing_proposals.load(Ordering::Relaxed))
                 .collect()
         }
 
         pub(crate) fn uncached_equivocations_by_authority(&self) -> Vec<u64> {
             self.uncached
                 .iter()
-                .map(|metrics| metrics.equivocations_by_authority.load(Ordering::Relaxed))
+                .map(|metrics| metrics.equivocations.load(Ordering::Relaxed))
                 .collect()
         }
 
         pub(crate) fn faulty_blocks_provable_by_authority(&self) -> Vec<u64> {
             self.uncached
                 .iter()
-                .map(|metrics| {
-                    metrics
-                        .faulty_blocks_provable_by_authority
-                        .load(Ordering::Relaxed)
-                })
+                .map(|metrics| metrics.faulty_blocks_provable.load(Ordering::Relaxed))
                 .collect()
         }
 
         pub(crate) fn faulty_blocks_unprovable_by_authority(&self) -> Vec<u64> {
             self.uncached
                 .iter()
-                .map(|metrics| {
-                    metrics
-                        .faulty_blocks_unprovable_by_authority
-                        .load(Ordering::Relaxed)
-                })
+                .map(|metrics| metrics.faulty_blocks_unprovable.load(Ordering::Relaxed))
                 .collect()
         }
+    }
+
+    #[test]
+    fn test_update_scoring_metrics_on_eviction_edge_cases() {
+        let metrics = initialise_metrics(Registry::new(), 4);
+        let authority_index = AuthorityIndex::new_for_test(0);
+        let hostname = "test_host";
+        let recent_refs_by_authority = BTreeSet::new();
+
+        // Test different unexpected combinations of eviction_round, last_evicted_round,
+        // and threshold_clock_round. Since recent_refs_by_authority is empty, the
+        // function should never panic or return more than zero equivocations.
+        // Each of the cases below have a small explanation of why they are unexpected
+        // and why they are supposed to return what they return.
+
+        // Unexpected because: threshold_clock_round = last_evicted_round means that a
+        // round with blocks from less than 2f+1 stake was evicted.
+        // Return: None, because nothing is currently being evicted.
+        let last_evicted_round = 5;
+        let eviction_round = 5;
+        let threshold_clock_round = 5;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(stored_metrics.is_none());
+
+        // Unexpected because: threshold_clock_round = 0 means that genesis is missing.
+        // Return: None, because nothing is currently being evicted.
+        let last_evicted_round = 0;
+        let eviction_round = 0;
+        let threshold_clock_round = 0;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(stored_metrics.is_none());
+
+        // Unexpected because: threshold_clock_round < eviction_round means that a
+        // round with blocks from less than 2f+1 stake in being evicted.
+        // Return: 3 missing proposals, from rounds 1 to 3 (eviction_round).
+        let last_evicted_round = 0;
+        let eviction_round = 3;
+        let threshold_clock_round = 2;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(matches!(
+            stored_metrics,
+            Some(StoredScoringMetricsU64 {
+                faulty_blocks_provable: 0,
+                faulty_blocks_unprovable: 0,
+                equivocations: 0,
+                missing_proposals: 3
+            })
+        ));
+
+        // Unexpected because: eviction_round < last_evicted_round means that blocks
+        // below or in last_evicted_round were accepted.
+        // Return: metrics won't be updated here, so it should return the same as in the
+        // last step.
+        let last_evicted_round = 1;
+        let eviction_round = 0;
+        let threshold_clock_round = 2;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(matches!(
+            stored_metrics,
+            Some(StoredScoringMetricsU64 {
+                faulty_blocks_provable: 0,
+                faulty_blocks_unprovable: 0,
+                equivocations: 0,
+                missing_proposals: 3
+            })
+        ));
+
+        // Unexpected because: threshold_clock_round < eviction_round <
+        // last_evicted_round and threshold_clock_round. Return: metrics won't
+        // be updated here, so it should return the same as in the last step.
+        let last_evicted_round = 2;
+        let eviction_round = 0;
+        let threshold_clock_round = 1;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(matches!(
+            stored_metrics,
+            Some(StoredScoringMetricsU64 {
+                faulty_blocks_provable: 0,
+                faulty_blocks_unprovable: 0,
+                equivocations: 0,
+                missing_proposals: 3
+            })
+        ));
+
+        // Unexpected because: threshold_clock_round < last_evicted_round means that a
+        // round with blocks from less than 2f+1 stake was evicted.
+        // Return: None, because nothing is currently being evicted.
+        let last_evicted_round = 1;
+        let eviction_round = 2;
+        let threshold_clock_round = 0;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(stored_metrics.is_none());
+
+        let last_evicted_round = 2;
+        let eviction_round = 1;
+        let threshold_clock_round = 0;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(stored_metrics.is_none());
+
+        // The function should not panic if the authority index is out of
+        // bounds.
+        // Unexpected because: threshold_clock_round = last_evicted_round means that a
+        // round with blocks from less than 2f+1 stake was evicted.
+        // Return: None, because nothing is currently being evicted.
+        let out_of_bounds_authority_index = AuthorityIndex::new_for_test(4);
+        let last_evicted_round = 1;
+        let eviction_round = 2;
+        let threshold_clock_round = 3;
+        let stored_metrics = metrics.update_scoring_metrics_on_eviction(
+            out_of_bounds_authority_index,
+            hostname,
+            &recent_refs_by_authority,
+            eviction_round,
+            last_evicted_round,
+            threshold_clock_round,
+        );
+        assert!(stored_metrics.is_none());
     }
 
     #[tokio::test]
@@ -1631,10 +1842,10 @@ mod tests {
 
         // Clear and check all metrics
         metrics.uncached[0]
-            .missing_proposals_by_authority
+            .missing_proposals
             .store(0, Ordering::Relaxed);
         metrics.cached[0]
-            .missing_proposals_by_authority
+            .missing_proposals
             .store(0, Ordering::Relaxed);
         assert_eq!(
             [
@@ -1691,7 +1902,7 @@ mod tests {
         //
         // Equivocations:
         // - We only removed from cache blocks from rounds <= 8, thus, no equivocations
-        //   should be in cache. Then, we should have counted:
+        //   should be uncached. Then, we should have counted:
         //      - 0 uncached equivocations;
         //      - 1 equivocation in cache for authority 1;
         //      - 0 equivocations in cache for authorities 0, 2 and 3;
@@ -1720,11 +1931,9 @@ mod tests {
 
         // Clear and check all metrics
         metrics.uncached[0]
-            .missing_proposals_by_authority
+            .missing_proposals
             .store(0, Ordering::Relaxed);
-        metrics.cached[1]
-            .equivocations_by_authority
-            .store(0, Ordering::Relaxed);
+        metrics.cached[1].equivocations.store(0, Ordering::Relaxed);
 
         assert_eq!(
             [
@@ -1760,6 +1969,292 @@ mod tests {
                 vec![3, 0, 0, 0],
                 vec![0, 1, 0, 0],
                 vec![0; committee_size],
+            ]
+        );
+
+        // Now we accept those lost blocks again and flush the dag state
+        dag_state.accept_blocks(dag_builder.blocks(13..=20));
+        for commit in second_temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+
+        // Now all misbehaviours should be accounted for in the uncached metrics.
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0, 1, 2, 0],
+                vec![3, 0, 0, 0],
+                vec![0; committee_size],
+                vec![0; committee_size],
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_metrics_flush_and_recovery() {
+        telemetry_subscribers::init_for_testing();
+
+        const GC_DEPTH: u32 = 0;
+        const CACHED_ROUNDS: u32 = 5;
+
+        let committee_size = 4;
+        let (mut context, _) = Context::new_for_test(committee_size);
+
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(GC_DEPTH);
+        context
+            .protocol_config
+            .set_consensus_linearize_subdag_v2_for_testing(false);
+
+        let context = Arc::new(context);
+        let metrics = &context.metrics.scoring_metrics;
+        let store = Arc::new(MemStore::new());
+        // `cached_rounds` is initialized here as 5.
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Initialize the DAG builder with 20 layers. Blocks in the DAG will reference
+        // all blocks from the previous round.
+        // - Rounds 1 to 5 will have unique blocks from all authorities.
+        // - Rounds 6 to 8 will have unique blocks from all authorities, except 0, who
+        //   will not propose any block.
+        // - Rounds 9 to 10 will have unique blocks from all authorities.
+        // - Rounds 11 to 20 will have unique blocks from all authorities, except:
+        //      - Authority 1, who will produce 1 equivocating blocks at round 11 (i.e.,
+        //        1+1 blocks)
+        //      - Authority 2, who will produce 2 equivocating blocks at round 13 (i.e.,
+        //        1+2 blocks)
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=5).build();
+        dag_builder
+            .layers(6..=8)
+            .authorities(vec![AuthorityIndex::new_for_test(0)])
+            .skip_block()
+            .build();
+        dag_builder.layers(9..=10).build();
+        dag_builder
+            .layers(11..=11)
+            .authorities(vec![AuthorityIndex::new_for_test(1)])
+            .equivocate(1)
+            .build();
+        dag_builder.layers(12..=12).build();
+        dag_builder
+            .layers(13..=13)
+            .authorities(vec![AuthorityIndex::new_for_test(2)])
+            .equivocate(2)
+            .build();
+        dag_builder.layers(14..=20).build();
+
+        let mut commits = dag_builder
+            .get_sub_dag_and_commits(1..=20)
+            .into_iter()
+            .map(|(_subdag, commit)| commit)
+            .collect::<Vec<_>>();
+
+        // Add the blocks and commits from first 10 rounds to the dag state. Since
+        // authority 0 skipped a leader round, we use the 9 first items of the commits
+        // vector
+        let mut temp_commits = commits.split_off(9);
+        dag_state.accept_blocks(dag_builder.blocks(1..=10));
+        for commit in commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Checks that metrics are still all zeroed, since even though we accepted
+        // blocks to the dag state, the metrics updates are done when the dag state is
+        // flushed.
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size]
+            ]
+        );
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Check that metrics were updated correctly after flushing.
+        //
+        // Equivocations:
+        // - We only accepted blocks from rounds <= 10, thus, no equivocations were
+        //   accepted yet. Equivocations metrics, then, should be still all zeroed.
+        //
+        // Missing proposals:
+        // - The the last committed round is 10, so the eviction round should be 5 for
+        //   authority 2 (leader of round 10) and 4 for all other authorities.
+        // - The threshold_clock_round should be 11, since we already accepted all
+        //   blocks from epoch 10.
+        // - Then, finally, we should have counted:
+        //      - 0 uncached missing proposals for authority 0;
+        //      - 3 missing proposal in cache for authority 0;
+        //      - 0 missing proposals for authorities 1, 2, and 3.
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![3, 0, 0, 0],
+            ]
+        );
+
+        // Clear and check all metrics
+        metrics.uncached[0]
+            .missing_proposals
+            .store(0, Ordering::Relaxed);
+        metrics.cached[0]
+            .missing_proposals
+            .store(0, Ordering::Relaxed);
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size]
+            ]
+        );
+
+        // Destroy and recover dag state from storage.
+        drop(dag_state);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        assert_eq!(dag_state.last_commit_index(), 9);
+        assert_eq!(dag_state.last_committed_rounds(), [9, 9, 10, 9]);
+
+        // Metrics should have been initialized as before the recovery.
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![3, 0, 0, 0],
+            ]
+        );
+
+        // Add blocks and commits from rounds 11 and 12 to the dag state.
+        let second_temp_commits = temp_commits.split_off(2);
+        dag_state.accept_blocks(dag_builder.blocks(11..=12));
+        for commit in temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Check that metrics were updated correctly after flushing.
+        //
+        // Missing proposals:
+        // - The last commit round is 12, so the eviction round should be 7 for
+        //   authority 0 (leader of round 12) and 6 for all other authorities. Then, we
+        //   should have counted:
+        //      - 2 uncached missing proposals for authority 0;
+        //      - 1 missing proposal in cache for authority 0;
+        //      - 0 missing proposals for authorities 1, 2, and 3.
+        //
+        // Equivocations:
+        // - We only removed from cache blocks from rounds <= 7, thus, no equivocations
+        //   should be uncached. Then, we should have counted:
+        //      - 0 uncached equivocations;
+        //      - 1 equivocation in cache for authority 1;
+        //      - 0 equivocations in cache for authorities 0, 2 and 3;
+        //
+
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![2, 0, 0, 0],
+                vec![0, 1, 0, 0],
+                vec![1, 0, 0, 0],
+            ]
+        );
+
+        // Accept all the rest of blocks and commits.
+        dag_state.accept_blocks(dag_builder.blocks(13..=20));
+        for commit in second_temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Clear and check all metrics
+        metrics.uncached[0]
+            .missing_proposals
+            .store(0, Ordering::Relaxed);
+        metrics.cached[1].equivocations.store(0, Ordering::Relaxed);
+        metrics.cached[0]
+            .missing_proposals
+            .store(0, Ordering::Relaxed);
+
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size]
+            ]
+        );
+
+        // Destroy and recover dag state from storage.
+        drop(dag_state);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Since the last accepted blocks were not flushed, the equivocations from
+        // rounds 13 to 20 should not be accounted for. The metrics should remain
+        // the same as before this acceptance.
+        assert_eq!(
+            [
+                metrics.uncached_equivocations_by_authority(),
+                metrics.uncached_missing_proposals_by_authority(),
+                metrics.equivocations_in_cache_by_authority(),
+                metrics.missing_proposals_in_cache_by_authority()
+            ],
+            [
+                vec![0; committee_size],
+                vec![2, 0, 0, 0],
+                vec![0, 1, 0, 0],
+                vec![1, 0, 0, 0],
             ]
         );
 
