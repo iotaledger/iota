@@ -36,7 +36,9 @@ use iota_types::{
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
-    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
+    crypto::{
+        AuthorityPublicKey, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound,
+    },
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
@@ -905,6 +907,7 @@ impl AuthorityPerEpochStore {
 
         let signature_verifier = SignatureVerifier::new(
             committee.clone(),
+            epoch_start_configuration.non_committee_validators(),
             signature_verifier_metrics,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
@@ -1112,10 +1115,6 @@ impl AuthorityPerEpochStore {
             self.chain_identifier,
             previous_epoch_last_checkpoint,
         )
-    }
-
-    pub fn committee(&self) -> &Arc<Committee> {
-        &self.committee
     }
 
     pub fn committee(&self) -> &Arc<Committee> {

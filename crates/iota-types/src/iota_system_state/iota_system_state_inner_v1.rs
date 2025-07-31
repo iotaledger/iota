@@ -8,9 +8,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AdvanceEpochParams, IotaSystemStateTrait,
-    epoch_start_iota_system_state::EpochStartValidatorInfoV1,
-    get_validators_from_table_vec,
+    AdvanceEpochParams, IotaSystemStateTrait, get_validators_from_table_vec,
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
     },
@@ -27,7 +25,9 @@ use crate::{
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    iota_system_state::epoch_start_iota_system_state::{
+        EpochStartSystemState, convert_validator_to_epoch_start_info,
+    },
     multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
@@ -540,7 +540,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
@@ -550,21 +550,9 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             self.validators
                 .active_validators
                 .iter()
-                .map(|validator| {
-                    let metadata = validator.verified_metadata();
-                    EpochStartValidatorInfoV1 {
-                        iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.authority_pubkey.clone(),
-                        network_pubkey: metadata.network_pubkey.clone(),
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        iota_net_address: metadata.net_address.clone(),
-                        p2p_address: metadata.p2p_address.clone(),
-                        primary_address: metadata.primary_address.clone(),
-                        voting_power: validator.voting_power,
-                        hostname: metadata.name.clone(),
-                    }
-                })
+                .map(convert_validator_to_epoch_start_info)
                 .collect(),
+            Vec::new(), // V1 has no non-committee validators
         )
     }
 

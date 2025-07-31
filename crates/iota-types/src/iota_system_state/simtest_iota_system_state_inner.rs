@@ -194,7 +194,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
@@ -219,6 +219,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
                     }
                 })
                 .collect(),
+            // There are no active validators that are not part of the committee.
+            Vec::new(),
         )
     }
 
@@ -312,7 +314,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
@@ -337,6 +339,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
                     }
                 })
                 .collect(),
+            // There are no active validators that are not part of the committee.
+            Vec::new(),
         )
     }
 
@@ -459,7 +463,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
@@ -484,6 +488,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
                     }
                 })
                 .collect(),
+            // There are no active validators that are not part of the committee.
+            Vec::new(),
         )
     }
 
