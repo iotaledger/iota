@@ -38,7 +38,7 @@ pub struct ConsensusSharedObjVerAssignment {
 }
 
 impl SharedObjVerManager {
-    pub async fn assign_versions_from_consensus(
+    pub fn assign_versions_from_consensus(
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
         certificates: &[VerifiedExecutableTransaction],
@@ -50,8 +50,7 @@ impl SharedObjVerManager {
             epoch_store,
             cache_reader,
             randomness_round.is_some(),
-        )
-        .await?;
+        )?;
         let mut assigned_versions = Vec::new();
         // We must update randomness object version first before processing any
         // transaction, so that all reads are using the next version.
@@ -93,7 +92,7 @@ impl SharedObjVerManager {
         })
     }
 
-    pub async fn assign_versions_from_effects(
+    pub fn assign_versions_from_effects(
         certs_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
@@ -111,8 +110,7 @@ impl SharedObjVerManager {
             epoch_store,
             cache_reader,
             false,
-        )
-        .await?;
+        )?;
         let mut assigned_versions = Vec::new();
         for (cert, effects) in certs_and_effects {
             let cert_assigned_versions: Vec<_> = effects
@@ -262,8 +260,8 @@ impl SharedObjVerManager {
     }
 }
 
-async fn get_or_init_versions(
-    transactions: impl Iterator<Item = &SenderSignedData>,
+fn get_or_init_versions<'a>(
+    transactions: impl Iterator<Item = &'a SenderSignedData>,
     epoch_store: &AuthorityPerEpochStore,
     cache_reader: &dyn ObjectCacheRead,
     generate_randomness: bool,
@@ -289,9 +287,7 @@ async fn get_or_init_versions(
     shared_input_objects.sort();
     shared_input_objects.dedup();
 
-    epoch_store
-        .get_or_init_next_object_versions(&shared_input_objects, cache_reader)
-        .await
+    epoch_store.get_or_init_next_object_versions(&shared_input_objects, cache_reader)
 }
 
 #[cfg(test)]
@@ -352,7 +348,6 @@ mod tests {
             None,
             &BTreeMap::new(),
         )
-        .await
         .unwrap();
         // Check that the shared object's next version is always initialized in the
         // epoch store.
@@ -419,7 +414,6 @@ mod tests {
             Some(RandomnessRound::new(1)),
             &BTreeMap::new(),
         )
-        .await
         .unwrap();
         // Check that the randomness object's next version is initialized.
         assert_eq!(
@@ -576,7 +570,6 @@ mod tests {
             None,
             &cancelled_txns,
         )
-        .await
         .unwrap();
 
         // Check that the final version of the shared object is the lamport version of
@@ -680,7 +673,6 @@ mod tests {
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
         )
-        .await
         .unwrap();
         // Check that the shared object's next version is always initialized in the
         // epoch store.

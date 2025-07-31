@@ -101,8 +101,7 @@ pub async fn execute_certificate_with_execution_error(
                     &vec![VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
-                )
-                .await?;
+                )?;
         }
         if let Some(fullnode) = fullnode {
             fullnode
@@ -112,8 +111,7 @@ pub async fn execute_certificate_with_execution_error(
                     &vec![VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
-                )
-                .await?;
+                )?;
         }
     }
 

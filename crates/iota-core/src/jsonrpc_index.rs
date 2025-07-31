@@ -32,15 +32,17 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use parking_lot::ArcMutexGuard;
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tokio::{sync::OwnedMutexGuard, task::spawn_blocking};
 use tracing::{debug, trace};
 use typed_store::{
     DBMapUtils, TypedStoreError,
     rocks::{DBBatch, DBMap, DBOptions, MetricConf, default_db_options, read_size_from_env},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
+
+type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
 
 type OwnerIndexKey = (IotaAddress, ObjectID);
 type CoinIndexKey = (IotaAddress, String, ObjectID);
@@ -316,7 +318,7 @@ impl IndexStore {
         &self.tables
     }
 
-    pub async fn index_coin(
+    pub fn index_coin(
         &self,
         digest: &TransactionDigest,
         batch: &mut DBBatch,
@@ -343,7 +345,7 @@ impl IndexStore {
                 .iter()
                 .map(|((owner, _), _)| *owner),
         );
-        let _locks = self.caches.locks.acquire_locks(addresses.into_iter()).await;
+        let _locks = self.caches.locks.acquire_locks(addresses.into_iter());
         let mut balance_changes: HashMap<IotaAddress, HashMap<TypeTag, TotalBalance>> =
             HashMap::new();
         // Index coin info
@@ -457,7 +459,7 @@ impl IndexStore {
 
     /// Indexes a transaction by updating various indices in the `IndexStore`
     /// with the provided transaction details.
-    pub async fn index_tx(
+    pub fn index_tx(
         &self,
         sender: IotaAddress,
         active_inputs: impl Iterator<Item = ObjectID>,
@@ -519,9 +521,7 @@ impl IndexStore {
         )?;
 
         // Coin Index
-        let cache_updates = self
-            .index_coin(digest, &mut batch, &object_index_changes, tx_coins)
-            .await?;
+        let cache_updates = self.index_coin(digest, &mut batch, &object_index_changes, tx_coins)?;
 
         // Owner index
         batch.delete_batch(
@@ -619,26 +619,21 @@ impl IndexStore {
                     .per_coin_type_balance_changes
                     .iter()
                     .map(|x| x.0.clone()),
-            )
-            .await?;
+            )?;
             self.invalidate_all_balance_cache(
                 cache_updates.all_balance_changes.iter().map(|x| x.0),
-            )
-            .await?;
+            )?;
         }
 
         batch.write()?;
 
         if !invalidate_caches {
             // We cannot update the cache before updating the db or else on failing to write
-            // to db we will update the cache (when we retry to index this
-            // transaction again we would have updated the cache twice).
-            // However, this only means cache is eventually consistent with
-            // the db (within a very short delay)
-            self.update_per_coin_type_cache(cache_updates.per_coin_type_balance_changes)
-                .await?;
-            self.update_all_balance_cache(cache_updates.all_balance_changes)
-                .await?;
+            // to db we will update the cache twice). However, this only means
+            // cache is eventually consistent with the db (within a very short
+            // delay)
+            self.update_per_coin_type_cache(cache_updates.per_coin_type_balance_changes)?;
+            self.update_all_balance_cache(cache_updates.all_balance_changes)?;
         }
         Ok(sequence)
     }
@@ -1324,27 +1319,14 @@ impl IndexStore {
     /// the `all_balance` cache. Only on the second cache miss, we go to the
     /// database (expensive) and update the cache. Notice that db read is
     /// done with `spawn_blocking` as that is expected to block
-    pub async fn get_balance(
-        &self,
-        owner: IotaAddress,
-        coin_type: TypeTag,
-    ) -> IotaResult<TotalBalance> {
+    pub fn get_balance(&self, owner: IotaAddress, coin_type: TypeTag) -> IotaResult<TotalBalance> {
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let cloned_coin_type = coin_type.clone();
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
         if force_disable_cache {
-            return spawn_blocking(move || {
-                Self::get_balance_from_db(
-                    metrics_cloned,
-                    coin_index_cloned,
-                    owner,
-                    cloned_coin_type,
-                )
-            })
-            .await
-            .unwrap()
-            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
+            Self::get_balance_from_db(metrics_cloned, coin_index_cloned, owner, cloned_coin_type)
+                .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")))?;
         }
 
         self.metrics.balance_lookup_from_total.inc();
@@ -1352,13 +1334,12 @@ impl IndexStore {
         let balance = self
             .caches
             .per_coin_type_balance
-            .get(&(owner, coin_type.clone()))
-            .await;
+            .get(&(owner, coin_type.clone()));
         if let Some(balance) = balance {
             return balance;
         }
         // cache miss, lookup in all balance cache
-        let all_balance = self.caches.all_balances.get(&owner.clone()).await;
+        let all_balance = self.caches.all_balances.get(&owner.clone());
         if let Some(Ok(all_balance)) = all_balance {
             if let Some(balance) = all_balance.get(&coin_type) {
                 return Ok(*balance);
@@ -1369,20 +1350,15 @@ impl IndexStore {
         let coin_index_cloned = self.tables.coin_index.clone();
         self.caches
             .per_coin_type_balance
-            .get_with((owner, coin_type), async move {
-                spawn_blocking(move || {
-                    Self::get_balance_from_db(
-                        metrics_cloned,
-                        coin_index_cloned,
-                        owner,
-                        cloned_coin_type,
-                    )
-                })
-                .await
-                .unwrap()
+            .get_with((owner, coin_type), move || {
+                Self::get_balance_from_db(
+                    metrics_cloned,
+                    coin_index_cloned,
+                    owner,
+                    cloned_coin_type,
+                )
                 .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")))
             })
-            .await
     }
 
     /// This method gets the balance for all coin types from the `all_balance`
@@ -1391,7 +1367,7 @@ impl IndexStore {
     /// serves `get_AllBalance()` calls but is also used for serving
     /// `get_Balance()` queries. Notice that db read is performed with
     /// `spawn_blocking` as that is expected to block
-    pub async fn get_all_balance(
+    pub fn get_all_balance(
         &self,
         owner: IotaAddress,
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
@@ -1399,37 +1375,19 @@ impl IndexStore {
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
         if force_disable_cache {
-            return spawn_blocking(move || {
-                Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
-            })
-            .await
-            .unwrap()
-            .map_err(|e| {
-                IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-            });
+            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
+                |e| IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e)),
+            )?;
         }
 
         self.metrics.all_balance_lookup_from_total.inc();
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
-        self.caches
-            .all_balances
-            .get_with(owner, async move {
-                spawn_blocking(move || {
-                    Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
-                })
-                .await
-                .unwrap()
-                .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-                })
+        self.caches.all_balances.get_with(owner, move || {
+            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(|e| {
+                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
             })
-            .await
-            .map(|mut balances_map| {
-                Arc::make_mut(&mut balances_map)
-                    .retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
-                balances_map
-            })
+        })
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
@@ -1486,33 +1444,29 @@ impl IndexStore {
         Ok(Arc::new(balances))
     }
 
-    async fn invalidate_per_coin_type_cache(
+    fn invalidate_per_coin_type_cache(
         &self,
         keys: impl IntoIterator<Item = (IotaAddress, TypeTag)>,
     ) -> IotaResult {
-        self.caches
-            .per_coin_type_balance
-            .batch_invalidate(keys)
-            .await;
+        self.caches.per_coin_type_balance.batch_invalidate(keys);
         Ok(())
     }
 
-    async fn invalidate_all_balance_cache(
+    fn invalidate_all_balance_cache(
         &self,
         addresses: impl IntoIterator<Item = IotaAddress>,
     ) -> IotaResult {
-        self.caches.all_balances.batch_invalidate(addresses).await;
+        self.caches.all_balances.batch_invalidate(addresses);
         Ok(())
     }
 
-    async fn update_per_coin_type_cache(
+    fn update_per_coin_type_cache(
         &self,
         keys: impl IntoIterator<Item = ((IotaAddress, TypeTag), IotaResult<TotalBalance>)>,
     ) -> IotaResult {
         self.caches
             .per_coin_type_balance
-            .batch_merge(keys, Self::merge_balance)
-            .await;
+            .batch_merge(keys, Self::merge_balance);
         Ok(())
     }
 
@@ -1534,14 +1488,13 @@ impl IndexStore {
         }
     }
 
-    async fn update_all_balance_cache(
+    fn update_all_balance_cache(
         &self,
         keys: impl IntoIterator<Item = (IotaAddress, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>)>,
     ) -> IotaResult {
         self.caches
             .all_balances
-            .batch_merge(keys, Self::merge_all_balance)
-            .await;
+            .batch_merge(keys, Self::merge_all_balance);
         Ok(())
     }
 
@@ -1632,19 +1585,17 @@ mod tests {
         };
 
         let tx_coins = (object_map.clone(), written_objects.clone());
-        index_store
-            .index_tx(
-                address,
-                vec![].into_iter(),
-                vec![].into_iter(),
-                vec![].into_iter(),
-                &TransactionEvents { data: vec![] },
-                object_index_changes,
-                &TransactionDigest::random(),
-                1234,
-                Some(tx_coins),
-            )
-            .await?;
+        index_store.index_tx(
+            address,
+            vec![].into_iter(),
+            vec![].into_iter(),
+            vec![].into_iter(),
+            &TransactionEvents { data: vec![] },
+            object_index_changes,
+            &TransactionDigest::random(),
+            1234,
+            Some(tx_coins),
+        )?;
 
         let balance_from_db = IndexStore::get_balance_from_db(
             index_store.metrics.clone(),
@@ -1652,12 +1603,12 @@ mod tests {
             address,
             GAS::type_tag(),
         )?;
-        let balance = index_store.get_balance(address, GAS::type_tag()).await?;
+        let balance = index_store.get_balance(address, GAS::type_tag())?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 1000);
         assert_eq!(balance.num_coins, 10);
 
-        let all_balance = index_store.get_all_balance(address).await?;
+        let all_balance = index_store.get_all_balance(address)?;
         let balance = all_balance.get(&GAS::type_tag()).unwrap();
         assert_eq!(*balance, balance_from_db);
         assert_eq!(balance.balance, 1000);
@@ -1676,26 +1627,24 @@ mod tests {
             new_dynamic_fields: vec![],
         };
         let tx_coins = (object_map, written_objects);
-        index_store
-            .index_tx(
-                address,
-                vec![].into_iter(),
-                vec![].into_iter(),
-                vec![].into_iter(),
-                &TransactionEvents { data: vec![] },
-                object_index_changes,
-                &TransactionDigest::random(),
-                1234,
-                Some(tx_coins),
-            )
-            .await?;
+        index_store.index_tx(
+            address,
+            vec![].into_iter(),
+            vec![].into_iter(),
+            vec![].into_iter(),
+            &TransactionEvents { data: vec![] },
+            object_index_changes,
+            &TransactionDigest::random(),
+            1234,
+            Some(tx_coins),
+        )?;
         let balance_from_db = IndexStore::get_balance_from_db(
             index_store.metrics.clone(),
             index_store.tables.coin_index.clone(),
             address,
             GAS::type_tag(),
         )?;
-        let balance = index_store.get_balance(address, GAS::type_tag()).await?;
+        let balance = index_store.get_balance(address, GAS::type_tag())?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);
@@ -1704,13 +1653,11 @@ mod tests {
         index_store
             .caches
             .per_coin_type_balance
-            .invalidate(&(address, GAS::type_tag()))
-            .await;
-        let all_balance = index_store.get_all_balance(address).await;
-        let all_balance = all_balance?;
+            .invalidate(&(address, GAS::type_tag()));
+        let all_balance = index_store.get_all_balance(address)?;
         assert_eq!(all_balance.get(&GAS::type_tag()).unwrap().balance, 700);
         assert_eq!(all_balance.get(&GAS::type_tag()).unwrap().num_coins, 7);
-        let balance = index_store.get_balance(address, GAS::type_tag()).await?;
+        let balance = index_store.get_balance(address, GAS::type_tag())?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);
