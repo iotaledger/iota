@@ -77,9 +77,9 @@ const getResultsForAddress = async (
     client: IotaClient,
     query: string,
     isNamesEnabled: boolean,
-    iotaNamesClient: IotaNamesClient,
+    iotaNamesClient: IotaNamesClient | null,
 ): Promise<Results | null> => {
-    if (isNamesEnabled && isValidIotaName(query)) {
+    if (iotaNamesClient && isNamesEnabled && isValidIotaName(query)) {
         const nameRecord = await iotaNamesClient.getNameRecord(query.toLowerCase());
 
         if (!nameRecord) return null;
@@ -154,7 +154,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
     const [networkId] = useNetwork();
     const network = getNetwork(networkId).id;
 
-    const isNamesEnabled = useFeatureEnabledByNetwork(Feature.NameAddressResolution, network);
+    const isNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
     const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery<Results, Error>({
