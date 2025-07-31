@@ -53,6 +53,10 @@ impl Context {
         }
     }
 
+    pub(crate) fn authority_hostname(&self, authority: AuthorityIndex) -> &str {
+        self.committee.authority(authority).hostname.as_str()
+    }
+
     /// Create a test context with a committee of given size and even stake
     #[cfg(test)]
     pub(crate) fn new_for_test(
