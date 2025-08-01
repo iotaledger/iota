@@ -147,6 +147,8 @@ mod tests {
     impl IngestionBackfill for BackfillDummyTable {
         type ProcessedType = usize;
 
+        const COL_COUNT: usize = 1;
+
         fn process_checkpoint(
             checkpoint: Arc<CheckpointData>,
         ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
