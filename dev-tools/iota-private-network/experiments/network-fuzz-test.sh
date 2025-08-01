@@ -158,7 +158,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
 
 
   #  For each validator pair A-B, randomly apply one of five blocking actions with 1/50 probability each
-  duration=$((RANDOM % 120 + 60))
+  duration=$((RANDOM % 240 + 60))
   for ((i=0; i<${#validators[@]}; i++)); do
     for ((j=i+1; j<${#validators[@]}; j++)); do
       A=${validators[i]}
