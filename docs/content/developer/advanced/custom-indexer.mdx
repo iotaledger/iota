@@ -57,25 +57,13 @@ For real-time streaming of current epoch checkpoints only:
 
 :::info Historical vs Live Endpoints
 
-**Historical Endpoint:**
-
-- **Format:** Batches multiple checkpoints into single files
-- **Best for:** Initial sync from genesis to near network tip
-- **Latency behavior:**
-  - Near zero latency during historical sync (processes batches as fast as possible)
-  - Variable latency at network tip (waits for batch completion, typically ~1000 checkpoints or epoch change)
-- **Guarantees:** Complete data coverage from genesis
-- **Optimization:** Throughput-focused for bulk ingestion
-
-**Live Endpoint:**
-
-- **Format:** Individual checkpoint files
-- **Best for:** Real-time ingestion at network tip
-- **Latency behavior:** Minimal latency (published immediately)
-- **Data scope:** Current epoch only (older checkpoints automatically purged)
-- **Optimization:** Low-latency processing
-
-**How They Work Together:**
+| Feature              | Historical Endpoint                                                                                                                                                                                | Live Endpoint                                               |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Format**           | Batches multiple checkpoints into single files                                                                                                                                                     | Individual checkpoint files                                 |
+| **Best for**         | Initial sync from genesis to near network tip                                                                                                                                                      | Real-time ingestion at network tip                          |
+| **Latency behavior** | • Near zero latency during historical sync (processes batches as fast as possible)<br/>• Variable latency at network tip (waits for batch completion, typically ~1000 checkpoints or epoch change) | Minimal latency (published immediately)                     |
+| **Data coverage**    | Complete data coverage from genesis                                                                                                                                                                | Current epoch only (older checkpoints automatically purged) |
+| **Optimization**     | Throughput-focused for bulk ingestion                                                                                                                                                              | Low-latency processing                                      |
 
 1. **Historical endpoint** should always be used as the primary source to guarantee complete data coverage from genesis
 2. **Live endpoint** is optional for applications needing real-time access to the very latest checkpoints
@@ -88,7 +76,7 @@ flowchart LR
   B[("fa:fa-gears
   Indexer
   daemon")];
-  A -- checkppint stream -->B;
+  A -- checkpoint stream -->B;
   B<-->C("fa:fa-floppy-disk Progress store");
   subgraph External
     D("fa:fa-database Postgres");
@@ -101,16 +89,6 @@ flowchart LR
 In this example we'll explore a simple custom indexer that ingests data from a `historical` & `live` endpoints.
 
 ```rust file=<rootDir>/examples/custom-indexer/rust/remote_reader.rs
-```
-
-It's also possible to start a fullnode locally and use the REST API to sync checkpoints data:
-
-```rust
-let config = CheckpointReaderConfig {
-    remote_store_url: Some(RemoteUrl::Fullnode("http://127.0.0.1:9000/api/v1".to_string())),
-    reader_options: ReaderOptions::default(),
-    ..Default::default()
-};
 ```
 
 ### Local Reader
@@ -162,16 +140,7 @@ The concurrency parameter specifies how many threads the workflow uses. Having a
 
 Specify both a local and remote store as a fallback to ensure constant data flow. The framework always prioritizes locally available checkpoint data over remote data. It's useful when you want to start utilizing your own full node for data ingestion but need to partially backfill historical data or just have a failover.
 
-```rust
-let config = CheckpointReaderConfig {
-    ingestion_path: Some(PathBuf::from("./chk")),
-    remote_store_url: Some(RemoteUrl::HybridHistoricalStore {
-        historical_url: "https://checkpoints.mainnet.iota.cafe/ingestion/historical".into(),
-        live_url: Some("https://checkpoints.mainnet.iota.cafe/ingestion/live".into()),
-    }),
-    reader_options: ReaderOptions::default(),
-};
-executor.run_with_config(config).await?;
+```rust file=<rootDir>/examples/custom-indexer/rust/hybrid_reader.rs
 ```
 
 ### Manifest

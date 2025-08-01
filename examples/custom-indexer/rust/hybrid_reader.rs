@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     );
     let worker_pool = WorkerPool::new(
         CustomWorker,
-        "remote_reader".to_string(),
+        "hybrid_reader".to_string(),
         concurrency,
         Default::default(),
     );
@@ -56,16 +56,12 @@ async fn main() -> Result<()> {
     executor.register(worker_pool).await?;
 
     let config = CheckpointReaderConfig {
-        // It's also possible to start a fullnode locally and use the REST API to sync checkpoints
-        // data.
-        //
-        // remote_store_url: Some(RemoteUrl::Fullnode("http://127.0.0.1:9000/api/v1".to_string())),
+        ingestion_path: Some(PathBuf::from("./chk")),
         remote_store_url: Some(RemoteUrl::HybridHistoricalStore {
             historical_url: "https://checkpoints.mainnet.iota.cafe/ingestion/historical".into(),
             live_url: Some("https://checkpoints.mainnet.iota.cafe/ingestion/live".into()),
         }),
         reader_options: ReaderOptions::default(),
-        ..Default::default()
     };
     executor.run_with_config(config).await?;
     Ok(())
