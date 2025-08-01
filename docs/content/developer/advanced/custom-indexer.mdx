@@ -29,7 +29,7 @@ trait Worker: Send + Sync {
 }
 ```
 
-In this example, the `CheckpointData` struct represents full checkpoint content. The struct contains checkpoint summary and contents, as well as detailed information about each individual transaction. The individual transaction data includes events and input/output objects. The full definition for this content is in the [full_checkpoint_content.rs](https://github.com/iotaledger/iota/blob/v1.2.3/crates/iota-types/src/full_checkpoint_content.rs) file of the `iota-types` crate.
+In this example, the [`CheckpointData`](https://iotaledger.github.io/iota/iota_types/full_checkpoint_content/struct.CheckpointData.html) struct represents full checkpoint content. The struct contains checkpoint summary and contents, as well as detailed information about each individual transaction.
 
 ## Checkpoint Stream Sources
 
