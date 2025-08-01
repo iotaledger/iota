@@ -20,6 +20,9 @@ use crate::{
     errors::IndexerError,
 };
 
+// Maximum number of parameters per query in PostgreSQL.
+const PG_MAX_PARAMS_PER_QUERY: usize = 65535;
+
 /// Orchestrates ingestion-driven backfill by buffering processed checkpoints
 /// and coordinating range-based commits.
 ///
@@ -104,10 +107,20 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
             processed_data.len()
         );
 
-        // TODO: Limit the size of each chunk.
+        // Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
-        // <= 65536.
-        T::persist_chunk(pool.clone(), processed_data).await
+        // <= 65535.
+        let max_rows_per_batch = PG_MAX_PARAMS_PER_QUERY / T::COL_COUNT;
+
+        while !processed_data.is_empty() {
+            let batch: Vec<_> = processed_data
+                .drain(..processed_data.len().min(max_rows_per_batch))
+                .collect();
+
+            T::persist_chunk(pool.clone(), batch).await?;
+        }
+
+        Ok(())
     }
 }
 

@@ -19,6 +19,7 @@ pub(crate) struct TxWrappedOrDeletedObjectsBackfill;
 #[async_trait::async_trait]
 impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
     type ProcessedType = StoredTxWrappedOrDeletedObject;
+    const COL_COUNT: usize = 3;
 
     fn process_checkpoint(
         checkpoint: Arc<CheckpointData>,
