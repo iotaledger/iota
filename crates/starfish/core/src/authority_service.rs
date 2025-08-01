@@ -227,7 +227,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let block_ref = verified_block.reference();
         debug!("Received block {} via stream block bundle.", block_ref);
 
-        // 2. Reject block with timestamp too far in the future.
+        // 2. Reject a block with a timestamp too far in the future.
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
             Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
@@ -333,9 +333,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     ])
                     .inc();
                 info!("Invalid additional block header from {}: {}", peer, e);
-                // TODO: should we continue to work with other headers or return error?
-                // return Err(e);
-                continue;
+                return Err(e);
             }
 
             let verified_block_header = VerifiedBlockHeader::new_verified_with_digest(
@@ -372,7 +370,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // The threshold to ignore block should be larger than commit_sync_batch_size,
         // to avoid excessive block rejections and synchronizations.
 
-        // TODO::  should we still process headers even if the block is rejected?
         if last_commit_index
             + self.context.parameters.commit_sync_batch_size * COMMIT_LAG_MULTIPLIER
             < quorum_commit_index
@@ -415,7 +412,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .add_batch(digests_to_add_to_filter)
             .await;
         // Exclude digests that are already in the filter from the additional headers
-        // We rely on the fact that digests_to_exclude is subsequence of
+        // We rely on the fact that digests_to_exclude is a subsequence of
         // additional_block_headers
         let mut index = 0;
         additional_block_headers.retain(|block_header| {
@@ -1081,8 +1078,8 @@ mod tests {
         CommitConsumer, Round, TransactionClient,
         authority_service::{AuthorityService, BroadcastedBlockStream, SubscriptionCounter},
         block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
+            VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1092,8 +1089,8 @@ mod tests {
         context::Context,
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::DagState,
-        error::ConsensusResult,
+        dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+        error::{ConsensusError, ConsensusResult},
         leader_schedule::LeaderSchedule,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService,
@@ -1160,7 +1157,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_subscribed_block_bundle() {
+    async fn test_handle_subscribed_block_bundle_time_drift() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
@@ -1201,17 +1198,41 @@ mod tests {
             store,
         ));
 
-        // Test delaying blocks with time drift.
+        // Test rejecting block with time drift.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(9, 0)
-                .set_timestamp_ms(now + max_drift.as_millis() as u64)
+            TestBlockHeader::new(1, 0)
+                .set_timestamp_ms(now + max_drift.as_millis() as u64 + 1)
                 .build(),
         );
 
         let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+        let bundle_clone = serialized_block_bundle.clone();
+        let service_clone = service.clone();
+        let context_clone = context.clone();
+        let handle = tokio::spawn(async move {
+            service_clone
+                .handle_subscribed_block_bundle(
+                    context_clone.committee.to_authority_index(0).unwrap(),
+                    bundle_clone,
+                )
+                .await
+        });
+
+        let result = handle.await.unwrap(); // unwrap JoinError
+
+        match result {
+            Err(ConsensusError::BlockRejected { reason, .. }) => {
+                assert!(reason.contains("timestamp is too far in the future"));
+            }
+            _ => panic!("Expected BlockRejected error, got {:?}", result),
+        }
+
+        // After this sleep time drift is within the limit, so we would not reject the
+        // block but wait
+        sleep(max_drift / 2).await;
         tokio::spawn(async move {
             service
                 .handle_subscribed_block_bundle(
@@ -1221,14 +1242,333 @@ mod tests {
                 .await
                 .unwrap();
         });
-
-        sleep(max_drift / 2).await;
         assert!(core_dispatcher.get_blocks().is_empty());
 
+        // wait for the max_drift time to pass, so that the block can be processed
         sleep(max_drift).await;
         let blocks = core_dispatcher.get_blocks();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0], input_block);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_wrong_peer() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+        ));
+
+        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+
+        let service = authority_service.clone();
+        let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+
+        // Test sending a block from wrong peer
+        let bundle_clone = serialized_block_bundle.clone();
+        let service_clone = service.clone();
+        let context_clone = context.clone();
+        let handle = tokio::spawn(async move {
+            service_clone
+                .handle_subscribed_block_bundle(
+                    context_clone.committee.to_authority_index(1).unwrap(),
+                    bundle_clone,
+                )
+                .await
+        });
+
+        let result = handle.await.unwrap(); // unwrap JoinError
+
+        if let Err(ConsensusError::UnexpectedAuthority { .. }) = result {
+            // everything is fine
+        } else {
+            panic!("Expected UnexpectedAuthority error, got {:?}", result);
+        }
+
+        // Now send from correct peer
+        tokio::spawn(async move {
+            service
+                .handle_subscribed_block_bundle(
+                    context.committee.to_authority_index(0).unwrap(),
+                    serialized_block_bundle,
+                )
+                .await
+                .unwrap();
+        });
+        sleep(Duration::from_millis(200)).await; // wait for the block to be processed
+        let blocks = core_dispatcher.get_blocks();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0], input_block);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+        ));
+
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(1, 0)
+                .set_commitment(
+                    TransactionsCommitment::compute_transactions_commitment(&Bytes::from_static(
+                        b"dummy data",
+                    ))
+                    .unwrap(),
+                )
+                .build(),
+        );
+
+        let service = authority_service.clone();
+        let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+
+        // Test sending a block with wrong transaction commitment
+        let bundle_clone = serialized_block_bundle.clone();
+        let service_clone = service.clone();
+        let context_clone = context.clone();
+        let handle = tokio::spawn(async move {
+            service_clone
+                .handle_subscribed_block_bundle(
+                    context_clone.committee.to_authority_index(0).unwrap(),
+                    bundle_clone,
+                )
+                .await
+        });
+
+        let result = handle.await.unwrap(); // unwrap JoinError
+
+        if let Err(ConsensusError::TransactionCommitmentFailure { .. }) = result {
+            // everything is fine
+        } else {
+            panic!(
+                "Expected TransactionCommitmentFailure error, got {:?}",
+                result
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_with_bad_headers() {
+        let committee_size = 4;
+        let (context, _keys) = Context::new_for_test(committee_size);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+        ));
+
+        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+        let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
+        let mut headers = (0..num_of_block_headers)
+            .map(|i| {
+                VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(
+                        (i / committee_size + 1) as u32,
+                        (i % committee_size) as u32,
+                    )
+                    .build(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let big_block_bundle = BlockBundle {
+            verified_block: input_block.clone(),
+            verified_headers: headers.clone(),
+        };
+        let serialized_big_block_bundle = SerializedBlockBundle::try_from(
+            SerializedBlockAndHeaders::try_from(big_block_bundle).unwrap(),
+        )
+        .unwrap();
+
+        let service = authority_service.clone();
+
+        // Send a bundle with too many headers
+        let bundle_clone = serialized_big_block_bundle.clone();
+        let service_clone = service.clone();
+        let context_clone = context.clone();
+        let handle = tokio::spawn(async move {
+            service_clone
+                .handle_subscribed_block_bundle(
+                    context_clone.committee.to_authority_index(0).unwrap(),
+                    bundle_clone,
+                )
+                .await
+        });
+
+        let result = handle.await.unwrap(); // unwrap JoinError
+
+        if let Err(ConsensusError::TooManyHeadersInABundle { .. }) = result {
+            // everything is fine
+        } else {
+            panic!("Expected TooManyHeadersInABundle error, got {:?}", result);
+        }
+
+        headers.pop();
+        let block_bundle_with_big_rounds = BlockBundle {
+            verified_block: input_block.clone(),
+            verified_headers: headers.clone(),
+        };
+        let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
+            SerializedBlockAndHeaders::try_from(block_bundle_with_big_rounds).unwrap(),
+        )
+        .unwrap();
+
+        // Send a bundle with too many headers
+        let bundle_clone = serialized_block_bundle_with_big_round.clone();
+        let service_clone = service.clone();
+        let context_clone = context.clone();
+        let handle = tokio::spawn(async move {
+            service_clone
+                .handle_subscribed_block_bundle(
+                    context_clone.committee.to_authority_index(0).unwrap(),
+                    bundle_clone,
+                )
+                .await
+        });
+
+        let result = handle.await.unwrap(); // unwrap JoinError
+
+        if let Err(ConsensusError::TooBigHeaderRoundInABundle { .. }) = result {
+            // everything is fine
+        } else {
+            panic!(
+                "Expected TooBigHeaderRoundInABundle error, got {:?}",
+                result
+            );
+        }
+
+        // Create a blcok with a big round
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(MAX_HEADERS_PER_BUNDLE as u32 + 1, 0).build(),
+        );
+
+        let block_bundle = BlockBundle {
+            verified_block: input_block.clone(),
+            verified_headers: headers.clone(),
+        };
+        let serialized_block_bundle = SerializedBlockBundle::try_from(
+            SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
+        )
+        .unwrap();
+
+        // Send a correct bundle
+        tokio::spawn(async move {
+            service
+                .handle_subscribed_block_bundle(
+                    context.committee.to_authority_index(0).unwrap(),
+                    serialized_block_bundle,
+                )
+                .await
+                .unwrap();
+        });
+        sleep(Duration::from_millis(200)).await; // wait for the block to be processed
+        let blocks = core_dispatcher.get_blocks();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0], input_block);
+        let block_headers = core_dispatcher.get_block_headers();
+        assert_eq!(block_headers.len(), headers.len());
+        assert_eq!(block_headers, headers);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1394,7 +1734,7 @@ mod tests {
         }
     }
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle() {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers() {
         // GIVEN
         let rounds = 50;
         let validators = 50;

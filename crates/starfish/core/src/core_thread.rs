@@ -494,7 +494,6 @@ pub(crate) mod tests {
             self.blocks.lock().clone()
         }
 
-        #[expect(dead_code)]
         pub(crate) fn get_block_headers(&self) -> Vec<VerifiedBlockHeader> {
             self.block_headers.lock().clone()
         }
