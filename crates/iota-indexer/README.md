@@ -121,14 +121,6 @@ Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g
 cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
 ```
 
-#### Configuring concurrency and chunk size
-
-You can use the following parameters to optimize performance:
-
-`--max-concurrency`: Maximum number of concurrent tasks to run (default: `10`).
-
-`--chunk-size`: Size of the data chunks processed per task (default: `1000`).
-
 #### Error Handling
 
 If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To prevent data gaps, you can restart the backfill from the calculated restart point:
