@@ -110,7 +110,7 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
         // Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
         // <= 65535.
-        let max_rows_per_batch = PG_MAX_PARAMS_PER_QUERY / T::COL_COUNT;
+        let max_rows_per_batch = PG_MAX_PARAMS_PER_QUERY / T::PG_COL_COUNT;
 
         while !processed_data.is_empty() {
             let batch: Vec<_> = processed_data
@@ -147,7 +147,7 @@ mod tests {
     impl IngestionBackfill for BackfillDummyTable {
         type ProcessedType = usize;
 
-        const COL_COUNT: usize = 1;
+        const PG_COL_COUNT: usize = 1;
 
         fn process_checkpoint(
             checkpoint: Arc<CheckpointData>,

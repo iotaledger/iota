@@ -21,7 +21,7 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
     type ProcessedType = StoredTxWrappedOrDeletedObject;
 
     // The number of columns in the `tx_wrapped_or_deleted_objects` table.
-    const COL_COUNT: usize = 3;
+    const PG_COL_COUNT: usize = 3;
 
     fn process_checkpoint(
         checkpoint: Arc<CheckpointData>,

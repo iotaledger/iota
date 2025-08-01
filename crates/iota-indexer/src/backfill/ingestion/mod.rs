@@ -18,7 +18,7 @@ pub(crate) trait IngestionBackfill: Send + Sync {
     type ProcessedType: Send + Sync;
 
     /// Column count per row for database insertion.
-    const COL_COUNT: usize;
+    const PG_COL_COUNT: usize;
 
     /// Converts a `CheckpointData` into zero-or-more items (`ProcessedType`).
     fn process_checkpoint(
