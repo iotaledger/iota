@@ -10,14 +10,12 @@ use iota_types::{
 };
 use starfish_core::{ClientError, TransactionClient};
 use tap::prelude::*;
-use tokio::{
-    sync::oneshot,
-    time::{Instant, sleep},
-};
+use tokio::time::{Instant, sleep};
 use tracing::{error, info, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    consensus_adapter,
     consensus_adapter::{BlockStatusReceiver, ConsensusClient},
     consensus_handler::SequencedConsensusTransactionKey,
 };
@@ -92,8 +90,7 @@ impl ConsensusClient for LazyStarfishClient {
             .map(|t| bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail"))
             .collect::<Vec<_>>();
 
-        // TODO: remove the block status waiter from the submit function in Starfish
-        let (block_ref, _) = client
+        let (block_ref, status_waiter) = client
             .as_ref()
             .expect("Client should always be returned")
             .submit(transactions_bytes)
@@ -133,16 +130,18 @@ impl ConsensusClient for LazyStarfishClient {
             tracing::info!("Transaction {transaction_key:?} was included in {block_ref}",)
         };
 
-        // Starfish does not support GC at this point, but to be compatible with
-        // Mysticeti adapter, we always notify the status waiter that the block has been
-        // sequenced. The value is currently ignored, so for simplicity we just send
-        //  the default BlockRef value, but it should be checked that it won't cause
-        // problems in the future when the logic that handles the status is
-        // changed.
-        let (tx, status_waiter) = oneshot::channel();
-        let _ = tx.send(consensus_core::BlockStatus::Sequenced(
-            consensus_core::BlockRef::default(),
-        )); // immediately send
-        Ok(status_waiter)
+        // Transform the status waiter into a receiver that can be used by the consensus
+        // adapter.
+
+        let (tx_internal, rx_internal) =
+            tokio::sync::oneshot::channel::<consensus_adapter::BlockStatusInternal>();
+
+        tokio::spawn(async move {
+            if let Ok(status) = status_waiter.await {
+                let _ = tx_internal.send(status.into());
+            }
+        });
+
+        Ok(rx_internal)
     }
 }
