@@ -133,6 +133,6 @@ impl ConsensusClient for MockConsensusClient {
 
 pub(crate) fn with_block_status(status: consensus_core::BlockStatus) -> BlockStatusReceiver {
     let (tx, rx) = oneshot::channel();
-    tx.send(status).ok();
+    tx.send(status.into()).ok();
     rx
 }
