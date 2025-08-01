@@ -118,7 +118,7 @@ This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes tran
 Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
 
 ```sh
-cargo run --bin iota-indexer -- --database-url "postgres://postgres:postgrespw@localhost/iota_indexer" run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
+cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
 ```
 
 #### Configuring concurrency and chunk size
