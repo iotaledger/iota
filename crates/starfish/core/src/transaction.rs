@@ -163,7 +163,7 @@ impl TransactionConsumer {
 
     /// Notifies all the transaction submitters who are waiting to receive an
     /// update on the status of the block. The `committed_transaction_refs` are
-    /// the the transaction data that have been committed. We'll notify for
+    /// the transaction data that have been committed. We'll notify for
     /// all own committed transaction data.
     pub(crate) fn notify_own_transactions_status(
         &self,
