@@ -981,24 +981,24 @@ mod tests {
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
-        let path = tempfile::tempdir().unwrap().into_path();
+        let path = tempfile::tempdir().unwrap().keep();
         let to_keep = run_pruner(&path, 3, 2, 1000, 0).await;
         assert_eq!(
             HashSet::from_iter(to_keep),
             get_keys_after_pruning(&path).unwrap()
         );
-        run_pruner(&tempfile::tempdir().unwrap().into_path(), 3, 2, 1000, 0).await;
+        run_pruner(&tempfile::tempdir().unwrap().keep(), 3, 2, 1000, 0).await;
     }
 
     // Tests pruning deleted objects (object tombstones).
     #[tokio::test]
     async fn test_pruning_tombstones() {
-        let path = tempfile::tempdir().unwrap().into_path();
+        let path = tempfile::tempdir().unwrap().keep();
         let to_keep = run_pruner(&path, 0, 0, 1000, 0).await;
         assert_eq!(to_keep.len(), 0);
         assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
 
-        let path = tempfile::tempdir().unwrap().into_path();
+        let path = tempfile::tempdir().unwrap().keep();
         let to_keep = run_pruner(&path, 3, 0, 1000, 0).await;
         assert_eq!(to_keep.len(), 0);
         assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
@@ -1006,7 +1006,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ref_count_pruning() {
-        let path = tempfile::tempdir().unwrap().into_path();
+        let path = tempfile::tempdir().unwrap().keep();
         run_pruner(&path, 3, 2, 1000, 1).await;
         {
             let perpetual_db = AuthorityPerpetualTables::open(&path, None);
@@ -1015,7 +1015,7 @@ mod tests {
             assert_eq!(count, 1000);
         }
 
-        let path = tempfile::tempdir().unwrap().into_path();
+        let path = tempfile::tempdir().unwrap().keep();
         run_pruner(&path, 3, 0, 1000, 1).await;
         {
             let perpetual_db = AuthorityPerpetualTables::open(&path, None);
@@ -1036,7 +1036,7 @@ mod tests {
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn test_db_size_after_compaction() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.into_path();
+        let primary_path = tempfile::tempdir()?.keep();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
@@ -1202,7 +1202,7 @@ mod pprof_tests {
         // stack frame in it.
         let registry = Registry::default();
         let metrics = AuthorityStorePruningMetrics::new(&registry);
-        let primary_path = tempfile::tempdir()?.into_path();
+        let primary_path = tempfile::tempdir()?.keep();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let effects = insert_keys(&perpetual_db.objects)?;
         AuthorityStorePruner::prune_objects(
@@ -1237,7 +1237,7 @@ mod pprof_tests {
         // `ignore_range_delete` set to true (default mode). We then record a
         // cpu profile of the `get()` calls and do not find any range fragmentation
         // stack frame in it.
-        let primary_path = tempfile::tempdir()?.into_path();
+        let primary_path = tempfile::tempdir()?.keep();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let effects = insert_keys(&perpetual_db.objects)?;
         let registry = Registry::default();

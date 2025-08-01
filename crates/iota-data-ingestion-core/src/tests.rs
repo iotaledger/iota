@@ -400,7 +400,7 @@ async fn file_progress_store() {
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
         .expect("Failed to open temporary directory")
-        .into_path()
+        .keep()
 }
 
 async fn create_executor_bundle() -> ExecutorBundle {

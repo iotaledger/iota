@@ -240,7 +240,7 @@ mod tests {
             let epoch_retention = 0;
             let current_epoch = 0;
 
-            let base_directory = tempfile::tempdir().unwrap().into_path();
+            let base_directory = tempfile::tempdir().unwrap().keep();
 
             create_epoch_directories(&base_directory, vec!["0", "other"]);
 
@@ -264,7 +264,7 @@ mod tests {
             let epoch_retention = 1;
             let current_epoch = 100;
 
-            let base_directory = tempfile::tempdir().unwrap().into_path();
+            let base_directory = tempfile::tempdir().unwrap().keep();
 
             create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
 
@@ -290,7 +290,7 @@ mod tests {
             let epoch_retention = 0;
             let current_epoch = 100;
 
-            let base_directory = tempfile::tempdir().unwrap().into_path();
+            let base_directory = tempfile::tempdir().unwrap().keep();
 
             create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
 
@@ -314,7 +314,7 @@ mod tests {
         let epoch_retention = 1;
         let epoch_prune_period = std::time::Duration::from_millis(500);
 
-        let base_directory = tempfile::tempdir().unwrap().into_path();
+        let base_directory = tempfile::tempdir().unwrap().keep();
 
         // We create some directories up to epoch 100
         create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
