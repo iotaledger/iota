@@ -150,6 +150,7 @@ async fn test_async_verifier() {
         true, // accept_zklogin_in_multisig
         true, // accept_passkey_in_multisig
         Some(30),
+        true,
     ));
 
     let tasks: Vec<_> = (0..32)

@@ -37,3 +37,4 @@
 35: CoinTypeGlobalPause
 36: ExecutionCancelledDueToRandomnessUnavailable
 37: ExecutionCancelledDueToSharedObjectCongestionV2
+38: InvalidLinkage

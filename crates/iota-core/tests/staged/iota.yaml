@@ -518,6 +518,8 @@ ExecutionFailureStatus:
           - congested_objects:
               TYPENAME: CongestedObjects
           - suggested_gas_price: U64
+    38:
+      InvalidLinkage: UNIT
 ExecutionStatus:
   ENUM:
     0:

@@ -505,28 +505,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-stream"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
-dependencies = [
- "async-stream-impl",
- "futures-core",
- "pin-project-lite",
-]
-
-[[package]]
-name = "async-stream-impl"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.96",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3105,7 +3083,6 @@ dependencies = [
  "iota-verifier-latest",
  "leb128",
  "move-binary-format",
- "move-bytecode-utils",
  "move-bytecode-verifier",
  "move-bytecode-verifier-meter",
  "move-core-types",
@@ -3134,7 +3111,6 @@ dependencies = [
  "iota-genesis-common",
  "iota-keys",
  "iota-names",
- "iota-protocol-config",
  "iota-rest-api",
  "iota-types",
  "move-vm-config",
@@ -3200,11 +3176,11 @@ dependencies = [
  "iota-types",
  "iota-verifier-latest",
  "move-binary-format",
- "move-bytecode-verifier",
  "move-bytecode-verifier-meter",
  "move-trace-format",
  "move-vm-config",
  "move-vm-runtime",
+ "move-vm-types",
 ]
 
 [[package]]
@@ -3215,7 +3191,6 @@ dependencies = [
  "iota-types",
  "move-binary-format",
  "move-core-types",
- "once_cell",
  "serde",
  "tracing",
 ]
@@ -3243,6 +3218,25 @@ dependencies = [
  "iota-protocol-config",
  "iota-types",
  "prometheus",
+]
+
+[[package]]
+name = "iota-http"
+version = "1.4.0-alpha"
+dependencies = [
+ "bytes",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "pin-project-lite",
+ "socket2",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower 0.4.13",
+ "tracing",
 ]
 
 [[package]]
@@ -3286,7 +3280,6 @@ version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
- "chrono",
  "colored",
  "enum_dispatch",
  "fastcrypto",
@@ -3303,6 +3296,8 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
+ "move-disassembler",
+ "move-ir-types",
  "schemars",
  "serde",
  "serde_json",
@@ -3374,13 +3369,11 @@ dependencies = [
  "anyhow",
  "fastcrypto",
  "iota-package-management",
- "iota-protocol-config",
  "iota-types",
  "iota-verifier-latest",
  "move-binary-format",
  "move-bytecode-utils",
  "move-bytecode-verifier",
- "move-command-line-common",
  "move-compiler",
  "move-core-types",
  "move-ir-types",
@@ -3429,7 +3422,6 @@ name = "iota-network-stack"
 version = "1.4.0-alpha"
 dependencies = [
  "anemo",
- "async-stream",
  "bcs",
  "bytes",
  "eyre",
@@ -3438,6 +3430,7 @@ dependencies = [
  "http-body",
  "hyper-rustls",
  "hyper-util",
+ "iota-http",
  "multiaddr",
  "once_cell",
  "pin-project-lite",
@@ -3445,7 +3438,6 @@ dependencies = [
  "snap",
  "tokio",
  "tokio-rustls",
- "tokio-stream",
  "tonic",
  "tonic-health",
  "tower 0.4.13",
@@ -3489,7 +3481,6 @@ dependencies = [
  "move-package",
  "move-symbol-pool",
  "thiserror 1.0.69",
- "tracing",
 ]
 
 [[package]]
@@ -3498,13 +3489,11 @@ version = "1.4.0-alpha"
 dependencies = [
  "async-trait",
  "bcs",
- "eyre",
  "iota-types",
  "lru",
  "move-binary-format",
  "move-command-line-common",
  "move-core-types",
- "serde",
  "thiserror 1.0.69",
  "tokio",
 ]
@@ -3547,7 +3536,6 @@ name = "iota-rest-api"
 version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
- "async-trait",
  "axum",
  "bcs",
  "fastcrypto",
@@ -3560,7 +3548,6 @@ dependencies = [
  "move-binary-format",
  "openapiv3",
  "prometheus",
- "rand 0.8.5",
  "reqwest",
  "schemars",
  "serde",
@@ -3568,7 +3555,6 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "tap",
- "thiserror 1.0.69",
  "tokio",
  "url",
 ]
@@ -3576,7 +3562,7 @@ dependencies = [
 [[package]]
 name = "iota-rust-sdk"
 version = "0.0.0"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6bb6e45fea2c266f9c15dd89f26f68631c2d37a8#6bb6e45fea2c266f9c15dd89f26f68631c2d37a8"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=cd97687c9316045351d7db8b389ea381a5c335e1#cd97687c9316045351d7db8b389ea381a5c335e1"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3590,7 +3576,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_with",
- "winnow 0.6.24",
+ "winnow 0.6.26",
 ]
 
 [[package]]
@@ -3633,7 +3619,6 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "bcs",
- "clap",
  "colored",
  "fastcrypto",
  "futures",
@@ -3686,7 +3671,6 @@ dependencies = [
  "better_any",
  "bincode",
  "byteorder",
- "chrono",
  "consensus-config",
  "derive_more 1.0.0",
  "either",
@@ -3709,11 +3693,8 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "move-disassembler",
- "move-ir-types",
  "move-vm-profiler",
  "move-vm-test-utils",
- "move-vm-types",
  "nonempty",
  "num-bigint 0.4.6",
  "num-rational",
@@ -3746,7 +3727,6 @@ dependencies = [
 name = "iota-verifier-latest"
 version = "0.1.0"
 dependencies = [
- "iota-protocol-config",
  "iota-types",
  "move-abstract-interpreter",
  "move-abstract-stack",
@@ -4407,11 +4387,9 @@ dependencies = [
  "insta",
  "move-binary-format",
  "move-core-types",
- "num-bigint 0.4.6",
  "once_cell",
  "serde",
  "sha2 0.9.9",
- "similar",
  "vfs",
  "walkdir",
 ]
@@ -4471,6 +4449,7 @@ dependencies = [
  "ref-cast",
  "serde",
  "serde_bytes",
+ "serde_with",
  "thiserror 1.0.69",
  "uint",
 ]
@@ -5696,7 +5675,6 @@ version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
  "prometheus",
- "protobuf",
 ]
 
 [[package]]
@@ -5759,7 +5737,6 @@ version = "3.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
 dependencies = [
- "bytes",
  "once_cell",
  "protobuf-support",
  "thiserror 1.0.69",
@@ -7574,7 +7551,7 @@ checksum = "4ae48d6208a266e853d946088ed816055e556cc6028c5e8e2b84d9fa5dd7c7f5"
 dependencies = [
  "indexmap 2.7.1",
  "toml_datetime",
- "winnow 0.6.24",
+ "winnow 0.6.26",
 ]
 
 [[package]]
@@ -8501,9 +8478,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.24"
+version = "0.6.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8d71a593cc5c42ad7876e2c1fda56f314f3754c084128833e64f1345ff8a03a"
+checksum = "1e90edd2ac1aa278a5c4599b1d89cf03074b610800f866d4026dc199d7929a28"
 dependencies = [
  "memchr",
 ]
