@@ -89,25 +89,22 @@ Sometimes when the schema changes (e.g. adding a new table or column), backfilli
 The CLI provides a `run-backfill` command to facilitate this process:
 
 ```sh
-Usage: iota-indexer run-backfill [OPTIONS] <START> <END> <COMMAND>                             │
-                                                                                               │
-Commands:                                                                                      │
-  sql        Run a SQL backfill                                                                │
-  ingestion  Run a backfill driven by the ingestion engine                                     │
-  help       Print this message or the help of the given subcommand(s)                         │
-                                                                                               │
-Arguments:                                                                                     │
-  <START>  Start of the range to backfill, inclusive. It can be a checkpoint number or an epoch│
-           or any other identifier that can be used to slice the backfill range                │
-  <END>    End of the range to backfill, inclusive                                             │
-                                                                                               │
-Options:                                                                                       │
-      --max-concurrency <MAX_CONCURRENCY>                                                      │
-          Maximum number of concurrent tasks to run [default: 10]                              │
-      --chunk-size <CHUNK_SIZE>                                                                │
-          Size of the data chunks processed per task [default: 1000]            │
-  -h, --help                                                                                   │
-          Print help
+Usage: iota-indexer run-backfill [OPTIONS] <START> <END> <COMMAND>
+
+Commands:
+  sql        Run a SQL backfill
+  ingestion  Run a backfill driven by the ingestion engine
+  help       Print this message or the help of the given subcommand(s)
+
+Arguments:
+  <START>  Start of the range to backfill, inclusive. It can be a checkpoint number or an epoch or any other identifier that
+           can be used to slice the backfill range
+  <END>    End of the range to backfill, inclusive
+
+Options:
+      --max-concurrency <MAX_CONCURRENCY>  Maximum number of concurrent tasks to run [default: 10]
+      --chunk-size <CHUNK_SIZE>            Size of the data chunks processed per task [default: 1000]
+  -h, --help                               Print help
 ```
 
 It supports following backfill options:
