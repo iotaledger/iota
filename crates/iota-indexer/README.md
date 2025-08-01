@@ -86,7 +86,34 @@ More available flags can be found in this [file](https://github.com/iotaledger/i
 ### Backfilling of data
 
 Sometimes when the schema changes (e.g. adding a new table or column), backfilling may be required to populate historical data.
-The CLI provides a `run-backfill` command to facilitate this process.
+The CLI provides a `run-backfill` command to facilitate this process:
+
+```sh
+Usage: iota-indexer run-backfill [OPTIONS] <START> <END> <COMMAND>                             │
+                                                                                               │
+Commands:                                                                                      │
+  sql        Run a SQL backfill                                                                │
+  ingestion  Run a backfill driven by the ingestion engine                                     │
+  help       Print this message or the help of the given subcommand(s)                         │
+                                                                                               │
+Arguments:                                                                                     │
+  <START>  Start of the range to backfill, inclusive. It can be a checkpoint number or an epoch│
+           or any other identifier that can be used to slice the backfill range                │
+  <END>    End of the range to backfill, inclusive                                             │
+                                                                                               │
+Options:                                                                                       │
+      --max-concurrency <MAX_CONCURRENCY>                                                      │
+          Maximum number of concurrent tasks to run [default: 10]                              │
+      --chunk-size <CHUNK_SIZE>                                                                │
+          Number of checkpoints to backfill in a single SQL command [default: 1000]            │
+  -h, --help                                                                                   │
+          Print help
+```
+
+It supports two kinds of backfills:
+
+- **SQL Backfill**: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
+- **Ingestion Backfill**: Fetches and buffers checkpoint data from a remote store, then slices the buffered checkpoint data into chunks to backfill the database.
 
 #### Backfill job: `tx-wrapped-or-deleted-objects`
 
