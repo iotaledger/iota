@@ -105,7 +105,7 @@ Options:                                                                        
       --max-concurrency <MAX_CONCURRENCY>                                                      │
           Maximum number of concurrent tasks to run [default: 10]                              │
       --chunk-size <CHUNK_SIZE>                                                                │
-          Number of checkpoints to backfill in a single SQL command [default: 1000]            │
+          Size of the data chunks processed per task [default: 1000]            │
   -h, --help                                                                                   │
           Print help
 ```
