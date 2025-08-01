@@ -11,7 +11,8 @@ ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "/iota"
 
 # Install build dependencies, including clang and lld for faster linking
-RUN apt update && apt install -y cmake clang lld
+# libudev for Ledger hardware wallets
+RUN apt update && apt install -y cmake clang lld libudev-dev
 
 # Configure Rust to use clang and lld as the linker
 RUN mkdir -p ~/.cargo && \
