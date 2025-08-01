@@ -1383,11 +1383,20 @@ impl IndexStore {
         self.metrics.all_balance_lookup_from_total.inc();
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
-        self.caches.all_balances.get_with(owner, move || {
-            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(|e| {
-                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+        self.caches
+            .all_balances
+            .get_with(owner, move || {
+                Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
+                    |e| {
+                        IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                    },
+                )
             })
-        })
+            .map(|mut balances_map| {
+                Arc::make_mut(&mut balances_map)
+                    .retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
+                balances_map
+            })
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
