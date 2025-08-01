@@ -164,7 +164,7 @@ export default function MultiSigAddressGenerator() {
                     <CardHeader>
                         <CardTitle>IOTA MultiSig Address</CardTitle>
                         <CardDescription>
-                            https://docs.iota.org/ts-sdk/typescript/cryptography/multisig
+                            https://docs.iota.org/developer/ts-sdk/typescript/cryptography/multisig
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

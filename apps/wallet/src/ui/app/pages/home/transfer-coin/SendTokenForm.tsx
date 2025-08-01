@@ -15,6 +15,8 @@ import {
     getGasBudgetErrorMessage,
     type SendCoinTransaction,
     NO_BALANCE_GENERIC_MESSAGE,
+    type SendTokenFormValues,
+    RECEIVING_ADDRESS_FIELD_IDS,
 } from '@iota/core';
 import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
@@ -29,7 +31,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { Exclamation } from '@iota/apps-ui-icons';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { FormValues } from './index';
 import type { CoinStruct } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
@@ -48,7 +49,8 @@ export function SendTokenForm({
 }: SendTokenFormProps) {
     const activeAddress = useActiveAddress();
     const coinMetadata = useCoinMetadata(coinType);
-    const { values, isValid, isSubmitting, setFieldValue } = useFormikContext<FormValues>();
+    const { values, isValid, isSubmitting, setFieldValue } =
+        useFormikContext<SendTokenFormValues>();
 
     const { data: iotaCoins = [], isPending: iotaCoinsIsPending } = useGetAllCoins(
         IOTA_TYPE_ARG,
@@ -125,7 +127,10 @@ export function SendTokenForm({
                             totalGas={transactionData?.gasSummary?.totalGas}
                             coinMetadata={coinMetadata.data}
                         />
-                        <AddressInput name="to" placeholder="Enter Address" />
+                        <AddressInput
+                            {...RECEIVING_ADDRESS_FIELD_IDS}
+                            placeholder="Enter Address"
+                        />
                     </div>
                 </Form>
 

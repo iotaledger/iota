@@ -3152,6 +3152,21 @@
                 ]
               }
             }
+          },
+          {
+            "description": "A valid linkage was unable to be determined for the transaction or one of its commands.",
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "string",
+                "enum": [
+                  "invalid_linkage"
+                ]
+              }
+            }
           }
         ]
       },

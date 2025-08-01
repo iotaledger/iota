@@ -494,7 +494,7 @@ impl CheckpointReader {
 
         let path = match config.ingestion_path {
             Some(p) => p,
-            None => tempfile::tempdir()?.into_path(),
+            None => tempfile::tempdir()?.keep(),
         };
 
         let reader = CheckpointReaderActor {

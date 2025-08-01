@@ -158,7 +158,7 @@ impl LocalNewCluster {
 #[async_trait]
 impl Cluster for LocalNewCluster {
     async fn start(options: &ClusterTestOpt) -> Result<Self, anyhow::Error> {
-        let data_ingestion_path = tempdir()?.into_path();
+        let data_ingestion_path = tempdir()?.keep();
         // TODO: options should contain port instead of address
         let fullnode_rpc_addr = options.fullnode_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()

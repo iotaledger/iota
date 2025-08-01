@@ -7,6 +7,7 @@ import {
     CoinSelector,
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
+    RECEIVING_ADDRESS_FIELD_IDS,
     safeParseAmount,
     SendCoinTransaction,
     SendTokenFormInput,
@@ -148,7 +149,10 @@ export function EnterValuesFormView({
                                 totalGas={sendCoinTransactionQuery.data?.gasSummary?.totalGas}
                                 coinMetadata={coinMetadata.data}
                             />
-                            <AddressInput name="to" placeholder="Enter Address" />
+                            <AddressInput
+                                {...RECEIVING_ADDRESS_FIELD_IDS}
+                                placeholder="Enter Address"
+                            />
                         </div>
                     </Form>
                 </div>

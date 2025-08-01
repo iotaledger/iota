@@ -1243,6 +1243,7 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 congested_objects: congested_objects.0.into_iter().map(Into::into).collect(),
                 suggested_gas_price,
             },
+            ExecutionFailureStatus::InvalidLinkage => Self::InvalidLinkage,
         }
     }
 }
@@ -1446,6 +1447,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 ),
                 suggested_gas_price,
             },
+            ExecutionError::InvalidLinkage => Self::InvalidLinkage,
         }
     }
 }
