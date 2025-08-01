@@ -110,10 +110,10 @@ Options:                                                                        
           Print help
 ```
 
-It supports two kinds of backfills:
+It supports following backfill options:
 
-- **SQL Backfill**: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
-- **Ingestion Backfill**: Fetches and buffers checkpoint data from a remote store, then slices the buffered checkpoint data into chunks to backfill the database.
+- `sql`: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
+- `ingestion`: Fetches and buffers checkpoint data from a remote store, then slices the buffered checkpoint data into chunks to backfill the database.
 
 #### Backfill job: `tx-wrapped-or-deleted-objects`
 
@@ -134,11 +134,11 @@ You can use the following parameters to optimize performance:
 
 #### Error Handling
 
-If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To avoid any data gaps, restart the backfill from the calculated restart point:
+If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To prevent data gaps, you can restart the backfill from the calculated restart point:
 
 `restart_from = failed_chunk_start - (max_concurrency * chunk_size)`
 
-This ensures any unprocessed chunks are covered, preventing data gaps.
+This ensures any unprocessed chunks are covered also in the worst-case, preventing data gaps.
 
 ### DB reset
 
