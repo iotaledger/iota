@@ -19,6 +19,8 @@ pub(crate) struct TxWrappedOrDeletedObjectsBackfill;
 #[async_trait::async_trait]
 impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
     type ProcessedType = StoredTxWrappedOrDeletedObject;
+
+    // The number of columns in the `tx_wrapped_or_deleted_objects` table.
     const COL_COUNT: usize = 3;
 
     fn process_checkpoint(
