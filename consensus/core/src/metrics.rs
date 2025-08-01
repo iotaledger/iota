@@ -317,14 +317,34 @@ impl Metrics {
                 .load(Ordering::Relaxed),
         );
 
-        let misbehaviour_count =
-            missing_proposals + equivocations + faulty_blocks_provable + faulty_blocks_unprovable;
-        let score = u32::MAX as u64 / (1 + misbehaviour_count);
-        self.scoring_metrics.score[authority].store(score);
-        self.node_metrics
-            .score_by_authority
-            .with_label_values(&[hostname])
-            .set(score as i64);
+        // We provisionally use the formula below to calculate the score, but changes
+        // to this function are already expected. The hardcoded parameters (which are
+        // also still provisional) represent:
+        // - No tolerance to any provably faulty misbehaviour. If any is detected, the
+        //   score will be 0.
+        // - If no provably faulty blocks are detected, 50% of the score is guaranteed.
+        // - If no unprovably faulty blocks are detected, an additional 12.5% of the
+        //   score is guaranteed.
+        // - If no missing proposals are detected, an additional 37.5% of the score is
+        //   guaranteed.
+        // - The maximum achievable score is u32::MAX.
+
+        if faulty_blocks_provable > 0 || equivocations > 0 {
+            self.scoring_metrics.score[authority].store(0);
+            self.node_metrics
+                .score_by_authority
+                .with_label_values(&[hostname])
+                .set(0i64);
+        } else {
+            let score = (2 << 31) - 1
+                + (3 * (2 << 29) / (missing_proposals.saturating_add(1))
+                    + (2 << 29) / (faulty_blocks_unprovable.saturating_add(1)));
+            self.scoring_metrics.score[authority].store(score);
+            self.node_metrics
+                .score_by_authority
+                .with_label_values(&[hostname])
+                .set(score as i64);
+        }
     }
 
     // Auxiliary function to initialize scoring metrics relative to faulty blocks.
