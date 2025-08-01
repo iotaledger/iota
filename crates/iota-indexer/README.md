@@ -85,7 +85,7 @@ More available flags can be found in this [file](https://github.com/iotaledger/i
 
 ### Backfilling of data
 
-When a new database table is introduced, backfilling may be required to populate historical data.
+Sometimes when the schema changes (e.g. adding a new table or column), backfilling may be required to populate historical data.
 The CLI provides a `run-backfill` command to facilitate this process.
 
 #### Backfill job: `tx-wrapped-or-deleted-objects`
