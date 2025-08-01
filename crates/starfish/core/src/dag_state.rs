@@ -1073,6 +1073,15 @@ impl DagState {
         self.highest_accepted_round
     }
 
+    /// Highest round where a block is committed, which is last commit's leader
+    /// round.
+    pub(crate) fn last_commit_round(&self) -> Round {
+        match &self.last_commit {
+            Some(commit) => commit.leader().round,
+            None => 0,
+        }
+    }
+
     // Buffers a new commit in memory and updates last committed rounds.
     // REQUIRED: must not skip over any commit index.
     pub(crate) fn add_commit(&mut self, commit: TrustedCommit) {
@@ -1335,13 +1344,11 @@ impl DagState {
         }
     }
 
-    /// Highest round where a block is committed, which is last commit's leader
-    /// round.
-    pub(crate) fn last_commit_round(&self) -> Round {
-        match &self.last_commit {
-            Some(commit) => commit.leader().round,
-            None => 0,
-        }
+    /// Return the garbage collection round. Transactions of blocks at or below
+    /// this round which are not yet sequenced will never be sequenced.
+    pub(crate) fn gc_round(&self) -> Round {
+        let last_commit_round = self.last_commit_round();
+        last_commit_round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
     }
 
     /// Last committed round per authority.

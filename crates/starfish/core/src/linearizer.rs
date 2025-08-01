@@ -24,7 +24,7 @@ use crate::{
 /// The maximum depth of the linearizer, i.e. how many rounds back it will
 /// traverse the DAG from a committed leader block
 // TODO: make it derivable from the protocol parameters
-pub(crate) const MAX_LINEARIZER_DEPTH: Round = 10;
+pub(crate) const MAX_LINEARIZER_DEPTH: Round = 60;
 
 /// The `StorageAPI` trait provides an interface for the block store and has
 /// been mostly introduced for allowing to inject the test store in

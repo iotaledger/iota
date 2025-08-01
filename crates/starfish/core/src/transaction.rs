@@ -13,6 +13,7 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
+    Round,
     block_header::{BlockRef, Transaction},
     context::Context,
 };
@@ -49,10 +50,13 @@ pub(crate) struct TransactionConsumer {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BlockStatus {
-    /// The block has been sequenced as part of a committed sub dag. That means
-    /// that any transaction that has been included in the block
-    /// has been committed as well.
+    /// The transaction data associated with this block ref has been sequenced
+    /// as part of a committed sub dag.
     Sequenced(BlockRef),
+    /// The block or transaction data corresponding to this block ref has been
+    /// garbage collected and will never be committed. The transaction data
+    /// must be attempted to be resent by the client
+    GarbageCollected(BlockRef),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -135,16 +139,20 @@ impl TransactionConsumer {
                 break;
             }
         }
+        let block_status_subscribers = self.block_status_subscribers.clone();
 
         (
             transactions,
             Box::new(move |block_ref: BlockRef| {
+                let mut block_status_subscribers = block_status_subscribers.lock();
+
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
-                    // Report directly the block as sequenced while
-                    // tx is acknowledged for inclusion.
-                    status_tx.send(BlockStatus::Sequenced(block_ref)).ok();
+                    block_status_subscribers
+                        .entry(block_ref)
+                        .or_default()
+                        .push(status_tx);
 
                     let _ = ack.send((block_ref, status_rx));
                 }
@@ -154,17 +162,34 @@ impl TransactionConsumer {
     }
 
     /// Notifies all the transaction submitters who are waiting to receive an
-    /// update on the status of the block. The `committed_blocks` are the
-    /// blocks that have been committed. We'll notify for
-    /// all the committed blocks.
-    pub(crate) fn notify_own_blocks_status(&self, committed_blocks: Vec<BlockRef>) {
-        // Notify for all the committed blocks first
+    /// update on the status of the block. The `committed_transaction_refs` are
+    /// the transaction data that have been committed. We'll notify for
+    /// all own committed transaction data.
+    pub(crate) fn notify_own_transactions_status(
+        &self,
+        committed_transaction_refs: Vec<BlockRef>,
+        gc_round: Round,
+    ) {
+        // Notify for all own committed transaction data first
         let mut block_status_subscribers = self.block_status_subscribers.lock();
-        for block_ref in committed_blocks {
+        for block_ref in committed_transaction_refs {
             if let Some(subscribers) = block_status_subscribers.remove(&block_ref) {
                 subscribers.into_iter().for_each(|s| {
                     let _ = s.send(BlockStatus::Sequenced(block_ref));
                 });
+            }
+        }
+
+        // Now notify everyone <= gc_round that their block has been garbage collected
+        // and clean up the entries
+        while let Some((block_ref, subscribers)) = block_status_subscribers.pop_first() {
+            if block_ref.round <= gc_round {
+                subscribers.into_iter().for_each(|s| {
+                    let _ = s.send(BlockStatus::GarbageCollected(block_ref));
+                });
+            } else {
+                block_status_subscribers.insert(block_ref, subscribers);
+                break;
             }
         }
     }
@@ -409,7 +434,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn block_status_update() {
+    async fn block_status_update_sequenced_or_garbage_collected() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_consensus_max_transaction_size_bytes_for_testing(2_000); // 2KB
             config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
@@ -452,11 +477,28 @@ mod tests {
             block_status_waiters.push((block_ref, block_status_waiter));
         }
 
+        // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which
+        // should trigger the garbage collection of blocks 1..=5
+        let gc_round = 5;
+        consumer.notify_own_transactions_status(
+            vec![
+                BlockRef::new(6, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(8, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            ],
+            gc_round,
+        );
+
         // Now iterate over all the block status waiters. Everyone should have been
-        // notified and everyone should be considered sequenced.
-        for (_block_ref, waiter) in block_status_waiters {
+        // notified.
+        for (block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
-            assert!(matches!(block_status, BlockStatus::Sequenced(_)));
+
+            if block_ref.round <= gc_round {
+                assert!(matches!(block_status, BlockStatus::GarbageCollected(_)))
+            } else {
+                assert!(matches!(block_status, BlockStatus::Sequenced(_)));
+            }
         }
 
         // Ensure internal structure is clear

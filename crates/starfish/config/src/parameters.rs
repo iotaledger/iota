@@ -70,7 +70,7 @@ pub struct Parameters {
 
     /// Proposing new block is stopped when the propagation delay is greater
     /// than this threshold. Propagation delay is the difference between the
-    /// round of the last proposed block and the the highest round from this
+    /// round of the last proposed block and the highest round from this
     /// authority that is received by all validators in a quorum.
     #[serde(default = "Parameters::default_propagation_delay_stop_proposal_threshold")]
     pub propagation_delay_stop_proposal_threshold: u32,
