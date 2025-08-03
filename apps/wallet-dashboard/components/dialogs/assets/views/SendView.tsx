@@ -5,9 +5,12 @@ import {
     AddressInput,
     CoinFormat,
     NFTMediaDisplayCard,
+    RECEIVING_ADDRESS_FIELD_IDS,
+    SendNftFormValues,
     useAssetGasBudgetEstimation,
     useFormatCoin,
     useNftDetails,
+    useGetIotaNameRecord,
 } from '@iota/core';
 import { useFormikContext } from 'formik';
 import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
@@ -23,11 +26,14 @@ interface SendViewProps {
 }
 
 export function SendView({ objectId, senderAddress, objectType, onClose, onBack }: SendViewProps) {
-    const { isValid, dirty, isSubmitting, submitForm, values } = useFormikContext();
+    const { isValid, dirty, isSubmitting, submitForm, values } =
+        useFormikContext<SendNftFormValues>();
+    const { data: nameRecord } = useGetIotaNameRecord(values.to);
+
     const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
         objectId,
         activeAddress: senderAddress,
-        to: (values as { to: string }).to,
+        to: nameRecord?.targetAddress ?? values.to,
         objectType,
     });
     const [gasFormatted, gasSymbol] = useFormatCoin({
@@ -52,7 +58,10 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
                         <div className="flex flex-col items-center gap-xxxs">
                             <Title title={nftName} />
                         </div>
-                        <AddressInput name="to" placeholder="Enter Address" />
+                        <AddressInput
+                            {...RECEIVING_ADDRESS_FIELD_IDS}
+                            placeholder="Enter Address"
+                        />
                         <Divider />
                         <KeyValueInfo
                             keyText={'Est. Gas Fees'}
