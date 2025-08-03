@@ -647,7 +647,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let blocks = self
             .service
-            .handle_fetch_latest_blocks(peer_index, authorities)
+            .handle_fetch_latest_block_headers(peer_index, authorities)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchLatestBlockHeadersResponse, tonic::Status>> =

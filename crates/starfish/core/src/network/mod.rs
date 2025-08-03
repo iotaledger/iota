@@ -159,7 +159,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch the latest block for the provided
     /// `authorities`.
-    async fn handle_fetch_latest_blocks(
+    async fn handle_fetch_latest_block_headers(
         &self,
         peer: AuthorityIndex,
         authorities: Vec<AuthorityIndex>,

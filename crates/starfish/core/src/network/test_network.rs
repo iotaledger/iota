@@ -95,7 +95,7 @@ impl NetworkService for Mutex<TestService> {
         Ok((vec![], vec![]))
     }
 
-    async fn handle_fetch_latest_blocks(
+    async fn handle_fetch_latest_block_headers(
         &self,
         _peer: AuthorityIndex,
         _authorities: Vec<AuthorityIndex>,

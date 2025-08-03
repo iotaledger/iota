@@ -719,7 +719,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok((commits, certifier_block_headers))
     }
 
-    async fn handle_fetch_latest_blocks(
+    async fn handle_fetch_latest_block_headers(
         &self,
         peer: AuthorityIndex,
         authorities: Vec<AuthorityIndex>,
@@ -740,28 +740,30 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // Read from the dag state to find the latest blocks.
+        // Read from the dag state to find the latest block headers.
         // TODO: at the moment we don't look into the block manager for suspended
-        // blocks. Ideally we want in the future if we think we would like to
+        // block headers. Ideally we want in the future if we think we would like to
         // tackle the majority of cases.
-        let mut blocks = vec![];
+        let mut block_headers = vec![];
         let dag_state = self.dag_state.read();
         for authority in authorities {
-            let block = dag_state.get_last_block_header_for_authority(authority);
+            let block_header = dag_state.get_last_block_header_for_authority(authority);
 
-            debug!("Latest block for {authority}: {block:?} as requested from {peer}");
+            debug!(
+                "Latest block header for {authority}: {block_header:?} as requested from {peer}"
+            );
 
             // no reason to serve back the genesis block - it's equal as if it has not
             // received any block
-            if block.round() != GENESIS_ROUND {
-                blocks.push(block);
+            if block_header.round() != GENESIS_ROUND {
+                block_headers.push(block_header);
             }
         }
 
         // Return the serialised blocks
-        let result = blocks
+        let result = block_headers
             .into_iter()
-            .map(|block| block.serialized().clone())
+            .map(|block_header| block_header.serialized().clone())
             .collect::<Vec<_>>();
 
         Ok(result)
@@ -1572,7 +1574,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_fetch_latest_blocks() {
+    async fn test_handle_fetch_latest_block_headers() {
         // GIVEN
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
@@ -1630,17 +1632,21 @@ mod tests {
             AuthorityIndex::new_for_test(2),
         ];
         let results = authority_service
-            .handle_fetch_latest_blocks(AuthorityIndex::new_for_test(1), authorities_to_request)
+            .handle_fetch_latest_block_headers(
+                AuthorityIndex::new_for_test(1),
+                authorities_to_request,
+            )
             .await;
 
         // THEN
-        let serialised_blocks = results.unwrap();
-        for serialised_block in serialised_blocks {
+        let serialised_block_headers = results.unwrap();
+        for serialised_block_header in serialised_block_headers {
             let signed_block: SignedBlockHeader =
-                bcs::from_bytes(&serialised_block).expect("Error while deserialising block");
-            let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialised_block);
+                bcs::from_bytes(&serialised_block_header).expect("Error while deserialising block");
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block, serialised_block_header);
 
-            assert_eq!(verified_block.round(), 10);
+            assert_eq!(verified_block_header.round(), 10);
         }
     }
 
