@@ -1075,7 +1075,7 @@ mod tests {
     use tokio::{sync::broadcast, time::sleep};
 
     use crate::{
-        CommitConsumer, Round, TransactionClient,
+        CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::{AuthorityService, BroadcastedBlockStream, SubscriptionCounter},
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
@@ -1093,8 +1093,8 @@ mod tests {
         error::{ConsensusError, ConsensusResult},
         leader_schedule::LeaderSchedule,
         network::{
-            BlockBundle, BlockBundleStream, NetworkClient, NetworkService,
-            SerializedBlockAndHeaders, SerializedBlockBundle,
+            BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
+            SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
         },
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
@@ -2027,5 +2027,251 @@ mod tests {
         // Stream should end (return None)
         let received = stream.next().await;
         assert_eq!(received, None);
+    }
+
+    #[tokio::test]
+    async fn test_handle_subscribe_block_bundles_request() {
+        // GIVEN
+        let rounds = 10;
+        let validators = 4;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+
+        // Create a broadcast channel for new blocks
+        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create the authority service
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+        ));
+
+        // Set up DAG with blocks
+        let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
+        let mut dag_builder =
+            DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
+        dag_builder.layers(1..=rounds).build();
+
+        // Get all blocks
+        let mut all_blocks: Vec<Vec<VerifiedBlock>> = vec![];
+        for round in 0..=rounds {
+            all_blocks.push(dag_builder.blocks(round..=round));
+        }
+
+        let first_batch_end_exclusive = 5;
+        for round in 1..first_batch_end_exclusive {
+            core_dispatcher
+                .add_blocks(all_blocks[round as usize].clone())
+                .await
+                .expect("blocks are expected to be added successfully");
+        }
+
+        // WHEN
+        // Call handle_subscribe_block_bundles_request with last_received = 2
+        let last_received_round = 2;
+        let block_bundle_stream = authority_service
+            .handle_subscribe_block_bundles_request(
+                context.committee.to_authority_index(1).unwrap(),
+                last_received_round,
+            )
+            .await
+            .expect("Should return a valid stream");
+
+        // Convert the stream to a vector for testing
+        let mut stream = Box::pin(block_bundle_stream);
+        let mut received_bundles = Vec::new();
+
+        // Collect expected blocks from the first batch
+        let expected_blocks = first_batch_end_exclusive - 1 - last_received_round;
+        for _ in 0..expected_blocks {
+            if let Some(bundle) = stream.next().await {
+                received_bundles.push(bundle);
+            }
+        }
+
+        // THEN
+        // Verify that we received expected blocks (rounds
+        // last_received_round-first_batch)
+
+        assert_eq!(
+            received_bundles.len() as u32,
+            expected_blocks,
+            "Should receive {} missed blocks",
+            expected_blocks
+        );
+
+        // Check the correctness of the received blocks
+        for (i, bundle) in received_bundles.into_iter().enumerate() {
+            let serialized_block_and_headers = SerializedBlockAndHeaders::try_from(bundle).unwrap();
+            let SerializedHeaderAndTransactions {
+                serialized_block_header,
+                serialized_transactions,
+            } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
+                serialized_block: serialized_block_and_headers.serialized_block,
+            })
+            .unwrap();
+
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .unwrap();
+            assert_eq!(
+                signed_block_header.transactions_commitment(),
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap()
+            );
+
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+            let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+                .map_err(ConsensusError::MalformedTransactions)
+                .unwrap();
+            let verified_transactions = VerifiedTransactions::new(
+                transactions,
+                verified_block_header.reference(),
+                verified_block_header.transactions_commitment(),
+                serialized_transactions,
+            );
+            let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
+            assert_eq!(
+                verified_block.round(),
+                (i as u32) + last_received_round + 1,
+                "Block should be from round {}",
+                (i as u32) + last_received_round + 1
+            );
+            assert_eq!(
+                verified_block,
+                all_blocks[i + (last_received_round + 1) as usize][0],
+            );
+        }
+
+        for round in first_batch_end_exclusive..=rounds {
+            core_dispatcher
+                .add_blocks(all_blocks[round as usize].clone())
+                .await
+                .expect("blocks are expected to be added successfully");
+            tx_block_broadcast
+                .send(all_blocks[round as usize][0].clone())
+                .expect("We expect that block is sent successfully");
+        }
+
+        received_bundles = vec![];
+        for _ in first_batch_end_exclusive..rounds {
+            if let Some(bundle) = stream.next().await {
+                received_bundles.push(bundle);
+            }
+        }
+
+        // Check blocks from the second batch
+        for (i, bundle) in received_bundles.into_iter().enumerate() {
+            let serialized_block_and_headers = SerializedBlockAndHeaders::try_from(bundle).unwrap();
+            let SerializedHeaderAndTransactions {
+                serialized_block_header,
+                serialized_transactions,
+            } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
+                serialized_block: serialized_block_and_headers.serialized_block,
+            })
+            .unwrap();
+
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .unwrap();
+            assert_eq!(
+                signed_block_header.transactions_commitment(),
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap()
+            );
+
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+            let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+                .map_err(ConsensusError::MalformedTransactions)
+                .unwrap();
+            let verified_transactions = VerifiedTransactions::new(
+                transactions,
+                verified_block_header.reference(),
+                verified_block_header.transactions_commitment(),
+                serialized_transactions,
+            );
+            let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
+            assert_eq!(
+                verified_block.round(),
+                (i as u32) + first_batch_end_exclusive,
+                "Block should be from round {}",
+                (i as u32) + first_batch_end_exclusive
+            );
+            assert_eq!(
+                verified_block,
+                all_blocks[i + first_batch_end_exclusive as usize][0],
+            );
+        }
     }
 }
