@@ -326,9 +326,7 @@ impl StateRead for AuthorityState {
         TransactionEffects,
         Option<ObjectID>,
     )> {
-        Ok(self
-            .dry_exec_transaction(transaction, transaction_digest)
-            .await?)
+        Ok(self.dry_exec_transaction(transaction, transaction_digest)?)
     }
 
     async fn dev_inspect_transaction_block(

@@ -221,7 +221,6 @@ async fn test_dry_run_transaction_block() {
             transaction.data().intent_message().value.clone(),
             transaction_digest,
         )
-        .await
         .unwrap();
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
     let gas_usage = response.effects.gas_cost_summary();
@@ -246,7 +245,6 @@ async fn test_dry_run_transaction_block() {
     );
     let (response, _, _, _) = fullnode
         .dry_exec_transaction(txn_data, transaction_digest)
-        .await
         .unwrap();
     let gas_usage_no_gas = response.effects.gas_cost_summary();
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
@@ -280,7 +278,6 @@ async fn test_dry_run_no_gas_big_transfer() {
             signed.data().intent_message().value.clone(),
             *signed.digest(),
         )
-        .await
         .unwrap();
     assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
 }
@@ -953,12 +950,10 @@ async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
         construct_shared_object_transaction_with_sequence_number(None).await;
     let transaction_digest = *transaction.digest();
-    let response = validator
-        .dry_exec_transaction(
-            transaction.data().intent_message().value.clone(),
-            transaction_digest,
-        )
-        .await;
+    let response = validator.dry_exec_transaction(
+        transaction.data().intent_message().value.clone(),
+        transaction_digest,
+    );
     assert!(response.is_err());
 }
 
@@ -1075,7 +1070,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
     let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(data, digest).await.unwrap().0;
+        fullnode.dry_exec_transaction(data, digest).unwrap().0;
     assert_eq!(effects.deleted().len(), 0);
 }
 
@@ -1128,7 +1123,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
     let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(data, digest).await.unwrap().0;
+        fullnode.dry_exec_transaction(data, digest).unwrap().0;
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 }
 
@@ -5523,7 +5518,6 @@ async fn test_for_inc_201_dry_run() {
             signed.data().intent_message().value.clone(),
             *signed.digest(),
         )
-        .await
         .unwrap();
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 

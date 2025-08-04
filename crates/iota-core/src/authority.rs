@@ -1178,7 +1178,7 @@ impl AuthorityState {
     ///
     /// Should only be called within iota-core.
     #[instrument(level = "trace", skip_all)]
-    pub async fn try_execute_immediately(
+    pub fn try_execute_immediately(
         &self,
         certificate: &VerifiedExecutableTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -1262,13 +1262,11 @@ impl AuthorityState {
         certificate: &VerifiedCertificate,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
-        let (effects, execution_error_opt) = self
-            .try_execute_immediately(
-                &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
-                None,
-                &epoch_store,
-            )
-            .await?;
+        let (effects, execution_error_opt) = self.try_execute_immediately(
+            &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
+            None,
+            &epoch_store,
+        )?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
         Ok((signed_effects, execution_error_opt))
     }
@@ -1693,7 +1691,7 @@ impl AuthorityState {
         self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
     }
 
-    pub async fn dry_exec_transaction(
+    pub fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,

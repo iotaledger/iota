@@ -126,7 +126,6 @@ impl SingleValidator {
         let effects = self
             .get_validator()
             .try_execute_immediately(&executable, None, &self.epoch_store)
-            .await
             .unwrap()
             .0;
         assert!(effects.status().is_ok());
@@ -158,7 +157,6 @@ impl SingleValidator {
                 );
                 self.get_validator()
                     .try_execute_immediately(&cert, None, &self.epoch_store)
-                    .await
                     .unwrap()
                     .0
             }
