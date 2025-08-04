@@ -1073,7 +1073,7 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use starfish_config::AuthorityIndex;
+    use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{sync::broadcast, time::sleep};
 
     use crate::{
@@ -2279,5 +2279,319 @@ mod tests {
                 all_blocks[i + first_batch_end_exclusive as usize][0],
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_handle_fetch_headers_commit_sync() {
+        // GIVEN
+        let rounds = 10;
+        let validators = 4;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Context {
+            parameters: Parameters {
+                max_headers_per_commit_sync_fetch: 20,
+                ..context.parameters
+            },
+            ..context
+        };
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create the authority service
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+        ));
+
+        // Set up DAG with blocks
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+
+        // Get all block headers
+        let mut all_block_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        for round in 0..=rounds {
+            all_block_headers.push(dag_builder.block_headers(round..=round));
+        }
+
+        let mut block_refs_to_request: Vec<BlockRef> = (1..=rounds)
+            .flat_map(|round| {
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| bh.reference())
+            })
+            .collect();
+
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let err = authority_service
+            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![])
+            .await
+            .expect_err("Expected TooManyFetchHeadersRequested error");
+
+        assert!(matches!(err, ConsensusError::TooManyFetchHeadersRequested(p) if p == peer));
+
+        block_refs_to_request.truncate(context.parameters.max_headers_per_commit_sync_fetch);
+
+        let serialized_block_headers = authority_service
+            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![])
+            .await
+            .expect("Should return a valid vector of serialized block headers");
+
+        // Verify that we received requested block headers
+        assert_eq!(
+            serialized_block_headers.len(),
+            block_refs_to_request.len(),
+            "Should receive {} block headers",
+            block_refs_to_request.len()
+        );
+
+        // Check the correctness of the received blocks
+        for (i, serialized_block_header) in serialized_block_headers.into_iter().enumerate() {
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .unwrap();
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+            assert_eq!(verified_block_header.reference(), block_refs_to_request[i],);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_fetch_headers_regular_sync() {
+        // GIVEN
+        let rounds = 10;
+        let validators = 4;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Context {
+            parameters: Parameters {
+                max_headers_per_regular_sync_fetch: 20,
+                ..context.parameters
+            },
+            ..context
+        };
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create the authority service
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+        ));
+
+        // Set up DAG with blocks
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+
+        // Get all block headers
+        let mut all_block_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        for round in 0..=rounds {
+            all_block_headers.push(dag_builder.block_headers(round..=round));
+        }
+
+        let mut block_refs_to_request: Vec<BlockRef> = (5..=rounds)
+            .flat_map(|round| {
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| bh.reference())
+            })
+            .collect();
+
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let err = authority_service
+            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators + 1])
+            .await
+            .expect_err("Expected InvalidSizeOfHighestAcceptedRounds error");
+
+        assert!(matches!(
+            err,
+            ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
+        ));
+        let err = authority_service
+            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
+            .await
+            .expect_err("Expected TooManyFetchHeadersRequested error");
+
+        assert!(matches!(err, ConsensusError::TooManyFetchHeadersRequested(p) if p == peer));
+
+        block_refs_to_request.truncate(context.parameters.max_headers_per_regular_sync_fetch);
+
+        let serialized_block_headers = authority_service
+            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
+            .await
+            .expect("Should return a valid vector of serialized block headers");
+
+        // Verify that we received requested block headers
+        assert_eq!(
+            serialized_block_headers.len(),
+            block_refs_to_request.len(),
+            "Should receive {} block headers",
+            block_refs_to_request.len()
+        );
+
+        // Check the correctness of the received blocks
+        for (i, serialized_block_header) in serialized_block_headers.into_iter().enumerate() {
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .unwrap();
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+            assert_eq!(verified_block_header.reference(), block_refs_to_request[i],);
+        }
+
+        // check that missing headers from previous rounds would be added
+        block_refs_to_request.truncate(context.parameters.max_headers_per_regular_sync_fetch / 2);
+
+        let serialized_block_headers = authority_service
+            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
+            .await
+            .expect("Should return a valid vector of serialized block headers");
+
+        // Verify that we received requested block headers and additional from previous
+        // rounds
+        assert!(
+            serialized_block_headers.len() > block_refs_to_request.len(),
+            "Should receive more block headers than requested",
+        );
     }
 }
