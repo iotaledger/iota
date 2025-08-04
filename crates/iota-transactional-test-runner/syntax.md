@@ -29,7 +29,7 @@
   - [`bench`](#bench)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
-  - [Execution Process in `run_tasks_with_adapter`](#adapter-creation-in-run_tasks_with_adapter)
+  - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
   - [Verification Process in `insta_assert!`](#verification-process-in-insta_assert!)
   - [Structure of the `.move` File](#structure-of-the-move-file)
   - [Structure of a `.snap` File](#structure-of-a-snap-file)
