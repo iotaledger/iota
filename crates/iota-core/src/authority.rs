@@ -1691,6 +1691,7 @@ impl AuthorityState {
         self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
