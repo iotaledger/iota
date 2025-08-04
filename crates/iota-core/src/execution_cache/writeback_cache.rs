@@ -1021,6 +1021,37 @@ impl WritebackCache {
         Ok(())
     }
 
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    ) {
+        let mut transactions_and_effects = Vec::with_capacity(digests.len());
+        for (tx_digest, fx_digest) in digests {
+            let Some(outputs) = self
+                .dirty
+                .pending_transaction_writes
+                .get(tx_digest)
+                .map(|o| o.clone())
+            else {
+                debug!("transaction {:?} was already committed", tx_digest);
+                continue;
+            };
+
+            assert_eq!(
+                outputs.effects.digest(),
+                *fx_digest,
+                "effects digest mismatch"
+            );
+
+            transactions_and_effects
+                .push(((*outputs.transaction).clone(), outputs.effects.clone()));
+        }
+
+        self.store
+            .persist_transactions_and_effects(&transactions_and_effects)
+            .expect("db error");
+    }
+
     fn approximate_pending_transaction_count(&self) -> u64 {
         let num_commits = self
             .dirty
@@ -1350,6 +1381,13 @@ impl ExecutionCacheCommit for WritebackCache {
 
     fn approximate_pending_transaction_count(&self) -> u64 {
         WritebackCache::approximate_pending_transaction_count(self)
+    }
+
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    ) {
+        WritebackCache::persist_transactions_and_effects(self, digests);
     }
 }
 
@@ -2232,6 +2270,11 @@ impl StateSyncAPI for WritebackCache {
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
+        self.store
+            .insert_transaction_and_effects(transaction, transaction_effects)?;
+
+        // Cache operations should not fail the entire operation after DB write succeeds
+        // Use .ok() to ignore cache failures and avoid data inconsistency
         self.cached
             .transactions
             .insert(
@@ -2248,15 +2291,16 @@ impl StateSyncAPI for WritebackCache {
                 Ticket::Write,
             )
             .ok();
-        self.store
-            .insert_transaction_and_effects(transaction, transaction_effects)
-            .map_err(IotaError::from)
+
+        Ok(())
     }
 
     fn try_multi_insert_transaction_and_effects(
         &self,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult {
+        self.store
+            .multi_insert_transaction_and_effects(transactions_and_effects.iter())?;
         for VerifiedExecutionData {
             transaction,
             effects,
@@ -2279,8 +2323,7 @@ impl StateSyncAPI for WritebackCache {
                 )
                 .ok();
         }
-        self.store
-            .multi_insert_transaction_and_effects(transactions_and_effects.iter())
-            .map_err(IotaError::from)
+
+        Ok(())
     }
 }

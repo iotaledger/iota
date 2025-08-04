@@ -126,6 +126,8 @@ struct ZkLoginParams {
     pub accept_passkey_in_multisig: bool,
     /// Value that sets the upper bound for max_epoch in zkLogin signature.
     pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
+    /// Flag to determine whether additional multisig checks are performed.
+    pub additional_multisig_checks: bool,
 }
 
 impl SignatureVerifier {
@@ -137,6 +139,7 @@ impl SignatureVerifier {
         accept_zklogin_in_multisig: bool,
         accept_passkey_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
+        additional_multisig_checks: bool,
     ) -> Self {
         Self {
             committee,
@@ -163,6 +166,7 @@ impl SignatureVerifier {
                 accept_zklogin_in_multisig,
                 accept_passkey_in_multisig,
                 zklogin_max_epoch_upper_bound_delta,
+                additional_multisig_checks,
             },
         }
     }
@@ -174,6 +178,7 @@ impl SignatureVerifier {
         accept_zklogin_in_multisig: bool,
         accept_passkey_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
+        additional_multisig_checks: bool,
     ) -> Self {
         Self::new_with_batch_size(
             committee,
@@ -183,6 +188,7 @@ impl SignatureVerifier {
             accept_zklogin_in_multisig,
             accept_passkey_in_multisig,
             zklogin_max_epoch_upper_bound_delta,
+            additional_multisig_checks,
         )
     }
 
@@ -390,6 +396,7 @@ impl SignatureVerifier {
                     self.zk_login_params.accept_zklogin_in_multisig,
                     self.zk_login_params.accept_passkey_in_multisig,
                     self.zk_login_params.zklogin_max_epoch_upper_bound_delta,
+                    self.zk_login_params.additional_multisig_checks,
                 );
                 verify_sender_signed_data_message_signatures(
                     signed_tx,

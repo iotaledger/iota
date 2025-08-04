@@ -34,6 +34,7 @@ bin-version.workspace = true
 iota-metrics.workspace = true
 iota-move.workspace = true
 iota-move-build.workspace = true
+iota-package-management.workspace = true
 iota-sdk.workspace = true
 iota-source-validation.workspace = true
 move-core-types.workspace = true

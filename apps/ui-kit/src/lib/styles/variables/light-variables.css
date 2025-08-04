@@ -22,6 +22,11 @@
     --default-surface: theme('colors.iota-primary.90');
     --on-default: theme('colors.iota-primary.20');
 
+    /* STATE LAYER */
+    --state-layer-bg-color: theme('colors.iota-primary.60');
+    --state-layer-secondary-bg-color: theme('colors.shader-primary-light.100');
+    --state-layer-inverted-bg-color: theme('colors.iota-primary.80');
+
     /* ---------------- ATOMS ---------------- */
 
     /* BADGE */
@@ -48,7 +53,6 @@
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.10');
     --button-text-color-error: theme('colors.iota-error.20');
-    --button-outline-bg-color: theme('colors.iota-primary.100');
 
     /* BUTTON PILL */
     --button-pill-border-color: theme('colors.iota-neutral.70');

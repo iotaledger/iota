@@ -16,8 +16,7 @@ use iota_types::{
     iota_serde::IotaStructTag,
     iota_system_state::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest,
-        CheckpointSequenceNumber, EndOfEpochData,
+        CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
     move_package::MovePackage,
     object::{Object, Owner},
@@ -96,32 +95,6 @@ impl IndexedCheckpoint {
             max_tx_sequence_number,
         }
     }
-}
-
-/// Represents system state and summary info at the start and end of an epoch.
-/// Optional fields are populated at epoch boundary, since they cannot be
-/// determined at the start of the epoch.
-#[derive(Clone, Debug, Default)]
-pub struct IndexedEpochInfo {
-    pub epoch: u64,
-    pub first_checkpoint_id: u64,
-    pub epoch_start_timestamp: u64,
-    pub reference_gas_price: u64,
-    pub protocol_version: u64,
-    pub total_stake: u64,
-    pub storage_fund_balance: u64,
-    pub system_state: Vec<u8>,
-    pub epoch_total_transactions: Option<u64>,
-    pub last_checkpoint_id: Option<u64>,
-    pub epoch_end_timestamp: Option<u64>,
-    pub storage_charge: Option<u64>,
-    pub storage_rebate: Option<u64>,
-    pub total_gas_fees: Option<u64>,
-    pub total_stake_rewards_distributed: Option<u64>,
-    pub epoch_commitments: Option<Vec<CheckpointCommitment>>,
-    pub burnt_tokens_amount: Option<u64>,
-    pub minted_tokens_amount: Option<u64>,
-    pub tips_amount: Option<u64>,
 }
 
 /// View on the common inner state-summary fields.
@@ -211,76 +184,6 @@ impl IotaSystemStateSummaryView for IotaSystemStateSummary {
     }
 }
 
-impl IndexedEpochInfo {
-    pub fn from_new_system_state_summary(
-        new_system_state_summary: &IotaSystemStateSummary,
-        first_checkpoint_id: u64,
-        event: Option<&SystemEpochInfoEvent>,
-    ) -> IndexedEpochInfo {
-        // NOTE: total_stake and storage_fund_balance are about new epoch,
-        // although the event is generated at the end of the previous epoch,
-        // the event is optional b/c no such event for the first epoch.
-        let (total_stake, storage_fund_balance) = match event {
-            Some(SystemEpochInfoEvent::V1(e)) => (e.total_stake, e.storage_fund_balance),
-            Some(SystemEpochInfoEvent::V2(e)) => (e.total_stake, e.storage_fund_balance),
-            None => (0, 0),
-        };
-        Self {
-            epoch: new_system_state_summary.epoch(),
-            first_checkpoint_id,
-            epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms(),
-            reference_gas_price: new_system_state_summary.reference_gas_price(),
-            protocol_version: new_system_state_summary.protocol_version(),
-            total_stake,
-            storage_fund_balance,
-            system_state: bcs::to_bytes(new_system_state_summary).unwrap(),
-            ..Default::default()
-        }
-    }
-
-    /// Creates `IndexedEpochInfo` for epoch X-1 at the boundary of epoch X-1 to
-    /// X. `network_total_tx_num_at_last_epoch_end` is needed to determine
-    /// the number of transactions that occurred in the epoch X-1.
-    pub fn from_end_of_epoch_data(
-        _system_state_summary: &IotaSystemStateSummary,
-        last_checkpoint_summary: &CertifiedCheckpointSummary,
-        event: &SystemEpochInfoEvent,
-        network_total_tx_num_at_last_epoch_end: u64,
-    ) -> IndexedEpochInfo {
-        let event = IndexedEpochInfoEvent::from(event);
-        Self {
-            epoch: last_checkpoint_summary.epoch(),
-            epoch_total_transactions: Some(
-                last_checkpoint_summary.network_total_transactions
-                    - network_total_tx_num_at_last_epoch_end,
-            ),
-            last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
-            epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_charge: Some(event.storage_charge),
-            storage_rebate: Some(event.storage_rebate),
-            total_gas_fees: Some(event.total_gas_fees),
-            total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
-            epoch_commitments: last_checkpoint_summary
-                .end_of_epoch_data
-                .as_ref()
-                .map(|e| e.epoch_commitments.clone()),
-            // At epoch end the system state is the state of the next epoch, so we ignore it.
-            system_state: Default::default(),
-            // The following felds will not and shall not be upserted
-            // into DB. We have them below to make compiler and diesel happy
-            first_checkpoint_id: 0,
-            epoch_start_timestamp: 0,
-            reference_gas_price: 0,
-            protocol_version: 0,
-            total_stake: 0,
-            storage_fund_balance: 0,
-            burnt_tokens_amount: Some(event.burnt_tokens_amount),
-            minted_tokens_amount: Some(event.minted_tokens_amount),
-            tips_amount: Some(event.tips_amount),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default)]
 pub(crate) struct IndexedEpochInfoEvent {
     pub storage_charge: u64,
@@ -289,7 +192,8 @@ pub(crate) struct IndexedEpochInfoEvent {
     pub total_stake_rewards_distributed: u64,
     pub burnt_tokens_amount: u64,
     pub minted_tokens_amount: u64,
-    pub tips_amount: u64,
+    pub total_stake: u64,
+    pub storage_fund_balance: u64,
 }
 
 impl From<&SystemEpochInfoEventV1> for IndexedEpochInfoEvent {
@@ -301,7 +205,8 @@ impl From<&SystemEpochInfoEventV1> for IndexedEpochInfoEvent {
             total_stake_rewards_distributed: event.total_stake_rewards_distributed,
             burnt_tokens_amount: event.burnt_tokens_amount,
             minted_tokens_amount: event.minted_tokens_amount,
-            tips_amount: 0,
+            total_stake: event.total_stake,
+            storage_fund_balance: event.storage_fund_balance,
         }
     }
 }
@@ -315,7 +220,8 @@ impl From<&SystemEpochInfoEventV2> for IndexedEpochInfoEvent {
             total_stake_rewards_distributed: event.total_stake_rewards_distributed,
             burnt_tokens_amount: event.burnt_tokens_amount,
             minted_tokens_amount: event.minted_tokens_amount,
-            tips_amount: event.tips_amount,
+            total_stake: event.total_stake,
+            storage_fund_balance: event.storage_fund_balance,
         }
     }
 }
@@ -412,6 +318,27 @@ impl EventIndex {
             type_module: event.type_.module.to_string(),
             type_name: event.type_.name.to_string(),
             type_instantiation,
+        }
+    }
+}
+
+#[cfg(any(test, feature = "pg_integration"))]
+impl EventIndex {
+    /// Generate a random event index for testing purposes.
+    pub fn random() -> Self {
+        use rand::Rng;
+
+        let mut rng = rand::thread_rng();
+        EventIndex {
+            tx_sequence_number: rng.gen(),
+            event_sequence_number: rng.gen(),
+            sender: IotaAddress::random_for_testing_only(),
+            emit_package: ObjectID::random(),
+            emit_module: rng.gen::<u64>().to_string(),
+            type_package: ObjectID::random(),
+            type_module: rng.gen::<u64>().to_string(),
+            type_name: rng.gen::<u64>().to_string(),
+            type_instantiation: rng.gen::<u64>().to_string(),
         }
     }
 }
@@ -541,6 +468,74 @@ pub struct TxIndex {
     pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,
     pub move_calls: Vec<(ObjectID, String, String)>,
+}
+
+#[cfg(any(test, feature = "pg_integration"))]
+impl TxIndex {
+    /// Generate a random TxIndex for testing purposes.
+    pub fn random() -> Self {
+        use std::iter::repeat_with;
+
+        use rand::Rng;
+
+        const MAX_OBJECTS: usize = 1000;
+        const MAX_PAYERS: usize = 100;
+        const MAX_RECIPIENTS: usize = 1000;
+        const MAX_MOVE_CALLS: usize = 1000;
+
+        let mut rng = rand::thread_rng();
+
+        let tx_kind = if rng.gen_bool(0.5) {
+            IotaTransactionKind::SystemTransaction
+        } else {
+            IotaTransactionKind::ProgrammableTransaction
+        };
+
+        let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let payers = repeat_with(IotaAddress::random_for_testing_only)
+            .take(rng.gen_range(0..MAX_PAYERS))
+            .collect();
+        let recipients = repeat_with(IotaAddress::random_for_testing_only)
+            .take(rng.gen_range(0..MAX_RECIPIENTS))
+            .collect();
+        let move_calls = std::iter::repeat_with(|| {
+            (
+                ObjectID::random(),
+                rand::random::<u64>().to_string(),
+                rand::random::<u64>().to_string(),
+            )
+        })
+        .take(rng.gen_range(0..MAX_MOVE_CALLS))
+        .collect();
+
+        TxIndex {
+            tx_sequence_number: rng.gen(),
+            tx_kind,
+            transaction_digest: TransactionDigest::random(),
+            checkpoint_sequence_number: rng.gen(),
+            input_objects,
+            changed_objects,
+            payers,
+            sender: IotaAddress::random_for_testing_only(),
+            recipients,
+            move_calls,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub(crate) struct TxIndexExt {
+    /// Objects that were either wrapped immediately after being created,
+    /// deleted, or deleted immediately after being unwrapped.
+    pub(crate) wrapped_or_deleted_objects: Vec<ObjectID>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TxIndexV2 {
+    pub(crate) base: TxIndex,
+    pub(crate) ext: TxIndexExt,
 }
 
 // ObjectChange is not bcs deserializable, IndexedObjectChange is.

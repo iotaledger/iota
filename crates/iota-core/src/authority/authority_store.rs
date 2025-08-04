@@ -1038,6 +1038,27 @@ impl AuthorityStore {
         Ok(())
     }
 
+    pub(crate) fn persist_transactions_and_effects(
+        &self,
+        transactions_and_effects: &[(VerifiedTransaction, TransactionEffects)],
+    ) -> IotaResult {
+        let mut batch = self.perpetual_tables.transactions.batch();
+        batch.insert_batch(
+            &self.perpetual_tables.transactions,
+            transactions_and_effects
+                .iter()
+                .map(|(tx, _)| (*tx.digest(), tx.serializable_ref())),
+        )?;
+        batch.insert_batch(
+            &self.perpetual_tables.effects,
+            transactions_and_effects
+                .iter()
+                .map(|(_, fx)| (fx.digest(), fx.clone())),
+        )?;
+        batch.write()?;
+        Ok(())
+    }
+
     pub async fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
@@ -1149,7 +1170,7 @@ impl AuthorityStore {
             .live_owned_object_markers
             .unbounded_iter()
             // Make the max possible entry for this object ID.
-            .skip_prior_to(&(object_id, SequenceNumber::MAX, ObjectDigest::MAX))?;
+            .skip_prior_to(&(object_id, SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX))?;
         Ok(iterator
             .next()
             .and_then(|value| {
@@ -1748,6 +1769,7 @@ impl AuthorityStore {
             checkpoint_store,
             rest_index,
             &self.objects_lock_table,
+            None,
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
             usize::MAX,
@@ -1799,8 +1821,8 @@ impl AuthorityStore {
         self.perpetual_tables
             .objects
             .safe_iter_with_bounds(
-                Some(ObjectKey(object_id, VersionNumber::MIN)),
-                Some(ObjectKey(object_id, VersionNumber::MAX)),
+                Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
+                Some(ObjectKey(object_id, VersionNumber::MAX_VALID_EXCL)),
             )
             .collect::<Result<Vec<_>, _>>()
             .unwrap()

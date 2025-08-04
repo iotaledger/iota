@@ -216,6 +216,53 @@ pub mod diesel_macro {
         }};
     }
 
+    /// This macro provides a standardized way to bulk insert data into database
+    /// tables with built-in performance monitoring, error handling, and
+    /// retry logic. It automatically subdivides large chunks into smaller
+    /// batches to optimize database performance and avoid overwhelming
+    /// individual transactions.
+    ///
+    /// # Parameters
+    ///
+    /// * `$table` - The target database table (e.g., `events::table`,
+    ///   `transactions::table`)
+    /// * `$chunk` - Collection of data to persist (must implement `.len()` and
+    ///   `.chunks()`)
+    /// * `$pool` - Database connection pool reference
+    ///
+    /// # Behavior
+    ///
+    /// 1. **Performance Timing**: Records operation duration for monitoring
+    /// 2. **Automatic Batching**: Splits data into chunks of
+    ///    `PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX` rows
+    /// 3. **Transaction Safety**: Uses `transactional_blocking_with_retry!` for
+    ///    atomic operations
+    /// 4. **Conflict Resolution**: Employs `INSERT ... ON CONFLICT DO NOTHING`
+    ///    strategy
+    /// 5. **Retry Logic**: Automatically retries failed operations with timeout
+    ///    of `PG_DB_COMMIT_SLEEP_DURATION`
+    /// 6. **Comprehensive Logging**: Logs success/failure with timing and row
+    ///    count information
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let event_batch = vec![/* event data */];
+    /// // Persist event data
+    /// persist_chunk_into_table!(
+    ///     events::table,
+    ///     event_batch,
+    ///     &connection_pool
+    /// ).unwrap();
+    ///
+    /// let sender_data = vec![/* sender data */];
+    /// // Persist transaction senders
+    /// persist_chunk_into_table!(
+    ///     tx_senders::table,
+    ///     sender_data,
+    ///     &blocking_pool
+    /// ).unwrap();
+    /// ```
     #[macro_export]
     macro_rules! persist_chunk_into_table {
         ($table:expr, $chunk:expr, $pool:expr) => {{

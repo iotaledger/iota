@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.4.0-alpha"
+    "version": "1.5.0-alpha"
   },
   "methods": [
     {
@@ -1306,6 +1306,8 @@
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
+                "additional_multisig_checks": false,
+                "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_batched_block_sync": false,
                 "consensus_distributed_vote_scoring_strategy": false,
@@ -1315,6 +1317,7 @@
                 "consensus_smart_ancestor_selection": false,
                 "consensus_zstd_compression": false,
                 "convert_type_argument_error": true,
+                "dependency_linkage_error": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
                 "enable_group_ops_native_function_msm": true,
@@ -1322,6 +1325,7 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "minimize_child_object_mutations": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
@@ -1329,6 +1333,7 @@
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "uncompressed_g1_group_elements": true,
+                "validate_identifier_inputs": false,
                 "variant_nodes": false,
                 "zklogin_auth": false
               },
@@ -5162,7 +5167,7 @@
         },
         {
           "name": "arguments",
-          "description": "the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/references/iota-api) format",
+          "description": "the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/developer/references/iota-api) format",
           "required": true,
           "schema": {
             "type": "array",
@@ -12347,7 +12352,7 @@
             "default": null,
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransactionFilter"
+                "$ref": "#/components/schemas/TransactionFilterV2"
               },
               {
                 "type": "null"
@@ -12448,6 +12453,196 @@
             ],
             "properties": {
               "ChangedObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by sender address.",
+            "type": "object",
+            "required": [
+              "FromAddress"
+            ],
+            "properties": {
+              "FromAddress": {
+                "$ref": "#/components/schemas/IotaAddress"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by recipient address.",
+            "type": "object",
+            "required": [
+              "ToAddress"
+            ],
+            "properties": {
+              "ToAddress": {
+                "$ref": "#/components/schemas/IotaAddress"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by sender and recipient address.",
+            "type": "object",
+            "required": [
+              "FromAndToAddress"
+            ],
+            "properties": {
+              "FromAndToAddress": {
+                "type": "object",
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "from": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  },
+                  "to": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query txs that have a given address as sender or recipient.",
+            "type": "object",
+            "required": [
+              "FromOrToAddress"
+            ],
+            "properties": {
+              "FromOrToAddress": {
+                "type": "object",
+                "required": [
+                  "addr"
+                ],
+                "properties": {
+                  "addr": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by transaction kind",
+            "type": "object",
+            "required": [
+              "TransactionKind"
+            ],
+            "properties": {
+              "TransactionKind": {
+                "$ref": "#/components/schemas/IotaTransactionKind"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query transactions of any given kind in the input.",
+            "type": "object",
+            "required": [
+              "TransactionKindIn"
+            ],
+            "properties": {
+              "TransactionKindIn": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IotaTransactionKind"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "TransactionFilterV2": {
+        "oneOf": [
+          {
+            "description": "Query by checkpoint.",
+            "type": "object",
+            "required": [
+              "Checkpoint"
+            ],
+            "properties": {
+              "Checkpoint": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by move function.",
+            "type": "object",
+            "required": [
+              "MoveFunction"
+            ],
+            "properties": {
+              "MoveFunction": {
+                "type": "object",
+                "required": [
+                  "package"
+                ],
+                "properties": {
+                  "function": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "module": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "package": {
+                    "$ref": "#/components/schemas/ObjectID"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by input object.",
+            "type": "object",
+            "required": [
+              "InputObject"
+            ],
+            "properties": {
+              "InputObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query by changed object, including created, mutated and unwrapped objects.",
+            "type": "object",
+            "required": [
+              "ChangedObject"
+            ],
+            "properties": {
+              "ChangedObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Query transactions that wrapped or deleted the specified object. Includes transactions that either created and immediately wrapped the object or unwrapped and immediately deleted it.",
+            "type": "object",
+            "required": [
+              "WrappedOrDeletedObject"
+            ],
+            "properties": {
+              "WrappedOrDeletedObject": {
                 "$ref": "#/components/schemas/ObjectID"
               }
             },

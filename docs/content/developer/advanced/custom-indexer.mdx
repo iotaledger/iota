@@ -22,11 +22,14 @@ To use the framework, implement a basic interface:
 ```rust
 #[async_trait]
 trait Worker: Send + Sync {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<()>;
+    type Error: Debug + Display;
+    type Message: Send + Sync;
+
+    async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<Self::Message, Self::Error>;
 }
 ```
 
-In this example, the `CheckpointData` struct represents full checkpoint content. The struct contains checkpoint summary and contents, as well as detailed information about each individual transaction. The individual transaction data includes events and input/output objects. The full definition for this content is in the [full_checkpoint_content.rs](https://github.com/iotaledger/iota/blob/releases/iota-graphql-rpc-v2024.1.0-release/crates/iota-types/src/full_checkpoint_content.rs) file of the `iota-types` crate.
+In this example, the [`CheckpointData`](https://iotaledger.github.io/iota/iota_types/full_checkpoint_content/struct.CheckpointData.html) struct represents full checkpoint content. The struct contains checkpoint summary and contents, as well as detailed information about each individual transaction.
 
 ## Checkpoint Stream Sources
 
@@ -34,19 +37,38 @@ Data ingestion for your indexer supports several checkpoint stream sources.
 
 ### Remote Reader
 
-The most straightforward stream source is to subscribe to a remote store of checkpoint contents.
+The most straightforward stream source is to subscribe to a remote store of checkpoint contents. The IOTA Foundation provides the following endpoints for downloading checkpoint data:
 
-:::info Unavailable
+#### Historical Checkpoint Data
 
-The IOTA Foundation does not provide this service at the moment. It's possible to start a fullnode locally and use the REST API to sync.
+For syncing historical data up to the tip of the network:
+
+- Devnet: `https://checkpoints.devnet.iota.cafe/ingestion/historical`
+- Testnet: `https://checkpoints.testnet.iota.cafe/ingestion/historical`
+- Mainnet: `https://checkpoints.mainnet.iota.cafe/ingestion/historical`
+
+#### Live Checkpoint Streaming (Optional)
+
+For real-time streaming of current epoch checkpoints only:
+
+- Devnet: `https://checkpoints.devnet.iota.cafe/ingestion/live`
+- Testnet: `https://checkpoints.testnet.iota.cafe/ingestion/live`
+- Mainnet: `https://checkpoints.mainnet.iota.cafe/ingestion/live`
+
+:::info Historical vs Live Endpoints
+
+| Feature              | Historical Endpoint                                                                                                                                                                                | Live Endpoint                                               |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Format**           | Batches multiple checkpoints into single files                                                                                                                                                     | Individual checkpoint files                                 |
+| **Best for**         | Initial sync from genesis to near network tip                                                                                                                                                      | Real-time ingestion at network tip                          |
+| **Latency behavior** | • Near zero latency during historical sync (processes batches as fast as possible)<br/>• Variable latency at network tip (waits for batch completion, typically ~1000 checkpoints or epoch change) | Minimal latency (published immediately)                     |
+| **Data coverage**    | Complete data coverage from genesis                                                                                                                                                                | Current epoch only (older checkpoints automatically purged) |
+| **Optimization**     | Throughput-focused for bulk ingestion                                                                                                                                                              | Low-latency processing                                      |
+
+1. **Historical endpoint** should always be used as the primary source to guarantee complete data coverage from genesis
+2. **Live endpoint** is optional for applications needing real-time access to the very latest checkpoints
 
 :::
-
-If you are running a local fullnode, checkpoints are available for download via HTTP GET requests to a URL similar to the following:
-
-```
-http://127.0.0.1:9000/api/v1/checkpoints/<checkpoint_id>/full
-```
 
 ```mermaid
 flowchart LR
@@ -54,7 +76,7 @@ flowchart LR
   B[("fa:fa-gears
   Indexer
   daemon")];
-  B-->A;
+  A -- checkpoint stream -->B;
   B<-->C("fa:fa-floppy-disk Progress store");
   subgraph External
     D("fa:fa-database Postgres");
@@ -64,12 +86,10 @@ flowchart LR
   B-->External
 ```
 
-The IOTA data ingestion framework provides a helper function to quickly bootstrap an indexer workflow.
+In this example, we'll explore a simple custom indexer that can ingest data from multiple sources: the `historical` and `live` endpoints, or directly from a local fullnode REST API. The [`RemoteUrl`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html) enum provides flexible configuration options for these different data sources, including hybrid configurations that combine multiple sources.
 
 ```rust file=<rootDir>/examples/custom-indexer/rust/remote_reader.rs
 ```
-
-This is suitable for setups with a single ingestion pipeline where progress tracking is managed outside of the framework.
 
 ### Local Reader
 
@@ -119,16 +139,9 @@ The concurrency parameter specifies how many threads the workflow uses. Having a
 ### Hybrid Mode
 
 Specify both a local and remote store as a fallback to ensure constant data flow. The framework always prioritizes locally available checkpoint data over remote data. It's useful when you want to start utilizing your own full node for data ingestion but need to partially backfill historical data or just have a failover.
-```rust
-executor.run(
-    PathBuf::from("./chk".to_string()), // path to a local directory
-    Some("http://127.0.0.1:9000/api/v1".to_string()), // fullnode REST API
-    vec![], // optional remote store access options
-    ReaderOptions::default(),
-    exit_receiver,
-    ).await?;
-```
 
+```rust file=<rootDir>/examples/custom-indexer/rust/hybrid_reader.rs
+```
 
 ### Manifest
 

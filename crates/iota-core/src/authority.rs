@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, atomic::Ordering},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
     vec,
 };
 
@@ -20,7 +20,6 @@ use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
-use chrono::prelude::*;
 use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
@@ -141,6 +140,7 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
+        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
@@ -196,6 +196,10 @@ mod batch_verification_tests;
 #[path = "unit_tests/coin_deny_list_tests.rs"]
 mod coin_deny_list_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/auth_unit_test_utils.rs"]
+pub mod auth_unit_test_utils;
+
 pub mod authority_test_utils;
 
 pub mod authority_per_epoch_store;
@@ -207,6 +211,7 @@ pub mod authority_store_types;
 pub mod epoch_start_configuration;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
+pub mod suggested_gas_price_calculator;
 pub mod test_authority_builder;
 pub mod transaction_deferral;
 
@@ -2701,8 +2706,11 @@ impl AuthorityState {
     }
 
     pub fn unixtime_now_ms() -> u64 {
-        let ts_ms = Utc::now().timestamp_millis();
-        u64::try_from(ts_ms).expect("Travelling in time machine")
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis();
+        u64::try_from(now).expect("Travelling in time machine")
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2861,6 +2869,7 @@ impl AuthorityState {
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
+        pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -2892,6 +2901,7 @@ impl AuthorityState {
             prometheus_registry,
             indirect_objects_threshold,
             archive_readers,
+            pruner_db,
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -2999,6 +3009,7 @@ impl AuthorityState {
             &self.checkpoint_store,
             self.rest_index.as_deref(),
             &self.database_for_testing().objects_lock_table,
+            None,
             config.authority_store_pruning_config,
             metrics,
             config.indirect_objects_threshold,

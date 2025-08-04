@@ -24,7 +24,8 @@ move-core-types.workspace = true
 move-trace-format.workspace = true
 move-vm-config.workspace = true
 move-vm-profiler.workspace = true
-move-vm-types.workspace = true
+# referred to via path for execution versioning
+move-vm-types = { path = "../move-vm-types" }
 
 [dev-dependencies]
 anyhow.workspace = true

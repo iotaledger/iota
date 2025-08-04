@@ -8,7 +8,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
-import { toast } from '@iota/core';
+import { toast, useGetDefaultIotaName } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
@@ -42,8 +42,8 @@ export function AccountGroupItem({
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
-    const accountName = formatAccountName(account?.nickname, account?.address);
-
+    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
         address: account.address,

@@ -246,36 +246,16 @@ impl DagState {
             );
         }
 
-        // Load the stored metrics relative to rounds that were not loaded to cache.
+        // Initialize scoring metrics according to the metrics in store and the blocks
+        // that were loaded to cache.
         let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
-        let hostnames = &state
-            .context
-            .committee
-            .authorities()
-            .map(|(_, x)| x.hostname.as_str())
-            .collect();
-        state
-            .context
-            .metrics
-            .initialize_uncached_scoring_metrics(recovered_scoring_metrics, hostnames);
-
-        // Initialize the scoring metrics relative to rounds that were loaded to cache.
-        let threshold_clock_round = state.threshold_clock_round();
-        for (authority_index, authority) in state.context.committee.authorities() {
-            let hostname = authority.hostname.as_str();
-            let eviction_round = state.evicted_rounds[authority_index];
-            let block_rounds_in_cache = state.recent_refs_by_authority[authority_index]
-                .iter()
-                .map(|block_ref| block_ref.round)
-                .collect();
-            state.context.metrics.initialize_cached_scoring_metrics(
-                authority_index,
-                hostname,
-                block_rounds_in_cache,
-                threshold_clock_round,
-                eviction_round,
-            );
-        }
+        state.context.metrics.initialize_scoring_metrics(
+            recovered_scoring_metrics,
+            &state.recent_refs_by_authority,
+            state.threshold_clock_round(),
+            &state.evicted_rounds,
+            state.context.clone(),
+        );
 
         if state.gc_enabled() {
             if let Some(last_commit) = last_commit {
@@ -1041,19 +1021,19 @@ impl DagState {
                 .join(","),
         );
 
-        // Update the scoring metrics accordingly to the flushed blocks.
+        // Update the scoring metrics accordingly to the blocks being flushed.
         let mut metrics_to_write = vec![];
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, authority) in self.context.committee.authorities() {
-            let last_evicted_round = self.evicted_rounds[authority_index];
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let last_eviction_round = self.evicted_rounds[authority_index];
+            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
             let metrics_to_write_from_authority =
                 self.context.metrics.update_scoring_metrics_on_eviction(
                     authority_index,
                     authority.hostname.as_str(),
-                    eviction_round,
-                    last_evicted_round,
                     &self.recent_refs_by_authority[authority_index],
+                    current_eviction_round,
+                    last_eviction_round,
                     threshold_clock_round,
                 );
             if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {

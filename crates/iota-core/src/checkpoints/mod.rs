@@ -13,10 +13,9 @@ use std::{
     io::Write,
     path::Path,
     sync::{Arc, Weak},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
-use chrono::Utc;
 use diffy::create_patch;
 use iota_common::{debug_fatal, fatal};
 use iota_macros::fail_point;
@@ -1190,6 +1189,24 @@ impl CheckpointBuilder {
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|(_, c)| c.size()).sum());
 
+        // When upgrading to a data-quarantining build, we need to persist the
+        // transactions and effects to the database for crash recovery. After
+        // the upgrade this is no longer needed, because recovery is driven by
+        // replay of consensus commits. This only updates the content-addressed
+        // stores (similar to state sync), it does not mark any transactions as
+        // executed.
+        self.state
+            .get_cache_commit()
+            .persist_transactions_and_effects(
+                &new_checkpoints
+                    .iter()
+                    .flat_map(|(_, c)| {
+                        c.iter()
+                            .map(|digests| (digests.transaction, digests.effects))
+                    })
+                    .collect::<Vec<_>>(),
+            );
+
         for (summary, contents) in &new_checkpoints {
             debug!(
                 checkpoint_commit_height = height,
@@ -2047,7 +2064,7 @@ async fn diagnose_split_brain(
         checkpoint_seq = local_summary.sequence_number,
         "Running split brain diagnostics..."
     );
-    let time = Utc::now();
+    let time = SystemTime::now();
     // collect one random disagreeing validator per differing digest
     let digest_to_validator = all_unique_values
         .iter()
@@ -2199,12 +2216,12 @@ async fn diagnose_split_brain(
 
     let header = format!(
         "Checkpoint Fork Dump - Authority {local_validator:?}: \n\
-        Datetime: {time}",
+        Datetime: {time:?}"
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
     let path = tempfile::tempdir()
         .expect("Failed to create tempdir")
-        .into_path()
+        .keep()
         .join(Path::new("checkpoint_fork_dump.txt"));
     let mut file = File::create(path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
@@ -2386,7 +2403,7 @@ impl CheckpointService {
         epoch_store: &AuthorityPerEpochStore,
         checkpoint: PendingCheckpoint,
     ) -> IotaResult {
-        use crate::authority::authority_per_epoch_store::ConsensusCommitOutput;
+        use crate::authority::authority_per_epoch_store::consensus_quarantine::ConsensusCommitOutput;
 
         let mut output = ConsensusCommitOutput::new();
         epoch_store.write_pending_checkpoint(&mut output, &checkpoint)?;

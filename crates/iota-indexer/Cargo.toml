@@ -25,6 +25,7 @@ futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
+rand = { workspace = true, optional = true }
 secrecy = "0.8.0"
 serde.workspace = true
 serde_with.workspace = true
@@ -58,12 +59,13 @@ move-core-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [features]
-pg_integration = []
+pg_integration = ["dep:rand"]
 shared_test_runtime = []
 
 [dev-dependencies]
 # external dependencies
 hex.workspace = true
+rand.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
