@@ -836,7 +836,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                     Ok(result)
                 };
 
-                // Get the highest of all the results. Retry until at least `f+1` results have been gathered.
+                // Get the highest of all the results. Retry until at least `2f+1` results have been gathered.
                 let mut highest_round = GENESIS_ROUND;
                 // Keep track of the received responses to avoid fetching the own block header from same peer
                 let mut received_response = vec![false; context.committee.size()];
