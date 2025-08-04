@@ -25,10 +25,10 @@ use iota_json_rpc_types::{
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+        read_authority_keypair_from_file, read_network_keypair_from_file,
         write_authority_keypair_to_file, write_keypair_to_file,
     },
-    keystore::AccountKeystore,
+    keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
@@ -60,7 +60,7 @@ use tabled::{
     },
 };
 
-use crate::{PrintableResult, fire_drill::get_gas_obj_ref};
+use crate::{PrintableResult, fire_drill::get_gas_obj_ref, signing::sign_transaction};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -173,24 +173,21 @@ fn make_key_files(
     key: Option<IotaKeyPair>,
 ) -> Result<()> {
     if file_name.exists() {
-        println!("Use existing {:?} key file.", file_name);
+        println!("Use existing {file_name:?} key file.");
         return Ok(());
     } else if is_authority_key {
         let (_, keypair) = get_authority_key_pair();
         write_authority_keypair_to_file(&keypair, file_name.clone())?;
-        println!("Generated new key file: {:?}.", file_name);
+        println!("Generated new key file: {file_name:?}.");
     } else {
         let kp = match key {
             Some(key) => {
-                println!(
-                    "Generated new key file {:?} based on iota.keystore file.",
-                    file_name
-                );
+                println!("Generated new key file {file_name:?} based on iota.keystore file.");
                 key
             }
             None => {
                 let (_, kp, _, _) = generate_new_key(SignatureScheme::ED25519, None, None)?;
-                println!("Generated new key file: {:?}.", file_name);
+                println!("Generated new key file: {file_name:?}.");
                 kp
             }
         };
@@ -216,49 +213,48 @@ impl IotaValidatorCommand {
             } => {
                 let dir = std::env::current_dir()?;
                 let authority_key_file_name = dir.join("authority.key");
-                let account_key = match context.config().keystore().get_key(&iota_address)? {
-                    IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
-                    _ => panic!(
-                        "Other account key types supported yet, please use Ed25519 keys for now."
-                    ),
-                };
-                let account_key_file_name = dir.join("account.key");
+
+                let account_key = context.config().keystore().get_key(&iota_address)?;
+
+                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                    bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
+                }
+
+                if let StoredKey::KeyPair(keypair) = account_key {
+                    let account_key_file_name = dir.join("account.key");
+                    make_key_files(account_key_file_name.clone(), false, Some(keypair.clone()))?;
+                }
+
                 let network_key_file_name = dir.join("network.key");
                 let protocol_key_file_name = dir.join("protocol.key");
                 make_key_files(authority_key_file_name.clone(), true, None)?;
-                make_key_files(account_key_file_name.clone(), false, Some(account_key))?;
                 make_key_files(network_key_file_name.clone(), false, None)?;
                 make_key_files(protocol_key_file_name.clone(), false, None)?;
 
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
-                let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file_name)?;
                 let protocol_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(protocol_key_file_name)?;
                 let network_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(network_key_file_name)?;
-                let pop = generate_proof_of_possession(
-                    &authority_keypair,
-                    (&account_keypair.public()).into(),
-                );
+
+                let account_address = IotaAddress::from(&account_key.public());
+
+                let pop = generate_proof_of_possession(&authority_keypair, account_address);
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         authority_key: authority_keypair.public().into(),
                         protocol_key: protocol_keypair.public().clone(),
-                        account_address: IotaAddress::from(&account_keypair.public()),
+                        account_address,
                         network_key: network_keypair.public().clone(),
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
-                            "/dns/{}/tcp/8080/http",
-                            host_name
+                            "/dns/{host_name}/tcp/8080/http"
                         ))?,
-                        p2p_address: Multiaddr::try_from(format!("/dns/{}/udp/8084", host_name))?,
-                        primary_address: Multiaddr::try_from(format!(
-                            "/dns/{}/udp/8081",
-                            host_name
-                        ))?,
+                        p2p_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8084"))?,
+                        primary_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8081"))?,
                         description,
                         image_url,
                         project_url,
@@ -269,10 +265,7 @@ impl IotaValidatorCommand {
                 let validator_info_file_name = dir.join("validator.info");
                 let validator_info_bytes = serde_yaml::to_string(&validator_info)?;
                 fs::write(validator_info_file_name.clone(), validator_info_bytes)?;
-                println!(
-                    "Generated validator info file: {:?}.",
-                    validator_info_file_name
-                );
+                println!("Generated validator info file: {validator_info_file_name:?}.");
                 IotaValidatorCommandResponse::MakeValidatorInfo
             }
             IotaValidatorCommand::BecomeCandidate { file, gas_budget } => {
@@ -503,7 +496,7 @@ async fn get_cap_object_ref(
         let owner = resp.owner().unwrap();
         let cap_obj_ref = resp
             .object_ref_if_exists()
-            .unwrap_or_else(|| panic!("OperationCap {} shall exist.", cap_object_id));
+            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} shall exist."));
         if owner != Owner::AddressOwner(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
@@ -620,13 +613,11 @@ async fn call_0x5(
     let sender = context.active_address()?;
     let tx_data =
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
-    let signature =
-        context
-            .config()
-            .keystore()
-            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-    let transaction = Transaction::from_data(tx_data, vec![signature]);
     let iota_client = context.get_client().await?;
+
+    let signature = sign_transaction(context, &tx_data).await?;
+    let transaction = Transaction::from_data(tx_data, vec![signature]);
+
     iota_client
         .quorum_driver_api()
         .execute_transaction_block(
@@ -662,7 +653,7 @@ impl Display for IotaValidatorCommandResponse {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
             IotaValidatorCommandResponse::SerializedPayload(response) => {
-                write!(writer, "Serialized payload: {}", response)?;
+                write!(writer, "Serialized payload: {response}")?;
             }
             IotaValidatorCommandResponse::List => {}
         }
@@ -687,7 +678,7 @@ pub fn write_transaction_response(
     let mut writer = String::new();
     for line in lines {
         let colorized_line = if success { line.green() } else { line.red() };
-        writeln!(writer, "{}", colorized_line)?;
+        writeln!(writer, "{colorized_line}")?;
     }
     Ok(writer)
 }
@@ -699,7 +690,7 @@ impl Debug for IotaValidatorCommandResponse {
             Ok(s) => s,
             Err(err) => format!("{err}").red().to_string(),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

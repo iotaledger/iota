@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, bail};
+use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
@@ -238,7 +238,7 @@ impl AdapterInitConfig {
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,
-                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().into_path()),
+                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
                 rest_api_url,
             })
         } else {
@@ -427,7 +427,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             if !output.is_empty() {
                 output.push_str(", ")
             }
-            write!(output, "{}: object({})", account, fake).unwrap()
+            write!(output, "{account}: object({fake})").unwrap()
         }
         for object_id in object_ids {
             test_adapter.enumerate_fake(object_id);
@@ -519,9 +519,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 .insert(named_addr.to_string(), package_addr);
             match prev_package.map(|a| a.into_inner()) {
                 Some(addr) if addr != AccountAddress::ZERO => panic!(
-                    "Cannot reuse named address '{}' for multiple packages. \
-                It should be set to 0 initially",
-                    named_addr
+                    "Cannot reuse named address '{named_addr}' for multiple packages. \
+                It should be set to 0 initially"
                 ),
                 _ => (),
             }
@@ -534,8 +533,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .try_as_package()
             .unwrap()
             .serialized_module_map()
-            .iter()
-            .map(|(_, published_module_bytes)| MaybeNamedCompiledModule {
+            .values()
+            .map(|published_module_bytes| MaybeNamedCompiledModule {
                 named_address: named_addr_opt,
                 module: CompiledModule::deserialize_with_defaults(published_module_bytes).unwrap(),
                 source_map: None,
@@ -617,7 +616,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     .offchain_reader
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
-                let highest_checkpoint = self.executor.get_latest_checkpoint_sequence_number()?;
+                let highest_checkpoint =
+                    self.executor.try_get_latest_checkpoint_sequence_number()?;
                 offchain_reader
                     .wait_for_checkpoint_catchup(highest_checkpoint, Duration::from_secs(60))
                     .await;
@@ -652,10 +652,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(Some(output.join("\n")))
             }
             IotaSubcommand::ViewCheckpoint => {
-                let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
+                let latest_chk = self.executor.try_get_latest_checkpoint_sequence_number()?;
                 let chk = self
                     .executor
-                    .get_checkpoint_by_sequence_number(latest_chk)?
+                    .try_get_checkpoint_by_sequence_number(latest_chk)?
                     .unwrap();
                 Ok(Some(format!("{}", chk.data())))
             }
@@ -663,14 +663,14 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 for _ in 0..count.unwrap_or(1) {
                     self.executor.create_checkpoint().await?;
                 }
-                let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
-                Ok(Some(format!("Checkpoint created: {}", latest_chk)))
+                let latest_chk = self.executor.try_get_latest_checkpoint_sequence_number()?;
+                Ok(Some(format!("Checkpoint created: {latest_chk}")))
             }
             IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand { count }) => {
                 for _ in 0..count.unwrap_or(1) {
                     self.executor.advance_epoch().await?;
                 }
-                let epoch = self.get_latest_epoch_id()?;
+                let epoch = self.try_get_latest_epoch_id()?;
                 Ok(Some(format!("Epoch advanced: {epoch}")))
             }
             IotaSubcommand::AdvanceClock(AdvanceClockCommand { duration_ns }) => {
@@ -687,7 +687,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let random_bytes = Base64::decode(&random_bytes)
                     .map_err(|e| anyhow!("Failed to decode random bytes as Base64: {e}"))?;
 
-                let latest_epoch = self.get_latest_epoch_id()?;
+                let latest_epoch = self.try_get_latest_epoch_id()?;
                 let tx = VerifiedTransaction::new_randomness_state_update(
                     latest_epoch,
                     RandomnessRound(randomness_round),
@@ -724,9 +724,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             .join(", ");
                         assert!(!modules.is_empty());
                         if num_modules > 1 {
-                            format!("{}::{{{}}}", fake_id, modules)
+                            format!("{fake_id}::{{{modules}}}")
                         } else {
-                            format!("{}::{}", fake_id, modules)
+                            format!("{fake_id}::{modules}")
                         }
                     }
                 }))
@@ -742,7 +742,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let obj_arg = IotaValue::Object(fake_id, None).into_argument(&mut builder, self)?;
                 let recipient = match self.accounts.get(&recipient) {
                     Some(test_account) => test_account.address,
-                    None => panic!("Unbound account {}", recipient),
+                    None => panic!("Unbound account {recipient}"),
                 };
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
@@ -1069,8 +1069,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         let package = obj.data.try_as_package().map(|package| {
                             package
                                 .serialized_module_map()
-                                .iter()
-                                .map(|(_, published_module_bytes)| {
+                                .values()
+                                .map(|published_module_bytes| {
                                     let module = CompiledModule::deserialize_with_defaults(
                                         published_module_bytes,
                                     )
@@ -1193,7 +1193,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         let mut err = error.to_string();
         for (name, account) in &self.accounts {
             let addr = account.address.to_string();
-            let replace = format!("@{}", name);
+            let replace = format!("@{name}");
             err = err.replace(&addr, &replace);
             // Also match without 0x since different error messages may use different
             // format.
@@ -1201,7 +1201,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         }
         for (id, fake_id) in &self.object_enumeration {
             let id = id.to_string();
-            let replace = format!("object({})", fake_id);
+            let replace = format!("object({fake_id})");
             err = err.replace(&id, &replace);
             // Also match without 0x since different error messages may use different
             // format.
@@ -1239,19 +1239,14 @@ impl IotaTestAdapter {
         self.executor
     }
 
-    fn named_variables(
-        &self,
-        cursors: &[String],
-        highest_checkpoint: u64,
-    ) -> BTreeMap<String, String> {
+    fn named_variables(&self) -> BTreeMap<String, String> {
         let mut variables = BTreeMap::new();
-        let mut objects_mapping: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 
         let named_addrs = self
             .compiled_state
             .named_address_mapping
             .iter()
-            .map(|(name, addr)| (name.clone(), format!("{:#02x}", addr)));
+            .map(|(name, addr)| (name.clone(), format!("{addr:#02x}")));
 
         for (name, addr) in named_addrs {
             let addr = addr.to_string();
@@ -1265,7 +1260,6 @@ impl IotaTestAdapter {
 
         for (oid, fid) in &self.object_enumeration {
             if let FakeID::Enumerated(x, y) = fid {
-                objects_mapping.insert(format!("obj_{x}_{y}"), oid.to_vec());
                 variables.insert(format!("obj_{x}_{y}"), oid.to_string());
                 variables.insert(format!("obj_{x}_{y}_opt"), oid.to_string());
             }
@@ -1275,45 +1269,68 @@ impl IotaTestAdapter {
             variables.insert(format!("digest_{tid}"), digest.to_string());
         }
 
-        for (idx, s) in cursors.iter().enumerate() {
-            // an object cursor may be either @{obj_x_y} or @{obj_x_y,n}
-            // if the former, then use highest_checkpoint
-            if s.starts_with("@{obj_") && s.ends_with('}') {
-                let end_of_key = s.find(',').unwrap_or(s.len() - 1);
-                let obj_lookup = s[2..end_of_key].to_string();
+        variables
+    }
 
-                let obj_id = objects_mapping.get(&obj_lookup).unwrap_or_else(|| {
-                    panic!(
-                        "Unknown object lookup: {}\nAllowed variable mappings are {:#?}",
-                        obj_lookup, variables
-                    )
-                });
+    fn interpolate_contents(
+        &self,
+        contents: &str,
+        variables: &BTreeMap<String, String>,
+    ) -> anyhow::Result<String> {
+        let mut interpolated_contents = contents.to_string();
 
-                let checkpoint = if end_of_key == s.len() - 1 {
-                    highest_checkpoint
-                } else {
-                    s[end_of_key + 1..s.len() - 1].parse::<u64>().unwrap()
-                };
+        let re = regex::Regex::new(r"@\{([^\}]+)\}").unwrap();
 
-                let bcsd = bcs::to_bytes(&(obj_id.clone(), checkpoint)).unwrap_or_default();
-                let base64d = Base64::encode(bcsd);
+        let unique_vars = re
+            .captures_iter(contents)
+            .filter_map(|c| c.get(1).map(|m| m.as_str().to_string()))
+            .collect::<std::collections::HashSet<_>>();
 
-                variables.insert(format!("cursor_{idx}"), base64d);
-            } else {
-                use base64::Engine;
+        for var_name in unique_vars {
+            let Some(value) = variables.get(&var_name) else {
+                bail!("Unknown variable: {var_name}\nAllowed variable mappings are {variables:#?}");
+            };
 
-                // To comply with how `iota-graphql-rpc` decodes the json cursor
-                // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
-                //
-                // This traces back to `async_graphql = 7.0.7` that uses no padding for
-                // encoding/decoding.
-                let base64d = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(s);
-
-                variables.insert(format!("cursor_{idx}"), base64d);
-            }
+            let pattern = format!("@{{{var_name}}}");
+            interpolated_contents = interpolated_contents.replace(&pattern, value);
         }
 
-        variables
+        Ok(interpolated_contents)
+    }
+
+    fn encode_cursor(&self, cursor: &str) -> anyhow::Result<String> {
+        // Cursor format is either bcs(object_id,n1,n2,...) or a json value,
+        // in which case we just return its base64 encoding.
+        let Some(args) = cursor
+            .strip_prefix("bcs(")
+            .and_then(|c| c.strip_suffix(")"))
+        else {
+            // To comply with how `iota-graphql-rpc` decodes the json cursor
+            // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
+            //
+            // This traces back to `async_graphql = 7.0.7` that uses no padding for
+            // encoding/decoding.
+            return Ok(base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                cursor,
+            ));
+        };
+
+        let mut parts = args.split(",");
+
+        let id: ObjectID = parts
+            .next()
+            .context("bcs(...) cursors must have at least one argument")?
+            .trim()
+            .parse()?;
+
+        let mut bytes = bcs::to_bytes(&id.to_vec())?;
+        for part in parts {
+            let n: u64 = part.trim().parse()?;
+            bytes.extend(bcs::to_bytes(&n)?);
+        }
+
+        Ok(Base64::encode(bytes))
     }
 
     fn interpolate_query(
@@ -1322,34 +1339,23 @@ impl IotaTestAdapter {
         cursors: &[String],
         highest_checkpoint: u64,
     ) -> anyhow::Result<String> {
-        let variables = self.named_variables(cursors, highest_checkpoint);
-        let mut interpolated_query = contents.to_string();
+        // First collect all the variable mappings
+        let mut variables = self.named_variables();
+        variables.insert(
+            "highest_checkpoint".to_string(),
+            highest_checkpoint.to_string(),
+        );
 
-        let re = regex::Regex::new(r"@\{([^\}]+)\}").unwrap();
+        // Then interpolate the cursors which may reference objects
+        for (idx, s) in cursors.iter().enumerate() {
+            let interpolated_cursor = self.interpolate_contents(s, &variables)?;
+            let encoded_cursor = self.encode_cursor(&interpolated_cursor)?;
 
-        let mut unique_vars = std::collections::HashSet::new();
-
-        // Collect unique variables
-        for cap in re.captures_iter(contents) {
-            if let Some(var_name) = cap.get(1) {
-                unique_vars.insert(var_name.as_str());
-            }
+            // Add the encoded cursor to the variables map because they may get used in the
+            // query.
+            variables.insert(format!("cursor_{idx}"), encoded_cursor);
         }
-
-        for var_name in unique_vars {
-            let Some(value) = variables.get(var_name) else {
-                bail!(
-                    "Unknown variable: {}\nAllowed variable mappings are {:#?}",
-                    var_name,
-                    variables
-                );
-            };
-
-            let pattern = format!("@{{{}}}", var_name);
-            interpolated_query = interpolated_query.replace(&pattern, value);
-        }
-
-        Ok(interpolated_query)
+        self.interpolate_contents(contents, &variables)
     }
 
     async fn upgrade_package(
@@ -1430,9 +1436,8 @@ impl IotaTestAdapter {
                 .insert(new_package_name.to_string(), package_addr);
             match prev_package.map(|a| a.into_inner()) {
                 Some(addr) if addr != AccountAddress::ZERO => panic!(
-                    "Cannot reuse named address '{}' for multiple packages. \
-                It should be set to 0 initially",
-                    new_package_name
+                    "Cannot reuse named address '{new_package_name}' for multiple packages. \
+                It should be set to 0 initially"
                 ),
                 _ => (),
             }
@@ -1503,7 +1508,7 @@ impl IotaTestAdapter {
         match sender {
             Some(n) => match self.accounts.get(&n) {
                 Some(test_account) => test_account,
-                None => panic!("Unbound account {}", n),
+                None => panic!("Unbound account {n}"),
             },
             None => &self.default_account,
         }
@@ -1752,9 +1757,9 @@ impl IotaTestAdapter {
 
     fn get_object(&self, id: &ObjectID, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
-            ObjectStore::get_object_by_key(&*self.executor, id, v)
+            ObjectStore::try_get_object_by_key(&*self.executor, id, v)
         } else {
-            ObjectStore::get_object(&*self.executor, id)
+            ObjectStore::try_get_object(&*self.executor, id)
         };
         match obj_res {
             Ok(Some(obj)) => Ok(obj),
@@ -1868,7 +1873,7 @@ impl IotaTestAdapter {
             .unwrap();
         }
         out.push('\n');
-        write!(out, "gas summary: {}", gas_summary).unwrap();
+        write!(out, "gas summary: {gas_summary}").unwrap();
 
         if out.is_empty() { None } else { Some(out) }
     }
@@ -1879,7 +1884,7 @@ impl IotaTestAdapter {
         }
         events
             .iter()
-            .map(|event| self.stabilize_str(format!("{:?}", event)))
+            .map(|event| self.stabilize_str(format!("{event:?}")))
             .collect::<Vec<_>>()
             .join(", ")
     }
@@ -1895,7 +1900,7 @@ impl IotaTestAdapter {
                     let id: AccountAddress = id.into();
                     format!("0x{id:x}")
                 }
-                Some(fake) => format!("object({})", fake),
+                Some(fake) => format!("object({fake})"),
             })
             .collect::<Vec<_>>()
             .join(", ")
@@ -1946,7 +1951,7 @@ impl IotaTestAdapter {
         let hex_str = if hex_str.starts_with("0x") {
             hex_str
         } else {
-            format!("0x{}", hex_str)
+            format!("0x{hex_str}")
         };
         let parsed = AccountAddress::from_hex_literal(&hex_str).unwrap();
         if let Some((known, _)) = self
@@ -1963,7 +1968,7 @@ impl IotaTestAdapter {
                 let id: AccountAddress = id.into();
                 format!("0x{id:x}")
             }
-            Some(fake) => format!("fake({})", fake),
+            Some(fake) => format!("fake({fake})"),
         }
     }
 
@@ -2005,7 +2010,7 @@ impl<'a> GetModule for &'a IotaTestAdapter {
             self.compiled_state
                 .dep_modules()
                 .find(|m| &m.self_id() == id)
-                .unwrap_or_else(|| panic!("Internal error: Unbound module {}", id)),
+                .unwrap_or_else(|| panic!("Internal error: Unbound module {id}")),
         ))
     }
 }
@@ -2015,9 +2020,9 @@ impl fmt::Display for FakeID {
         match self {
             FakeID::Known(id) => {
                 let addr: AccountAddress = (*id).into();
-                write!(f, "0x{:x}", addr)
+                write!(f, "0x{addr:x}")
             }
-            FakeID::Enumerated(task, i) => write!(f, "{},{}", task, i),
+            FakeID::Enumerated(task, i) => write!(f, "{task},{i}"),
         }
     }
 }
@@ -2392,133 +2397,130 @@ async fn update_named_address_mapping(
             && (named_address_mapping.get(&name) != Some(&addr)))
             || name == "iota"
         {
-            panic!(
-                "Invalid init. The named address '{}' is reserved or duplicated",
-                name
-            )
+            panic!("Invalid init. The named address '{name}' is reserved or duplicated")
         }
         named_address_mapping.insert(name, addr);
     }
 }
 
 impl ObjectStore for IotaTestAdapter {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        ObjectStore::get_object(&*self.executor, object_id)
+        ObjectStore::try_get_object(&*self.executor, object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        ObjectStore::get_object_by_key(&*self.executor, object_id, version)
+        ObjectStore::try_get_object_by_key(&*self.executor, object_id, version)
     }
 }
 
 impl ReadStore for IotaTestAdapter {
-    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
-        self.executor.get_latest_epoch_id()
+    fn try_get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        self.executor.try_get_latest_epoch_id()
     }
 
-    fn get_committee(
+    fn try_get_committee(
         &self,
         epoch: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::committee::Committee>>> {
-        self.executor.get_committee(epoch)
+        self.executor.try_get_committee(epoch)
     }
 
-    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        ReadStore::get_latest_checkpoint(&self.executor)
+    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        ReadStore::try_get_latest_checkpoint(&self.executor)
     }
 
-    fn get_highest_verified_checkpoint(
+    fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.executor.get_highest_verified_checkpoint()
+        self.executor.try_get_highest_verified_checkpoint()
     }
 
-    fn get_highest_synced_checkpoint(
+    fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.executor.get_highest_synced_checkpoint()
+        self.executor.try_get_highest_synced_checkpoint()
     }
 
-    fn get_lowest_available_checkpoint(
+    fn try_get_lowest_available_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        self.executor.get_lowest_available_checkpoint()
+        self.executor.try_get_lowest_available_checkpoint()
     }
 
-    fn get_checkpoint_by_digest(
+    fn try_get_checkpoint_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        self.executor.get_checkpoint_by_digest(digest)
+        self.executor.try_get_checkpoint_by_digest(digest)
     }
 
-    fn get_checkpoint_by_sequence_number(
+    fn try_get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor
-            .get_checkpoint_by_sequence_number(sequence_number)
+            .try_get_checkpoint_by_sequence_number(sequence_number)
     }
 
-    fn get_checkpoint_contents_by_digest(
+    fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
-        self.executor.get_checkpoint_contents_by_digest(digest)
+        self.executor.try_get_checkpoint_contents_by_digest(digest)
     }
 
-    fn get_checkpoint_contents_by_sequence_number(
+    fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.executor
-            .get_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_transaction(
+    fn try_get_transaction(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
-        self.executor.get_transaction(tx_digest)
+        self.executor.try_get_transaction(tx_digest)
     }
 
-    fn get_transaction_effects(
+    fn try_get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
-        self.executor.get_transaction_effects(tx_digest)
+        self.executor.try_get_transaction_effects(tx_digest)
     }
 
-    fn get_events(
+    fn try_get_events(
         &self,
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.executor.get_events(event_digest)
+        self.executor.try_get_events(event_digest)
     }
 
-    fn get_full_checkpoint_contents_by_sequence_number(
+    fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.executor
-            .get_full_checkpoint_contents_by_sequence_number(sequence_number)
+            .try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_full_checkpoint_contents(
+    fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        self.executor.get_full_checkpoint_contents(digest)
+        self.executor.try_get_full_checkpoint_contents(digest)
     }
 }

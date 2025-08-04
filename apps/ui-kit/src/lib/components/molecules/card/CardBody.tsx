@@ -39,12 +39,13 @@ export function CardBody({
                 })}
             >
                 <div
-                    className={cx('font-inter text-title-md text-neutral-10 dark:text-neutral-92', {
+                    className={cx('card-body-title-color font-inter text-title-md', {
                         truncate: isTextTruncated,
                     })}
                 >
                     {title}
                 </div>
+
                 {tooltipText ? (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
                         {icon}
@@ -60,7 +61,7 @@ export function CardBody({
             </div>
             {subtitle && (
                 <div
-                    className={cx('font-inter text-body-md text-neutral-40 dark:text-neutral-60', {
+                    className={cx('card-body-subtitle-color font-inter text-body-md', {
                         truncate: isTextTruncated,
                     })}
                 >

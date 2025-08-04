@@ -21,7 +21,6 @@ use crate::{
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
-    id::UID,
     object::{Data, MoveObject, Object},
 };
 
@@ -81,7 +80,7 @@ mod checked {
 
     impl GasCoin {
         pub fn new(id: ObjectID, value: u64) -> Self {
-            Self(Coin::new(UID::new(id), value))
+            Self(Coin::new(id, value))
         }
 
         pub fn value(&self) -> u64 {
@@ -144,7 +143,7 @@ mod checked {
             let gas_coin: GasCoin = bcs::from_bytes(value.contents()).map_err(|err| {
                 ExecutionError::new_with_source(
                     ExecutionErrorKind::InvalidGasObject,
-                    format!("Unable to deserialize gas object: {:?}", err),
+                    format!("Unable to deserialize gas object: {err:?}"),
                 )
             })?;
             Ok(gas_coin)
@@ -159,7 +158,7 @@ mod checked {
                 Data::Move(obj) => obj.try_into(),
                 Data::Package(_) => Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::InvalidGasObject,
-                    format!("Gas object type is not a gas coin: {:?}", value),
+                    format!("Gas object type is not a gas coin: {value:?}"),
                 )),
             }
         }

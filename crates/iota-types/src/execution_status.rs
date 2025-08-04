@@ -34,7 +34,7 @@ pub struct CongestedObjects(pub Vec<ObjectID>);
 impl fmt::Display for CongestedObjects {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         for obj in &self.0 {
-            write!(f, "{}, ", obj)?;
+            write!(f, "{obj}, ")?;
         }
         Ok(())
     }
@@ -194,7 +194,7 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
 
-    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}")]
+    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}.")]
     ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
@@ -208,6 +208,21 @@ pub enum ExecutionFailureStatus {
 
     #[error("Certificate is cancelled because randomness could not be generated this epoch")]
     ExecutionCancelledDueToRandomnessUnavailable,
+
+    // Certificate is cancelled due to congestion on shared objects;
+    // suggested gas price can be used to give this certificate more priority.
+    #[error(
+        "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
+            To give this certificate more priority to be executed, its gas price can be increased \
+            to at least {suggested_gas_price}."
+    )]
+    ExecutionCancelledDueToSharedObjectCongestionV2 {
+        congested_objects: CongestedObjects,
+        suggested_gas_price: u64,
+    },
+
+    #[error("A valid linkage was unable to be determined for the transaction")]
+    InvalidLinkage,
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.
 }
@@ -355,7 +370,7 @@ impl ExecutionStatus {
         match self {
             ExecutionStatus::Success => {}
             ExecutionStatus::Failure { .. } => {
-                panic!("Unable to unwrap() on {:?}", self);
+                panic!("Unable to unwrap() on {self:?}");
             }
         }
     }
@@ -363,7 +378,7 @@ impl ExecutionStatus {
     pub fn unwrap_err(self) -> (ExecutionFailureStatus, Option<CommandIndex>) {
         match self {
             ExecutionStatus::Success => {
-                panic!("Unable to unwrap() on {:?}", self);
+                panic!("Unable to unwrap() on {self:?}");
             }
             ExecutionStatus::Failure { error, command } => (error, command),
         }

@@ -1273,8 +1273,7 @@ async fn get_chain_identifier() {
     let fullnode_chain_identifier = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.state().get_chain_identifier())
-        .unwrap();
+        .with(|node| node.state().get_chain_identifier());
 
     let rpc_chain_identifier = http_client.get_chain_identifier().await.unwrap();
 
@@ -1475,7 +1474,7 @@ async fn try_get_past_object_version_not_found() {
             .with(|node| {
                 node.state()
                     .get_object_cache_reader()
-                    .object_exists_by_key(&mutated_obj_id, seq_num)
+                    .try_object_exists_by_key(&mutated_obj_id, seq_num)
             })
             .unwrap()
         {

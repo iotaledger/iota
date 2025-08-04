@@ -10,10 +10,10 @@ import {
     getKioskIdFromOwnerCap,
     isKioskOwnerToken,
     useGetNFTDisplay,
-    useGetObject,
     useKioskClient,
     useHiddenAssets,
     toast,
+    NFTMediaRenderer,
 } from '@iota/core';
 import {
     Card,
@@ -26,7 +26,6 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useResolveVideo } from '_hooks';
 import { VisibilityOff } from '@iota/apps-ui-icons';
 
 export interface HiddenAssetProps {
@@ -44,12 +43,9 @@ export function HiddenAsset(item: HiddenAssetProps) {
     const kioskClient = useKioskClient();
     const navigate = useNavigate();
     const { objectId, type } = item.data!;
-    const { data: objectData } = useGetObject(objectId);
     const { data: nftMeta } = useGetNFTDisplay(objectId);
 
     const nftName = nftMeta?.name || formatAddress(objectId);
-    const nftImageUrl = nftMeta?.imageUrl || '';
-    const video = useResolveVideo(objectData);
 
     function handleHiddenAssetClick() {
         navigate(
@@ -87,21 +83,11 @@ export function HiddenAsset(item: HiddenAssetProps) {
         <ErrorBoundary>
             <Card type={CardType.Default} onClick={handleHiddenAssetClick}>
                 <CardImage type={ImageType.BgTransparent} shape={ImageShape.SquareRounded}>
-                    {video ? (
-                        <video
-                            className="h-full w-full object-cover"
-                            src={video}
-                            controls
-                            autoPlay
-                            muted
-                        />
-                    ) : (
-                        <img
-                            src={nftImageUrl}
-                            alt={nftName}
-                            className="h-full w-full object-cover"
-                        />
-                    )}
+                    <NFTMediaRenderer
+                        src={nftMeta?.imageUrl ?? ''}
+                        alt={nftName}
+                        disableVideoControls
+                    />
                 </CardImage>
                 <CardBody title={nftMeta?.name ?? 'Asset'} subtitle={formatAddress(objectId)} />
                 <CardAction

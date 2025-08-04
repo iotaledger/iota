@@ -181,7 +181,7 @@ pub fn generate_self_cert(hostname: String) -> CertKeyPair {
 /// Load a certificate for use by the listening service
 fn load_certs(filename: &str) -> Vec<rustls::pki_types::CertificateDer<'static>> {
     let certfile = fs::File::open(filename)
-        .unwrap_or_else(|e| panic!("cannot open certificate file: {}; {}", filename, e));
+        .unwrap_or_else(|e| panic!("cannot open certificate file: {filename}; {e}"));
     let mut reader = BufReader::new(certfile);
     rustls_pemfile::certs(&mut reader)
         .collect::<Result<Vec<_>, _>>()
@@ -191,7 +191,7 @@ fn load_certs(filename: &str) -> Vec<rustls::pki_types::CertificateDer<'static>>
 /// Load a private key
 fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static> {
     let keyfile = fs::File::open(filename)
-        .unwrap_or_else(|e| panic!("cannot open private key file {}; {}", filename, e));
+        .unwrap_or_else(|e| panic!("cannot open private key file {filename}; {e}"));
     let mut reader = BufReader::new(keyfile);
 
     loop {
@@ -204,10 +204,7 @@ fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static>
         }
     }
 
-    panic!(
-        "no keys found in {:?} (encrypted keys not supported)",
-        filename
-    );
+    panic!("no keys found in {filename:?} (encrypted keys not supported)");
 }
 
 /// load the static keys we'll use to allow external non-validator nodes to push
@@ -265,7 +262,7 @@ pub fn create_server_cert_enforce_peer(
         ));
     };
     let static_peers = load_static_peers(static_peers).map_err(|e| {
-        iota_tls::rustls::Error::General(format!("unable to load static pub keys: {}", e))
+        iota_tls::rustls::Error::General(format!("unable to load static pub keys: {e}"))
     })?;
     let allower = IotaNodeProvider::new(dynamic_peers.url, dynamic_peers.interval, static_peers);
     allower.poll_peer_list();

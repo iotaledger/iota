@@ -224,7 +224,7 @@ fn called_packages(
     {
         let package = reader
             .inner()
-            .get_object(&(move_call.package.into()))?
+            .try_get_object(&(move_call.package.into()))?
             .ok_or_else(|| ObjectNotFoundError::new(move_call.package))?
             .data
             .try_as_package()
@@ -322,13 +322,13 @@ fn resolve_object_reference(
     let (v, d) = if let Some(version) = version {
         let object = reader
             .inner()
-            .get_object_by_key(&id, version.into())?
+            .try_get_object_by_key(&id, version.into())?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
         (object.version(), object.digest())
     } else {
         let object = reader
             .inner()
-            .get_object(&id)?
+            .try_get_object(&id)?
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
         (object.version(), object.digest())
     };
@@ -394,7 +394,7 @@ fn resolve_arg(
             let id = object_id.into();
             let object = reader
                 .inner()
-                .get_object(&id)?
+                .try_get_object(&id)?
                 .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
 
             let initial_shared_version = if let iota_types::object::Owner::Shared {
@@ -563,10 +563,18 @@ fn select_gas(
 ) -> Result<Vec<ObjectRef>> {
     let gas_coins = reader
         .inner()
+        .indexes()
+        .ok_or_else(RestError::not_found)?
         .account_owned_objects_info_iter(owner, None)?
         .filter(|info| info.type_.is_gas_coin())
         .filter(|info| !input_objects.contains(&info.object_id))
-        .filter_map(|info| reader.inner().get_object(&info.object_id).ok().flatten())
+        .filter_map(|info| {
+            reader
+                .inner()
+                .try_get_object(&info.object_id)
+                .ok()
+                .flatten()
+        })
         .filter_map(|object| {
             GasCoin::try_from(&object)
                 .ok()

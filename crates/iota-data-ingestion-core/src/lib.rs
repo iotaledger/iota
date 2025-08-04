@@ -29,7 +29,7 @@ mod executor;
 pub mod history;
 mod metrics;
 mod progress_store;
-mod reader;
+pub mod reader;
 mod reducer;
 #[cfg(test)]
 mod tests;
@@ -47,7 +47,7 @@ pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_wo
 use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
-pub use reader::ReaderOptions;
+pub use reader::v1::ReaderOptions;
 pub use reducer::Reducer;
 pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;

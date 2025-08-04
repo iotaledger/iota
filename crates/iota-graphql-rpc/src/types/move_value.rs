@@ -106,10 +106,16 @@ impl MoveValue {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
+        let Some(layout) = self.type_.layout_impl(resolver).await.extend()? else {
+            return Err(Error::Internal(
+                "Move value must have valid layout".to_string(),
+            ))
+            .extend();
+        };
+
         // Factor out into its own non-GraphQL, non-async function for better
         // testability
-        self.data_impl(self.type_.layout_impl(resolver).await.extend()?)
-            .extend()
+        self.data_impl(layout).extend()
     }
 
     /// Representation of a Move value in JSON, where:
@@ -131,16 +137,22 @@ impl MoveValue {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
+        let Some(layout) = self.type_.layout_impl(resolver).await.extend()? else {
+            return Err(Error::Internal(
+                "Move value must have valid layout".to_string(),
+            ))
+            .extend();
+        };
+
         // Factor out into its own non-GraphQL, non-async function for better
         // testability
-        self.json_impl(self.type_.layout_impl(resolver).await.extend()?)
-            .extend()
+        self.json_impl(layout).extend()
     }
 }
 
 impl MoveValue {
     pub fn new(tag: TypeTag, bcs: Base64) -> Self {
-        let type_ = MoveType::new(tag);
+        let type_ = MoveType::from(tag);
         Self { type_, bcs }
     }
 
@@ -149,8 +161,7 @@ impl MoveValue {
         BoundedVisitor::deserialize_value(&self.bcs.0[..], &layout).map_err(|_| {
             let type_tag: TypeTag = (&layout).into();
             Error::Internal(format!(
-                "Failed to deserialize Move value for type: {}",
-                type_tag
+                "Failed to deserialize Move value for type: {type_tag}"
             ))
         })
     }
@@ -513,7 +524,7 @@ mod tests {
         // The format for type from its `Display` impl does not technically match the
         // format that the RPC expects from the data layer (where a type's
         // package should be canonicalized), but it will suffice.
-        data_with_tag(format!("{}", tag), layout, data)
+        data_with_tag(format!("{tag}"), layout, data)
     }
 
     fn data_with_tag<T: Serialize>(
@@ -522,14 +533,14 @@ mod tests {
         data: T,
     ) -> Result<MoveData, Error> {
         let tag = TypeTag::from_str(tag.into().as_str()).unwrap();
-        let type_ = MoveType::new(tag);
+        let type_ = MoveType::from(tag);
         let bcs = Base64(bcs::to_bytes(&data).unwrap());
         MoveValue { type_, bcs }.data_impl(layout)
     }
 
     fn json<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<Json, Error> {
         let tag: TypeTag = (&layout).into();
-        let type_ = MoveType::new(tag);
+        let type_ = MoveType::from(tag);
         let bcs = Base64(bcs::to_bytes(&data).unwrap());
         MoveValue { type_, bcs }.json_impl(layout)
     }

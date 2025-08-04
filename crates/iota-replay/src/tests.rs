@@ -78,8 +78,7 @@ async fn verify_latest_tx_replay_impl() {
 
                 if non_system_txs.is_none() {
                     panic!(
-                        "No non-system txs found in the last {} checkpoints for network {} using rpc url {}",
-                        NUM_CHECKPOINTS_TO_ATTEMPT, chain_id, url
+                        "No non-system txs found in the last {NUM_CHECKPOINTS_TO_ATTEMPT} checkpoints for network {chain_id} using rpc url {url}"
                     );
                 }
                 let tx: TransactionDigest = non_system_txs.unwrap();
@@ -98,7 +97,7 @@ async fn verify_latest_tx_replay_impl() {
 
     for (url, ret) in rets {
         if let Err(e) = ret {
-            panic!("Replay failed for network {} with error {:?}", url, e);
+            panic!("Replay failed for network {url} with error {e:?}");
         }
     }
 }

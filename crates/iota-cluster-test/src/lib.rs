@@ -166,14 +166,13 @@ impl TestContext {
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await
-            .unwrap_or_else(|e| panic!("Failed to execute transaction for {}. {}", desc, e));
+            .unwrap_or_else(|e| panic!("Failed to execute transaction for {desc}. {e}"));
         assert!(
             matches!(
                 resp.effects.as_ref().unwrap().status(),
                 IotaExecutionStatus::Success
             ),
-            "Failed to execute transaction for {desc}: {:?}",
-            resp
+            "Failed to execute transaction for {desc}: {resp:?}"
         );
         resp
     }
@@ -203,7 +202,7 @@ impl TestContext {
         loop {
             tokio::select! {
                 _ = &mut sleep => {
-                    panic!("Fullnode does not know all of {:?} after {} secs.", digests, timeout_sec);
+                    panic!("Fullnode does not know all of {digests:?} after {timeout_sec} secs.");
                 }
                 res = futures.next() => {
                     match res {

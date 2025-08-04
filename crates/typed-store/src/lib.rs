@@ -93,7 +93,7 @@ pub type StoreError = typed_store_error::TypedStoreError;
 ///             "Failed to open temporary
 /// directory",
 ///         )
-///         .into_path();
+///         .keep();
 ///
 ///     // We can then open the DB with the configs
 ///     let _ = Tables::open_tables_read_write(
@@ -151,7 +151,7 @@ pub type StoreError = typed_store_error::TypedStoreError;
 ///     use typed_store::rocks::MetricConf;
 ///     let primary_path = tempfile::tempdir()
 ///         .expect("Failed to open temporary directory")
-///         .into_path();
+///         .keep();
 ///     let _ = Tables::open_tables_read_write(
 ///         primary_path.clone(),
 ///         typed_store::rocks::MetricConf::default(),

@@ -72,6 +72,12 @@ iota-json-rpc-types:
   - "crates/iota-json-rpc-types/**"
 iota-keys:
   - "crates/iota-keys/**"
+iota-kvstore:
+  - "crates/iota-kvstore/**"
+iota-ledger:
+  - "crates/iota-ledger/**"
+iota-ledger-signer:
+  - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
 iota-macros:
@@ -144,6 +150,8 @@ iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
   - "crates/iota-swarm-config/**"
+iota-synthetic-ingestion:
+  - "crates/iota-synthetic-ingestion/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
 iota-tls:

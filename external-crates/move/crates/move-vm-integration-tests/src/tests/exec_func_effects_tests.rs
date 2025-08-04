@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::convert::TryInto;
@@ -54,8 +54,7 @@ fn fail_arg_deserialize() {
     }
 }
 
-// check happy path for writing to mut ref args - may be unnecessary / covered
-// by other tests
+// check happy path for writing to mut ref args - may be unnecessary / covered by other tests
 #[test]
 fn mutref_output_success() {
     let mod_code = setup_module();

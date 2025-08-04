@@ -132,7 +132,7 @@ pub async fn get_verified_effects_and_events(
 
     // find the stored checkpoint before the seq checkpoint
     let prev_ckp_id = checkpoints_list
-        .checkpoints()
+        .checkpoints
         .iter()
         .filter(|ckp_id| **ckp_id < seq)
         .next_back();
@@ -231,7 +231,7 @@ pub async fn get_verified_checkpoint(
 
     // find the stored checkpoint before the seq checkpoint
     let prev_ckp_id = checkpoints_list
-        .checkpoints()
+        .checkpoints
         .iter()
         .filter(|ckp_id| **ckp_id < seq)
         .next_back();
@@ -293,8 +293,51 @@ mod tests {
     use super::*;
 
     const FIXTURES_DIR: &str = "tests/fixtures";
-    const FIXTURE_1: &str = "235.sum";
-    const FIXTURE_2: &str = "469.chk";
+
+    async fn read_test_data() -> (Committee, CheckpointData) {
+        let mut config = Config::mainnet();
+        config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
+
+        let checkpoint_list =
+            read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
+
+        let committee_seq = checkpoint_list
+            .checkpoints
+            .first()
+            .expect("there should be a first checkpoint in the checkpoints.yaml");
+        let seq = checkpoint_list
+            .checkpoints
+            .get(1)
+            .expect("there should be a second checkpoint in the checkpoints.yaml");
+
+        read_data(*committee_seq, *seq).await
+    }
+
+    async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) {
+        let checkpoint_summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join(format!("{committee_seq}.sum"));
+        let summary = read_checkpoint_summary(&checkpoint_summary_path)
+            .await
+            .unwrap();
+        let prev_committee = summary
+            .end_of_epoch_data
+            .as_ref()
+            .expect("Expected all checkpoints to be end-of-epoch checkpoints")
+            .next_epoch_committee
+            .iter()
+            .cloned()
+            .collect();
+
+        let committee = Committee::new(summary.epoch().checked_add(1).unwrap(), prev_committee);
+
+        let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join(format!("{seq}.chk"));
+        let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).await.unwrap();
+
+        (committee, full_checkpoint)
+    }
 
     async fn read_checkpoint_summary(
         checkpoint_path: &PathBuf,
@@ -314,36 +357,9 @@ mod tests {
         bcs::from_bytes(&buffer).context("failed to deserialize full checkpoint from bcs bytes")
     }
 
-    async fn read_data() -> (Committee, CheckpointData) {
-        let checkpoint_summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join(FIXTURES_DIR)
-            .join(FIXTURE_1);
-        let summary_checkpoint = read_checkpoint_summary(&checkpoint_summary_path)
-            .await
-            .unwrap();
-        let prev_committee = summary_checkpoint
-            .end_of_epoch_data
-            .as_ref()
-            .expect("Expected all checkpoints to be end-of-epoch checkpoints")
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
-        let committee = Committee::new(
-            summary_checkpoint.epoch().checked_add(1).unwrap(),
-            prev_committee,
-        );
-        let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join(FIXTURES_DIR)
-            .join(FIXTURE_2);
-        let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).await.unwrap();
-
-        (committee, full_checkpoint)
-    }
-
     #[tokio::test]
     async fn test_checkpoint_all_good() {
-        let (committee, full_checkpoint) = read_data().await;
+        let (committee, full_checkpoint) = read_test_data().await;
         let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0).unwrap();
@@ -351,7 +367,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint_bad_committee() {
-        let (mut committee, full_checkpoint) = read_data().await;
+        let (mut committee, full_checkpoint) = read_test_data().await;
         let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         // Change committee
@@ -365,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint_no_transaction() {
-        let (committee, full_checkpoint) = read_data().await;
+        let (committee, full_checkpoint) = read_test_data().await;
 
         assert!(
             extract_verified_effects_and_events(
@@ -380,7 +396,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint_bad_contents() {
-        let (committee, mut full_checkpoint) = read_data().await;
+        let (committee, mut full_checkpoint) = read_test_data().await;
         let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         // Change contents
@@ -395,7 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint_bad_events() {
-        let (committee, mut full_checkpoint) = read_data().await;
+        let (committee, mut full_checkpoint) = read_test_data().await;
         // Add a random event to the transaction, so the event digest doesn't match
         let tx0 = &mut full_checkpoint.transactions[0];
         let tx_digest_0 = *tx0.transaction.digest();

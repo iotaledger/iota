@@ -116,18 +116,13 @@ impl MoveObject {
         }
     }
 
-    pub fn new_coin(
-        coin_type: MoveObjectType,
-        version: SequenceNumber,
-        id: ObjectID,
-        value: u64,
-    ) -> Self {
+    pub fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                coin_type,
+                MoveObjectType::coin(coin_type),
                 version,
-                GasCoin::new(id, value).to_bcs_bytes(),
+                Coin::new(id, value).to_bcs_bytes(),
                 256,
             )
             .unwrap()
@@ -529,10 +524,10 @@ impl Display for Owner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AddressOwner(address) => {
-                write!(f, "Account Address ( {} )", address)
+                write!(f, "Account Address ( {address} )")
             }
             Self::ObjectOwner(address) => {
-                write!(f, "Object ID: ( {} )", address)
+                write!(f, "Object ID: ( {address} )")
             }
             Self::Immutable => {
                 write!(f, "Immutable")
@@ -630,15 +625,13 @@ impl Object {
     pub fn new_package<'p>(
         modules: &[CompiledModule],
         previous_transaction: TransactionDigest,
-        max_move_package_size: u64,
-        move_binary_format_version: u32,
+        protocol_config: &ProtocolConfig,
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
             Data::Package(MovePackage::new_initial(
                 modules,
-                max_move_package_size,
-                move_binary_format_version,
+                protocol_config,
                 dependencies,
             )?),
             previous_transaction,
@@ -671,13 +664,7 @@ impl Object {
     ) -> Result<Self, ExecutionError> {
         let dependencies: Vec<_> = dependencies.into_iter().collect();
         let config = ProtocolConfig::get_for_max_version_UNSAFE();
-        Self::new_package(
-            modules,
-            previous_transaction,
-            config.max_move_package_size(),
-            config.move_binary_format_version(),
-            &dependencies,
-        )
+        Self::new_package(modules, previous_transaction, &config, &dependencies)
     }
 
     /// Create a system package which is not subject to size limits. Panics if
@@ -1007,7 +994,7 @@ impl Object {
     pub fn with_id_owner_version_for_testing(
         id: ObjectID,
         version: SequenceNumber,
-        owner: IotaAddress,
+        owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
@@ -1015,7 +1002,7 @@ impl Object {
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner,
             data,
             previous_transaction: TransactionDigest::genesis_marker(),
             storage_rebate: 0,
@@ -1107,13 +1094,13 @@ impl Display for ObjectRead {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Deleted(oref) => {
-                write!(f, "ObjectRead::Deleted ({:?})", oref)
+                write!(f, "ObjectRead::Deleted ({oref:?})")
             }
             Self::NotExists(id) => {
-                write!(f, "ObjectRead::NotExists ({:?})", id)
+                write!(f, "ObjectRead::NotExists ({id:?})")
             }
             Self::Exists(oref, _, _) => {
-                write!(f, "ObjectRead::Exists ({:?})", oref)
+                write!(f, "ObjectRead::Exists ({oref:?})")
             }
         }
     }
@@ -1169,19 +1156,18 @@ impl Display for PastObjectRead {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObjectDeleted(oref) => {
-                write!(f, "PastObjectRead::ObjectDeleted ({:?})", oref)
+                write!(f, "PastObjectRead::ObjectDeleted ({oref:?})")
             }
             Self::ObjectNotExists(id) => {
-                write!(f, "PastObjectRead::ObjectNotExists ({:?})", id)
+                write!(f, "PastObjectRead::ObjectNotExists ({id:?})")
             }
             Self::VersionFound(oref, _, _) => {
-                write!(f, "PastObjectRead::VersionFound ({:?})", oref)
+                write!(f, "PastObjectRead::VersionFound ({oref:?})")
             }
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({:?}, asked sequence number {:?})",
-                    object_id, version
+                    "PastObjectRead::VersionNotFound ({object_id:?}, asked sequence number {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -1191,8 +1177,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({:?}, asked sequence number {:?}, latest sequence number {:?})",
-                    object_id, asked_version, latest_version
+                    "PastObjectRead::VersionTooHigh ({object_id:?}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
                 )
             }
         }

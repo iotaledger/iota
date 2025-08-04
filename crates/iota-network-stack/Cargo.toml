@@ -8,6 +8,7 @@ publish = false
 description = "IOTA's network tooling"
 
 [dependencies]
+# external dependencies
 anemo.workspace = true
 bcs.workspace = true
 bytes.workspace = true
@@ -15,6 +16,7 @@ eyre.workspace = true
 futures.workspace = true
 http.workspace = true
 http-body.workspace = true
+hyper-rustls.workspace = true
 hyper-util.workspace = true
 multiaddr = "0.17.0"
 once_cell.workspace = true
@@ -22,9 +24,12 @@ pin-project-lite = "0.2.13"
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
-tokio-stream.workspace = true
+tokio-rustls.workspace = true
 tonic.workspace = true
 tonic-health.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+
+# internal dependencies
+iota-http.workspace = true

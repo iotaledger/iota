@@ -11,14 +11,15 @@ ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "/iota"
 
 # Install build dependencies, including clang and lld for faster linking
-RUN apt update && apt install -y cmake clang lld
+# libudev for Ledger hardware wallets
+RUN apt update && apt install -y cmake clang lld libudev-dev
 
 # Configure Rust to use clang and lld as the linker
 RUN mkdir -p ~/.cargo && \
     echo -e "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=lld\"]" > ~/.cargo/config.toml
 
-# Install additional dependencies
-RUN apt install -y libpq5 libpq-dev ca-certificates
+# Install additional dependencies (git is needed when fetching move dependencies during builds)
+RUN apt install -y libpq5 libpq-dev ca-certificates git
 
 # Copy in all crates, Cargo.toml, and Cargo.lock
 COPY consensus consensus

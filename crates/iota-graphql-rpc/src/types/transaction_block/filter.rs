@@ -28,6 +28,7 @@ pub(crate) struct TransactionBlockFilter {
 
     pub input_object: Option<IotaAddress>,
     pub changed_object: Option<IotaAddress>,
+    pub wrapped_or_deleted_object: Option<IotaAddress>,
 
     pub transaction_ids: Option<Vec<Digest>>,
 }
@@ -57,6 +58,7 @@ impl TransactionBlockFilter {
             recv_address: intersect!(recv_address, intersect::by_eq)?,
             input_object: intersect!(input_object, intersect::by_eq)?,
             changed_object: intersect!(changed_object, intersect::by_eq)?,
+            wrapped_or_deleted_object: intersect!(wrapped_or_deleted_object, intersect::by_eq)?,
 
             transaction_ids: intersect!(transaction_ids, |a, b| {
                 let a = BTreeSet::from_iter(a.into_iter());
@@ -77,6 +79,7 @@ impl TransactionBlockFilter {
             self.recv_address.is_some(),
             self.input_object.is_some(),
             self.changed_object.is_some(),
+            self.wrapped_or_deleted_object.is_some(),
             self.transaction_ids.is_some(),
         ]
         .into_iter()
@@ -93,6 +96,7 @@ impl TransactionBlockFilter {
             && self.recv_address.is_none()
             && self.input_object.is_none()
             && self.changed_object.is_none()
+            && self.wrapped_or_deleted_object.is_none()
         {
             self.sign_address
         } else {
@@ -109,6 +113,7 @@ impl TransactionBlockFilter {
             || self.recv_address.is_some()
             || self.input_object.is_some()
             || self.changed_object.is_some()
+            || self.wrapped_or_deleted_object.is_some()
             || self.transaction_ids.is_some()
     }
 

@@ -300,3 +300,16 @@ node-operation:
 infrastructure:
   label: Infrastructure
   description: Infrastructure
+
+# Notarization
+notarization:
+  label: Notarization
+  description: The IOTA Notarization API.
+
+dynamic-notarization:
+  label: Dynamic Notarization
+  description: Create a dynamic, mutable record.
+
+locked-notarization:
+  label: Locked Notarization
+  description: Create a permanent, immutable record.

@@ -23,7 +23,7 @@ use iota_types::{
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
-use itertools::izip;
+use itertools::{Itertools as _, izip};
 use parking_lot::{Mutex, MutexGuard, RwLock};
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use shared_crypto::intent::Intent;
@@ -126,6 +126,8 @@ struct ZkLoginParams {
     pub accept_passkey_in_multisig: bool,
     /// Value that sets the upper bound for max_epoch in zkLogin signature.
     pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
+    /// Flag to determine whether additional multisig checks are performed.
+    pub additional_multisig_checks: bool,
 }
 
 impl SignatureVerifier {
@@ -137,6 +139,7 @@ impl SignatureVerifier {
         accept_zklogin_in_multisig: bool,
         accept_passkey_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
+        additional_multisig_checks: bool,
     ) -> Self {
         Self {
             committee,
@@ -163,6 +166,7 @@ impl SignatureVerifier {
                 accept_zklogin_in_multisig,
                 accept_passkey_in_multisig,
                 zklogin_max_epoch_upper_bound_delta,
+                additional_multisig_checks,
             },
         }
     }
@@ -174,6 +178,7 @@ impl SignatureVerifier {
         accept_zklogin_in_multisig: bool,
         accept_passkey_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
+        additional_multisig_checks: bool,
     ) -> Self {
         Self::new_with_batch_size(
             committee,
@@ -183,14 +188,15 @@ impl SignatureVerifier {
             accept_zklogin_in_multisig,
             accept_passkey_in_multisig,
             zklogin_max_epoch_upper_bound_delta,
+            additional_multisig_checks,
         )
     }
 
     /// Verifies all certs, returns Ok only if all are valid.
     pub fn verify_certs_and_checkpoints(
         &self,
-        certs: Vec<CertifiedTransaction>,
-        checkpoints: Vec<SignedCheckpointSummary>,
+        certs: Vec<&CertifiedTransaction>,
+        checkpoints: Vec<&SignedCheckpointSummary>,
     ) -> IotaResult {
         let certs: Vec<_> = certs
             .into_iter()
@@ -330,7 +336,11 @@ impl SignatureVerifier {
     ) {
         let _scope = monitored_scope("BatchCertificateVerifier::process_queue");
 
-        let results = batch_verify_certificates(&committee, &buffer.certs, zklogin_inputs_cache);
+        let results = batch_verify_certificates(
+            &committee,
+            &buffer.certs.iter().collect_vec(),
+            zklogin_inputs_cache,
+        );
         izip!(
             results.into_iter(),
             buffer.certs.into_iter(),
@@ -386,6 +396,7 @@ impl SignatureVerifier {
                     self.zk_login_params.accept_zklogin_in_multisig,
                     self.zk_login_params.accept_passkey_in_multisig,
                     self.zk_login_params.zklogin_max_epoch_upper_bound_delta,
+                    self.zk_login_params.additional_multisig_checks,
                 );
                 verify_sender_signed_data_message_signatures(
                     signed_tx,
@@ -516,8 +527,8 @@ impl SignatureVerifierMetrics {
 /// Verifies all certificates - if any fail return error.
 pub fn batch_verify_all_certificates_and_checkpoints(
     committee: &Committee,
-    certs: &[CertifiedTransaction],
-    checkpoints: &[SignedCheckpointSummary],
+    certs: &[&CertifiedTransaction],
+    checkpoints: &[&SignedCheckpointSummary],
 ) -> IotaResult {
     // certs.data() is assumed to be verified already by the caller.
 
@@ -532,7 +543,7 @@ pub fn batch_verify_all_certificates_and_checkpoints(
 /// cert.
 pub fn batch_verify_certificates(
     committee: &Committee,
-    certs: &[CertifiedTransaction],
+    certs: &[&CertifiedTransaction],
     zk_login_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 ) -> Vec<IotaResult> {
     // certs.data() is assumed to be verified already by the caller.
@@ -556,8 +567,8 @@ pub fn batch_verify_certificates(
 
 fn batch_verify(
     committee: &Committee,
-    certs: &[CertifiedTransaction],
-    checkpoints: &[SignedCheckpointSummary],
+    certs: &[&CertifiedTransaction],
+    checkpoints: &[&SignedCheckpointSummary],
 ) -> IotaResult {
     let mut obligation = VerificationObligation::default();
 

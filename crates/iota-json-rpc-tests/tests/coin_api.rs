@@ -47,7 +47,7 @@ async fn create_and_mint_coins(
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::default().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
@@ -188,7 +188,7 @@ async fn get_coins() -> Result<(), anyhow::Error> {
             Some(3),
         )
         .await?;
-    assert_eq!(2, result.data.len(), "{:?}", result);
+    assert_eq!(2, result.data.len(), "{result:?}");
     assert!(!result.has_next_page);
 
     let result: CoinPage = http_client
@@ -199,7 +199,7 @@ async fn get_coins() -> Result<(), anyhow::Error> {
             None,
         )
         .await?;
-    assert_eq!(0, result.data.len(), "{:?}", result);
+    assert_eq!(0, result.data.len(), "{result:?}");
     assert!(!result.has_next_page);
 
     Ok(())

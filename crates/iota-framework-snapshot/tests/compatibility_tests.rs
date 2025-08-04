@@ -75,7 +75,16 @@ mod compatibility_tests {
         );
     }
 
-    /// This test checks that the the `SinglePackage` entries in `manifest.json`
+    /// This test checks that the `SinglePackage` entries in `manifest.json`
+    /// match the metadata in the `Move.toml` files in the repo.
+    ///
+    /// Note that this test currently assumes that no framework packages will be
+    /// removed or moved within the repo; we check the historical metadata
+    /// against the current repository. If needed, we could be more precise
+    /// by first checking out the revision of the package listed
+    /// in the manifest (this should actually be fairly cheap since the git
+    /// history is present).
+    /// This test checks that the `SinglePackage` entries in `manifest.json`
     /// match the metadata in the `Move.toml` files in the repo for each
     /// revision.
     #[test]

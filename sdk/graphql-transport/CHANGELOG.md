@@ -1,5 +1,40 @@
 # @iota/graphql-transport
 
+## 0.8.0
+
+### Minor Changes
+
+-   ecea738: Improved logic around `fallbackMethods` in graphql-transport Introduced
+    `unsupportedMethods` in graphql-transport Improved IotaClient compatibility with
+    graphql-transport
+
+### Patch Changes
+
+-   ecea738: Added missing GraphQL query option fields.
+-   59342b2: Renamed all instances of 'domain' to 'name' for IOTA-Names.
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [59342b2]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [ecea738]
+    -   @iota/iota-sdk@1.4.0
+    -   @iota/bcs@1.1.0
+
+## 0.7.0
+
+### Minor Changes
+
+-   c837b79: Removed support for iota-bridge
+
+### Patch Changes
+
+-   Updated dependencies [6051799]
+-   Updated dependencies [5db9797]
+-   Updated dependencies [c4c6d9a]
+-   Updated dependencies [c837b79]
+    -   @iota/iota-sdk@1.3.0
+
 ## 0.6.0
 
 ### Minor Changes

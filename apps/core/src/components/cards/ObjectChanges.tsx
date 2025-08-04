@@ -55,7 +55,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                         trailingElement={
                             <TriangleDown
                                 className={cx(
-                                    'ml-xxxs h-5 w-5 text-neutral-60',
+                                    'ml-xxxs h-5 w-5 text-iota-neutral-60',
                                     open
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',

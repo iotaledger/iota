@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS tx_wrapped_or_deleted_objects;
