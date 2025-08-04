@@ -1452,7 +1452,7 @@ Creates an adapter for the given tasks, using the first task command to initiali
 
 ### Execution Process in `run_tasks_with_adapter`
 
-The `run_tasks_with_adapter` function is responsible for runnig the tasks from path
+The `run_tasks_with_adapter` function is responsible for running the tasks from path
 
 1. Parsing and Executing Commands from the `.move` File.
    - Reads the `.move` file.
