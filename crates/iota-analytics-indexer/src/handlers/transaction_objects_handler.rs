@@ -6,9 +6,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
-    base_types::ObjectID, effects::TransactionEffects, transaction::TransactionDataAPI,
+    base_types::ObjectID,
+    effects::TransactionEffects,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    transaction::TransactionDataAPI,
 };
 use tokio::sync::Mutex;
 

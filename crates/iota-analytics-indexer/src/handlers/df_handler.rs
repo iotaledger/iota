@@ -10,11 +10,11 @@ use iota_data_ingestion_core::Worker;
 use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES, TypeTag,
     base_types::ObjectID,
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::{Object, bounded_visitor::BoundedVisitor},
 };
 use tap::tap::TapFallible;
