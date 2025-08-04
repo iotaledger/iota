@@ -29,7 +29,6 @@ const users = [
                   'users/iota-wallet/how-to/import/ledger',
                   'users/iota-wallet/how-to/import/mnemonic',
                   'users/iota-wallet/how-to/import/seed',
-                  'users/iota-wallet/how-to/import/legacy',
                   'users/iota-wallet/how-to/import/balance-finder',
                   'users/iota-wallet/how-to/import/migration',
                 ],

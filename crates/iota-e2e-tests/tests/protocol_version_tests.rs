@@ -65,6 +65,7 @@ mod sim_only_tests {
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
+    use iota_protocol_config::Chain;
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
@@ -86,7 +87,7 @@ mod sim_only_tests {
             TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
         },
     };
-    use move_binary_format::{CompiledModule, file_format_common::VERSION_MAX};
+    use move_binary_format::CompiledModule;
     use move_core_types::ident_str;
     use test_cluster::TestCluster;
     use tokio::time::{Duration, sleep};
@@ -447,8 +448,8 @@ mod sim_only_tests {
                 &cluster,
                 ProgrammableMoveCall {
                     package: iota_extra,
-                    module: ident_str!("msim_extra_1").to_owned(),
-                    function: ident_str!("canary").to_owned(),
+                    module: "msim_extra_1".to_owned(),
+                    function: "canary".to_owned(),
                     type_arguments: vec![],
                     arguments: vec![],
                 }
@@ -477,8 +478,8 @@ mod sim_only_tests {
             cluster,
             ProgrammableMoveCall {
                 package: IOTA_SYSTEM_PACKAGE_ID,
-                module: ident_str!("msim_extra_1").to_owned(),
-                function: ident_str!("canary").to_owned(),
+                module: "msim_extra_1".to_owned(),
+                function: "canary".to_owned(),
                 type_arguments: vec![],
                 arguments: vec![],
             },
@@ -994,8 +995,7 @@ mod sim_only_tests {
         Object::new_package(
             &iota_system_modules(fixture),
             TransactionDigest::genesis_marker(),
-            u64::MAX,
-            VERSION_MAX,
+            &ProtocolConfig::get_for_version(FINISH.into(), Chain::Unknown),
             &[
                 BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
                 BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)

@@ -30,8 +30,12 @@ use iota_graphql_rpc::{
 #[cfg(feature = "indexer")]
 use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_move::{self, execute_move_command};
-use iota_move_build::IotaPackageHooks;
+use iota_move::{self, execute_move_command, manage_package::resolve_lock_file_path};
+use iota_move_build::{
+    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_invalid_dependencies,
+    check_unpublished_dependencies, implicit_deps,
+};
+use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -50,6 +54,7 @@ use iota_types::{
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
+use serde_json::json;
 use tempfile::tempdir;
 use tracing::{self, info};
 use url::Url;
@@ -58,7 +63,7 @@ use url::Url;
 use crate::name_commands;
 use crate::{
     PrintableResult,
-    client_commands::IotaClientCommands,
+    client_commands::{IotaClientCommands, pkg_tree_shake},
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
@@ -502,26 +507,71 @@ impl IotaCommand {
             IotaCommand::Move {
                 package_path,
                 build_config,
-                mut cmd,
+                cmd,
                 config: client_config,
             } => {
-                match &mut cmd {
+                match cmd {
                     iota_move::Command::Build(build) if build.dump_bytecode_as_base64 => {
-                        if build.ignore_chain {
-                            build.chain_id = None;
-                        } else {
-                            // `iota move build` does not ordinarily require a network connection.
-                            // The exception is when --dump-bytecode-as-base64 is specified: In this
-                            // case, we should resolve the correct addresses for the respective
-                            // chain (e.g., testnet, mainnet) from the Move.lock under automated
-                            // address management.
-                            let config = client_config
-                                .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                            prompt_if_no_config(&config, false, true, true)?;
-                            let context = WalletContext::new(&config, None, None)?;
-                            let client = context.get_client().await?;
-                            build.chain_id = client.read_api().get_chain_identifier().await.ok();
+                        // `iota move build` does not ordinarily require a network connection.
+                        // The exception is when --dump-bytecode-as-base64 is specified: In this
+                        // case, we should resolve the correct addresses for the respective chain
+                        // (e.g., testnet, mainnet) from the Move.lock under automated address
+                        // management. In addition, tree shaking also
+                        // requires a network as it needs to fetch
+                        // on-chain linkage table of package dependencies.
+                        let config =
+                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                        prompt_if_no_config(&config, false, true, true)?;
+                        let context = WalletContext::new(&config, None, None)?;
+
+                        let Ok(client) = context.get_client().await else {
+                            bail!(
+                                "`iota move build --dump-bytecode-as-base64` requires a connection to the network. Current active network is {} but failed to connect to it.",
+                                context.active_env().as_ref().unwrap()
+                            );
+                        };
+                        let read_api = client.read_api();
+
+                        if let Err(e) = client.check_api_version() {
+                            eprintln!("{}", format!("[warning] {e}").yellow().bold());
                         }
+
+                        let chain_id = if build.ignore_chain {
+                            // for tests it's useful to ignore the chain id!
+                            None
+                        } else {
+                            read_api.get_chain_identifier().await.ok()
+                        };
+
+                        let rerooted_path = move_cli::base::reroot_path(package_path.as_deref())?;
+                        let build_config =
+                            resolve_lock_file_path(build_config, Some(&rerooted_path))?;
+                        let mut pkg = IotaBuildConfig {
+                            config: build_config,
+                            run_bytecode_verifier: true,
+                            print_diags_to_stderr: true,
+                            chain_id,
+                        }
+                        .build(&rerooted_path)?;
+
+                        let with_unpublished_deps = build.with_unpublished_dependencies;
+
+                        check_invalid_dependencies(&pkg.dependency_ids.invalid)?;
+                        if !with_unpublished_deps {
+                            check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
+                        }
+
+                        pkg_tree_shake(read_api, with_unpublished_deps, &mut pkg).await?;
+
+                        println!(
+                            "{}",
+                            json!({
+                                "modules": pkg.get_package_base64(with_unpublished_deps),
+                                "dependencies": pkg.get_dependency_storage_package_ids(),
+                                "digest": pkg.get_package_digest(with_unpublished_deps),
+                            })
+                        );
+                        return Ok(());
                     }
                     _ => (),
                 };
@@ -537,7 +587,7 @@ impl IotaCommand {
             }
             IotaCommand::FireDrill { fire_drill } => run_fire_drill(fire_drill).await,
             IotaCommand::Analyzer => {
-                analyzer::run();
+                analyzer::run(implicit_deps(latest_system_packages()));
                 Ok(())
             }
             #[cfg(feature = "gen-completions")]
@@ -727,7 +777,7 @@ async fn start(
     // the genesis command, which sets data_ingestion_dir to None.
     #[cfg(feature = "indexer")]
     if with_indexer.is_some() && data_ingestion_dir.is_none() {
-        data_ingestion_dir = Some(tempdir()?.into_path())
+        data_ingestion_dir = Some(tempdir()?.keep())
     }
 
     #[cfg(feature = "indexer")]
@@ -829,7 +879,7 @@ async fn start(
         tracing::info!("Starting the faucet service at {faucet_address}");
         let faucet_config_dir = if force_regenesis {
             // tempdir is used so the faucet file is cleaned up afterwards
-            tempdir()?.into_path()
+            tempdir()?.keep()
         } else {
             config_path
         };
@@ -1186,48 +1236,37 @@ fn prompt_for_environment(
     accept_defaults: bool,
 ) -> anyhow::Result<IotaEnv> {
     if let Some(v) = std::env::var_os("IOTA_CONFIG_WITH_RPC_URL") {
-        Ok(IotaEnv::new("custom", v.into_string().unwrap()))
-    } else {
-        if accept_defaults {
-            print!(
-                "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
-            );
-        } else {
-            print!(
-                "Config file [{wallet_conf_path:?}] doesn't exist! Do you want to connect to an IOTA full node server? [y/N]: "
-            );
-        }
-        if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {
-            let url = if accept_defaults {
-                String::new()
+        return Ok(IotaEnv::new("custom", v.into_string().unwrap()));
+    }
+
+    if accept_defaults {
+        print!(
+            "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
+        );
+        return Ok(IotaEnv::testnet());
+    }
+
+    print!(
+        "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
+    );
+    match read_line()?.trim().to_lowercase().as_str() {
+        "mainnet" => Ok(IotaEnv::mainnet()),
+        "testnet" | "" => Ok(IotaEnv::testnet()),
+        "devnet" => Ok(IotaEnv::devnet()),
+        "localnet" => Ok(IotaEnv::localnet()),
+        input => {
+            if Url::parse(input).is_ok() {
+                print!("Environment alias for [{input}]: ");
+                let alias = read_line()?;
+                let alias = if alias.trim().is_empty() {
+                    "custom".to_string()
+                } else {
+                    alias
+                };
+                Ok(IotaEnv::new(alias, input))
             } else {
-                print!(
-                    "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
-                );
-                read_line()?
-            };
-            match url.trim() {
-                "mainnet" => Ok(IotaEnv::mainnet()),
-                "testnet" | "" => Ok(IotaEnv::testnet()),
-                "devnet" => Ok(IotaEnv::devnet()),
-                "localnet" => Ok(IotaEnv::localnet()),
-                url => {
-                    if Url::parse(url).is_ok() {
-                        print!("Environment alias for [{url}]: ");
-                        let alias = read_line()?;
-                        let alias = if alias.trim().is_empty() {
-                            "custom".to_string()
-                        } else {
-                            alias
-                        };
-                        Ok(IotaEnv::new(alias, url))
-                    } else {
-                        bail!("invalid custom URL");
-                    }
-                }
+                bail!("invalid custom URL: {input}");
             }
-        } else {
-            bail!("no environment exists for the client")
         }
     }
 }

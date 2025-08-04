@@ -32,7 +32,6 @@ export * from './useQueryTransactionsByAddress';
 export * from './useGetTransaction';
 export * from './useSortedCoinsByCategories';
 export * from './useGetNFTDisplay';
-export * from './useIotaAddressValidation';
 export * from './useUnlockTimelockedObjectsTransaction';
 export * from './useGetAllOwnedObjects';
 export * from './useGetTimelockedStakedObjects';
@@ -64,6 +63,8 @@ export * from './useMaxCommitteeSize';
 export * from './useGetNextEpochCommitteeMember';
 export * from './useAddressAliasLookup';
 export * from './useNFTMediaHeaders';
+export * from './useGetIotaNameRecord';
+export * from './useGetDefaultIotaName';
 
 export * from './stake';
 export * from './ui';

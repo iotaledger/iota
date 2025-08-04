@@ -1,0 +1,6 @@
+[package]
+name = "K"
+edition = "2024.beta"
+
+[addresses]
+k = "0x0"

@@ -358,6 +358,7 @@ fn initial_symbols(
         project_path.as_path(),
         None,
         LintLevel::None,
+        BTreeMap::new(),
     )?;
 
     if let Some(f) = files.first() {
@@ -368,6 +369,7 @@ fn initial_symbols(
             project_path.as_path(),
             Some(vec![mod_file]),
             LintLevel::None,
+            BTreeMap::new(),
         )?;
     }
 

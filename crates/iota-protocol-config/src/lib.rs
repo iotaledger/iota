@@ -63,8 +63,14 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //             Switch to distributed vote scoring in consensus for mainnet.
 //             Enable the new consensus commit rule for mainnet.
 //             Enable consensus garbage collection for mainnet with GC depth set
-//             to 60 rounds
+//             to 60 rounds.
 //             Enable batching in synchronizer for testnet
+//             Enable the gas price feedback mechanism in devnet.
+//             Enable Identifier input validation.
+//             Removes unnecessary child object mutations
+//             Add additional signature checks
+//             Add additional linkage checks
+
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -287,6 +293,28 @@ struct FeatureFlags {
     // If true, enabled batched block sync in consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_batched_block_sync: bool,
+
+    // To enable/disable the gas price feedback mechanism used for transactions
+    // cancelled due to shared object congestion
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_control_gas_price_feedback_mechanism: bool,
+
+    // Validate identifier inputs separately
+    #[serde(skip_serializing_if = "is_false")]
+    validate_identifier_inputs: bool,
+
+    // If true, enables the optimizations for child object mutations, removing unnecessary
+    // mutations
+    #[serde(skip_serializing_if = "is_false")]
+    minimize_child_object_mutations: bool,
+
+    // If true enable additional linkage checks.
+    #[serde(skip_serializing_if = "is_false")]
+    dependency_linkage_error: bool,
+
+    // If true enable additional multisig checks.
+    #[serde(skip_serializing_if = "is_false")]
+    additional_multisig_checks: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1263,6 +1291,29 @@ impl ProtocolConfig {
     pub fn consensus_batched_block_sync(&self) -> bool {
         self.feature_flags.consensus_batched_block_sync
     }
+
+    /// Check if the gas price feedback mechanism (which is used for
+    /// transactions cancelled due to shared object congestion) is enabled
+    pub fn congestion_control_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congestion_control_gas_price_feedback_mechanism
+    }
+
+    pub fn validate_identifier_inputs(&self) -> bool {
+        self.feature_flags.validate_identifier_inputs
+    }
+
+    pub fn minimize_child_object_mutations(&self) -> bool {
+        self.feature_flags.minimize_child_object_mutations
+    }
+
+    pub fn dependency_linkage_error(&self) -> bool {
+        self.feature_flags.dependency_linkage_error
+    }
+
+    pub fn additional_multisig_checks(&self) -> bool {
+        self.feature_flags.additional_multisig_checks
+    }
 }
 
 #[cfg(not(msim))]
@@ -1994,6 +2045,7 @@ impl ProtocolConfig {
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
                     }
+
                     // Enable min_free_execution_slot for the shared object congestion tracker in
                     // devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
@@ -2042,10 +2094,24 @@ impl ProtocolConfig {
                     // to be included before be considered garbage collected.
                     cfg.consensus_gc_depth = Some(60);
 
+                    // Enable minimized child object mutation counting.
+                    cfg.feature_flags.minimize_child_object_mutations = true;
+
                     if chain != Chain::Mainnet {
                         // Enable batched block sync in devnet and testnet.
                         cfg.feature_flags.consensus_batched_block_sync = true;
                     }
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable the gas price feedback mechanism (which is used for
+                        // transactions cancelled due to shared object congestion) in devnet
+                        cfg.feature_flags
+                            .congestion_control_gas_price_feedback_mechanism = true;
+                    }
+
+                    cfg.feature_flags.validate_identifier_inputs = true;
+                    cfg.feature_flags.dependency_linkage_error = true;
+                    cfg.feature_flags.additional_multisig_checks = true;
                 }
                 // Use this template when making changes:
                 //
@@ -2196,6 +2262,16 @@ impl ProtocolConfig {
 
     pub fn set_consensus_batched_block_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_batched_block_sync = val;
+    }
+
+    pub fn set_congestion_control_min_free_execution_slot_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot = val;
+    }
+
+    pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .congestion_control_gas_price_feedback_mechanism = val;
     }
 }
 

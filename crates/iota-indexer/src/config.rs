@@ -173,7 +173,7 @@ pub struct BackfillConfig {
     default_value_t = Self::DEFAULT_MAX_CONCURRENCY,
     )]
     pub max_concurrency: usize,
-    /// Number of checkpoints to backfill in a single SQL command.
+    /// Size of the data chunks processed per task.
     #[arg(
     long,
     default_value_t = Self::DEFAULT_CHUNK_SIZE,

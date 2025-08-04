@@ -80,7 +80,7 @@ export function StakeDialog({
         [maxStakableTimelockedAmount, availableBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
-    const formik = useFormik({
+    const formik = useFormik<typeof INITIAL_VALUES>({
         initialValues: INITIAL_VALUES,
         validationSchema: validationSchema,
         onSubmit: () => undefined,

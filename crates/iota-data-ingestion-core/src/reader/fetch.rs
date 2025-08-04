@@ -191,6 +191,7 @@ pub async fn fetch_from_object_store(
     checkpoint_number: CheckpointSequenceNumber,
 ) -> CheckpointResult {
     let path = ObjectStorePath::from(format!("{checkpoint_number}.{CHECKPOINT_FILE_SUFFIX}"));
+    debug!("Fetch {path} from live");
     let response = store.get(&path).await?;
     let bytes = response.bytes().await?;
     Ok((
