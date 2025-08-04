@@ -314,26 +314,24 @@ impl CongestionTracker {
             object_id_per_tx.clear();
             for object in objects {
                 match congestion_info_map.entry(*object) {
-                    Entry::Occupied(mut entry) => {
-                        let info = entry.get_mut();
-                        info.update_for_cancellation(time, *gas_price);
-                        hotness_per_tx += self.get_hotness_for_object(object).unwrap_or(0.0);
+                    Entry::Occupied(entry) => {
+                        entry.into_mut().update_for_cancellation(time, *gas_price);
                     }
                     Entry::Vacant(entry) => {
-                        let info = CongestionInfo {
+                        entry.insert(CongestionInfo {
                             latest_congestion_time: time,
                             highest_congestion_gas_price: *gas_price,
                             latest_clearing_time: None,
                             lowest_clearing_gas_price: None,
                             hotness: 0.0,
-                        };
-                        entry.insert(info);
+                        });
                     }
                 }
+                hotness_per_tx += self.get_hotness_for_object(object).unwrap_or(0.0);
                 object_id_per_tx.push(*object);
             }
-            // We create an auxiliary map of objects summing object hotness minus gas price
-            // feedback
+            // Adjust hotness based on the sum of hotness of objects in the transaction
+            // minus the gas price feedback
             for object in &object_id_per_tx {
                 let hotness_adjustment =
                     hotness_per_tx - *gas_price_feedback as f64 + self.reference_gas_price as f64;
@@ -353,15 +351,13 @@ impl CongestionTracker {
                         entry.into_mut().update_for_clearing_tx(time, *gas_price);
                     }
                     Entry::Vacant(entry) => {
-                        // We only record clearing prices if the object has experienced
-                        // congestion recently.
                         if let Some(prev) = self.get_congestion_info(*object) {
                             entry.insert(CongestionInfo {
                                 latest_congestion_time: prev.latest_congestion_time,
                                 highest_congestion_gas_price: prev.highest_congestion_gas_price,
                                 latest_clearing_time: Some(time),
                                 lowest_clearing_gas_price: Some(*gas_price),
-                                hotness: 0.0,
+                                hotness: prev.hotness,
                             });
                         }
                     }
@@ -588,7 +584,7 @@ mod tests {
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap();
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap();
-        assert!(hotness1 == 240.0, "obj1 should have unchanged hotness");
-        assert!(hotness2 == 140.0, "obj2 should have increased hotness");
+        assert!(hotness1 == 220.0, "obj1 should have unchanged hotness");
+        assert!(hotness2 == 120.0, "obj2 should have increased hotness");
     }
 }
