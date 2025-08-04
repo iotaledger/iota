@@ -33,7 +33,7 @@ use move_core_types::{
         parser::NumberFormat,
     },
 };
-use move_package::BuildConfig;
+use move_package::BuildConfig as MoveBuildConfig;
 
 use super::ast::{ModuleAccess as PTBModuleAccess, ParsedPTBCommand, Program};
 use crate::{
@@ -535,10 +535,7 @@ impl<'a> PTBBuilder<'a> {
                 } else {
                     display_did_you_mean(find_did_you_means(
                         module_name.as_str(),
-                        package
-                            .serialized_module_map()
-                            .iter()
-                            .map(|(x, _)| x.as_str()),
+                        package.serialized_module_map().keys().map(|x| x.as_str()),
                     ))
                 };
                 let e = err!(*mloc, "{e}");
@@ -866,7 +863,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 let res = self
                     .ptb
-                    .command(Tx::Command::MakeMoveVec(Some(ty_arg), vec_args));
+                    .command(Tx::Command::make_move_vec(Some(ty_arg), vec_args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::SplitCoins(pre_coin, sp!(_, amounts)) => {
@@ -937,19 +934,18 @@ impl<'a> PTBBuilder<'a> {
                         mod_access_loc,
                     )
                     .await?;
-                let move_call = Tx::ProgrammableMoveCall {
-                    package: package_id,
-                    module: module_name.value,
-                    function: function_name.value,
-                    type_arguments: ty_args,
-                    arguments: args,
-                };
-                let res = self.ptb.command(Tx::Command::MoveCall(Box::new(move_call)));
+                let res = self.ptb.command(Tx::Command::move_call(
+                    package_id,
+                    module_name.value,
+                    function_name.value,
+                    ty_args,
+                    args,
+                ));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::Publish(sp!(pkg_loc, package_path)) => {
                 let chain_id = self.reader.get_chain_identifier().await.ok();
-                let build_config = BuildConfig::default();
+                let build_config = MoveBuildConfig::default();
                 let package_path = Path::new(&package_path);
                 let build_config = resolve_lock_file_path(build_config.clone(), Some(package_path))
                     .map_err(|e| err!(pkg_loc, "{e}"))?;
@@ -964,14 +960,6 @@ impl<'a> PTBBuilder<'a> {
                 } else {
                     None
                 };
-                let compile_result = compile_package(
-                    self.reader,
-                    build_config.clone(),
-                    package_path,
-                    false, // with_unpublished_dependencies
-                    false, // skip_dependency_verification
-                )
-                .await;
                 // Restore original ID, then check result.
                 if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
                     let _ = iota_package_management::set_package_id(
@@ -982,12 +970,21 @@ impl<'a> PTBBuilder<'a> {
                     )
                     .map_err(|e| err!(pkg_loc, "{e}"))?;
                 }
-                let (dependencies, compiled_modules, _, _) =
-                    compile_result.map_err(|e| err!(pkg_loc, "{e}"))?;
+                let compiled_package = compile_package(
+                    self.reader,
+                    build_config.clone(),
+                    package_path,
+                    false, // with_unpublished_dependencies
+                    false, // skip_dependency_verification
+                )
+                .await
+                .map_err(|e| err!(pkg_loc, "{e}"))?;
+
+                let compiled_modules = compiled_package.get_package_bytes(false);
 
                 let res = self.ptb.publish_upgradeable(
                     compiled_modules,
-                    dependencies.published.into_values().collect(),
+                    compiled_package.get_published_dependencies_ids(),
                 );
                 self.last_command = Some(res);
             }
@@ -1016,7 +1013,7 @@ impl<'a> PTBBuilder<'a> {
                     .await?;
 
                 let chain_id = self.reader.get_chain_identifier().await.ok();
-                let build_config = BuildConfig::default();
+                let build_config = MoveBuildConfig::default();
                 let package_path = Path::new(&package_path);
                 let build_config = resolve_lock_file_path(build_config.clone(), Some(package_path))
                     .map_err(|e| err!(path_loc, "{e}"))?;
@@ -1031,16 +1028,6 @@ impl<'a> PTBBuilder<'a> {
                 } else {
                     None
                 };
-                let upgrade_result = upgrade_package(
-                    self.reader,
-                    build_config.clone(),
-                    package_path,
-                    ObjectID::from_address(upgrade_cap_id.into_inner()),
-                    false, // with_unpublished_dependencies
-                    false, // skip_dependency_verification
-                    None,
-                )
-                .await;
                 // Restore original ID, then check result.
                 if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
                     let _ = iota_package_management::set_package_id(
@@ -1051,8 +1038,28 @@ impl<'a> PTBBuilder<'a> {
                     )
                     .map_err(|e| err!(path_loc, "{e}"))?;
                 }
-                let (package_id, compiled_modules, dependencies, package_digest, upgrade_policy, _) =
-                    upgrade_result.map_err(|e| err!(path_loc, "{e}"))?;
+
+                let (upgrade_policy, compiled_package) = upgrade_package(
+                    self.reader,
+                    build_config.clone(),
+                    package_path,
+                    ObjectID::from_address(upgrade_cap_id.into_inner()),
+                    false, // with_unpublished_dependencies
+                    false, // skip_dependency_verification
+                    None,
+                )
+                .await
+                .map_err(|e| err!(path_loc, "{e}"))?;
+
+                let package_digest = compiled_package.get_package_digest(false);
+                let package_id = compiled_package
+                    .published_at
+                    .as_ref()
+                    .map_err(|e| err!(path_loc, "{e}"))?;
+                let compiled_modules = compiled_package.get_package_bytes(false);
+                // let (package_id, compiled_modules, dependencies, package_digest,
+                // upgrade_policy, _) =     upgrade_result.map_err(|e|
+                // err!(path_loc, "{e}"))?;
 
                 let upgrade_arg = self
                     .ptb
@@ -1063,30 +1070,30 @@ impl<'a> PTBBuilder<'a> {
                     // .to_vec() is necessary to get the length prefix
                     .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
-                let upgrade_ticket =
-                    self.ptb
-                        .command(Tx::Command::MoveCall(Box::new(Tx::ProgrammableMoveCall {
-                            package: IOTA_FRAMEWORK_PACKAGE_ID,
-                            module: ident_str!("package").to_owned(),
-                            function: ident_str!("authorize_upgrade").to_owned(),
-                            type_arguments: vec![],
-                            arguments: vec![upgrade_cap_arg, upgrade_arg, digest_arg],
-                        })));
+                let upgrade_ticket = self.ptb.command(Tx::Command::move_call(
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    ident_str!("package").to_owned(),
+                    ident_str!("authorize_upgrade").to_owned(),
+                    vec![],
+                    vec![upgrade_cap_arg, upgrade_arg, digest_arg],
+                ));
                 let upgrade_receipt = self.ptb.upgrade(
-                    package_id,
+                    *package_id,
                     upgrade_ticket,
-                    dependencies.published.into_values().collect(),
+                    compiled_package
+                        .dependency_ids
+                        .published
+                        .into_values()
+                        .collect(),
                     compiled_modules,
                 );
-                let res =
-                    self.ptb
-                        .command(Tx::Command::MoveCall(Box::new(Tx::ProgrammableMoveCall {
-                            package: IOTA_FRAMEWORK_PACKAGE_ID,
-                            module: ident_str!("package").to_owned(),
-                            function: ident_str!("commit_upgrade").to_owned(),
-                            type_arguments: vec![],
-                            arguments: vec![upgrade_cap_arg, upgrade_receipt],
-                        })));
+                let res = self.ptb.command(Tx::Command::move_call(
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    ident_str!("package").to_owned(),
+                    ident_str!("commit_upgrade").to_owned(),
+                    vec![],
+                    vec![upgrade_cap_arg, upgrade_receipt],
+                ));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::WarnShadows => {}

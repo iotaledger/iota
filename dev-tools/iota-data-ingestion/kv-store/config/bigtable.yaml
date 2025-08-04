@@ -1,0 +1,56 @@
+# IndexerExecutor config
+#
+# The local path where checkpoints are stored. For optimal performance,
+# this should match the IOTA Node's ingestion path when running on the same host.
+# Using the same path as the Node allows direct file access instead of HTTP requests,
+# significantly improving sync speed.
+path: "./test-checkpoints"
+# IOTA Node Rest API URL
+#
+# The IOTA Node's REST API URL acts as a fallback mechanism for fetching checkpoints
+# when they are not available in the local ingestion path. This provides redundancy
+# and ensures data availability even when local files are not accessible.
+#
+# Note: This URL is optional when:
+# 1. The ingestion path matches the IOTA Node's path on same host machine)
+# 2. You don't need a fallback mechanism for data retrieval
+# 3. Local filesystem access is sufficient for your use case
+#
+# Required when:
+# 1. Running on a different host than the IOTA Node
+# 2. Using a different path than the Node
+# 3. HTTP access is preferred over local filesystem
+remote-store-url: "http://localhost:9000/api/v1"
+
+# Path to the progress store JSON file.
+#
+# The ingestion pipeline uses this file to persist its progress,
+# ensuring state is preserved across restarts.
+#
+progress-store-path: "/iota/output/kv_ingestion_progress.json"
+
+metrics-port: 8084
+
+# Workers Configs
+#
+tasks:
+  # Task unique name
+  #
+  # This task is responsible for storing historical data like:
+  # - transaction
+  # - transaction effects
+  # - transaction events
+  # - checkpoint summary
+  # - checkpoint constents
+  #
+  # Primerely is used to provide historical data for Archival IOTA Node
+  # which trough HttpKVStore fetches data trough a REST API which reads
+  # the data this worker srites into
+  - name: "local-kv-storage"
+    # Number of workers will process the checkpoints in parallel
+    concurrency: 1
+    # Task type
+    big-table-kv:
+      instance-id: "iota"
+      column-family: "iota"
+      timeout-secs: 60

@@ -157,7 +157,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         onClick={onSelectorClick}
                         disabled={disabled}
                         className={cx(
-                            'select-border-color focus-visible:enabled:select-border-focus-color active:enabled:select-border-focus-color group-[.errored]:select-border-error-color group-[.opened]:select-border-focus-color [&:is(:focus,_:focus-visible,_:active)]:enabled:select-border-focus-color hover:enabled:select-border-hover-color flex flex-row items-center gap-x-3 rounded-lg border py-sm disabled:cursor-not-allowed [&_svg]:h-5 [&_svg]:w-5',
+                            'select-container select-border-color focus-visible:enabled:select-border-focus-color active:enabled:select-border-focus-color group-[.errored]:select-border-error-color group-[.opened]:select-border-focus-color [&:is(:focus,_:focus-visible,_:active)]:enabled:select-border-focus-color hover:enabled:select-border-hover-color flex flex-row items-center gap-x-3 rounded-lg border py-sm disabled:cursor-not-allowed [&_svg]:h-5 [&_svg]:w-5',
                             selectPadding,
                         )}
                     >

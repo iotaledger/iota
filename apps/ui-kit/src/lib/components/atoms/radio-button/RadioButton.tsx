@@ -40,7 +40,7 @@ function RadioButton({
         >
             <div
                 className={cx('relative flex h-10 w-10 items-center justify-center rounded-full', {
-                    'state-layer': !isDisabled,
+                    'state-layer-secondary': !isDisabled,
                 })}
             >
                 <input

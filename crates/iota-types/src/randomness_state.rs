@@ -28,7 +28,7 @@ pub fn get_randomness_state_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
 ) -> IotaResult<SequenceNumber> {
     object_store
-        .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)?
+        .try_get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)?
         .map(|obj| match obj.owner {
             Owner::Shared {
                 initial_shared_version,

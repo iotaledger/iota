@@ -371,6 +371,7 @@ def cut_command(f):
     """Arguments for creating the cut for 'feature'."""
     return [
         *["./target/debug/cut", "--feature", f],
+        *[repo_root()],
         *["-d", f"iota-execution/latest:iota-execution/{f}:-latest"],
         *["-d", f"external-crates/move:external-crates/move/move-execution/{f}"],
         *["-p", "iota-adapter-latest"],
@@ -381,6 +382,7 @@ def cut_command(f):
         *["-p", "move-stdlib-natives"],
         *["-p", "move-vm-runtime"],
         *["-p", "bytecode-verifier-tests"],
+        *["-p", "move-vm-types"],
     ]
 
 
@@ -403,6 +405,7 @@ def cut_directories(f):
                 external / "move" / "crates" / "move-stdlib-natives",
                 external / "move" / "crates" / "move-vm-runtime",
                 external / "move" / "crates" / "bytecode-verifier-tests",
+                external / "move" / "crates" / "move-vm-types",
             ]
         )
     else:
@@ -413,6 +416,7 @@ def cut_directories(f):
                 external / "move" / "move-execution" / f / "crates" / "move-stdlib-natives",
                 external / "move" / "move-execution" / f / "crates" / "move-vm-runtime",
                 external / "move" / "move-execution" / f / "crates" / "bytecode-verifier-tests",
+                external / "move" / "move-execution" / f / "crates" / "move-vm-types",
             ]
         )
 

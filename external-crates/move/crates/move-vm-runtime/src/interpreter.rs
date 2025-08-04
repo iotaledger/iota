@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{cmp::min, collections::VecDeque, fmt::Write, sync::Arc};
@@ -89,7 +89,7 @@ struct TypeWithLoader<'a, 'b> {
     loader: &'b Loader,
 }
 
-impl<'a, 'b> TypeView for TypeWithLoader<'a, 'b> {
+impl TypeView for TypeWithLoader<'_, '_> {
     fn to_type_tag(&self) -> TypeTag {
         self.loader.type_to_type_tag(self.ty).unwrap()
     }

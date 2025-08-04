@@ -28,6 +28,9 @@ fi
 # if WORKING_DIR is not set, create a temp dir
 if [ -z "$WORKING_DIR" ]; then
   WORKING_DIR=$(mktemp -d)
+else
+  # if WORKING_DIR is set but doesn't exist, create it
+  mkdir -p "$WORKING_DIR"
 fi
 
 echo "Using working dir $WORKING_DIR"

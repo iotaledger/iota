@@ -61,7 +61,7 @@ export function SupplyIncreaseVestingStakingDialog({
                                     <li>Click See All to open the full vesting schedule</li>
                                     <li>
                                         Collect tokens as they unlock, or stake them directly from
-                                        the the the the dashboard
+                                        the dashboard
                                     </li>
                                 </ol>
                             </div>

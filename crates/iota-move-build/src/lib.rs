@@ -11,8 +11,12 @@ use std::{
     str::FromStr,
 };
 
+use anyhow::bail;
 use fastcrypto::encoding::Base64;
-use iota_package_management::{PublishedAtError, resolve_published_id};
+use iota_package_management::{
+    PublishedAtError, resolve_published_id,
+    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
+};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
@@ -38,13 +42,16 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use move_package::{
-    BuildConfig as MoveBuildConfig,
+    BuildConfig as MoveBuildConfig, LintFlag,
     compilation::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
     },
     package_hooks::{PackageHooks, PackageIdentifier},
-    resolution::resolution_graph::ResolvedGraph,
-    source_package::parsed_manifest::{OnChainInfo, PackageName, SourceManifest},
+    resolution::{dependency_graph::DependencyGraph, resolution_graph::ResolvedGraph},
+    source_package::parsed_manifest::{
+        Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency, OnChainInfo,
+        PackageName, SourceManifest,
+    },
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
@@ -52,6 +59,28 @@ use serde_reflection::Registry;
 #[cfg(test)]
 #[path = "unit_tests/build_tests.rs"]
 mod build_tests;
+
+pub mod test_utils {
+    use std::path::PathBuf;
+
+    use crate::{BuildConfig, CompiledPackage, IotaPackageHooks};
+
+    pub fn compile_basics_package() -> CompiledPackage {
+        compile_example_package("../../examples/move/basics")
+    }
+
+    pub fn compile_managed_coin_package() -> CompiledPackage {
+        compile_example_package("../../crates/iota-core/src/unit_tests/data/managed_coin")
+    }
+
+    pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
+        move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push(relative_path);
+
+        BuildConfig::new_for_testing().build(&path).unwrap()
+    }
+}
 
 /// Wrapper around the core Move `CompiledPackage` with some IOTA-specific
 /// traits and info
@@ -65,6 +94,8 @@ pub struct CompiledPackage {
     /// The bytecode modules that this package depends on (both directly and
     /// transitively), i.e. on-chain dependencies.
     pub bytecode_deps: Vec<(PackageName, CompiledModule)>,
+    /// Transitive dependency graph of a Move package
+    pub dependency_graph: DependencyGraph,
 }
 
 /// Wrapper around the core Move `BuildConfig` with some IOTA-specific info
@@ -84,17 +115,24 @@ pub struct BuildConfig {
 impl BuildConfig {
     pub fn new_for_testing() -> Self {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-        let mut build_config: Self = Default::default();
-        let install_dir = tempfile::tempdir().unwrap().into_path();
-        let lock_file = install_dir.join("Move.lock");
-        build_config.config.install_dir = Some(install_dir);
-        build_config.config.lock_file = Some(lock_file);
-        build_config
-            .config
-            .lint_flag
-            .set(move_compiler::linters::LintLevel::None);
-        build_config.config.silence_warnings = true;
-        build_config
+
+        let install_dir = tempfile::tempdir().unwrap().keep();
+        let config = MoveBuildConfig {
+            default_flavor: Some(move_compiler::editions::Flavor::Iota),
+            lock_file: Some(install_dir.join("Move.lock")),
+            install_dir: Some(install_dir),
+            lint_flag: LintFlag::LEVEL_NONE,
+            // TODO: in the future, we may want to provide local implicit dependencies to tests
+            implicit_dependencies: Dependencies::new(),
+            silence_warnings: true,
+            ..MoveBuildConfig::default()
+        };
+        BuildConfig {
+            config,
+            run_bytecode_verifier: true,
+            print_diags_to_stderr: false,
+            chain_id: None,
+        }
     }
 
     pub fn new_for_testing_replace_addresses<I, S>(dep_original_addresses: I) -> Self
@@ -128,7 +166,7 @@ impl BuildConfig {
     }
 
     fn compile_package<W: Write>(
-        resolution_graph: ResolvedGraph,
+        resolution_graph: &ResolvedGraph,
         writer: &mut W,
     ) -> anyhow::Result<(MoveCompiledPackage, FnInfoMap)> {
         let build_plan = BuildPlan::create(resolution_graph)?;
@@ -243,6 +281,37 @@ pub fn build_from_resolution_graph(
 
     // collect bytecode dependencies as these are not returned as part of core
     // `CompiledPackage`
+    let bytecode_deps = collect_bytecode_deps(&resolution_graph)?;
+
+    // compile!
+    let result = if print_diags_to_stderr {
+        BuildConfig::compile_package(&resolution_graph, &mut std::io::stderr())
+    } else {
+        BuildConfig::compile_package(&resolution_graph, &mut std::io::sink())
+    };
+
+    let (package, fn_info) = result.map_err(|error| IotaError::ModuleBuildFailure {
+        // Use [Debug] formatting to capture [anyhow] error context
+        error: format!("{error:?}"),
+    })?;
+
+    if run_bytecode_verifier {
+        verify_bytecode(&package, &fn_info)?;
+    }
+
+    Ok(CompiledPackage {
+        package,
+        published_at,
+        dependency_ids,
+        bytecode_deps,
+        dependency_graph: resolution_graph.graph,
+    })
+}
+
+/// Returns the deps from `resolution_graph` that have no source code
+fn collect_bytecode_deps(
+    resolution_graph: &ResolvedGraph,
+) -> IotaResult<Vec<(Symbol, CompiledModule)>> {
     let mut bytecode_deps = vec![];
     for (name, pkg) in resolution_graph.package_table.iter() {
         if !pkg
@@ -272,39 +341,23 @@ pub fn build_from_resolution_graph(
         }
     }
 
-    let result = if print_diags_to_stderr {
-        BuildConfig::compile_package(resolution_graph, &mut std::io::stderr())
-    } else {
-        BuildConfig::compile_package(resolution_graph, &mut std::io::sink())
-    };
-    // write build failure diagnostics to stderr, convert `error` to `String` using
-    // `Debug` format to include anyhow's error context chain.
-    let (package, fn_info) = match result {
-        Err(error) => {
-            return Err(IotaError::ModuleBuildFailure {
-                error: format!("{error:?}"),
-            });
-        }
-        Ok((package, fn_info)) => (package, fn_info),
-    };
+    Ok(bytecode_deps)
+}
+
+/// Check that the compiled modules in `package` are valid
+fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaResult<()> {
     let compiled_modules = package.root_modules_map();
-    if run_bytecode_verifier {
-        for m in compiled_modules.iter_modules() {
-            move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
-                IotaError::ModuleVerificationFailure {
-                    error: err.to_string(),
-                }
-            })?;
-            iota_bytecode_verifier::iota_verify_module_unmetered(m, &fn_info)?;
-        }
-        // TODO(https://github.com/iotaledger/iota/issues/69): Run Move linker
+    for m in compiled_modules.iter_modules() {
+        move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
+            IotaError::ModuleVerificationFailure {
+                error: err.to_string(),
+            }
+        })?;
+        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info)?;
     }
-    Ok(CompiledPackage {
-        package,
-        published_at,
-        dependency_ids,
-        bytecode_deps,
-    })
+    // Don't change the link components to iota. It is correct as it is.
+    // TODO(https://github.com/MystenLabs/sui/issues/69): Run Move linker
+    Ok(())
 }
 
 impl CompiledPackage {
@@ -398,6 +451,7 @@ impl CompiledPackage {
         self.dependency_ids.published.values().copied().collect()
     }
 
+    /// Return a digest of the bytecode modules in this package.
     pub fn get_package_digest(&self, with_unpublished_deps: bool) -> [u8; 32] {
         MovePackage::compute_digest_for_modules_and_deps(
             &self.get_package_bytes(with_unpublished_deps),
@@ -590,21 +644,94 @@ impl CompiledPackage {
             error: error_message.join("\n"),
         })
     }
+
+    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectID> {
+        self.dependency_ids.published.values().cloned().collect()
+    }
+
+    /// Find the map of packages that are immediate dependencies of the root
+    /// modules, joined with the set of bytecode dependencies.
+    pub fn find_immediate_deps_pkgs_to_keep(
+        &self,
+        with_unpublished_deps: bool,
+    ) -> Result<BTreeMap<Symbol, ObjectID>, anyhow::Error> {
+        // Start from the root modules (or all modules if with_unpublished_deps is true
+        // as we need to include modules with 0x0 address)
+        let root_modules: Vec<_> = if with_unpublished_deps {
+            self.package
+                .all_compiled_units_with_source()
+                .filter(|m| m.unit.address.into_inner() == AccountAddress::ZERO)
+                .map(|x| x.unit.clone())
+                .collect()
+        } else {
+            self.package
+                .root_modules()
+                .map(|x| x.unit.clone())
+                .collect()
+        };
+
+        // Find the immediate dependencies for each root module and store the package
+        // name in the pkgs_to_keep set. This basically prunes the packages that
+        // are not used based on the modules information.
+        let mut pkgs_to_keep: BTreeSet<Symbol> = BTreeSet::new();
+        let module_to_pkg_name: BTreeMap<_, _> = self
+            .package
+            .all_modules()
+            .map(|m| (m.unit.module.self_id(), m.unit.package_name))
+            .collect();
+
+        for module in &root_modules {
+            let immediate_deps = module.module.immediate_dependencies();
+            for dep in immediate_deps {
+                if let Some(pkg_name) = module_to_pkg_name.get(&dep) {
+                    let Some(pkg_name) = pkg_name else {
+                        bail!("Expected a package name but it's None")
+                    };
+                    pkgs_to_keep.insert(*pkg_name);
+                }
+            }
+        }
+
+        // If a package depends on another published package that has only bytecode
+        // without source code available, we need to include also that package
+        // as dep.
+        pkgs_to_keep.extend(self.bytecode_deps.iter().map(|(name, _)| *name));
+
+        // Finally, filter out packages that are published and exist in the manifest at
+        // the compilation time but are not referenced in the source code.
+        Ok(self
+            .dependency_ids
+            .clone()
+            .published
+            .into_iter()
+            .filter(|(pkg_name, _)| pkgs_to_keep.contains(pkg_name))
+            .collect())
+    }
 }
 
-impl Default for BuildConfig {
-    fn default() -> Self {
-        let config = MoveBuildConfig {
-            default_flavor: Some(move_compiler::editions::Flavor::Iota),
-            ..MoveBuildConfig::default()
-        };
-        BuildConfig {
-            config,
-            run_bytecode_verifier: true,
-            print_diags_to_stderr: false,
-            chain_id: None,
-        }
-    }
+/// Create a set of [Dependencies] from a [SystemPackagesVersion]; the
+/// dependencies are override git dependencies to the specific revision given by
+/// the [SystemPackagesVersion]
+pub fn implicit_deps(packages: &SystemPackagesVersion) -> Dependencies {
+    packages
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.package_name.clone().into(),
+                Dependency::Internal(InternalDependency {
+                    kind: DependencyKind::Git(GitInfo {
+                        git_url: SYSTEM_GIT_REPO.into(),
+                        git_rev: packages.git_revision.clone().into(),
+                        subdir: package.repo_path.clone().into(),
+                    }),
+                    subst: None,
+                    digest: None,
+                    dep_override: true,
+                }),
+            )
+        })
+        .collect()
 }
 
 impl GetModule for CompiledPackage {

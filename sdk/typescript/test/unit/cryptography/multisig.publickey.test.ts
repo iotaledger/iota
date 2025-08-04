@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@iota/bcs';
+import { fromBase64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex } from '@noble/hashes/utils';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -213,7 +213,7 @@ describe('Publickey', () => {
             sig1.signature,
             sig2.signature,
         ]);
-        const rawBytes = fromB64(multisig).slice(134);
+        const rawBytes = fromBase64(multisig).slice(134);
 
         expect(multiSigPublicKey.toRawBytes()).toEqual(rawBytes);
         expect(multiSigPublicKey.toRawBytes()).toEqual(
@@ -342,9 +342,9 @@ describe('Publickey', () => {
         );
         const digest = blake2b(intentMessage, { dkLen: 32 });
 
-        expect(async () => await multiSigPublicKey.verify(digest, sig1.signature)).rejects.toThrow(
-            new Error('Invalid signature scheme'),
-        );
+        await expect(
+            async () => await multiSigPublicKey.verify(digest, sig1.signature),
+        ).rejects.toThrow(new Error('Invalid signature scheme'));
     });
 
     it('`combinePartialSignatures()` should combine with different signatures into a single multisig correctly', async () => {
@@ -371,7 +371,7 @@ describe('Publickey', () => {
             'AwIANe9gJJmT5m1UvpV8Hj7nOyif76rS5Zgg1bi7VApts+KwtSc2Bg8WJ6LBfGnZKugrOqtQsk5d2Q+IMRLD4hYmBQFYlrlXc01/ZSdgwSD3eGEdm6kxwtOwAvTWdb2wNZP2Hnkgrh+indYN4s2Qd99iYCz+xsY6aT5lpOBsDZb2x9LyAwADAFriILSy9l6XfBLt5hV5/1FwtsIsAGFow3tefGGvAYCDAQECHRUjB8a3Kw7QQYsOcM2A5/UpW42G9XItP1IT+9I5TzYCAgInMis6iRoKKA1rwfssuyPSj1SQb9ZAf190H23vV2JgmgMDAA==',
         );
 
-        const decoded = bcs.MultiSig.parse(fromB64(multisig).slice(1));
+        const decoded = bcs.MultiSig.parse(fromBase64(multisig).slice(1));
 
         expect(decoded).toEqual({
             bitmap: 3,
@@ -448,7 +448,7 @@ describe('Publickey', () => {
             sig2.signature,
         ]);
 
-        const bytes = fromB64(multisig);
+        const bytes = fromBase64(multisig);
         const multiSigStruct: MultiSigStruct = bcs.MultiSig.parse(bytes.slice(1));
 
         const parsedPartialSignatures = parsePartialSignatures(multiSigStruct);

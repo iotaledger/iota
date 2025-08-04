@@ -18,8 +18,8 @@ use crate::{
         TrustedCommit,
     },
     error::ConsensusResult,
+    storage::StoredScoringMetricsU64,
 };
-
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
@@ -31,6 +31,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
+    scoring_metrics: BTreeMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
 
 impl MemStore {
@@ -42,6 +43,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
+                scoring_metrics: BTreeMap::new(),
             }),
         }
     }
@@ -81,6 +83,9 @@ impl Store for MemStore {
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
         }
 
+        for (authority, metrics) in write_batch.scoring_metrics {
+            inner.scoring_metrics.insert(authority, metrics);
+        }
         Ok(())
     }
 
@@ -125,6 +130,16 @@ impl Store for MemStore {
             }
         }
         Ok(blocks)
+    }
+
+    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoringMetricsU64)>> {
+        let inner = self.inner.read();
+        let metrics_by_author = inner
+            .scoring_metrics
+            .iter()
+            .map(|(&authority_index, metrics)| (authority_index, metrics.clone()))
+            .collect::<Vec<_>>();
+        Ok(metrics_by_author)
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

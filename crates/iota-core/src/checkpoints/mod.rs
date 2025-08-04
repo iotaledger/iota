@@ -13,10 +13,9 @@ use std::{
     io::Write,
     path::Path,
     sync::{Arc, Weak},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
-use chrono::Utc;
 use diffy::create_patch;
 use iota_common::{debug_fatal, fatal};
 use iota_macros::fail_point;
@@ -340,6 +339,16 @@ impl CheckpointStore {
             return Ok(None);
         };
         self.get_checkpoint_by_digest(&highest_synced.1)
+    }
+
+    pub fn get_highest_synced_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        if let Some(highest_synced) = self.watermarks.get(&CheckpointWatermark::HighestSynced)? {
+            Ok(Some(highest_synced.0))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_highest_executed_checkpoint_seq_number(
@@ -785,8 +794,8 @@ impl CheckpointStore {
             let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
             let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
             let txns = cache
-                .multi_get_transaction_blocks(&tx_digests)
-                .expect("multi_get_transaction_blocks should not fail");
+                .try_multi_get_transaction_blocks(&tx_digests)
+                .expect("try_multi_get_transaction_blocks should not fail");
             for (tx, digest) in txns.iter().zip(tx_digests.iter()) {
                 if tx.is_none() {
                     panic!("transaction {digest:?} not found");
@@ -834,7 +843,7 @@ impl CheckpointStore {
             });
 
             cache
-                .notify_read_executed_effects_digests(&tx_digests)
+                .try_notify_read_executed_effects_digests(&tx_digests)
                 .await
                 .expect("notify_read_executed_effects_digests should not fail");
 
@@ -1077,7 +1086,7 @@ impl CheckpointBuilder {
             .await?;
         let root_effects = self
             .effects_store
-            .notify_read_executed_effects(&root_digests)
+            .try_notify_read_executed_effects(&root_digests)
             .in_monitored_scope("CheckpointNotifyRead")
             .await?;
 
@@ -1156,7 +1165,7 @@ impl CheckpointBuilder {
         let first_tx = self
             .state
             .get_transaction_cache_reader()
-            .get_transaction_block(&root_digests[0])?
+            .try_get_transaction_block(&root_digests[0])?
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
@@ -1179,6 +1188,24 @@ impl CheckpointBuilder {
         let mut batch = self.tables.checkpoint_content.batch();
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|(_, c)| c.size()).sum());
+
+        // When upgrading to a data-quarantining build, we need to persist the
+        // transactions and effects to the database for crash recovery. After
+        // the upgrade this is no longer needed, because recovery is driven by
+        // replay of consensus commits. This only updates the content-addressed
+        // stores (similar to state sync), it does not mark any transactions as
+        // executed.
+        self.state
+            .get_cache_commit()
+            .persist_transactions_and_effects(
+                &new_checkpoints
+                    .iter()
+                    .flat_map(|(_, c)| {
+                        c.iter()
+                            .map(|digests| (digests.transaction, digests.effects))
+                    })
+                    .collect::<Vec<_>>(),
+            );
 
         for (summary, contents) in &new_checkpoints {
             debug!(
@@ -1225,7 +1252,7 @@ impl CheckpointBuilder {
         // can be removed.
         self.state
             .get_cache_commit()
-            .persist_transactions(&all_tx_digests)
+            .try_persist_transactions(&all_tx_digests)
             .await?;
 
         batch.write()?;
@@ -1346,7 +1373,7 @@ impl CheckpointBuilder {
         let transactions_and_sizes = self
             .state
             .get_transaction_cache_reader()
-            .get_transactions_and_serialized_sizes(&all_digests)?;
+            .try_get_transactions_and_serialized_sizes(&all_digests)?;
         let mut all_effects_and_transaction_sizes = Vec::with_capacity(all_effects.len());
         let mut transactions = Vec::with_capacity(all_effects.len());
         let mut transaction_keys = Vec::with_capacity(all_effects.len());
@@ -1670,7 +1697,9 @@ impl CheckpointBuilder {
                 break;
             }
             let pending = pending.into_iter().collect::<Vec<_>>();
-            let effects = self.effects_store.multi_get_executed_effects(&pending)?;
+            let effects = self
+                .effects_store
+                .try_multi_get_executed_effects(&pending)?;
             let effects = effects
                 .into_iter()
                 .zip(pending)
@@ -1700,8 +1729,7 @@ impl CheckpointBuilder {
         let root_txs = self
             .state
             .get_transaction_cache_reader()
-            .multi_get_transaction_blocks(root_digests)
-            .unwrap();
+            .multi_get_transaction_blocks(root_digests);
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
@@ -1727,8 +1755,7 @@ impl CheckpointBuilder {
                     .iter()
                     .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
-            )
-            .unwrap();
+            );
 
         if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
@@ -2037,7 +2064,7 @@ async fn diagnose_split_brain(
         checkpoint_seq = local_summary.sequence_number,
         "Running split brain diagnostics..."
     );
-    let time = Utc::now();
+    let time = SystemTime::now();
     // collect one random disagreeing validator per differing digest
     let digest_to_validator = all_unique_values
         .iter()
@@ -2189,12 +2216,12 @@ async fn diagnose_split_brain(
 
     let header = format!(
         "Checkpoint Fork Dump - Authority {local_validator:?}: \n\
-        Datetime: {time}",
+        Datetime: {time:?}"
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
     let path = tempfile::tempdir()
         .expect("Failed to create tempdir")
-        .into_path()
+        .keep()
         .join(Path::new("checkpoint_fork_dump.txt"));
     let mut file = File::create(path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
@@ -2376,7 +2403,7 @@ impl CheckpointService {
         epoch_store: &AuthorityPerEpochStore,
         checkpoint: PendingCheckpoint,
     ) -> IotaResult {
-        use crate::authority::authority_per_epoch_store::ConsensusCommitOutput;
+        use crate::authority::authority_per_epoch_store::consensus_quarantine::ConsensusCommitOutput;
 
         let mut output = ConsensusCommitOutput::new();
         epoch_store.write_pending_checkpoint(&mut output, &checkpoint)?;
@@ -2710,7 +2737,7 @@ mod tests {
     }
 
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
-        fn notify_read_executed_effects(
+        fn try_notify_read_executed_effects(
             &self,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffects>>> {
@@ -2721,7 +2748,7 @@ mod tests {
             .boxed()
         }
 
-        fn notify_read_executed_effects_digests(
+        fn try_notify_read_executed_effects_digests(
             &self,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffectsDigest>>> {
@@ -2736,7 +2763,7 @@ mod tests {
             .boxed()
         }
 
-        fn multi_get_executed_effects(
+        fn try_multi_get_executed_effects(
             &self,
             digests: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEffects>>> {
@@ -2749,28 +2776,28 @@ mod tests {
         // (e.g. had to implement EFfectsNotifyRead for all ExecutionCacheRead
         // implementors).
 
-        fn multi_get_transaction_blocks(
+        fn try_multi_get_transaction_blocks(
             &self,
             _: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
             unimplemented!()
         }
 
-        fn multi_get_executed_effects_digests(
+        fn try_multi_get_executed_effects_digests(
             &self,
             _: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
             unimplemented!()
         }
 
-        fn multi_get_effects(
+        fn try_multi_get_effects(
             &self,
             _: &[TransactionEffectsDigest],
         ) -> IotaResult<Vec<Option<TransactionEffects>>> {
             unimplemented!()
         }
 
-        fn multi_get_events(
+        fn try_multi_get_events(
             &self,
             _: &[TransactionEventsDigest],
         ) -> IotaResult<Vec<Option<TransactionEvents>>> {

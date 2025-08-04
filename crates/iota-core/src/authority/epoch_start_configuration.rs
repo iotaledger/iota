@@ -5,7 +5,7 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use iota_config::{ExecutionCacheConfig, NodeConfig};
+use iota_config::{ExecutionCacheType, NodeConfig};
 use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
@@ -21,8 +21,6 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::execution_cache::{ExecutionCacheConfigType, choose_execution_cache};
-
 #[enum_dispatch]
 pub trait EpochStartConfigTrait {
     fn epoch_digest(&self) -> CheckpointDigest;
@@ -32,11 +30,11 @@ pub trait EpochStartConfigTrait {
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
 
-    fn execution_cache_type(&self) -> ExecutionCacheConfigType {
+    fn execution_cache_type(&self) -> ExecutionCacheType {
         if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
-            ExecutionCacheConfigType::WritebackCache
+            ExecutionCacheType::WritebackCache
         } else {
-            ExecutionCacheConfigType::PassthroughCache
+            ExecutionCacheType::PassthroughCache
         }
     }
 }
@@ -51,27 +49,29 @@ pub trait EpochStartConfigTrait {
 // inconsistent with the released branch, and must be fixed.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum EpochFlag {
+    // When switching between different cache types mid-epoch, partial checkpoint transactions
+    // might already be on disk. During lock initialization, we check if there is any existing
+    // lock or not, depending on the used implementation. That's why we should not switch
+    // mid-epoch.
     WritebackCacheEnabled = 0,
 }
 
 impl EpochFlag {
     pub fn default_flags_for_new_epoch(config: &NodeConfig) -> Vec<Self> {
-        Self::default_flags_impl(&config.execution_cache)
+        Self::default_flags_impl(config.execution_cache)
     }
 
     /// For situations in which there is no config available (e.g. setting up a
     /// downloaded snapshot).
     pub fn default_for_no_config() -> Vec<Self> {
-        Self::default_flags_impl(&Default::default())
+        Self::default_flags_impl(Default::default())
     }
 
-    fn default_flags_impl(cache_config: &ExecutionCacheConfig) -> Vec<Self> {
+    fn default_flags_impl(cache_type: ExecutionCacheType) -> Vec<Self> {
         let mut new_flags = vec![];
 
-        if matches!(
-            choose_execution_cache(cache_config),
-            ExecutionCacheConfigType::WritebackCache
-        ) {
+        // Load cache type from env
+        if matches!(cache_type.cache_type(), ExecutionCacheType::WritebackCache) {
             new_flags.push(EpochFlag::WritebackCacheEnabled);
         }
 
@@ -109,7 +109,7 @@ impl EpochStartConfiguration {
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
-            get_deny_list_obj_initial_shared_version(object_store)?;
+            get_deny_list_obj_initial_shared_version(object_store);
         Ok(Self::V2(EpochStartConfigurationV2 {
             system_state,
             epoch_digest,

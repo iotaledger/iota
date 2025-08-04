@@ -20,7 +20,7 @@ use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStore,
-    RestStateReader,
+    RestIndexes, RestStateReader,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -282,7 +282,7 @@ pub fn load_package_object_from_object_store(
     store: &impl ObjectStore,
     package_id: &ObjectID,
 ) -> IotaResult<Option<PackageObject>> {
-    let package = store.get_object(package_id)?;
+    let package = store.try_get_object(package_id)?;
     if let Some(obj) = &package {
         fp_ensure!(
             obj.is_package(),
@@ -474,14 +474,14 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
 pub struct ObjectKey(pub ObjectID, pub VersionNumber);
 
 impl ObjectKey {
-    pub const ZERO: ObjectKey = ObjectKey(ObjectID::ZERO, VersionNumber::MIN);
+    pub const ZERO: ObjectKey = ObjectKey(ObjectID::ZERO, VersionNumber::MIN_VALID_INCL);
 
     pub fn max_for_id(id: &ObjectID) -> Self {
-        Self(*id, VersionNumber::MAX)
+        Self(*id, VersionNumber::MAX_VALID_EXCL)
     }
 
     pub fn min_for_id(id: &ObjectID) -> Self {
-        Self(*id, VersionNumber::MIN)
+        Self(*id, VersionNumber::MIN_VALID_INCL)
     }
 }
 
