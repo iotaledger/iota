@@ -149,9 +149,10 @@ impl CongestionTracker {
             if let Some(CongestedObjects(congested_objects)) =
                 effects.status().get_congested_objects()
             {
-                // let gas_price_feedback = effect.status().get_suggested_gas_price();     //
-                // TODO: Add getter to ExecutionStatus
-                let gas_price_feedback = 1_100;
+                let gas_price_feedback = effects
+                    .status()
+                    .get_feedback_suggested_gas_price()
+                    .unwrap_or(self.reference_gas_price);
                 congestion_txs_data.push((
                     gas_price,
                     congested_objects.clone(),
@@ -198,7 +199,7 @@ impl CongestionTracker {
 
     /// For all the mutable shared inputs, sum the hotness of the objects.
     /// More sophisticated prediction can be implemented.
-    pub fn get_suggested_gas_price_with_ogd(&self, transaction: TransactionData) -> Option<u64> {
+    pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> Option<u64> {
         self.get_total_hotness_for_objects(
             transaction
                 .shared_input_objects()
