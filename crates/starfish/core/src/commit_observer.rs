@@ -350,24 +350,17 @@ impl CommitObserver {
                 .map(|tx| tx.block_ref())
                 .collect::<Vec<_>>();
 
-            // TODO: decide whether we want to read from storage here or not as it could
-            // create an overhead in cases when available committed subdags are
-            // lagging behind the pending subdags.
-
-            // Read block headers from storage for the transactions in the commit.
-            // This is necessary to calculate the latency of the transactions.
+            // Read only cached block headers from storage for the transactions in the
+            // commit. Headers are needed to calculate the latency of the
+            // transactions. The metrics reflects only the latency for cached
+            // block headers
             let headers_for_committed_txs = self
                 .dag_state
                 .read()
-                .get_block_headers(&block_refs_for_committed_txs)
+                .get_cached_block_headers(&block_refs_for_committed_txs)
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();
-            assert_eq!(
-                headers_for_committed_txs.len(),
-                commit.transactions.len(),
-                "All transactions should have corresponding block headers in storage"
-            );
 
             for block_header in headers_for_committed_txs {
                 let latency_ms = utc_now
