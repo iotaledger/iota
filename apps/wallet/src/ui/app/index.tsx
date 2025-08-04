@@ -60,6 +60,7 @@ import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
+import { ExportPublicKeyPage } from './pages/accounts/ExportPublicKey';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -201,6 +202,7 @@ export function App() {
                 <Route path="protect-account" element={<ProtectAccountPage />} />
                 <Route path="backup/:accountSourceID" element={<BackupMnemonicPage />} />
                 <Route path="export/:accountID" element={<ExportAccountPage />} />
+                <Route path="export/pubkey/:accountID" element={<ExportPublicKeyPage />} />
                 <Route
                     path="export/passphrase/:accountSourceID"
                     element={<ExportPassphrasePage />}

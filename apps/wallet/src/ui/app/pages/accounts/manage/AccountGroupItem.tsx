@@ -75,6 +75,10 @@ export function AccountGroupItem({
         navigate(`/accounts/export/${account!.id}`);
     }
 
+    function handleExportPublicKey() {
+        navigate(`/accounts/export/pubkey/${account!.id}`);
+    }
+
     function handleRemove() {
         setDialogRemoveOpen(true);
     }
@@ -171,6 +175,11 @@ export function AccountGroupItem({
                                 {account.isKeyPairExportable ? (
                                     <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
                                         Export Private Key
+                                    </ListItem>
+                                ) : null}
+                                {account.isKeyPairExportable ? (
+                                    <ListItem hideBottomBorder onClick={handleExportPublicKey}>
+                                        Export Public Key
                                     </ListItem>
                                 ) : null}
                                 {allAccounts.isPending ? null : (
