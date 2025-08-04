@@ -22,13 +22,11 @@ import {
     useFormatCoin,
     ImageIconSize,
     CoinIcon,
-    useGetDefaultIotaName,
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
-import { isValidIotaName } from '@iota/iota-names-sdk';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -80,8 +78,6 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
 }
 
 function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner: string }) {
-    const isName = isValidIotaName(owner);
-    const { data: name } = useGetDefaultIotaName(isName ? owner : undefined, true);
     const { recognizedTokenChanges, unRecognizedTokenChanges } = useMemo(
         () => getRecognizedUnRecognizedTokenChanges(changes),
         [changes],
@@ -97,7 +93,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                         <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                             Owner
                         </span>
-                        <AddressLink label={name} address={owner} copyText={owner} />
+                        <AddressLink address={owner} copyText={owner} />
                     </div>
                 ) : null
             }
