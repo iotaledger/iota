@@ -1374,29 +1374,28 @@ impl IndexStore {
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
+        
+        let balances: Arc<HashMap<TypeTag, TotalBalance>>;
         if force_disable_cache {
-            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
-                |e| IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e)),
-            )?;
-        }
-
-        self.metrics.all_balance_lookup_from_total.inc();
-        let metrics_cloned = self.metrics.clone();
-        let coin_index_cloned = self.tables.coin_index.clone();
-        self.caches
-            .all_balances
-            .get_with(owner, move || {
-                Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
-                    |e| {
-                        IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
-                    },
-                )
-            })
-            .map(|mut balances_map| {
-                Arc::make_mut(&mut balances_map)
-                    .retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
-                balances_map
-            })
+            balances = Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
+                .map_err(|e| IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e)))?;
+        } else {
+            self.metrics.all_balance_lookup_from_total.inc();        
+            balances = self.caches
+                .all_balances
+                .get_with(owner, move || {
+                    Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
+                        |e| {
+                            IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                        },
+                    )
+                })?;
+        }        
+        
+        let mut filtered_map = (*balances).clone();
+        filtered_map.retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
+        
+        Ok(Arc::new(filtered_map))
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
