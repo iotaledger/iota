@@ -20,8 +20,8 @@ use crate::{
     errors::IndexerError,
 };
 
-// Maximum number of parameters per query in PostgreSQL.
-const PG_MAX_PARAMS_PER_QUERY: usize = 65535;
+// The amount of rows to update in one DB transaction
+const PG_COMMIT_CHUNK_SIZE: usize = 100;
 
 /// Orchestrates ingestion-driven backfill by buffering processed checkpoints
 /// and coordinating range-based commits.
@@ -110,11 +110,9 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
         // Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
         // <= 65535.
-        let max_rows_per_batch = PG_MAX_PARAMS_PER_QUERY / T::PG_COL_COUNT;
-
         while !processed_data.is_empty() {
             let batch: Vec<_> = processed_data
-                .drain(..processed_data.len().min(max_rows_per_batch))
+                .drain(..processed_data.len().min(PG_COMMIT_CHUNK_SIZE))
                 .collect();
 
             T::persist_chunk(pool.clone(), batch).await?;
@@ -146,8 +144,6 @@ mod tests {
     #[async_trait::async_trait]
     impl IngestionBackfill for BackfillDummyTable {
         type ProcessedType = usize;
-
-        const PG_COL_COUNT: usize = 1;
 
         fn process_checkpoint(
             checkpoint: Arc<CheckpointData>,
