@@ -1055,7 +1055,7 @@ impl AuthorityStore {
         Ok(())
     }
 
-    pub async fn acquire_transaction_locks(
+    pub fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
         owned_input_objects: &[ObjectRef],
