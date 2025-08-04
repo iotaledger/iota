@@ -140,6 +140,7 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
+        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
@@ -2868,6 +2869,7 @@ impl AuthorityState {
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
+        pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -2899,6 +2901,7 @@ impl AuthorityState {
             prometheus_registry,
             indirect_objects_threshold,
             archive_readers,
+            pruner_db,
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3006,6 +3009,7 @@ impl AuthorityState {
             &self.checkpoint_store,
             self.rest_index.as_deref(),
             &self.database_for_testing().objects_lock_table,
+            None,
             config.authority_store_pruning_config,
             metrics,
             config.indirect_objects_threshold,
