@@ -1452,7 +1452,7 @@ Creates an adapter for the given tasks, using the first task command to initiali
 
 ### Execution Process in `run_tasks_with_adapter`
 
-The `run_tasks_with_adapter` function is responsible for runnnig the tasks from path
+The `run_tasks_with_adapter` function is responsible for runnig the tasks from path
 
 1. Parsing and Executing Commands from the `.move` File.
    - Reads the `.move` file.
@@ -1510,6 +1510,7 @@ The `insta_assert!` a macro wrapper around `insta::assert_snapshort` to promote 
 The snapshot file will be saved in the same directory as the input file with the name specified.
 
 #### Arguments
+
 The macro has three required arguments:
 
 - `input_path`: The path to the input file. This is used to determine the snapshot path.
@@ -1520,19 +1521,19 @@ the snapshot. If needed the `InstaOptions` struct can be used directly by specif
 `options` argument. Options include:
 
 - `name`: The name of the test. This will be used to name the snapshot file. By default, the
-            file stem (the name without the extension) of the input path is used.
+  file stem (the name without the extension) of the input path is used.
 - `info`: Additional information to include in the header of the snapshot file. This can be
-           useful for debugging tests. The value can be any type that implements
-           `serde::Serialize`.
+  useful for debugging tests. The value can be any type that implements
+  `serde::Serialize`.
 - `suffix`: A suffix to append to the snapshot file name. This changes the snapshot path to
-            `{input_path}/{name}@{suffix}.snap`.
+  `{input_path}/{name}@{suffix}.snap`.
 
- #### Updating snapshots
+#### Updating snapshots
 
- After running the test, the `.snap` files can be updated in two ways:
+After running the test, the `.snap` files can be updated in two ways:
 
- 1. By using `cargo insta review`, which will open an interactive UI to review the changes.
- 2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
+1. By using `cargo insta review`, which will open an interactive UI to review the changes.
+2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
 
 ### Structure of the `.move` File.
 
