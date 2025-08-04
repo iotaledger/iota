@@ -325,6 +325,13 @@ impl ExecutionCacheCommit for ProxyCache {
         delegate_method!(self.try_persist_transactions(digests))
     }
 
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    ) {
+        delegate_method!(self.persist_transactions_and_effects(digests))
+    }
+
     fn approximate_pending_transaction_count(&self) -> u64 {
         delegate_method!(self.approximate_pending_transaction_count())
     }

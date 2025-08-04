@@ -335,6 +335,10 @@ pub enum TransactionKind {
 
     RandomnessStateUpdate(RandomnessStateUpdate),
     // .. more transaction types go here
+    // TODO: When introducing `ConsensusCommitPrologueV2`, please add
+    // and use a new variant for `ConsensusDeterminedVersionAssignments`.
+    // See https://github.com/iotaledger/iota/issues/7692 and
+    // https://github.com/iotaledger/iota/pull/7697 for detail.
 }
 
 /// EndOfEpochTransactionKind
