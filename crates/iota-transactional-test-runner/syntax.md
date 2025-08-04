@@ -27,12 +27,12 @@
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
-- [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-exp-file)
+- [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
   - [Execution Process in `run_tasks_with_adapter`](#adapter-creation-in-run_tasks_with_adapter)
   - [Verification Process in `insta_assert!`](#verification-process-in-insta_assert!)
   - [Structure of the `.move` File](#structure-of-the-move-file)
-  - [Structure of a `.snap` File](#structure-of-a-exp-file)
+  - [Structure of a `.snap` File](#structure-of-a-snap-file)
   - [Extending `handle_subcommand` and Creating New Subcommands](#extending-handle_subcommand-and-creating-new-subcommands)
 
 Transactional tests simulate network operations through the framework exposed in [iota-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/crates/iota-transactional-test-runner). The framework is actually built on top of the more generic [move-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/external-crates/move/crates/move-transactional-test-runner).
