@@ -1856,14 +1856,6 @@ impl AuthorityState {
         let module_cache =
             TemporaryModuleResolver::new(&inner_temp_store, epoch_store.module_cache().clone());
 
-<<<<<<< HEAD
-        let tx_clone = transaction.clone();
-        let tracker_clone = self.congestion_tracker.clone();
-
-        let suggested_gas_price = tracker_clone.get_suggested_gas_price_with_ogd(tx_clone);
-
-=======
->>>>>>> protocol-research/import-congestion-tracker
         let mut layout_resolver =
             epoch_store
                 .executor()
@@ -1902,23 +1894,6 @@ impl AuthorityState {
 
         Ok((
             DryRunTransactionBlockResponse {
-<<<<<<< HEAD
-                input: IotaTransactionBlockData::try_from(
-                    transaction.clone(),
-                    &module_cache,
-                    tx_digest,
-                )
-                .map_err(|e| IotaError::TransactionSerialization {
-                    error: format!(
-                        "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                    ),
-                })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
-                effects: effects.clone().try_into()?,
-                events,
-                object_changes,
-                balance_changes,
-                suggested_gas_price,
-=======
                 // to avoid cloning `transaction`, fields are populated in this order
                 suggested_gas_price: self
                     .congestion_tracker
@@ -1938,7 +1913,6 @@ impl AuthorityState {
                 )?,
                 object_changes,
                 balance_changes,
->>>>>>> protocol-research/import-congestion-tracker
             },
             written_with_kind,
             effects,
@@ -2958,12 +2932,8 @@ impl AuthorityState {
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
-<<<<<<< HEAD
-            congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
-=======
             chain_identifier,
-            congestion_tracker: Arc::new(CongestionTracker::new()),
->>>>>>> protocol-research/import-congestion-tracker
+            congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
         });
 
         // Start a task to execute ready certificates.
