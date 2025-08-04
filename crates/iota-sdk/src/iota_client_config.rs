@@ -14,8 +14,9 @@ use serde_with::serde_as;
 
 use crate::{
     IOTA_DEVNET_GAS_URL, IOTA_DEVNET_GRAPHQL_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
-    IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_GAS_URL,
-    IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
+    IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_URL, IOTA_MAINNET_GRAPHQL_URL,
+    IOTA_MAINNET_URL, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_URL, IotaClient,
+    IotaClientBuilder,
 };
 
 /// Configuration for the IOTA client, containing a
@@ -41,6 +42,18 @@ impl IotaClientConfig {
             active_address: keystore.addresses().first().copied(),
             keystore,
         }
+    }
+
+    /// Set the default [`IotaEnv`]s for mainnet, devnet, testnet, and localnet.
+    pub fn with_default_envs(mut self) -> Self {
+        // We don't want to set any particular one of the default networks as active.
+        self.envs = vec![
+            IotaEnv::mainnet(),
+            IotaEnv::devnet(),
+            IotaEnv::testnet(),
+            IotaEnv::localnet(),
+        ];
+        self
     }
 
     /// Set the [`IotaEnv`]s.
@@ -97,7 +110,7 @@ impl IotaClientConfig {
             })
     }
 
-    /// Add an [`IotaEnv`].
+    /// Add an [`IotaEnv`] if there's no env with the same alias already.
     pub fn add_env(&mut self, env: IotaEnv) {
         if self.get_env(&env.alias).is_none() {
             if self
@@ -110,6 +123,12 @@ impl IotaClientConfig {
             }
             self.envs.push(env);
         }
+    }
+
+    /// Set an [`IotaEnv`]. Replaces any existing env with the same alias.
+    pub fn set_env(&mut self, env: IotaEnv) {
+        self.envs.retain(|e| e.alias != env.alias);
+        self.add_env(env);
     }
 }
 
@@ -217,6 +236,18 @@ impl IotaEnv {
         Ok(builder.build(&self.rpc).await?)
     }
 
+    /// Create the env with the default mainnet configuration.
+    pub fn mainnet() -> Self {
+        Self {
+            alias: "mainnet".to_string(),
+            rpc: IOTA_MAINNET_URL.into(),
+            graphql: Some(IOTA_MAINNET_GRAPHQL_URL.into()),
+            ws: None,
+            basic_auth: None,
+            faucet: None,
+        }
+    }
+
     /// Create the env with the default devnet configuration.
     pub fn devnet() -> Self {
         Self {
@@ -244,7 +275,7 @@ impl IotaEnv {
     /// Create the env with the default localnet configuration.
     pub fn localnet() -> Self {
         Self {
-            alias: "local".to_string(),
+            alias: "localnet".to_string(),
             rpc: IOTA_LOCAL_NETWORK_URL.into(),
             graphql: Some(IOTA_LOCAL_NETWORK_GRAPHQL_URL.into()),
             ws: None,

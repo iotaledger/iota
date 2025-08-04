@@ -5,7 +5,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
-use iota::client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas};
 use iota_config::node::RunWithRange;
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
@@ -37,8 +36,8 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionKind,
+        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TransactionData, TransactionKind,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -47,7 +46,7 @@ use move_core_types::{annotated_value::MoveStructLayout, ident_str};
 use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
 use tokio::{
-    sync::Mutex,
+    sync::RwLock,
     time::{Duration, sleep},
 };
 use tracing::info;
@@ -69,8 +68,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     // A small delay is needed for post processing operations following the
     // transaction to finish.
@@ -116,8 +114,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     Ok(())
 }
@@ -168,13 +165,15 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
                 .config()
                 .keystore()
                 .get_key(&sender)
-                .unwrap(),
+                .unwrap()
+                .as_keypair()?,
             test_cluster
                 .wallet
                 .config()
                 .keystore()
                 .get_key(&sponsor)
-                .unwrap(),
+                .unwrap()
+                .as_keypair()?,
         ],
     );
 
@@ -485,8 +484,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     let info = fullnode
         .state()
@@ -517,21 +515,21 @@ async fn do_test_full_node_sync_flood() {
     // Start a new fullnode that is not on the write path
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
-    let context = test_cluster.wallet;
+    let test_cluster = Arc::new(RwLock::new(test_cluster));
 
     let mut futures = Vec::new();
 
-    let (package_ref, counter_ref) = publish_basics_package_and_make_counter(&context).await;
-
-    let context = Arc::new(Mutex::new(context));
+    let (package_ref, counter_ref) =
+        publish_basics_package_and_make_counter(&test_cluster.read().await.wallet).await;
 
     // Start up 5 different tasks that all spam txs at the authorities.
     for _i in 0..5 {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        let context = context.clone();
+        let test_cluster = test_cluster.clone();
         tokio::task::spawn(async move {
             let (sender, object_to_split, gas_obj) = {
-                let context = &mut context.lock().await;
+                let mut test_cluster = test_cluster.write().await;
+                let context = &mut test_cluster.wallet;
 
                 let sender = context
                     .config()
@@ -551,35 +549,24 @@ async fn do_test_full_node_sync_flood() {
             let mut shared_tx_digest = None;
             let gas_object_id = gas_obj.0;
             for _ in 0..10 {
+                let test_cluster = test_cluster.read().await;
                 let res = {
-                    let context = &mut context.lock().await;
-                    IotaClientCommands::SplitCoin {
-                        amounts: Some(vec![1]),
-                        count: None,
-                        coin_id: object_to_split.0,
-                        opts: OptsWithGas::for_testing(
-                            Some(gas_object_id),
-                            TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN
-                                * context.get_reference_gas_price().await.unwrap(),
-                        ),
-                    }
-                    .execute(context)
-                    .await
-                    .unwrap()
+                    let tx = TestTransactionBuilder::new(
+                        sender,
+                        gas_obj,
+                        test_cluster.get_reference_gas_price().await,
+                    )
+                    .split_coin(object_to_split, vec![1])
+                    .build();
+
+                    let tx = test_cluster.wallet.sign_transaction(&tx);
+                    test_cluster.execute_transaction(tx).await
                 };
 
-                owned_tx_digest = if let IotaClientCommandResult::TransactionBlock(resp) = res {
-                    Some(resp.digest)
-                } else {
-                    panic!(
-                        "SplitCoin command did not return IotaClientCommandResult::TransactionBlock"
-                    );
-                };
-
-                let context = &context.lock().await;
+                owned_tx_digest = Some(res.digest);
                 shared_tx_digest = Some(
                     increment_counter(
-                        context,
+                        &test_cluster.wallet,
                         sender,
                         Some(gas_object_id),
                         package_ref.0,
@@ -607,8 +594,7 @@ async fn do_test_full_node_sync_flood() {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .await;
 }
 
 // Test fullnode has event read jsonrpc endpoints working
@@ -794,8 +780,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
 
@@ -1093,8 +1078,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     node.state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     loop {
         // Ensure this full node is able to transition to the next epoch
@@ -1113,8 +1097,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     node.state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest_after_restore])
-        .await
-        .unwrap();
+        .await;
     Ok(())
 }
 
@@ -1169,7 +1152,12 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     .unwrap();
     let tx = to_sender_signed_transaction(
         tx_data,
-        context.config().keystore().get_key(&sender).unwrap(),
+        context
+            .config()
+            .keystore()
+            .get_key(&sender)
+            .unwrap()
+            .as_keypair()?,
     );
 
     let digest = *tx.digest();
@@ -1239,7 +1227,6 @@ async fn test_access_old_object_pruned() {
                     state
                         .database_for_testing()
                         .get_object_by_key(&gas_object.0, gas_object.1)
-                        .unwrap()
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();

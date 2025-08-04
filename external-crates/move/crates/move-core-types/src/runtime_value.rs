@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -293,7 +293,7 @@ impl<'d> serde::de::DeserializeSeed<'d> for &MoveTypeLayout {
 
 struct VectorElementVisitor<'a>(&'a MoveTypeLayout);
 
-impl<'d, 'a> serde::de::Visitor<'d> for VectorElementVisitor<'a> {
+impl<'d> serde::de::Visitor<'d> for VectorElementVisitor<'_> {
     type Value = Vec<MoveValue>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -314,7 +314,7 @@ impl<'d, 'a> serde::de::Visitor<'d> for VectorElementVisitor<'a> {
 
 struct StructFieldVisitor<'a>(&'a [MoveTypeLayout]);
 
-impl<'d, 'a> serde::de::Visitor<'d> for StructFieldVisitor<'a> {
+impl<'d> serde::de::Visitor<'d> for StructFieldVisitor<'_> {
     type Value = Vec<MoveValue>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -362,7 +362,7 @@ impl<'d> serde::de::DeserializeSeed<'d> for &MoveEnumLayout {
 
 struct EnumFieldVisitor<'a>(&'a Vec<Vec<MoveTypeLayout>>);
 
-impl<'d, 'a> serde::de::Visitor<'d> for EnumFieldVisitor<'a> {
+impl<'d> serde::de::Visitor<'d> for EnumFieldVisitor<'_> {
     type Value = MoveVariant;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -399,7 +399,7 @@ impl<'d, 'a> serde::de::Visitor<'d> for EnumFieldVisitor<'a> {
 
 struct MoveVariantFieldLayout<'a>(&'a [MoveTypeLayout]);
 
-impl<'d, 'a> serde::de::DeserializeSeed<'d> for &MoveVariantFieldLayout<'a> {
+impl<'d> serde::de::DeserializeSeed<'d> for &MoveVariantFieldLayout<'_> {
     type Value = Vec<MoveValue>;
 
     fn deserialize<D: serde::de::Deserializer<'d>>(
@@ -471,7 +471,7 @@ impl serde::Serialize for MoveVariant {
 
 struct MoveFields<'a>(&'a [MoveValue]);
 
-impl<'a> serde::Serialize for MoveFields<'a> {
+impl serde::Serialize for MoveFields<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut t = serializer.serialize_tuple(self.0.len())?;
         for v in self.0.iter() {
@@ -509,7 +509,7 @@ impl fmt::Display for MoveTypeLayout {
 /// take advantage of the structured formatting helpers that Rust uses for its
 /// own debug types.
 struct DebugAsDisplay<'a, T>(&'a T);
-impl<'a, T: fmt::Display> fmt::Debug for DebugAsDisplay<'a, T> {
+impl<T: fmt::Display> fmt::Debug for DebugAsDisplay<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
             write!(f, "{:#}", self.0)

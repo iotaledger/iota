@@ -418,10 +418,15 @@ fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
             .keystore()
             .get_key(&address)
             .unwrap();
-        let (coin_name, immutable_metadata_coin_name) =
-            create_migrated_coin_manager_coins(cluster, client, store, address, address_kp)
-                .await
-                .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
 
         let (_, result_indexer) =
             get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
@@ -474,10 +479,15 @@ fn get_coin_metadata_with_native_coin_manager_coins() {
             .keystore()
             .get_key(&address)
             .unwrap();
-        let (coin_name, immutable_metadata_coin_name) =
-            create_native_coin_manager_coins(cluster, client, store, address, address_kp)
-                .await
-                .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
 
         let (result_fullnode, result_indexer) =
             get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
@@ -556,10 +566,15 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
             .keystore()
             .get_key(&address)
             .unwrap();
-        let (coin_name, immutable_metadata_coin_name) =
-            create_migrated_coin_manager_coins(cluster, client, store, address, address_kp)
-                .await
-                .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
 
         let (_, result_indexer) =
             get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
@@ -593,10 +608,15 @@ fn get_total_supply_with_native_coin_manager_coins() {
             .keystore()
             .get_key(&address)
             .unwrap();
-        let (coin_name, immutable_metadata_coin_name) =
-            create_native_coin_manager_coins(cluster, client, store, address, address_kp)
-                .await
-                .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
 
         let (result_fullnode, result_indexer) =
             get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
@@ -995,7 +1015,7 @@ async fn publish_test_move_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", test_package_name]);
 
-    let compiled_package = BuildConfig::default().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

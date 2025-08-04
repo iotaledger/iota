@@ -56,7 +56,7 @@ pub async fn start_cluster(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: Option<u16>,
 ) -> Cluster {
-    let data_ingestion_path = tempfile::tempdir().unwrap().into_path();
+    let data_ingestion_path = tempfile::tempdir().unwrap().keep();
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode

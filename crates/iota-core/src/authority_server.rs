@@ -44,7 +44,6 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
 };
 use tap::TapFallible;
-use tokio::task::JoinHandle;
 use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
@@ -68,31 +67,25 @@ mod server_tests;
 
 /// A handle to the authority server.
 pub struct AuthorityServerHandle {
-    tx_cancellation: tokio::sync::oneshot::Sender<()>,
-    local_addr: Multiaddr,
-    handle: JoinHandle<Result<(), tonic::transport::Error>>,
+    server_handle: iota_network_stack::server::Server,
 }
 
 impl AuthorityServerHandle {
     /// Waits for the server to complete.
     pub async fn join(self) -> Result<(), io::Error> {
-        // Note that dropping `self.complete` would terminate the server.
-        self.handle.await?.map_err(io::Error::other)?;
+        self.server_handle.handle().wait_for_shutdown().await;
         Ok(())
     }
 
     /// Kills the server.
     pub async fn kill(self) -> Result<(), io::Error> {
-        self.tx_cancellation
-            .send(())
-            .map_err(|_e| io::Error::other("could not send cancellation signal!"))?;
-        self.handle.await?.map_err(io::Error::other)?;
+        self.server_handle.handle().shutdown().await;
         Ok(())
     }
 
     /// Returns the address of the server.
     pub fn address(&self) -> &Multiaddr {
-        &self.local_addr
+        self.server_handle.local_addr()
     }
 }
 
@@ -150,9 +143,8 @@ impl AuthorityServer {
         let tls_config = iota_tls::create_rustls_server_config(
             self.state.config.network_key_pair().copy().private(),
             IOTA_TLS_SERVER_NAME.to_string(),
-            iota_tls::AllowAll,
         );
-        let mut server = iota_network_stack::config::Config::new()
+        let server = iota_network_stack::config::Config::new()
             .server_builder()
             .add_service(ValidatorServer::new(ValidatorService::new_for_tests(
                 self.state,
@@ -165,9 +157,7 @@ impl AuthorityServer {
         let local_addr = server.local_addr().to_owned();
         info!("Listening to traffic on {local_addr}");
         let handle = AuthorityServerHandle {
-            tx_cancellation: server.take_cancel_handle().unwrap(),
-            local_addr,
-            handle: spawn_monitored_task!(server.serve()),
+            server_handle: server,
         };
         Ok(handle)
     }
@@ -831,7 +821,7 @@ impl ValidatorService {
                 .into()
             );
             fp_ensure!(
-                !self.state.is_tx_already_executed(&tx_digest)?,
+                !self.state.try_is_tx_already_executed(&tx_digest)?,
                 IotaError::UserInput {
                     error: UserInputError::AlreadyExecuted { digest: tx_digest }
                 }
@@ -974,7 +964,7 @@ impl ValidatorService {
         let response = self
             .state
             .get_object_cache_reader()
-            .get_iota_system_state_object_unsafe()?;
+            .try_get_iota_system_state_object_unsafe()?;
         Ok((tonic::Response::new(response), Weight::one()))
     }
 

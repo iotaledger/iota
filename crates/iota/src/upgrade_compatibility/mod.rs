@@ -19,7 +19,7 @@ use formatting::{FormattedField, format_list, format_param, singular_or_plural};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::IotaClient;
+use iota_sdk::apis::ReadApi;
 use iota_types::{
     base_types::ObjectID, execution_config_utils::to_binary_config, move_package::UpgradePolicy,
 };
@@ -665,15 +665,14 @@ upgrade_codes!(
 /// Check the upgrade compatibility of a new package with an existing on-chain
 /// package.
 pub(crate) async fn check_compatibility(
-    client: &IotaClient,
+    read_api: &ReadApi,
     package_id: ObjectID,
     new_package: CompiledPackage,
     package_path: PathBuf,
     upgrade_policy: u8,
     protocol_config: ProtocolConfig,
 ) -> Result<(), Error> {
-    let existing_obj_read = client
-        .read_api()
+    let existing_obj_read = read_api
         .get_object_with_options(package_id, IotaObjectDataOptions::new().with_bcs())
         .await
         .context("Unable to get existing package")?;
@@ -699,18 +698,27 @@ pub(crate) async fn check_compatibility(
     let policy =
         UpgradePolicy::try_from(upgrade_policy).map_err(|_| anyhow!("Invalid upgrade policy"))?;
 
-    compare_packages(existing_modules, new_package, package_path, policy)
+    compare_packages(
+        *existing_package
+            .to_move_package(u64::MAX /* safe as this pkg comes from the network */)?
+            .original_package_id(),
+        existing_modules,
+        new_package,
+        package_path,
+        policy,
+    )
 }
 
 /// Collect all the errors into a single error message.
 fn compare_packages(
+    package_id: AccountAddress,
     existing_modules: Vec<CompiledModule>,
     mut new_package: CompiledPackage,
     package_path: PathBuf,
     policy: UpgradePolicy,
 ) -> Result<(), Error> {
     // create a map from the new modules
-    let new_modules_map: HashMap<Identifier, CompiledModule> = new_package
+    let mut new_modules_map: HashMap<Identifier, CompiledModule> = new_package
         .get_modules()
         .map(|m| (m.self_id().name().to_owned(), m.clone()))
         .collect();
@@ -739,8 +747,17 @@ fn compare_packages(
 
     for existing_module in existing_modules {
         let name = existing_module.self_id().name().to_owned();
-        match new_modules_map.get(&name) {
+        match new_modules_map.get_mut(&name) {
             Some(new_module) => {
+                let new_module_address_idx = new_module.self_handle().address;
+                let addrs = &mut new_module.address_identifiers;
+                if let Some(address_mut) = addrs.get_mut(new_module_address_idx.0 as usize) {
+                    if *address_mut == AccountAddress::ZERO {
+                        // if the new module address is zero, set it to the on-chain address
+                        *address_mut = package_id;
+                    }
+                }
+
                 let compiled_unit_with_source = new_package
                     .package
                     .get_module_by_name_from_root(name.as_str())

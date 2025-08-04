@@ -15,7 +15,6 @@ use tokio::time::Instant;
 #[cfg(test)]
 use crate::metrics::test_metrics;
 use crate::{block::BlockTimestampMs, metrics::Metrics};
-
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
 #[derive(Clone)]
@@ -60,7 +59,7 @@ impl Context {
     ) -> (Self, Vec<(NetworkKeyPair, ProtocolKeyPair)>) {
         let (committee, keypairs) =
             consensus_config::local_committee_and_keys(0, vec![1; committee_size]);
-        let metrics = test_metrics();
+        let metrics = test_metrics(committee_size);
         let temp_dir = TempDir::new().unwrap();
         let clock = Arc::new(Clock::new());
 
@@ -68,7 +67,7 @@ impl Context {
             AuthorityIndex::new_for_test(0),
             committee,
             Parameters {
-                db_path: temp_dir.into_path(),
+                db_path: temp_dir.keep(),
                 ..Default::default()
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),

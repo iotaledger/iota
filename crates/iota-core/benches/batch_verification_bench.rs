@@ -84,6 +84,7 @@ fn async_verifier_bench(c: &mut Criterion) {
                         true, // accept_zklogin_in_multisig
                         true, // accept_passkey_in_multisig
                         Some(30),
+                        true,
                     ));
 
                     b.iter(|| {

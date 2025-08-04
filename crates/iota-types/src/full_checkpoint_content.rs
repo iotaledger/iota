@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
-    base_types::ObjectRef,
+    base_types::{ObjectID, ObjectRef},
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsAPI,
         TransactionEvents,
@@ -57,11 +57,26 @@ impl CheckpointData {
         eventually_removed_object_refs.into_values().collect()
     }
 
-    pub fn input_objects(&self) -> Vec<&Object> {
-        self.transactions
-            .iter()
-            .flat_map(|tx| &tx.input_objects)
-            .collect()
+    /// Returns all objects that are used as input to the transactions in the
+    /// checkpoint, and already exist prior to the checkpoint.
+    pub fn checkpoint_input_objects(&self) -> BTreeMap<ObjectID, &Object> {
+        let mut output_objects_seen = HashSet::new();
+        let mut checkpoint_input_objects = BTreeMap::new();
+        for tx in self.transactions.iter() {
+            for obj in tx.input_objects.iter() {
+                let id = obj.id();
+                if output_objects_seen.contains(&id) || checkpoint_input_objects.contains_key(&id) {
+                    continue;
+                }
+                checkpoint_input_objects.insert(id, obj);
+            }
+            for obj in tx.output_objects.iter() {
+                // We want to track input objects that are not output objects
+                // in the previous transactions.
+                output_objects_seen.insert(obj.id());
+            }
+        }
+        checkpoint_input_objects
     }
 
     pub fn all_objects(&self) -> Vec<&Object> {

@@ -6,10 +6,13 @@ import { truncateString } from '@iota/core';
 
 export function formatAccountName(
     nickname: string | undefined | null,
+    name: string | undefined | null,
     address: string | undefined,
 ): string {
     if (nickname) {
         return truncateString(nickname, 12);
+    } else if (name) {
+        return truncateString(name, 12);
     } else {
         return formatAddress(address || '');
     }

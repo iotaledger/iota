@@ -41,9 +41,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_forward_time_drift")]
     pub max_forward_time_drift: Duration,
 
-    /// Number of blocks to fetch per request.
+    /// Number of blocks to fetch per commit sync request.
     #[serde(default = "Parameters::default_max_blocks_per_fetch")]
     pub max_blocks_per_fetch: usize,
+
+    /// Number of blocks to fetch by the periodic or live sync mechanism after a
+    /// single request
+    #[serde(default = "Parameters::default_max_blocks_per_sync")]
+    pub max_blocks_per_sync: usize,
 
     /// Time to wait during node start up until the node has synced the last
     /// proposed block via the network peers. When set to `0` the sync
@@ -62,7 +67,7 @@ pub struct Parameters {
 
     /// Proposing new block is stopped when the propagation delay is greater
     /// than this threshold. Propagation delay is the difference between the
-    /// round of the last proposed block and the the highest round from this
+    /// round of the last proposed block and the highest round from this
     /// authority that is received by all validators in a quorum.
     #[serde(default = "Parameters::default_propagation_delay_stop_proposal_threshold")]
     pub propagation_delay_stop_proposal_threshold: u32,
@@ -129,6 +134,10 @@ impl Parameters {
         }
     }
 
+    pub(crate) fn default_max_blocks_per_sync() -> usize {
+        if cfg!(msim) { 4 } else { 32 }
+    }
+
     pub(crate) fn default_sync_last_known_own_block_timeout() -> Duration {
         if cfg!(msim) {
             Duration::from_millis(500)
@@ -191,6 +200,7 @@ impl Default for Parameters {
             min_round_delay: Parameters::default_min_round_delay(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_blocks_per_fetch: Parameters::default_max_blocks_per_fetch(),
+            max_blocks_per_sync: Parameters::default_max_blocks_per_sync(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
             round_prober_interval_ms: Parameters::default_round_prober_interval_ms(),

@@ -10,7 +10,6 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
-chrono.workspace = true
 colored.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
@@ -36,3 +35,5 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true

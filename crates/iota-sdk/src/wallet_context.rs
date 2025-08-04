@@ -4,16 +4,16 @@
 
 use std::{collections::BTreeSet, path::Path, sync::Arc};
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, future};
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
 use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::AccountKeystore;
+use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::IotaKeyPair,
@@ -54,6 +54,26 @@ impl WalletContext {
                 config_path
             )
         })?;
+
+        if let Some(active_address) = &config.active_address {
+            let addresses = match &config.keystore {
+                Keystore::File(file) => file.addresses(),
+                Keystore::InMem(mem) => mem.addresses(),
+            };
+            ensure!(
+                addresses.contains(active_address),
+                "error in '{}': active address not found in the keystore",
+                config_path.display()
+            );
+        }
+
+        if let Some(active_env) = &config.active_env {
+            ensure!(
+                config.get_env(active_env).is_some(),
+                "error in '{}': active environment not found in the envs list",
+                config_path.display()
+            );
+        }
 
         let config = config.persisted(config_path);
         let context = Self {
@@ -195,6 +215,28 @@ impl WalletContext {
         } else {
             Ok(None)
         }
+    }
+
+    /// Infer the sender of a transaction based on the gas objects provided. If
+    /// no gas objects are provided, assume the active address is the
+    /// sender.
+    pub async fn infer_sender(&mut self, gas: &[ObjectID]) -> Result<IotaAddress, anyhow::Error> {
+        if gas.is_empty() {
+            return self.active_address();
+        }
+
+        // Find the owners of all supplied object IDs
+        let owners = future::try_join_all(gas.iter().map(|id| self.get_object_owner(id))).await?;
+
+        // SAFETY `gas` is non-empty.
+        let owner = owners[0];
+
+        ensure!(
+            owners.iter().all(|o| o == &owner),
+            "Cannot infer sender, not all gas objects have the same owner."
+        );
+
+        Ok(owner)
     }
 
     /// Find a gas object which fits the budget.

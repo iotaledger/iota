@@ -1,0 +1,28 @@
+[package]
+name = "iota-synthetic-ingestion"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-storage.workspace = true
+iota-test-transaction-builder.workspace = true
+iota-types.workspace = true
+simulacrum.workspace = true
+telemetry-subscribers.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

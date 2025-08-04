@@ -13,10 +13,11 @@ import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
+import { useGetDefaultIotaName } from '@iota/core';
+import { formatAccountName } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -95,7 +96,8 @@ function LeftContent({
     isLegacyAccount?: boolean;
     isMainAccount?: boolean;
 }) {
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
+    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
@@ -111,9 +113,11 @@ function LeftContent({
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="line-clamp-1 break-all text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                {accountName}
-            </span>
+            <div className="flex flex-col items-start">
+                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {accountName}
+                </span>
+            </div>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
             {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>

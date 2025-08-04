@@ -55,20 +55,21 @@ async fn get_coin_info(
     Path(coin_type): Path<StructTag>,
     State(state): State<StateReader>,
 ) -> Result<Json<CoinInfo>> {
+    let indexes = state.inner().indexes().ok_or_else(RestError::not_found)?;
+
     let core_coin_type = struct_tag_sdk_to_core(coin_type.clone())?;
 
     let iota_types::storage::CoinInfo {
         coin_metadata_object_id,
         treasury_object_id,
-    } = state
-        .inner()
+    } = indexes
         .get_coin_info(&core_coin_type)?
         .ok_or_else(|| CoinNotFoundError(coin_type.clone()))?;
 
     let metadata = if let Some(coin_metadata_object_id) = coin_metadata_object_id {
         state
             .inner()
-            .get_object(&coin_metadata_object_id)?
+            .try_get_object(&coin_metadata_object_id)?
             .map(iota_types::coin::CoinMetadata::try_from)
             .transpose()
             .map_err(|_| {
@@ -85,7 +86,7 @@ async fn get_coin_info(
     let treasury = if let Some(treasury_object_id) = treasury_object_id {
         state
             .inner()
-            .get_object(&treasury_object_id)?
+            .try_get_object(&treasury_object_id)?
             .map(iota_types::coin::TreasuryCap::try_from)
             .transpose()
             .map_err(|_| {

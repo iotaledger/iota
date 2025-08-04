@@ -68,6 +68,27 @@ impl MockCheckpointBuilder {
             .push(VerifiedExecutionData::new(transaction, effects))
     }
 
+    /// Overrides the next checkpoint number indirectly by setting the previous
+    /// checkpoint's number to checkpoint_number - 1. This ensures the next
+    /// generated checkpoint has the exact sequence number provided. This
+    /// can be useful to generate checkpoints with specific sequence
+    /// numbers. Monotonicity of checkpoint numbers is enforced strictly.
+    pub fn override_next_checkpoint_number(
+        &mut self,
+        checkpoint_number: u64,
+        validator_keys: &impl ValidatorKeypairProvider,
+    ) {
+        assert!(
+            checkpoint_number > self.previous_checkpoint.sequence_number,
+            "Checkpoint number must strictly increase."
+        );
+
+        let mut summary = self.previous_checkpoint.data().clone();
+        summary.sequence_number = checkpoint_number - 1;
+        let checkpoint = Self::create_certified_checkpoint(validator_keys, summary);
+        self.previous_checkpoint = checkpoint;
+    }
+
     /// Builds a checkpoint using internally buffered transactions.
     pub fn build(
         &mut self,
@@ -145,7 +166,7 @@ impl MockCheckpointBuilder {
                 .previous_checkpoint
                 .sequence_number
                 .checked_add(1)
-                .unwrap(),
+                .expect("checkpoint sequence number overflow"),
             network_total_transactions: self.previous_checkpoint.network_total_transactions
                 + contents.size() as u64,
             content_digest: *contents.digest(),

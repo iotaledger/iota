@@ -51,10 +51,7 @@ pub async fn execution_process(
             return;
         };
 
-        state
-            .get_chain_identifier()
-            .map(|chain_id| chain_id.chain())
-            == Some(Chain::Mainnet)
+        state.get_chain_identifier().chain() == Chain::Mainnet
     };
 
     // Loop whenever there is a signal that a new transactions is ready to process.
@@ -136,7 +133,7 @@ pub async fn execution_process(
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");
             let _guard = permit;
-            if let Ok(true) = authority.is_tx_already_executed(&digest) {
+            if let Ok(true) = authority.try_is_tx_already_executed(&digest) {
                 return;
             }
             let mut attempts = 0;

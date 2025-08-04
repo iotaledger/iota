@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -76,7 +77,12 @@ impl Scenario {
         static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
             once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-        let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+        let cache = Arc::new(WritebackCache::new(
+            &WritebackCacheConfig::default(),
+            store.clone(),
+            (*METRICS).clone(),
+            BackpressureManager::new_for_tests(),
+        ));
         Self {
             authority,
             store,
@@ -346,18 +352,16 @@ impl Scenario {
 
         self.cache()
             .write_transaction_outputs(1 /* epoch */, outputs.clone())
-            .await
-            .expect("write_transaction_outputs failed");
+            .await;
 
         self.count_action();
         tx
     }
 
     // commit a transaction to the database
-    pub async fn commit(&mut self, tx: TransactionDigest) -> IotaResult {
-        let res = self.cache().commit_transaction_outputs(1, &[tx]).await;
+    pub async fn commit(&mut self, tx: TransactionDigest) {
+        self.cache().commit_transaction_outputs(1, &[tx]).await;
         self.count_action();
-        res
     }
 
     pub async fn clear_state_end_of_epoch(&self) {
@@ -372,8 +376,10 @@ impl Scenario {
 
     pub fn reset_cache(&mut self) {
         self.cache = Arc::new(WritebackCache::new(
+            &WritebackCacheConfig::default(),
             self.store.clone(),
             self.cache.metrics.clone(),
+            BackpressureManager::new_for_tests(),
         ));
 
         // reset the scenario state to match the db
@@ -398,16 +404,10 @@ impl Scenario {
             let expected = self.objects.get(id).expect("no such object");
             let version = expected.version();
             assert_eq!(
-                self.cache()
-                    .get_object_by_key(id, version)
-                    .unwrap()
-                    .unwrap(),
+                self.cache().get_object_by_key(id, version).unwrap(),
                 *expected
             );
-            assert_eq!(
-                self.cache().get_object(&expected.id()).unwrap().unwrap(),
-                *expected
-            );
+            assert_eq!(self.cache().get_object(&expected.id()).unwrap(), *expected);
             // TODO: enable after lock caching is implemented
             // assert!(!self
             //  .cache()
@@ -422,7 +422,7 @@ impl Scenario {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
             self.cache()
-                .get_package_object(id)
+                .try_get_package_object(id)
                 .expect("no such package");
         }
     }
@@ -487,14 +487,12 @@ impl Scenario {
             assert_eq!(
                 self.cache()
                     .get_object_by_key(id, object.version())
-                    .unwrap()
                     .unwrap(),
                 *object
             );
             assert!(
                 self.cache()
                     .have_received_object_at_version(id, object.version(), 1)
-                    .unwrap()
             );
         }
     }
@@ -504,7 +502,7 @@ impl Scenario {
             let id = self.id_map.get(short_id).expect("no such id");
 
             assert!(
-                self.cache().get_object(id).unwrap().is_none(),
+                self.cache().get_object(id).is_none(),
                 "object exists in cache"
             );
         }
@@ -558,10 +556,7 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        s.cache()
-            .commit_transaction_outputs(1, &[tx])
-            .await
-            .expect("commit failed");
+        s.cache().commit_transaction_outputs(1, &[tx]).await;
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
 
@@ -646,44 +641,44 @@ async fn test_extra_outputs() {
 
         let tx = s.do_tx().await;
 
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        let fx = s.cache.get_executed_effects(&tx).unwrap().unwrap();
+        s.cache.get_transaction_block(&tx).unwrap();
+        let fx = s.cache.get_executed_effects(&tx).unwrap();
         let events_digest = fx.events_digest().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
+        s.cache.get_events(events_digest).unwrap();
 
-        s.commit(tx).await.unwrap();
+        s.commit(tx).await;
 
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
+        s.cache.get_transaction_block(&tx).unwrap();
+        s.cache.get_executed_effects(&tx).unwrap();
+        s.cache.get_events(events_digest).unwrap();
 
         // clear cache
         s.reset_cache();
 
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
+        s.cache.get_transaction_block(&tx).unwrap();
+        s.cache.get_executed_effects(&tx).unwrap();
+        s.cache.get_events(events_digest).unwrap();
 
         s.with_created(&[3]);
         let tx = s.do_tx().await;
 
         // when Events is empty, it should be treated as None
-        let fx = s.cache.get_executed_effects(&tx).unwrap().unwrap();
+        let fx = s.cache.get_executed_effects(&tx).unwrap();
         let events_digest = fx.events_digest().unwrap();
         assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
+            s.cache.get_events(events_digest).is_none(),
             "empty events should be none"
         );
 
-        s.commit(tx).await.unwrap();
+        s.commit(tx).await;
         assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
+            s.cache.get_events(events_digest).is_none(),
             "empty events should be none"
         );
 
         s.reset_cache();
         assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
+            s.cache.get_events(events_digest).is_none(),
             "empty events should be none"
         );
     })
@@ -701,7 +696,7 @@ async fn test_out_of_order_commit() {
         s.with_mutated(&[1, 2]);
         let tx2 = s.do_tx().await;
 
-        s.commit(tx2).await.unwrap_err();
+        s.commit(tx2).await;
     })
     .await;
 }
@@ -716,7 +711,6 @@ async fn test_lt_or_eq() {
                 assert_eq!(
                     s.cache()
                         .find_object_lt_or_eq_version(s.obj_id(1), v)
-                        .unwrap()
                         .unwrap()
                         .version(),
                     v
@@ -736,11 +730,11 @@ async fn test_lt_or_eq() {
         // txns are committed vs uncommitted. Scenario::iterate repeats
         // the test with cache eviction at each possible point.
         check_all_versions(&s);
-        s.commit(tx1).await.unwrap();
+        s.commit(tx1).await;
         check_all_versions(&s);
-        s.commit(tx2).await.unwrap();
+        s.commit(tx2).await;
         check_all_versions(&s);
-        s.commit(tx3).await.unwrap();
+        s.commit(tx3).await;
         check_all_versions(&s);
     })
     .await;
@@ -757,9 +751,9 @@ async fn test_lt_or_eq_caching() {
         let tx2 = s.do_tx().await;
         s.with_mutated_version_delta(&[1], 2);
         let tx3 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.commit(tx2).await.unwrap();
-        s.commit(tx3).await.unwrap();
+        s.commit(tx1).await;
+        s.commit(tx2).await;
+        s.commit(tx3).await;
 
         s.reset_cache();
 
@@ -769,7 +763,6 @@ async fn test_lt_or_eq_caching() {
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
-                    .unwrap()
                     .unwrap()
                     .version(),
                 expected_version
@@ -783,7 +776,6 @@ async fn test_lt_or_eq_caching() {
         assert!(
             s.cache()
                 .find_object_lt_or_eq_version(s.obj_id(1), 0.into())
-                .unwrap()
                 .is_none()
         );
 
@@ -822,8 +814,8 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         let tx1 = s.do_tx().await;
         s.with_deleted(&[1]);
         let tx2 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.commit(tx2).await.unwrap();
+        s.commit(tx1).await;
+        s.commit(tx2).await;
 
         s.reset_cache();
 
@@ -832,7 +824,6 @@ async fn test_lt_or_eq_with_cached_tombstone() {
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
-                    .unwrap()
                     .map(|v| v.version()),
                 expected_version.map(SequenceNumber::from_u64)
             );
@@ -889,8 +880,8 @@ async fn test_revert_committed_tx_panics() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
         let tx1 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.cache().revert_state_update(&tx1).unwrap();
+        s.commit(tx1).await;
+        s.cache().revert_state_update(&tx1);
     })
     .await;
 }
@@ -901,11 +892,11 @@ async fn test_revert_unexecuted_tx() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
         let tx1 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
+        s.commit(tx1).await;
         let random_digest = TransactionDigest::random();
         // must not panic - pending_consensus_transactions is a super set of
         // executed but un-checkpointed transactions
-        s.cache().revert_state_update(&random_digest).unwrap();
+        s.cache().revert_state_update(&random_digest);
     })
     .await;
 }
@@ -919,7 +910,7 @@ async fn test_revert_state_update_created() {
         let tx1 = s.do_tx().await;
         s.assert_live(&[1]);
 
-        s.cache().revert_state_update(&tx1).unwrap();
+        s.cache().revert_state_update(&tx1);
         s.clear_state_end_of_epoch().await;
 
         s.assert_not_exists(&[1]);
@@ -934,26 +925,17 @@ async fn test_revert_state_update_mutated() {
         let v1 = {
             s.with_created(&[1]);
             let tx = s.do_tx().await;
-            s.commit(tx).await.unwrap();
-            s.cache()
-                .get_object(&s.obj_id(1))
-                .unwrap()
-                .unwrap()
-                .version()
+            s.commit(tx).await;
+            s.cache().get_object(&s.obj_id(1)).unwrap().version()
         };
 
         s.with_mutated(&[1]);
         let tx = s.do_tx().await;
 
-        s.cache().revert_state_update(&tx).unwrap();
+        s.cache().revert_state_update(&tx);
         s.clear_state_end_of_epoch().await;
 
-        let version_after_revert = s
-            .cache()
-            .get_object(&s.obj_id(1))
-            .unwrap()
-            .unwrap()
-            .version();
+        let version_after_revert = s.cache().get_object(&s.obj_id(1)).unwrap().version();
         assert_eq!(v1, version_after_revert);
     })
     .await;
@@ -970,15 +952,10 @@ async fn test_invalidate_package_cache_on_revert() {
         s.assert_live(&[1]);
         s.assert_packages(&[2]);
 
-        s.cache().revert_state_update(&tx1).unwrap();
+        s.cache().revert_state_update(&tx1);
         s.clear_state_end_of_epoch().await;
 
-        assert!(
-            s.cache()
-                .get_package_object(&s.obj_id(2))
-                .unwrap()
-                .is_none()
-        );
+        assert!(s.cache().get_package_object(&s.obj_id(2)).is_none());
     })
     .await;
 }
@@ -1046,9 +1023,7 @@ async fn test_concurrent_readers() {
 
                 println!("parent: {parent_ref:?}");
                 loop {
-                    let parent = cache
-                        .get_object_by_key(&parent_ref.0, parent_ref.1)
-                        .unwrap();
+                    let parent = cache.get_object_by_key(&parent_ref.0, parent_ref.1);
                     if parent.is_none() {
                         tokio::task::yield_now().await;
                         continue;
@@ -1113,7 +1088,7 @@ async fn test_concurrent_lockers() {
             for (tx1, _, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
                         .await,
                 );
                 barrier.wait().await;
@@ -1132,7 +1107,7 @@ async fn test_concurrent_lockers() {
             for (_, tx2, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx2)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx2)
                         .await,
                 );
                 barrier.wait().await;
@@ -1186,7 +1161,7 @@ async fn test_concurrent_lockers_same_tx() {
             for (tx1, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
                         .await,
                 );
                 barrier.wait().await;
@@ -1205,7 +1180,7 @@ async fn test_concurrent_lockers_same_tx() {
             for (tx1, a_ref, b_ref) in txns {
                 results.push(
                     cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
+                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
                         .await,
                 );
                 barrier.wait().await;
@@ -1225,6 +1200,7 @@ async fn test_concurrent_lockers_same_tx() {
 
 #[tokio::test]
 async fn latest_object_cache_race_test() {
+    telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
     let store = authority.database_for_testing().clone();
@@ -1232,7 +1208,12 @@ async fn latest_object_cache_race_test() {
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
-    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
+    ));
 
     let object_id = ObjectID::random();
     let owner = IotaAddress::random_for_testing_only();
@@ -1244,7 +1225,11 @@ async fn latest_object_cache_race_test() {
         std::thread::spawn(move || {
             let mut version = OBJECT_START_VERSION;
             while start.elapsed() < Duration::from_secs(2) {
-                let object = Object::with_id_owner_version_for_testing(object_id, version, owner);
+                let object = Object::with_id_owner_version_for_testing(
+                    object_id,
+                    version,
+                    Owner::AddressOwner(owner),
+                );
 
                 cache
                     .write_object_entry(&object_id, version, object.into())
@@ -1262,11 +1247,19 @@ async fn latest_object_cache_race_test() {
         let start = Instant::now();
         std::thread::spawn(move || {
             while start.elapsed() < Duration::from_secs(2) {
-                let Some(latest_version) = cache
+                // If you move the get_ticket_for_read to after we get the latest version,
+                // the test will fail! (this is good, it means the test is doing something)
+                let ticket = cache
                     .cached
                     .object_by_id_cache
+                    .get_ticket_for_read(&object_id);
+
+                // get the latest version, but then let it become stale
+                let Some(latest_version) = cache
+                    .dirty
+                    .objects
                     .get(&object_id)
-                    .and_then(|e| e.lock().version())
+                    .and_then(|e| e.value().get_highest().map(|v| v.0))
                 else {
                     continue;
                 };
@@ -1276,13 +1269,32 @@ async fn latest_object_cache_race_test() {
                     std::thread::sleep(Duration::from_micros(1));
                 }
 
-                let object =
-                    Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
+                let object = Object::with_id_owner_version_for_testing(
+                    object_id,
+                    latest_version,
+                    Owner::AddressOwner(owner),
+                );
 
+                // because we obtained the ticket before reading the object, we will not write a
+                // stale version to the cache.
                 cache.cache_latest_object_by_id(
                     &object_id,
                     LatestObjectCacheEntry::Object(latest_version, object.into()),
+                    ticket,
                 );
+            }
+        })
+    };
+
+    // a thread that just invalidates the cache as fast as it can
+    let invalidator = {
+        let cache = cache.clone();
+        let start = Instant::now();
+        std::thread::spawn(move || {
+            while start.elapsed() < Duration::from_secs(2) {
+                cache.cached.object_by_id_cache.invalidate(&object_id);
+                // sleep for 1 to 10µs
+                std::thread::sleep(Duration::from_micros(rand::thread_rng().gen_range(1..10)));
             }
         })
     };
@@ -1304,7 +1316,7 @@ async fn latest_object_cache_race_test() {
                     continue;
                 };
 
-                assert!(cur >= latest);
+                assert!(cur >= latest, "{} >= {}", cur, latest);
                 latest = cur;
             }
         })
@@ -1313,4 +1325,291 @@ async fn latest_object_cache_race_test() {
     writer.join().unwrap();
     reader.join().unwrap();
     checker.join().unwrap();
+    invalidator.join().unwrap();
+}
+
+#[tokio::test]
+// This test verifies that concurrent transaction insertions and reads work
+// correctly without race conditions. It specifically tests the fix that ensures
+// store operations happen before cache operations. It ensures atomicity by
+// writing to the persistent store first, then updating the cache, so readers
+// never see stale or inconsistent data.
+async fn test_transaction_cache_race() {
+    telemetry_subscribers::init_for_testing();
+    let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
+    let cache = s.cache.clone();
+    let mut txns = Vec::new();
+
+    for i in 0..1000 {
+        let a = i * 4;
+        s.with_created(&[a]);
+        s.do_tx().await;
+
+        let outputs = s.take_outputs();
+        let tx = (*outputs.transaction).clone();
+        let effects = outputs.effects.clone();
+
+        txns.push((tx, effects));
+    }
+
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+
+    let t1 = {
+        let txns = txns.clone();
+        let cache = cache.clone();
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            for (i, (tx, effects)) in txns.into_iter().enumerate() {
+                barrier.wait();
+                // test both single and multi insert
+                if i % 2 == 0 {
+                    cache.insert_transaction_and_effects(&tx, &effects);
+                } else {
+                    cache.multi_insert_transaction_and_effects(&[VerifiedExecutionData::new(
+                        tx, effects,
+                    )]);
+                }
+            }
+        })
+    };
+
+    let t2 = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            for (tx, _) in txns {
+                barrier.wait();
+                cache.get_transaction_block(tx.digest());
+            }
+        })
+    };
+
+    t1.join().unwrap();
+    t2.join().unwrap();
+}
+
+#[tokio::test]
+async fn concurrent_latest_object_cache_race_test() {
+    // This test is a thread-less variant of latest_object_cache_race_test.
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+
+    let store = authority.database_for_testing().clone();
+
+    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
+        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
+
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
+    ));
+
+    let object_id = ObjectID::random();
+    let owner = IotaAddress::random_for_testing_only();
+
+    // write a new version on request
+    let mut write_version = OBJECT_START_VERSION;
+    let mut writer = || {
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            write_version,
+            Owner::AddressOwner(owner),
+        );
+
+        cache
+            .write_object_entry(&object_id, write_version, object.into())
+            .now_or_never()
+            .unwrap();
+
+        write_version = write_version.next();
+    };
+
+    // invalidate the cache on request
+    let invalidator = || {
+        cache.cached.object_by_id_cache.invalidate(&object_id);
+    };
+
+    // check cache consistency, ie. it can't contain an older version
+    let mut checked_latest = OBJECT_START_VERSION;
+    let mut checker = || {
+        if let Some(cur) = cache
+            .cached
+            .object_by_id_cache
+            .get(&object_id)
+            .and_then(|e| e.lock().version())
+        {
+            assert!(cur >= checked_latest, "{} >= {}", cur, checked_latest);
+            checked_latest = cur;
+        }
+    };
+
+    // populate the cache
+    writer();
+
+    // a reader that pretends it saw some previous version on the db
+    {
+        // acquire the ticket before getting the latest version
+        let ticket = cache
+            .cached
+            .object_by_id_cache
+            .get_ticket_for_read(&object_id);
+
+        // get the latest cached version
+        let latest_version = cache
+            .dirty
+            .objects
+            .get(&object_id)
+            .and_then(|e| e.value().get_highest().map(|v| v.0))
+            .unwrap();
+
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            latest_version,
+            Owner::AddressOwner(owner),
+        );
+
+        // preempt the reader to update the latest version and invalidate the cache
+        {
+            // this write will invalidate the ticket
+            writer();
+            writer();
+            // checker observes the new latest version
+            checker();
+            // invalidate the cache to make it forget the latest version
+            invalidator();
+        }
+
+        // the following insert will not populate the cache with an older version
+        // because the ticket was invalidated
+        cache.cache_latest_object_by_id(
+            &object_id,
+            LatestObjectCacheEntry::Object(latest_version, object.into()),
+            ticket,
+        );
+    }
+
+    // the checker will not see an older version but will only get a cache miss
+    checker();
+}
+
+#[tokio::test]
+async fn concurrent_latest_object_cache_collision_test() {
+    use crate::execution_cache::cache_types::key_generation_hash;
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+
+    let store = authority.database_for_testing().clone();
+
+    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
+        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
+
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
+    ));
+
+    let mk_object_id = |i: usize| -> ObjectID {
+        let mut obj_id = [0_u8; 32];
+        obj_id[0..8].copy_from_slice(&i.to_le_bytes());
+        ObjectID::new(obj_id)
+    };
+    // these two object ids have the same hash within MonotonicCache
+    let object1_id = mk_object_id(166);
+    let object2_id = mk_object_id(170);
+    assert_eq!(
+        key_generation_hash(&object1_id),
+        key_generation_hash(&object2_id)
+    );
+
+    let owner1 = IotaAddress::random_for_testing_only();
+    let owner2 = IotaAddress::random_for_testing_only();
+
+    // write a new version on request
+    let mut write1_version = OBJECT_START_VERSION;
+    let mut write2_version = OBJECT_START_VERSION;
+    let mut writer = |object_id: ObjectID| {
+        let (write_version, owner) = if object_id == object1_id {
+            (&mut write1_version, owner1)
+        } else {
+            (&mut write2_version, owner2)
+        };
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            *write_version,
+            Owner::AddressOwner(owner),
+        );
+
+        cache
+            .write_object_entry(&object_id, *write_version, object.into())
+            .now_or_never()
+            .unwrap();
+
+        *write_version = write_version.next();
+    };
+
+    // invalidate the cache on request
+    let invalidator = |object_id: ObjectID| {
+        cache.cached.object_by_id_cache.invalidate(&object_id);
+    };
+
+    // populate the cache
+    writer(object1_id);
+    writer(object2_id);
+
+    // a reader that pretends it saw some previous version on the db
+    {
+        // acquire the ticket before getting the latest version
+        let ticket2 = cache
+            .cached
+            .object_by_id_cache
+            .get_ticket_for_read(&object2_id);
+
+        // get the latest version
+        let latest2_version = cache
+            .dirty
+            .objects
+            .get(&object2_id)
+            .and_then(|e| e.value().get_highest().map(|v| v.0))
+            .unwrap();
+
+        let object2 = Object::with_id_owner_version_for_testing(
+            object2_id,
+            latest2_version,
+            Owner::AddressOwner(owner2),
+        );
+
+        // preempt the reader
+        {
+            // this write to object1 will invalidate the ticket for object2
+            writer(object1_id);
+            // invalidate object2 cache to make it forget the latest version
+            invalidator(object2_id);
+        }
+
+        // the following insert will not populate the cache with an older version
+        // because the ticket was invalidated, although it shouldn't have been!
+        cache.cache_latest_object_by_id(
+            &object2_id,
+            LatestObjectCacheEntry::Object(latest2_version, object2.into()),
+            ticket2,
+        );
+    }
+
+    // object1 is up to date in the cache
+    assert_eq!(
+        cache
+            .cached
+            .object_by_id_cache
+            .get(&object1_id)
+            .unwrap()
+            .lock()
+            .version()
+            .unwrap(),
+        OBJECT_START_VERSION.next()
+    );
+    // but now we get a cache miss on object2 instead of getting the latest version
+    assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
 }

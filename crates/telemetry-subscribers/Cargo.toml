@@ -12,7 +12,7 @@ atomic_float = "1.0"
 bytes.workspace = true
 bytes-varint = "1.1.0"
 clap.workspace = true
-console-subscriber = { version = "0.4", optional = true }
+console-subscriber = "0.4"
 crossterm.workspace = true
 futures.workspace = true
 once_cell.workspace = true
@@ -29,10 +29,6 @@ tracing.workspace = true
 tracing-appender = "0.2.2"
 tracing-opentelemetry = "0.28.0"
 tracing-subscriber.workspace = true
-
-[features]
-default = []
-tokio-console = ["console-subscriber"]
 
 [dev-dependencies]
 camino.workspace = true

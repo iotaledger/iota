@@ -31,7 +31,7 @@ use move_core_types::{ident_str, language_storage::StructTag};
 
 use crate::authority::{
     AuthorityState,
-    authority_test_utils::build_test_modules_with_dep_addr,
+    auth_unit_test_utils::build_test_modules_with_dep_addr,
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
         UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
@@ -64,7 +64,7 @@ enum FileOverlay<'a> {
 fn build_upgrade_test_modules_with_overlay(
     base_pkg: &str,
     overlay: FileOverlay<'_>,
-) -> (Vec<u8>, Vec<Vec<u8>>) {
+) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
     // Root temp dirs under `move_upgrade` directory so that dependency paths remain
     // correct.
     let mut tmp_dir_root_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -98,7 +98,8 @@ fn build_upgrade_test_modules_with_overlay(
 
 fn build_upgrade_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     let path = pkg_path_of(test_dir);
-    build_pkg_at_path(&path)
+    let (digest, modules, _dep_ids) = build_pkg_at_path(&path);
+    (digest, modules)
 }
 
 fn pkg_path_of(pkg_name: &str) -> PathBuf {
@@ -107,12 +108,13 @@ fn pkg_path_of(pkg_name: &str) -> PathBuf {
     path
 }
 
-fn build_pkg_at_path(path: &Path) -> (Vec<u8>, Vec<Vec<u8>>) {
+fn build_pkg_at_path(path: &Path) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
     let with_unpublished_deps = false;
     let package = BuildConfig::new_for_testing().build(path).unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),
+        package.get_published_dependencies_ids(),
     )
 }
 
@@ -325,7 +327,6 @@ async fn test_upgrade_package_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&runner.package.0)
-        .unwrap()
         .unwrap();
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let binary_config = to_binary_config(&config);
@@ -412,7 +413,6 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .authority_state
         .get_object_store()
         .get_object_by_key(&created.0, created.1)
-        .unwrap()
         .unwrap();
 
     assert_eq!(
@@ -530,7 +530,7 @@ async fn test_upgrade_package_add_new_module_in_dep_only_mode_pre_v5() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let base_pkg = "dep_only_upgrade";
     assert_valid_dep_only_upgrade(&mut runner, base_pkg).await;
-    let (digest, modules) = build_upgrade_test_modules_with_overlay(
+    let (digest, modules, dep_ids) = build_upgrade_test_modules_with_overlay(
         base_pkg,
         FileOverlay::Add {
             file_name: "new_module.move",
@@ -538,12 +538,7 @@ async fn test_upgrade_package_add_new_module_in_dep_only_mode_pre_v5() {
         },
     );
     let effects = runner
-        .upgrade(
-            UpgradePolicy::DEP_ONLY,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, dep_ids)
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -563,21 +558,16 @@ async fn test_upgrade_package_invalid_dep_only_upgrade_pre_v5() {
         FileOverlay::Add {
             file_name: "new_friend_module.move",
             contents: r#"
-module base_addr::new_friend_module; 
+module base_addr::new_friend_module;
 public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
         "#,
         },
         FileOverlay::Remove("friend_module.move"),
     ];
     for overlay in overlays {
-        let (digest, modules) = build_upgrade_test_modules_with_overlay(base_pkg, overlay);
+        let (digest, modules, dep_ids) = build_upgrade_test_modules_with_overlay(base_pkg, overlay);
         let effects = runner
-            .upgrade(
-                UpgradePolicy::DEP_ONLY,
-                digest,
-                modules,
-                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-            )
+            .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, dep_ids)
             .await;
 
         assert_eq!(
@@ -602,7 +592,7 @@ async fn test_invalid_dep_only_upgrades() {
         FileOverlay::Add {
             file_name: "new_friend_module.move",
             contents: r#"
-module base_addr::new_friend_module; 
+module base_addr::new_friend_module;
 public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
         "#,
         },
@@ -610,14 +600,9 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
     ];
 
     for overlay in overlays {
-        let (digest, modules) = build_upgrade_test_modules_with_overlay(base_pkg, overlay);
+        let (digest, modules, dep_ids) = build_upgrade_test_modules_with_overlay(base_pkg, overlay);
         let effects = runner
-            .upgrade(
-                UpgradePolicy::DEP_ONLY,
-                digest,
-                modules,
-                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-            )
+            .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, dep_ids)
             .await;
 
         assert_eq!(
@@ -1000,7 +985,6 @@ async fn test_publish_override_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&new_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1054,7 +1038,6 @@ async fn test_publish_transitive_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&root_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1146,7 +1129,6 @@ async fn test_publish_transitive_override_happy_path() {
         .authority_state
         .get_object_cache_reader()
         .get_package_object(&root_package.0)
-        .unwrap()
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -90,7 +90,7 @@ struct Context<'env, 'map> {
     pub path_expander: Option<Box<dyn PathExpander>>,
 }
 
-impl<'env, 'map> Context<'env, 'map> {
+impl<'env> Context<'env, '_> {
     fn new(
         compilation_env: &'env CompilationEnv,
         module_members: UniqueMap<ModuleIdent, ModuleMembers>,

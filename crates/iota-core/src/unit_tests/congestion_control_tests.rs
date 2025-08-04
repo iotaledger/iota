@@ -31,6 +31,7 @@ use crate::{
         },
         move_integration_tests::build_and_publish_test_package,
         shared_object_congestion_tracker::shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
+        suggested_gas_price_calculator::suggested_gas_price_calculator_test_utils::new_suggested_gas_price_calculator_with_initial_values_for_test,
         test_authority_builder::TestAuthorityBuilder,
     },
     move_call,
@@ -181,24 +182,18 @@ impl TestSetup {
             self.setup_authority_state
                 .get_object(&self.package.0)
                 .await
-                .unwrap()
                 .unwrap(),
         ));
         genesis_objects.push(TestSetup::convert_to_genesis_obj(
             self.setup_authority_state
                 .get_object(&self.gas_object_id)
                 .await
-                .unwrap()
                 .unwrap(),
         ));
 
         for obj in objects {
             genesis_objects.push(TestSetup::convert_to_genesis_obj(
-                self.setup_authority_state
-                    .get_object(obj)
-                    .await
-                    .unwrap()
-                    .unwrap(),
+                self.setup_authority_state.get_object(obj).await.unwrap(),
             ));
         }
         genesis_objects
@@ -309,14 +304,32 @@ async fn test_congestion_control_execution_cancellation() {
 
     // Initialize shared object queue so that any transaction touches
     // shared_object_1 should result in congestion and cancellation.
+    let congestion_control_min_free_execution_slot = test_setup
+        .protocol_config
+        .congestion_control_min_free_execution_slot();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
             &[(shared_object_1.0, 10)],
             PerObjectCongestionControlMode::TotalGasBudget,
-            test_setup
-                .protocol_config
-                .congestion_control_min_free_execution_slot(),
+            congestion_control_min_free_execution_slot,
         ))
+    });
+
+    register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
+        Some(
+            new_suggested_gas_price_calculator_with_initial_values_for_test(
+                &[(shared_object_1.0, 10, TEST_ONLY_GAS_PRICE)],
+                PerObjectCongestionControlMode::TotalGasBudget,
+                test_setup
+                    .protocol_config
+                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+                test_setup
+                    .protocol_config
+                    .congestion_control_min_free_execution_slot(),
+                TEST_ONLY_GAS_PRICE,
+                test_setup.protocol_config.max_gas_price(),
+            ),
+        )
     });
 
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
@@ -333,18 +346,21 @@ async fn test_congestion_control_execution_cancellation() {
             .get_object(&owned_object.0)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference(),
     )
     .await;
 
-    // Transaction should be cancelled with `shared_object_1` as the congested
-    // object.
+    let suggested_gas_price = TEST_ONLY_GAS_PRICE + 1;
+
+    // Transaction should be cancelled with `shared_object_1` and `shared_object_2`
+    // as the congested objects, and the suggested gas price should be
+    // `TEST_ONLY_GAS_PRICE`.
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                suggested_gas_price,
             },
             command: None
         }
@@ -354,8 +370,14 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
-            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CONGESTED)
+            InputSharedObject::Cancelled(
+                shared_object_1.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+            ),
+            InputSharedObject::Cancelled(
+                shared_object_2.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+            )
         ]
     );
 
@@ -373,13 +395,14 @@ async fn test_congestion_control_execution_cancellation() {
         )
         .await
         .unwrap();
-    let (effects_2, execution_error) = authority_state_2.try_execute_for_test(&cert).await.unwrap();
+    let (effects_2, execution_error) = authority_state_2.execute_for_test(&cert).await;
 
     // Should result in the same cancellation.
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
-        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+            suggested_gas_price,
         }
     );
     assert_eq!(&effects, effects_2.data())

@@ -34,8 +34,9 @@ use iota_keys::{
         read_authority_keypair_from_file, read_keypair_from_file, write_authority_keypair_to_file,
         write_keypair_to_file,
     },
-    keystore::{AccountKeystore, Keystore},
+    keystore::{AccountKeystore, Keystore, StoredKey},
 };
+use iota_ledger::Ledger;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -63,6 +64,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
+    signing::{ExternalKeySource, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -131,13 +133,23 @@ pub enum KeyToolCommand {
     /// generate one.
     Import {
         /// Sets an alias for this address. The alias must start with a letter
-        /// and can contain only letters, digits, hyphens (-), or underscores
-        /// (_).
+        /// and can contain only letters, digits, dots, hyphens (-), or
+        /// underscores (_).
         #[arg(long)]
         alias: Option<String>,
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
+    },
+    /// Import a key from Ledger hardware wallet.
+    ImportLedger {
+        /// Sets an alias for this address. The alias must start with a letter
+        /// and can contain only letters, digits, dots, hyphens (-), or
+        /// underscores (_).
+        #[arg(long)]
+        alias: Option<String>,
+        #[arg(default_value = "m/44'/4218'/0'/0'/0'")]
+        derivation_path: DerivationPath,
     },
     /// List all keys by its IOTA address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
@@ -333,6 +345,7 @@ pub struct DecodeOrVerifyTxOutput {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Key {
+    #[serde(skip_serializing_if = "Option::is_none")]
     alias: Option<String>,
     pub(crate) iota_address: IotaAddress,
     pub(crate) public_base64_key: String,
@@ -342,6 +355,10 @@ pub struct Key {
     #[serde(skip_serializing_if = "Option::is_none")]
     mnemonic: Option<String>,
     peer_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    external_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    derivation_path: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -363,7 +380,7 @@ pub struct MultiSigAddress {
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSig {
     multisig_address: IotaAddress,
-    multisig_parsed: GenericSignature,
+    multisig_parsed: MultiSig,
     multisig_serialized: String,
 }
 
@@ -528,7 +545,7 @@ impl KeyToolCommand {
                 cur_epoch,
             } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
+                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
                 let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                 match sig {
                     None => CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
@@ -552,19 +569,26 @@ impl KeyToolCommand {
             }
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let ikp = keystore.get_key(&address)?;
-                let mut key = Key::from(ikp);
+                let stored = keystore.get_key(&address)?;
 
-                key.alias = keystore.get_alias_by_address(&address).ok();
+                match stored {
+                    StoredKey::KeyPair(keypair) => {
+                        let mut key = Key::from(stored);
+                        key.alias = keystore.get_alias_by_address(&address).ok();
 
-                let key = ExportedKey {
-                    exported_private_key: ikp
-                        .encode()
-                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key
-                };
+                        let key = ExportedKey {
+                            exported_private_key: keypair
+                                .encode()
+                                .map_err(|_| anyhow!("Cannot decode keypair"))?,
+                            key,
+                        };
 
-                CommandOutput::Export(key)
+                        CommandOutput::Export(key)
+                    }
+                    StoredKey::External { source, .. } => {
+                        bail!("Cannot export external keys from {source}");
+                    }
+                }
             }
             KeyToolCommand::Generate {
                 key_scheme,
@@ -575,7 +599,10 @@ impl KeyToolCommand {
                     let (iota_address, kp) = get_authority_key_pair();
                     let file_name = format!("bls-{iota_address}.key");
                     write_authority_keypair_to_file(&kp, file_name)?;
-                    let public_base64_key_with_flag = encode_public_key_with_flag_base64(SignatureScheme::BLS12381.flag(), kp.public().as_ref());
+                    let public_base64_key_with_flag = encode_public_key_with_flag_base64(
+                        SignatureScheme::BLS12381.flag(),
+                        kp.public().as_ref(),
+                    );
                     CommandOutput::Generate(Key {
                         alias: None,
                         iota_address,
@@ -585,6 +612,8 @@ impl KeyToolCommand {
                         flag: SignatureScheme::BLS12381.flag(),
                         mnemonic: None,
                         peer_id: None,
+                        external_source: None,
+                        derivation_path: None,
                     })
                 }
                 _ => {
@@ -592,7 +621,7 @@ impl KeyToolCommand {
                         generate_new_key(key_scheme, derivation_path, word_length)?;
                     let file = format!("{iota_address}.key");
                     write_keypair_to_file(&ikp, file)?;
-                    let mut key = Key::from(&ikp);
+                    let mut key = Key::from(ikp);
                     key.mnemonic = Some(phrase);
                     CommandOutput::Generate(key)
                 }
@@ -605,9 +634,10 @@ impl KeyToolCommand {
             } => match IotaKeyPair::decode(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
-                    let mut key = Key::from(&ikp);
+                    let stored = ikp.into();
+                    let mut key = Key::from(&stored);
 
-                    keystore.add_key(alias, ikp)?;
+                    keystore.add_key(alias, stored)?;
                     key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
 
                     CommandOutput::Import(key)
@@ -643,6 +673,27 @@ impl KeyToolCommand {
                     CommandOutput::Import(key)
                 }
             },
+            KeyToolCommand::ImportLedger {
+                alias,
+                derivation_path,
+            } => {
+                info!("Importing Ledger to keystore");
+                let mut ledger = Ledger::new_with_default()?;
+                ledger.ensure_app_is_open()?;
+                let response = ledger.get_public_key(&derivation_path)?;
+                keystore.import_from_external(
+                    ExternalKeySource::Ledger.as_str(),
+                    response.public_key,
+                    Some(derivation_path),
+                    alias,
+                )?;
+                let ikp = keystore.get_key(&response.address)?;
+                let mut key = Key::from(ikp);
+
+                key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
+                CommandOutput::Import(key)
+            }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
                     .keys()
@@ -668,7 +719,7 @@ impl KeyToolCommand {
                 let mut output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: vec![],
-                    threshold
+                    threshold,
                 };
 
                 for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
@@ -689,11 +740,10 @@ impl KeyToolCommand {
                 let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
                 let multisig = MultiSig::combine(sigs, multisig_pk)?;
-                let generic_sig: GenericSignature = multisig.into();
-                let multisig_serialized = generic_sig.encode_base64();
+                let multisig_serialized = multisig.encode_base64();
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
                     multisig_address: address,
-                    multisig_parsed: generic_sig,
+                    multisig_parsed: multisig,
                     multisig_serialized,
                 })
             }
@@ -701,13 +751,16 @@ impl KeyToolCommand {
                 let res = read_keypair_from_file(&file);
                 match res {
                     Ok(ikp) => {
-                        let key = Key::from(&ikp);
+                        let key = Key::from(ikp);
                         CommandOutput::Show(key)
                     }
                     Err(_) => match read_authority_keypair_from_file(&file) {
                         Ok(keypair) => {
                             let public_base64_key = keypair.public().encode_base64();
-                            let public_base64_key_with_flag= encode_public_key_with_flag_base64(SignatureScheme::BLS12381.flag(), keypair.public().as_ref());
+                            let public_base64_key_with_flag = encode_public_key_with_flag_base64(
+                                SignatureScheme::BLS12381.flag(),
+                                keypair.public().as_ref(),
+                            );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
                                 iota_address: (keypair.public()).into(),
@@ -717,6 +770,8 @@ impl KeyToolCommand {
                                 flag: SignatureScheme::BLS12381.flag(),
                                 peer_id: None,
                                 mnemonic: None,
+                                external_source: None,
+                                derivation_path: None,
                             })
                         }
                         Err(e) => CommandOutput::Error(format!(
@@ -742,8 +797,10 @@ impl KeyToolCommand {
                 let mut hasher = DefaultHash::default();
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
+
                 let iota_signature =
-                    keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?;
+                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
+
                 CommandOutput::Sign(SignData {
                     iota_address: address,
                     raw_tx_data: data,
@@ -821,8 +878,7 @@ impl KeyToolCommand {
                     old_alias,
                     new_alias,
                 })
-            }
-            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
@@ -1117,7 +1173,7 @@ impl KeyToolCommand {
                * ZkLoginEnv::Prod,                 _ => bail!("Invalid
                * network"),             };
                *             let verify_params =
-               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2)); */
+               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2), true); */
 
               /*             let (serialized, res) = match IntentScope::try_from(intent_scope)
                *                 .map_err(|_| anyhow!("Invalid scope"))?
@@ -1177,23 +1233,26 @@ impl KeyToolCommand {
     }
 }
 
-impl From<&IotaKeyPair> for Key {
-    fn from(ikp: &IotaKeyPair) -> Self {
-        Key::from(ikp.public())
+impl From<IotaKeyPair> for Key {
+    fn from(ikp: IotaKeyPair) -> Self {
+        Key::from(&StoredKey::from(ikp))
     }
 }
 
-impl From<PublicKey> for Key {
-    fn from(pk: PublicKey) -> Self {
-        Key {
+impl From<&StoredKey> for Key {
+    fn from(stored: &StoredKey) -> Self {
+        let pk = stored.public();
+        Self {
             alias: None, // this is retrieved later
-            iota_address: IotaAddress::from(&pk),
+            iota_address: stored.address(),
             public_base64_key: Base64::encode(pk.as_ref()),
             public_base64_key_with_flag: pk.encode_base64(),
             key_scheme: pk.scheme().to_string(),
             mnemonic: None,
             flag: pk.flag(),
             peer_id: anemo_styling(&pk),
+            external_source: stored.external_source(),
+            derivation_path: stored.derivation_path().map(|d| d.to_string()),
         }
     }
 }
@@ -1231,6 +1290,26 @@ impl Display for CommandOutput {
                 table.with(Rotate::Left);
                 table.with(tabled::settings::Style::rounded().horizontals([]));
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(160).keep_words()));
+                write!(formatter, "{table}")
+            }
+            CommandOutput::MultiSigCombinePartialSig(data) => {
+                // Build inner table for multisigParsed
+                let parsed_table = json_to_table(&json!(&data.multisig_parsed))
+                    .with(tabled::settings::Style::rounded().horizontals([]))
+                    .to_string();
+
+                let mut builder = Builder::default();
+                builder
+                    .set_header(["multisigSerialized", "multisigParsed", "multisigAddress"])
+                    .push_record([
+                        &data.multisig_serialized,
+                        &parsed_table,
+                        &data.multisig_address.to_string(),
+                    ]);
+                let mut table = builder.build();
+                table.with(Rotate::Left);
+                table.with(tabled::settings::Style::rounded().horizontals([]));
+                table.with(Modify::new(Rows::new(0..)).with(Width::wrap(126).keep_words()));
                 write!(formatter, "{table}")
             }
             CommandOutput::UpdateAlias(update) => {

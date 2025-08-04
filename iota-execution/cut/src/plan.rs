@@ -733,7 +733,7 @@ mod tests {
         let root = discover_root(cut.clone()).unwrap();
 
         let iota_execution = root.join("iota-execution");
-        let move_vm_types = root.join("external-crates/move/crates/move-vm-types");
+        let move_core_types = root.join("external-crates/move/crates/move-core-types");
 
         let ws = Workspace::read(&root).unwrap();
 
@@ -742,7 +742,7 @@ mod tests {
 
         // Other examples
         assert!(ws.members.contains(&iota_execution));
-        assert!(ws.exclude.contains(&move_vm_types));
+        assert!(ws.exclude.contains(&move_core_types));
     }
 
     #[test]

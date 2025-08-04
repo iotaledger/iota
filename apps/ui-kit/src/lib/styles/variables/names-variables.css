@@ -1,0 +1,270 @@
+:root.names {
+    /* FONTS */
+    --font-family-heading: theme('fontFamily.roboto-flex');
+    --font-family-text: theme('fontFamily.inter');
+    --display-lg-font-weight: 700;
+    --display-lg-line-height: 100%;
+    --display-md-font-weight: 700;
+    --display-md-line-height: 100%;
+    --display-sm-font-weight: 700;
+    --display-sm-line-height: 100%;
+    --headline-lg-font-weight: 600;
+    --headline-md-font-weight: 600;
+    --headline-sm-font-weight: 600;
+
+    /* COLORS */
+    --warning-surface: theme('colors.names-warning.20');
+    --on-warning: theme('colors.names-warning.90');
+    --error-surface: theme('colors.names-error.20');
+    --on-error: theme('colors.names-error.90');
+    --success-surface: theme('colors.names-tertiary.20');
+    --on-success: theme('colors.names-tertiary.90');
+    --default-surface: theme('colors.names-primary.20');
+    --on-default: theme('colors.names-neutral.90');
+
+    /* STATE LAYER */
+    --state-layer-bg-color: theme('colors.names-primary.60');
+    --state-layer-secondary-bg-color: theme('colors.shader-primary-dark.100');
+    --state-layer-inverted-bg-color: theme('colors.names-primary.80');
+
+    /* ---------------- ATOMS ---------------- */
+
+    /* BADGE */
+    --badge-bg-color-neutral: theme('colors.names-neutral.12');
+    --badge-text-color-neutral: theme('colors.names-neutral.92');
+    --badge-border-color-neutral: theme('colors.names-neutral.12');
+    --badge-bg-color-primary: theme('colors.names-primary.30');
+    --badge-border-color-primary: theme('colors.names-primary.30');
+    --badge-text-color-primary: theme('colors.names-neutral.100');
+    --badge-bg-color-primary-soft: theme('colors.names-primary.20');
+    --badge-text-color-primary-soft: theme('colors.names-primary.90');
+    --badge-border-color-soft: theme('colors.names-primary.20');
+
+    /* INFOBOX */
+    --infobox-text-title: theme('colors.names-neutral.92');
+    --infobox-supporting-text: theme('colors.names-neutral.92');
+
+    /* BUTTON */
+    --button-bg-color-primary: theme('colors.names-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.names-neutral.30');
+    --button-bg-color-secondary: theme('colors.names-neutral.20');
+    --button-bg-color-error: theme('colors.names-error.20');
+    --button-border-color-outline: theme('colors.names-neutral.60');
+    --button-text-color-primary: theme('colors.names-primary.100');
+    --button-text-color-neutral: theme('colors.names-neutral.92');
+    --button-text-color-error: theme('colors.names-error.90');
+
+    /* BUTTON PILL */
+    --button-pill-border-color: theme('colors.names-neutral.40');
+    --button-pill-text-color: theme('colors.names-neutral.60');
+
+    /* HEADER */
+    --header-bg-color: theme('colors.names-neutral.6');
+    --header-text-color: theme('colors.names-neutral.92');
+
+    /* LABEL */
+    --label-text-primary-neutral: theme('colors.names-neutral.92');
+    --label-text-secondary-neutral: theme('colors.names-neutral.50');
+
+    /* KEY VALUE */
+    --key-supporting-text-color: theme('colors.names-neutral.50');
+    --key-value-hover-text-color: theme('colors.iota-neutral.92');
+    --key-value-key-text-color: theme('colors.names-neutral.70');
+
+    /* CHECKBOX */
+    --checkbox-border-color-default: theme('colors.names-neutral.20');
+    --checkbox-border-color-checked: theme('colors.names-primary.30');
+    --checkbox-border-color-disabled: theme('colors.names-neutral.30');
+    --checkbox-border-color-disabled-checked: theme('colors.names-neutral.50');
+    --checkbox-bg-color-checked: theme('colors.names-primary.30');
+    --checkbox-bg-color-disabled-checked: theme('colors.names-neutral.50');
+    --checkbox-text-color: theme('colors.names-neutral.70');
+    --checkbox-text-color-checked: theme('colors.names-neutral.100');
+    --checkbox-label-text-color: theme('colors.names-neutral.70');
+
+    /* DIVIDER */
+    --divider-bg-color: theme('colors.shader-neutral-dark.8');
+
+    /* BUTTON SEGMENT */
+    --button-segment-text-color-default: theme('colors.names-neutral.50');
+    --button-segment-text-color-hover: theme('colors.names-neutral.70');
+    --button-segment-text-color-focused: theme('colors.names-neutral.70');
+    --button-segment-text-color-selected: theme('colors.names-neutral.92');
+    --button-segment-underline-default-color: theme('colors.shader-neutral-dark.8');
+    --button-segment-underline-hover-color: theme('colors.names-neutral.40');
+    --button-segment-underline-selected-color: theme('colors.names-primary.80');
+    --button-segment-bg-color-selected: theme('colors.names-neutral.6');
+
+    /* LOADING INDICATOR */
+    --loading-indicator-color: theme('colors.names-primary.80');
+
+    /* LIST ITEM */
+    --list-item-color: theme('colors.names-neutral.92');
+    --list-item-border-color: theme('colors.shader-neutral-dark.8');
+    --list-item-highlight-bg: theme('colors.shader-primary-dark.12');
+
+    /* PANEL */
+    --panel-bg: theme('colors.names-neutral.6');
+    --panel-border-color: theme('colors.shader-neutral-dark.8');
+
+    /* RADIO BUTTON */
+    --radio-icon-color: theme('colors.names-neutral.70');
+    --radio-icon-checked-color: theme('colors.names-primary.30');
+    --radio-icon-checked-disabled-color: theme('colors.names-neutral.70');
+    --radio-label-color: theme('colors.names-neutral.70');
+
+    /* SECONDARY TEXT */
+    --secondary-text-color: theme('colors.names-neutral.70');
+    --secondary-text-error-color: theme('colors.names-error.80');
+
+    /* SKELETON */
+    --skeleton-bg: theme('colors.names-neutral.12');
+    --skeleton-secondary-bg: theme('colors.names-neutral.10');
+
+    /* TOGGLE */
+    --toggle-bg-active: theme('colors.names-primary.30');
+    --toggle-border-active: theme('colors.names-primary.30');
+    --toggle-bg-inactive: theme('colors.names-neutral.6');
+    --toggle-border-inactive: theme('colors.names-neutral.50');
+    --toggle-bg-disabled-active: theme('colors.names-neutral.50');
+    --toggle-border-disabled-active: theme('colors.names-neutral.50');
+    --toggle-thumb-color: theme('colors.names-neutral.50');
+    --toggle-thumb-color-checked: theme('colors.names-neutral.6');
+    --toggle-label-color: theme('colors.names-neutral.70');
+
+    /* TOOLTIP */
+    --tooltip-bg: theme('colors.names-neutral.0');
+    --tooltip-text-color: theme('colors.names-neutral.100');
+
+    /* VISUAL ASSET CARD */
+    --visual-asset-placeholder-bg: theme('colors.names-neutral.10');
+    --visual-asset-placeholder-icon: theme('colors.names-neutral.60');
+    --visual-asset-title-color: theme('colors.names-neutral.100');
+    --visual-asset-icon-color: theme('colors.names-neutral.100');
+
+    /* ACCOUNT */
+    --account-title-color: theme('colors.names-neutral.92');
+    --account-icon-color: theme('colors.names-neutral.70');
+    --account-check-active-color: theme('colors.names-primary.80');
+    --account-check-inactive-color: theme('colors.names-neutral.60');
+
+    /* ADDRESS */
+    --address-text-color: theme('colors.names-neutral.70');
+
+    /* CARD */
+    --card-filled-bg: theme('colors.names-neutral.10');
+    --card-image-bg-solid: theme('colors.names-neutral.10');
+    --card-image-bg-white: theme('colors.names-neutral.6');
+    --card-action-link-color: theme('colors.names-neutral.92');
+    --card-action-title-color: theme('colors.names-neutral.92');
+    --card-action-subtitle-color: theme('colors.names-neutral.40');
+    --card-body-title-color: theme('colors.names-neutral.92');
+    --card-body-subtitle-color: theme('colors.names-neutral.70');
+
+    /* CHIP */
+    --chip-bg-selected-outline: theme('colors.shader-primary-dark.16');
+    --chip-bg-elevated: theme('colors.names-neutral.12');
+    --chip-bg-brand: theme('colors.names-primary.30');
+    --chip-border-default: theme('colors.names-neutral.20');
+    --chip-text-default: theme('colors.names-neutral.92');
+    --chip-text-secondary: theme('colors.names-neutral.92');
+    --chip-focus-ring: theme('colors.names-primary.80');
+    --chip-border-color-brand: theme('colors.names-primary.30');
+    --chip-text-brand: theme('colors.names-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+    --chip-close-icon-opacity: 0.4;
+
+    --chip-outline-color: theme('colors.shader-primary-dark.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-outline-color-active: theme('colors.shader-primary-dark.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-bg-color-active: theme('colors.shader-primary-dark.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-dark.12');
+
+    /* DISPLAY STATS */
+    --display-stats-bg-default: theme('colors.names-neutral.10');
+    --display-stats-bg-highlight: theme('colors.names-primary.80');
+    --display-stats-bg-secondary: theme('colors.names-secondary.10');
+    --display-stats-text-default: theme('colors.names-neutral.92');
+    --display-stats-text-highlight: theme('colors.names-primary.10');
+    --display-stats-text-secondary: theme('colors.names-neutral.92');
+    --display-stats-icon-color: theme('colors.names-neutral.92');
+    --display-stats-copy-icon-color: theme('colors.names-neutral.40');
+
+    /* DROPDOWN */
+    --dropdown-bg: theme('colors.names-neutral.6');
+    --dropdown-border-color: theme('colors.names-neutral.20');
+
+    /* INPUT */
+    --input-text-color: theme('colors.names-neutral.92');
+    --input-placeholder-color: rgba(136, 146, 161, 0.4); /* neutral.60 with 40% opacity */
+    --input-label-color: theme('colors.names-neutral.60');
+    --input-border-color: theme('colors.names-neutral.20');
+    --input-border-hover-color: theme('colors.names-neutral.60');
+    --input-border-error-color: theme('colors.names-error.80');
+    --input-border-focus-color: theme('colors.names-primary.80');
+    --input-caret-color: theme('colors.names-primary.80');
+    --input-icon-color: theme('colors.names-neutral.92');
+    --input-copy-icon-color: theme('colors.names-neutral.40');
+    --input-visibility-bar-color: rgba(24, 27, 49, 0.6); /* neutral.10 with 60% opacity */
+
+    /* NAVBAR ITEM */
+    --navbar-item-icon-color: theme('colors.names-neutral.70');
+    --navbar-item-icon-selected-color: theme('colors.names-neutral.92');
+    --navbar-item-label-color: theme('colors.names-neutral.50');
+    --navbar-item-label-selected-color: theme('colors.names-neutral.92');
+
+    /* SEARCH */
+    --search-text-color: theme('colors.names-neutral.92');
+    --search-placeholder-color: theme('colors.names-neutral.70');
+    --search-border-color: theme('colors.names-neutral.40');
+    --search-bg-color-filled: theme('colors.names-neutral.12');
+    --search-suggestion-bg-color: theme('colors.names-neutral.12');
+    --search-selected-index-bg-color: theme('colors.shader-inverted-dark.16');
+
+    /* SEGMENTED BUTTON */
+    --segmented-filled-bg-color: theme('colors.names-neutral.10');
+    --segmented-outlined-border-color: theme('colors.names-neutral.40');
+
+    /* SELECT */
+    --select-border-color: theme('colors.names-neutral.20');
+    --select-border-hover-color: theme('colors.names-neutral.60');
+    --select-border-focus-color: theme('colors.names-primary.80');
+    --select-border-error-color: theme('colors.names-error.80');
+    --select-icon-color: theme('colors.names-neutral.92');
+    --select-label-color: theme('colors.names-neutral.92');
+
+    /* TABLE CELL */
+    --table-cell-supporting-label-color: theme('colors.names-neutral.40');
+    --table-cell-border-color: theme('colors.shader-neutral-dark.8');
+
+    /* TABLE HEADER CELL */
+    --table-header-text-color: theme('colors.names-neutral.92');
+
+    /* TITLE */
+    --title-main-color: theme('colors.names-neutral.92');
+    --title-subtitle-color: theme('colors.names-neutral.50');
+    --title-icon-color: theme('colors.names-neutral.50');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.names-neutral.6');
+    --accordion-icon-color: theme('colors.names-neutral.92');
+    --accordion-border-color: theme('colors.shader-neutral-dark.8');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.names-neutral.6');
+    --dialog-title-color: theme('colors.names-neutral.92');
+    --dialog-body-color: theme('colors.names-neutral.70');
+    --dialog-outline: 1px solid theme('colors.names-neutral.20');
+    --dialog-overlay-bg: theme('colors.names-neutral.0/0.12');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.names-neutral.92');
+    --navbar-slideout-bg: theme('colors.names-neutral.6');
+
+    /* TABLE */
+    --table-text-color: theme('colors.names-neutral.70');
+}
