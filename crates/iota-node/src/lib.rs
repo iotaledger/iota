@@ -8,7 +8,6 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt,
     future::Future,
-    net::SocketAddr,
     path::PathBuf,
     str::FromStr,
     sync::{Arc, Weak},
@@ -37,7 +36,10 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
+        authority_store_pruner::ObjectsCompactionFilter,
+        authority_store_tables::{
+            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
+        },
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
@@ -148,8 +150,8 @@ mod handle;
 pub mod metrics;
 
 pub struct ValidatorComponents {
-    validator_server_handle: SpawnOnce,
-    validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
+    validator_server_spawn_handle: SpawnOnce,
+    validator_server_handle: iota_http::ServerHandle,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
@@ -219,7 +221,7 @@ pub struct IotaNode {
     validator_components: Mutex<Option<ValidatorComponents>>,
     /// The http server responsible for serving JSON-RPC as well as the
     /// experimental rest service
-    _http_server: Option<tokio::task::JoinHandle<()>>,
+    _http_server: Option<iota_http::ServerHandle>,
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
@@ -498,9 +500,25 @@ impl IotaNode {
             None,
         ));
 
+        let mut pruner_db = None;
+        if config
+            .authority_store_pruning_config
+            .enable_compaction_filter
+        {
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
+                &config.db_path().join("store"),
+            )));
+        }
+        let compaction_filter = pruner_db
+            .clone()
+            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
+
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+            enable_write_stall,
+            compaction_filter,
+        };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
             Some(perpetual_tables_options),
@@ -735,6 +753,7 @@ impl IotaNode {
             archive_readers,
             validator_tx_finalizer,
             chain_identifier,
+            pruner_db,
         )
         .await;
 
@@ -866,7 +885,8 @@ impl IotaNode {
             components.consensus_adapter.submit_recovered(&epoch_store);
 
             // Start the gRPC server
-            components.validator_server_handle = components.validator_server_handle.start();
+            components.validator_server_spawn_handle =
+                components.validator_server_spawn_handle.start();
 
             Some(components)
         } else {
@@ -1272,7 +1292,7 @@ impl IotaNode {
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
 
-        let (validator_server_handle, validator_server_cancel_handle) =
+        let (validator_server_spawn_handle, validator_server_handle) =
             Self::start_grpc_validator_service(
                 &config,
                 state.clone(),
@@ -1311,8 +1331,8 @@ impl IotaNode {
             consensus_store_pruner,
             accumulator,
             backpressure_manager,
+            validator_server_spawn_handle,
             validator_server_handle,
-            validator_server_cancel_handle,
             validator_overload_monitor_handle,
             checkpoint_metrics,
             iota_node_metrics,
@@ -1336,8 +1356,8 @@ impl IotaNode {
         consensus_store_pruner: ConsensusStorePruner,
         accumulator: Weak<StateAccumulator>,
         backpressure_manager: Arc<BackpressureManager>,
-        validator_server_handle: SpawnOnce,
-        validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
+        validator_server_spawn_handle: SpawnOnce,
+        validator_server_handle: iota_http::ServerHandle,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_node_metrics: Arc<IotaNodeMetrics>,
@@ -1411,8 +1431,8 @@ impl IotaNode {
         }
 
         Ok(ValidatorComponents {
+            validator_server_spawn_handle,
             validator_server_handle,
-            validator_server_cancel_handle,
             validator_overload_monitor_handle,
             consensus_manager,
             consensus_store_pruner,
@@ -1507,7 +1527,7 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
-    ) -> Result<(SpawnOnce, tokio::sync::oneshot::Sender<()>)> {
+    ) -> Result<(SpawnOnce, iota_http::ServerHandle)> {
         let validator_service = ValidatorService::new(
             state.clone(),
             consensus_adapter,
@@ -1528,21 +1548,22 @@ impl IotaNode {
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
             IOTA_TLS_SERVER_NAME.to_string(),
-            iota_tls::AllowAll,
         );
-        let mut server = server_builder
+
+        let server = server_builder
             .bind(config.network_address(), Some(tls_config))
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
-        let cancel_handle = server
-            .take_cancel_handle()
-            .expect("GRPC server should still have a cancel handle");
+
         let local_addr = server.local_addr();
         info!("Listening to traffic on {local_addr}");
 
+        // Clone the server handle for shutdown functionality
+        let server_handle = server.handle().clone();
+
         Ok((
             SpawnOnce::new(server.serve().map_err(Into::into)),
-            cancel_handle,
+            server_handle,
         ))
     }
 
@@ -1836,8 +1857,8 @@ impl IotaNode {
             // in the new epoch.
 
             let new_validator_components = if let Some(ValidatorComponents {
+                validator_server_spawn_handle,
                 validator_server_handle,
-                validator_server_cancel_handle,
                 validator_overload_monitor_handle,
                 consensus_manager,
                 consensus_store_pruner,
@@ -1907,8 +1928,8 @@ impl IotaNode {
                             consensus_store_pruner,
                             weak_accumulator,
                             self.backpressure_manager.clone(),
+                            validator_server_spawn_handle,
                             validator_server_handle,
-                            validator_server_cancel_handle,
                             validator_overload_monitor_handle,
                             checkpoint_metrics,
                             self.metrics.clone(),
@@ -1924,11 +1945,8 @@ impl IotaNode {
                     } else {
                         warn!("Failed to remove validator metrics registry");
                     }
-                    if validator_server_cancel_handle.send(()).is_ok() {
-                        debug!("Validator grpc server cancelled");
-                    } else {
-                        warn!("Failed to cancel validator grpc server");
-                    }
+                    validator_server_handle.trigger_shutdown();
+                    debug!("Validator grpc server shutdown triggered");
 
                     None
                 }
@@ -1974,7 +1992,8 @@ impl IotaNode {
                     )
                     .await?;
 
-                    components.validator_server_handle = components.validator_server_handle.start();
+                    components.validator_server_spawn_handle =
+                        components.validator_server_spawn_handle.start();
 
                     Some(components)
                 } else {
@@ -2233,7 +2252,7 @@ pub async fn build_http_server(
     prometheus_registry: &Registry,
     _custom_runtime: Option<Handle>,
     software_version: &'static str,
-) -> Result<Option<tokio::task::JoinHandle<()>>> {
+) -> Result<Option<iota_http::ServerHandle>> {
     // Validators do not expose these APIs
     if config.consensus_config().is_some() {
         return Ok(None);
@@ -2324,23 +2343,22 @@ pub async fn build_http_server(
         .route("/health", axum::routing::get(health_check_handler))
         .route_layer(axum::Extension(state));
 
-    let listener = tokio::net::TcpListener::bind(&config.json_rpc_address)
-        .await
-        .unwrap();
-    let addr = listener.local_addr().unwrap();
+    let layers = ServiceBuilder::new()
+        .map_request(|mut request: axum::http::Request<_>| {
+            if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
+                let axum_connect_info = axum::extract::ConnectInfo(connect_info.remote_addr);
+                request.extensions_mut().insert(axum_connect_info);
+            }
+            request
+        })
+        .layer(axum::middleware::from_fn(server_timing_middleware));
 
-    router = router.layer(axum::middleware::from_fn(server_timing_middleware));
+    router = router.layer(layers);
 
-    let handle = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .await
-        .unwrap()
-    });
-
-    info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
+    let handle = iota_http::Builder::new()
+        .serve(&config.json_rpc_address, router)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 
     Ok(Some(handle))
 }

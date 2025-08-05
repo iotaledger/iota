@@ -23,4 +23,5 @@ export enum Feature {
     FiatConversion = 'fiat-conversion',
     KnownAddressAlias = 'known-address-alias',
     KnownIotaEVMCoinTypes = 'known-iota-evm-coin-types',
+    IotaNames = 'iota-names',
 }

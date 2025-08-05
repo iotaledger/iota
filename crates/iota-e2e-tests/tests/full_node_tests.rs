@@ -5,9 +5,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
-use iota::client_commands::{
-    GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
-};
 use iota_config::node::RunWithRange;
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
@@ -39,8 +36,8 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionKind,
+        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TransactionData, TransactionKind,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -49,7 +46,7 @@ use move_core_types::{annotated_value::MoveStructLayout, ident_str};
 use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
 use tokio::{
-    sync::Mutex,
+    sync::RwLock,
     time::{Duration, sleep},
 };
 use tracing::info;
@@ -518,22 +515,21 @@ async fn do_test_full_node_sync_flood() {
     // Start a new fullnode that is not on the write path
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let context = test_cluster.wallet;
+    let test_cluster = Arc::new(RwLock::new(test_cluster));
 
     let mut futures = Vec::new();
 
-    let (package_ref, counter_ref) = publish_basics_package_and_make_counter(&context).await;
-
-    let context = Arc::new(Mutex::new(context));
+    let (package_ref, counter_ref) =
+        publish_basics_package_and_make_counter(&test_cluster.read().await.wallet).await;
 
     // Start up 5 different tasks that all spam txs at the authorities.
     for _i in 0..5 {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        let context = context.clone();
+        let test_cluster = test_cluster.clone();
         tokio::task::spawn(async move {
             let (sender, object_to_split, gas_obj) = {
-                let context = &mut context.lock().await;
+                let mut test_cluster = test_cluster.write().await;
+                let context = &mut test_cluster.wallet;
 
                 let sender = context
                     .config()
@@ -553,38 +549,24 @@ async fn do_test_full_node_sync_flood() {
             let mut shared_tx_digest = None;
             let gas_object_id = gas_obj.0;
             for _ in 0..10 {
+                let test_cluster = test_cluster.read().await;
                 let res = {
-                    let context = &mut context.lock().await;
-                    IotaClientCommands::SplitCoin {
-                        amounts: Some(vec![1]),
-                        count: None,
-                        coin_id: object_to_split.0,
-                        payment: PaymentArgs {
-                            gas: vec![gas_object_id],
-                        },
-                        gas_data: GasDataArgs {
-                            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
-                            ..Default::default()
-                        },
-                        processing: TxProcessingArgs::default(),
-                    }
-                    .execute(context)
-                    .await
-                    .unwrap()
+                    let tx = TestTransactionBuilder::new(
+                        sender,
+                        gas_obj,
+                        test_cluster.get_reference_gas_price().await,
+                    )
+                    .split_coin(object_to_split, vec![1])
+                    .build();
+
+                    let tx = test_cluster.wallet.sign_transaction(&tx);
+                    test_cluster.execute_transaction(tx).await
                 };
 
-                owned_tx_digest = if let IotaClientCommandResult::TransactionBlock(resp) = res {
-                    Some(resp.digest)
-                } else {
-                    panic!(
-                        "SplitCoin command did not return IotaClientCommandResult::TransactionBlock"
-                    );
-                };
-
-                let context = &context.lock().await;
+                owned_tx_digest = Some(res.digest);
                 shared_tx_digest = Some(
                     increment_counter(
-                        context,
+                        &test_cluster.wallet,
                         sender,
                         Some(gas_object_id),
                         package_ref.0,

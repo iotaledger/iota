@@ -4,6 +4,7 @@
 import { MigrationObjectLoading, MigrationObjectDetailsCard } from '@/components';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import {
     Button,
     Header,
@@ -19,7 +20,6 @@ import {
 import { useGroupedStardustObjects } from '@/hooks';
 import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import {
-    CoinFormat,
     Collapsible,
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
@@ -87,7 +87,7 @@ export function ConfirmMigrationView({
 
     const [gasFee, gasFeeSymbol] = useFormatCoin({
         balance: migrateData?.gasSummary?.totalGas,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const [timelockedIotaTokens, symbol] = useFormatCoin({ balance: totalIotaAmount });
     const [totalStorageDepositReturnAmountFormatted, totalStorageDepositReturnAmountSymbol] =

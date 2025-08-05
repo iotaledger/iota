@@ -31,7 +31,8 @@ use crate::{
         reconfig_observer::DummyReconfigObserver,
     },
     test_authority_clients::{LocalAuthorityClient, LocalAuthorityClientFaultConfig},
-    test_utils::{init_local_authorities, make_transfer_iota_transaction},
+    test_utils::make_transfer_iota_transaction,
+    unit_test_utils::init_local_authorities,
 };
 
 async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {

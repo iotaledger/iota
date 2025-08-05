@@ -3,7 +3,7 @@ name = "dependency"
 edition = "2024.beta"
 
 [dependencies]
-# Iota = { local = "FRAMEWORK_DIR", override = true }
+Iota = { local = "FRAMEWORK_DIR", override = true }
 
 [addresses]
 dependency = "0x0"

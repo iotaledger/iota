@@ -49,7 +49,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_transaction_table() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().into_path();
+        let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -100,7 +100,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_object_type() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().into_path();
+        let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -230,7 +230,7 @@ mod ingestion_tests {
     #[ignore = "https://github.com/iotaledger/iota/issues/6668"]
     pub async fn test_tx_insertion_order_table() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().into_path();
+        let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -272,7 +272,7 @@ mod ingestion_tests {
     #[ignore = "https://github.com/iotaledger/iota/issues/6668"]
     pub async fn test_tx_insertion_order_table_for_existing_digest() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().into_path();
+        let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.

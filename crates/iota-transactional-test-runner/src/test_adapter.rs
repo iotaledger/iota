@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, bail};
+use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
@@ -238,7 +238,7 @@ impl AdapterInitConfig {
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,
-                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().into_path()),
+                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
                 rest_api_url,
             })
         } else {
@@ -1239,13 +1239,8 @@ impl IotaTestAdapter {
         self.executor
     }
 
-    fn named_variables(
-        &self,
-        cursors: &[String],
-        highest_checkpoint: u64,
-    ) -> BTreeMap<String, String> {
+    fn named_variables(&self) -> BTreeMap<String, String> {
         let mut variables = BTreeMap::new();
-        let mut objects_mapping: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 
         let named_addrs = self
             .compiled_state
@@ -1265,7 +1260,6 @@ impl IotaTestAdapter {
 
         for (oid, fid) in &self.object_enumeration {
             if let FakeID::Enumerated(x, y) = fid {
-                objects_mapping.insert(format!("obj_{x}_{y}"), oid.to_vec());
                 variables.insert(format!("obj_{x}_{y}"), oid.to_string());
                 variables.insert(format!("obj_{x}_{y}_opt"), oid.to_string());
             }
@@ -1275,44 +1269,68 @@ impl IotaTestAdapter {
             variables.insert(format!("digest_{tid}"), digest.to_string());
         }
 
-        for (idx, s) in cursors.iter().enumerate() {
-            // an object cursor may be either @{obj_x_y} or @{obj_x_y,n}
-            // if the former, then use highest_checkpoint
-            if s.starts_with("@{obj_") && s.ends_with('}') {
-                let end_of_key = s.find(',').unwrap_or(s.len() - 1);
-                let obj_lookup = s[2..end_of_key].to_string();
+        variables
+    }
 
-                let obj_id = objects_mapping.get(&obj_lookup).unwrap_or_else(|| {
-                    panic!(
-                        "Unknown object lookup: {obj_lookup}\nAllowed variable mappings are {variables:#?}"
-                    )
-                });
+    fn interpolate_contents(
+        &self,
+        contents: &str,
+        variables: &BTreeMap<String, String>,
+    ) -> anyhow::Result<String> {
+        let mut interpolated_contents = contents.to_string();
 
-                let checkpoint = if end_of_key == s.len() - 1 {
-                    highest_checkpoint
-                } else {
-                    s[end_of_key + 1..s.len() - 1].parse::<u64>().unwrap()
-                };
+        let re = regex::Regex::new(r"@\{([^\}]+)\}").unwrap();
 
-                let bcsd = bcs::to_bytes(&(obj_id.clone(), checkpoint)).unwrap_or_default();
-                let base64d = Base64::encode(bcsd);
+        let unique_vars = re
+            .captures_iter(contents)
+            .filter_map(|c| c.get(1).map(|m| m.as_str().to_string()))
+            .collect::<std::collections::HashSet<_>>();
 
-                variables.insert(format!("cursor_{idx}"), base64d);
-            } else {
-                use base64::Engine;
+        for var_name in unique_vars {
+            let Some(value) = variables.get(&var_name) else {
+                bail!("Unknown variable: {var_name}\nAllowed variable mappings are {variables:#?}");
+            };
 
-                // To comply with how `iota-graphql-rpc` decodes the json cursor
-                // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
-                //
-                // This traces back to `async_graphql = 7.0.7` that uses no padding for
-                // encoding/decoding.
-                let base64d = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(s);
-
-                variables.insert(format!("cursor_{idx}"), base64d);
-            }
+            let pattern = format!("@{{{var_name}}}");
+            interpolated_contents = interpolated_contents.replace(&pattern, value);
         }
 
-        variables
+        Ok(interpolated_contents)
+    }
+
+    fn encode_cursor(&self, cursor: &str) -> anyhow::Result<String> {
+        // Cursor format is either bcs(object_id,n1,n2,...) or a json value,
+        // in which case we just return its base64 encoding.
+        let Some(args) = cursor
+            .strip_prefix("bcs(")
+            .and_then(|c| c.strip_suffix(")"))
+        else {
+            // To comply with how `iota-graphql-rpc` decodes the json cursor
+            // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
+            //
+            // This traces back to `async_graphql = 7.0.7` that uses no padding for
+            // encoding/decoding.
+            return Ok(base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                cursor,
+            ));
+        };
+
+        let mut parts = args.split(",");
+
+        let id: ObjectID = parts
+            .next()
+            .context("bcs(...) cursors must have at least one argument")?
+            .trim()
+            .parse()?;
+
+        let mut bytes = bcs::to_bytes(&id.to_vec())?;
+        for part in parts {
+            let n: u64 = part.trim().parse()?;
+            bytes.extend(bcs::to_bytes(&n)?);
+        }
+
+        Ok(Base64::encode(bytes))
     }
 
     fn interpolate_query(
@@ -1321,34 +1339,23 @@ impl IotaTestAdapter {
         cursors: &[String],
         highest_checkpoint: u64,
     ) -> anyhow::Result<String> {
-        let variables = self.named_variables(cursors, highest_checkpoint);
-        let mut interpolated_query = contents.to_string();
+        // First collect all the variable mappings
+        let mut variables = self.named_variables();
+        variables.insert(
+            "highest_checkpoint".to_string(),
+            highest_checkpoint.to_string(),
+        );
 
-        let re = regex::Regex::new(r"@\{([^\}]+)\}").unwrap();
+        // Then interpolate the cursors which may reference objects
+        for (idx, s) in cursors.iter().enumerate() {
+            let interpolated_cursor = self.interpolate_contents(s, &variables)?;
+            let encoded_cursor = self.encode_cursor(&interpolated_cursor)?;
 
-        let mut unique_vars = std::collections::HashSet::new();
-
-        // Collect unique variables
-        for cap in re.captures_iter(contents) {
-            if let Some(var_name) = cap.get(1) {
-                unique_vars.insert(var_name.as_str());
-            }
+            // Add the encoded cursor to the variables map because they may get used in the
+            // query.
+            variables.insert(format!("cursor_{idx}"), encoded_cursor);
         }
-
-        for var_name in unique_vars {
-            let Some(value) = variables.get(var_name) else {
-                bail!(
-                    "Unknown variable: {}\nAllowed variable mappings are {:#?}",
-                    var_name,
-                    variables
-                );
-            };
-
-            let pattern = format!("@{{{var_name}}}");
-            interpolated_query = interpolated_query.replace(&pattern, value);
-        }
-
-        Ok(interpolated_query)
+        self.interpolate_contents(contents, &variables)
     }
 
     async fn upgrade_package(

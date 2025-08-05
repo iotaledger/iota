@@ -1225,7 +1225,11 @@ async fn latest_object_cache_race_test() {
         std::thread::spawn(move || {
             let mut version = OBJECT_START_VERSION;
             while start.elapsed() < Duration::from_secs(2) {
-                let object = Object::with_id_owner_version_for_testing(object_id, version, owner);
+                let object = Object::with_id_owner_version_for_testing(
+                    object_id,
+                    version,
+                    Owner::AddressOwner(owner),
+                );
 
                 cache
                     .write_object_entry(&object_id, version, object.into())
@@ -1265,8 +1269,11 @@ async fn latest_object_cache_race_test() {
                     std::thread::sleep(Duration::from_micros(1));
                 }
 
-                let object =
-                    Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
+                let object = Object::with_id_owner_version_for_testing(
+                    object_id,
+                    latest_version,
+                    Owner::AddressOwner(owner),
+                );
 
                 // because we obtained the ticket before reading the object, we will not write a
                 // stale version to the cache.
@@ -1322,6 +1329,65 @@ async fn latest_object_cache_race_test() {
 }
 
 #[tokio::test]
+// This test verifies that concurrent transaction insertions and reads work
+// correctly without race conditions. It specifically tests the fix that ensures
+// store operations happen before cache operations. It ensures atomicity by
+// writing to the persistent store first, then updating the cache, so readers
+// never see stale or inconsistent data.
+async fn test_transaction_cache_race() {
+    telemetry_subscribers::init_for_testing();
+    let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
+    let cache = s.cache.clone();
+    let mut txns = Vec::new();
+
+    for i in 0..1000 {
+        let a = i * 4;
+        s.with_created(&[a]);
+        s.do_tx().await;
+
+        let outputs = s.take_outputs();
+        let tx = (*outputs.transaction).clone();
+        let effects = outputs.effects.clone();
+
+        txns.push((tx, effects));
+    }
+
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+
+    let t1 = {
+        let txns = txns.clone();
+        let cache = cache.clone();
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            for (i, (tx, effects)) in txns.into_iter().enumerate() {
+                barrier.wait();
+                // test both single and multi insert
+                if i % 2 == 0 {
+                    cache.insert_transaction_and_effects(&tx, &effects);
+                } else {
+                    cache.multi_insert_transaction_and_effects(&[VerifiedExecutionData::new(
+                        tx, effects,
+                    )]);
+                }
+            }
+        })
+    };
+
+    let t2 = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            for (tx, _) in txns {
+                barrier.wait();
+                cache.get_transaction_block(tx.digest());
+            }
+        })
+    };
+
+    t1.join().unwrap();
+    t2.join().unwrap();
+}
+
+#[tokio::test]
 async fn concurrent_latest_object_cache_race_test() {
     // This test is a thread-less variant of latest_object_cache_race_test.
     telemetry_subscribers::init_for_testing();
@@ -1345,7 +1411,11 @@ async fn concurrent_latest_object_cache_race_test() {
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
     let mut writer = || {
-        let object = Object::with_id_owner_version_for_testing(object_id, write_version, owner);
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            write_version,
+            Owner::AddressOwner(owner),
+        );
 
         cache
             .write_object_entry(&object_id, write_version, object.into())
@@ -1393,7 +1463,11 @@ async fn concurrent_latest_object_cache_race_test() {
             .and_then(|e| e.value().get_highest().map(|v| v.0))
             .unwrap();
 
-        let object = Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            latest_version,
+            Owner::AddressOwner(owner),
+        );
 
         // preempt the reader to update the latest version and invalidate the cache
         {
@@ -1462,7 +1536,11 @@ async fn concurrent_latest_object_cache_collision_test() {
         } else {
             (&mut write2_version, owner2)
         };
-        let object = Object::with_id_owner_version_for_testing(object_id, *write_version, owner);
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            *write_version,
+            Owner::AddressOwner(owner),
+        );
 
         cache
             .write_object_entry(&object_id, *write_version, object.into())
@@ -1497,8 +1575,11 @@ async fn concurrent_latest_object_cache_collision_test() {
             .and_then(|e| e.value().get_highest().map(|v| v.0))
             .unwrap();
 
-        let object2 =
-            Object::with_id_owner_version_for_testing(object2_id, latest2_version, owner2);
+        let object2 = Object::with_id_owner_version_for_testing(
+            object2_id,
+            latest2_version,
+            Owner::AddressOwner(owner2),
+        );
 
         // preempt the reader
         {
