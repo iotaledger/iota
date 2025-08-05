@@ -44,7 +44,7 @@ export function ExportAccountPage() {
             <Loading loading={isPending}>
                 <div className="flex flex-col gap-md">
                     <div className="flex flex-col gap-xs">
-                        <div className="dark:text-iota-neutral-92 text-title-sm text-iota-neutral-10">
+                        <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                             Public Key With Flag
                         </div>
                         <HideShowDisplayBox
@@ -64,7 +64,7 @@ export function ExportAccountPage() {
                                         supportingText="Your account derived from it can be controlled fully."
                                         style={InfoBoxStyle.Default}
                                     />
-                                    <div className="dark:text-iota-neutral-92 text-title-sm text-iota-neutral-10">
+                                    <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                         Private Key
                                     </div>
                                     <HideShowDisplayBox
