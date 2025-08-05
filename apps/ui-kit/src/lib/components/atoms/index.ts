@@ -23,3 +23,4 @@ export * from './placeholder';
 export * from './skeleton';
 export * from './video';
 export * from './toggle';
+export * from './secondary-text';
