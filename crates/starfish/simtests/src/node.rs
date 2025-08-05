@@ -46,11 +46,6 @@ impl AuthorityNode {
         }
     }
 
-    /// Return the `index` of this Node
-    #[expect(dead_code)]
-    pub fn index(&self) -> AuthorityIndex {
-        self.config.authority_index
-    }
 
     /// Start this Node
     pub async fn start(&self) -> Result<()> {
