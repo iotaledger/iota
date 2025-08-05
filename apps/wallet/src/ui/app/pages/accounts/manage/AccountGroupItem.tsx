@@ -71,12 +71,8 @@ export function AccountGroupItem({
         setDialogNicknameOpen(true);
     }
 
-    function handleExportPrivateKey() {
+    function handleExportKeys() {
         navigate(`/accounts/export/${account!.id}`);
-    }
-
-    function handleExportPublicKey() {
-        navigate(`/accounts/export/pubkey/${account!.id}`);
     }
 
     function handleRemove() {
@@ -172,13 +168,8 @@ export function AccountGroupItem({
                                 <ListItem hideBottomBorder onClick={handleRename}>
                                     Rename
                                 </ListItem>
-                                {account.isKeyPairExportable ? (
-                                    <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
-                                        Export Private Key
-                                    </ListItem>
-                                ) : null}
-                                <ListItem hideBottomBorder onClick={handleExportPublicKey}>
-                                    Export Public Key With Flag
+                                <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                    Export Keys
                                 </ListItem>
                                 {allAccounts.isPending ? null : (
                                     <ListItem hideBottomBorder onClick={handleRemove}>
