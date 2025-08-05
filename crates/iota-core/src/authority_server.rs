@@ -1154,9 +1154,8 @@ impl ValidatorService {
         // Verify the message signature
         let verified_authority_capabilities = epoch_store
             .verify_authority_capabilities(signed_authority_capabilities)
-            .map_err(|e| {
+            .inspect_err(|_e| {
                 self.metrics.signature_errors.inc();
-                e
             })?;
 
         // Process the verified capabilities

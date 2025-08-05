@@ -581,7 +581,7 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
 #[cfg(test)]
 mod test {
     use bcs;
-    use fastcrypto::traits::KeyPair;
+    use fastcrypto::traits::{KeyPair, ToFromBytes};
     use iota_network_stack::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use rand::thread_rng;
@@ -606,25 +606,6 @@ mod test {
             let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
 
             committee_validators.push(EpochStartValidatorInfoV1 {
-                iota_address,
-                authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
-                iota_net_address: Multiaddr::empty(),
-                p2p_address: Multiaddr::empty(),
-                primary_address: Multiaddr::empty(),
-                voting_power: 1_000,
-                hostname: format!("host-{i}").to_string(),
-            })
-        }
-
-        let mut non_committee_validators = vec![];
-
-        for i in 0..10 {
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
-
-            non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
                 authority_pubkey: authority_key.public().clone(),
                 network_pubkey: protocol_network_key.public().clone(),
@@ -770,9 +751,13 @@ mod test {
 
         // Verify non-committee validators
         assert_eq!(non_committee.len(), 10);
-        for (i, validator) in non_committee.iter().enumerate() {
-            assert_eq!(validator.hostname, format!("non-committee-{i}"));
-            assert_eq!(validator.voting_power, 500);
+        for validator in non_committee_validators.iter() {
+            let authority_name = validator.authority_name();
+            let pubkey_from_map = non_committee.get(&authority_name).unwrap();
+            assert_eq!(
+                pubkey_from_map.as_bytes(),
+                validator.authority_pubkey.as_bytes()
+            );
         }
     }
 
@@ -845,7 +830,7 @@ mod test {
         assert_eq!(v1_deserialized.epoch(), 10);
         assert_eq!(v1_deserialized.protocol_version(), ProtocolVersion::MAX);
         assert_eq!(v1_deserialized.reference_gas_price(), 100_000);
-        assert_eq!(v1_deserialized.safe_mode(), true);
+        assert!(v1_deserialized.safe_mode());
         assert_eq!(v1_deserialized.epoch_start_timestamp_ms(), 1_000_000);
         assert_eq!(v1_deserialized.epoch_duration_ms(), 2_000_000);
 
@@ -868,7 +853,7 @@ mod test {
         assert_eq!(v2_deserialized.epoch(), 20);
         assert_eq!(v2_deserialized.protocol_version(), ProtocolVersion::MAX);
         assert_eq!(v2_deserialized.reference_gas_price(), 200_000);
-        assert_eq!(v2_deserialized.safe_mode(), true);
+        assert!(v2_deserialized.safe_mode());
         assert_eq!(v2_deserialized.epoch_start_timestamp_ms(), 3_000_000);
         assert_eq!(v2_deserialized.epoch_duration_ms(), 4_000_000);
 
@@ -880,13 +865,16 @@ mod test {
         assert_eq!(v2_validators.len(), 1);
         assert_eq!(v2_validators[0], iota_address1);
 
-        let v2_non_committee = v2_deserialized.get_non_committee_validators();
+        let mut v2_non_committee = v2_deserialized.get_non_committee_validators();
         assert_eq!(v2_non_committee.len(), 1);
-        assert_eq!(v2_non_committee[0].iota_address, iota_address2);
-        assert_eq!(v2_non_committee[0].voting_power, 500);
-        assert_eq!(v2_non_committee[0].hostname, "non-committee-1.example.com");
-        assert_eq!(v2_non_committee[0].iota_net_address, net_address2);
-        assert_eq!(v2_non_committee[0].p2p_address, p2p_address2);
-        assert_eq!(v2_non_committee[0].primary_address, primary_address2);
+        let non_committee_validator_deserialized = v2_non_committee.pop_first().unwrap();
+        assert_eq!(
+            non_committee_validator_deserialized.0.as_bytes(),
+            non_committee_validator.authority_name().as_bytes()
+        );
+        assert_eq!(
+            non_committee_validator_deserialized.1.as_bytes(),
+            non_committee_validator.authority_pubkey.as_bytes()
+        );
     }
 }
