@@ -12,6 +12,7 @@ import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
 import { CoinFormat, useGetDefaultIotaName } from '../../hooks';
+import { NamedAddressTooltip } from '../NameWithTooltip';
 
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
@@ -61,9 +62,11 @@ function BalanceChangePanel({
                     <KeyValueInfo
                         keyText="Owner"
                         value={
-                            <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                {name || formatAddress(owner)}
-                            </ExplorerLink>
+                            <NamedAddressTooltip name={name} address={owner}>
+                                <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                    {name || formatAddress(owner)}
+                                </ExplorerLink>
+                            </NamedAddressTooltip>
                         }
                         fullwidth
                     />

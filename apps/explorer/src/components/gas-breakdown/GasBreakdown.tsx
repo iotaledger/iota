@@ -12,6 +12,7 @@ import {
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 import { Fragment } from 'react';
 import { normalizeIotaName } from '@iota/iota-names-sdk';
+import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
 
 interface GasProps {
     amount?: bigint | number | string;
@@ -164,15 +165,17 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                         Paid by
                                     </span>
 
-                                    <AddressLink
-                                        label={
-                                            nameRecord
-                                                ? normalizeIotaName(nameRecord.name)
-                                                : undefined
-                                        }
-                                        address={owner}
-                                        copyText={owner}
-                                    />
+                                    <NamedAddressTooltip address={owner} name={nameRecord?.name}>
+                                        <AddressLink
+                                            label={
+                                                nameRecord
+                                                    ? normalizeIotaName(nameRecord.name)
+                                                    : undefined
+                                            }
+                                            address={owner}
+                                            copyText={owner}
+                                        />
+                                    </NamedAddressTooltip>
                                 </div>
                             )}
 

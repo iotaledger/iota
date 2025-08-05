@@ -27,6 +27,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/apps-ui-icons';
 import { ObjectChange, RenderExplorerLink } from '../../types';
+import { NamedAddressTooltip } from '../NameWithTooltip';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
@@ -169,7 +170,7 @@ function ObjectChangeByOwnerPanel({
 }: ObjectChangesByOwnerPanelProps) {
     const [open, setOpen] = useState(false);
 
-    const { data: name } = useGetDefaultIotaName(owner, true);
+    const { data: iotaName } = useGetDefaultIotaName(owner, true);
 
     const label = getObjectChangeLabel(type);
 
@@ -225,18 +226,22 @@ function ObjectChangeByOwnerPanel({
                         </div>
                     </>
                 </Collapsible>
-                <div className="flex flex-col gap-y-sm px-md pb-md">
-                    <Divider />
-                    <KeyValueInfo
-                        keyText="Owner"
-                        value={
-                            <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                {name || formatAddress(owner)}
-                            </ExplorerLink>
-                        }
-                        fullwidth
-                    />
-                </div>
+                {owner ? (
+                    <div className="flex flex-col gap-y-sm px-md pb-md">
+                        <Divider />
+                        <KeyValueInfo
+                            keyText="Owner"
+                            value={
+                                <NamedAddressTooltip name={iotaName} address={owner}>
+                                    <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                        {iotaName || formatAddress(owner)}
+                                    </ExplorerLink>
+                                </NamedAddressTooltip>
+                            }
+                            fullwidth
+                        />
+                    </div>
+                ) : null}
             </div>
         </Panel>
     );

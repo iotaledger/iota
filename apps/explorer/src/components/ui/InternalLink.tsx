@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Copy } from '@iota/apps-ui-icons';
-import { ButtonUnstyled, Tooltip } from '@iota/apps-ui-kit';
+import { ButtonUnstyled } from '@iota/apps-ui-kit';
 import { AddressAlias, useGetDefaultIotaName } from '@iota/core';
+import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import React, { type ReactNode } from 'react';
@@ -67,8 +68,8 @@ function createInternalLink<T extends string>(
                     address={id}
                     noFormatAddress={noTruncate}
                     onCopy={copyText ? handleCopyClick : undefined}
-                    renderAddress={(address) => {
-                        const link = (
+                    renderAddress={(address) => (
+                        <NamedAddressTooltip name={iotaName} address={id}>
                             <Link
                                 className="text-iota-primary-30 dark:text-iota-primary-80"
                                 variant="mono"
@@ -77,14 +78,8 @@ function createInternalLink<T extends string>(
                             >
                                 {iotaName || label || address}
                             </Link>
-                        );
-
-                        if (isResolveIotaName && iotaName) {
-                            return <Tooltip text={id}>{link}</Tooltip>;
-                        }
-
-                        return link;
-                    }}
+                        </NamedAddressTooltip>
+                    )}
                 />
             );
         }

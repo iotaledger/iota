@@ -32,6 +32,7 @@ import {
 import { Loader } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '@/components';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;
@@ -105,12 +106,17 @@ export function ReviewValuesFormView({
                         <KeyValueInfo
                             keyText={'To'}
                             value={
-                                <ExplorerLink
-                                    type={ExplorerLinkType.Address}
+                                <NamedAddressTooltip
                                     address={nameRecord?.targetAddress || to}
+                                    name={nameRecord?.name}
                                 >
-                                    {nameRecord ? nameRecord.name : formatAddress(to || '')}
-                                </ExplorerLink>
+                                    <ExplorerLink
+                                        type={ExplorerLinkType.Address}
+                                        address={nameRecord?.targetAddress || to}
+                                    >
+                                        {nameRecord ? nameRecord.name : formatAddress(to || '')}
+                                    </ExplorerLink>
+                                </NamedAddressTooltip>
                             }
                             fullwidth
                         />

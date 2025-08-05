@@ -13,6 +13,7 @@ import {
 } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -68,12 +69,17 @@ export function PreviewTransfer({
                 <KeyValueInfo
                     keyText={'To'}
                     value={
-                        <ExplorerLink
-                            type={ExplorerLinkType.Address}
+                        <NamedAddressTooltip
                             address={nameRecord?.targetAddress || to}
+                            name={nameRecord?.name}
                         >
-                            {nameRecord ? nameRecord.name : formatAddress(to || '')}
-                        </ExplorerLink>
+                            <ExplorerLink
+                                type={ExplorerLinkType.Address}
+                                address={nameRecord?.targetAddress || to}
+                            >
+                                {nameRecord ? nameRecord.name : formatAddress(to || '')}
+                            </ExplorerLink>
+                        </NamedAddressTooltip>
                     }
                     fullwidth
                 />
