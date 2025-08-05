@@ -387,27 +387,19 @@ impl ExecutionStatus {
     /// Returns congested objects if the transaction was cancelled due to
     /// shared object congestion, else returns `None`.
     pub fn get_congested_objects(&self) -> Option<&CongestedObjects> {
-        if let ExecutionStatus::Failure {
-            error:
-                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                    congested_objects,
-                },
-            ..
-        } = self
-        {
-            Some(congested_objects)
-        } else if let ExecutionStatus::Failure {
-            error:
-                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                    congested_objects,
-                    ..
-                },
-            ..
-        } = self
-        {
-            Some(congested_objects)
-        } else {
-            None
+        match self {
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                        congested_objects,
+                    }
+                    | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                        congested_objects,
+                        ..
+                    },
+                ..
+            } => Some(congested_objects),
+            _ => None,
         }
     }
 
