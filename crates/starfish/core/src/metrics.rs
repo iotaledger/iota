@@ -158,6 +158,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) missing_blocks_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
+    pub(crate) transactions_per_commit_count: Histogram,
     pub(crate) transactions_synchronizer_fetched_transactions_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
@@ -170,6 +171,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) reputation_scores: IntGaugeVec,
     pub(crate) scope_processing_time: HistogramVec,
     pub(crate) sub_dags_per_commit_count: Histogram,
+    pub(crate) transaction_commit_latency: Histogram,
     pub(crate) block_suspensions: IntCounterVec,
     pub(crate) block_unsuspensions: IntCounterVec,
     pub(crate) suspended_block_time: HistogramVec,
@@ -207,6 +209,12 @@ impl NodeMetrics {
             block_commit_latency: register_histogram_with_registry!(
                 "block_commit_latency",
                 "The time taken between block creation and block commit.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            transaction_commit_latency: register_histogram_with_registry!(
+                "transaction_commit_latency",
+                "The time taken between inclusion transactions in a block and transactions are sequenced.",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -415,6 +423,12 @@ impl NodeMetrics {
             sync_last_known_own_block_retries: register_int_counter_with_registry!(
                 "sync_last_known_own_block_retries",
                 "Number of times this node tried to fetch the last own block from peers",
+                registry,
+            ).unwrap(),
+            transactions_per_commit_count: register_histogram_with_registry!(
+                "transactions_per_commit_count",
+                "The number of transactions per commit.",
+                NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             // TODO: add a short status label.

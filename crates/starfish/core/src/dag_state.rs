@@ -590,6 +590,31 @@ impl DagState {
         block_headers
     }
 
+    /// Gets block headers by checking genesis and then cached recent block
+    /// headers in memory. Storage is not checked in this method. An element
+    /// is None when the corresponding block header is not found.
+    pub(crate) fn get_cached_block_headers(
+        &self,
+        block_refs: &[BlockRef],
+    ) -> Vec<Option<VerifiedBlockHeader>> {
+        let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; block_refs.len()];
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Allow the caller to handle the invalid genesis ancestor error.
+                if let Some(block) = self.genesis.get(block_ref) {
+                    block_headers[index] = Some((**block).clone());
+                }
+                continue;
+            }
+            if let Some(block) = self.recent_block_headers.get(block_ref) {
+                block_headers[index] = Some(block.clone());
+                continue;
+            }
+        }
+
+        block_headers
+    }
+
     /// Gets all uncommitted blocks in a slot.
     /// Uncommitted blocks must exist in memory, so only in-memory blocks are
     /// checked.
@@ -766,7 +791,7 @@ impl DagState {
     /// byzantine block headers, or when received block headers are not
     /// deduped.
     #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn get_cached_block_headers(
+    pub(crate) fn get_cached_block_headers_since_round(
         &self,
         authority: AuthorityIndex,
         start: Round,
@@ -2223,35 +2248,47 @@ mod test {
             }
         }
 
-        let cached_block_headers =
-            dag_state.get_cached_block_headers(context.committee.to_authority_index(0).unwrap(), 0);
+        let cached_block_headers = dag_state.get_cached_block_headers_since_round(
+            context.committee.to_authority_index(0).unwrap(),
+            0,
+        );
         assert!(cached_block_headers.is_empty());
 
-        let cached_block_headers = dag_state
-            .get_cached_block_headers(context.committee.to_authority_index(1).unwrap(), 10);
+        let cached_block_headers = dag_state.get_cached_block_headers_since_round(
+            context.committee.to_authority_index(1).unwrap(),
+            10,
+        );
         assert_eq!(cached_block_headers.len(), 1);
         assert_eq!(cached_block_headers[0].round(), 10);
 
-        let cached_block_headers = dag_state
-            .get_cached_block_headers(context.committee.to_authority_index(2).unwrap(), 10);
+        let cached_block_headers = dag_state.get_cached_block_headers_since_round(
+            context.committee.to_authority_index(2).unwrap(),
+            10,
+        );
         assert_eq!(cached_block_headers.len(), 2);
         assert_eq!(cached_block_headers[0].round(), 10);
         assert_eq!(cached_block_headers[1].round(), 11);
 
-        let cached_block_headers = dag_state
-            .get_cached_block_headers(context.committee.to_authority_index(2).unwrap(), 11);
+        let cached_block_headers = dag_state.get_cached_block_headers_since_round(
+            context.committee.to_authority_index(2).unwrap(),
+            11,
+        );
         assert_eq!(cached_block_headers.len(), 1);
         assert_eq!(cached_block_headers[0].round(), 11);
 
-        let cached_block_headers = dag_state
-            .get_cached_block_headers(context.committee.to_authority_index(3).unwrap(), 10);
+        let cached_block_headers = dag_state.get_cached_block_headers_since_round(
+            context.committee.to_authority_index(3).unwrap(),
+            10,
+        );
         assert_eq!(cached_block_headers.len(), 3);
         assert_eq!(cached_block_headers[0].round(), 10);
         assert_eq!(cached_block_headers[1].round(), 11);
         assert_eq!(cached_block_headers[2].round(), 12);
 
-        let cached_block_headers = dag_state
-            .get_cached_block_headers(context.committee.to_authority_index(3).unwrap(), 12);
+        let cached_block_headers = dag_state.get_cached_block_headers_since_round(
+            context.committee.to_authority_index(3).unwrap(),
+            12,
+        );
         assert_eq!(cached_block_headers.len(), 1);
         assert_eq!(cached_block_headers[0].round(), 12);
 
