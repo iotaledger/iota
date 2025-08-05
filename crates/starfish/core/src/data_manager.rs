@@ -505,8 +505,8 @@ mod tests {
     }
 
     /// Tests the happy path where a single sub-dag is successfully committed.
-    #[test]
-    fn test_happy_path_commit() {
+    #[tokio::test]
+    async fn test_happy_path_commit() {
         let setup = Arc::new(TestSetup::new(3));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -527,8 +527,8 @@ mod tests {
         assert!(manager.pending_subdags.is_empty());
     }
 
-    #[test]
-    fn test_missing_blocks() {
+    #[tokio::test]
+    async fn test_missing_blocks() {
         let setup = Arc::new(TestSetup::new(3));
         let (mut manager, _selective_dag_state) = setup.create_selective_manager(
             vec![1, 2, 3],
@@ -556,8 +556,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 0);
     }
 
-    #[test]
-    fn test_commit_after_missing_blocks_arrive() {
+    #[tokio::test]
+    async fn test_commit_after_missing_blocks_arrive() {
         let setup = Arc::new(TestSetup::new(3));
         let (mut manager, selective_dag_state) = setup.create_selective_manager(
             vec![1, 2, 3],
@@ -590,8 +590,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 1);
     }
 
-    #[test]
-    fn test_multiple_subdags_in_order() {
+    #[tokio::test]
+    async fn test_multiple_subdags_in_order() {
         let setup = Arc::new(TestSetup::new(4));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -618,8 +618,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 2);
     }
 
-    #[test]
-    fn test_out_of_order_subdags() {
+    #[tokio::test]
+    async fn test_out_of_order_subdags() {
         let setup = Arc::new(TestSetup::new(4));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -654,8 +654,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 2);
     }
 
-    #[test]
-    fn test_empty_subdag_commit() {
+    #[tokio::test]
+    async fn test_empty_subdag_commit() {
         let setup = Arc::new(TestSetup::new(2));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -666,8 +666,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 0);
     }
 
-    #[test]
-    fn test_duplicate_subdag_commit() {
+    #[tokio::test]
+    async fn test_duplicate_subdag_commit() {
         let setup = Arc::new(TestSetup::new(3));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -688,8 +688,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 1);
     }
 
-    #[test]
-    fn test_out_of_order_commit_calls() {
+    #[tokio::test]
+    async fn test_out_of_order_commit_calls() {
         let setup = Arc::new(TestSetup::new(4));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -724,8 +724,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 2);
     }
 
-    #[test]
-    fn test_all_missing_refs_are_collected() {
+    #[tokio::test]
+    async fn test_all_missing_refs_are_collected() {
         telemetry_subscribers::init_for_testing();
 
         let setup = Arc::new(TestSetup::new(4));
@@ -788,9 +788,9 @@ mod tests {
         assert!(manager.pending_subdags.is_empty());
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
-    fn test_duplicate_missing_refs_panic() {
+    async fn test_duplicate_missing_refs_panic() {
         let setup = Arc::new(TestSetup::new(4));
         let (mut manager, _selective_dag_state) = setup.create_selective_manager(
             vec![1, 2, 3, 4],
@@ -825,8 +825,8 @@ mod tests {
         manager.try_commit(&[subdag1, subdag2, subdag3]);
     }
 
-    #[test]
-    fn test_gaps_in_subdags_sequence() {
+    #[tokio::test]
+    async fn test_gaps_in_subdags_sequence() {
         let setup = Arc::new(TestSetup::new(5));
         let (mut manager, selective_dag_state) = setup.create_selective_manager(
             vec![1, 2, 3, 4, 5],
@@ -886,8 +886,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 3); // Unchanged
     }
 
-    #[test]
-    fn test_set_last_committed_index() {
+    #[tokio::test]
+    async fn test_set_last_committed_index() {
         let setup = Arc::new(TestSetup::new(3));
         let mut manager = DataManager::new(setup.dag_state.clone());
 
@@ -907,8 +907,8 @@ mod tests {
         assert_eq!(manager.last_committed_index, 0);
     }
 
-    #[test]
-    fn test_get_missing_transaction_data() {
+    #[tokio::test]
+    async fn test_get_missing_transaction_data() {
         let setup = Arc::new(TestSetup::new(4));
         let (mut manager, selective_dag_state) = setup.create_selective_manager(
             vec![1, 2, 3, 4],

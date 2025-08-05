@@ -49,7 +49,7 @@ mod test {
 
         const NUM_OF_AUTHORITIES: usize = 10;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let mut authorities = Vec::with_capacity(committee.size());
         let mut transaction_clients = Vec::with_capacity(committee.size());
@@ -139,6 +139,7 @@ mod test {
         (committee, key_pairs)
     }
 
+    /// Returns a local address for testing purposes.
     fn get_available_local_address() -> Multiaddr {
         let ip = local_ip_utils::get_new_ip();
 
