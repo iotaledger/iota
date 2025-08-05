@@ -53,22 +53,6 @@ export function Validator({
         validatorAddress: address,
     });
 
-    if (isPendingValidators) {
-        return (
-            <Card>
-                <CardImage shape={ImageShape.Rounded}>
-                    <Skeleton widthClass="w-10" heightClass="h-10" />
-                </CardImage>
-                <div className="flex flex-col gap-y-xs">
-                    <Skeleton widthClass="w-40" heightClass="h-3.5" />
-                    <Skeleton widthClass="w-32" heightClass="h-3" hasSecondaryColors />
-                </div>
-                <div className="ml-auto flex flex-col gap-y-xs">
-                    <Skeleton widthClass="w-20" heightClass="h-3.5" />
-                </div>
-            </Card>
-        );
-    }
     // for inactive validators, show the epoch number
     const fallBackText = activeEpoch
         ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
@@ -90,6 +74,24 @@ export function Validator({
     ) : (
         formatAddress(address)
     );
+
+    if (isPendingValidators) {
+        return (
+            <Card>
+                <CardImage shape={ImageShape.Rounded}>
+                    <Skeleton className="w-10 h-10" />
+                </CardImage>
+                <div className="flex flex-col gap-y-xs">
+                    <Skeleton className="w-40 h-3.5" />
+                    <Skeleton className="w-32 h-3" hasSecondaryColors />
+                </div>
+                <div className="ml-auto flex flex-col gap-y-xs">
+                    <Skeleton className="w-20 h-3.5" />
+                </div>
+            </Card>
+        );
+    }
+
     return (
         <Card type={type || isSelected ? CardType.Filled : CardType.Default} onClick={onClick}>
             <CardImage>

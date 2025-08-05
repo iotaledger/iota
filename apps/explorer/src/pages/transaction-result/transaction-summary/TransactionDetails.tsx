@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DisplayStats, truncate } from '@iota/apps-ui-kit';
+import { DisplayStats } from '@iota/apps-ui-kit';
 import { formatDate } from '@iota/core';
 import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
 import { onCopySuccess } from '~/lib/utils';
@@ -25,7 +25,7 @@ export function TransactionDetails({
             {sender && (
                 <DisplayStats
                     label="Sender"
-                    value={<AddressLink address={sender}>{truncate(sender)}</AddressLink>}
+                    value={<AddressLink address={sender} />}
                     copyText={sender}
                     onCopySuccess={onCopySuccess}
                 />

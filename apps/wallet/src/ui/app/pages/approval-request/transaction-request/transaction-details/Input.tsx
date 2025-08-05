@@ -4,7 +4,7 @@
 
 import { ExplorerLink, ExplorerLinkType } from '_components';
 import { type TransactionInput } from '@iota/iota-sdk/transactions';
-import { formatAddress, toB64 } from '@iota/iota-sdk/utils';
+import { formatAddress, toBase64 } from '@iota/iota-sdk/utils';
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 
 interface InputProps {
@@ -19,7 +19,7 @@ export function Input({ input }: InputProps) {
             {'Pure' in input ? (
                 <KeyValueInfo
                     keyText="Pure"
-                    value={toB64(new Uint8Array(Buffer.from(input.Pure?.bytes || [])))}
+                    value={toBase64(new Uint8Array(Buffer.from(input.Pure?.bytes || [])))}
                     fullwidth
                 />
             ) : 'Object' in input ? (
@@ -33,7 +33,7 @@ export function Input({ input }: InputProps) {
                     fullwidth
                 />
             ) : (
-                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                     Unknown input value
                 </span>
             )}

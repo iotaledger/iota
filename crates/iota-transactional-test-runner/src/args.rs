@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
+use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     move_package::UpgradePolicy,
@@ -69,8 +70,8 @@ pub struct IotaInitArgs {
     pub reference_gas_price: Option<u64>,
     #[arg(long)]
     pub default_gas_price: Option<u64>,
-    #[arg(long)]
-    pub objects_snapshot_min_checkpoint_lag: Option<usize>,
+    #[command(flatten)]
+    pub snapshot_config: SnapshotLagConfig,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this
@@ -447,9 +448,9 @@ impl IotaValue {
             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
         };
         let obj_res = if let Some(v) = version {
-            iota_types::storage::ObjectStore::get_object_by_key(&*test_adapter.executor, &id, v)
+            iota_types::storage::ObjectStore::try_get_object_by_key(&*test_adapter.executor, &id, v)
         } else {
-            iota_types::storage::ObjectStore::get_object(&*test_adapter.executor, &id)
+            iota_types::storage::ObjectStore::try_get_object(&*test_adapter.executor, &id)
         };
         let obj = match obj_res {
             Ok(Some(obj)) => obj,

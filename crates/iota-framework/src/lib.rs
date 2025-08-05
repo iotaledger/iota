@@ -5,8 +5,7 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
-    BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     move_package::MovePackage,
@@ -139,16 +138,6 @@ impl BuiltInFramework {
                 [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
             ),
             (
-                BRIDGE_PACKAGE_ID,
-                "Bridge",
-                "bridge",
-                [
-                    MOVE_STDLIB_PACKAGE_ID,
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    IOTA_SYSTEM_PACKAGE_ID
-                ]
-            ),
-            (
                 STARDUST_PACKAGE_ID,
                 "Stardust",
                 "stardust",
@@ -204,7 +193,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     dependencies: Vec<ObjectID>,
     binary_config: &BinaryConfig,
 ) -> Option<ObjectRef> {
-    let cur_object = match object_store.get_object(id) {
+    let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
         Ok(None) => {

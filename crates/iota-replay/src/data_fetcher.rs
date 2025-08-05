@@ -92,6 +92,7 @@ pub(crate) trait DataFetcher {
 }
 
 #[derive(Clone)]
+#[expect(clippy::large_enum_variant)]
 pub enum Fetchers {
     Remote(RemoteFetcher),
     NodeStateDump(NodeStateDumpFetcher),

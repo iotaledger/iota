@@ -22,7 +22,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const Avatar = ({ isLocked }: { isLocked?: boolean }) => {
-    const circleFillClass = isLocked ? 'fill-neutral-80 dark:fill-neutral-30' : 'fill-primary-30';
+    const circleFillClass = isLocked
+        ? 'fill-iota-neutral-80 dark:fill-iota-neutral-30 names:fill-names-neutral-30'
+        : 'fill-iota-primary-30';
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"

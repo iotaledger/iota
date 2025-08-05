@@ -29,7 +29,8 @@ use iota_types::{
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::VerifiedTransaction,
+    transaction::{TransactionData, VerifiedTransaction},
+    transaction_executor::SimulateTransactionResult,
 };
 use prometheus::{
     Histogram, Registry,
@@ -111,15 +112,14 @@ where
         prometheus_registry: &Registry,
         reconfig_observer: OnsiteReconfigObserver,
     ) -> Self {
+        let metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let notifier = Arc::new(NotifyRead::new());
+        let reconfig_observer = Arc::new(reconfig_observer);
         let quorum_driver_handler = Arc::new(
-            QuorumDriverHandlerBuilder::new(
-                validators,
-                Arc::new(QuorumDriverMetrics::new(prometheus_registry)),
-            )
-            .with_notifier(notifier.clone())
-            .with_reconfig_observer(Arc::new(reconfig_observer))
-            .start(),
+            QuorumDriverHandlerBuilder::new(validators.clone(), metrics.clone())
+                .with_notifier(notifier.clone())
+                .with_reconfig_observer(reconfig_observer.clone())
+                .start(),
         );
 
         let effects_receiver = quorum_driver_handler.subscribe_to_effects();
@@ -345,7 +345,7 @@ where
         let qd = self.clone_quorum_driver();
         Ok(async move {
             let digests = [tx_digest];
-            let effects_await = cache_reader.notify_read_executed_effects(&digests);
+            let effects_await = cache_reader.try_notify_read_executed_effects(&digests);
             // let-and-return necessary to satisfy borrow checker.
             let res = match select(ticket, effects_await.boxed()).await {
                 Either::Left((quorum_driver_response, _)) => Ok(quorum_driver_response),
@@ -359,7 +359,6 @@ where
                     Ok(unfinished_quorum_driver_task.await)
                 }
             };
-            #[expect(clippy::let_and_return)]
             res
         })
     }
@@ -382,7 +381,7 @@ where
         //    one extra time)
         // 3. at the end of day, the tx will be executed at most once per lock guard.
         let tx_digest = transaction.digest();
-        if validator_state.is_tx_already_executed(tx_digest)? {
+        if validator_state.try_is_tx_already_executed(tx_digest)? {
             return Ok(());
         }
         metrics.local_execution_in_flight.inc();
@@ -745,5 +744,12 @@ where
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         self.execute_transaction_v1(request, client_addr).await
+    }
+
+    fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        self.validator_state.simulate_transaction(transaction)
     }
 }

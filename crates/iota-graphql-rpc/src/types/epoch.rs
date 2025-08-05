@@ -103,7 +103,7 @@ impl Epoch {
         };
 
         Ok(Some(UInt53::from(
-            last - self.stored.first_checkpoint_id as u64,
+            last - self.stored.first_checkpoint_id as u64 + 1,
         )))
     }
 
@@ -112,7 +112,7 @@ impl Epoch {
         // TODO: this currently returns None for the current epoch. Fix this.
         Ok(self
             .stored
-            .epoch_total_transactions
+            .epoch_total_transactions()
             .map(|v| UInt53::from(v as u64)))
     }
 

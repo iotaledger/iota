@@ -127,11 +127,11 @@ impl DagState {
 
         let last_commit = store
             .read_last_commit()
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
         let commit_info = store
             .read_last_commit_info()
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         let (mut last_committed_rounds, commit_recovery_start_index) =
             if let Some((commit_ref, commit_info)) = commit_info {
                 tracing::info!("Recovering committed state from {commit_ref} {commit_info:?}");
@@ -147,7 +147,7 @@ impl DagState {
         if let Some(last_commit) = last_commit.as_ref() {
             store
                 .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-                .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e))
+                .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
                 .iter()
                 .for_each(|commit| {
                     for block_ref in commit.blocks() {
@@ -246,6 +246,17 @@ impl DagState {
             );
         }
 
+        // Initialize scoring metrics according to the metrics in store and the blocks
+        // that were loaded to cache.
+        let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
+        state.context.metrics.initialize_scoring_metrics(
+            recovered_scoring_metrics,
+            &state.recent_refs_by_authority,
+            state.threshold_clock_round(),
+            &state.evicted_rounds,
+            state.context.clone(),
+        );
+
         if state.gc_enabled() {
             if let Some(last_commit) = last_commit {
                 let mut index = last_commit.index();
@@ -258,7 +269,7 @@ impl DagState {
                 loop {
                     let commits = store
                         .scan_commits((index..=index).into())
-                        .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+                        .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
                     let Some(commit) = commits.first() else {
                         info!(
                             "Recovering finished up to index {index}, no more commits to recover"
@@ -283,7 +294,7 @@ impl DagState {
                             block_ref,
                             commit.index()
                         );
-                        assert!(state.set_committed(block_ref), "Attempted to set again a block {:?} as committed when recovering commit {:?}", block_ref, commit);
+                        assert!(state.set_committed(block_ref), "Attempted to set again a block {block_ref:?} as committed when recovering commit {commit:?}");
                     });
 
                     // All commits are indexed starting from 1, so one reach zero exit.
@@ -425,7 +436,7 @@ impl DagState {
         let store_results = self
             .store
             .read_blocks(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
@@ -451,10 +462,7 @@ impl DagState {
             }
             false
         } else {
-            panic!(
-                "Block {:?} not found in cache to set as committed.",
-                block_ref
-            );
+            panic!("Block {block_ref:?} not found in cache to set as committed.");
         }
     }
 
@@ -488,7 +496,7 @@ impl DagState {
     /// checked.
     pub(crate) fn get_uncommitted_blocks_at_round(&self, round: Round) -> Vec<VerifiedBlock> {
         if round <= self.last_commit_round() {
-            panic!("Round {} have committed blocks!", round);
+            panic!("Round {round} have committed blocks!");
         }
 
         let mut blocks = vec![];
@@ -521,7 +529,7 @@ impl DagState {
             }
             let block_ref = linked.pop_last().unwrap();
             let Some(block) = self.get_block(&block_ref) else {
-                panic!("Block {:?} should exist in DAG!", block_ref);
+                panic!("Block {block_ref:?} should exist in DAG!");
             };
             linked.extend(block.ancestors().iter().cloned());
         }
@@ -536,7 +544,7 @@ impl DagState {
             ))
             .map(|r| {
                 self.get_block(r)
-                    .unwrap_or_else(|| panic!("Block {:?} should exist in DAG!", r))
+                    .unwrap_or_else(|| panic!("Block {r:?} should exist in DAG!"))
                     .clone()
             })
             .collect()
@@ -574,22 +582,45 @@ impl DagState {
     /// Blocks returned are limited to round >= `start`, and cached.
     /// NOTE: caller should not assume returned blocks are always chained.
     /// "Disconnected" blocks can be returned when there are byzantine blocks,
-    /// or when received blocks are not deduped.
+    /// or a previously evicted block is accepted again.
     pub(crate) fn get_cached_blocks(
         &self,
         authority: AuthorityIndex,
         start: Round,
     ) -> Vec<VerifiedBlock> {
+        self.get_cached_blocks_in_range(authority, start, Round::MAX, usize::MAX)
+    }
+
+    // Retrieves the cached block within the range [start_round, end_round) from a
+    // given authority, limited in total number of blocks.
+    pub(crate) fn get_cached_blocks_in_range(
+        &self,
+        authority: AuthorityIndex,
+        start_round: Round,
+        end_round: Round,
+        limit: usize,
+    ) -> Vec<VerifiedBlock> {
+        if start_round >= end_round || limit == 0 {
+            return vec![];
+        }
+
         let mut blocks = vec![];
         for block_ref in self.recent_refs_by_authority[authority].range((
-            Included(BlockRef::new(start, authority, BlockDigest::MIN)),
-            Unbounded,
+            Included(BlockRef::new(start_round, authority, BlockDigest::MIN)),
+            Excluded(BlockRef::new(
+                end_round,
+                AuthorityIndex::MIN,
+                BlockDigest::MIN,
+            )),
         )) {
             let block_info = self
                 .recent_blocks
                 .get(block_ref)
                 .expect("Block should exist in recent blocks");
             blocks.push(block_info.block.clone());
+            if blocks.len() >= limit {
+                break;
+            }
         }
         blocks
     }
@@ -602,10 +633,8 @@ impl DagState {
         start_round: Round,
         end_round: Round,
     ) -> Option<VerifiedBlock> {
-        if end_round == GENESIS_ROUND {
-            panic!(
-                "Attempted to retrieve blocks earlier than the genesis round which is impossible"
-            );
+        if start_round >= end_round {
+            return None;
         }
 
         let block_ref = self.recent_refs_by_authority[authority]
@@ -757,7 +786,7 @@ impl DagState {
         let store_results = self
             .store
             .contains_blocks(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
@@ -805,8 +834,7 @@ impl DagState {
 
             if commit.timestamp_ms() < last_commit.timestamp_ms() {
                 panic!(
-                    "Commit timestamps do not monotonically increment, prev commit {:?}, new commit {:?}",
-                    last_commit, commit
+                    "Commit timestamps do not monotonically increment, prev commit {last_commit:?}, new commit {commit:?}"
                 );
             }
         } else {
@@ -992,9 +1020,35 @@ impl DagState {
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
         );
+
+        // Update the scoring metrics accordingly to the blocks being flushed.
+        let mut metrics_to_write = vec![];
+        let threshold_clock_round = self.threshold_clock_round();
+        for (authority_index, authority) in self.context.committee.authorities() {
+            let last_eviction_round = self.evicted_rounds[authority_index];
+            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let metrics_to_write_from_authority =
+                self.context.metrics.update_scoring_metrics_on_eviction(
+                    authority_index,
+                    authority.hostname.as_str(),
+                    &self.recent_refs_by_authority[authority_index],
+                    current_eviction_round,
+                    last_eviction_round,
+                    threshold_clock_round,
+                );
+            if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
+                metrics_to_write.push((authority_index, metrics_to_write_from_authority));
+            }
+        }
+
         self.store
-            .write(WriteBatch::new(blocks, commits, commit_info_to_write))
-            .unwrap_or_else(|e| panic!("Failed to write to storage: {:?}", e));
+            .write(WriteBatch::new(
+                blocks,
+                commits,
+                commit_info_to_write,
+                metrics_to_write,
+            ))
+            .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
@@ -1002,11 +1056,13 @@ impl DagState {
             .inc();
 
         // Clean up old cached data. After flushing, all cached blocks are guaranteed to
-        // be persisted.
+        // be persisted. This clean up also triggers some of the scoring metrics
+        // updates.
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
             while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
-                if block_ref.round <= eviction_round {
+                let block_round = block_ref.round;
+                if block_round <= eviction_round {
                     self.recent_blocks.remove(block_ref);
                     self.recent_refs_by_authority[authority_index].pop_first();
                 } else {
@@ -1031,7 +1087,7 @@ impl DagState {
     pub(crate) fn recover_last_commit_info(&self) -> Option<(CommitRef, CommitInfo)> {
         self.store
             .read_last_commit_info()
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e))
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
     // TODO: Remove four methods below this when DistributedVoteScoring is enabled.
@@ -1448,8 +1504,7 @@ mod test {
         // & 2) might not be in right lexicographical order.
         assert_eq!(
             ancestors_refs, expected_refs,
-            "Expected round 11 ancestors: {:?}. Got: {:?}",
-            expected_refs, ancestors_refs
+            "Expected round 11 ancestors: {expected_refs:?}. Got: {ancestors_refs:?}"
         );
     }
 
@@ -1558,7 +1613,7 @@ mod test {
         for block_ref in block_refs.clone() {
             let slot = block_ref.into();
             let found = dag_state.contains_cached_block_at_slot(slot);
-            assert!(found, "A block should be found at slot {}", slot);
+            assert!(found, "A block should be found at slot {slot}");
         }
 
         // Now try to ask also for one block ref that is not in cache
@@ -2144,8 +2199,7 @@ mod test {
                 if block_ref.round > gc_round && all_committed_blocks.contains(block_ref) {
                     assert!(
                         block_info.committed,
-                        "Block {:?} should be committed",
-                        block_ref
+                        "Block {block_ref:?} should be committed"
                     );
                 };
             });
@@ -2242,6 +2296,77 @@ mod test {
             dag_state.get_cached_blocks(context.committee.to_authority_index(3).unwrap(), 12);
         assert_eq!(cached_blocks.len(), 1);
         assert_eq!(cached_blocks[0].round(), 12);
+
+        // Test get_cached_blocks_in_range()
+
+        // Start == end
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            10,
+            10,
+            1,
+        );
+        assert!(cached_blocks.is_empty());
+
+        // Start > end
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            11,
+            10,
+            1,
+        );
+        assert!(cached_blocks.is_empty());
+
+        // Empty result.
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(0).unwrap(),
+            9,
+            10,
+            1,
+        );
+        assert!(cached_blocks.is_empty());
+
+        // Single block, one round before the end.
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(1).unwrap(),
+            9,
+            11,
+            1,
+        );
+        assert_eq!(cached_blocks.len(), 1);
+        assert_eq!(cached_blocks[0].round(), 10);
+
+        // Respect end round.
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(2).unwrap(),
+            9,
+            12,
+            5,
+        );
+        assert_eq!(cached_blocks.len(), 2);
+        assert_eq!(cached_blocks[0].round(), 10);
+        assert_eq!(cached_blocks[1].round(), 11);
+
+        // Respect start round.
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            11,
+            20,
+            5,
+        );
+        assert_eq!(cached_blocks.len(), 2);
+        assert_eq!(cached_blocks[0].round(), 11);
+        assert_eq!(cached_blocks[1].round(), 12);
+
+        // Respect limit
+        let cached_blocks = dag_state.get_cached_blocks_in_range(
+            context.committee.to_authority_index(3).unwrap(),
+            10,
+            20,
+            1,
+        );
+        assert_eq!(cached_blocks.len(), 1);
+        assert_eq!(cached_blocks[0].round(), 10);
     }
 
     #[rstest]

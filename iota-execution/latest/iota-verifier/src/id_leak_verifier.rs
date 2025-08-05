@@ -16,9 +16,8 @@
 use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    GENESIS_BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
-    bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
     deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
@@ -98,8 +97,11 @@ const IOTA_DENY_LIST_CREATE: FunctionIdent = (
     DENY_LIST_CREATE_FUNC,
 );
 
-const IOTA_BRIDGE_CREATE: FunctionIdent =
-    (&BRIDGE_ADDRESS, BRIDGE_MODULE_NAME, ident_str!("create"));
+const IOTA_BRIDGE_CREATE: FunctionIdent = (
+    &GENESIS_BRIDGE_ADDRESS,
+    ident_str!("bridge"),
+    ident_str!("create"),
+);
 const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
@@ -156,8 +158,7 @@ fn verify_id_leak(
                         module.identifier_at(module.function_handle_at(func_def.function).name);
                     let module_name = module.self_id();
                     verification_failure(format!(
-                        "{} Found in {module_name}::{function_name}",
-                        message
+                        "{message} Found in {module_name}::{function_name}"
                     ))
                 } else {
                     verification_failure(err.to_string())
@@ -313,7 +314,7 @@ fn call(
     let function = verifier.resolve_function(function_handle);
     if FRESH_ID_FUNCTIONS.contains(&function) {
         if return_.0.len() != 1 {
-            debug_assert!(false, "{:?} should have a single return value", function);
+            debug_assert!(false, "{function:?} should have a single return value");
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERIFICATION_ERROR)
                 .with_message("Should have a single return value".to_string())
                 .with_sub_status(

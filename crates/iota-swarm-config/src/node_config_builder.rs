@@ -14,13 +14,15 @@ use iota_config::{
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
-        ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, KeyPairWithPath, RunWithRange,
-        StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
-        default_end_of_epoch_broadcast_channel_capacity, default_zklogin_oauth_providers,
+        ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
+        KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
+        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_zklogin_oauth_providers,
     },
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -43,6 +45,8 @@ pub struct ValidatorConfigBuilder {
     force_unpruned_checkpoints: bool,
     jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    execution_cache_type: Option<ExecutionCacheType>,
+    execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
     firewall_config: Option<RemoteFirewallConfig>,
@@ -87,6 +91,16 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_execution_cache_type(mut self, execution_cache_type: ExecutionCacheType) -> Self {
+        self.execution_cache_type = Some(execution_cache_type);
+        self
+    }
+
+    pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
+        self.execution_cache_config = Some(config);
+        self
+    }
+
     pub fn with_data_ingestion_dir(mut self, path: PathBuf) -> Self {
         self.data_ingestion_dir = Some(path);
         self
@@ -119,7 +133,7 @@ impl ValidatorConfigBuilder {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
@@ -212,17 +226,22 @@ impl ValidatorConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
                 .unwrap_or(3600),
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
+            execution_cache: self.execution_cache_type.unwrap_or_default(),
+            execution_cache_config: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
-            execution_cache: ExecutionCacheConfig::default(),
             enable_validator_tx_finalizer: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
@@ -273,6 +292,7 @@ pub struct FullnodeConfigBuilder {
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
+    iota_names_config: Option<IotaNamesConfig>,
 }
 
 impl FullnodeConfigBuilder {
@@ -393,6 +413,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
+        self.iota_names_config = config;
+        self
+    }
+
     pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
@@ -412,7 +437,7 @@ impl FullnodeConfigBuilder {
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
@@ -455,7 +480,7 @@ impl FullnodeConfigBuilder {
             let rpc_port = self
                 .rpc_port
                 .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
-            format!("{}:{}", ip, rpc_port).parse().unwrap()
+            format!("{ip}:{rpc_port}").parse().unwrap()
         });
 
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -520,6 +545,10 @@ impl FullnodeConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
@@ -528,12 +557,13 @@ impl FullnodeConfigBuilder {
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.fw_config,
-            execution_cache: ExecutionCacheConfig::default(),
+            execution_cache: ExecutionCacheType::default(),
+            execution_cache_config: ExecutionCacheConfig::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
-            iota_names_config: None,
+            iota_names_config: self.iota_names_config,
         }
     }
 

@@ -194,12 +194,12 @@ async fn basic_flow() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
         Some(path),
-        Some(Duration::from_secs(1)),
+        Some(Duration::from_secs(3)),
         bundle.token,
     )
     .await;
@@ -230,7 +230,7 @@ async fn graceful_shutdown_faulty_worker() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
@@ -269,12 +269,12 @@ async fn worker_pool_with_reducer() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
         Some(path),
-        Some(Duration::from_secs(1)),
+        Some(Duration::from_secs(3)),
         bundle.token,
     )
     .await;
@@ -316,7 +316,7 @@ async fn graceful_shutdown_faulty_reducer() {
     let path = temp_dir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
     let result = run(
         bundle.executor,
@@ -400,7 +400,7 @@ async fn file_progress_store() {
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
         .expect("Failed to open temporary directory")
-        .into_path()
+        .keep()
 }
 
 async fn create_executor_bundle() -> ExecutorBundle {

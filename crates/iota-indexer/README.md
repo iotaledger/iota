@@ -63,16 +63,71 @@ To run the indexer as a standalone service with an existing fullnode, follow the
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
+
+# Old CLI
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
+
+# New CLI
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --rpc-client-url "https://api.devnet.iota.cafe:443"  --reset-db
 ```
 
 - to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.org/iota-api-ref).
 
-```
+```sh
+# Old CLI
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --rpc-server-worker
+
+# New CLI
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" json-rpc-service --rpc-client-url "https://api.devnet.iota.cafe:443"
 ```
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
+
+### Backfilling of data
+
+Sometimes when the schema changes (e.g. adding a new table or column), backfilling may be required to populate historical data.
+The CLI provides a `run-backfill` command to facilitate this process:
+
+```sh
+Usage: iota-indexer run-backfill [OPTIONS] <START> <END> <COMMAND>
+
+Commands:
+  sql        Run a SQL backfill
+  ingestion  Run a backfill driven by the ingestion engine
+  help       Print this message or the help of the given subcommand(s)
+
+Arguments:
+  <START>  Start of the range to backfill, inclusive. It can be a checkpoint number or an epoch or any other identifier that
+           can be used to slice the backfill range
+  <END>    End of the range to backfill, inclusive
+
+Options:
+      --max-concurrency <MAX_CONCURRENCY>  Maximum number of concurrent tasks to run [default: 10]
+      --chunk-size <CHUNK_SIZE>            Size of the data chunks processed per task [default: 1000]
+  -h, --help                               Print help
+```
+
+It supports following backfill options:
+
+- `sql`: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
+- `ingestion`: Fetches and buffers checkpoint data from a remote store, then slices the buffered checkpoint data into chunks to backfill the database.
+
+#### Backfill job: `tx-wrapped-or-deleted-objects`
+
+This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes transactions that either wrapped or deleted given objects.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
+
+```sh
+cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
+```
+
+#### Error Handling
+
+If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To prevent data gaps, you can restart the backfill from the calculated restart point:
+
+`restart_from = failed_chunk_start - (max_concurrency * chunk_size)`
+
+This ensures any unprocessed chunks are covered also in the worst-case, preventing data gaps.
 
 ### DB reset
 
@@ -80,6 +135,22 @@ To wipe the database, make sure you are in the `iota/crates/iota-indexer` direct
 
 ```sh
 diesel database reset --database-url="postgres://postgres:postgrespw@localhost/iota_indexer"
+```
+
+### CLI Reference
+
+The IOTA Indexer is currently transitioning from the old CLI to a new one.
+While both versions are still supported, the old CLI will be deprecated in the future.
+Users are encouraged to start using the new CLI.
+
+To view help information for each version:
+
+```sh
+# Old CLI
+cargo run --bin iota-indexer -- help-deprecated
+
+# New CLI
+cargo run --bin iota-indexer -- help
 ```
 
 ### Running tests

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@iota/bcs';
+import { fromBase64 } from '@iota/bcs';
 import type {
     MoveValue,
     ProtocolConfigValue,
@@ -456,7 +456,7 @@ export const RPC_METHODS: {
                           ? inputFilter.AddressOwner
                           : undefined,
             };
-            const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
+            const unsupportedFilters: string[] = [];
 
             for (const unsupportedFilter of unsupportedFilters) {
                 if (unsupportedFilter in inputFilter) {
@@ -474,6 +474,7 @@ export const RPC_METHODS: {
                     cursor,
                     showBcs: options?.showBcs,
                     showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
                     showOwner: options?.showOwner,
                     showPreviousTransaction: options?.showPreviousTransaction,
                     showStorageRebate: options?.showStorageRebate,
@@ -500,6 +501,7 @@ export const RPC_METHODS: {
                     id,
                     showBcs: options?.showBcs,
                     showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
                     showOwner: options?.showOwner,
                     showPreviousTransaction: options?.showPreviousTransaction,
                     showStorageRebate: options?.showStorageRebate,
@@ -521,6 +523,7 @@ export const RPC_METHODS: {
                 version,
                 showBcs: options?.showBcs,
                 showContent: options?.showContent,
+                showDisplay: options?.showDisplay,
                 showOwner: options?.showOwner,
                 showPreviousTransaction: options?.showPreviousTransaction,
                 showStorageRebate: options?.showStorageRebate,
@@ -564,6 +567,7 @@ export const RPC_METHODS: {
                     ids,
                     showBcs: options?.showBcs,
                     showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
                     showOwner: options?.showOwner,
                     showPreviousTransaction: options?.showPreviousTransaction,
                     showStorageRebate: options?.showStorageRebate,
@@ -636,10 +640,11 @@ export const RPC_METHODS: {
                     ...pagination,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showRawEffects,
-                    showObjectChanges: options?.showObjectChanges,
-                    showRawInput: options?.showRawInput,
+                    showEvents: options?.showEvents,
                     showInput: options?.showInput,
+                    showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showRawEffects,
+                    showRawInput: options?.showRawInput,
                     filter: filter
                         ? {
                               atCheckpoint:
@@ -687,10 +692,11 @@ export const RPC_METHODS: {
                     digest,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showRawEffects,
-                    showObjectChanges: options?.showObjectChanges,
-                    showRawInput: options?.showRawInput,
+                    showEvents: options?.showEvents,
                     showInput: options?.showInput,
+                    showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showRawEffects,
+                    showRawInput: options?.showRawInput,
                 },
             },
             (data) => data.transactionBlock,
@@ -709,10 +715,11 @@ export const RPC_METHODS: {
                     digests: digests,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showEffects,
-                    showObjectChanges: options?.showObjectChanges,
-                    showRawInput: options?.showRawInput,
+                    showEvents: options?.showEvents,
                     showInput: options?.showInput,
+                    showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showEffects,
+                    showRawInput: options?.showRawInput,
                     limit: digests.length,
                 },
             },
@@ -966,7 +973,7 @@ export const RPC_METHODS: {
                     txDigest: '', // TODO
                 },
                 packageId: event.sendingModule?.package.address!,
-                parsedJson: event.json ? JSON.parse(event.json) : undefined,
+                parsedJson: event.json,
                 sender: event.sender?.address,
                 timestampMs: new Date(event.timestamp).getTime().toString(),
                 transactionModule: `${event.sendingModule?.package.address}::${event.sendingModule?.name}`,
@@ -1023,12 +1030,12 @@ export const RPC_METHODS: {
                                 : {
                                       Result: ref.input.cmd,
                                   },
-                        Array.from(fromB64(ref.bcs)),
+                        Array.from(fromBase64(ref.bcs)),
                         toShortTypeString(ref.type.repr),
                     ],
                 ),
                 returnValues: result.returnValues?.map((value) => [
-                    Array.from(fromB64(value.bcs)),
+                    Array.from(fromBase64(value.bcs)),
                     toShortTypeString(value.type.repr),
                 ]),
             })),
@@ -1143,10 +1150,10 @@ export const RPC_METHODS: {
                     signatures,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showRawEffects,
-                    showInput: options?.showInput,
                     showEvents: options?.showEvents,
+                    showInput: options?.showInput,
                     showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showRawEffects,
                     showRawInput: options?.showRawInput,
                 },
             },
@@ -1154,7 +1161,7 @@ export const RPC_METHODS: {
         );
 
         if (!effects?.transactionBlock) {
-            const tx = Transaction.from(fromB64(txBytes));
+            const tx = Transaction.from(fromBase64(txBytes));
             return { errors: errors ?? undefined, digest: await tx.getDigest() };
         }
 
@@ -1167,7 +1174,7 @@ export const RPC_METHODS: {
         );
     },
     async dryRunTransactionBlock(transport, [txBytes]) {
-        const tx = Transaction.from(fromB64(txBytes));
+        const tx = Transaction.from(fromBase64(txBytes));
         const { transaction, error } = await transport.graphqlQuery(
             {
                 query: DryRunTransactionBlockDocument,
@@ -1176,8 +1183,8 @@ export const RPC_METHODS: {
                     showBalanceChanges: true,
                     showEffects: true,
                     showEvents: true,
-                    showObjectChanges: true,
                     showInput: true,
+                    showObjectChanges: true,
                 },
             },
             (data) => data.dryRunTransactionBlock,
@@ -1193,8 +1200,8 @@ export const RPC_METHODS: {
                 showBalanceChanges: true,
                 showEffects: true,
                 showEvents: true,
-                showObjectChanges: true,
                 showInput: true,
+                showObjectChanges: true,
             },
         );
 

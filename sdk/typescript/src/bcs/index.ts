@@ -21,6 +21,7 @@ import {
     MultiSigPublicKey,
     ObjectArg,
     ObjectDigest,
+    Owner,
     ProgrammableMoveCall,
     ProgrammableTransaction,
     PublicKey,
@@ -34,6 +35,7 @@ import {
     TransactionExpiration,
     TransactionKind,
     TypeTag,
+    PasskeyAuthenticator,
 } from './bcs.js';
 import { TransactionEffects } from './effects.js';
 
@@ -68,6 +70,7 @@ const iotaBcs = {
     MultiSigPublicKey,
     ObjectArg,
     ObjectDigest,
+    Owner,
     ProgrammableMoveCall,
     ProgrammableTransaction,
     PublicKey,
@@ -83,6 +86,7 @@ const iotaBcs = {
     TransactionKind,
     TypeTag,
     TransactionEffects,
+    PasskeyAuthenticator,
 };
 
 export { iotaBcs as bcs };

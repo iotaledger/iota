@@ -89,10 +89,10 @@ impl ExecutionSandboxState {
         if self.transaction_info.effects != self.local_exec_effects {
             error!("Replay tool forked {}", self.transaction_info.tx_digest);
             let diff = self.diff_effects();
-            println!("{}", diff);
+            println!("{diff}");
             return Err(ReplayEngineError::EffectsForked {
                 digest: self.transaction_info.tx_digest,
-                diff: format!("\n{}", diff),
+                diff: format!("\n{diff}"),
                 on_chain: Box::new(self.transaction_info.effects.clone()),
                 local: Box::new(self.local_exec_effects.clone()),
             });
@@ -104,8 +104,8 @@ impl ExecutionSandboxState {
     pub fn diff_effects(&self) -> String {
         let eff1 = &self.transaction_info.effects;
         let eff2 = &self.local_exec_effects;
-        let on_chain_str = format!("{:#?}", eff1);
-        let local_chain_str = format!("{:#?}", eff2);
+        let on_chain_str = format!("{eff1:#?}");
+        let local_chain_str = format!("{eff2:#?}");
         let mut res = vec![];
 
         let diff = TextDiff::from_lines(&on_chain_str, &local_chain_str);
@@ -115,7 +115,7 @@ impl ExecutionSandboxState {
                 ChangeTag::Insert => "+++",
                 ChangeTag::Equal => "   ",
             };
-            res.push(format!("{}{}", sign, change));
+            res.push(format!("{sign}{change}"));
         }
 
         res.join("")
@@ -202,15 +202,15 @@ impl Storage {
                 self.package_cache
                     .lock()
                     .expect("Unable to lock")
-                    .iter()
-                    .map(|(_, obj)| obj.clone()),
+                    .values()
+                    .cloned(),
             )
             .chain(
                 self.object_version_cache
                     .lock()
                     .expect("Unable to lock")
-                    .iter()
-                    .map(|(_, obj)| obj.clone()),
+                    .values()
+                    .cloned(),
             )
             .collect::<Vec<_>>()
     }
@@ -476,8 +476,13 @@ impl LocalExec {
         objs: Vec<ObjectID>,
         protocol_version: u64,
     ) -> Result<Vec<Object>, ReplayEngineError> {
-        let syst_packages = self.system_package_versions_for_protocol_version(protocol_version)?;
-        let syst_packages_objs = self.multi_download(&syst_packages).await?;
+        let syst_packages_objs = if self.protocol_version.is_some_and(|i| i < 0) {
+            BuiltInFramework::genesis_objects().collect()
+        } else {
+            let syst_packages =
+                self.system_package_versions_for_protocol_version(protocol_version)?;
+            self.multi_download(&syst_packages).await?
+        };
 
         // Download latest version of all packages that are not system packages
         // This is okay since the versions can never change
@@ -716,17 +721,6 @@ impl LocalExec {
         expensive_safety_check_config: ExpensiveSafetyCheckConfig,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         let tx_digest = &tx_info.tx_digest;
-        // TODO: Support system transactions.
-        if tx_info.sender_signed_data.transaction_data().is_system_tx() {
-            warn!(
-                "System TX replay not supported: {}, skipping transaction",
-                tx_digest
-            );
-            return Err(ReplayEngineError::TransactionNotSupported {
-                digest: *tx_digest,
-                reason: "System transaction".to_string(),
-            });
-        }
 
         // Initialize the state necessary for execution
         // Get the input objects
@@ -758,31 +752,33 @@ impl LocalExec {
         let expensive_checks = true;
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
-        let (inner_store, gas_status, effects, result) = if let Ok(gas_status) = IotaGasStatus::new(
-            tx_info.gas_budget,
-            tx_info.gas_price,
-            tx_info.reference_gas_price,
-            protocol_config,
-        ) {
-            executor.execute_transaction_to_effects(
-                &self,
-                protocol_config,
-                metrics.clone(),
-                expensive_checks,
-                &certificate_deny_set,
-                &tx_info.executed_epoch,
-                tx_info.epoch_start_timestamp,
-                CheckedInputObjects::new_for_replay(input_objects.clone()),
-                tx_info.gas.clone(),
-                gas_status,
-                transaction_kind.clone(),
-                tx_info.sender,
-                *tx_digest,
-                &mut None,
-            )
+        let gas_status = if tx_info.kind.is_system_tx() {
+            IotaGasStatus::new_unmetered()
         } else {
-            unreachable!("Transaction was valid so gas status must be valid");
+            IotaGasStatus::new(
+                tx_info.gas_budget,
+                tx_info.gas_price,
+                tx_info.reference_gas_price,
+                protocol_config,
+            )
+            .expect("Failed to create gas status")
         };
+        let (inner_store, gas_status, effects, result) = executor.execute_transaction_to_effects(
+            &self,
+            protocol_config,
+            metrics.clone(),
+            expensive_checks,
+            &certificate_deny_set,
+            &tx_info.executed_epoch,
+            tx_info.epoch_start_timestamp,
+            CheckedInputObjects::new_for_replay(input_objects.clone()),
+            tx_info.gas.clone(),
+            gas_status,
+            transaction_kind.clone(),
+            tx_info.sender,
+            *tx_digest,
+            &mut None,
+        );
 
         if let Err(err) = self.pretty_print_for_tracing(
             &gas_status,
@@ -1405,8 +1401,7 @@ impl LocalExec {
                     .checkpoint
                     .unwrap_or_else(|| {
                         panic!(
-                            "Checkpoint for transaction {} not present. Could be due to pruning",
-                            epoch_change_tx
+                            "Checkpoint for transaction {epoch_change_tx} not present. Could be due to pruning"
                         )
                     }),
                 idx,
@@ -1425,8 +1420,7 @@ impl LocalExec {
             .checkpoint
             .unwrap_or_else(|| {
                 panic!(
-                    "Checkpoint for transaction {} not present. Could be due to pruning",
-                    next_epoch_change_tx
+                    "Checkpoint for transaction {next_epoch_change_tx} not present. Could be due to pruning"
                 )
             });
 
@@ -1818,7 +1812,11 @@ impl LocalExec {
 
         // Download gas (although this should already be in cache from modified at
         // versions?)
-        let gas_refs: Vec<_> = tx_info.gas.iter().map(|w| (w.0, w.1)).collect();
+        let gas_refs: Vec<_> = tx_info
+            .gas
+            .iter()
+            .filter_map(|w| (w.0 != ObjectID::ZERO).then_some((w.0, w.1)))
+            .collect();
         self.multi_download_and_store(&gas_refs).await?;
 
         // Fetch the input objects we know from the raw transaction
@@ -1937,7 +1935,7 @@ impl ChildObjectResolver for LocalExec {
             receiving_object_id: &ObjectID,
             receive_object_at_version: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
-            let recv_object = match self_.get_object(receiving_object_id)? {
+            let recv_object = match self_.try_get_object(receiving_object_id)? {
                 None => return Ok(None),
                 Some(o) => o,
             };
@@ -2056,7 +2054,7 @@ impl ModuleResolver for &mut LocalExec {
 impl ObjectStore for LocalExec {
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
@@ -2079,7 +2077,7 @@ impl ObjectStore for LocalExec {
 
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -2112,23 +2110,23 @@ impl ObjectStore for LocalExec {
 }
 
 impl ObjectStore for &mut LocalExec {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
-        (**self).get_object(object_id)
+        (**self).try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
-        (**self).get_object_by_key(object_id, version)
+        (**self).try_get_object_by_key(object_id, version)
     }
 }
 

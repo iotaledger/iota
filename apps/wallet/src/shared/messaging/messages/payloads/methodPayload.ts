@@ -61,6 +61,10 @@ type MethodPayloads = {
     switchAccount: { accountID: string };
     setAccountNickname: { id: string; nickname: string | null };
     verifyPassword: { password: string };
+    getLockedState: {};
+    getLockedStateResponse: {
+        remainingTime: number;
+    };
     storeLedgerAccountsPublicKeys: { publicKeysToStore: LedgerAccountsPublicKeys };
     getAccountSourceEntropy: { accountSourceID: string; password?: string };
     getAccountSourceEntropyResponse: { entropy: string };

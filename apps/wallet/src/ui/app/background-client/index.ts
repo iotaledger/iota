@@ -29,7 +29,7 @@ import {
 import { type SignedMessage, type SignedTransaction } from '_src/ui/app/walletSigner';
 import type { AppDispatch } from '_store';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 import { growthbook } from '../experimentation/featureGating';
@@ -161,7 +161,7 @@ export class BackgroundClient {
                 createMessage<MethodPayload<'signData'>>({
                     type: 'method-payload',
                     method: 'signData',
-                    args: { data: toB64(data), id: addressOrID },
+                    args: { data: toBase64(data), id: addressOrID },
                 }),
             ).pipe(
                 take(1),
@@ -195,6 +195,27 @@ export class BackgroundClient {
                     args: { accountID },
                 }),
             ).pipe(take(1)),
+        );
+    }
+
+    public getLockedState(args: MethodPayload<'getLockedState'>['args']) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'getLockedState'>>({
+                    type: 'method-payload',
+                    method: 'getLockedState',
+                    args,
+                }),
+            ).pipe(
+                take(1),
+                map(({ payload }) => {
+                    if (!isMethodPayload(payload, 'getLockedStateResponse')) {
+                        throw new Error('Unknown response for getLockedState');
+                    }
+                    const { remainingTime } = payload.args;
+                    return { remainingTime };
+                }),
+            ),
         );
     }
 

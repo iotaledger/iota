@@ -7,27 +7,23 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
+    jsonrpc_index::TotalBalance,
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_storage::{
-    indexes::TotalBalance,
-    key_value_store::{
-        KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
-    },
+use iota_storage::key_value_store::{
+    KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
-    bridge::Bridge,
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -170,9 +166,6 @@ pub trait StateRead: Send + Sync {
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
 
-    // bridge_api
-    fn get_bridge(&self) -> StateReadResult<Bridge>;
-
     // coin_api
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest>;
     fn get_owned_coins(
@@ -262,7 +255,7 @@ impl StateRead for AuthorityState {
     }
 
     async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
-        Ok(self.get_object(object_id).await?)
+        Ok(self.try_get_object(object_id).await?)
     }
 
     fn get_past_object_read(
@@ -418,19 +411,13 @@ impl StateRead for AuthorityState {
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
         Ok(self
             .get_cache_reader()
-            .get_iota_system_state_object_unsafe()?)
+            .try_get_iota_system_state_object_unsafe()?)
     }
 
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
         Ok(self
             .committee_store()
             .get_or_latest_committee(epoch.map(|e| *e))?)
-    }
-
-    fn get_bridge(&self) -> StateReadResult<Bridge> {
-        self.get_cache_reader()
-            .get_bridge_object_unsafe()
-            .map_err(|err| err.into())
     }
 
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest> {
@@ -518,7 +505,7 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
         Ok(self
             .get_checkpoint_cache()
-            .multi_get_transactions_perpetual_checkpoints(digests)?)
+            .try_multi_get_transactions_perpetual_checkpoints(digests)?)
     }
 
     fn get_transaction_perpetual_checkpoint(
@@ -527,7 +514,7 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
         Ok(self
             .get_checkpoint_cache()
-            .get_transaction_perpetual_checkpoint(digest)?)
+            .try_get_transaction_perpetual_checkpoint(digest)?)
     }
 
     fn multi_get_checkpoint_by_sequence_number(
@@ -553,9 +540,7 @@ impl StateRead for AuthorityState {
     }
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier> {
-        Ok(self
-            .get_chain_identifier()
-            .ok_or(anyhow!("Chain identifier not found"))?)
+        Ok(self.get_chain_identifier())
     }
 }
 
@@ -581,7 +566,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
-            .find_object_lt_or_eq_version(*id, *version)?)
+            .try_find_object_lt_or_eq_version(*id, *version)?)
     }
 }
 
@@ -614,7 +599,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
         Ok(self
             .0
             .get_cache_reader()
-            .find_object_lt_or_eq_version(*id, *version)?)
+            .try_find_object_lt_or_eq_version(*id, *version)?)
     }
 }
 

@@ -87,6 +87,7 @@ export function Button({
                 backgroundColors,
                 fullWidth && 'w-full',
                 !iconAfterText ? 'flex-row' : 'flex-row-reverse',
+                `btn btn-${type}`,
             )}
             disabled={disabled}
             tabIndex={tabIndex}

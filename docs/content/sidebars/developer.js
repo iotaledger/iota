@@ -2,6 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+const tsSDK = require('./ts-sdk');
+const iotaEvm = require('./iota-evm');
+const notarization = require("./notarization");
+const iotaIdentity = require('./identity');
+
+import frameworkCategoryLink from '../developer/references/framework/iota/_category_.json';
+import systemCategoryLink from '../developer/references/framework/iota_system/_category_.json';
+import stdlibCategoryLink from '../developer/references/framework/std/_category_.json';
+import stardustCategoryLink from '../developer/references/framework/stardust/_category_.json';
+
+import testnetFrameworkCategoryLink from '../developer/references/framework/testnet/iota/_category_.json';
+import testnetSystemCategoryLink from '../developer/references/framework/testnet/iota_system/_category_.json';
+import testnetStdlibCategoryLink from '../developer/references/framework/testnet/std/_category_.json';
+import testnetStardustCategoryLink from '../developer/references/framework/testnet/stardust/_category_.json';
+
+import devnetFrameworkCategoryLink from '../developer/references/framework/devnet/iota/_category_.json';
+import devnetSystemCategoryLink from '../developer/references/framework/devnet/iota_system/_category_.json';
+import devnetStdlibCategoryLink from '../developer/references/framework/devnet/std/_category_.json';
+import devnetStardustCategoryLink from '../developer/references/framework/devnet/stardust/_category_.json';
+
 const developer = [
     'developer/developer',
     'developer/network-overview',
@@ -29,229 +49,420 @@ const developer = [
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
             'developer/getting-started/oracles',
+            'developer/getting-started/move-trace-debug',
+            'developer/getting-started/install-move-extension',
         ],
     },
     {
         type: 'category',
-        label: 'SDKs & CLI',
+        label: 'Explanations',
         items: [
             {
                 type: 'category',
-                label: 'IOTA CLI',
-                link: {
-                    type: 'doc',
-                    id: 'references/cli',
-                },
+                label: 'Object Model',
                 items: [
-                    'references/cli/client',
-                    'references/cli/ptb',
-                    'references/cli/keytool',
-                    'references/cli/move',
-                    'references/cli/validator',
-                    'references/cli/ceremony',
-                    'references/cli/cheatsheet',
+                    'developer/iota-101/objects/object-model',
+                    'developer/iota-101/objects/shared-owned',
+                    'developer/iota-101/objects/shared-object-example',
+                    {
+                        type: 'category',
+                        label: 'Object Ownership',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/objects/object-ownership/object-ownership',
+                        },
+                        items: [
+                            'developer/iota-101/objects/object-ownership/address-owned',
+                            'developer/iota-101/objects/object-ownership/immutable',
+                            'developer/iota-101/objects/object-ownership/shared',
+                            'developer/iota-101/objects/object-ownership/wrapped',
+                        ],
+                    },
+                    'developer/iota-101/objects/uid-id',
+                    {
+                        type: 'category',
+                        label: 'Dynamic Fields',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/objects/dynamic-fields/dynamic-fields',
+                        },
+                        items: ['developer/iota-101/objects/dynamic-fields/tables-bags'],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Transfers',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/objects/transfers/transfers',
+                        },
+                        items: [
+                            'developer/iota-101/objects/transfers/custom-rules',
+                            'developer/iota-101/objects/transfers/transfer-to-object',
+                        ],
+                    },
+                    'developer/iota-101/objects/events',
+                    'developer/iota-101/objects/versioning',
                 ],
             },
-            'references/rust-sdk',
             {
-                type: 'link',
-                label: 'Typescript SDK',
-                href: '/ts-sdk/typescript',
+                type: 'category',
+                label: 'Cryptography',
+                link: {
+                    type: 'doc',
+                    id: 'developer/cryptography',
+                },
+                items: [
+                    {
+                        type: 'category',
+                        label: 'Transaction Authentication',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/cryptography/transaction-auth',
+                        },
+                        items: [
+                            'developer/cryptography/transaction-auth/keys-addresses',
+                            'developer/cryptography/transaction-auth/signatures',
+                            'developer/cryptography/transaction-auth/multisig',
+                            'developer/cryptography/transaction-auth/offline-signing',
+                            'developer/cryptography/transaction-auth/intent-signing',
+                        ],
+                    },
+                    'developer/cryptography/checkpoint-verification',
+                    {
+                        type: 'category',
+                        label: 'Smart Contract Cryptography',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/cryptography/on-chain',
+                        },
+                        items: [
+                            'developer/cryptography/on-chain/signing',
+                            'developer/cryptography/on-chain/groth16',
+                            'developer/cryptography/on-chain/hashing',
+                            'developer/cryptography/on-chain/ecvrf',
+                        ],
+                    },
+                ],
             },
-        ],
+            {
+                type: 'category',
+                label: 'Move Overview',
+                items: [
+                    'developer/iota-101/move-overview/move-overview',
+                    'developer/iota-101/move-overview/strings',
+                    'developer/iota-101/move-overview/collections',
+                    'developer/iota-101/move-overview/init',
+                    'developer/iota-101/move-overview/visibility',
+                    'developer/iota-101/move-overview/entry-functions',
+                    'developer/iota-101/using-events',
+                    'developer/iota-101/access-time',
+                    {
+                        type: 'category',
+                        label: 'Structs and Abilities',
+                        items: [
+                            'developer/iota-101/move-overview/structs-and-abilities/struct',
+                            'developer/iota-101/move-overview/structs-and-abilities/copy',
+                            'developer/iota-101/move-overview/structs-and-abilities/drop',
+                            'developer/iota-101/move-overview/structs-and-abilities/key',
+                            'developer/iota-101/move-overview/structs-and-abilities/store',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/one-time-witness',
+                    {
+                        type: 'category',
+                        label: 'Package Upgrades',
+                        items: [
+                            'developer/iota-101/move-overview/package-upgrades/introduction',
+                            'developer/iota-101/move-overview/package-upgrades/upgrade',
+                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
+                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/ownership-scope',
+                    'developer/iota-101/move-overview/references',
+                    'developer/iota-101/move-overview/generics',
+                    {
+                        type: 'category',
+                        label: 'Patterns',
+                        items: [
+                            'developer/iota-101/move-overview/patterns/patterns',
+                            'developer/iota-101/move-overview/patterns/capabilities',
+                            'developer/iota-101/move-overview/patterns/witness',
+                            'developer/iota-101/move-overview/patterns/transferable-witness',
+                            'developer/iota-101/move-overview/patterns/hot-potato',
+                            'developer/iota-101/move-overview/patterns/id-pointer',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/conventions',
+                ],
+            },
+        ]
     },
     {
         type: 'category',
-        label: 'Move Overview',
+        label: 'How To',
         items: [
-            'developer/iota-101/move-overview/move-overview',
-            'developer/iota-101/move-overview/strings',
-            'developer/iota-101/move-overview/collections',
-            'developer/iota-101/move-overview/init',
-            'developer/iota-101/move-overview/visibility',
-            'developer/iota-101/move-overview/entry-functions',
-            'developer/iota-101/using-events',
-            'developer/iota-101/access-time',
             {
                 type: 'category',
-                label: 'Structs and Abilities',
+                label: 'Create Coins and Tokens',
+                link: {
+                    type: 'doc',
+                    id: 'developer/iota-101/create-coin/create-coin',
+                },
                 items: [
-                    'developer/iota-101/move-overview/structs-and-abilities/struct',
-                    'developer/iota-101/move-overview/structs-and-abilities/copy',
-                    'developer/iota-101/move-overview/structs-and-abilities/drop',
-                    'developer/iota-101/move-overview/structs-and-abilities/key',
-                    'developer/iota-101/move-overview/structs-and-abilities/store',
+                    'developer/iota-101/create-coin/regulated',
+                    'developer/iota-101/create-coin/migrate-to-coin-manager',
+                    'developer/iota-101/create-coin/in-game-token',
+                    'developer/iota-101/create-coin/loyalty',
                 ],
             },
-            'developer/iota-101/move-overview/one-time-witness',
             {
                 type: 'category',
-                label: 'Package Upgrades',
-                items: [
-                    'developer/iota-101/move-overview/package-upgrades/introduction',
-                    'developer/iota-101/move-overview/package-upgrades/upgrade',
-                    'developer/iota-101/move-overview/package-upgrades/automated-address-management',
-                    'developer/iota-101/move-overview/package-upgrades/custom-policies',
-                ],
+                label: 'NFT',
+                items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
             },
-            'developer/iota-101/move-overview/ownership-scope',
-            'developer/iota-101/move-overview/references',
-            'developer/iota-101/move-overview/generics',
             {
                 type: 'category',
-                label: 'Patterns',
+                label: 'GraphQL',
                 items: [
-                    'developer/iota-101/move-overview/patterns/patterns',
-                    'developer/iota-101/move-overview/patterns/capabilities',
-                    'developer/iota-101/move-overview/patterns/witness',
-                    'developer/iota-101/move-overview/patterns/transferable-witness',
-                    'developer/iota-101/move-overview/patterns/hot-potato',
-                    'developer/iota-101/move-overview/patterns/id-pointer',
+                    'developer/getting-started/graphql-rpc',
+                    'developer/graphql-rpc',
+                    'developer/advanced/graphql-migration',
                 ],
             },
-            'developer/iota-101/move-overview/conventions',
-        ],
+            {
+                type: 'category',
+                label: 'Transactions',
+                link: {
+                    type: 'doc',
+                    id: 'developer/iota-101/transactions/transactions',
+                },
+                items: [
+                    'developer/iota-101/transactions/sign-and-send-transactions',
+                    {
+                        type: 'category',
+                        label: 'Sponsored Transactions',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
+                        },
+                        items: [
+                            'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
+                            'developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Working with PTBs',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview',
+                        },
+                        items: [
+                            'developer/iota-101/transactions/ptb/programmable-transaction-blocks',
+                            'developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk',
+                            'developer/iota-101/transactions/ptb/simulating-references',
+                            'developer/iota-101/transactions/ptb/coin-management',
+                            'developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging',
+                        ],
+                    },
+                ],
+            },
+        ]
     },
     {
         type: 'category',
-        label: 'Object Model',
+        label: 'Tutorials',
         items: [
-            'developer/iota-101/objects/object-model',
-            'developer/iota-101/objects/shared-owned',
-            'developer/iota-101/objects/shared-object-example',
-            {
-                type: 'category',
-                label: 'Object Ownership',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/objects/object-ownership/object-ownership',
-                },
-                items: [
-                    'developer/iota-101/objects/object-ownership/address-owned',
-                    'developer/iota-101/objects/object-ownership/immutable',
-                    'developer/iota-101/objects/object-ownership/shared',
-                    'developer/iota-101/objects/object-ownership/wrapped',
-                ],
-            },
-            'developer/iota-101/objects/uid-id',
-            {
-                type: 'category',
-                label: 'Dynamic Fields',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/objects/dynamic-fields/dynamic-fields',
-                },
-                items: ['developer/iota-101/objects/dynamic-fields/tables-bags'],
-            },
-            {
-                type: 'category',
-                label: 'Transfers',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/objects/transfers/transfers',
-                },
-                items: [
-                    'developer/iota-101/objects/transfers/custom-rules',
-                    'developer/iota-101/objects/transfers/transfer-to-object',
-                ],
-            },
-            'developer/iota-101/objects/events',
-            'developer/iota-101/objects/versioning',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Transactions',
-        link: {
-            type: 'doc',
-            id: 'developer/iota-101/transactions/transactions',
-        },
-        items: [
-            'developer/iota-101/transactions/sign-and-send-transactions',
             {
                 type: 'category',
                 label: 'Sponsored Transactions',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
-                },
                 items: [
-                    'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
-                    'developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions',
+                    'developer/tutorials/sponsored-transactions/sponsored-txs',
+                    'developer/tutorials/sponsored-transactions/media-platform-package',
+                    'developer/tutorials/sponsored-transactions/production-gas-station',
+                    {
+                        type: 'category',
+                        label: 'Custom Implementation',
+                        items: [
+                            'developer/tutorials/sponsored-transactions/gas-station-server',
+                            'developer/tutorials/sponsored-transactions/transaction-builder',
+                        ],
+                    },
                 ],
             },
             {
                 type: 'category',
-                label: 'Working with PTBs',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview',
-                },
+                label: "Independent Ticketing System Tutorial",
                 items: [
-                    'developer/iota-101/transactions/ptb/programmable-transaction-blocks',
-                    'developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk',
-                    'developer/iota-101/transactions/ptb/simulating-references',
-                    'developer/iota-101/transactions/ptb/coin-management',
-                    'developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging',
-                ],
+                    'developer/tutorials/independent-ticketing-system/package',
+                    'developer/tutorials/independent-ticketing-system/frontend',
+                ]
             },
+            'developer/tutorials/live-concert',
+            'developer/tutorials/retail-store',
+            'developer/tutorials/validate-university-degree',
         ],
     },
     {
         type: 'category',
-        label: 'Create Coins and Tokens',
-        link: {
-            type: 'doc',
-            id: 'developer/iota-101/create-coin/create-coin',
-        },
-        items: [
-            'developer/iota-101/create-coin/regulated',
-            'developer/iota-101/create-coin/migrate-to-coin-manager',
-            'developer/iota-101/create-coin/in-game-token',
-            'developer/iota-101/create-coin/loyalty',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'NFT',
-        items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
-    },
-    {
-        type: 'category',
-        label: 'Cryptography',
-        link: {
-            type: 'doc',
-            id: 'developer/cryptography',
-        },
+        label: 'References',
         items: [
             {
+                type: 'doc',
+                id: 'developer/references/references',
+                label: 'Overview',
+            },
+            {
                 type: 'category',
-                label: 'Transaction Authentication',
-                link: {
-                    type: 'doc',
-                    id: 'developer/cryptography/transaction-auth',
-                },
+                label: 'SDKs & CLI',
                 items: [
-                    'developer/cryptography/transaction-auth/keys-addresses',
-                    'developer/cryptography/transaction-auth/signatures',
-                    'developer/cryptography/transaction-auth/multisig',
-                    'developer/cryptography/transaction-auth/offline-signing',
-                    'developer/cryptography/transaction-auth/intent-signing',
+                    {
+                        type: 'category',
+                        label: 'IOTA CLI',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/references/cli',
+                        },
+                        items: [
+                            'developer/references/cli/client',
+                            'developer/references/cli/ptb',
+                            'developer/references/cli/keytool',
+                            'developer/references/cli/move',
+                            'developer/references/cli/validator',
+                            'developer/references/cli/ceremony',
+                            'developer/references/cli/cheatsheet',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'SDKs',
+                        items: [
+                            tsSDK,
+                            'developer/references/rust-sdk',
+                        ],
+                    },
                 ],
             },
-            'developer/cryptography/checkpoint-verification',
             {
                 type: 'category',
-                label: 'Smart Contract Cryptography',
+                label: 'IOTA RPC',
                 link: {
                     type: 'doc',
-                    id: 'developer/cryptography/on-chain',
+                    id: 'developer/references/iota-api',
                 },
                 items: [
-                    'developer/cryptography/on-chain/signing',
-                    'developer/cryptography/on-chain/groth16',
-                    'developer/cryptography/on-chain/hashing',
-                    'developer/cryptography/on-chain/ecvrf',
+                    {
+                        type: 'category',
+                        label: 'GraphQL',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/references/iota-graphql',
+                        },
+                        items: [
+                            {
+                                type: 'autogenerated',
+                                dirName: 'developer/references/iota-api/iota-graphql/reference',
+                            },
+                        ],
+                    },
+                    {
+                        type: 'link',
+                        label: 'JSON-RPC',
+                        href: '/iota-api-ref',
+                        description: 'IOTA JSON-RPC API Reference',
+                    },
+                    'developer/references/iota-api/rpc-best-practices',
+                ],
+            },
+            {
+                type: 'link',
+                label: 'Third-Party Blockberry API',
+                href: 'https://docs.blockberry.one/reference/iota-testnet-quickstart',
+                description: 'Third-Party Blockberry API Reference',
+            },
+            {
+                type: 'category',
+                label: 'Move',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/iota-move',
+                },
+                items: [
+                    {
+                        type: 'category',
+                        label: 'Framework Mainnet',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/references/framework',
+                        },
+                        items: [
+                            { type: 'category', label: 'IOTA Framework', link: frameworkCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/iota' }] },
+                            { type: 'category', label: 'IOTA System', link: systemCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/iota_system' }] },
+                            { type: 'category', label: 'Move Stdlib', link: stdlibCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/std' }] },
+                            { type: 'category', label: 'Stardust', link: stardustCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/stardust' }] },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Framework Testnet',
+                        items: [
+                            { type: 'category', label: 'IOTA Framework', link: testnetFrameworkCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/iota' }] },
+                            { type: 'category', label: 'IOTA System', link: testnetSystemCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/iota_system' }] },
+                            { type: 'category', label: 'Move Stdlib', link: testnetStdlibCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/std' }] },
+                            { type: 'category', label: 'Stardust', link: testnetStardustCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/testnet/stardust' }] },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Framework Devnet',
+                        items: [
+                            { type: 'category', label: 'IOTA Framework', link: devnetFrameworkCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/iota' }] },
+                            { type: 'category', label: 'IOTA System', link: devnetSystemCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/iota_system' }] },
+                            { type: 'category', label: 'Move Stdlib', link: devnetStdlibCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/std' }] },
+                            { type: 'category', label: 'Stardust', link: devnetStardustCategoryLink.link, items: [{ type: 'autogenerated', dirName: 'developer/references/framework/devnet/stardust' }] },
+                        ],
+                    },
+                    'developer/references/move/move-toml',
+                    'developer/references/move/move-lock',
+                    'developer/references/move/abilities',
+                    'developer/references/move/generics',
+                    {
+                        type: 'link',
+                        label: 'Move Language (GitHub)',
+                        href: 'https://github.com/move-language/move/blob/main/language/documentation/book/src/introduction.md',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/execution-architecture/execution-layer',
+                },
+                items: [
+                    'developer/references/execution-architecture/iota-execution',
+                    'developer/references/execution-architecture/adapter',
+                    'developer/references/execution-architecture/natives',
+                ],
+            },
+            'developer/references/research-papers',
+            'developer/references/iota-glossary',
+            {
+                type: 'category',
+                label: 'Contribute',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/contribute/contribution-process',
+                },
+                items: [
+                    'developer/references/contribute/contribution-process',
+                    'developer/references/contribute/code-of-conduct',
+                    'developer/references/contribute/contribute-to-iota-repos',
+                    'developer/references/contribute/style-guide',
+                    'developer/references/contribute/add-a-quiz',
+                    'developer/references/contribute/import-code-docs',
                 ],
             },
         ],
@@ -293,39 +504,25 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Tutorials',
+        label: 'Advanced Topics',
+        link: {
+            type: 'doc',
+            id: 'developer/advanced',
+        },
         items: [
-            {
-                type: 'category',
-                label: 'Sponsored Transactions',
-                items: [
-                    'developer/tutorials/sponsored-transactions/sponsored-txs',
-                    'developer/tutorials/sponsored-transactions/media-platform-package',
-                    'developer/tutorials/sponsored-transactions/production-gas-station',
-                    {
-                        type: 'category',
-                        label: 'Custom Implementation',
-                        items: [
-                            'developer/tutorials/sponsored-transactions/gas-station-server',
-                            'developer/tutorials/sponsored-transactions/transaction-builder',
-                        ],
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: "Independent Ticketing System Tutorial",
-                items: [
-                    'developer/tutorials/independent-ticketing-system/package',
-                    'developer/tutorials/independent-ticketing-system/frontend',
-                ]
-            },
-            'developer/tutorials/live-concert',
+            'developer/advanced/introducing-move-2024',
+            'developer/advanced/iota-repository',
+            'developer/advanced/custom-indexer',
+            'developer/advanced/onchain-randomness',
+            'developer/advanced/asset-tokenization',
+            'developer/advanced/create-review-rating-dao-with-multisig',
         ],
     },
+    'developer/exchange-integration',
+    'developer/dev-cheat-sheet',
     {
         type: 'category',
-        label: 'Capture The Flag',
+        label: 'Challenges',
         link: {
             type: 'doc',
             id: 'developer/iota-move-ctf/introduction',
@@ -354,31 +551,6 @@ const developer = [
             'developer/evm-to-move/tooling-apis',
             'developer/evm-to-move/creating-token',
             'developer/evm-to-move/creating-nft',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'GraphQL',
-        items: [
-            'developer/getting-started/graphql-rpc',
-            'developer/graphql-rpc',
-            'developer/advanced/graphql-migration',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Advanced Topics',
-        link: {
-            type: 'doc',
-            id: 'developer/advanced',
-        },
-        items: [
-            'developer/advanced/introducing-move-2024',
-            'developer/advanced/iota-repository',
-            'developer/advanced/custom-indexer',
-            'developer/advanced/onchain-randomness',
-            'developer/advanced/asset-tokenization',
-            'developer/advanced/create-review-rating-dao-with-multisig',
         ],
     },
     {
@@ -436,7 +608,33 @@ const developer = [
             },
         ],
     },
+    {
+        type: 'category',
+        label: 'IOTA Trust Framework',
+        collapsed: true,
+        link: {
+            type: 'doc',
+            id: 'developer/iota-trust-framework',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'IOTA Identity',
+                collapsed: true,
+                items: iotaIdentity,
+            },
+            {
+                type: 'category',
+                label: 'Notarization',
+                items: notarization,
+            },
+        ]
+    },
+    {
+        type:'category',
+        label: 'IOTA EVM',
+        items: iotaEvm,
+    },
     'developer/exchange-integration',
-    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

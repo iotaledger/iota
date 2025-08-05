@@ -1,6 +1,7 @@
 {
     "name": "@iota/apps-ui-kit",
-    "version": "0.6.0",
+    "version": "0.7.0",
+    "sideEffects": false,
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"
@@ -36,21 +37,25 @@
     },
     "types": "./dist/index.d.ts",
     "dependencies": {
+        "@fontsource-variable/roboto-flex": "^5.2.6",
         "@fontsource/inter": "^5.0.17",
         "@iota/apps-ui-icons": "workspace:*",
         "@radix-ui/react-dialog": "^1.1.1",
         "@radix-ui/react-visually-hidden": "^1.1.0",
         "classnames": "^2.5.1",
         "lodash.merge": "^4.6.2",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
         "react-number-format": "^5.2.2"
+    },
+    "peerDependencies": {
+        "react": "^18 || ^19",
+        "react-dom": "^18 || ^19"
     },
     "devDependencies": {
         "@chromatic-com/storybook": "^1.6.0",
         "@storybook/addon-essentials": "^7.1.0",
         "@storybook/addon-interactions": "^7.1.0",
         "@storybook/addon-links": "^7.1.0",
+        "@storybook/addon-themes": "^7.6.20",
         "@storybook/blocks": "^7.1.0",
         "@storybook/react": "^7.1.0",
         "@storybook/react-vite": "^7.1.0",
@@ -63,6 +68,8 @@
         "cross-env": "^7.0.3",
         "memfs": "^4.11.1",
         "postcss": "^8.4.31",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
         "storybook": "^7.1.0",
         "storybook-dark-mode": "^4.0.2",
         "tailwindcss": "^3.3.3",

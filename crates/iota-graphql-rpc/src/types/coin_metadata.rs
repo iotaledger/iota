@@ -22,7 +22,7 @@ use crate::{
         display::DisplayEntry,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
-        iota_names_registration::{DomainFormat, IotaNamesRegistration},
+        iota_names_registration::{NameFormat, NameRegistration},
         move_object::{MoveObject, MoveObjectImpl},
         move_value::MoveValue,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
@@ -125,20 +125,20 @@ impl CoinMetadata {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this
+    /// The name explicitly configured as the default name pointing to this
     /// object.
     pub(crate) async fn iota_names_default_name(
         &self,
         ctx: &Context<'_>,
-        format: Option<DomainFormat>,
+        format: Option<NameFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_.super_)
             .iota_names_default_name(ctx, format)
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this object. These grant the
-    /// owner the capability to manage the associated domain.
+    /// The NameRegistration NFTs owned by this object. These grant the
+    /// owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
         ctx: &Context<'_>,
@@ -146,7 +146,7 @@ impl CoinMetadata {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(&self.super_.super_)
             .iota_names_registrations(ctx, first, after, last, before)
             .await

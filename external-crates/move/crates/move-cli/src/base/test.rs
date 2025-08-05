@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // if unix
@@ -63,7 +63,8 @@ pub struct Test {
     #[clap(long = "verbose")]
     pub verbose_mode: bool,
     /// Collect coverage information for later use with the various `move
-    /// coverage` subcommands. Currently supported only in debug builds.
+    /// coverage` subcommands. Currently supported only in builds with `tracing`
+    /// feature enabled.
     #[clap(long = "coverage")]
     pub compute_coverage: bool,
 
@@ -198,7 +199,7 @@ pub fn run_move_unit_tests<W: Write + Send>(
     }
 
     let root_package = resolution_graph.root_package();
-    let build_plan = BuildPlan::create(resolution_graph)?;
+    let build_plan = BuildPlan::create(&resolution_graph)?;
 
     // Compile the package. We need to intercede in the compilation, process being
     // performed by the Move package system, to first grab the compilation env,

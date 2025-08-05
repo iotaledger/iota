@@ -5,9 +5,10 @@
 import BigNumber from 'bignumber.js';
 import { describe, expect, it } from 'vitest';
 
-import { CoinFormat, formatBalance } from '../useFormatCoin';
+import { CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 
 const IOTA_DECIMALS = 9;
+const LONGER_THAN_IOTA_DECIMALS = 19;
 
 function toNano(iota: string) {
     return new BigNumber(iota).shiftedBy(IOTA_DECIMALS).toString();
@@ -37,6 +38,8 @@ describe('formatBalance', () => {
         expect(formatBalance('123', IOTA_DECIMALS)).toEqual('0.0₆123');
         expect(formatBalance('12', IOTA_DECIMALS)).toEqual('0.0₇12');
         expect(formatBalance('1', IOTA_DECIMALS)).toEqual('0.0₈1');
+        expect(formatBalance('12', LONGER_THAN_IOTA_DECIMALS)).toEqual('0.0₁₇12');
+        expect(formatBalance('1', LONGER_THAN_IOTA_DECIMALS)).toEqual('0.0₁₈1');
     });
 
     it('formats integer amounts correctly', () => {
@@ -57,19 +60,19 @@ describe('formatBalance', () => {
     });
 
     it('formats integer amounts with full CoinFormat', () => {
-        expect(formatBalance(toNano('1'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual('1');
-        expect(formatBalance(toNano('1.123456789'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual(
+        expect(formatBalance(toNano('1'), IOTA_DECIMALS, CoinFormat.Full)).toEqual('1');
+        expect(formatBalance(toNano('1.123456789'), IOTA_DECIMALS, CoinFormat.Full)).toEqual(
             '1.123456789',
         );
-        expect(formatBalance(toNano('9999.9999'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual(
+        expect(formatBalance(toNano('9999.9999'), IOTA_DECIMALS, CoinFormat.Full)).toEqual(
             '9,999.9999',
         );
-        expect(formatBalance(toNano('10000'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual('10,000');
-        expect(formatBalance(toNano('12345'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual('12,345');
-        expect(formatBalance(toNano('1234000'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual(
+        expect(formatBalance(toNano('10000'), IOTA_DECIMALS, CoinFormat.Full)).toEqual('10,000');
+        expect(formatBalance(toNano('12345'), IOTA_DECIMALS, CoinFormat.Full)).toEqual('12,345');
+        expect(formatBalance(toNano('1234000'), IOTA_DECIMALS, CoinFormat.Full)).toEqual(
             '1,234,000',
         );
-        expect(formatBalance(toNano('1234000000'), IOTA_DECIMALS, CoinFormat.FULL)).toEqual(
+        expect(formatBalance(toNano('1234000000'), IOTA_DECIMALS, CoinFormat.Full)).toEqual(
             '1,234,000,000',
         );
     });

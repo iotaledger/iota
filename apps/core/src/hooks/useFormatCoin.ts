@@ -4,12 +4,10 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { CoinMetadata } from '@iota/iota-sdk/client';
-import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG, formatBalance, CoinFormat } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
-import { formatAmount } from '../utils/formatAmount';
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
 import { useIotaGraphQLClientContext } from '../contexts';
 
@@ -18,36 +16,6 @@ type FormattedCoin = [
     coinSymbol: string,
     queryResult: UseQueryResult<CoinMetadata | null>,
 ];
-
-export enum CoinFormat {
-    ROUNDED = 'ROUNDED',
-    FULL = 'FULL',
-}
-
-/**
- * Formats a coin balance based on our standard coin display logic.
- * If the balance is less than 1, it will be displayed in its full decimal form.
- * For values greater than 1, it will be truncated to 3 decimal places.
- */
-export function formatBalance(
-    balance: bigint | number | string,
-    decimals: number,
-    format: CoinFormat = CoinFormat.ROUNDED,
-    showSign = false,
-) {
-    const bn = new BigNumber(balance.toString()).shiftedBy(-1 * decimals);
-    let formattedBalance = formatAmount(bn);
-
-    if (format === CoinFormat.FULL) {
-        formattedBalance = bn.toFormat();
-    }
-
-    if (showSign && !formattedBalance.startsWith('-')) {
-        formattedBalance = `+${formattedBalance}`;
-    }
-
-    return formattedBalance;
-}
 
 const ELLIPSIS = '\u{2026}';
 const SYMBOL_TRUNCATE_LENGTH = 5;
@@ -156,7 +124,7 @@ interface FormatCoinOptions {
 export function useFormatCoin({
     balance,
     coinType = IOTA_TYPE_ARG,
-    format = CoinFormat.ROUNDED,
+    format = CoinFormat.Rounded,
     showSign = false,
 }: FormatCoinOptions): FormattedCoin {
     const fallbackSymbol = useMemo(

@@ -43,11 +43,7 @@ impl StateAccumulatorMetrics {
     }
 }
 
-pub enum StateAccumulator {
-    V1(StateAccumulatorV1),
-}
-
-pub struct StateAccumulatorV1 {
+pub struct StateAccumulator {
     store: Arc<dyn AccumulatorStore>,
     metrics: Arc<StateAccumulatorMetrics>,
 }
@@ -156,7 +152,7 @@ fn accumulate_effects(effects: Vec<TransactionEffects>) -> Accumulator {
 
 impl StateAccumulator {
     pub fn new(store: Arc<dyn AccumulatorStore>, metrics: Arc<StateAccumulatorMetrics>) -> Self {
-        StateAccumulator::V1(StateAccumulatorV1::new(store, metrics))
+        Self { store, metrics }
     }
 
     pub fn new_for_tests(store: Arc<dyn AccumulatorStore>) -> Self {
@@ -164,17 +160,13 @@ impl StateAccumulator {
     }
 
     pub fn metrics(&self) -> Arc<StateAccumulatorMetrics> {
-        match self {
-            StateAccumulator::V1(impl_v1) => impl_v1.metrics.clone(),
-        }
+        self.metrics.clone()
     }
 
     pub fn set_inconsistent_state(&self, is_inconsistent_state: bool) {
-        match self {
-            StateAccumulator::V1(impl_v1) => &impl_v1.metrics,
-        }
-        .inconsistent_state
-        .set(is_inconsistent_state as i64);
+        self.metrics
+            .inconsistent_state
+            .set(is_inconsistent_state as i64);
     }
 
     /// Accumulates the effects of a single checkpoint and persists the
@@ -202,57 +194,14 @@ impl StateAccumulator {
         Ok(acc)
     }
 
-    pub async fn accumulate_running_root(
-        &self,
-        epoch_store: &AuthorityPerEpochStore,
-        checkpoint_seq_num: CheckpointSequenceNumber,
-        checkpoint_acc: Option<Accumulator>,
-    ) -> IotaResult {
-        match self {
-            StateAccumulator::V1(impl_v1) => {
-                impl_v1
-                    .accumulate_running_root(epoch_store, checkpoint_seq_num, checkpoint_acc)
-                    .await
-            }
-        }
-    }
-
-    pub async fn accumulate_epoch(
-        &self,
-        epoch_store: Arc<AuthorityPerEpochStore>,
-        last_checkpoint_of_epoch: CheckpointSequenceNumber,
-    ) -> IotaResult<Accumulator> {
-        match self {
-            StateAccumulator::V1(impl_v1) => {
-                impl_v1.accumulate_epoch(epoch_store, last_checkpoint_of_epoch)
-            }
-        }
-    }
-
     pub fn accumulate_cached_live_object_set_for_testing(&self) -> Accumulator {
-        match self {
-            StateAccumulator::V1(impl_v1) => Self::accumulate_live_object_set_impl(
-                impl_v1.store.iter_cached_live_object_set_for_testing(),
-            ),
-        }
+        Self::accumulate_live_object_set_impl(self.store.iter_cached_live_object_set_for_testing())
     }
 
     /// Returns the result of accumulating the live object set, without side
     /// effects
     pub fn accumulate_live_object_set(&self) -> Accumulator {
-        match self {
-            StateAccumulator::V1(impl_v1) => {
-                Self::accumulate_live_object_set_impl(impl_v1.store.iter_live_object_set())
-            }
-        }
-    }
-
-    /// Accumulates given effects and returns the accumulator without side
-    /// effects.
-    pub fn accumulate_effects(&self, effects: Vec<TransactionEffects>) -> Accumulator {
-        match self {
-            StateAccumulator::V1(impl_v1) => impl_v1.accumulate_effects(effects),
-        }
+        Self::accumulate_live_object_set_impl(self.store.iter_live_object_set())
     }
 
     fn accumulate_live_object_set_impl(iter: impl Iterator<Item = LiveObject>) -> Accumulator {
@@ -288,16 +237,9 @@ impl StateAccumulator {
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
     ) -> IotaResult<ECMHLiveObjectSetDigest> {
         Ok(self
-            .accumulate_epoch(epoch_store, last_checkpoint_of_epoch)
-            .await?
+            .accumulate_epoch(epoch_store, last_checkpoint_of_epoch)?
             .digest()
             .into())
-    }
-}
-
-impl StateAccumulatorV1 {
-    pub fn new(store: Arc<dyn AccumulatorStore>, metrics: Arc<StateAccumulatorMetrics>) -> Self {
-        Self { store, metrics }
     }
 
     pub async fn accumulate_running_root(

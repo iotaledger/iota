@@ -642,7 +642,7 @@ impl AuthorityStore {
     pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, IotaError> {
         let mut result = Vec::new();
         for id in objects {
-            result.push(self.get_object(id)?);
+            result.push(self.try_get_object(id)?);
         }
         Ok(result)
     }
@@ -952,7 +952,7 @@ impl AuthorityStore {
             .iter()
             .map(|(id, new_object)| {
                 let version = new_object.version();
-                debug!(?id, ?version, "writing object");
+                trace!(?id, ?version, "writing object");
                 let StoreObjectPair(store_object, indirect_object) =
                     get_store_object_pair(new_object.clone(), self.indirect_objects_threshold);
                 (
@@ -1033,6 +1033,27 @@ impl AuthorityStore {
             transactions
                 .iter()
                 .map(|(digest, tx)| (*digest, tx.serializable_ref())),
+        )?;
+        batch.write()?;
+        Ok(())
+    }
+
+    pub(crate) fn persist_transactions_and_effects(
+        &self,
+        transactions_and_effects: &[(VerifiedTransaction, TransactionEffects)],
+    ) -> IotaResult {
+        let mut batch = self.perpetual_tables.transactions.batch();
+        batch.insert_batch(
+            &self.perpetual_tables.transactions,
+            transactions_and_effects
+                .iter()
+                .map(|(tx, _)| (*tx.digest(), tx.serializable_ref())),
+        )?;
+        batch.insert_batch(
+            &self.perpetual_tables.effects,
+            transactions_and_effects
+                .iter()
+                .map(|(_, fx)| (fx.digest(), fx.clone())),
         )?;
         batch.write()?;
         Ok(())
@@ -1149,7 +1170,7 @@ impl AuthorityStore {
             .live_owned_object_markers
             .unbounded_iter()
             // Make the max possible entry for this object ID.
-            .skip_prior_to(&(object_id, SequenceNumber::MAX, ObjectDigest::MAX))?;
+            .skip_prior_to(&(object_id, SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX))?;
         Ok(iterator
             .next()
             .and_then(|value| {
@@ -1748,6 +1769,7 @@ impl AuthorityStore {
             checkpoint_store,
             rest_index,
             &self.objects_lock_table,
+            None,
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
             usize::MAX,
@@ -1799,8 +1821,8 @@ impl AuthorityStore {
         self.perpetual_tables
             .objects
             .safe_iter_with_bounds(
-                Some(ObjectKey(object_id, VersionNumber::MIN)),
-                Some(ObjectKey(object_id, VersionNumber::MAX)),
+                Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
+                Some(ObjectKey(object_id, VersionNumber::MAX_VALID_EXCL)),
             )
             .collect::<Result<Vec<_>, _>>()
             .unwrap()
@@ -1853,19 +1875,20 @@ impl AccumulatorStore for AuthorityStore {
 
 impl ObjectStore for AuthorityStore {
     /// Read an object and return it, or Ok(None) if the object was not found.
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        self.perpetual_tables.as_ref().get_object(object_id)
+        self.perpetual_tables.as_ref().try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        self.perpetual_tables.get_object_by_key(object_id, version)
+        self.perpetual_tables
+            .try_get_object_by_key(object_id, version)
     }
 }
 

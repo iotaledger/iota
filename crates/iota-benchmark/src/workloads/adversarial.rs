@@ -36,7 +36,7 @@ use crate::{
     drivers::Interval,
     in_memory_wallet::{InMemoryWallet, move_call_pt_impl},
     system_state_observer::{SystemState, SystemStateObserver},
-    workloads::{Gas, GasCoinConfig, payload::Payload},
+    workloads::{Gas, GasCoinConfig, payload::Payload, workload::ExpectedFailureType},
 };
 
 /// Number of vectors to create in LargeTransientRuntimeVectors workload
@@ -177,8 +177,7 @@ impl Payload for AdversarialTestPayload {
 
         debug_assert!(
             effects.is_ok(),
-            "Adversarial transactions should never abort: {:?}",
-            stat
+            "Adversarial transactions should never abort: {stat:?}"
         );
 
         self.state.update(effects);
@@ -196,6 +195,10 @@ impl Payload for AdversarialTestPayload {
                 .as_ref()
                 .expect("Protocol config not in system state"),
         )
+    }
+
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 
@@ -416,7 +419,7 @@ impl AdversarialWorkloadBuilder {
         duration: Interval,
         group: u32,
     ) -> Option<WorkloadBuilderInfo> {
-        let target_qps = (workload_weight * target_qps as f32) as u64;
+        let target_qps = (workload_weight * target_qps as f32).ceil() as u64;
         let num_workers = (workload_weight * num_workers as f32).ceil() as u64;
         let max_ops = target_qps * in_flight_ratio;
         if max_ops == 0 || num_workers == 0 {

@@ -5,7 +5,7 @@
 use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, bail};
-use iota_storage::IndexStoreTables;
+use iota_core::jsonrpc_index::IndexStoreTables;
 use iota_types::{
     Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, TxSequenceNumber},
@@ -47,7 +47,7 @@ pub fn search_index(
     termination: SearchRange<String>,
 ) -> Result<Vec<(String, String)>, anyhow::Error> {
     let start = start.as_str();
-    println!("Opening db at {:?} ...", db_path);
+    println!("Opening db at {db_path:?} ...");
     let db_read_only_handle =
         IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
     match table_name.as_str() {
@@ -203,7 +203,7 @@ where
     get_entries(db_map, start, termination).map(|entries| {
         entries
             .into_iter()
-            .map(|(k, v)| (format!("{:?}", k), format!("{:?}", v)))
+            .map(|(k, v)| (format!("{k:?}"), format!("{v:?}")))
             .collect()
     })
 }

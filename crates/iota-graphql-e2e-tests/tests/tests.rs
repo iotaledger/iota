@@ -88,7 +88,7 @@ async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         path.to_path_buf().hash(&mut hasher);
         let hash = hasher.finish();
-        let db_name = format!("iota_graphql_test_{}", hash);
+        let db_name = format!("iota_graphql_test_{hash}");
 
         // Use the hash as a seed to generate a random port number
         let base_port = hash as u16 % 8192;

@@ -27,7 +27,7 @@ mod tests {
 
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().into_path();
+        let data_ingestion_path = tempdir().unwrap().keep();
         let mut sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -87,11 +87,8 @@ mod tests {
             .await
             .unwrap();
 
-        let exp = format!(
-            "{{\"data\":{{\"chainIdentifier\":\"{}\"}}}}",
-            chain_id_actual
-        );
-        assert_eq!(&format!("{}", res), &exp);
+        let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
+        assert_eq!(&format!("{res}"), &exp);
         cluster.cleanup_resources().await
     }
 
@@ -100,7 +97,7 @@ mod tests {
     async fn test_simple_client_simulator_cluster() {
         let rng = StdRng::from_seed([12; 32]);
         let mut sim = Simulacrum::new_with_rng(rng);
-        let data_ingestion_path = tempdir().unwrap().into_path();
+        let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
@@ -113,10 +110,7 @@ mod tests {
             .digest();
 
         let chain_id_actual = format!("{}", ChainIdentifier::from(genesis_checkpoint_digest1));
-        let exp = format!(
-            "{{\"data\":{{\"chainIdentifier\":\"{}\"}}}}",
-            chain_id_actual
-        );
+        let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
         let cluster = iota_graphql_rpc::test_infra::cluster::serve_executor(
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
@@ -141,7 +135,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(&format!("{}", res), &exp);
+        assert_eq!(&format!("{res}"), &exp);
     }
 
     #[tokio::test]

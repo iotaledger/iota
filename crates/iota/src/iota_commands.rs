@@ -15,14 +15,11 @@ use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
-use iota_bridge::{
-    config::BridgeCommitteeConfig, iota_client::IotaBridgeClient,
-    iota_transaction_builder::build_committee_register_transaction,
-};
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
+    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis,
+    p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
@@ -32,38 +29,41 @@ use iota_graphql_rpc::{
 };
 #[cfg(feature = "indexer")]
 use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
-use iota_keys::{
-    keypair_file::read_key,
-    keystore::{AccountKeystore, FileBasedKeystore, Keystore},
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_move::{self, execute_move_command, manage_package::resolve_lock_file_path};
+use iota_move_build::{
+    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_invalid_dependencies,
+    check_unpublished_dependencies, implicit_deps,
 };
-use iota_move::{self, execute_move_command};
-use iota_move_build::IotaPackageHooks;
+use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
-    genesis_config::{DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
+    genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{IotaKeyPair, SignatureScheme, ToFromBytes},
+    crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
+use serde_json::json;
 use tempfile::tempdir;
 use tracing::{self, info};
+use url::Url;
 
 #[cfg(feature = "iota-names")]
 use crate::name_commands;
 use crate::{
     PrintableResult,
-    client_commands::IotaClientCommands,
+    client_commands::{IotaClientCommands, pkg_tree_shake},
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
@@ -71,6 +71,7 @@ use crate::{
 };
 
 const CONCURRENCY_LIMIT: usize = 30;
+const DEFAULT_COMMITTEE_SIZE: usize = 1;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
 const DEFAULT_FAUCET_NUM_COINS: usize = 5;
 const DEFAULT_FAUCET_NANOS_AMOUNT: u64 = 200_000_000_000; // 200 IOTA
@@ -280,7 +281,7 @@ pub enum IotaCommand {
         #[arg(
             long,
             help = "The number of validators in the network.",
-            default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
+            default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
         /// The path to local migration snapshot files
@@ -362,17 +363,6 @@ pub enum IotaCommand {
         json: bool,
         #[command(subcommand)]
         cmd: name_commands::NameCommand,
-    },
-    /// Command to initialize the bridge committee, usually used when
-    /// running local bridge cluster.
-    #[command(name = "bridge-committee-init")]
-    BridgeInitialize {
-        #[arg(long = "network.config")]
-        network_config: Option<PathBuf>,
-        #[arg(long = "client.config")]
-        client_config: Option<PathBuf>,
-        #[arg(long = "bridge_committee.config")]
-        bridge_committee_config_path: PathBuf,
     },
     /// Tool for Fire Drill
     FireDrill {
@@ -517,26 +507,71 @@ impl IotaCommand {
             IotaCommand::Move {
                 package_path,
                 build_config,
-                mut cmd,
+                cmd,
                 config: client_config,
             } => {
-                match &mut cmd {
+                match cmd {
                     iota_move::Command::Build(build) if build.dump_bytecode_as_base64 => {
-                        if build.ignore_chain {
-                            build.chain_id = None;
-                        } else {
-                            // `iota move build` does not ordinarily require a network connection.
-                            // The exception is when --dump-bytecode-as-base64 is specified: In this
-                            // case, we should resolve the correct addresses for the respective
-                            // chain (e.g., testnet, mainnet) from the Move.lock under automated
-                            // address management.
-                            let config = client_config
-                                .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                            prompt_if_no_config(&config, false, true, true)?;
-                            let context = WalletContext::new(&config, None, None)?;
-                            let client = context.get_client().await?;
-                            build.chain_id = client.read_api().get_chain_identifier().await.ok();
+                        // `iota move build` does not ordinarily require a network connection.
+                        // The exception is when --dump-bytecode-as-base64 is specified: In this
+                        // case, we should resolve the correct addresses for the respective chain
+                        // (e.g., testnet, mainnet) from the Move.lock under automated address
+                        // management. In addition, tree shaking also
+                        // requires a network as it needs to fetch
+                        // on-chain linkage table of package dependencies.
+                        let config =
+                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                        prompt_if_no_config(&config, false, true, true)?;
+                        let context = WalletContext::new(&config, None, None)?;
+
+                        let Ok(client) = context.get_client().await else {
+                            bail!(
+                                "`iota move build --dump-bytecode-as-base64` requires a connection to the network. Current active network is {} but failed to connect to it.",
+                                context.active_env().as_ref().unwrap()
+                            );
+                        };
+                        let read_api = client.read_api();
+
+                        if let Err(e) = client.check_api_version() {
+                            eprintln!("{}", format!("[warning] {e}").yellow().bold());
                         }
+
+                        let chain_id = if build.ignore_chain {
+                            // for tests it's useful to ignore the chain id!
+                            None
+                        } else {
+                            read_api.get_chain_identifier().await.ok()
+                        };
+
+                        let rerooted_path = move_cli::base::reroot_path(package_path.as_deref())?;
+                        let build_config =
+                            resolve_lock_file_path(build_config, Some(&rerooted_path))?;
+                        let mut pkg = IotaBuildConfig {
+                            config: build_config,
+                            run_bytecode_verifier: true,
+                            print_diags_to_stderr: true,
+                            chain_id,
+                        }
+                        .build(&rerooted_path)?;
+
+                        let with_unpublished_deps = build.with_unpublished_dependencies;
+
+                        check_invalid_dependencies(&pkg.dependency_ids.invalid)?;
+                        if !with_unpublished_deps {
+                            check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
+                        }
+
+                        pkg_tree_shake(read_api, with_unpublished_deps, &mut pkg).await?;
+
+                        println!(
+                            "{}",
+                            json!({
+                                "modules": pkg.get_package_base64(with_unpublished_deps),
+                                "dependencies": pkg.get_dependency_storage_package_ids(),
+                                "digest": pkg.get_package_digest(with_unpublished_deps),
+                            })
+                        );
+                        return Ok(());
                     }
                     _ => (),
                 };
@@ -550,89 +585,9 @@ impl IotaCommand {
                 cmd.execute(&mut context).await?.print(!json);
                 Ok(())
             }
-            IotaCommand::BridgeInitialize {
-                network_config,
-                client_config,
-                bridge_committee_config_path,
-            } => {
-                // Load the config of the IOTA authority.
-                let network_config_path = network_config
-                    .clone()
-                    .unwrap_or(iota_config_dir()?.join(IOTA_NETWORK_CONFIG));
-                let network_config: NetworkConfig = PersistedConfig::read(&network_config_path)
-                    .map_err(|err| {
-                        err.context(format!(
-                            "Cannot open IOTA network config file at {:?}",
-                            network_config_path
-                        ))
-                    })?;
-                let bridge_committee_config: BridgeCommitteeConfig =
-                    PersistedConfig::read(&bridge_committee_config_path).map_err(|err| {
-                        err.context(format!(
-                            "Cannot open Bridge Committee config file at {:?}",
-                            bridge_committee_config_path
-                        ))
-                    })?;
-
-                let config_path =
-                    client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                let mut context = WalletContext::new(&config_path, None, None)?;
-                let rgp = context.get_reference_gas_price().await?;
-                let rpc_url = context.active_env()?.rpc();
-                println!("rpc_url: {}", rpc_url);
-                let iota_bridge_client = IotaBridgeClient::new(rpc_url).await?;
-                let bridge_arg = iota_bridge_client
-                    .get_mutable_bridge_object_arg_must_succeed()
-                    .await;
-                assert_eq!(
-                    network_config.validator_configs().len(),
-                    bridge_committee_config
-                        .bridge_authority_port_and_key_path
-                        .len()
-                );
-                for node_config in network_config.validator_configs() {
-                    let account_kp = node_config.account_key_pair.keypair();
-                    context.add_account(None, account_kp.copy());
-                }
-
-                let context = context;
-                let mut tasks = vec![];
-                for (node_config, (port, key_path)) in network_config
-                    .validator_configs()
-                    .iter()
-                    .zip(bridge_committee_config.bridge_authority_port_and_key_path)
-                {
-                    let account_kp = node_config.account_key_pair.keypair();
-                    let iota_address = IotaAddress::from(&account_kp.public());
-                    let gas_obj_ref = context
-                        .get_one_gas_object_owned_by_address(iota_address)
-                        .await?
-                        .expect("Validator does not own any gas objects");
-                    let kp = match read_key(&key_path, true)? {
-                        IotaKeyPair::Secp256k1(key) => key,
-                        _ => unreachable!("we required secp256k1 key in `read_key`"),
-                    };
-
-                    // build registration tx
-                    let tx = build_committee_register_transaction(
-                        iota_address,
-                        &gas_obj_ref,
-                        bridge_arg,
-                        kp.public().as_bytes().to_vec(),
-                        &format!("http://127.0.0.1:{port}"),
-                        rgp,
-                        1000000000,
-                    )
-                    .unwrap();
-                    let signed_tx = context.sign_transaction(&tx);
-                    tasks.push(context.execute_transaction_must_succeed(signed_tx));
-                }
-                futures::future::join_all(tasks).await;
-                Ok(())
-            }
             IotaCommand::FireDrill { fire_drill } => run_fire_drill(fire_drill).await,
             IotaCommand::Analyzer => {
-                analyzer::run();
+                analyzer::run(implicit_deps(latest_system_packages()));
                 Ok(())
             }
             #[cfg(feature = "gen-completions")]
@@ -705,9 +660,8 @@ async fn start(
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        let committee_size =
-            NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES))
-                .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
+            .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
@@ -752,7 +706,7 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES),
+                committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
@@ -781,8 +735,7 @@ async fn start(
             ..
         } = PersistedConfig::read(&network_config_path).map_err(|err| {
             err.context(format!(
-                "Cannot open IOTA network config file at {:?}",
-                network_config_path
+                "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
         let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
@@ -796,6 +749,27 @@ async fn start(
         swarm_builder = swarm_builder
             .dir(config_path.clone())
             .with_network_config(network_config);
+
+        let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
+        if fullnode_config_path.exists() {
+            info!(
+                "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
+            );
+
+            let NodeConfig {
+                iota_names_config, ..
+            } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
+                err.context(format!(
+                    "Cannot open fullnode config file at {fullnode_config_path:?}"
+                ))
+            })?;
+
+            if let Some(iota_names_config) = iota_names_config {
+                swarm_builder = swarm_builder
+                    .dir(config_path.clone())
+                    .with_iota_names_config(iota_names_config);
+            }
+        }
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -803,7 +777,7 @@ async fn start(
     // the genesis command, which sets data_ingestion_dir to None.
     #[cfg(feature = "indexer")]
     if with_indexer.is_some() && data_ingestion_dir.is_none() {
-        data_ingestion_dir = Some(tempdir()?.into_path())
+        data_ingestion_dir = Some(tempdir()?.keep())
     }
 
     #[cfg(feature = "indexer")]
@@ -829,7 +803,7 @@ async fn start(
     info!("Cluster started");
 
     // the indexer requires a fullnode url with protocol specified
-    let fullnode_url = format!("http://{}", fullnode_url);
+    let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
@@ -905,7 +879,7 @@ async fn start(
         tracing::info!("Starting the faucet service at {faucet_address}");
         let faucet_config_dir = if force_regenesis {
             // tempdir is used so the faucet file is cleaned up afterwards
-            tempdir()?.into_path()
+            tempdir()?.keep()
         } else {
             config_path
         };
@@ -1005,7 +979,7 @@ async fn genesis(
     // up (if --force/-f option was specified or report an
     // error
     let dir = iota_config_dir.read_dir().map_err(|err| {
-        anyhow!(err).context(format!("Cannot open IOTA config dir {:?}", iota_config_dir))
+        anyhow!(err).context(format!("Cannot open IOTA config dir {iota_config_dir:?}"))
     })?;
     let files = dir.collect::<Result<Vec<_>, _>>()?;
 
@@ -1221,7 +1195,7 @@ async fn genesis(
     let mut client_config = if client_path.exists() {
         PersistedConfig::read(&client_path)?
     } else {
-        IotaClientConfig::new(keystore)
+        IotaClientConfig::new(keystore).with_default_envs()
     };
 
     if client_config.active_address().is_none() {
@@ -1237,7 +1211,7 @@ async fn genesis(
         } else {
             fullnode_config.json_rpc_address.ip().to_string()
         };
-    client_config.add_env(IotaEnv::new(
+    client_config.set_env(IotaEnv::new(
         "localnet",
         format!(
             "http://{}:{}",
@@ -1262,40 +1236,37 @@ fn prompt_for_environment(
     accept_defaults: bool,
 ) -> anyhow::Result<IotaEnv> {
     if let Some(v) = std::env::var_os("IOTA_CONFIG_WITH_RPC_URL") {
-        Ok(IotaEnv::new("custom", v.into_string().unwrap()))
-    } else {
-        if accept_defaults {
-            print!(
-                "Creating config file [{:?}] with default (Testnet) Full node server and ed25519 key scheme.",
-                wallet_conf_path
-            );
-        } else {
-            print!(
-                "Config file [{:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?",
-                wallet_conf_path
-            );
-        }
-        if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {
-            let url = if accept_defaults {
-                String::new()
-            } else {
-                print!("IOTA Full node server URL (Defaults to IOTA Testnet if not specified) : ");
-                read_line()?
-            };
-            if url.trim().is_empty() {
-                Ok(IotaEnv::testnet())
-            } else {
-                print!("Environment alias for [{url}] : ");
+        return Ok(IotaEnv::new("custom", v.into_string().unwrap()));
+    }
+
+    if accept_defaults {
+        print!(
+            "Creating config file [{wallet_conf_path:?}] with default (Testnet) full node server and ed25519 key scheme."
+        );
+        return Ok(IotaEnv::testnet());
+    }
+
+    print!(
+        "Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified): "
+    );
+    match read_line()?.trim().to_lowercase().as_str() {
+        "mainnet" => Ok(IotaEnv::mainnet()),
+        "testnet" | "" => Ok(IotaEnv::testnet()),
+        "devnet" => Ok(IotaEnv::devnet()),
+        "localnet" => Ok(IotaEnv::localnet()),
+        input => {
+            if Url::parse(input).is_ok() {
+                print!("Environment alias for [{input}]: ");
                 let alias = read_line()?;
                 let alias = if alias.trim().is_empty() {
                     "custom".to_string()
                 } else {
                     alias
                 };
-                Ok(IotaEnv::new(alias, url))
+                Ok(IotaEnv::new(alias, input))
+            } else {
+                bail!("invalid custom URL: {input}");
             }
-        } else {
-            anyhow::bail!("no environment exists for the client")
         }
     }
 }
@@ -1324,9 +1295,12 @@ fn prompt_if_no_config(
         }
         .join(IOTA_KEYSTORE_FILENAME);
         let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
-        let mut config = IotaClientConfig::new(keystore);
+        let mut config = IotaClientConfig::new(keystore).with_default_envs();
         if prompt_for_env {
-            config.add_env(prompt_for_environment(wallet_conf_path, accept_defaults)?);
+            let env = prompt_for_environment(wallet_conf_path, accept_defaults)?;
+            let alias = env.alias().clone();
+            config.set_env(env);
+            config.set_active_env(alias);
         }
         // Get an existing address or generate a new one
         if let Some(existing_address) = config.keystore().addresses().first() {
@@ -1336,8 +1310,8 @@ fn prompt_if_no_config(
             let key_scheme = if accept_defaults {
                 SignatureScheme::ED25519
             } else {
-                println!(
-                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                print!(
+                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
@@ -1349,10 +1323,10 @@ fn prompt_if_no_config(
                 .generate_and_add_new_key(key_scheme, None, None, None)?;
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
-                "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
+                "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
                 scheme.to_string()
             );
-            println!("Secret Recovery Phrase : [{phrase}]");
+            println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);
         }
         config.persisted(wallet_conf_path).save()?;

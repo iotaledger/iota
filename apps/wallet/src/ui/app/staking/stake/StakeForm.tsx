@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    CoinFormat,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
     parseAmount,
@@ -26,7 +25,7 @@ import {
     FormikProvider,
     useFormik,
 } from 'formik';
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
@@ -43,7 +42,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -72,9 +71,23 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
+
+    const { data: minAmountTransactionData } = useNewStakeTransaction(
+        validatorAddress,
+        minimumStake,
+        activeAddress,
+    );
+
+    const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const availableBalance = coinBalance - minAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
+        format: CoinFormat.Full,
+    });
+
     const validationSchema = useMemo(
-        () => createValidationSchema(coinBalance, coinSymbol, decimals, minimumStake),
-        [coinBalance, coinSymbol, decimals, minimumStake],
+        () => createValidationSchema(availableBalance, coinSymbol, decimals, minimumStake),
+        [availableBalance, coinSymbol, decimals, minimumStake],
     );
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
@@ -140,7 +153,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         initialValues: INITIAL_VALUES,
         validationSchema: validationSchema,
         onSubmit: handleSubmit,
-        validateOnChange: true,
+        validateOnMount: true,
     });
     const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
     const { amount } = values;
@@ -154,35 +167,17 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
 
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
-        validatorAddress,
-        coinBalance,
-        activeAddress,
-    );
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
-    useEffect(() => {
-        setFieldValue('gasBudget', maxAmountTxGasBudget);
-    }, [maxAmountTxGasBudget]);
-
-    // for user we show available amount as available_balance - gas_budget
-    const availableBalance = coinBalance - maxAmountTxGasBudget;
-    const [availableBalanceFormatted, symbol] = useFormatCoin({
-        balance: availableBalance,
-        format: CoinFormat.FULL,
-    });
-
     const isLoading =
         isIotaBalanceLoading ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
 
-    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const gasUnstakeBuffer = minAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const isUnsafeAmount =
         amountWithoutDecimals &&
@@ -222,7 +217,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 placeholder={`0 ${symbol}`}
                                 value={amount}
                                 caption={
-                                    maxAmountTxGasBudget
+                                    minAmountTxGasBudget
                                         ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }

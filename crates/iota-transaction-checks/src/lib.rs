@@ -165,8 +165,7 @@ mod checked {
         kind.validity_check(config)?;
         if kind.is_system_tx() {
             return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {} is not supported in dev-inspect",
-                kind
+                "Transaction kind {kind} is not supported in dev-inspect"
             ))
             .into());
         }
@@ -242,7 +241,7 @@ mod checked {
         } in receiving_objects.iter()
         {
             fp_ensure!(
-                *version < SequenceNumber::MAX,
+                *version < SequenceNumber::MAX_VALID_EXCL,
                 UserInputError::InvalidSequenceNumber.into()
             );
 
@@ -449,7 +448,7 @@ mod checked {
                     UserInputError::MovePackageAsObject { object_id }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX,
+                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 
@@ -483,8 +482,7 @@ mod checked {
                             owner == &actual_owner,
                             UserInputError::IncorrectUserSignature {
                                 error: format!(
-                                    "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
-                                    object_id, actual_owner, owner
+                                    "Object {object_id:?} is owned by account address {actual_owner:?}, but given owner/signer address is {owner:?}"
                                 ),
                             }
                         );
@@ -549,7 +547,7 @@ mod checked {
                 ..
             } => {
                 fp_ensure!(
-                    object.version() < SequenceNumber::MAX,
+                    object.version() < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 

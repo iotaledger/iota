@@ -25,9 +25,10 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
+    jsonrpc_index::IndexStoreTables,
     rest_index::RestIndexStore,
 };
-use iota_storage::{IndexStoreTables, mutex_table::RwLockTable};
+use iota_storage::mutex_table::RwLockTable;
 use iota_types::base_types::{EpochId, ObjectID};
 use prometheus::Registry;
 use strum_macros::EnumString;
@@ -46,7 +47,7 @@ pub enum StoreName {
 }
 impl std::fmt::Display for StoreName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -163,7 +164,7 @@ pub fn print_table_metadata(
         table.add_row(row);
     }
 
-    eprintln!("{}", table);
+    eprintln!("{table}");
     Ok(())
 }
 
@@ -233,6 +234,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         &checkpoint_store,
         Some(&rest_index),
         &lock_table,
+        None,
         pruning_config,
         metrics,
         usize::MAX,
@@ -265,6 +267,7 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         &checkpoint_store,
         Some(&rest_index),
         &lock_table,
+        None,
         pruning_config,
         metrics,
         usize::MAX,
@@ -328,7 +331,7 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.into_path();
+        let primary_path = tempfile::tempdir()?.keep();
 
         // Open the DB for writing
         let _: AuthorityEpochTables = AuthorityEpochTables::open(0, &primary_path, None);
@@ -346,7 +349,7 @@ mod test {
 
         let mut missing_tables = vec![];
         for t in tables {
-            println!("{}", t);
+            println!("{t}");
             if dump_table(
                 StoreName::Validator,
                 Some(0),

@@ -107,6 +107,9 @@ export type CompressedSignature =
       }
     | {
           ZkLogin: string;
+      }
+    | {
+          Passkey: string;
       };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {
@@ -389,10 +392,7 @@ export type IotaEventFilter =
     | {
           Or: [IotaEventFilter, IotaEventFilter];
       };
-/**
- * Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is
- * local to this particular fullnode and will be different from other fullnode.
- */
+/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
 export interface EventId {
     eventSeq: string;
     txDigest: string;
@@ -560,12 +560,6 @@ export type IotaEndOfEpochTransactionKind =
       }
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
-      }
-    | {
-          BridgeStateCreate: string;
-      }
-    | {
-          BridgeCommitteeUpdate: string;
       };
 export interface IotaExecutionResult {
     /** The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included */
@@ -667,12 +661,12 @@ export interface IotaNameRecord {
      * The ID of the registration NFT assigned to this record.
      *
      * The owner of the corresponding NFT has the rights to be able to change and adjust the
-     * `target_address` of this domain.
+     * `target_address` of this name.
      *
      * It is possible that the ID changes if the record expires and is purchased by someone else.
      */
     nftId: string;
-    /** The target address that this domain points to */
+    /** The target address that this name points to */
     targetAddress?: string | null;
 }
 export type IotaObjectDataFilter =
@@ -1755,7 +1749,7 @@ export interface IotaTransactionBlockResponseOptions {
 }
 export interface IotaTransactionBlockResponseQuery {
     /** If None, no filter will be applied */
-    filter?: TransactionFilter | null;
+    filter?: TransactionFilterV2 | null;
     /** config which fields to include in the response, by default only digest is included */
     options?: IotaTransactionBlockResponseOptions | null;
 }
@@ -1776,6 +1770,53 @@ export type TransactionFilter =
       } /** Query by changed object, including created, mutated and unwrapped objects. */
     | {
           ChangedObject: string;
+      } /** Query by sender address. */
+    | {
+          FromAddress: string;
+      } /** Query by recipient address. */
+    | {
+          ToAddress: string;
+      } /** Query by sender and recipient address. */
+    | {
+          FromAndToAddress: {
+              from: string;
+              to: string;
+          };
+      } /** Query txs that have a given address as sender or recipient. */
+    | {
+          FromOrToAddress: {
+              addr: string;
+          };
+      } /** Query by transaction kind */
+    | {
+          TransactionKind: IotaTransactionKind;
+      } /** Query transactions of any given kind in the input. */
+    | {
+          TransactionKindIn: IotaTransactionKind[];
+      };
+export type TransactionFilterV2 =
+    /** Query by checkpoint. */
+    | {
+          Checkpoint: string;
+      } /** Query by move function. */
+    | {
+          MoveFunction: {
+              function?: string | null;
+              module?: string | null;
+              package: string;
+          };
+      } /** Query by input object. */
+    | {
+          InputObject: string;
+      } /** Query by changed object, including created, mutated and unwrapped objects. */
+    | {
+          ChangedObject: string;
+      } /**
+     * Query transactions that wrapped or deleted the specified object. Includes transactions that either
+     * created and immediately wrapped the object or unwrapped and immediately deleted it.
+     */
+    | {
+          WrappedOrDeletedObject: string;
       } /** Query by sender address. */
     | {
           FromAddress: string;

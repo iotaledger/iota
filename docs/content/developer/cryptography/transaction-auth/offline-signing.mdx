@@ -18,7 +18,7 @@ IOTA supports offline signing, which is signing transactions using a device not 
 
 You must serialize transaction data following [Binary Canonical Serialization](https://crates.io/crates/bcs) (BCS). It is supported in other languages.
 
-The following example demonstrates how to serialize data for a transfer using the [IOTA CLI](../../../references/cli.mdx). This returns serialized transaction data in Base64. Submit the raw transaction to execute as `tx_bytes`.
+The following example demonstrates how to serialize data for a transfer using the [IOTA CLI](../../references/cli.mdx). This returns serialized transaction data in Base64. Submit the raw transaction to execute as `tx_bytes`.
 
 ```shell
 iota client pay-all-iota --input-coins <COIN-OBJECT-ID> --recipient <IOTA-ADDRESS> --gas-budget 2000000 --serialize-unsigned-transaction

@@ -54,4 +54,10 @@ pub enum IngestionError {
 
     #[error("reading historical data failed: `{0}`")]
     HistoryRead(String),
+
+    #[error("Max downloaded checkpoints limit reached")]
+    MaxCheckpointsCapacityReached,
+
+    #[error("Checkpoint not available yet")]
+    CheckpointNotAvailableYet,
 }

@@ -10,10 +10,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     errors::IndexerError,
-    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
+    models::{
+        display::StoredDisplay,
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
+        obj_indices::StoredObjectVersion,
+    },
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
+        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexV2,
     },
 };
 
@@ -41,6 +45,21 @@ pub struct CheckpointDataToCommit {
     pub epoch: Option<EpochToCommit>,
 }
 
+#[derive(Debug)]
+pub(crate) struct CheckpointDataToCommitV2 {
+    pub(crate) checkpoint: IndexedCheckpoint,
+    pub(crate) transactions: Vec<IndexedTransaction>,
+    pub(crate) events: Vec<IndexedEvent>,
+    pub(crate) event_indices: Vec<EventIndex>,
+    pub(crate) tx_indices: Vec<TxIndexV2>,
+    pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
+    pub(crate) object_changes: TransactionObjectChangesToCommit,
+    pub(crate) object_history_changes: TransactionObjectChangesToCommit,
+    pub(crate) object_versions: Vec<StoredObjectVersion>,
+    pub(crate) packages: Vec<IndexedPackage>,
+    pub(crate) epoch: Option<EpochToCommit>,
+}
+
 #[derive(Clone, Debug)]
 pub struct TransactionObjectChangesToCommit {
     pub changed_objects: Vec<IndexedObject>,
@@ -49,9 +68,8 @@ pub struct TransactionObjectChangesToCommit {
 
 #[derive(Clone, Debug)]
 pub struct EpochToCommit {
-    pub last_epoch: Option<IndexedEpochInfo>,
-    pub new_epoch: IndexedEpochInfo,
-    pub network_total_transactions: u64,
+    pub(crate) last_epoch: Option<EndOfEpochUpdate>,
+    pub(crate) new_epoch: StartOfEpochUpdate,
 }
 
 pub struct CommonHandler<T> {

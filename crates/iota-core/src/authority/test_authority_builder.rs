@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
-    ExecutionCacheConfig,
+    ExecutionCacheConfig, ExecutionCacheType,
     certificate_deny_config::CertificateDenyConfig,
     genesis::Genesis,
     node::{
@@ -19,7 +19,6 @@ use iota_config::{
 use iota_macros::nondeterministic;
 use iota_network::randomness;
 use iota_protocol_config::ProtocolConfig;
-use iota_storage::IndexStore;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
     base_types::{AuthorityName, ObjectID},
@@ -33,11 +32,15 @@ use iota_types::{
 };
 use prometheus::Registry;
 
-use super::epoch_start_configuration::EpochFlag;
+use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::AuthorityPerpetualTables,
+        AuthorityState, AuthorityStore,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_pruner::ObjectsCompactionFilter,
+        authority_store_tables::{
+            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
+        },
         epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
@@ -45,6 +48,7 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
+    jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     rest_index::RestIndexStore,
@@ -69,7 +73,9 @@ pub struct TestAuthorityBuilder<'a> {
     /// by most tests.
     insert_genesis_checkpoint: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    cache_type: Option<ExecutionCacheType>,
     cache_config: Option<ExecutionCacheConfig>,
+    disable_execute_genesis_transactions: bool,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -168,8 +174,18 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    pub fn with_cache_type(mut self, cache_type: ExecutionCacheType) -> Self {
+        self.cache_type = Some(cache_type);
+        self
+    }
+
     pub fn with_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         self.cache_config = Some(config);
+        self
+    }
+
+    pub fn disable_execute_genesis_transactions(mut self) -> Self {
+        self.disable_execute_genesis_transactions = true;
         self
     }
 
@@ -193,11 +209,30 @@ impl<'a> TestAuthorityBuilder<'a> {
             std::fs::create_dir(&store_base_path).unwrap();
             store_base_path
         });
+        let mut config = local_network_config.validator_configs()[0].clone();
+        let registry = Registry::new();
+        let mut pruner_db = None;
+        if config
+            .authority_store_pruning_config
+            .enable_compaction_filter
+        {
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(&path.join("store"))));
+        }
+        let compaction_filter = pruner_db
+            .clone()
+            .map(|db| ObjectsCompactionFilter::new(db, &registry));
+
         let authority_store = match self.store {
             Some(store) => store,
             None => {
-                let perpetual_tables =
-                    Arc::new(AuthorityPerpetualTables::open(&path.join("store"), None));
+                let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+                    compaction_filter,
+                    ..Default::default()
+                };
+                let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
+                    &path.join("store"),
+                    Some(perpetual_tables_options),
+                ));
                 // unwrap ok - for testing only.
                 AuthorityStore::open_with_committee_for_testing(
                     perpetual_tables,
@@ -209,9 +244,11 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap()
             }
         };
-        let mut config = local_network_config.validator_configs()[0].clone();
+        if let Some(cache_type) = self.cache_type {
+            config.execution_cache = cache_type;
+        }
         if let Some(cache_config) = self.cache_config {
-            config.execution_cache = cache_config;
+            config.execution_cache_config = cache_config;
         }
 
         let keypair = if let Some(keypair) = self.node_keypair {
@@ -222,7 +259,6 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         let secret = Arc::pin(keypair.copy());
         let name: AuthorityName = secret.public().into();
-        let registry = Registry::new();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
         // `_guard` must be declared here so it is not dropped before
@@ -240,8 +276,17 @@ impl<'a> TestAuthorityBuilder<'a> {
         .unwrap();
         let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
 
-        let cache_traits =
-            build_execution_cache(&epoch_start_configuration, &registry, &authority_store);
+        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+        let backpressure_manager =
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
+
+        let cache_traits = build_execution_cache(
+            &config.execution_cache_config,
+            &epoch_start_configuration,
+            &registry,
+            &authority_store,
+            backpressure_manager.clone(),
+        );
 
         let epoch_store = AuthorityPerEpochStore::new(
             name,
@@ -263,7 +308,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
         ));
 
-        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
         if self.insert_genesis_checkpoint {
             checkpoint_store.insert_genesis_checkpoint(
                 genesis.checkpoint(),
@@ -305,6 +349,8 @@ impl<'a> TestAuthorityBuilder<'a> {
         config.authority_overload_config = authority_overload_config;
         config.authority_store_pruning_config = pruning_config;
 
+        let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
+
         let state = AuthorityState::new(
             name,
             secret,
@@ -323,6 +369,8 @@ impl<'a> TestAuthorityBuilder<'a> {
             usize::MAX,
             ArchiveReaderBalancer::default(),
             None,
+            chain_identifier,
+            pruner_db,
         )
         .await;
 
@@ -347,29 +395,30 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap();
         }
 
-        // For any type of local testing that does not actually spawn a node, the
-        // checkpoint executor won't be started, which means we won't actually
-        // execute the genesis transaction. In that case, the genesis objects
-        // (e.g. all the genesis test coins) won't be accessible. Executing it
-        // explicitly makes sure all genesis objects are ready for use.
-        state
-            .try_execute_immediately(
-                &VerifiedExecutableTransaction::new_from_checkpoint(
-                    VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
-                    genesis.epoch(),
-                    genesis.checkpoint().sequence_number,
-                ),
-                None,
-                &state.epoch_store_for_testing(),
-            )
-            .await
-            .unwrap();
+        if !self.disable_execute_genesis_transactions {
+            // For any type of local testing that does not actually spawn a node, the
+            // checkpoint executor won't be started, which means we won't actually
+            // execute the genesis transaction. In that case, the genesis objects
+            // (e.g. all the genesis test coins) won't be accessible. Executing it
+            // explicitly makes sure all genesis objects are ready for use.
+            state
+                .try_execute_immediately(
+                    &VerifiedExecutableTransaction::new_from_checkpoint(
+                        VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
+                        genesis.epoch(),
+                        genesis.checkpoint().sequence_number,
+                    ),
+                    None,
+                    &state.epoch_store_for_testing(),
+                )
+                .await
+                .unwrap();
 
-        state
-            .get_cache_commit()
-            .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
-            .await
-            .unwrap();
+            state
+                .get_cache_commit()
+                .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+                .await;
+        }
 
         // We want to insert these objects directly instead of relying on genesis
         // because genesis process would set the previous transaction field for
@@ -379,8 +428,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         if let Some(starting_objects) = self.starting_objects {
             state
                 .insert_objects_unsafe_for_testing_only(starting_objects)
-                .await
-                .unwrap();
+                .await;
         };
         state
     }

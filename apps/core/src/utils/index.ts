@@ -3,7 +3,6 @@
 
 export * from './calculateStakeShare';
 export * from './chunkArray';
-export * from './formatAmount';
 export * from './formatDate';
 export * from './formatPercentageDisplay';
 export * from './getRefGasPrice';
@@ -21,12 +20,14 @@ export * from './getDelegationDataByStakeId';
 export * from './api-env';
 export * from './getExplorerPaths';
 export * from './getExplorerLink';
-export * from './truncateString';
+export * from './string';
 export * from './determineCountDownText';
 export * from './toTitleCase';
 export * from './formatBalanceToUSD';
 export * from './getGasBudgetErrorMessage';
 export * from './sumCoinBalances';
+export * from './extractMediaFileType';
+export * from './nftMediaUtils';
 export * from './mapTimelockObjects';
 export * from './formatDelegatedTimelockedStake';
 

@@ -20,12 +20,13 @@ pub mod db_checkpoint_handler;
 pub mod epoch;
 pub mod execution_cache;
 mod execution_driver;
+pub mod jsonrpc_index;
 pub mod metrics;
-#[cfg(any(test, feature = "test-utils"))]
 pub mod mock_consensus;
 pub mod module_cache_metrics;
 pub mod mysticeti_adapter;
 pub mod overload_monitor;
+mod par_index_live_object_set;
 pub(crate) mod post_consensus_tx_reorder;
 pub mod quorum_driver;
 pub mod rest_index;
@@ -36,7 +37,6 @@ pub mod state_accumulator;
 pub mod storage;
 pub mod streamer;
 pub mod subscription_handler;
-#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 pub mod traffic_controller;
 mod transaction_input_loader;
@@ -49,6 +49,9 @@ pub mod verify_indexes;
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]
 mod congestion_control_tests;
+#[cfg(test)]
+#[path = "unit_tests/gas_price_feedback_tests.rs"]
+mod gas_price_feedback_tests;
 #[cfg(test)]
 #[path = "unit_tests/move_package_management_tests.rs"]
 mod move_package_management_tests;
@@ -67,7 +70,6 @@ mod pay_iota_tests;
 #[cfg(test)]
 #[path = "unit_tests/shared_object_deletion_tests.rs"]
 mod shared_object_deletion_tests;
-#[cfg(any(test, feature = "test-utils"))]
 pub mod test_authority_clients;
 #[cfg(test)]
 #[path = "unit_tests/transfer_to_object_tests.rs"]
@@ -75,6 +77,9 @@ mod transfer_to_object_tests;
 #[cfg(test)]
 #[path = "unit_tests/type_param_tests.rs"]
 mod type_param_tests;
+#[cfg(test)]
+#[path = "unit_tests/unit_test_utils.rs"]
+mod unit_test_utils;
 
 pub mod signature_verifier;
 

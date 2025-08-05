@@ -2,16 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useGetFiatBalance, toast, useGetAllBalances } from '@iota/core';
 import {
-    Address,
-    Button,
-    ButtonSize,
-    ButtonType,
-    LoadingIndicator,
-    Panel,
-} from '@iota/apps-ui-kit';
+    useBalance,
+    useFormatCoin,
+    useGetFiatBalance,
+    toast,
+    useGetAllBalances,
+    NamedAddress,
+} from '@iota/core';
+import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import { useState } from 'react';
@@ -24,7 +23,6 @@ export function AccountBalance() {
     const { id: networkId, explorer } = getNetwork(network);
     const fiatBalance = useGetFiatBalance(networkId);
     const { data: coinBalance, isPending } = useBalance(address!);
-    const formattedAddress = formatAddress(address!);
     const [formatted, symbol] = useFormatCoin({ balance: coinBalance?.totalBalance });
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const explorerLink = `${explorer}/address/${address}`;
@@ -55,25 +53,26 @@ export function AccountBalance() {
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
                         <div className="flex flex-col items-center gap-y-xs">
                             {address && (
-                                <div className="-mr-lg" data-full-address={address}>
-                                    <Address
-                                        text={formattedAddress}
+                                <div className="w-full" data-full-address={address}>
+                                    <NamedAddress
+                                        address={address}
                                         isCopyable
                                         copyText={address}
                                         isExternal
                                         externalLink={explorerLink}
                                         onCopySuccess={handleOnCopySuccess}
+                                        addMarginRightToCenter
                                     />
                                 </div>
                             )}
                             <span
                                 data-testid="balance-amount"
-                                className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                                className="text-headline-lg text-iota-neutral-10 dark:text-iota-neutral-92"
                             >
                                 {formatted} {symbol}
                             </span>
                             {fiatBalance && (
-                                <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                     {fiatBalance}
                                 </span>
                             )}

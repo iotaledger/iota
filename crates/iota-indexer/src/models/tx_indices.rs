@@ -10,8 +10,9 @@ use crate::{
         optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
         optimistic_tx_recipients, optimistic_tx_senders, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
         tx_changed_objects, tx_digests, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_wrapped_or_deleted_objects,
     },
-    types::TxIndex,
+    types::{TxIndex, TxIndexV2},
 };
 
 #[derive(QueryableByName)]
@@ -52,6 +53,14 @@ pub struct StoredTxInputObject {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = tx_changed_objects)]
 pub struct StoredTxChangedObject {
+    pub tx_sequence_number: i64,
+    pub object_id: Vec<u8>,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = tx_wrapped_or_deleted_objects)]
+pub struct StoredTxWrappedOrDeletedObject {
     pub tx_sequence_number: i64,
     pub object_id: Vec<u8>,
     pub sender: Vec<u8>,
@@ -179,7 +188,7 @@ impl TxIndex {
             })
             .collect();
 
-        let tx_calls = packages_modules_funcs
+        let tx_funs = packages_modules_funcs
             .iter()
             .map(|(p, m, f)| StoredTxFun {
                 tx_sequence_number,
@@ -207,11 +216,64 @@ impl TxIndex {
             tx_changed_objects,
             tx_pkgs,
             tx_mods,
-            tx_calls,
+            tx_funs,
             vec![stored_tx_digest],
             vec![tx_kind],
         )
     }
+}
+
+impl TxIndexV2 {
+    pub(crate) fn split(self: TxIndexV2) -> TxIndexV2Split {
+        let tx_wrapped_or_deleted_objects = self
+            .ext
+            .wrapped_or_deleted_objects
+            .into_iter()
+            .map(|o| StoredTxWrappedOrDeletedObject {
+                tx_sequence_number: self.base.tx_sequence_number as i64,
+                object_id: bcs::to_bytes(&o).unwrap(),
+                sender: self.base.sender.to_vec(),
+            })
+            .collect();
+
+        let (
+            tx_senders,
+            tx_recipients,
+            tx_input_objects,
+            tx_changed_objects,
+            tx_pkgs,
+            tx_mods,
+            tx_funs,
+            tx_digests,
+            tx_kinds,
+        ) = self.base.split();
+
+        TxIndexV2Split {
+            tx_senders,
+            tx_recipients,
+            tx_input_objects,
+            tx_changed_objects,
+            tx_wrapped_or_deleted_objects,
+            tx_pkgs,
+            tx_mods,
+            tx_funs,
+            tx_digests,
+            tx_kinds,
+        }
+    }
+}
+
+pub(crate) struct TxIndexV2Split {
+    pub(crate) tx_senders: Vec<StoredTxSenders>,
+    pub(crate) tx_recipients: Vec<StoredTxRecipients>,
+    pub(crate) tx_input_objects: Vec<StoredTxInputObject>,
+    pub(crate) tx_changed_objects: Vec<StoredTxChangedObject>,
+    pub(crate) tx_wrapped_or_deleted_objects: Vec<StoredTxWrappedOrDeletedObject>,
+    pub(crate) tx_pkgs: Vec<StoredTxPkg>,
+    pub(crate) tx_mods: Vec<StoredTxMod>,
+    pub(crate) tx_funs: Vec<StoredTxFun>,
+    pub(crate) tx_digests: Vec<StoredTxDigest>,
+    pub(crate) tx_kinds: Vec<StoredTxKind>,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]

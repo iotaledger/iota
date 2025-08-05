@@ -1,6 +1,7 @@
 ---
 source: crates/iota-swarm-config/tests/snapshot_tests.rs
 expression: network_config
+snapshot_kind: text
 ---
 validator_configs:
   - authority-key-pair:
@@ -15,6 +16,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -121,10 +124,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -144,6 +147,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -250,10 +255,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -273,6 +278,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -379,10 +386,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -402,6 +409,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -508,10 +517,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -531,6 +540,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -637,10 +648,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -660,6 +671,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -766,10 +779,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -789,6 +802,8 @@ validator_configs:
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
+    rest:
+      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -895,10 +910,10 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
-    execution-cache:
-      writeback-cache:
-        max_cache_size: ~
+      max-transaction-manager-per-object-queue-length: 20
+    execution-cache: writeback-cache
+    execution-cache-config:
+      writeback-cache: {}
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~

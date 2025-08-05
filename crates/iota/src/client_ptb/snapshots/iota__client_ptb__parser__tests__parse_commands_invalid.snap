@@ -384,8 +384,8 @@ expression: parsed
         PTBError {
             message: "Expected an address",
             span: Span {
-                start: 11,
-                end: 15,
+                start: 12,
+                end: 16,
             },
             help: Some(
                 "Addresses or object IDs require the character '@' in front",
@@ -397,8 +397,132 @@ expression: parsed
         PTBError {
             message: "Expected an address",
             span: Span {
-                start: 10,
-                end: 10,
+                start: 11,
+                end: 11,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 12,
+                end: 13,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected a u64 value",
+            span: Span {
+                start: 12,
+                end: 17,
+            },
+            help: None,
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Unexpected '['",
+            span: Span {
+                start: 12,
+                end: 13,
+            },
+            help: Some(
+                "Expected an argument here",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected a u64 value",
+            span: Span {
+                start: 12,
+                end: 16,
+            },
+            help: None,
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Value does not fit within a u64",
+            span: Span {
+                start: 12,
+                end: 75,
+            },
+            help: None,
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 14,
+                end: 18,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 13,
+                end: 13,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 14,
+                end: 16,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 8,
+                end: 8,
+            },
+            help: Some(
+                "Addresses or object IDs require the character '@' in front",
+            ),
+            severity: Error,
+        },
+    ],
+    [
+        PTBError {
+            message: "Expected an address",
+            span: Span {
+                start: 9,
+                end: 13,
             },
             help: Some(
                 "Addresses or object IDs require the character '@' in front",
@@ -410,8 +534,8 @@ expression: parsed
         PTBError {
             message: "Unexpected '@'",
             span: Span {
-                start: 16,
-                end: 17,
+                start: 14,
+                end: 15,
             },
             help: Some(
                 "Expected to find a command here",
@@ -423,7 +547,7 @@ expression: parsed
         PTBError {
             message: "Expected an address",
             span: Span {
-                start: 11,
+                start: 9,
                 end: 12,
             },
             help: Some(
