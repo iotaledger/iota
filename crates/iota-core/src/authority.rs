@@ -1257,7 +1257,7 @@ impl AuthorityState {
     /// Test only wrapper for `try_execute_immediately()` above, useful for
     /// checking errors if the pre-conditions are not satisfied, and
     /// executing change epoch transactions.
-    pub async fn try_execute_for_test(
+    pub fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
@@ -1272,12 +1272,11 @@ impl AuthorityState {
     }
 
     /// Non-fallible version of `try_execute_for_test()`.
-    pub async fn execute_for_test(
+    pub fn execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
     ) -> (VerifiedSignedTransactionEffects, Option<ExecutionError>) {
         self.try_execute_for_test(certificate)
-            .await
             .expect("try_execute_for_test should not fail")
     }
 

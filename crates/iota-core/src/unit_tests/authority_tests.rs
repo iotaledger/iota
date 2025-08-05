@@ -3701,11 +3701,7 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
 
     let add_cert = init_certified_transaction(add_txn, &authority_state);
 
-    let add_effects = authority_state
-        .execute_for_test(&add_cert)
-        .await
-        .0
-        .into_message();
+    let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
 
     assert!(add_effects.status().is_ok(), "{:?}", add_effects.status());
     assert_eq!(add_effects.created().len(), 1);
@@ -4790,7 +4786,7 @@ async fn test_shared_object_transaction_shared_locks_not_set() {
 
     // Executing the certificate now panics since it was not sequenced and shared
     // locks are not set
-    let _ = authority.execute_for_test(&certificate).await;
+    let _ = authority.execute_for_test(&certificate);
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -4819,7 +4815,7 @@ async fn test_shared_object_transaction_ok() {
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
-    authority.execute_for_test(&certificate).await;
+    authority.execute_for_test(&certificate);
 
     // Ensure transaction effects are available.
     authority.notify_read_effects(&certificate).await.unwrap();
@@ -5001,7 +4997,7 @@ async fn test_consensus_message_processed() {
 
         // on authority1, we always sequence via consensus
         send_consensus(&authority1, &certificate).await;
-        let (effects1, _execution_error_opt) = authority1.execute_for_test(&certificate).await;
+        let (effects1, _execution_error_opt) = authority1.execute_for_test(&certificate);
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
         // sequence and execute via effects or via handle_certificate_v1, then
@@ -5012,11 +5008,7 @@ async fn test_consensus_message_processed() {
         }
 
         let effects2 = if send_first && rng.gen_bool(0.5) {
-            authority2
-                .execute_for_test(&certificate)
-                .await
-                .0
-                .into_message()
+            authority2.execute_for_test(&certificate).0.into_message()
         } else {
             let epoch_store = authority2.epoch_store_for_testing();
             epoch_store
@@ -5027,7 +5019,7 @@ async fn test_consensus_message_processed() {
                 )
                 .await
                 .unwrap();
-            authority2.execute_for_test(&certificate).await;
+            authority2.execute_for_test(&certificate);
             authority2
                 .get_transaction_cache_reader()
                 .get_executed_effects(transaction_digest)
