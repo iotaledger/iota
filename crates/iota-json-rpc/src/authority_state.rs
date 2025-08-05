@@ -106,7 +106,7 @@ pub trait StateRead: Send + Sync {
 
     // transaction_execution_api
     #[allow(clippy::type_complexity)]
-    async fn dry_exec_transaction(
+    fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
@@ -316,7 +316,7 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    async fn dry_exec_transaction(
+    fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
