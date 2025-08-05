@@ -78,13 +78,193 @@ services:
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-4:/opt/iota/db:rw
 
+  validator-5:
+    <<: *common-validator
+    container_name: validator-5
+    hostname: validator-5
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.15
+    volumes:
+      - ./configs/validators/validator-5-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-5:/opt/iota/db:rw
+
+  validator-6:
+    <<: *common-validator
+    container_name: validator-6
+    hostname: validator-6
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.16
+    volumes:
+      - ./configs/validators/validator-6-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-6:/opt/iota/db:rw
+
+  validator-7:
+    <<: *common-validator
+    container_name: validator-7
+    hostname: validator-7
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.17
+    volumes:
+      - ./configs/validators/validator-7-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-7:/opt/iota/db:rw
+
+  validator-8:
+    <<: *common-validator
+    container_name: validator-8
+    hostname: validator-8
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.18
+    volumes:
+      - ./configs/validators/validator-8-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-8:/opt/iota/db:rw
+
+  validator-9:
+    <<: *common-validator
+    container_name: validator-9
+    hostname: validator-9
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.19
+    volumes:
+      - ./configs/validators/validator-9-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-9:/opt/iota/db:rw
+
+  validator-10:
+    <<: *common-validator
+    container_name: validator-10
+    hostname: validator-10
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.20
+    volumes:
+      - ./configs/validators/validator-10-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-10:/opt/iota/db:rw
+
+  validator-11:
+    <<: *common-validator
+    container_name: validator-11
+    hostname: validator-11
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.21
+    volumes:
+      - ./configs/validators/validator-11-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-11:/opt/iota/db:rw
+
+  validator-12:
+    <<: *common-validator
+    container_name: validator-12
+    hostname: validator-12
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.22
+    volumes:
+      - ./configs/validators/validator-12-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-12:/opt/iota/db:rw
+
+  validator-13:
+    <<: *common-validator
+    container_name: validator-13
+    hostname: validator-13
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.23
+    volumes:
+      - ./configs/validators/validator-13-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-13:/opt/iota/db:rw
+
+  validator-14:
+    <<: *common-validator
+    container_name: validator-14
+    hostname: validator-14
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.24
+    volumes:
+      - ./configs/validators/validator-14-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-14:/opt/iota/db:rw
+
+  validator-15:
+    <<: *common-validator
+    container_name: validator-15
+    hostname: validator-15
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.25
+    volumes:
+      - ./configs/validators/validator-15-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-15:/opt/iota/db:rw
+
+  validator-16:
+    <<: *common-validator
+    container_name: validator-16
+    hostname: validator-16
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.26
+    volumes:
+      - ./configs/validators/validator-16-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-16:/opt/iota/db:rw
+
+  validator-17:
+    <<: *common-validator
+    container_name: validator-17
+    hostname: validator-17
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.27
+    volumes:
+      - ./configs/validators/validator-17-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-17:/opt/iota/db:rw
+
+  validator-18:
+    <<: *common-validator
+    container_name: validator-18
+    hostname: validator-18
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.28
+    volumes:
+      - ./configs/validators/validator-18-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-18:/opt/iota/db:rw
+
+  validator-19:
+    <<: *common-validator
+    container_name: validator-19
+    hostname: validator-19
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.29
+    volumes:
+      - ./configs/validators/validator-19-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-19:/opt/iota/db:rw
+
   fullnode-1:
     <<: *common-fullnode
     container_name: fullnode-1
     hostname: fullnode-1
     networks:
       iota-network:
-        ipv4_address: 10.0.0.15
+        ipv4_address: 10.0.0.35
     volumes:
       - ./data/fullnode-1:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
@@ -101,7 +281,7 @@ services:
     hostname: fullnode-2
     networks:
       iota-network:
-        ipv4_address: 10.0.0.16
+        ipv4_address: 10.0.0.36
     volumes:
       - ./data/fullnode-2:/opt/iota/db:rw
       - ./configs/fullnodes/backup.yaml:/opt/iota/config/fullnode.yaml:ro
@@ -116,7 +296,7 @@ services:
     hostname: fullnode-3
     networks:
       iota-network:
-        ipv4_address: 10.0.0.17
+        ipv4_address: 10.0.0.37
     volumes:
       - ./data/fullnode-3:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
@@ -131,7 +311,7 @@ services:
     hostname: fullnode-4
     networks:
       iota-network:
-        ipv4_address: 10.0.0.18
+        ipv4_address: 10.0.0.38
     volumes:
       - ./data/fullnode-4:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
@@ -147,7 +327,7 @@ services:
     restart: on-failure
     networks:
       iota-network:
-        ipv4_address: 10.0.0.19
+        ipv4_address: 10.0.0.39
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
@@ -175,7 +355,7 @@ services:
     restart: on-failure
     networks:
       iota-network:
-        ipv4_address: 10.0.0.20
+        ipv4_address: 10.0.0.40
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
@@ -202,7 +382,7 @@ services:
     restart: on-failure
     networks:
       iota-network:
-        ipv4_address: 10.0.0.21
+        ipv4_address: 10.0.0.41
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
@@ -231,7 +411,7 @@ services:
     hostname: postgres_primary
     networks:
       iota-network:
-        ipv4_address: 10.0.0.22
+        ipv4_address: 10.0.0.42
     expose:
       - 5432
     ports:
@@ -268,7 +448,7 @@ services:
     hostname: postgres_replica
     networks:
       iota-network:
-        ipv4_address: 10.0.0.23
+        ipv4_address: 10.0.0.43
     expose:
       - 5432
     ports:
