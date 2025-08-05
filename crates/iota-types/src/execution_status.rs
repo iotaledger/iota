@@ -427,13 +427,8 @@ impl ExecutionStatus {
         matches!(
             self,
             ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion { .. },
-                ..
-            }
-        ) || matches!(
-            self,
-            ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 { .. },
+                error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion { .. }
+                    | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 { .. },
                 ..
             }
         )
