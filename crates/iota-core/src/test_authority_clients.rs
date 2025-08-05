@@ -27,6 +27,7 @@ use iota_types::{
     },
     transaction::{Transaction, VerifiedTransaction},
 };
+use tracing::info;
 
 use crate::{
     authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
@@ -139,10 +140,26 @@ impl AuthorityAPI for LocalAuthorityClient {
 
     async fn handle_capability_notification_v1(
         &self,
-        _request: HandleCapabilityNotificationV1Request,
+        request: HandleCapabilityNotificationV1Request,
     ) -> Result<HandleCapabilityNotificationV1Response, IotaError> {
         let state = self.state.clone();
-        state.handle_transaction(request).await
+        let epoch_store = state.load_epoch_store_one_call_per_task();
+
+        // Verify the message signature
+        let verified_authority_capabilities =
+            epoch_store.verify_authority_capabilities(request.message)?;
+
+        // Process the verified capabilities
+        info!(
+            "Received capability notification: {:?}",
+            verified_authority_capabilities.data()
+        );
+
+        state
+            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())
+            .await?;
+
+        Ok(HandleCapabilityNotificationV1Response {})
     }
 }
 

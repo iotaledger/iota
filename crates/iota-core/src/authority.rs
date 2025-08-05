@@ -57,10 +57,7 @@ use iota_types::{
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{
-        AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature, RandomnessRound, Signer,
-        default_hash,
-    },
+    crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
@@ -92,7 +89,7 @@ use iota_types::{
         CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
         CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
-    messages_consensus::AuthorityCapabilitiesV1,
+    messages_consensus::{AuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleTransactionResponse, LayoutGenerationOption, ObjectInfoRequest,
         ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest, TransactionInfoResponse,
@@ -1695,21 +1692,12 @@ impl AuthorityState {
 
     /// Verifies the signature on the capability notification and updates the
     /// authority capabilities after verifying the signature
-    pub async fn update_authority_capabilities(
+    pub async fn handle_authority_capabilities(
         &self,
-        capabilities: AuthorityCapabilitiesV1,
-        signature: &AuthoritySignInfo,
+        verified_authority_capabilities: VerifiedAuthorityCapabilitiesV1,
+        epoch_store: Arc<AuthorityPerEpochStore>,
     ) -> Result<(), IotaError> {
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-
-        // Verify that the signature is from a valid authority in the current epoch
-        let authority = epoch_store.committee().authority(&signature.authority)?;
-
-        // Verify the actual signature
-        signature.verify_secure(capabilities, authority)?;
-
-        // TODO: Store the new capabilities
-        // epoch_store.update_authority_capabilities(capabilities)?;
+        epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
         Ok(())
     }

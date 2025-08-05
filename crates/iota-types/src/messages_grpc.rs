@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::hash::HashFunction;
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +9,6 @@ use crate::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
-    message_envelope::Message,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
     transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},

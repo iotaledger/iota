@@ -36,9 +36,7 @@ use iota_types::{
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
-    crypto::{
-        AuthorityPublicKey, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound,
-    },
+    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
@@ -52,7 +50,8 @@ use iota_types::{
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind, TimestampMs, VersionedDkgConfirmation, check_total_jwk_size,
+        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
+        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey, ObjectStore},
@@ -907,7 +906,9 @@ impl AuthorityPerEpochStore {
 
         let signature_verifier = SignatureVerifier::new(
             committee.clone(),
-            epoch_start_configuration.non_committee_validators(),
+            epoch_start_configuration
+                .epoch_start_state()
+                .get_non_committee_validators(),
             signature_verifier_metrics,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
@@ -2326,7 +2327,7 @@ impl AuthorityPerEpochStore {
 
     /// Record most recently advertised capabilities of all authorities
     pub fn record_capabilities_v1(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
-        info!("received capabilities v2 {:?}", capabilities);
+        info!("received capabilities v1 {:?}", capabilities);
         let authority = &capabilities.authority;
         let tables = self.tables()?;
 
@@ -2560,6 +2561,16 @@ impl AuthorityPerEpochStore {
         self.signature_verifier
             .verify_tx(tx.data())
             .map(|_| VerifiedTransaction::new_from_verified(tx))
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub fn verify_authority_capabilities(
+        &self,
+        authority_capabilities: SignedAuthorityCapabilitiesV1,
+    ) -> IotaResult<VerifiedAuthorityCapabilitiesV1> {
+        self.signature_verifier
+            .verify_authority_capabilities(&authority_capabilities)
+            .map(|_| VerifiedAuthorityCapabilitiesV1::new_from_verified(authority_capabilities))
     }
 
     /// Verifies transaction signatures and other data

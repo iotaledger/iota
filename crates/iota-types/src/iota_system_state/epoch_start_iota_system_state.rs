@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use anemo::{
     PeerId,
@@ -39,7 +39,7 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
-    fn get_non_committee_validators(&self) -> Vec<EpochStartValidatorInfoV1>;
+    fn get_non_committee_validators(&self) -> BTreeMap<AuthorityName, AuthorityPublicKey>;
 }
 
 /// This type captures the minimum amount of information from IotaSystemState
@@ -339,8 +339,9 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .collect()
     }
 
-    fn get_non_committee_validators(&self) -> Vec<EpochStartValidatorInfoV1> {
-        Vec::new()
+    fn get_non_committee_validators(&self) -> BTreeMap<AuthorityName, AuthorityPublicKey> {
+        // V1 does not have non-committee validators, so return an empty map.
+        BTreeMap::new()
     }
 }
 
@@ -527,8 +528,18 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
             .collect()
     }
 
-    fn get_non_committee_validators(&self) -> Vec<EpochStartValidatorInfoV1> {
-        self.non_committee_validators.clone().unwrap_or_default()
+    fn get_non_committee_validators(&self) -> BTreeMap<AuthorityName, AuthorityPublicKey> {
+        self.non_committee_validators
+            .clone()
+            .unwrap_or_default()
+            .iter()
+            .map(|validator| {
+                (
+                    validator.authority_name(),
+                    validator.authority_pubkey.clone(),
+                )
+            })
+            .collect()
     }
 }
 
