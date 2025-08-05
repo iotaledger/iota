@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Declare the module with package name and module name
-module first_package::my_module;
+module first_package::my_module{
 
 // Sword struct represents a magical sword object
 // - 'key' ability allows it to be stored as a top-level object
@@ -360,4 +360,5 @@ fun test_address_operations() {
     };
 
     ts::end(ts);
+}
 }
