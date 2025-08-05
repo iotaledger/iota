@@ -46,11 +46,6 @@ impl AuthorityNode {
         }
     }
 
-    /// Return the `index` of this Node
-    pub fn index(&self) -> AuthorityIndex {
-        self.config.authority_index
-    }
-
     /// Start this Node
     pub async fn start(&self) -> Result<()> {
         info!(index =% self.config.authority_index, "starting in-memory node");
@@ -94,6 +89,7 @@ impl AuthorityNode {
     }
 
     /// Stop this Node
+    #[expect(dead_code)]
     pub fn stop(&self) {
         info!(index =% self.config.authority_index, "stopping in-memory node");
         *self.inner.lock() = None;
@@ -101,6 +97,7 @@ impl AuthorityNode {
     }
 
     /// If this Node is currently running
+    #[expect(dead_code)]
     pub fn is_running(&self) -> bool {
         self.inner.lock().as_ref().map_or(false, |c| c.is_alive())
     }
