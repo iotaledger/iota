@@ -326,7 +326,7 @@ def do_generate(from_, to):
 
     seen_prs = set()
     for commit in commits.split("\n"):
-        pr, notes = extract_notes(commit, seen_prs)
+        pr, notes = extract_notes(commit, seen_prs, False)
         seen_prs.add(pr)
         for impacted, note in notes:
             if note.checked:
