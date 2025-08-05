@@ -1380,24 +1380,18 @@ impl IndexStore {
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
 
-        let balances: Arc<HashMap<TypeTag, TotalBalance>> = if force_disable_cache {
-            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
-                |e| IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e)),
-            )?
-        } else {
-            self.caches.all_balances.get_with(owner, move || {
-                Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
-                    |e| {
-                        IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
-                    },
-                )
-            })?
-        };
+        if force_disable_cache {
+            return Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
+                .map_err(|e| {
+                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                });
+        }
 
-        let mut filtered_map = (*balances).clone();
-        filtered_map.retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
-
-        Ok(Arc::new(filtered_map))
+        self.caches.all_balances.get_with(owner, move || {
+            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(|e| {
+                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+            })
+        })
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
@@ -1451,6 +1445,10 @@ impl IndexStore {
                 },
             );
         }
+
+        // We do not want to return coins with 0 balance
+        balances.retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
+
         Ok(Arc::new(balances))
     }
 
