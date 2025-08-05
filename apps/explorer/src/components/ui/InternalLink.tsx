@@ -17,6 +17,7 @@ interface BaseInternalLinkProps extends LinkProps {
     showAddressAlias?: boolean;
     noTruncate?: boolean;
     label?: string | ReactNode;
+    renderAddressAlias?: (alias: string) => ReactNode;
     queryStrings?: Record<string, string>;
     copyText?: string;
     onCopyError?: (e: unknown, text: string) => void;
@@ -34,6 +35,7 @@ function createInternalLink<T extends string>(
         queryStrings = {},
         copyText,
         onCopyError,
+        renderAddressAlias,
         showAddressAlias = ['address', 'object', 'validator'].includes(base),
         ...props
     }: BaseInternalLinkProps & Record<T, string>) => {
@@ -80,6 +82,7 @@ function createInternalLink<T extends string>(
                             </Link>
                         </NamedAddressTooltip>
                     )}
+                    renderAlias={renderAddressAlias}
                 />
             );
         }
