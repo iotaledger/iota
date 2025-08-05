@@ -48,7 +48,7 @@ function BalanceChangePanel({
     changes,
     renderExplorerLink: ExplorerLink,
 }: BalanceChangePanelProps) {
-    const { data: name } = useGetDefaultIotaName(owner, true);
+    const { data: name } = useGetDefaultIotaName(owner);
 
     if (!changes) return null;
 

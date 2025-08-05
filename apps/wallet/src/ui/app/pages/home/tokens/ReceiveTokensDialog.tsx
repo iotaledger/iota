@@ -28,7 +28,7 @@ interface ReceiveTokensDialogProps {
 export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDialogProps) {
     const activeAccount = useActiveAccount();
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
-    const { data: iotaName } = useGetDefaultIotaName(address, true);
+    const { data: iotaName } = useGetDefaultIotaName(address);
 
     const onCopy = useCopyToClipboard(address, {
         copySuccessMessage: 'Address copied',

@@ -23,7 +23,7 @@ export function NamedAddress({
     onOpen,
     addMarginRightToCenter = false,
 }: NamedAddressProps): React.JSX.Element {
-    const { data: iotaName } = useGetDefaultIotaName(address, true);
+    const { data: iotaName } = useGetDefaultIotaName(address);
     const formattedAddress = formatAddress(address);
 
     return (

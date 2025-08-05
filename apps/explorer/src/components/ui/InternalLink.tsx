@@ -45,7 +45,7 @@ function createInternalLink<T extends string>(
         const to = `/${base}/${encodeURI(id)}${queryStringPrefix}`;
 
         const isResolveIotaName = base === 'address' && isValidIotaAddress(id);
-        const { data: iotaName } = useGetDefaultIotaName(isResolveIotaName ? id : null, true);
+        const { data: iotaName } = useGetDefaultIotaName(isResolveIotaName ? id : null);
 
         async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
             event.stopPropagation();

@@ -27,7 +27,7 @@ interface AddressResultPageHeaderProps {
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): React.JSX.Element {
     const copyToClipboard = useCopyToClipboard(onCopySuccess);
-    const { data: name, isLoading: isLoadingName } = useGetDefaultIotaName(address, true);
+    const { data: name, isLoading: isLoadingName } = useGetDefaultIotaName(address);
 
     return (
         <PageHeader
@@ -50,7 +50,7 @@ function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): Rea
 
 function AddressOrNameResult({ addressOrName }: { addressOrName: string }): JSX.Element {
     const isName = isValidIotaName(addressOrName);
-    const { data } = useGetDefaultIotaName(isName ? addressOrName : undefined, true);
+    const { data } = useGetDefaultIotaName(isName ? addressOrName : undefined);
 
     return (
         <>

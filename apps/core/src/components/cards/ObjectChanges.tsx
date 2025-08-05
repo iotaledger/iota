@@ -166,14 +166,15 @@ function ObjectChangeByOwnerPanel({
     type,
     owner,
     change,
-    renderExplorerLink: ExplorerLink,
+    renderExplorerLink,
 }: ObjectChangesByOwnerPanelProps) {
     const [open, setOpen] = useState(false);
 
-    const { data: iotaName } = useGetDefaultIotaName(owner, true);
+    const { data: iotaName } = useGetDefaultIotaName(owner);
 
     const label = getObjectChangeLabel(type);
 
+    const ExplorerLink = renderExplorerLink;
     return (
         <Panel hasBorder>
             <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
@@ -204,7 +205,7 @@ function ObjectChangeByOwnerPanel({
                                     items={change.changesWithDisplay.map((change) => (
                                         <ObjectChangeDisplay
                                             change={change}
-                                            renderExplorerLink={ExplorerLink}
+                                            renderExplorerLink={renderExplorerLink}
                                         />
                                     ))}
                                 />
@@ -217,7 +218,7 @@ function ObjectChangeByOwnerPanel({
                                 initialShowAll={open}
                                 items={change.changes.map((change) => (
                                     <ObjectDetail
-                                        renderExplorerLink={ExplorerLink}
+                                        renderExplorerLink={renderExplorerLink}
                                         ownerKey={owner}
                                         change={change}
                                     />

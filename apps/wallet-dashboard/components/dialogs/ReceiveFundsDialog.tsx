@@ -24,7 +24,7 @@ export function ReceiveFundsDialog({
     setOpen,
 }: ReceiveFundsDialogProps): React.JSX.Element {
     const copyToClipboard = useCopyToClipboard();
-    const { data: iotaName } = useGetDefaultIotaName(address, true);
+    const { data: iotaName } = useGetDefaultIotaName(address);
 
     async function handleCopyToClipboard() {
         const success = await copyToClipboard(address);
