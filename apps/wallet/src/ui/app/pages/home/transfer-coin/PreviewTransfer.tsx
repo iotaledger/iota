@@ -5,15 +5,14 @@
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_hooks';
 import {
-    CoinFormat,
+    NamedAddressTooltip,
     parseAmount,
     useCoinMetadata,
     useFormatCoin,
     useGetIotaNameRecord,
 } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
+import { CoinFormat, formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -40,7 +39,7 @@ export function PreviewTransfer({
 
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
         balance: gasBudget,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return (

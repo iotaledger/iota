@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatBalance, getTotalGasUsed } from '@iota/core';
+import { getTotalGasUsed } from '@iota/core';
 import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
-import { formatDigest, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, formatDigest, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
@@ -70,7 +70,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                     ? formatBalance(
                           Number(totalGasUsed) / Number(NANOS_PER_IOTA),
                           0,
-                          CoinFormat.ROUNDED,
+                          CoinFormat.Rounded,
                       )
                     : '--';
                 return (

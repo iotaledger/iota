@@ -12,7 +12,19 @@ TEMP_EXPORT_DIR="${TEMP_EXPORT_DIR-"$PRIVNET_DIR/configs/temp"}"
 VALIDATOR_CONFIGS_DIR="$PRIVNET_DIR/configs/validators"
 GENESIS_DIR="$PRIVNET_DIR/configs/genesis"
 OVERLAY_PATH="$PRIVNET_DIR/configs/validator-common.yaml"
-GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template.yaml"
+# Parse `-n` for number of validators (default 4)
+NUM_VALIDATORS=4
+while getopts "n:" opt; do
+  case "$opt" in
+    n) NUM_VALIDATORS="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Select the matching genesis template
+GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template-${NUM_VALIDATORS}.yaml"
+
 PRIVATE_DATA_DIR="$PRIVNET_DIR/data"
 
 check_docker_image_exist() {
@@ -32,12 +44,16 @@ check_configs_exist() {
 generate_genesis_files() {
   mkdir -p "$TEMP_EXPORT_DIR"
 
+  # Generate genesis using the selected template
+  TMP_GENESIS_TEMPLATE="$(basename "$GENESIS_TEMPLATE")"
   docker run --rm \
     -v "$PRIVNET_DIR:/iota" \
     -v "$TEMP_EXPORT_DIR:/iota/configs/temp" \
     -w /iota \
     iotaledger/iota-tools \
-    /usr/local/bin/iota genesis --from-config "/iota/configs/genesis-template.yaml" --working-dir "/iota/configs/temp" -f
+    /usr/local/bin/iota genesis \
+      --from-config "/iota/configs/$TMP_GENESIS_TEMPLATE" \
+      --working-dir "/iota/configs/temp" -f
 
   for file in "$TEMP_EXPORT_DIR"/validator*.yaml; do
     if [ -f "$file" ]; then

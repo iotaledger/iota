@@ -20,6 +20,9 @@ use crate::{
     errors::IndexerError,
 };
 
+// The amount of rows to update in one DB transaction
+const PG_COMMIT_CHUNK_SIZE: usize = 100;
+
 /// Orchestrates ingestion-driven backfill by buffering processed checkpoints
 /// and coordinating range-based commits.
 ///
@@ -104,10 +107,18 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
             processed_data.len()
         );
 
-        // TODO: Limit the size of each chunk.
+        // Limit the size of each chunk.
         // postgres has a parameter limit of 65535, meaning that row_count * col_count
-        // <= 65536.
-        T::persist_chunk(pool.clone(), processed_data).await
+        // <= 65535.
+        while !processed_data.is_empty() {
+            let batch: Vec<_> = processed_data
+                .drain(..processed_data.len().min(PG_COMMIT_CHUNK_SIZE))
+                .collect();
+
+            T::persist_chunk(pool.clone(), batch).await?;
+        }
+
+        Ok(())
     }
 }
 

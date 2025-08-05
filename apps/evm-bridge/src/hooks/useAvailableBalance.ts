@@ -1,5 +1,5 @@
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useFormatCoin } from '@iota/core';
 import { useSortedCoins } from './useSortedCoins';
 
 export function useAvailableBalance(
@@ -24,7 +24,7 @@ export function useAvailableBalance(
     const [formattedCoin, symbol] = useFormatCoin({
         balance: selectedCoinBalance,
         coinType,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return {

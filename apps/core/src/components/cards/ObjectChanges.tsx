@@ -27,7 +27,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/apps-ui-icons';
 import { ObjectChange, RenderExplorerLink } from '../../types';
-import { NamedAddressTooltip } from '../NameWithTooltip';
+import { NamedAddressTooltip } from '../NamedAddressTooltip';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;

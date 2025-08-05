@@ -4,8 +4,7 @@
 
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
-import { AddressAlias, useGetDefaultIotaName } from '@iota/core';
-import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
+import { NamedAddressTooltip, AddressAlias, useGetDefaultIotaName } from '@iota/core';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import React, { type ReactNode } from 'react';

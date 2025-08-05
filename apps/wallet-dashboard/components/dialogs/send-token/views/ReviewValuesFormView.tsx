@@ -18,21 +18,20 @@ import {
     ButtonType,
     Header,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress } from '@iota/iota-sdk/utils';
 import {
     CoinIcon,
     ImageIconSize,
     useFormatCoin,
     ExplorerLinkType,
-    CoinFormat,
     useCoinMetadata,
     parseAmount,
     useGetIotaNameRecord,
+    NamedAddressTooltip,
 } from '@iota/core';
 import { Loader } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '@/components';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;
@@ -63,12 +62,12 @@ export function ReviewValuesFormView({
     const [roundedAmount, symbol] = useFormatCoin({
         balance: amountWithoutDecimals,
         coinType,
-        format: CoinFormat.ROUNDED,
+        format: CoinFormat.Rounded,
     });
 
     const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: totalGas,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return (

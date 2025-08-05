@@ -3,7 +3,6 @@
 
 import {
     useFormatCoin,
-    CoinFormat,
     useCoinMetadata,
     toast,
     useNewStakeTransaction,
@@ -11,7 +10,7 @@ import {
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
 } from '@iota/core';
-import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
@@ -60,7 +59,7 @@ export function EnterAmountView({
 
     const [availableBalanceFormatted, availableBalanceFormattedSymbol] = useFormatCoin({
         balance: availableBalance,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const caption = availableBalance
         ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
@@ -70,7 +69,7 @@ export function EnterAmountView({
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const isUnsafeAmount = amount && amount > maxSafeAmount && amount <= availableBalance;
 

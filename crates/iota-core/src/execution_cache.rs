@@ -201,6 +201,16 @@ pub trait ExecutionCacheCommit: Send + Sync {
         })
     }
 
+    /// Persist transactions and their effects to the database, but no other
+    /// outputs. Additionally this stores the content-addressed effects in
+    /// the database but does not add an executed_effects. This is required
+    /// for recovery from a crash when upgrading to data-quarantining.
+    /// TODO: remove this once all nodes have upgraded to data-quarantining.
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    );
+
     // Number of pending uncommitted transactions
     fn approximate_pending_transaction_count(&self) -> u64;
 }

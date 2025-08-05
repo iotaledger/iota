@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import { useFormatCoin } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 
 type LabelTextProps = Omit<React.ComponentProps<typeof LabelText>, 'text' | 'size'>;
 
@@ -20,7 +21,7 @@ export function TokenStats({
 }: TokenStatsProps): React.JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin({
         balance: amount,
-        format: CoinFormat.ROUNDED,
+        format: CoinFormat.Rounded,
         showSign,
     });
 

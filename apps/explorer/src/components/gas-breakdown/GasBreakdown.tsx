@@ -4,15 +4,15 @@
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
 import {
-    CoinFormat,
     type TransactionSummaryType,
     useFormatCoin,
     useGetIotaNameRecord,
+    NamedAddressTooltip,
 } from '@iota/core';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { Fragment } from 'react';
 import { normalizeIotaName } from '@iota/iota-names-sdk';
-import { NamedAddressTooltip } from '@iota/core/src/components/NameWithTooltip';
 
 interface GasProps {
     amount?: bigint | number | string;
@@ -20,10 +20,10 @@ interface GasProps {
 }
 
 function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
-    const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.FULL });
+    const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.Full });
     const [formattedBurnedAmount, burnedSymbol] = useFormatCoin({
         balance: burnedAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     if (!amount) {

@@ -28,7 +28,7 @@ struct RequestParams {
 /// We define our own extractor that includes validation and custom error
 /// message.
 ///
-/// This custom extractor matches [`Path`] segments and deserilize them
+/// This custom extractor matches [`Path`] segments and deserialize them
 /// internally into [`RequestParams`] and constructs a [`Key`].
 pub struct ExtractPath(pub Key);
 

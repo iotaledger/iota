@@ -6,13 +6,13 @@ import { useMemo } from 'react';
 import { Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import type { BalanceChangeSummary, RenderExplorerLink } from '../../types';
 import { ExplorerLinkType } from '../../enums';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
-import { CoinFormat, useGetDefaultIotaName } from '../../hooks';
-import { NamedAddressTooltip } from '../NameWithTooltip';
+import { useGetDefaultIotaName } from '../../hooks';
+import { NamedAddressTooltip } from '../NamedAddressTooltip';
 
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
@@ -87,7 +87,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
                     <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />
                 )
             }
-            format={CoinFormat.FULL}
+            format={CoinFormat.Full}
         />
     );
 }

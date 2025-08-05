@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BridgeFormInputName } from '../enums';
-import { parseAmount } from '../utils';
+import { parseAmount } from '@iota/core';
 import { isAddress } from 'viem';
 import { IOTA_TYPE_ARG, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
