@@ -103,7 +103,7 @@ impl IndexStoreMetrics {
         Self {
             balance_lookup_from_db: register_int_counter_with_registry!(
                 "balance_lookup_from_db",
-                "Total number of balance requests served from cache",
+                "Total number of balance requests served from database",
                 registry,
             )
             .unwrap(),
@@ -115,7 +115,7 @@ impl IndexStoreMetrics {
             .unwrap(),
             all_balance_lookup_from_db: register_int_counter_with_registry!(
                 "all_balance_lookup_from_db",
-                "Total number of all balance requests served from cache",
+                "Total number of all balance requests served from database",
                 registry,
             )
             .unwrap(),
@@ -1320,6 +1320,7 @@ impl IndexStore {
     /// database (expensive) and update the cache. Notice that db read is
     /// done with `spawn_blocking` as that is expected to block
     pub fn get_balance(&self, owner: IotaAddress, coin_type: TypeTag) -> IotaResult<TotalBalance> {
+        self.metrics.balance_lookup_from_total.inc();
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let cloned_coin_type = coin_type.clone();
         let metrics_cloned = self.metrics.clone();
@@ -1333,8 +1334,6 @@ impl IndexStore {
             )
             .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
         }
-
-        self.metrics.balance_lookup_from_total.inc();
 
         let balance = self
             .caches
@@ -1376,6 +1375,7 @@ impl IndexStore {
         &self,
         owner: IotaAddress,
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
+        self.metrics.all_balance_lookup_from_total.inc();
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
@@ -1385,7 +1385,6 @@ impl IndexStore {
                 |e| IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e)),
             )?
         } else {
-            self.metrics.all_balance_lookup_from_total.inc();
             self.caches.all_balances.get_with(owner, move || {
                 Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(
                     |e| {
