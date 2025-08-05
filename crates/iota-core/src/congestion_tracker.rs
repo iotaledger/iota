@@ -628,4 +628,25 @@ mod tests {
         assert!(hotness1 == 36.1, "hotness for obj1 should be 36.1");
         assert!(hotness2 == 38.35, "hotness for obj2 should be 38.35");
     }
+
+    #[test]
+    fn test_remove_cold_objects_from_cache() {
+        let rgp_test = 1000;
+        let tracker = CongestionTracker::new(rgp_test);
+        let obj1 = ObjectID::random();
+        let obj2 = ObjectID::random();
+
+        // First checkpoint with two congested objects
+        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj1, obj2], 1015)], &[]);
+
+        // obj1 is not congested anymore
+        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1018)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+
+        // hotness for obj1 goes below 1.0 so it should be removed from cache
+        assert!(tracker.get_hotness_for_object(&obj1).is_none(), "obj1 should be removed from cache");
+        let hotness = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
+        println!("hotness for obj2: {}", hotness);
+        assert!(hotness == 3.0, "hotness for obj2 should be 3.0");
+    }
 }
