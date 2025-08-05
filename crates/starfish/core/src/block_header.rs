@@ -9,7 +9,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -70,12 +69,10 @@ impl Transaction {
 /// Well behaved authorities produce at most one block header per round, but
 /// malicious authorities can equivocate.
 #[derive(Clone, Deserialize, Serialize)]
-#[enum_dispatch(BlockHeaderAPI)]
 pub enum BlockHeader {
     V1(BlockHeaderV1),
 }
 
-#[enum_dispatch]
 pub trait BlockHeaderAPI {
     fn epoch(&self) -> Epoch;
     fn round(&self) -> Round;
@@ -161,15 +158,15 @@ impl BlockHeaderAPI for BlockHeaderV1 {
         Slot::new(self.round, self.author)
     }
 
+    fn acknowledgments(&self) -> &[BlockRef] {
+        &self.acknowledgments
+    }
+
     fn timestamp_ms(&self) -> BlockTimestampMs {
         self.timestamp_ms
     }
-
     fn ancestors(&self) -> &[BlockRef] {
         &self.ancestors
-    }
-    fn acknowledgments(&self) -> &[BlockRef] {
-        &self.acknowledgments
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
@@ -178,6 +175,68 @@ impl BlockHeaderAPI for BlockHeaderV1 {
 
     fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transactions_commitment
+    }
+}
+
+impl BlockHeaderAPI for BlockHeader {
+    fn epoch(&self) -> Epoch {
+        match self {
+            BlockHeader::V1(header) => header.epoch(),
+        }
+    }
+
+    fn round(&self) -> Round {
+        match self {
+            BlockHeader::V1(header) => header.round(),
+        }
+    }
+
+    fn author(&self) -> AuthorityIndex {
+        match self {
+            BlockHeader::V1(header) => header.author(),
+        }
+    }
+
+    fn slot(&self) -> Slot {
+        match self {
+            BlockHeader::V1(header) => header.slot(),
+        }
+    }
+
+    fn acknowledgments(&self) -> &[BlockRef] {
+        match self {
+            BlockHeader::V1(header) => header.acknowledgments(),
+        }
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        match self {
+            BlockHeader::V1(header) => header.timestamp_ms(),
+        }
+    }
+
+    fn ancestors(&self) -> &[BlockRef] {
+        match self {
+            BlockHeader::V1(header) => header.ancestors(),
+        }
+    }
+
+    fn commit_votes(&self) -> &[CommitVote] {
+        match self {
+            BlockHeader::V1(header) => header.commit_votes(),
+        }
+    }
+
+    fn transactions_commitment(&self) -> TransactionsCommitment {
+        match self {
+            BlockHeader::V1(header) => header.transactions_commitment(),
+        }
+    }
+}
+
+impl From<BlockHeaderV1> for BlockHeader {
+    fn from(header: BlockHeaderV1) -> Self {
+        BlockHeader::V1(header)
     }
 }
 
@@ -462,7 +521,7 @@ impl SignedBlockHeader {
 /// This should never be used outside of this file, to avoid confusion with
 /// `BlockDigest`.
 #[derive(Serialize, Deserialize)]
-struct InnerBlockHeaderDigest([u8; starfish_config::DIGEST_LENGTH]);
+struct InnerBlockHeaderDigest([u8; DIGEST_LENGTH]);
 
 /// Computes the digest of a Block, only for signing and verifications.
 fn compute_inner_block_header_digest(
