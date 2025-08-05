@@ -1515,12 +1515,10 @@ impl IndexStore {
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         if let Ok(old_balance) = old_balance {
             if let Ok(balance_delta) = balance_delta {
-                let mut new_balance = HashMap::new();
-                for (key, value) in old_balance.iter() {
-                    new_balance.insert(key.clone(), *value);
-                }
+                // create a deep copy of the old balance hashmap
+                let mut new_balance = old_balance.as_ref().clone();
                 for (key, delta) in balance_delta.iter() {
-                    let old = new_balance.entry(key.clone()).or_insert(TotalBalance {
+                    let old = new_balance.get(key).unwrap_or(&TotalBalance {
                         balance: 0,
                         num_coins: 0,
                     });
@@ -1528,7 +1526,13 @@ impl IndexStore {
                         balance: old.balance + delta.balance,
                         num_coins: old.num_coins + delta.num_coins,
                     };
-                    new_balance.insert(key.clone(), new_total);
+
+                    // Remove entries where num_coins becomes zero to prevent cache bloat
+                    if new_total.num_coins == 0 {
+                        new_balance.remove(key);
+                    } else {
+                        new_balance.insert(key.clone(), new_total);
+                    }
                 }
                 Ok(Arc::new(new_balance))
             } else {
