@@ -1325,8 +1325,13 @@ impl IndexStore {
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
         if force_disable_cache {
-            Self::get_balance_from_db(metrics_cloned, coin_index_cloned, owner, cloned_coin_type)
-                .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")))?;
+            return Self::get_balance_from_db(
+                metrics_cloned,
+                coin_index_cloned,
+                owner,
+                cloned_coin_type,
+            )
+            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
         }
 
         self.metrics.balance_lookup_from_total.inc();
