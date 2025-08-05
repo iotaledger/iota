@@ -250,7 +250,7 @@ def extract_protocol_version(commit):
 def print_changelog(pr, log):
     if pr:
         print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end='')
-    print(log)
+    print(log.replace('\n', ' '))
 
 
 def do_check(commit_or_pr, is_pr):
