@@ -1434,6 +1434,12 @@ impl IndexStore {
                 total_balance += coin_info.balance as i128;
                 coin_object_count += 1;
             }
+
+            if coin_object_count == 0 {
+                // we do not want to return coins with 0 balance
+                continue;
+            }
+
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
                 |e| IotaError::Execution(format!("Failed to parse event sender address: {e:?}")),
             )?));
@@ -1445,9 +1451,6 @@ impl IndexStore {
                 },
             );
         }
-
-        // We do not want to return coins with 0 balance
-        balances.retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
 
         Ok(Arc::new(balances))
     }
