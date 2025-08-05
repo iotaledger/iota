@@ -269,6 +269,9 @@ def do_check(commit_or_pr, is_pr):
     for impacted, note in notes:
         any_checked |= note.checked;
 
+        if "\n" in note.note:
+            issues.append(f" - Note for {impacted} has multiple lines.")
+
         if impacted not in NOTE_ORDER:
             issues.append(f" - Found unfamiliar impact area '{impacted}'.")
 
