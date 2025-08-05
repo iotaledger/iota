@@ -538,13 +538,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         })))
     }
 
-    // Handles two types of fetch headers requests:
-    // 1. Missing block headers for regular sync:
-    //    - uses highest_accepted_rounds.
-    //    - at most max_blocks_per_regular_sync blocks should be returned.
-    // 2. Committed block headers for commit sync:
-    //    - does not use highest_accepted_rounds.
-    //    - at most max_blocks_per_commit_sync blocks should be returned.
+    /// Handles two types of fetch headers requests:
+    /// 1. Missing block headers for regular sync:
+    ///    - uses highest_accepted_rounds.
+    ///    - at most max_blocks_per_regular_sync blocks should be returned.
+    /// 2. Committed block headers for commit sync:
+    ///    - does not use highest_accepted_rounds.
+    ///    - at most max_blocks_per_commit_sync blocks should be returned.
     async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
@@ -1063,6 +1063,7 @@ async fn make_recv_future<T: Clone>(
 #[cfg(test)]
 mod tests {
     use std::{
+        cmp::max,
         collections::{BTreeMap, BTreeSet},
         sync::Arc,
         time::Duration,
@@ -1650,8 +1651,168 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_handle_get_latest_rounds() {
+        // GIVEN
+        let rounds = 15;
+        let validators = 4;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        // we set sync_last_known_own_block to true and last known proposed round to
+        // rounds+5 so that core doesn't start to create its own new blocks,
+        // that would be different from the blocks created in dag builder
+        let mut core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+        core.set_last_known_proposed_round(rounds + 5);
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+            highest_received_rounds: Mutex::new(vec![0; context.committee.size()]),
+        });
+
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create the authority service
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store.clone(),
+        ));
+
+        // Set up DAG with blocks
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        // dag_builder.persist_all_blocks(dag_state.clone());
+
+        // Get all block headers
+        let mut all_block_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        for round in 0..=rounds {
+            all_block_headers.push(dag_builder.block_headers(round..=round));
+        }
+
+        for round in 1..=rounds / 2 {
+            core_dispatcher
+                .add_block_headers(all_block_headers[round as usize].clone())
+                .await
+                .expect("block headers are expected to be added successfully");
+        }
+
+        let (received_rounds, accepted_rounds) = authority_service
+            .handle_get_latest_rounds(AuthorityIndex::new_for_test(1))
+            .await
+            .unwrap();
+        assert_eq!(
+            received_rounds,
+            [rounds / 2, rounds / 2, rounds / 2, rounds / 2]
+        );
+        assert_eq!(
+            accepted_rounds,
+            [rounds / 2, rounds / 2, rounds / 2, rounds / 2]
+        );
+
+        // Add header only for some validators so that received and accepted rounds are
+        // different
+        for round in rounds / 2 + 1..=rounds {
+            let headers = &all_block_headers[round as usize];
+            core_dispatcher
+                .add_block_headers(headers[..2].to_vec())
+                .await
+                .expect("block headers are expected to be added successfully");
+        }
+        let (received_rounds, accepted_rounds) = authority_service
+            .handle_get_latest_rounds(AuthorityIndex::new_for_test(1))
+            .await
+            .unwrap();
+        assert_eq!(
+            received_rounds,
+            [rounds / 2 + 1, rounds, rounds / 2, rounds / 2]
+        );
+        assert_eq!(
+            accepted_rounds,
+            [rounds / 2 + 1, rounds / 2 + 1, rounds / 2, rounds / 2]
+        );
+
+        for round in rounds / 2 + 1..=rounds {
+            let headers = &all_block_headers[round as usize];
+            core_dispatcher
+                .add_block_headers(headers[2..].to_vec())
+                .await
+                .expect("block headers are expected to be added successfully");
+        }
+
+        let (received_rounds, accepted_rounds) = authority_service
+            .handle_get_latest_rounds(AuthorityIndex::new_for_test(1))
+            .await
+            .unwrap();
+        assert_eq!(received_rounds, [rounds, rounds, rounds, rounds]);
+        assert_eq!(accepted_rounds, [rounds, rounds, rounds, rounds]);
+    }
+
     pub struct FakeCoreThreadDispatcher {
         core: Mutex<Core>,
+        highest_received_rounds: Mutex<Vec<u32>>,
     }
 
     #[async_trait]
@@ -1667,6 +1828,11 @@ mod tests {
             CoreError,
         > {
             let mut guard = self.core.lock();
+            let mut vec = self.highest_received_rounds.lock();
+            for block in blocks.iter() {
+                let entry = &mut vec[block.author()];
+                *entry = max(*entry, block.round());
+            }
             let _ = guard.add_blocks(blocks);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
@@ -1682,6 +1848,11 @@ mod tests {
             CoreError,
         > {
             let mut guard = self.core.lock();
+            let mut vec = self.highest_received_rounds.lock();
+            for block_header in block_headers.iter() {
+                let entry = &mut vec[block_header.author()];
+                *entry = max(*entry, block_header.round());
+            }
             let _ = guard.add_block_headers(block_headers);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
@@ -1736,7 +1907,8 @@ mod tests {
         }
 
         fn highest_received_rounds(&self) -> Vec<Round> {
-            unimplemented!("Unimplemented")
+            let guard = self.highest_received_rounds.lock();
+            guard.clone()
         }
     }
     #[tokio::test(flavor = "current_thread")]
@@ -1789,6 +1961,7 @@ mod tests {
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
@@ -1930,6 +2103,7 @@ mod tests {
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
@@ -2082,6 +2256,7 @@ mod tests {
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
         });
 
         // Create a broadcast channel for new blocks
@@ -2335,6 +2510,7 @@ mod tests {
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
@@ -2480,6 +2656,7 @@ mod tests {
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
@@ -2598,7 +2775,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_fetch_commits() {
         // GIVEN
-        let rounds = 5;
+        let rounds = 15;
         let validators = 4;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
@@ -2646,6 +2823,7 @@ mod tests {
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
             core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
