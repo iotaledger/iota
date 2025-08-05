@@ -45,6 +45,7 @@ pub struct CongestionInfo {
 }
 
 const LEARNING_RATE: f64 = 0.2;
+const HOTNESS_THRESHOLD: f64 = 1.0;
 
 impl CongestionInfo {
     /// Update this congestion info with the congestion info from a new
@@ -374,6 +375,10 @@ impl CongestionTracker {
         number_congested_transactions: usize,
         number_cleared_transactions: usize,
     ) {
+        // Store the object IDs that are congested in this checkpoint
+        let congested_objects: std::collections::HashSet<_> =
+            congestion_info_map.keys().cloned().collect();
+
         for (object_id, info) in congestion_info_map {
             self.object_congestion_info
                 .entry(object_id)
@@ -397,6 +402,27 @@ impl CongestionTracker {
                         Op::Put(new_info)
                     }
                 });
+        }
+
+        // Decay hotness of unaffected objects, and prune if too cold
+        for (object_id, _) in self.object_congestion_info.iter() {
+            if !congested_objects.contains(&object_id) {
+                self.object_congestion_info
+                    .entry(*object_id)
+                    .and_compute_with(|maybe_entry| {
+                        if let Some(e) = maybe_entry {
+                            let mut e = e.into_value();
+                            e.hotness /= 2.0;
+                            if e.hotness < HOTNESS_THRESHOLD {
+                                Op::Remove
+                            } else {
+                                Op::Put(e)
+                            }
+                        } else {
+                            Op::Nop
+                        }
+                    });
+            }
         }
     }
 
@@ -582,9 +608,24 @@ mod tests {
             &[],
         );
 
-        let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap();
-        let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap();
-        assert!(hotness1 == 220.0, "obj1 should have unchanged hotness");
-        assert!(hotness2 == 120.0, "obj2 should have increased hotness");
+        let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
+        let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
+        assert!(hotness1 == 220.0, "hotness for obj1 should be 220.0");
+        assert!(hotness2 == 120.0, "hotness for obj2 should be 120.0");
+
+        // Additional checkpoints
+        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1050)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(
+            1000,
+            &[(100, vec![obj1, obj2], 1150), (100, vec![obj1], 1020)],
+            &[],
+        );
+
+        let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
+        let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
+        assert!(hotness1 == 36.1, "hotness for obj1 should be 36.1");
+        assert!(hotness2 == 38.35, "hotness for obj2 should be 38.35");
     }
 }
