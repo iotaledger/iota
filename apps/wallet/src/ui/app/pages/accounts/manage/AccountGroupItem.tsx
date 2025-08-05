@@ -177,11 +177,9 @@ export function AccountGroupItem({
                                         Export Private Key
                                     </ListItem>
                                 ) : null}
-                                {account.isKeyPairExportable ? (
-                                    <ListItem hideBottomBorder onClick={handleExportPublicKey}>
-                                        Export Public Key
-                                    </ListItem>
-                                ) : null}
+                                <ListItem hideBottomBorder onClick={handleExportPublicKey}>
+                                    Export Public Key With Flag
+                                </ListItem>
                                 {allAccounts.isPending ? null : (
                                     <ListItem hideBottomBorder onClick={handleRemove}>
                                         Delete

@@ -6,6 +6,8 @@ import { useMutation } from '@tanstack/react-query';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { VerifyPasswordModal, HideShowDisplayBox, Loading, Overlay } from '_components';
 import { fromExportedKeypair } from '_src/shared/utils/keypair';
+import { AccountType } from '_src/background/accounts/account';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 
 export function ExportPublicKeyPage() {
     const { accountID } = useParams();
@@ -18,6 +20,15 @@ export function ExportPublicKeyPage() {
             if (!account) {
                 return null;
             }
+
+            if (account.type === AccountType.LedgerDerived) {
+                if (!account.publicKey) {
+                    throw new Error('Public key not available for this Ledger account');
+                }
+                const publicKey = new Ed25519PublicKey(account.publicKey);
+                return publicKey.toIotaPublicKey();
+            }
+
             const { keyPair } = await backgroundClient.exportAccountKeyPair({
                 password,
                 accountID: account.id,
@@ -27,6 +38,7 @@ export function ExportPublicKeyPage() {
         gcTime: 0,
     });
     const navigate = useNavigate();
+
     if (!account && !isPending) {
         return <Navigate to="/accounts/manage" replace />;
     }
