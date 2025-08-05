@@ -53,6 +53,9 @@ pub(crate) struct CommitObserver {
     sender: UnboundedSender<CommittedSubDag>,
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
+    /// Dag state for direct access to block headers
+    dag_state: Arc<RwLock<DagState>>,
+
     leader_schedule: Arc<LeaderSchedule>,
 }
 
@@ -74,6 +77,7 @@ impl CommitObserver {
             context,
             sender: commit_consumer.sender,
             store,
+            dag_state,
             leader_schedule,
         };
 
@@ -123,7 +127,7 @@ impl CommitObserver {
             .get_transaction_ack_authors(missing_transactions);
 
         let mut sent_sub_dags = Vec::with_capacity(solid_sub_dags.len());
-        for solid_sub_dag in solid_sub_dags.into_iter() {
+        for solid_sub_dag in solid_sub_dags.iter() {
             // Failures in sender.send() are assumed to be permanent
             if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
                 tracing::error!(
@@ -138,7 +142,7 @@ impl CommitObserver {
             );
             sent_sub_dags.push(solid_sub_dag);
         }
-        self.report_metrics(&pending_sub_dags);
+        self.report_metrics(&pending_sub_dags, &solid_sub_dags);
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
         Ok((pending_sub_dags, missing_transaction_acknowledgers))
@@ -279,13 +283,18 @@ impl CommitObserver {
             .get_transaction_ack_authors(missing_refs.into_iter().collect())
     }
 
-    fn report_metrics(&self, committed: &[PendingSubDag]) {
+    fn report_metrics(
+        &self,
+        pending_sub_dags: &[PendingSubDag],
+        committed_sub_dags: &[CommittedSubDag],
+    ) {
         let metrics = &self.context.metrics.node_metrics;
         let utc_now = self.context.clock.timestamp_utc_ms();
 
-        for commit in committed {
+        // First report block_header-related metrics for pending subdags
+        for commit in pending_sub_dags {
             debug!(
-                "Consensus commit {} with leader {} has {} blocks",
+                "Consensus pending subdag {} with leader {} has {} blocks",
                 commit.commit_ref,
                 commit.leader,
                 commit.blocks.len()
@@ -315,7 +324,53 @@ impl CommitObserver {
             .metrics
             .node_metrics
             .sub_dags_per_commit_count
-            .observe(committed.len() as f64);
+            .observe(pending_sub_dags.len() as f64);
+
+        // Now report transaction-related metrics for committed subdags
+        for commit in committed_sub_dags {
+            info!(
+                "Consensus available subdag {} with leader {} has transactions from {} blocks",
+                commit.commit_ref,
+                commit.leader,
+                commit.transactions.len()
+            );
+
+            // Report the actual number of committed transactions
+            metrics.transactions_per_commit_count.observe(
+                commit
+                    .transactions
+                    .iter()
+                    .map(|x| x.transactions().len())
+                    .sum::<usize>() as f64,
+            );
+
+            let block_refs_for_committed_txs = commit
+                .transactions
+                .iter()
+                .map(|tx| tx.block_ref())
+                .collect::<Vec<_>>();
+
+            // Read only cached block headers from storage for the transactions in the
+            // commit. Headers are needed to calculate the latency of the
+            // transactions. The metrics reflects only the latency for cached
+            // block headers
+            let headers_for_committed_txs = self
+                .dag_state
+                .read()
+                .get_cached_block_headers(&block_refs_for_committed_txs)
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            for block_header in headers_for_committed_txs {
+                let latency_ms = utc_now
+                    .checked_sub(block_header.timestamp_ms())
+                    .unwrap_or_default();
+                metrics
+                    .transaction_commit_latency
+                    .observe(Duration::from_millis(latency_ms).as_secs_f64());
+            }
+        }
     }
 }
 
