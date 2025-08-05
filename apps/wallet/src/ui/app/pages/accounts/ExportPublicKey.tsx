@@ -22,7 +22,7 @@ export function ExportPublicKeyPage() {
                 password,
                 accountID: account.id,
             });
-            return fromExportedKeypair(keyPair).getPublicKey().toBase64();
+            return fromExportedKeypair(keyPair).getPublicKey().toIotaPublicKey();
         },
         gcTime: 0,
     });
