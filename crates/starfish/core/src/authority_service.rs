@@ -1098,7 +1098,7 @@ mod tests {
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
         },
-        storage::mem_store::MemStore,
+        storage::{Store, mem_store::MemStore},
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
@@ -2592,6 +2592,182 @@ mod tests {
         assert!(
             serialized_block_headers.len() > block_refs_to_request.len(),
             "Should receive more block headers than requested",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_fetch_commits() {
+        // GIVEN
+        let rounds = 5;
+        let validators = 4;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        // we set sync_last_known_own_block to true and last known proposed round to
+        // rounds+5 so that core doesn't start to create its own new blocks,
+        // that would be different from the blocks created in dag builder
+        let mut core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+        core.set_last_known_proposed_round(rounds + 5);
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create the authority service
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store.clone(),
+        ));
+
+        // Set up DAG with blocks
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        // dag_builder.persist_all_blocks(dag_state.clone());
+
+        // Get all block headers
+        let mut all_block_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        for round in 0..=rounds {
+            all_block_headers.push(dag_builder.block_headers(round..=round));
+        }
+
+        for round in 1..=rounds {
+            core_dispatcher
+                .add_block_headers(all_block_headers[round as usize].clone())
+                .await
+                .expect("block headers are expected to be added successfully");
+        }
+
+        // Manually construct headers with commit votes
+        let range = CommitRange::new(1..=rounds);
+        let commits = store.scan_commits(range.clone()).unwrap();
+        let mut commit_refs = vec![];
+        for commit in commits {
+            let commit_ref = commit.reference();
+            commit_refs.push(commit_ref);
+        }
+        let mut new_block_headers = vec![];
+        let refs_to_headers_from_prev_round = all_block_headers[rounds as usize]
+            .iter()
+            .map(|header| header.reference())
+            .collect::<Vec<_>>();
+        for validator in 0..validators {
+            let test_block_header = TestBlockHeader::new(rounds + 1, validator as u32)
+                .set_commit_votes(commit_refs.clone())
+                .set_ancestors(refs_to_headers_from_prev_round.clone())
+                .set_timestamp_ms(
+                    (rounds as u64 + 1) * 1000 + (validator + rounds as usize + 1) as u64,
+                )
+                .build();
+            let verified_block_header = VerifiedBlockHeader::new_for_test(test_block_header);
+            new_block_headers.push(verified_block_header);
+        }
+        all_block_headers.push(new_block_headers.clone());
+        core_dispatcher
+            .add_block_headers(new_block_headers.clone())
+            .await
+            .expect("block headers are expected to be added successfully");
+
+        // create headers for several more rounds so that new headers with commit votes
+        // are commited
+        for round in rounds + 2..rounds + 5 {
+            let mut new_block_headers = vec![];
+            let refs_to_headers_from_prev_round = all_block_headers[round as usize - 1]
+                .iter()
+                .map(|header| header.reference())
+                .collect::<Vec<_>>();
+            for validator in 0..validators {
+                let test_block_header = TestBlockHeader::new(round, validator as u32)
+                    .set_ancestors(refs_to_headers_from_prev_round.clone())
+                    .set_timestamp_ms(round as u64 * 1000 + (validator + round as usize + 1) as u64)
+                    .build();
+                let verified_block_header = VerifiedBlockHeader::new_for_test(test_block_header);
+                new_block_headers.push(verified_block_header);
+            }
+            all_block_headers.push(new_block_headers.clone());
+            core_dispatcher
+                .add_block_headers(new_block_headers.clone())
+                .await
+                .expect("block headers are expected to be added successfully");
+        }
+
+        let peer = context.committee.to_authority_index(1).unwrap();
+
+        let result = authority_service
+            .handle_fetch_commits(peer, range)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result.0.len() as u32,
+            rounds - 2,
+            "Should return commits for range 1..={}, but returned {}",
+            rounds - 2,
+            result.0.len() as u32
         );
     }
 }
