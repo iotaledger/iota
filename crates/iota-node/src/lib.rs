@@ -2098,6 +2098,7 @@ impl IotaNode {
         tx: &Transaction,
         span: tracing::Span,
     ) {
+        let _guard = span.enter();
         let transaction =
             iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
                 iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
@@ -2107,8 +2108,6 @@ impl IotaNode {
             );
         state
             .try_execute_immediately(&transaction, None, epoch_store)
-            .instrument(span)
-            .await
             .unwrap();
     }
 

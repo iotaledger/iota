@@ -411,7 +411,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                     None,
                     &state.epoch_store_for_testing(),
                 )
-                .await
                 .unwrap();
 
             state

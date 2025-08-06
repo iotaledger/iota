@@ -101,8 +101,7 @@ pub async fn execute_certificate_with_execution_error(
                     &vec![VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
-                )
-                .await?;
+                )?;
         }
         if let Some(fullnode) = fullnode {
             fullnode
@@ -112,8 +111,7 @@ pub async fn execute_certificate_with_execution_error(
                     &vec![VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
-                )
-                .await?;
+                )?;
         }
     }
 
@@ -121,7 +119,7 @@ pub async fn execute_certificate_with_execution_error(
     // when we try to look up our dummy module. we unfortunately don't get a
     // very descriptive error message, but we can at least see that something went
     // wrong inside the VM
-    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
+    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(vec![result.inner().data().clone()]);
     state.union(&effects_acc);
@@ -129,7 +127,7 @@ pub async fn execute_certificate_with_execution_error(
     assert_eq!(state_after.digest(), state.digest());
 
     if let Some(fullnode) = fullnode {
-        fullnode.try_execute_for_test(&certificate).await?;
+        fullnode.try_execute_for_test(&certificate)?;
     }
     Ok((
         certificate.into_inner(),
@@ -383,7 +381,7 @@ pub async fn execute_sequenced_certificate_to_effects(
         &authority.epoch_store_for_testing(),
     );
 
-    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
+    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let effects = result.inner().data().clone();
     Ok((effects, execution_error_opt))
 }

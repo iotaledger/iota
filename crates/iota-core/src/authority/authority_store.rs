@@ -29,10 +29,7 @@ use iota_types::{
 };
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
-use tokio::{
-    sync::{RwLockReadGuard, RwLockWriteGuard},
-    time::Instant,
-};
+use tokio::time::Instant;
 use tracing::{debug, info, trace};
 use typed_store::{
     TypedStoreError,
@@ -144,8 +141,8 @@ pub struct AuthorityStore {
     metrics: AuthorityStoreMetrics,
 }
 
-pub type ExecutionLockReadGuard<'a> = RwLockReadGuard<'a, EpochId>;
-pub type ExecutionLockWriteGuard<'a> = RwLockWriteGuard<'a, EpochId>;
+pub type ExecutionLockReadGuard<'a> = tokio::sync::RwLockReadGuard<'a, EpochId>;
+pub type ExecutionLockWriteGuard<'a> = tokio::sync::RwLockWriteGuard<'a, EpochId>;
 
 impl AuthorityStore {
     /// Open an authority store by directory path.
@@ -592,10 +589,9 @@ impl AuthorityStore {
 
     /// A function that acquires all locks associated with the objects (in order
     /// to avoid deadlocks).
-    async fn acquire_locks(&self, input_objects: &[ObjectRef]) -> Vec<MutexGuard> {
+    fn acquire_locks(&self, input_objects: &[ObjectRef]) -> Vec<MutexGuard> {
         self.mutex_table
             .acquire_locks(input_objects.iter().map(|(_, _, digest)| *digest))
-            .await
     }
 
     pub fn object_exists_by_key(
@@ -859,7 +855,7 @@ impl AuthorityStore {
                 indirect_object.map(|obj| obj.inner().digest())
             })
             .collect();
-        self.objects_lock_table.acquire_read_locks(digests).await
+        self.objects_lock_table.acquire_read_locks(digests)
     }
 
     /// Updates the state resulting from the execution of a certificate.
@@ -868,7 +864,7 @@ impl AuthorityStore {
     /// version, and then writes objects, certificates, parents and clean up
     /// locks atomically.
     #[instrument(level = "debug", skip_all)]
-    pub async fn write_transaction_outputs(
+    pub fn write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: &[Arc<TransactionOutputs>],
@@ -878,14 +874,14 @@ impl AuthorityStore {
             written.extend(outputs.written.values().cloned());
         }
 
-        let _locks = self.acquire_read_locks_for_indirect_objects(&written).await;
+        let _locks = self.acquire_read_locks_for_indirect_objects(&written);
 
         let mut write_batch = self.perpetual_tables.transactions.batch();
         for outputs in tx_outputs {
             self.write_one_transaction_outputs(&mut write_batch, epoch_id, outputs)?;
         }
         // test crashing before writing the batch
-        fail_point_async!("crash");
+        fail_point!("crash");
 
         write_batch.write()?;
         trace!(
@@ -897,7 +893,7 @@ impl AuthorityStore {
         );
 
         // test crashing before notifying
-        fail_point_async!("crash");
+        fail_point!("crash");
 
         Ok(())
     }
@@ -1059,7 +1055,7 @@ impl AuthorityStore {
         Ok(())
     }
 
-    pub async fn acquire_transaction_locks(
+    pub fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
         owned_input_objects: &[ObjectRef],
@@ -1069,7 +1065,7 @@ impl AuthorityStore {
         // Other writers may be attempting to acquire locks on the same objects, so a
         // mutex is required.
         // TODO: replace with optimistic db_transactions (i.e. set lock to tx if none)
-        let _mutexes = self.acquire_locks(owned_input_objects).await;
+        let _mutexes = self.acquire_locks(owned_input_objects);
 
         trace!(?owned_input_objects, "acquire_transaction_locks");
         let mut locks_to_write = Vec::new();

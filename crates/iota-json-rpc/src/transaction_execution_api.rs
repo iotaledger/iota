@@ -285,10 +285,17 @@ impl TransactionExecutionApi {
         let (txn_data, txn_digest, input_objs) =
             self.prepare_dry_run_transaction_block(tx_bytes)?;
         let sender = txn_data.sender();
-        let (resp, written_objects, transaction_effects, mock_gas) = self
-            .state
-            .dry_exec_transaction(txn_data.clone(), txn_digest)
-            .await?;
+
+        // Use spawn_blocking since dry_exec_transaction is a long-running synchronous
+        // operation
+        let state = self.state.clone();
+        let (resp, written_objects, transaction_effects, mock_gas) =
+            tokio::task::spawn_blocking(move || {
+                state.dry_exec_transaction(txn_data.clone(), txn_digest)
+            })
+            .await
+            .map_err(Error::from)??;
+
         let object_cache = ObjectProviderCache::new_with_cache(self.state.clone(), written_objects);
         let balance_changes = get_balance_changes_from_effect(
             &object_cache,

@@ -57,7 +57,7 @@ use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::WritebackCacheConfig;
-use iota_macros::fail_point_async;
+use iota_macros::{fail_point, fail_point_async};
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
@@ -514,14 +514,13 @@ impl WritebackCache {
         std::mem::swap(self, &mut new);
     }
 
-    async fn write_object_entry(
+    fn write_object_entry(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         object: ObjectEntry,
     ) {
         trace!(?object_id, ?version, ?object, "inserting object entry");
-        fail_point_async!("write_object_entry");
         self.metrics.record_cache_write("object");
 
         // We must hold the lock for the object entry while inserting to the
@@ -563,7 +562,7 @@ impl WritebackCache {
         entry.insert(version, object);
     }
 
-    async fn write_marker_value(
+    fn write_marker_value(
         &self,
         epoch_id: EpochId,
         object_key: &ObjectKey,
@@ -574,7 +573,7 @@ impl WritebackCache {
             object_key,
             marker_value
         );
-        fail_point_async!("write_marker_entry");
+        fail_point!("write_marker_entry");
         self.metrics.record_cache_write("marker");
         self.dirty
             .markers
@@ -836,7 +835,7 @@ impl WritebackCache {
     }
 
     #[instrument(level = "debug", skip_all)]
-    async fn write_transaction_outputs(
+    fn write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
@@ -860,33 +859,28 @@ impl WritebackCache {
         // object, instead of the deleted/wrapped tombstone, which would cause
         // an execution fork
         for ObjectKey(id, version) in deleted.iter() {
-            self.write_object_entry(id, *version, ObjectEntry::Deleted)
-                .await;
+            self.write_object_entry(id, *version, ObjectEntry::Deleted);
         }
 
         for ObjectKey(id, version) in wrapped.iter() {
-            self.write_object_entry(id, *version, ObjectEntry::Wrapped)
-                .await;
+            self.write_object_entry(id, *version, ObjectEntry::Wrapped);
         }
 
         // Update all markers
         for (object_key, marker_value) in markers.iter() {
-            self.write_marker_value(epoch_id, object_key, *marker_value)
-                .await;
+            self.write_marker_value(epoch_id, object_key, *marker_value);
         }
 
         // Write children before parents to ensure that readers do not observe a parent
         // object before its most recent children are visible.
         for (object_id, object) in written.iter() {
             if object.is_child_object() {
-                self.write_object_entry(object_id, object.version(), object.clone().into())
-                    .await;
+                self.write_object_entry(object_id, object.version(), object.clone().into());
             }
         }
         for (object_id, object) in written.iter() {
             if !object.is_child_object() {
-                self.write_object_entry(object_id, object.version(), object.clone().into())
-                    .await;
+                self.write_object_entry(object_id, object.version(), object.clone().into());
                 if object.is_package() {
                     debug!("caching package: {:?}", object.compute_object_reference());
                     self.packages
@@ -988,9 +982,7 @@ impl WritebackCache {
         // Flush writes to disk before removing anything from dirty set. otherwise,
         // a cache eviction could cause a value to disappear briefly, even if we insert
         // to the cache before removing from the dirty set.
-        self.store
-            .write_transaction_outputs(epoch, &all_outputs)
-            .await?;
+        self.store.write_transaction_outputs(epoch, &all_outputs)?;
 
         for outputs in all_outputs.iter() {
             let tx_digest = outputs.transaction.digest();
@@ -2124,23 +2116,26 @@ impl TransactionCacheRead for WritebackCache {
 }
 
 impl ExecutionCacheWrite for WritebackCache {
-    fn try_acquire_transaction_locks<'a>(
-        &'a self,
-        epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+    fn try_acquire_transaction_locks(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
-        self.object_locks
-            .acquire_transaction_locks(self, epoch_store, owned_input_objects, transaction)
-            .boxed()
+    ) -> IotaResult {
+        self.object_locks.acquire_transaction_locks(
+            self,
+            epoch_store,
+            owned_input_objects,
+            transaction,
+        )
     }
 
     fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult> {
-        WritebackCache::write_transaction_outputs(self, epoch_id, tx_outputs).boxed()
+    ) -> IotaResult {
+        WritebackCache::write_transaction_outputs(self, epoch_id, tx_outputs)
     }
 }
 
