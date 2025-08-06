@@ -155,7 +155,7 @@ jobs:
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Run Wallet e2e tests
