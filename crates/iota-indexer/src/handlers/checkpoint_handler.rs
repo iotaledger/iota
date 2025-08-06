@@ -8,12 +8,12 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaTransactionKind;
 use iota_metrics::{get_metrics, spawn_monitored_task};
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::TransactionEffectsAPI,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
