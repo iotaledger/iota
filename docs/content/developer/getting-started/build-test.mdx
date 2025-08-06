@@ -65,22 +65,8 @@ Test result: OK. Total tests: 0; passed: 0; failed: 0
 
 You can add your first unit test by copying the following public test function and adding it to the `first_package` file.
 
-```move
-#[test]
-public fun test_sword() {
-    // Create a dummy TxContext for testing.
-    let mut ctx = tx_context::dummy();
-
-    // Create a sword.
-    let sword = Sword {
-        id: object::new(&mut ctx),
-        magic: 42,
-        strength: 7,
-    };
-
-    // Check if accessor functions return correct values.
-    assert!(magic(&sword) == 42 && strength(&sword) == 7, 1);
-}
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L109-L127
 ```
 
 The unit test function `test_sword()` will:
@@ -127,10 +113,8 @@ Move has many features to ensure your code is safe. In this case, the `Sword` st
 
 Instead, you can fix the compilation error by adequately disposing of the `sword`. Add the following after the function's `!assert` call to transfer the `sword` to a freshly created dummy address:
 
-```move
-// Create a dummy address and transfer the sword.
-let dummy_address = @0xCAFE;
-transfer::transfer(sword, dummy_address);
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L124-L126
 ```
 
 Run the test command again. Now the output shows a single successful test has run:
@@ -197,82 +181,41 @@ The `Scenario` instance will emulate the IOTA object storage with an object pool
 You should update the `first_package.move` file to include entry functions callable from IOTA that implement `sword` creation and transfer. You can add these after the accessor functions.
 
 
-```move
-public fun create_sword(magic: u64, strength: u64, recipient: address, ctx: &mut TxContext) {
-  // Create a sword.
-  let sword = Sword {
-    id: object::new(ctx),
-    magic: magic,
-    strength: strength,
-  };
-  // Transfer the sword.
-  transfer::transfer(sword, recipient);
-}
-
-public fun sword_transfer(sword: Sword, recipient: address, _ctx: &mut TxContext) {
-  // Transfer the sword.
-  transfer::public_transfer(sword, recipient);
-}
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L68-L85
 ```
 
 With this code, you have enabled creating and transferring a `sword`. Since these functions use IOTA's `TxContext` and `Transfer`, you should use the `test_scenario`'s multi-transaction capability to test these properly. You should add the following test to the `first_package.move` file:
 
-```move
-#[test]
-fun test_sword_transactions() {
-    use iota::test_scenario;
-
-    // Create test addresses representing users.
-    let admin = @0xBABE;
-    let initial_owner = @0xCAFE;
-    let final_owner = @0xFACE;
-
-    // First transaction to emulate module initialization.
-    let mut scenario_val = test_scenario::begin(admin);
-    let scenario = &mut scenario_val;
-    {
-        init(test_scenario::ctx(scenario));
-    };
-    // Second transaction executed by admin to create a sword.
-    test_scenario::next_tx(scenario, admin);
-    {
-        // Create the sword and transfer it to the initial owner.
-        create_sword(42, 7, initial_owner, test_scenario::ctx(scenario));
-    };
-    // Third transaction executed by the initial sword owner.
-    test_scenario::next_tx(scenario, initial_owner);
-    {
-        // Extract the sword owned by the initial owner.
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        // Transfer the sword to the final owner.
-        sword_transfer(sword, final_owner, test_scenario::ctx(scenario))
-    };
-    // Fourth transaction executed by the final sword owner.
-    test_scenario::next_tx(scenario, final_owner);
-    {
-        // Extract the sword owned by the final owner.
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        // Verify that the sword has expected properties.
-        assert!(magic(&sword) == 42 && strength(&sword) == 7, 1);
-        // Return the sword to the object pool
-        test_scenario::return_to_sender(scenario, sword)
-        // or uncomment the line below to destroy the sword instead.
-        // test_utils::destroy(sword)
-    };
-    test_scenario::end(scenario_val);
-}
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L95-L199
 ```
 
-This test function is more complex than the [previous example](#add-tests), so let's break it down by steps so you understand how the `test_scenario` helpers work in a realistic multi-transaction flow.:
+
+
+### Configuration Object Creation
+
+The `create_config` function allows creating reusable configuration objects that can be shared across transactions:
+
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L87-L93
+```
+
+### For The Complete tests coverage
+The `first_package::my_module` includes a complete set of tests covering all major functionality. For complete testing coverage, refer to these test cases in the module:
+
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L95-L363
+```
+
+This test function is more complex than the previous example, so let's break it down by steps so you understand how the `test_scenario` helpers work in a realistic multi-transaction flow.:
 
 ### 1. Create User Addresses
 
-First, define three test addresses to represent different users in your scenario: an admin, an initial sword owner, and a final sword owner.
+First, define three test addresses to represent different users in your scenario: an admin : ADMIN, an initial sword owner : ALICE, and a final sword owner : BOB.
 
-```move
-let admin = @0xBABE;
-let initial_owner = @0xCAFE;
-let final_owner = @0xFACE;
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L95-L107
 ```
 
 ### 2. Start the Scenario
@@ -280,12 +223,8 @@ let final_owner = @0xFACE;
 Create a Scenario by calling `test_scenario::begin()`. Pass the `admin` address as the sender of the first transaction.
 You can then call the `init` function to simulate module initialization logic during the first transaction.
 
-```move
-let scenario_val = test_scenario::begin(admin);
-let scenario = &mut scenario_val;
-{
-    init(test_scenario::ctx(scenario));
-};
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L131C5-L137C7
 ```
    
 ### 3. Admin Creates a Sword and Transfers It
@@ -295,20 +234,8 @@ Use `test_scenario::next_tx` to advance to the next transaction in the scenario 
 
 In this example, the `admin` uses the `new_sword` function to create a sword using a `Forge` object and then transfers it to the `initial_owner`.
 
-    ```move 
-    test_scenario::next_tx(scenario, admin);
-    {
-    // Take the Forge object from the sender’s inventory.
-    let mut forge = test_scenario::take_from_sender<Forge>(scenario);
-
-    // Create the sword and transfer it.
-    let sword = new_sword(&mut forge, 42, 7, test_scenario::ctx(scenario));
-    transfer::public_transfer(sword, initial_owner);
-
-    // Return the Forge object to the sender’s inventory.
-    test_scenario::return_to_sender(scenario, forge);
-    };
-
+    ```move reference 
+   https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L167-L175
     ```
 
 ### 4. Initial Owner Transfers the Sword
@@ -317,14 +244,8 @@ Next, the `initial_owner` retrieves the sword using `take_from_sender`.
 They then transfer the sword to the `final_owner`.
 This works because `test_scenario` keeps track of objects created and transferred in earlier transactions.
 
-    ```move
-    test_scenario::next_tx(scenario, initial_owner);
-    {
-        // extract the sword owned by the initial owner
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        // transfer the sword to the final owner
-        sword_transfer(sword, final_owner, test_scenario::ctx(scenario))
-    };
+    ```move reference
+    https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L177-L184
     ```
 
 > **Note:**  
@@ -348,262 +269,8 @@ This works because `test_scenario` keeps track of objects created and transferre
 In the final transaction, the `final_owner` retrieves the sword to verify its properties.
 When finished, return the sword to the object pool or destroy it to keep the test state clean.
 
-```move
-test_scenario::next_tx(scenario, final_owner);
-{
-    // Retrieve the sword owned by the final owner.
-    let sword = test_scenario::take_from_sender<Sword>(scenario);
-
-    // Verify that the sword has the correct properties.
-    assert!(magic(&sword) == 42 && strength(&sword) == 7, 1);
-
-    // Return the sword or destroy it to clean up.
-    test_scenario::return_to_sender(scenario, sword);
-    // Or:
-    // test_utils::destroy(sword);
-};
-test_scenario::end(scenario_val);
-
-```
-   
-### Example: Complete Multi-Transaction Test
-
-Putting it all together, the full `test_sword_transactions` function looks like this:
-
-```move
-#[test]
-fun test_sword_transactions() {
-    use iota::test_scenario;
-
-    let admin = @0xBABE;
-    let initial_owner = @0xCAFE;
-    let final_owner = @0xFACE;
-
-    let mut scenario_val = test_scenario::begin(admin);
-    let scenario = &mut scenario_val;
-    {
-        init(test_scenario::ctx(scenario));
-    };
-    test_scenario::next_tx(scenario, admin);
-    {
-        let mut forge = test_scenario::take_from_sender<Forge>(scenario);
-        let sword = new_sword(&mut forge, 42, 7, test_scenario::ctx(scenario));
-        transfer::public_transfer(sword, initial_owner);
-        test_scenario::return_to_sender(scenario, forge);
-    };
-    test_scenario::next_tx(scenario, initial_owner);
-    {
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        sword_transfer(sword, final_owner, test_scenario::ctx(scenario));
-    };
-    test_scenario::next_tx(scenario, final_owner);
-    {
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        assert!(magic(&sword) == 42 && strength(&sword) == 7, 1);
-        test_scenario::return_to_sender(scenario, sword);
-    };
-    test_scenario::end(scenario_val);
-}
-```
-
-### Another Example for Complete Test Scenario and other `test_scenario` functions
-
-```move
-#[test]
-fun test_comprehensive_scenario() {
-    // Import testing modules
-    use iota::test_scenario;
-    use iota::test_utils;
-    
-    // ==============================================
-    // 1. SETUP PHASE
-    // ==============================================
-    
-    // Define test addresses representing different users
-    let admin = @0xADMIN;      // Administrator address
-    let alice = @0xALICE;      // First user address
-    let bob = @0xBOB;          // Second user address
-    
-    // Define test object IDs
-    let forge_id = @0xFORGE;   // ID for forge object
-    let sword_id = @0xSWORD;   // ID for sword object
-    
-    // ==============================================
-    // 2. SCENARIO INITIALIZATION
-    // ==============================================
-    
-    // Begin test scenario with admin as first sender
-    // This creates a new Scenario instance and initial transaction context
-    let scenario_val = test_scenario::begin(admin);
-    let scenario = &mut scenario_val;
-    
-    // ==============================================
-    // 3. FIRST TRANSACTION: MODULE INITIALIZATION
-    // ==============================================
-    {
-        // Initialize module with admin context
-        init(test_scenario::ctx(scenario));
-        
-        // Create initial forge object that will be used to create swords
-        let forge = Forge {
-            id: object::id_from_address(forge_id),
-            swords_created: 0
-        };
-        
-        // Transfer forge to admin's inventory for later use
-        transfer::transfer(forge, admin);
-    };
-    
-    // ==============================================
-    // 4. SECOND TRANSACTION: OBJECT CREATION
-    // ==============================================
-    // Advance to next transaction with admin as sender
-    // This commits effects from first transaction
-    test_scenario::next_tx(scenario, admin);
-    {
-        // Take forge object from admin's inventory
-        // Must use take_from_sender since admin transferred it to themselves
-        let mut forge = test_scenario::take_from_sender<Forge>(scenario);
-        
-        // Create new sword using forge
-        let sword = Sword {
-            id: object::id_from_address(sword_id),
-            magic: 42,
-            strength: 7,
-        };
-        
-        // Update forge state
-        forge.swords_created = forge.swords_created + 1;
-        
-        // Transfer sword to Alice
-        transfer::transfer(sword, alice);
-        
-        // Return forge to admin's inventory for future transactions
-        test_scenario::return_to_sender(scenario, forge);
-    };
-    
-    // ==============================================
-    // 5. THIRD TRANSACTION: OBJECT TRANSFER
-    // ==============================================
-    // Advance to next transaction with Alice as sender
-    test_scenario::next_tx(scenario, alice);
-    {
-        // Take sword from Alice's inventory
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        
-        // Verify sword properties using test_utils assertions
-        test_utils::assert_eq(sword.magic, 42);
-        test_utils::assert_eq(sword.strength, 7);
-        
-        // Transfer sword to Bob
-        transfer::transfer(sword, bob);
-    };
-    
-    // ==============================================
-    // 6. FOURTH TRANSACTION: OBJECT MODIFICATION
-    // ==============================================
-    // Advance to next transaction with Bob as sender
-    test_scenario::next_tx(scenario, bob);
-    {
-        // Take sword from Bob's inventory using alternative method
-        // Demonstrates take_from_address instead of take_from_sender
-        let sword = test_scenario::take_from_address<Sword>(scenario, bob);
-        
-        // Create upgrade receipt as one-time witness
-        let receipt = test_utils::create_one_time_witness<UpgradeReceipt>();
-        
-        // Upgrade sword using receipt
-        sword::upgrade(&mut sword, receipt);
-        
-        // Verify upgrade was successful
-        test_utils::assert_eq(sword.magic, 100);
-        
-        // Return sword to Bob's inventory
-        test_scenario::return_to_sender(scenario, sword);
-    };
-    
-    // ==============================================
-    // 7. FIFTH TRANSACTION: SHARED OBJECT TESTING
-    // ==============================================
-    // Advance to next transaction with admin as sender
-    test_scenario::next_tx(scenario, admin);
-    {
-        // Create and share a global config object
-        let config = Config {
-            id: object::new(test_scenario::ctx(scenario)),
-            value: 500
-        };
-        transfer::share_object(config);
-    };
-    
-    // ==============================================
-    // 8. SIXTH TRANSACTION: ACCESS SHARED OBJECT
-    // ==============================================
-    // Advance to next transaction with Alice as sender
-    test_scenario::next_tx(scenario, alice);
-    {
-        // Take shared config from global inventory
-        let config = test_scenario::take_shared<Config>(scenario);
-        
-        // Modify shared config
-        config.value = 600;
-        
-        // Return shared config
-        test_scenario::return_shared(config);
-    };
-    
-    // ==============================================
-    // 9. SEVENTH TRANSACTION: EPOCH ADVANCEMENT
-    // ==============================================
-    // Advance epoch by 1000ms with Bob as sender
-    test_scenario::later_epoch(scenario, 1000, bob);
-    {
-        // Verify epoch advanced
-        let current_epoch = tx_context::epoch(test_scenario::ctx(scenario));
-        test_utils::assert(current_epoch > 0, 1);
-        
-        // Take sword again from Bob's inventory
-        let sword = test_scenario::take_from_sender<Sword>(scenario);
-        
-        // Final verification
-        test_utils::assert_eq(sword.magic, 100);
-        
-        // Clean up by destroying sword (alternative to returning)
-        test_utils::destroy(sword);
-    };
-    
-    // ==============================================
-    // 10. SCENARIO CLEANUP
-    // ==============================================
-    
-    // End scenario and capture final transaction effects
-    let effects = test_scenario::end(scenario_val);
-    
-    // Verify expected effects
-    test_utils::assert_eq(
-        test_scenario::num_user_events(&effects),
-        0,
-        "No user events expected"
-    );
-}
-```
-
-
-Additional `test_scenario` API Details.
-The `iota::test_scenario` module provides extra utilities to make your test scenarios more realistic.
-
-`take_from_address`
-
-```move
-take_from_address<T>(scenario: &Scenario, addr: address): T
-```
-Use this function to retrieve an object owned by a specific address, instead of the current sender.
-
-`later_epoch`
-Use this function to simulate time passing by advancing the epoch in your scenario.
-
-```move
-test_scenario::later_epoch(&mut scenario, 1000, admin);
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L186-L197
 ```
 
 ### Using `iota::test_utils`
@@ -623,19 +290,49 @@ Checks that two vectors contain the same elements, regardless of order.
 Destroys an object when you no longer need it.
 
 #### Example:
-```move
-#[test]
-fun test_assert_utils() {
-    use iota::test_utils;
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L200-L218
+```
+   
+### Example: Complete Multi-Transaction Move Contract And Test coverage
 
-    let a = 10;
-    let b = 10;
-    test_utils::assert_eq(a, b);
+Putting it all together, the full `first_package::my_module` Contract And Test coverage
+function looks like this:
 
-    let v1 = vector[1, 2, 3];
-    let v2 = vector[3, 2, 1];
-    test_utils::assert_same_elems(v1, v2);
-}
+Inlcudes test_scenario and test_utils modules:-
+
+```move reference
+https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L1-L364
+```
+
+### Run All Tests
+
+1.
+```shell
+iota move build
+```
+
+2.
+```shell
+iota move test
+```
+
+Output of the test command:
+
+```shell
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING first_package
+Running Move unit tests
+[ PASS    ] first_package::my_module::test_address_operations
+[ PASS    ] first_package::my_module::test_assert_utils
+[ PASS    ] first_package::my_module::test_immutable_objects
+[ PASS    ] first_package::my_module::test_module_init
+[ PASS    ] first_package::my_module::test_receiving_tickets
+[ PASS    ] first_package::my_module::test_scenario_advanced
+[ PASS    ] first_package::my_module::test_sword
+[ PASS    ] first_package::my_module::test_sword_transactions
+Test result: OK. Total tests: 8; passed: 8; failed: 0
 ```
 
 ## References:
