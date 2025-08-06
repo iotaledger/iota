@@ -1899,7 +1899,7 @@ impl AuthorityState {
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
+                input: IotaTransactionBlockData::try_from(transaction.clone(), &module_cache, tx_digest)
                     .map_err(|e| IotaError::TransactionSerialization {
                         error: format!(
                             "Failed to convert transaction to IotaTransactionBlockData: {e}",
@@ -1914,6 +1914,7 @@ impl AuthorityState {
                 )?,
                 object_changes,
                 balance_changes,
+                objects_hotness: self.congestion_tracker.get_hotness_for_transaction(&transaction)
             },
             written_with_kind,
             effects,

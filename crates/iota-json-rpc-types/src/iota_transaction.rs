@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fmt::{self, Display, Formatter, Write},
-    sync::Arc,
+    collections::HashMap, fmt::{self, Display, Formatter, Write}, sync::Arc
 };
 
 use enum_dispatch::enum_dispatch;
@@ -55,6 +54,7 @@ use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
+use ordered_float::OrderedFloat;
 
 use crate::{
     Filter, IotaEvent, IotaObjectRef, Page, balance_changes::BalanceChange,
@@ -1132,6 +1132,8 @@ pub struct DryRunTransactionBlockResponse {
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price: Option<u64>,
+    #[schemars(with = "Option<HashMap<ObjectID, f64>>")]
+    pub objects_hotness: Option<HashMap<ObjectID,OrderedFloat<f64>>>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]

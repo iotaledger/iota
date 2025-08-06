@@ -22,6 +22,7 @@ serde_with.workspace = true
 strum.workspace = true
 tabled.workspace = true
 tracing.workspace = true
+ordered-float.workspace = true
 
 # internal dependencies
 iota-enum-compat-util.workspace = true
