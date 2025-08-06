@@ -128,7 +128,7 @@ public fun test_sword() {
 
 #[test]
 public fun test_module_init() {
-    let mut ts = ts::begin(@0x0);
+    let mut ts = ts::begin(ADMIN);
 
     // first transaction to emulate module initialization.
     {
@@ -156,7 +156,7 @@ public fun test_module_init() {
 
 #[test]
 fun test_sword_transactions() {
-    let mut ts = ts::begin(@0x0);
+    let mut ts = ts::begin(ADMIN);
 
     // first transaction to emulate module initialization
     {
