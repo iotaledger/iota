@@ -169,7 +169,7 @@ export function AccountGroupItem({
                                     Rename
                                 </ListItem>
                                 <ListItem hideBottomBorder onClick={handleExportKeys}>
-                                    Export Keys
+                                    Export Account Keys
                                 </ListItem>
                                 {allAccounts.isPending ? null : (
                                     <ListItem hideBottomBorder onClick={handleRemove}>

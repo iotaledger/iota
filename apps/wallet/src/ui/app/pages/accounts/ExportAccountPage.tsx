@@ -38,52 +38,53 @@ export function ExportAccountPage() {
     }
 
     const publicKey = account?.publicKey ? new Ed25519PublicKey(account.publicKey) : null;
-
     return (
-        <Overlay title="Export Keys" closeOverlay={() => navigate(-1)} showModal>
+        <Overlay title="Export Account Keys" closeOverlay={() => navigate(-1)} showModal>
             <Loading loading={isPending}>
-                <div className="flex flex-col gap-md">
-                    <div className="flex flex-col gap-xs">
-                        <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                            Public Key With Flag
+                <div className="max-h-[70vh] overflow-y-auto">
+                    <div className="flex flex-col gap-md">
+                        <div className="flex flex-col gap-xs">
+                            <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                                Public Key With Flag
+                            </div>
+                            <HideShowDisplayBox
+                                value={publicKey ? publicKey?.toIotaPublicKey() : ''}
+                                copiedMessage="Public Key copied"
+                                isContentVisible={true}
+                            />
                         </div>
-                        <HideShowDisplayBox
-                            value={publicKey ? publicKey?.toIotaPublicKey() : ''}
-                            copiedMessage="Public Key copied"
-                            isContentVisible={true}
-                        />
-                    </div>
 
-                    {!isLedgerAccount && (
-                        <>
-                            {exportMutation.data ? (
-                                <div className="flex flex-col gap-xs">
-                                    <InfoBox
-                                        icon={<Warning />}
-                                        type={InfoBoxType.Warning}
-                                        title="Do not share your private key"
-                                        supportingText="Your account derived from it can be fully controlled."
-                                        style={InfoBoxStyle.Default}
-                                    />
-                                    <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                                        Private Key
+                        {!isLedgerAccount && (
+                            <>
+                                {exportMutation.data ? (
+                                    <div className="flex flex-col gap-xs">
+                                        <InfoBox
+                                            icon={<Warning />}
+                                            type={InfoBoxType.Warning}
+                                            title="Do not share your private key"
+                                            supportingText="Your account derived from it can be fully controlled."
+                                            style={InfoBoxStyle.Default}
+                                        />
+                                        <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                                            Private Key
+                                        </div>
+                                        <HideShowDisplayBox
+                                            value={exportMutation.data}
+                                            copiedMessage="Private Key copied"
+                                        />
                                     </div>
-                                    <HideShowDisplayBox
-                                        value={exportMutation.data}
-                                        copiedMessage="Private Key copied"
+                                ) : (
+                                    <VerifyPasswordModal
+                                        open
+                                        onVerify={async (password) => {
+                                            await exportMutation.mutateAsync(password);
+                                        }}
+                                        onClose={() => navigate(-1)}
                                     />
-                                </div>
-                            ) : (
-                                <VerifyPasswordModal
-                                    open
-                                    onVerify={async (password) => {
-                                        await exportMutation.mutateAsync(password);
-                                    }}
-                                    onClose={() => navigate(-1)}
-                                />
-                            )}
-                        </>
-                    )}
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </Loading>
         </Overlay>
