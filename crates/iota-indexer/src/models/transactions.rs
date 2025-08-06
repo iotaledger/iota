@@ -153,7 +153,8 @@ pub struct StoredTransaction {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = optimistic_transactions)]
 pub struct OptimisticTransaction {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub transaction_digest: Vec<u8>,
     pub raw_transaction: Vec<u8>,
     pub raw_effects: Vec<u8>,
@@ -167,7 +168,7 @@ pub struct OptimisticTransaction {
 impl From<OptimisticTransaction> for StoredTransaction {
     fn from(tx: OptimisticTransaction) -> Self {
         StoredTransaction {
-            tx_sequence_number: tx.sequence_number,
+            tx_sequence_number: tx.global_sequence_number,
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
@@ -185,7 +186,8 @@ impl From<OptimisticTransaction> for StoredTransaction {
 impl From<StoredTransaction> for OptimisticTransaction {
     fn from(tx: StoredTransaction) -> Self {
         OptimisticTransaction {
-            sequence_number: tx.tx_sequence_number,
+            global_sequence_number: 0,
+            optimistic_sequence_number: tx.tx_sequence_number,
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
@@ -194,6 +196,23 @@ impl From<StoredTransaction> for OptimisticTransaction {
             events: tx.events,
             transaction_kind: tx.transaction_kind,
             success_command_count: tx.success_command_count,
+        }
+    }
+}
+
+impl OptimisticTransaction {
+    pub fn from_stored(global_sequence_number: i64, stored: StoredTransaction) -> Self {
+        OptimisticTransaction {
+            global_sequence_number,
+            optimistic_sequence_number: stored.tx_sequence_number,
+            transaction_digest: stored.transaction_digest,
+            raw_transaction: stored.raw_transaction,
+            raw_effects: stored.raw_effects,
+            object_changes: stored.object_changes,
+            balance_changes: stored.balance_changes,
+            events: stored.events,
+            transaction_kind: stored.transaction_kind,
+            success_command_count: stored.success_command_count,
         }
     }
 }
