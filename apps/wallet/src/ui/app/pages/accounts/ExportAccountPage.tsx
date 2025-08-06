@@ -50,6 +50,7 @@ export function ExportAccountPage() {
                         <HideShowDisplayBox
                             value={publicKey ? publicKey?.toIotaPublicKey() : ''}
                             copiedMessage="Public Key copied"
+                            isContentVisible={true}
                         />
                     </div>
 
@@ -61,7 +62,7 @@ export function ExportAccountPage() {
                                         icon={<Warning />}
                                         type={InfoBoxType.Warning}
                                         title="Do not share your private key"
-                                        supportingText="Your account derived from it can be controlled fully."
+                                        supportingText="Your account derived from it can be fully controlled."
                                         style={InfoBoxStyle.Default}
                                     />
                                     <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
