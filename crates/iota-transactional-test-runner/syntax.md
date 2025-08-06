@@ -1297,6 +1297,9 @@ It supports the following placeholders:
      - Depending on the query, the raw strings passed to `--cursors` might be required in JSON, BCS or any other format that the query expects.
      - Each string passed is automatically Base64-encoded (as all cursor values are expected to be Base64-encoded) and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
      - To generate cursor values from objects at runtime, the strings passed must correspond to the format `bcs_obj(@{obj_x_y})` or `bcs(@{obj_x_y, checkpoint})` and are translated to Base64-encoded object cursors.
+     - The `bcs(@{obj_x_y}, @{highest_checkpoint})` syntax is a special form used to encode complex cursor values derived from runtime variables. This expression interpolates placeholders using runtime variables (e.g., `@{obj_x_y}` and `@{highest_checkpoint}`), where:
+       - `@{obj_x_y}` is substituted with a real ObjectID in hex form, resolved via object_enumeration.
+       - `@{highest_checkpoint}` is replaced by the most recent checkpoint sequence number obtained via `executor.try_get_latest_checkpoint_sequence_number()`.
 
 All of the above rules (object placeholders, named address placeholders, cursor strings) can be used in a single query.
 Any placeholder or cursor that cannot be mapped to a known variable, object, or address will cause an error.
