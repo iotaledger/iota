@@ -397,6 +397,11 @@ impl DagBuilder {
         dag_state
             .write()
             .accept_block_headers(self.block_headers.values().cloned().collect());
+        for block_transactions in self.transactions.values() {
+            dag_state
+                .write()
+                .add_transactions(block_transactions.clone());
+        }
     }
 
     pub(crate) fn print(&self) {

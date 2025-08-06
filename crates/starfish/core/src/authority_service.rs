@@ -1098,6 +1098,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
+            SerializedTransactions,
         },
         storage::{Store, mem_store::MemStore},
         synchronizer::Synchronizer,
@@ -2947,5 +2948,180 @@ mod tests {
             rounds - 2,
             result.0.len() as u32
         );
+    }
+
+    #[tokio::test]
+    async fn test_handle_fetch_transactions() {
+        // GIVEN
+        let rounds = 10;
+        let validators = 4;
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Context {
+            parameters: Parameters {
+                max_transactions_per_fetch: 20,
+                ..context.parameters
+            },
+            ..context
+        };
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+            highest_received_rounds: vec![0; context.committee.size()].into(),
+        });
+
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create the authority service
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+        ));
+
+        // Set up DAG with blocks
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        dag_builder.layers(rounds + 1..=2 * rounds).build();
+        // Get all block headers
+        let mut all_block_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        for round in 0..=2 * rounds {
+            all_block_headers.push(dag_builder.block_headers(round..=round));
+        }
+
+        let mut block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
+            .flat_map(|round| {
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| bh.reference())
+            })
+            .collect();
+
+        let mut block_refs_to_request_second_batch: Vec<BlockRef> = (rounds + 1..=2 * rounds)
+            .flat_map(|round| {
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| bh.reference())
+            })
+            .collect();
+
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let err = authority_service
+            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
+            .await
+            .expect_err("Expected TooManyFetchTransactionsRequested error");
+
+        assert!(matches!(err, ConsensusError::TooManyFetchTransactionsRequested(p) if p == peer));
+
+        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
+
+        let serialized_transactions = authority_service
+            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
+            .await
+            .expect("Should return a valid vector of serialized transactions");
+
+        // Verify that we received the correct number of requested transactions
+        assert_eq!(
+            serialized_transactions.len(),
+            block_refs_to_request_first_batch.len(),
+            "Should receive {} block transactions",
+            block_refs_to_request_first_batch.len()
+        );
+
+        // Check the correctness of the received transactions
+        for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
+            // Deserialize and check transaction commitment
+            let deserialized: SerializedTransactions =
+                bcs::from_bytes(serialized_transactions_bytes)
+                    .expect("deserialization should succeed");
+            let block_ref = deserialized.block_ref;
+            assert_eq!(block_ref, block_refs_to_request_first_batch[i]);
+            let serialized_transactions = deserialized.serialized_transactions;
+            let block_header = all_block_headers[block_ref.round as usize]
+                .iter()
+                .find(|header| header.reference() == block_ref)
+                .expect("We expect to find the header with such block_ref");
+            assert_eq!(
+                block_header.transactions_commitment(),
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap()
+            );
+        }
+
+        block_refs_to_request_second_batch.truncate(context.parameters.max_transactions_per_fetch);
+
+        let serialized_transactions = authority_service
+            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())
+            .await
+            .expect("Should return an empty vector");
+
+        // Verify that we received zero transactions since they are not present in the
+        // dag
+        assert!(serialized_transactions.is_empty());
     }
 }
