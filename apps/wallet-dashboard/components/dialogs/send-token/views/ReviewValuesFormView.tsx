@@ -18,13 +18,12 @@ import {
     ButtonType,
     Header,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress } from '@iota/iota-sdk/utils';
 import {
     CoinIcon,
     ImageIconSize,
     useFormatCoin,
     ExplorerLinkType,
-    CoinFormat,
     useCoinMetadata,
     parseAmount,
 } from '@iota/core';
@@ -60,12 +59,12 @@ export function ReviewValuesFormView({
     const [roundedAmount, symbol] = useFormatCoin({
         balance: amountWithoutDecimals,
         coinType,
-        format: CoinFormat.ROUNDED,
+        format: CoinFormat.Rounded,
     });
 
     const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: totalGas,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return (

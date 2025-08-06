@@ -3,11 +3,11 @@
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
-import { CoinFormat, IOTA_COIN_METADATA, useFormatCoin } from '../../hooks';
+import { IOTA_COIN_METADATA, useFormatCoin } from '../../hooks';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
 import { parseAmount } from '../../utils';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
@@ -35,7 +35,7 @@ export function SendTokenFormInput({
 
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
         balance: totalGas,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const [field, meta, helpers] = useField<string>(name);
