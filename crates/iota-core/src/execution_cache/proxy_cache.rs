@@ -255,7 +255,7 @@ impl ExecutionCacheWrite for ProxyCache {
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
@@ -264,7 +264,7 @@ impl ExecutionCacheWrite for ProxyCache {
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_acquire_transaction_locks(
             epoch_store,
             owned_input_objects,
