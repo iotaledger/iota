@@ -89,10 +89,10 @@ impl ExecutionSandboxState {
         if self.transaction_info.effects != self.local_exec_effects {
             error!("Replay tool forked {}", self.transaction_info.tx_digest);
             let diff = self.diff_effects();
-            println!("{}", diff);
+            println!("{diff}");
             return Err(ReplayEngineError::EffectsForked {
                 digest: self.transaction_info.tx_digest,
-                diff: format!("\n{}", diff),
+                diff: format!("\n{diff}"),
                 on_chain: Box::new(self.transaction_info.effects.clone()),
                 local: Box::new(self.local_exec_effects.clone()),
             });
@@ -104,8 +104,8 @@ impl ExecutionSandboxState {
     pub fn diff_effects(&self) -> String {
         let eff1 = &self.transaction_info.effects;
         let eff2 = &self.local_exec_effects;
-        let on_chain_str = format!("{:#?}", eff1);
-        let local_chain_str = format!("{:#?}", eff2);
+        let on_chain_str = format!("{eff1:#?}");
+        let local_chain_str = format!("{eff2:#?}");
         let mut res = vec![];
 
         let diff = TextDiff::from_lines(&on_chain_str, &local_chain_str);
@@ -115,7 +115,7 @@ impl ExecutionSandboxState {
                 ChangeTag::Insert => "+++",
                 ChangeTag::Equal => "   ",
             };
-            res.push(format!("{}{}", sign, change));
+            res.push(format!("{sign}{change}"));
         }
 
         res.join("")
@@ -202,15 +202,15 @@ impl Storage {
                 self.package_cache
                     .lock()
                     .expect("Unable to lock")
-                    .iter()
-                    .map(|(_, obj)| obj.clone()),
+                    .values()
+                    .cloned(),
             )
             .chain(
                 self.object_version_cache
                     .lock()
                     .expect("Unable to lock")
-                    .iter()
-                    .map(|(_, obj)| obj.clone()),
+                    .values()
+                    .cloned(),
             )
             .collect::<Vec<_>>()
     }
@@ -1401,8 +1401,7 @@ impl LocalExec {
                     .checkpoint
                     .unwrap_or_else(|| {
                         panic!(
-                            "Checkpoint for transaction {} not present. Could be due to pruning",
-                            epoch_change_tx
+                            "Checkpoint for transaction {epoch_change_tx} not present. Could be due to pruning"
                         )
                     }),
                 idx,
@@ -1421,8 +1420,7 @@ impl LocalExec {
             .checkpoint
             .unwrap_or_else(|| {
                 panic!(
-                    "Checkpoint for transaction {} not present. Could be due to pruning",
-                    next_epoch_change_tx
+                    "Checkpoint for transaction {next_epoch_change_tx} not present. Could be due to pruning"
                 )
             });
 
@@ -1937,7 +1935,7 @@ impl ChildObjectResolver for LocalExec {
             receiving_object_id: &ObjectID,
             receive_object_at_version: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
-            let recv_object = match self_.get_object(receiving_object_id)? {
+            let recv_object = match self_.try_get_object(receiving_object_id)? {
                 None => return Ok(None),
                 Some(o) => o,
             };
@@ -2056,7 +2054,7 @@ impl ModuleResolver for &mut LocalExec {
 impl ObjectStore for LocalExec {
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
@@ -2079,7 +2077,7 @@ impl ObjectStore for LocalExec {
 
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -2112,23 +2110,23 @@ impl ObjectStore for LocalExec {
 }
 
 impl ObjectStore for &mut LocalExec {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
-        (**self).get_object(object_id)
+        (**self).try_get_object(object_id)
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
-        (**self).get_object_by_key(object_id, version)
+        (**self).try_get_object_by_key(object_id, version)
     }
 }
 

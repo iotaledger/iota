@@ -3,17 +3,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as Yup from 'yup';
-import { createIotaAddressValidation } from '../validation';
+import { createReceivingAddressInputSchema, ReceiverInputFormValues } from '../validation';
 import { ValidationError } from 'yup';
 
-export function createNftSendValidationSchema(senderAddress: string, objectId: string) {
+export function createNftSendValidationSchema(
+    senderAddress: string,
+    objectId: string,
+    isNameResolutionEnabled: boolean = false,
+) {
+    const baseSchema = createReceivingAddressInputSchema(isNameResolutionEnabled);
+
     return Yup.object({
-        to: createIotaAddressValidation()
-            .test(
-                'sender-address',
-                'NFT is owned by this address',
-                (value) => senderAddress !== value,
-            )
+        ...baseSchema,
+        to: baseSchema.to
+            .test('sender-address', 'NFT is owned by this address', (value, { parent }) => {
+                const { resolvedAddress } = parent as ReceiverInputFormValues;
+
+                if (resolvedAddress) {
+                    return senderAddress !== resolvedAddress;
+                }
+
+                return senderAddress !== value;
+            })
             .test(
                 'nft-sender-address',
                 'NFT address must be different from receiver address',

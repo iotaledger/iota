@@ -4,7 +4,6 @@
 export * from './Box';
 export * from './AmountBox';
 export * from './Input';
-export * from './ExternalImage';
 export * from './PageSizeSelector';
 export * from './PaginationOptions';
 export * from './Amplitude';
@@ -21,7 +20,6 @@ export * from './dialogs';
 export * from './ValidatorStakingData';
 export * from './tiles';
 export * from './migration';
-export * from './Banner';
 export * from './StakeRewardsPanel';
 export * from './MigrationOverview';
 export * from './SupplyIncreaseVestingOverview';

@@ -58,7 +58,8 @@ impl TransactionInputLoader {
             match kind {
                 // Packages are loaded one at a time via the cache
                 InputObjectKind::MovePackage(id) => {
-                    let Some(package) = self.cache.get_package_object(id)?.map(|o| o.into()) else {
+                    let Some(package) = self.cache.try_get_package_object(id)?.map(|o| o.into())
+                    else {
                         return Err(IotaError::from(kind.object_not_found_error()));
                     };
                     input_results[i] = Some(ObjectReadResult {
@@ -66,14 +67,17 @@ impl TransactionInputLoader {
                         object: ObjectReadResultKind::Object(package),
                     });
                 }
-                InputObjectKind::SharedMoveObject { id, .. } => match self.cache.get_object(id)? {
+                InputObjectKind::SharedMoveObject { id, .. } => match self
+                    .cache
+                    .try_get_object(id)?
+                {
                     Some(object) => {
                         input_results[i] = Some(ObjectReadResult::new(*kind, object.into()))
                     }
                     None => {
                         if let Some((version, digest)) = self
                             .cache
-                            .get_last_shared_object_deletion_info(id, epoch_id)?
+                            .try_get_last_shared_object_deletion_info(id, epoch_id)?
                         {
                             input_results[i] = Some(ObjectReadResult {
                                 input_object_kind: *kind,
@@ -93,7 +97,7 @@ impl TransactionInputLoader {
 
         let objects = self
             .cache
-            .multi_get_objects_with_more_accurate_error_return(&object_refs)?;
+            .try_multi_get_objects_with_more_accurate_error_return(&object_refs)?;
         assert_eq!(objects.len(), object_refs.len());
         for (index, object) in fetch_indices.into_iter().zip(objects.into_iter()) {
             input_results[index] = Some(ObjectReadResult {
@@ -153,7 +157,7 @@ impl TransactionInputLoader {
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
                 InputObjectKind::MovePackage(id) => {
-                    let package = self.cache.get_package_object(id)?.unwrap_or_else(|| {
+                    let package = self.cache.try_get_package_object(id)?.unwrap_or_else(|| {
                         panic!("Executable transaction {tx_key:?} depends on non-existent package {id:?}")
                     });
 
@@ -206,7 +210,7 @@ impl TransactionInputLoader {
             }
         }
 
-        let objects = self.cache.multi_get_objects_by_key(&object_keys)?;
+        let objects = self.cache.try_multi_get_objects_by_key(&object_keys)?;
 
         assert!(objects.len() == object_keys.len() && objects.len() == fetches.len());
 
@@ -226,7 +230,7 @@ impl TransactionInputLoader {
                     let version = key.1;
                     if let Some(dependency) = self
                         .cache
-                        .get_deleted_shared_object_previous_tx_digest(id, version, epoch_id)?
+                        .try_get_deleted_shared_object_previous_tx_digest(id, version, epoch_id)?
                     {
                         ObjectReadResult {
                             input_object_kind: *input,
@@ -267,7 +271,7 @@ impl TransactionInputLoader {
 
             if self
                 .cache
-                .have_received_object_at_version(object_id, *version, epoch_id)?
+                .try_have_received_object_at_version(object_id, *version, epoch_id)?
             {
                 receiving_results.push(ReceivingObjectReadResult::new(
                     *objref,
@@ -276,7 +280,7 @@ impl TransactionInputLoader {
                 continue;
             }
 
-            let Some(object) = self.cache.get_object(object_id)? else {
+            let Some(object) = self.cache.try_get_object(object_id)? else {
                 return Err(UserInputError::ObjectNotFound {
                     object_id: *object_id,
                     version: Some(*version),

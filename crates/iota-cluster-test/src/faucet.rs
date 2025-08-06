@@ -91,14 +91,14 @@ impl FaucetClient for RemoteFaucetClient {
             .json(&map)
             .send()
             .await
-            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {:?}: {:?}", gas_url, e));
+            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {gas_url:?}: {e:?}"));
         let full_bytes = response.bytes().await.unwrap();
         let faucet_response: FaucetResponse = serde_json::from_slice(&full_bytes)
             .map_err(|e| anyhow::anyhow!("json deser failed with bytes {:?}: {e}", full_bytes))
             .unwrap();
 
         if let Some(error) = faucet_response.error {
-            panic!("Failed to get gas tokens with error: {}", error)
+            panic!("Failed to get gas tokens with error: {error}")
         };
 
         faucet_response
@@ -120,14 +120,14 @@ impl FaucetClient for RemoteFaucetClient {
             .json(&map)
             .send()
             .await
-            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {:?}: {:?}", gas_url, e));
+            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {gas_url:?}: {e:?}"));
         let full_bytes = response.bytes().await.unwrap();
         let faucet_response: BatchFaucetResponse = serde_json::from_slice(&full_bytes)
             .map_err(|e| anyhow::anyhow!("json deser failed with bytes {:?}: {e}", full_bytes))
             .unwrap();
 
         if let Some(error) = faucet_response.error {
-            panic!("Failed to get gas tokens with error: {}", error)
+            panic!("Failed to get gas tokens with error: {error}")
         };
 
         faucet_response
@@ -150,9 +150,7 @@ impl FaucetClient for RemoteFaucetClient {
             .header("Authorization", auth_header)
             .send()
             .await
-            .unwrap_or_else(|e| {
-                panic!("Failed to talk to remote faucet {:?}: {:?}", status_url, e)
-            });
+            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {status_url:?}: {e:?}"));
         let full_bytes = response.bytes().await.unwrap();
         let faucet_response: BatchStatusFaucetResponse = serde_json::from_slice(&full_bytes)
             .map_err(|e| anyhow::anyhow!("json deser failed with bytes {:?}: {e}", full_bytes))
@@ -180,7 +178,7 @@ impl FaucetClient for LocalFaucetClient {
             .simple_faucet
             .send(Uuid::new_v4(), request_address, &[200_000_000_000; 5])
             .await
-            .unwrap_or_else(|err| panic!("Failed to get gas tokens with error: {}", err));
+            .unwrap_or_else(|err| panic!("Failed to get gas tokens with error: {err}"));
 
         receipt.into()
     }
@@ -189,7 +187,7 @@ impl FaucetClient for LocalFaucetClient {
             .simple_faucet
             .batch_send(Uuid::new_v4(), request_address, &[200_000_000_000; 5])
             .await
-            .unwrap_or_else(|err| panic!("Failed to get gas tokens with error: {}", err));
+            .unwrap_or_else(|err| panic!("Failed to get gas tokens with error: {err}"));
 
         receipt.into()
     }
@@ -198,7 +196,7 @@ impl FaucetClient for LocalFaucetClient {
             .simple_faucet
             .get_batch_send_status(task_id)
             .await
-            .unwrap_or_else(|err| panic!("Failed to get gas tokens with error: {}", err));
+            .unwrap_or_else(|err| panic!("Failed to get gas tokens with error: {err}"));
 
         status.into()
     }

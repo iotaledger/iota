@@ -102,10 +102,7 @@ impl TxChangesProcessor {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!(
-                    "Checkpointed tx {:?} has invalid input objects: {e}",
-                    tx_digest,
-                )
+                panic!("Checkpointed tx {tx_digest:?} has invalid input objects: {e}",)
             }),
             None,
         )
@@ -200,7 +197,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
 }
 
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
@@ -212,7 +209,7 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
             .cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: iota_types::base_types::VersionNumber,

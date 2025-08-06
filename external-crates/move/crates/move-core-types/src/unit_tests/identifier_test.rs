@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::borrow::Borrow;
@@ -70,7 +70,6 @@ fn invalid_identifiers() {
 }
 
 #[test]
-#[ignore = "ignored until https://github.com/MystenLabs/sui/pull/19446 is merged"]
 fn invalid_identifier_deser() {
     let invalid_identifiers = [
         "",

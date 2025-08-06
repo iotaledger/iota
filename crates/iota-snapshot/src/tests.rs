@@ -23,7 +23,7 @@ use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapsho
 fn temp_dir() -> std::path::PathBuf {
     tempdir()
         .expect("Failed to open temporary directory")
-        .into_path()
+        .keep()
 }
 
 pub fn insert_keys(
@@ -106,6 +106,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         usize::MAX,
         NonZeroUsize::new(1).unwrap(),
         MultiProgress::new(),
+        false, // skip_reset_local_store
     )
     .await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
@@ -159,6 +160,7 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         usize::MAX,
         NonZeroUsize::new(1).unwrap(),
         MultiProgress::new(),
+        false, // skip_reset_local_store
     )
     .await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);

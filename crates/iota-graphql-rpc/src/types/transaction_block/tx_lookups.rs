@@ -300,6 +300,12 @@ pub(crate) fn subqueries(filter: &TransactionBlockFilter, tx_bounds: TxBounds) -
             select_changed(changed, sender, tx_bounds),
         ));
     }
+    if let Some(wrapped_or_deleted_object) = &filter.wrapped_or_deleted_object {
+        subqueries.push((
+            "tx_wrapped_or_deleted_objects",
+            select_wrapped_or_deleted(wrapped_or_deleted_object, sender, tx_bounds),
+        ));
+    }
     if let Some(sender) = &filter.explicit_sender() {
         subqueries.push(("tx_senders", select_sender(sender, tx_bounds)));
     }
@@ -430,6 +436,20 @@ fn select_changed(changed: &IotaAddress, sender: Option<IotaAddress>, bound: TxB
     filter!(
         select_tx(sender, bound, "tx_changed_objects"),
         format!("object_id = {}", bytea_literal(changed.as_slice()))
+    )
+}
+
+fn select_wrapped_or_deleted(
+    wrapped_or_deleted_object: &IotaAddress,
+    sender: Option<IotaAddress>,
+    bound: TxBounds,
+) -> RawQuery {
+    filter!(
+        select_tx(sender, bound, "tx_wrapped_or_deleted_objects"),
+        format!(
+            "object_id = {}",
+            bytea_literal(wrapped_or_deleted_object.as_slice())
+        )
     )
 }
 

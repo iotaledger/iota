@@ -13,10 +13,11 @@ import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
+import { useGetDefaultIotaName } from '@iota/core';
+import { formatAccountName } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -62,7 +63,7 @@ export function PageMainLayout({
                 />
             ) : null}
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100 dark:bg-neutral-6">
+                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
                             'p-5': bottomNavEnabled && isHomePage,
@@ -95,8 +96,9 @@ function LeftContent({
     isLegacyAccount?: boolean;
     isMainAccount?: boolean;
 }) {
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
-    const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
+    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
+    const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
             to="/accounts/manage"
@@ -105,15 +107,17 @@ function LeftContent({
         >
             <div
                 className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
                     backgroundColor,
                 )}
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="line-clamp-1 break-all text-title-sm text-neutral-10 dark:text-neutral-92">
-                {accountName}
-            </span>
+            <div className="flex flex-col items-start">
+                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {accountName}
+                </span>
+            </div>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
             {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>

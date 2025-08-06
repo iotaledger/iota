@@ -17,6 +17,7 @@ use iota_types::{
     signature_verification::VerifiedDigestCache,
     transaction::CertifiedTransaction,
 };
+use itertools::Itertools as _;
 use prometheus::Registry;
 use rand::{prelude::*, seq::SliceRandom};
 
@@ -83,6 +84,7 @@ fn async_verifier_bench(c: &mut Criterion) {
                         true, // accept_zklogin_in_multisig
                         true, // accept_passkey_in_multisig
                         Some(30),
+                        true,
                     ));
 
                     b.iter(|| {
@@ -129,7 +131,7 @@ fn batch_verification_bench(c: &mut Criterion) {
 
             group.throughput(Throughput::Elements(batch_size));
             group.bench_with_input(
-                BenchmarkId::from_parameter(format!("size={} errors={}", batch_size, num_errors)),
+                BenchmarkId::from_parameter(format!("size={batch_size} errors={num_errors}")),
                 &batch_size,
                 |b, batch_size| {
                     assert_eq!(certs.len() as u64, *batch_size);
@@ -137,7 +139,7 @@ fn batch_verification_bench(c: &mut Criterion) {
                         certs.shuffle(&mut thread_rng());
                         batch_verify_certificates(
                             &committee,
-                            &certs,
+                            &certs.iter().collect_vec(),
                             Arc::new(VerifiedDigestCache::new_empty()),
                         );
                     })

@@ -490,7 +490,7 @@ fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
               timestamp_ms
             FROM
               tx_count_metrics
-              WHERE epoch > ({} - {}) AND epoch <= {}
+              WHERE epoch > ({epoch} - {offset}) AND epoch <= {epoch}
             GROUP BY
               timestamp_ms
           ),
@@ -508,8 +508,7 @@ fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
             tps_data
           WHERE
             time_diff IS NOT NULL;
-        ",
-        epoch, offset, epoch
+        "
     )
 }
 
@@ -529,9 +528,8 @@ fn construct_move_call_persist_query(start_tx_seq: i64, end_tx_seq: i64) -> Stri
     INNER JOIN checkpoints c
         ON t.checkpoint_sequence_number = c.sequence_number
     -- Ensure partition pruning
-    WHERE t.tx_sequence_number >= {} AND t.tx_sequence_number < {}
+    WHERE t.tx_sequence_number >= {start_tx_seq} AND t.tx_sequence_number < {end_tx_seq}
     ON CONFLICT (transaction_sequence_number, move_package, move_module, move_function) DO NOTHING;
-    ",
-        start_tx_seq, end_tx_seq
+    "
     )
 }

@@ -16,13 +16,14 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
+    TransactionFilter,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, domain::Domain,
-    error::IotaNamesError, registry::NameRecord,
+    IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
+    registry::NameRecord,
 };
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
@@ -30,7 +31,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::IotaObjectResponseError,
+    error::{IotaObjectResponseError, UserInputError},
     event::EventID,
 };
 use jsonrpsee::{
@@ -317,6 +318,35 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         .trace()
         .await
     }
+
+    #[instrument(skip(self))]
+    async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        // If `Some`, the query will start from the next item after the specified cursor
+        cursor: Option<TransactionDigest>,
+        limit: Option<usize>,
+        descending_order: Option<bool>,
+    ) -> RpcResult<TransactionBlocksPage> {
+        let v1_filter = query
+            .filter
+            .map(|f| {
+                f.as_v1().ok_or_else(|| {
+                    Error::UserInput(UserInputError::Unsupported(
+                        "transaction filter is not supported".to_string(),
+                    ))
+                })
+            })
+            .transpose()?;
+
+        let v1_query = IotaTransactionBlockResponseQuery {
+            filter: v1_filter,
+            options: query.options,
+        };
+        self.query_transaction_blocks(v1_query, cursor, limit, descending_order)
+            .await
+    }
+
     #[instrument(skip(self))]
     async fn query_events(
         &self,
@@ -459,35 +489,35 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     }
 
     async fn iota_names_lookup(&self, name: &str) -> RpcResult<Option<IotaNameRecord>> {
-        let domain = name.parse::<Domain>().map_err(Error::from)?;
+        let name = name.parse::<Name>().map_err(Error::from)?;
 
         // Construct the record id to lookup.
-        let record_id = self.iota_names_config.record_field_id(&domain);
+        let record_id = self.iota_names_config.record_field_id(&name);
 
-        let parent_record_id = domain
+        let parent_record_id = name
             .parent()
-            .map(|parent_domain| self.iota_names_config.record_field_id(&parent_domain));
+            .map(|parent_name| self.iota_names_config.record_field_id(&parent_name));
 
         // Keep record IDs alive by declaring both before creating futures
         let mut requests = vec![self.state.get_object(&record_id)];
 
-        // We only want to fetch both the child and the parent if the domain is a
-        // subdomain.
+        // We only want to fetch both the child and the parent if the name is a
+        // subname.
         if let Some(ref parent_record_id) = parent_record_id {
             requests.push(self.state.get_object(parent_record_id));
         }
 
         // Couldn't find a `multi_get_object` for this crate (looks like it uses a k,v
         // db) Always fetching both parent + child at the same time (even for
-        // node subdomains), to avoid sequential db reads. We do this because we
-        // do not know if the requested domain is a node subdomain or a leaf
-        // subdomain, and we can save a trip to the db.
+        // node subnames), to avoid sequential db reads. We do this because we
+        // do not know if the requested name is a node subname or a leaf
+        // subname, and we can save a trip to the db.
         let mut results = futures::future::try_join_all(requests)
             .await
             .map_err(Error::from)?;
 
         // Removing without checking vector len, since it is known (== 1 or 2 depending
-        // on whether it is a subdomain or not).
+        // on whether it is a subname or not).
         let Some(object) = results.remove(0) else {
             return Ok(None);
         };
@@ -498,9 +528,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             .get_latest_checkpoint_timestamp_ms()
             .map_err(Error::from)?;
 
-        // Handling SLD names & node subdomains is the same (we handle them as `node`
-        // records). We check their expiration, and if not expired, return the
-        // target address.
+        // Handling second-level names & node subnames is the same (we handle them as
+        // `node` records). We check their expiration, and if not expired,
+        // return the target address.
         if !name_record.is_leaf_record() {
             return if !name_record.is_node_expired(current_timestamp_ms) {
                 Ok(Some(name_record.into()))
@@ -544,21 +574,21 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             return Ok(None);
         };
 
-        let domain = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Domain>>()
+        let name = field_reverse_record_object
+            .to_rust::<Field<IotaAddress, Name>>()
             .ok_or_else(|| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
             .value;
 
-        let domain_name = domain.to_string();
+        let name = name.to_string();
 
-        let resolved_record = self.iota_names_lookup(&domain_name).await?;
+        let resolved_record = self.iota_names_lookup(&name).await?;
 
-        // If looking up the domain returns an empty result, we return an empty result.
+        // If looking up the name returns an empty result, we return an empty result.
         if resolved_record.is_none() {
             return Ok(None);
         }
 
-        Ok(Some(domain_name))
+        Ok(Some(name))
     }
 
     #[instrument(skip(self))]
@@ -570,9 +600,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(
-                IotaNamesRegistration::type_(self.iota_names_config.package_address.into()),
-            )),
+            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
+                self.iota_names_config.package_address.into(),
+            ))),
             options,
         };
 

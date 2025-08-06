@@ -134,9 +134,9 @@ struct Package {
 
 fn load_manifest_json(file_path: &PathBuf) -> PackageDependencyManifest {
     let data = fs::read_to_string(file_path)
-        .unwrap_or_else(|_| panic!("Unable to read file at: {:?}", file_path));
+        .unwrap_or_else(|_| panic!("Unable to read file at: {file_path:?}"));
     let parsed_data: PackageDependencyManifest = serde_json::from_str(&data)
-        .unwrap_or_else(|_| panic!("Unable to parse json from file at: {:?}", file_path));
+        .unwrap_or_else(|_| panic!("Unable to parse json from file at: {file_path:?}"));
 
     parsed_data
 }

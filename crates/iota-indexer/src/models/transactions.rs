@@ -244,10 +244,11 @@ impl StoredTransaction {
             .then(|| self.try_into_iota_transaction_effects())
             .transpose()?;
 
-        let raw_transaction = options
-            .show_raw_input
-            .then_some(self.raw_transaction)
-            .unwrap_or_default();
+        let raw_transaction = if options.show_raw_input {
+            self.raw_transaction
+        } else {
+            Default::default()
+        };
 
         let events = if options.show_events {
             let events = {
@@ -258,15 +259,13 @@ impl StoredTransaction {
                             Some(event) => {
                                 let event: Event = bcs::from_bytes(&event).map_err(|e| {
                                     IndexerError::PersistentStorageDataCorruption(format!(
-                                        "Can't convert event bytes into Event. tx_digest={:?} Error: {e}",
-                                        tx_digest
+                                        "Can't convert event bytes into Event. tx_digest={tx_digest:?} Error: {e}"
                                     ))
                                 })?;
                                 Ok(event)
                             }
                             None => Err(IndexerError::PersistentStorageDataCorruption(format!(
-                                "Event should not be null, tx_digest={:?}",
-                                tx_digest
+                                "Event should not be null, tx_digest={tx_digest:?}"
                             ))),
                         })
                         .collect::<Result<Vec<Event>, IndexerError>>()?
@@ -286,11 +285,11 @@ impl StoredTransaction {
                             Some(object_change) => {
                                 let object_change: IndexedObjectChange = bcs::from_bytes(&object_change)
                                     .map_err(|e| IndexerError::PersistentStorageDataCorruption(
-                                        format!("Can't convert object_change bytes into IndexedObjectChange. tx_digest={:?} Error: {e}", tx_digest)
+                                        format!("Can't convert object_change bytes into IndexedObjectChange. tx_digest={tx_digest:?} Error: {e}")
                                     ))?;
                                 Ok(ObjectChange::from(object_change))
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={tx_digest:?}"))),
                         }
                     }).collect::<Result<Vec<ObjectChange>, IndexerError>>()?
             };
@@ -306,11 +305,11 @@ impl StoredTransaction {
                             Some(balance_change) => {
                                 let balance_change: BalanceChange = bcs::from_bytes(&balance_change)
                                     .map_err(|e| IndexerError::PersistentStorageDataCorruption(
-                                        format!("Can't convert balance_change bytes into BalanceChange. tx_digest={:?} Error: {e}", tx_digest)
+                                        format!("Can't convert balance_change bytes into BalanceChange. tx_digest={tx_digest:?} Error: {e}")
                                     ))?;
                                 Ok(balance_change)
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={tx_digest:?}"))),
                         }
                     }).collect::<Result<Vec<BalanceChange>, IndexerError>>()?
             };
@@ -319,10 +318,11 @@ impl StoredTransaction {
             None
         };
 
-        let raw_effects = options
-            .show_raw_effects
-            .then_some(self.raw_effects)
-            .unwrap_or_default();
+        let raw_effects = if options.show_raw_effects {
+            self.raw_effects
+        } else {
+            Default::default()
+        };
 
         Ok(IotaTransactionBlockResponse {
             digest: tx_digest,

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
@@ -26,6 +26,12 @@ pub struct InstaOptions {
     suffix_set: bool,
     settings: insta::Settings,
     test_name: Option<String>,
+}
+
+impl Default for InstaOptions {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InstaOptions {

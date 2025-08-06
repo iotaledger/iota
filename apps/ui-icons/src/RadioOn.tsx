@@ -1,5 +1,6 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { SVGProps } from 'react';
 export default function SvgRadioOn(props: SVGProps<SVGSVGElement>) {
     return (

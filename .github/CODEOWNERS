@@ -20,6 +20,7 @@
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node
 /crates/iota-core/ @iotaledger/node @iotaledger/consensus
+/crates/iota-core/src/authority/ @iotaledger/node @iotaledger/consensus @iotaledger/research
 /crates/iota-cost/ @iotaledger/vm-language
 /crates/iota-data-ingestion*/ @iotaledger/infrastructure
 /crates/iota-e2e-tests/ @iotaledger/node @iotaledger/vm-language
@@ -36,6 +37,9 @@
 /crates/iota-json/ @iotaledger/infrastructure
 /crates/iota-json-rpc*/ @iotaledger/infrastructure
 /crates/iota-keys/ @iotaledger/dev-tools
+/crates/iota-kvstore/ @iotaledger/infrastructure
+/crates/iota-ledger/ @iotaledger/dev-tools @alexsporn
+/crates/iota-ledger-signer/ @iotaledger/dev-tools @alexsporn
 /crates/iota-light-client/ @iotaledger/dev-tools
 /crates/iota-macros/ @iotaledger/dev-tools
 /crates/iota-mainnet-unlocks/ @iotaledger/infrastructure
@@ -72,6 +76,7 @@
 /crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
 /crates/iota-swarm-config/ @iotaledger/node
+/crates/iota-synthetic-ingestion/ @iotaledger/infrastructure
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-tls/ @iotaledger/core-protocol
 /crates/iota-tool/ @iotaledger/node

@@ -129,7 +129,7 @@ pub(super) fn format_param(
                     .join(", ")
             )
         }
-        _ => format!("{}", param),
+        _ => format!("{param}"),
     })
 }
 
@@ -146,7 +146,7 @@ pub(super) fn format_list(
         _ => {
             let all_but_last = &items[..items.len() - 1].join(", ");
             let last = items.last().expect("unexpected empty list");
-            format!("{}, and {}", all_but_last, last)
+            format!("{all_but_last}, and {last}")
         }
     };
     if let Some((singular, plural)) = noun_singular_plural {

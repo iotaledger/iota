@@ -3,7 +3,7 @@
 
 export function Dropdown({ children }: React.PropsWithChildren): React.JSX.Element {
     return (
-        <ul className="list-none rounded-lg border border-neutral-80 bg-neutral-100 py-xs dark:border-neutral-20 dark:bg-neutral-6">
+        <ul className="dropdown-bg dropdown-border-color list-none rounded-lg border py-xs">
             {children}
         </ul>
     );

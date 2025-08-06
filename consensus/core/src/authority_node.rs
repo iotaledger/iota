@@ -162,8 +162,7 @@ where
     ) -> Self {
         assert!(
             committee.is_valid_index(own_index),
-            "Invalid own index {}",
-            own_index
+            "Invalid own index {own_index}"
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
@@ -179,12 +178,13 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+        let committee_size = committee.size();
         let context = Arc::new(Context::new(
             own_index,
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry),
+            initialise_metrics(registry, committee_size),
             Arc::new(Clock::new()),
         ));
         let start_time = Instant::now();
@@ -447,7 +447,7 @@ mod tests {
 
         let temp_dir = TempDir::new().unwrap();
         let parameters = Parameters {
-            db_path: temp_dir.into_path(),
+            db_path: temp_dir.keep(),
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -548,8 +548,7 @@ mod tests {
                     for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
                         assert!(
                             expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
+                            "Transaction not submitted or already seen: {txn:?}"
                         );
                     }
                 }
@@ -647,8 +646,7 @@ mod tests {
                     for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
                         assert!(
                             expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
+                            "Transaction not submitted or already seen: {txn:?}"
                         );
                     }
                 }

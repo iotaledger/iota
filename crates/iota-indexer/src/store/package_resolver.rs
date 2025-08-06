@@ -55,13 +55,12 @@ impl IndexerStorePackageResolver {
         })?
         else {
             return Err(IndexerError::PostgresRead(format!(
-                "Package not found in DB: {:?}",
-                id
+                "Package not found in DB: {id:?}"
             )));
         };
         let object = bcs::from_bytes::<Object>(&bcs)?;
         Package::read_from_object(&object).map_err(|e| {
-            IndexerError::PostgresRead(format!("Failed parsing object to package: {:?}", e))
+            IndexerError::PostgresRead(format!("Failed parsing object to package: {e:?}"))
         })
     }
 

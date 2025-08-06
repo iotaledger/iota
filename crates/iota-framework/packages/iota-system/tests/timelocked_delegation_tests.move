@@ -5,6 +5,7 @@
 module iota_system::timelocked_stake_tests;
 
 use iota::balance::{Self, Balance};
+use iota::clock;
 use iota::coin::Coin;
 use iota::iota::IOTA;
 use iota::labeler::LabelerCap;
@@ -635,6 +636,270 @@ fun test_add_remove_stake_mul_bal_flow() {
         test_scenario::return_shared(system_state);
     };
 
+    scenario_val.end();
+}
+
+#[test]
+fun test_unlock_expired() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+    // Stake 2 IOTA
+    stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 2, 10, scenario);
+
+    // Increment epoch timestamp.
+    scenario.ctx().increment_epoch_timestamp(10);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+        // The `timelocked_staked_iota` is expired so it should be unlocked.
+        let staked_iota = timelocked_staked_iota.unlock(scenario.ctx());
+
+        assert_eq(staked_iota.amount(), 2 * NANOS_PER_IOTA);
+
+        test_utils::destroy(staked_iota);
+    };
+    scenario_val.end();
+}
+
+#[test]
+fun test_unlock_with_clock_expired() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+    // Stake 2 IOTA
+    stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 2, 10, scenario);
+
+    // Create a clock object.
+    let mut clock = clock::create_for_testing(scenario.ctx());
+
+    // Increment the clock timestamp.
+    clock.increment_for_testing(10);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+        // The `timelocked_staked_iota` is expired so it should be unlocked.
+        let staked_iota = timelocked_staked_iota.unlock_with_clock(&clock);
+
+        assert_eq(staked_iota.amount(), 2 * NANOS_PER_IOTA);
+
+        test_utils::destroy(staked_iota);
+    };
+
+    clock::destroy_for_testing(clock);
+
+    scenario_val.end();
+}
+
+#[test]
+#[expected_failure(abort_code = timelocked_staking::ETimelockedStakedIotaShouldBeExpired)]
+fun test_unlock_not_expired() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+    // Stake 2 IOTA
+    stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 2, 10, scenario);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+        // The `timelocked_staked_iota` is still not-expired so this should fail.
+        let staked_iota = timelocked_staked_iota.unlock(scenario.ctx());
+        test_utils::destroy(staked_iota);
+    };
+    scenario_val.end();
+}
+
+#[test]
+#[expected_failure(abort_code = timelocked_staking::ETimelockedStakedIotaShouldBeExpired)]
+fun test_unlock_with_clock_not_expired() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+    // Stake 2 IOTA
+    stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 2, 10, scenario);
+
+    // Create a clock object.
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+        // The `timelocked_staked_iota` is still not-expired so this should fail.
+        let staked_iota = timelocked_staked_iota.unlock_with_clock(&clock);
+        test_utils::destroy(staked_iota);
+    };
+
+    clock::destroy_for_testing(clock);
+
+    scenario_val.end();
+}
+
+#[test]
+fun test_add_unlock_remove_stake_flow() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let system_state_mut_ref = &mut system_state;
+
+        let ctx = scenario.ctx();
+
+        // Create a stake to VALIDATOR_ADDR_1.
+        timelocked_staking::request_add_stake(
+            system_state_mut_ref,
+            timelock::lock(balance::create_for_testing(60 * NANOS_PER_IOTA), 10, ctx),
+            VALIDATOR_ADDR_1,
+            ctx,
+        );
+
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1),
+            100 * NANOS_PER_IOTA,
+        );
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2),
+            100 * NANOS_PER_IOTA,
+        );
+
+        test_scenario::return_shared(system_state);
+    };
+
+    // Increment epoch timestamp.
+    scenario.ctx().increment_epoch_timestamp(10);
+
+    advance_epoch(scenario);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+        assert_eq(timelocked_staked_iota.amount(), 60 * NANOS_PER_IOTA);
+
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let system_state_mut_ref = &mut system_state;
+
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1),
+            160 * NANOS_PER_IOTA,
+        );
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2),
+            100 * NANOS_PER_IOTA,
+        );
+
+        let ctx = scenario.ctx();
+
+        // Unlock the staked iota.
+        let staked_iota = timelocked_staked_iota.unlock(ctx);
+
+        // Unstake from VALIDATOR_ADDR_1
+        system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
+
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1),
+            160 * NANOS_PER_IOTA,
+        );
+        test_scenario::return_shared(system_state);
+    };
+
+    advance_epoch(scenario);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 100 * NANOS_PER_IOTA);
+        test_scenario::return_shared(system_state);
+    };
+    scenario_val.end();
+}
+
+#[test]
+fun test_add_unlock_with_clock_remove_stake_flow() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let system_state_mut_ref = &mut system_state;
+
+        let ctx = scenario.ctx();
+
+        // Create a stake to VALIDATOR_ADDR_1.
+        timelocked_staking::request_add_stake(
+            system_state_mut_ref,
+            timelock::lock(balance::create_for_testing(60 * NANOS_PER_IOTA), 10, ctx),
+            VALIDATOR_ADDR_1,
+            ctx,
+        );
+
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1),
+            100 * NANOS_PER_IOTA,
+        );
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2),
+            100 * NANOS_PER_IOTA,
+        );
+
+        test_scenario::return_shared(system_state);
+    };
+
+    // Create a clock object.
+    let mut clock = clock::create_for_testing(scenario.ctx());
+
+    // Increment the clock timestamp.
+    clock.increment_for_testing(10);
+
+    advance_epoch(scenario);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let timelocked_staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+        assert_eq(timelocked_staked_iota.amount(), 60 * NANOS_PER_IOTA);
+
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let system_state_mut_ref = &mut system_state;
+
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1),
+            160 * NANOS_PER_IOTA,
+        );
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2),
+            100 * NANOS_PER_IOTA,
+        );
+
+        let ctx = scenario.ctx();
+
+        // Unlock the staked iota.
+        let staked_iota = timelocked_staked_iota.unlock_with_clock(&clock);
+
+        // Unstake from VALIDATOR_ADDR_1
+        system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
+
+        assert_eq(
+            system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1),
+            160 * NANOS_PER_IOTA,
+        );
+        test_scenario::return_shared(system_state);
+    };
+
+    advance_epoch(scenario);
+
+    scenario.next_tx(STAKER_ADDR_1);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 100 * NANOS_PER_IOTA);
+        test_scenario::return_shared(system_state);
+    };
+    clock::destroy_for_testing(clock);
     scenario_val.end();
 }
 

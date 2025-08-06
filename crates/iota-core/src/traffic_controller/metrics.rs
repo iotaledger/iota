@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 
 #[derive(Clone)]
@@ -19,11 +19,16 @@ pub struct TrafficControllerMetrics {
     pub num_dry_run_blocked_requests: IntCounter,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
+    pub tally_error_types: IntCounterVec,
     pub deadmans_switch_enabled: IntGauge,
     pub highest_direct_spam_rate: IntGauge,
     pub highest_proxied_spam_rate: IntGauge,
     pub highest_direct_error_rate: IntGauge,
     pub highest_proxied_error_rate: IntGauge,
+    pub spam_client_threshold: IntGauge,
+    pub error_client_threshold: IntGauge,
+    pub spam_proxied_client_threshold: IntGauge,
+    pub error_proxied_client_threshold: IntGauge,
 }
 
 impl TrafficControllerMetrics {
@@ -91,6 +96,13 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
+            tally_error_types: register_int_counter_vec_with_registry!(
+                "traffic_control_tally_error_types",
+                "Number of tally errors, grouped by error type",
+                &["error_type"],
+                registry
+            )
+            .unwrap(),
             deadmans_switch_enabled: register_int_gauge_with_registry!(
                 "deadmans_switch_enabled",
                 "If 1, the deadman's switch is enabled and all traffic control
@@ -119,6 +131,30 @@ impl TrafficControllerMetrics {
             highest_proxied_error_rate: register_int_gauge_with_registry!(
                 "highest_proxied_error_rate",
                 "Highest proxied error rate seen recently",
+                registry
+            )
+            .unwrap(),
+            spam_client_threshold: register_int_gauge_with_registry!(
+                "spam_client_threshold",
+                "Spam client threshold",
+                registry
+            )
+            .unwrap(),
+            error_client_threshold: register_int_gauge_with_registry!(
+                "error_client_threshold",
+                "Error client threshold",
+                registry
+            )
+            .unwrap(),
+            spam_proxied_client_threshold: register_int_gauge_with_registry!(
+                "spam_proxied_client_threshold",
+                "Spam proxied client threshold",
+                registry
+            )
+            .unwrap(),
+            error_proxied_client_threshold: register_int_gauge_with_registry!(
+                "error_proxied_client_threshold",
+                "Error proxied client threshold",
                 registry
             )
             .unwrap(),

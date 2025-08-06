@@ -8,7 +8,7 @@ import { VARIABLE_GAP_CLASSES, VARIABLE_PADDING_CLASSES } from '@/storybook/cons
 export function VariableSpacingShowcase() {
     return (
         <div className="flex flex-col gap-10">
-            <p className="text-headline-sm text-neutral-10">
+            <p className="text-headline-sm text-iota-neutral-10">
                 The variable spacing changes based on the screen size.
             </p>
 
@@ -39,7 +39,7 @@ export function VariableSpacingShowcase() {
 function DocumentedBlock({ title, children }: React.PropsWithChildren<{ title: string }>) {
     return (
         <div className="flex flex-col gap-y-4">
-            <h2 className="text-headline-md text-neutral-10">{title}</h2>
+            <h2 className="text-headline-md text-iota-neutral-10">{title}</h2>
             <div className="flex flex-row flex-wrap gap-10">{children}</div>
         </div>
     );

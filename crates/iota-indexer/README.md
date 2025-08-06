@@ -83,6 +83,52 @@ cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localho
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
 
+### Backfilling of data
+
+Sometimes when the schema changes (e.g. adding a new table or column), backfilling may be required to populate historical data.
+The CLI provides a `run-backfill` command to facilitate this process:
+
+```sh
+Usage: iota-indexer run-backfill [OPTIONS] <START> <END> <COMMAND>
+
+Commands:
+  sql        Run a SQL backfill
+  ingestion  Run a backfill driven by the ingestion engine
+  help       Print this message or the help of the given subcommand(s)
+
+Arguments:
+  <START>  Start of the range to backfill, inclusive. It can be a checkpoint number or an epoch or any other identifier that
+           can be used to slice the backfill range
+  <END>    End of the range to backfill, inclusive
+
+Options:
+      --max-concurrency <MAX_CONCURRENCY>  Maximum number of concurrent tasks to run [default: 10]
+      --chunk-size <CHUNK_SIZE>            Size of the data chunks processed per task [default: 1000]
+  -h, --help                               Print help
+```
+
+It supports following backfill options:
+
+- `sql`: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
+- `ingestion`: Fetches and buffers checkpoint data from a remote store, then slices the buffered checkpoint data into chunks to backfill the database.
+
+#### Backfill job: `tx-wrapped-or-deleted-objects`
+
+This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes transactions that either wrapped or deleted given objects.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
+
+```sh
+cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
+```
+
+#### Error Handling
+
+If any errors occur during the backfill, the error log will indicate the exact chunk (`{start}`-`{end}`) where the failure occurred. To prevent data gaps, you can restart the backfill from the calculated restart point:
+
+`restart_from = failed_chunk_start - (max_concurrency * chunk_size)`
+
+This ensures any unprocessed chunks are covered also in the worst-case, preventing data gaps.
+
 ### DB reset
 
 To wipe the database, make sure you are in the `iota/crates/iota-indexer` directory and run following command. In case of schema changes in `.sql` files, this will also update corresponding `schema.rs` file:
