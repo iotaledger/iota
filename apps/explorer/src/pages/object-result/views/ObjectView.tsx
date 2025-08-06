@@ -3,15 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import {
-    capitalize,
-    CoinFormat,
-    resolveNFTMedia,
-    useFormatCoin,
-    useNFTMediaHeaders,
-} from '@iota/core';
+import { capitalize, resolveNFTMedia, useFormatCoin, useNFTMediaHeaders } from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
+    CoinFormat,
     formatAddress,
     formatDigest,
     formatType,
@@ -204,7 +199,7 @@ interface StorageRebateCardProps {
 function StorageRebateCard({ storageRebate }: StorageRebateCardProps): JSX.Element | null {
     const [storageRebateFormatted, symbol] = useFormatCoin({
         balance: storageRebate,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return (

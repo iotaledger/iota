@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TableCellText } from '@iota/apps-ui-kit';
-import { useFormatCoin, CoinFormat, formatBalance } from '@iota/core';
+import { useFormatCoin } from '@iota/core';
+import { CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 
 type StakeColumnProps = {
     stake: bigint | number | string;
@@ -16,7 +17,7 @@ export function StakeColumn({
     hideCoinSymbol,
     inNano = false,
 }: StakeColumnProps): JSX.Element {
-    const coinFormat = hideCoinSymbol ? CoinFormat.FULL : CoinFormat.ROUNDED;
+    const coinFormat = hideCoinSymbol ? CoinFormat.Full : CoinFormat.Rounded;
     const [amount, symbol] = useFormatCoin({ balance: stake, format: coinFormat });
 
     const label = inNano ? formatBalance(stake, 0, coinFormat) : amount;
