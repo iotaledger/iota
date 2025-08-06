@@ -193,7 +193,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
 
   # Loop through validators
     for v in "${validators[@]}"; do
-      duration=$((RANDOM % 120 + 60)) # between 120 and 180 seconds
+      duration=$((RANDOM % 240 + 60)) # between 120 and 180 seconds
       loss=$((RANDOM % 41 + 10))       # 10–50% loss
       r=$((RANDOM % 100))
         if   (( r < 10 )); then
@@ -207,7 +207,7 @@ while [[ $(date +%s) -lt $end_time ]]; do
         fi
     done
   sleep 1
-  log "Experiments running for 180s"
+  log "Experiments running for s"
   # Periodically overwrite intermediate logs
   for v in "${validators[@]}"; do
     docker logs "$v" &> "$LOG_DIR/fuzz-test-${v}-latest.log"
