@@ -53,7 +53,8 @@ mark_pair() {
 apply_latency() {
   local A=$1 delay=$2 jitter=$3
   docker run --rm --privileged --net container:"$A" nicolaka/netshoot \
-    sh -c "tc qdisc add dev eth0 root handle 1: prio && \
+    sh -c "tc qdisc del dev eth0 root 2>/dev/null || true; \
+           tc qdisc add dev eth0 root handle 1: prio && \
            tc qdisc add dev eth0 parent 1:1 netem delay ${delay} ${jitter}"
 }
 
