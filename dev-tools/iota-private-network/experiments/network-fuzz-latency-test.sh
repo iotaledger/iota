@@ -54,8 +54,7 @@ apply_latency() {
   local A=$1 delay=$2 jitter=$3
   docker run --rm --privileged --net container:"$A" nicolaka/netshoot \
     sh -c "tc qdisc del dev eth0 root 2>/dev/null || true; \
-           tc qdisc add dev eth0 root handle 1: prio && \
-           tc qdisc add dev eth0 parent 1:1 netem delay ${delay} ${jitter}"
+           tc qdisc add dev eth0 root netem delay ${delay} ${jitter}"
 }
 
 clear_latency() {
@@ -81,8 +80,8 @@ while true; do
       A=${validators[i]}
       B=${validators[j]}
       # pick random delays and jitters for each direction
-      D1=$((RANDOM % 200 + 50)) J1=$((RANDOM % 50))
-      D2=$((RANDOM % 200 + 50)) J2=$((RANDOM % 50))
+      D1=$((RANDOM % 50 + 10)) J1=$((RANDOM % 50))
+      D2=$((RANDOM % 50 + 10)) J2=$((RANDOM % 50))
       log "Injecting ${D1}ms±${J1}ms latency from $A to $B"
       mark_pair "$A" "$B"
       apply_latency "$A" "${D1}ms" "${J1}ms"
