@@ -202,13 +202,14 @@ impl CongestionTracker {
     /// For all the mutable shared inputs, sum the hotness of the objects.
     /// More sophisticated prediction can be implemented.
     pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> Option<u64> {
-        self.get_total_hotness_for_objects(
+        let hotness = self.get_total_hotness_for_objects(
             transaction
                 .shared_input_objects()
                 .into_iter()
                 .filter(|id| id.mutable)
                 .map(|id| id.id),
-        )
+        ).unwrap_or(0);
+        Some(self.reference_gas_price + hotness as u64)
     }
 
     /// Returns a map of all objects and their hotness values.
