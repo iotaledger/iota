@@ -1542,7 +1542,7 @@ mod tests {
             );
         }
 
-        // Create a blcok with a big round
+        // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(MAX_HEADERS_PER_BUNDLE as u32 + 1, 0).build(),
         );
@@ -2912,7 +2912,7 @@ mod tests {
             .expect("block headers are expected to be added successfully");
 
         // create headers for several more rounds so that new headers with commit votes
-        // are commited
+        // are committed
         for round in rounds + 2..rounds + 5 {
             let mut new_block_headers = vec![];
             let refs_to_headers_from_prev_round = all_block_headers[round as usize - 1]
