@@ -19,8 +19,11 @@ use iota_protocol_config::{
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::dbg_addr,
-    crypto::{AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair},
+    base_types::{AuthorityName, dbg_addr},
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
+        random_committee_key_pairs_of_size,
+    },
     digests::Digest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
@@ -5299,6 +5302,181 @@ async fn test_choose_next_system_packages() {
             ProtocolVersion::MIN,
             &committee,
             capabilities,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // === Test cases with non-committee authorities (0 voting weight) ===
+
+    // Create additional non-committee authorities with 0 voting weight
+    // Generate more keys and skip the first 4 to avoid overlap with committee
+    // members
+    let all_keys = random_committee_key_pairs_of_size(7); // Generate 7 keys total
+    let zero_weight_authorities: Vec<AuthorityName> = all_keys
+        .iter()
+        .skip(4) // Skip the first 4 keys that are used by the committee
+        .take(3) // Take the next 3 keys for zero-weight authorities
+        .map(|key| AuthorityName::from(key.public()))
+        .collect();
+
+    // Test 1: Zero-weight authorities support the same version as quorum - should
+    // not affect an outcome
+    let capabilities_with_zero_weight = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities supporting the same version
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(2, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(2, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    assert_eq!(
+        (ver(2), sort(vec![o1, o2])),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_with_zero_weight,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // Test 2: Zero-weight authorities support a higher version than quorum
+    let capabilities_higher_version = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities supporting higher version
+        make_capabilities!(3, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(4, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(5, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    assert_eq!(
+        (ver(2), sort(vec![o1, o2])),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_higher_version,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // Test 3: Zero-weight authorities support lower version than quorum
+    let capabilities_lower_version = vec![
+        make_capabilities!(3, v[0].0, vec![o1, o2]),
+        make_capabilities!(3, v[1].0, vec![o1, o2]),
+        make_capabilities!(3, v[2].0, vec![o1, o2]),
+        make_capabilities!(3, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities supporting lower version
+        make_capabilities!(1, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(2, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(1, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    assert_eq!(
+        (ver(3), sort(vec![o1, o2])),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_lower_version,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // Test 4: Zero-weight authorities support different objects/capabilities
+    let capabilities_different_objects = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities with different capabilities
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o3]),
+        make_capabilities!(2, zero_weight_authorities[1], vec![o2, o3]),
+        make_capabilities!(2, zero_weight_authorities[2], vec![o3]),
+    ];
+
+    assert_eq!(
+        (ver(2), sort(vec![o1, o2])),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_different_objects,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // Test 5: Edge case - Only capabilities from zero-weight authorities
+    let capabilities_only_zero_weight = vec![
+        // Committee validators with no capabilities (empty packages)
+        make_capabilities!(1, v[0].0, vec![]),
+        make_capabilities!(1, v[1].0, vec![]),
+        make_capabilities!(1, v[2].0, vec![]),
+        make_capabilities!(1, v[3].0, vec![]),
+        // Only zero-weight authorities have capabilities
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(3, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(4, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    // Should not upgrade since zero-weight authorities cannot form a quorum
+    assert_eq!(
+        (ver(1), vec![]),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_only_zero_weight,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // Test 6: Zero-weight authorities with conflicting capabilities don't interfere
+    let capabilities_conflicting_zero_weight = vec![
+        // Committee forming quorum for v2 with o1,o2
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(1, v[3].0, vec![o1, o3]), // One disagreeing committee member
+        // Zero-weight authorities with completely different proposals
+        make_capabilities!(3, zero_weight_authorities[0], vec![o2, o3]),
+        make_capabilities!(4, zero_weight_authorities[1], vec![o1, o3]),
+        make_capabilities!(5, zero_weight_authorities[2], vec![o3]),
+    ];
+
+    // Should upgrade to v2 with o1,o2 despite zero-weight conflicting opinions
+    assert_eq!(
+        (ver(2), sort(vec![o1, o2])),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_conflicting_zero_weight,
+            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        )
+    );
+
+    // Test 7: Mixed scenario - some zero-weight authorities agree with quorum,
+    // others don't
+    let capabilities_mixed_agreement = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Some zero-weight authorities agree
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
+        // Others disagree with version
+        make_capabilities!(3, zero_weight_authorities[1], vec![o1, o2]),
+        // Others disagree with packages
+        make_capabilities!(2, zero_weight_authorities[2], vec![o1, o3]),
+    ];
+
+    assert_eq!(
+        (ver(2), sort(vec![o1, o2])),
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
+            ProtocolVersion::MIN,
+            &committee,
+            capabilities_mixed_agreement,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
         )
     );
