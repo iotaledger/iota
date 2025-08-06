@@ -1369,6 +1369,15 @@ async fn finalize_checkpoint(
     data_ingestion_dir: Option<PathBuf>,
 ) -> IotaResult<(Accumulator, Option<CheckpointData>)> {
     debug!("finalizing checkpoint");
+
+    if state.is_fullnode(epoch_store) {
+        state.congestion_tracker.process_checkpoint_effects(
+            transaction_cache_reader,
+            &checkpoint,
+            &effects,
+        );
+    }
+
     epoch_store.insert_finalized_transactions(tx_digests, checkpoint.sequence_number)?;
 
     // TODO remove once we no longer need to support this table for read RPC
