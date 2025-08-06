@@ -19,9 +19,11 @@ DROP TABLE IF EXISTS tx_insertion_order;
 CREATE TABLE tx_global_order (
     tx_digest               BYTEA        PRIMARY KEY,
     global_sequence_number  BIGINT       NOT NULL,
-    optimistic_sequence_number     BIGSERIAL
+    optimistic_sequence_number     BIGSERIAL,
+    chk_tx_sequence_number      BIGINT
 );
 CREATE UNIQUE INDEX tx_global_order_seq_digest ON tx_global_order (global_sequence_number, optimistic_sequence_number);
+CREATE UNIQUE INDEX tx_global_order_chk_tx_seq_num ON tx_global_order (chk_tx_sequence_number);
 
 ALTER TABLE optimistic_transactions                 RENAME insertion_order TO sequence_number;
 ALTER TABLE optimistic_tx_senders                   RENAME tx_insertion_order TO sequence_number;

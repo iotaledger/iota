@@ -40,6 +40,7 @@ use crate::{
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
 pub struct TxGlobalOrder {
+    pub chk_tx_sequence_number: Option<i64>,
     /// Number that represents the global ordering between optimistic and
     /// checkpointed transactions.
     ///
@@ -66,6 +67,7 @@ pub struct TxGlobalOrder {
 impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
     fn from(tx: &IndexedTransaction) -> Self {
         Self {
+            chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
             global_sequence_number: tx.tx_sequence_number as i64,
             tx_digest: tx.tx_digest.into_inner().to_vec(),
             index_status: Some(IndexStatus::Started),
@@ -81,6 +83,7 @@ impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
 pub(crate) struct CheckpointTxGlobalOrder {
+    pub(crate) chk_tx_sequence_number: Option<i64>,
     pub(crate) global_sequence_number: i64,
     pub(crate) tx_digest: Vec<u8>,
     /// The index status of checkpointed transactions.
