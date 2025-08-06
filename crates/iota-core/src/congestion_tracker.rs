@@ -12,6 +12,7 @@ use iota_types::{
     transaction::{TransactionData, TransactionDataAPI},
 };
 use moka::{ops::compute::Op, sync::Cache};
+use tracing::info;
 
 use crate::execution_cache::TransactionCacheRead;
 
@@ -44,7 +45,7 @@ pub struct CongestionInfo {
     pub hotness: f64,
 }
 
-const LEARNING_RATE: f64 = 0.2;
+const LEARNING_RATE: f64 = 1.0;
 const HOTNESS_THRESHOLD: f64 = 1.0;
 
 impl CongestionInfo {
@@ -159,6 +160,23 @@ impl CongestionTracker {
                     congested_objects.clone(),
                     gas_price_feedback,
                 ));
+                let block = transaction_cache_reader
+                    .get_transaction_block(effects.transaction_digest())
+                    .unwrap_or_else(|| {
+                        panic!("block not found in transaction cache");
+                    });
+
+                let tx_data = block.transaction_data();
+
+                info!(
+                    "Checkpoint: {} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?}",
+                    checkpoint.sequence_number,
+                    gas_price,
+                    gas_price_feedback,
+                    self.get_prediction_suggested_gas_price(&tx_data)
+                        .unwrap_or(0),
+                    self.get_suggested_gas_price_with_ogd(&tx_data).unwrap_or(0)
+                );
             } else {
                 clearing_txs_data.push((
                     gas_price,
@@ -182,6 +200,14 @@ impl CongestionTracker {
             &congestion_txs_data,
             &clearing_txs_data,
         );
+
+        if !self.get_all_hotness().is_empty() {
+            info!(
+                "Hotness after checkpoint {}: {:?}",
+                checkpoint.sequence_number,
+                self.get_all_hotness()
+            );
+        }
     }
 
     /// For all the mutable input shared objects accessed by `transaction`,
@@ -258,6 +284,10 @@ impl CongestionTracker {
         let mut clearing_gas_price = None;
 
         for object_id in objects {
+            info!(
+                "Getting congestion info for object: {}",
+                object_id
+            );
             if let Some(info) = self.get_congestion_info(object_id) {
                 let clearing_gas_price_for_object = match info
                     .latest_clearing_time
@@ -298,7 +328,7 @@ impl CongestionTracker {
                 total_hotness += info.hotness;
             }
         }
-        Some(total_hotness as u64)
+        Some(1000 + total_hotness as u64)
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -637,14 +667,21 @@ mod tests {
         let obj2 = ObjectID::random();
 
         // First checkpoint with two congested objects
-        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj1, obj2], 1015)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(
+            1000,
+            &[(100, vec![obj1, obj2], 1015)],
+            &[],
+        );
 
         // obj1 is not congested anymore
         tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1018)], &[]);
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
 
         // hotness for obj1 goes below 1.0 so it should be removed from cache
-        assert!(tracker.get_hotness_for_object(&obj1).is_none(), "obj1 should be removed from cache");
+        assert!(
+            tracker.get_hotness_for_object(&obj1).is_none(),
+            "obj1 should be removed from cache"
+        );
         let hotness = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
         println!("hotness for obj2: {}", hotness);
         assert!(hotness == 3.0, "hotness for obj2 should be 3.0");
