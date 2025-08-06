@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_metrics::{get_metrics, metered_channel::Sender, spawn_monitored_task};
-use iota_rest_api::CheckpointData;
+use iota_types::full_checkpoint_content::CheckpointData;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
