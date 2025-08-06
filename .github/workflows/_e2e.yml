@@ -140,7 +140,7 @@ jobs:
 
       - name: Upload Dashboard test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         with:
           name: playwright-report-wallet-dashboard
           path: apps/wallet-dashboard/playwright-report/
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload Wallet test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
@@ -189,7 +189,7 @@ jobs:
         run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         with:
           name: playwright-report-evm-bridge
           path: apps/evm-bridge/playwright-report/
