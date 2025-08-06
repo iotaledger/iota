@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    CoinFormat,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
     parseAmount,
@@ -43,7 +42,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -83,7 +82,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const availableBalance = coinBalance - minAmountTxGasBudget;
     const [availableBalanceFormatted, symbol] = useFormatCoin({
         balance: availableBalance,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const validationSchema = useMemo(
@@ -178,7 +177,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const isUnsafeAmount =
         amountWithoutDecimals &&

@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatBalance } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import {
     Divider,
@@ -15,7 +14,7 @@ import {
 } from '@iota/apps-ui-kit';
 
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
-import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 const FALLBACK = '--';
 
@@ -27,26 +26,26 @@ export function OnTheNetwork(): JSX.Element {
     const { data: circulatingSupply } = useIotaClientQuery('getCirculatingSupply');
 
     const circulatingSupplyFormatted = circulatingSupply?.value
-        ? formatBalance(circulatingSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
+        ? formatBalance(circulatingSupply.value, IOTA_DECIMALS, CoinFormat.Rounded)
         : null;
     const totalSupplyFormatted = totalSupply?.value
-        ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
+        ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.Rounded)
         : null;
 
     const currentTpsFormatted = networkMetrics?.currentTps
-        ? formatBalance(Math.floor(networkMetrics.currentTps), 0, CoinFormat.ROUNDED)
+        ? formatBalance(Math.floor(networkMetrics.currentTps), 0, CoinFormat.Rounded)
         : FALLBACK;
 
     const tps30DaysFormatted = networkMetrics?.tps30Days
-        ? formatBalance(Math.floor(networkMetrics.tps30Days), 0, CoinFormat.ROUNDED)
+        ? formatBalance(Math.floor(networkMetrics.tps30Days), 0, CoinFormat.Rounded)
         : FALLBACK;
 
     const totalPackagesFormatted = networkMetrics?.totalPackages
-        ? formatBalance(networkMetrics.totalPackages, 0, CoinFormat.ROUNDED)
+        ? formatBalance(networkMetrics.totalPackages, 0, CoinFormat.Rounded)
         : FALLBACK;
 
     const totalObjectsFormatted = networkMetrics?.totalObjects
-        ? formatBalance(networkMetrics.totalObjects, 0, CoinFormat.ROUNDED)
+        ? formatBalance(networkMetrics.totalObjects, 0, CoinFormat.Rounded)
         : FALLBACK;
 
     return (
