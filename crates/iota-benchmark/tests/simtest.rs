@@ -41,8 +41,8 @@ mod test {
     };
     use iota_framework::BuiltInFramework;
     use iota_macros::{
-        clear_fail_point, nondeterministic, register_fail_point_arg, register_fail_point_async,
-        register_fail_point_if, register_fail_points, sim_test,
+        clear_fail_point, nondeterministic, register_fail_point, register_fail_point_arg,
+        register_fail_point_async, register_fail_point_if, register_fail_points, sim_test,
     };
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
     use iota_simulator::{SimConfig, configs::*, tempfile::TempDir};
@@ -378,18 +378,13 @@ mod test {
         let dead_validator = dead_validator_orig.clone();
         let keep_alive_nodes_clone = keep_alive_nodes.clone();
         let grace_period_clone = grace_period.clone();
-        register_fail_point_async("crash", move || {
-            let dead_validator = dead_validator.clone();
-            let keep_alive_nodes_clone = keep_alive_nodes_clone.clone();
-            let grace_period_clone = grace_period_clone.clone();
-            async move {
-                handle_failpoint(
-                    dead_validator.clone(),
-                    keep_alive_nodes_clone.clone(),
-                    grace_period_clone.clone(),
-                    0.01,
-                );
-            }
+        register_fail_point("crash", move || {
+            handle_failpoint(
+                dead_validator.clone(),
+                keep_alive_nodes_clone.clone(),
+                grace_period_clone.clone(),
+                0.01,
+            );
         });
 
         // Consensus fail points.
@@ -430,7 +425,6 @@ mod test {
             }
         });
         register_fail_point_async("consensus-delay", || delay_failpoint(10..20, 0.001));
-        register_fail_point_async("write_object_entry", || delay_failpoint(10..20, 0.001));
 
         register_fail_point_async("writeback-cache-commit", || delay_failpoint(10..20, 0.001));
 

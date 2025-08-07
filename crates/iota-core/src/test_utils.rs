@@ -65,7 +65,7 @@ pub async fn send_and_confirm_transaction(
     // set against StateAccumulator for testing and regression detection
     let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
-    let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
+    let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(vec![result.inner().data().clone()]);
     state.union(&effects_acc);
@@ -73,7 +73,7 @@ pub async fn send_and_confirm_transaction(
     assert_eq!(state_after.digest(), state.digest());
 
     if let Some(fullnode) = fullnode {
-        fullnode.try_execute_for_test(&certificate).await?;
+        fullnode.try_execute_for_test(&certificate)?;
     }
     Ok((certificate.into_inner(), result.into_inner()))
 }
