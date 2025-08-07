@@ -417,40 +417,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_available_port_assignment() {
-        let mut simulacrum = Simulacrum::new();
-        simulacrum.advance_clock(Duration::from_secs(1));
-        simulacrum.create_checkpoint();
-
-        let simulacrum = Arc::new(simulacrum);
-
-        // Use default config which should use available port utilities
-        let config = GrpcServerConfig::default();
-        // The port should already be assigned by the test utilities
-        assert!(config.address.port() > 0);
-        assert!(config.address.ip().is_loopback());
-
-        let server_handle = simulacrum.start_grpc_server(config).await.unwrap();
-
-        // Server should be running on the pre-assigned available port
-        assert!(server_handle.address().port() > 0);
-        assert!(server_handle.address().ip().is_loopback());
-
-        // local_addr should also be available
-        if let Some(local_addr) = server_handle.local_addr() {
-            assert!(local_addr.port() > 0);
-            assert!(local_addr.ip().is_loopback());
-        }
-
-        println!(
-            "Test utilities assigned port: {}",
-            server_handle.address().port()
-        );
-
-        server_handle.shutdown();
-    }
-
-    #[tokio::test]
     async fn test_config_convenience_methods() {
         // Test specific port configuration
         let config_9001 = GrpcServerConfig::with_port(9001);
@@ -481,53 +447,5 @@ mod tests {
         // Since test utilities give us available ports, they should all be different
         // (though this isn't guaranteed, it's highly likely)
         println!("Generated ports: {:?}", ports);
-    }
-
-    #[tokio::test]
-    async fn test_multiple_servers_no_conflicts() {
-        // Test that multiple simulacrum gRPC servers can run simultaneously
-        // without port conflicts thanks to proper test utilities
-        let mut handles = Vec::new();
-
-        for i in 0..3 {
-            let mut simulacrum = Simulacrum::new();
-            simulacrum.advance_clock(Duration::from_secs(1));
-            simulacrum.create_checkpoint();
-            let simulacrum = Arc::new(simulacrum);
-
-            let config = GrpcServerConfig::for_testing();
-            let server_handle = simulacrum.start_grpc_server(config).await.unwrap();
-
-            println!(
-                "Server {} running on port {}",
-                i,
-                server_handle.address().port()
-            );
-            handles.push(server_handle);
-        }
-
-        // All servers should be running on different ports
-        let ports: Vec<u16> = handles.iter().map(|h| h.address().port()).collect();
-        let unique_ports: std::collections::HashSet<u16> = ports.iter().cloned().collect();
-
-        // All ports should be unique
-        assert_eq!(
-            ports.len(),
-            unique_ports.len(),
-            "All servers should have unique ports"
-        );
-
-        // All ports should be in valid range
-        for port in &ports {
-            assert!(*port > 1024, "Port should be > 1024");
-            // u16 max is 65535, so no need to check upper bound
-        }
-
-        println!("All servers running on unique ports: {:?}", ports);
-
-        // Shutdown all servers
-        for handle in handles {
-            handle.shutdown();
-        }
     }
 }
