@@ -89,12 +89,9 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Initialize the simulacrum
-    let mut simulacrum = Simulacrum::new();
-
-    // Create some activity to generate interesting checkpoints
+/// Creates and fills a simulacrum instance with dummy transactions and
+/// checkpoints
+fn fill_simulacrum_with_dummy_data(simulacrum: &mut Simulacrum) -> anyhow::Result<()> {
     let recipient1 = IotaAddress::random_for_testing_only();
     let recipient2 = IotaAddress::random_for_testing_only();
 
@@ -130,12 +127,21 @@ async fn main() -> anyhow::Result<()> {
         checkpoint3.sequence_number()
     );
 
+    Ok(())
+}
+
+/// Sets up and runs the complete gRPC workflow with simulacrum
+async fn run_simulacrum_with_grpc() -> anyhow::Result<()> {
+    // Initialize the simulacrum and fill it with dummy data
+    let mut simulacrum = Simulacrum::new();
+    fill_simulacrum_with_dummy_data(&mut simulacrum)?;
+
     // Wrap simulacrum for sharing
     let simulacrum = Arc::new(simulacrum);
 
     // Create the gRPC reader using our trait implementation
     let simulacrum_reader = SimulacrumGrpcReader::new(simulacrum.clone());
-    let grpc_reader = GrpcReader::new(Arc::new(simulacrum_reader));
+    let grpc_reader = Arc::new(GrpcReader::new(Arc::new(simulacrum_reader)));
 
     // Verify the reader works
     let latest_seq = grpc_reader.get_latest_checkpoint_sequence().unwrap();
@@ -333,4 +339,9 @@ async fn main() -> anyhow::Result<()> {
 
     println!("\n=== Demo complete ===");
     Ok(())
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    run_simulacrum_with_grpc().await
 }

@@ -223,7 +223,7 @@ impl<Store: SimulatorStore + Send + Sync + 'static> Simulacrum<rand::rngs::OsRng
 
         // Create the gRPC reader
         let simulacrum_reader = SimulacrumGrpcReader::new(self.clone());
-        let grpc_reader = GrpcReader::new(Arc::new(simulacrum_reader));
+        let grpc_reader = Arc::new(GrpcReader::new(Arc::new(simulacrum_reader)));
 
         // Create the gRPC service
         let service = CheckpointGrpcService::new(
