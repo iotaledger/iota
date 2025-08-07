@@ -468,7 +468,7 @@ impl DagState {
     /// Accepts a block header into DagState and keeps it in memory.
     pub(crate) fn accept_block_headers(&mut self, blocks: Vec<VerifiedBlockHeader>) {
         debug!(
-            "Accepting blocks: {}",
+            "Accepting block headers: {}",
             blocks.iter().map(|b| b.reference().to_string()).join(",")
         );
         for block in blocks {

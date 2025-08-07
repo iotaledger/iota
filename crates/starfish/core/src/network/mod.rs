@@ -157,9 +157,9 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         commit_range: CommitRange,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
 
-    /// Handles the request to fetch the latest block for the provided
+    /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.
-    async fn handle_fetch_latest_blocks(
+    async fn handle_fetch_latest_block_headers(
         &self,
         peer: AuthorityIndex,
         authorities: Vec<AuthorityIndex>,
