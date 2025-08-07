@@ -31,11 +31,7 @@ function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): Rea
             type="Address"
             title={
                 <div className="flex flex-col gap-xs">
-                    <AddressAlias
-                        address={address}
-                        formatUnknownAddress={false}
-                        onCopy={() => copyToClipboard(address)}
-                    />
+                    <AddressAlias address={address} onCopy={() => copyToClipboard(address)} />
                 </div>
             }
             showCopyButton={false}

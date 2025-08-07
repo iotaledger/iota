@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Network } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 type FeatureEnabledByNetwork = Record<Network, boolean>;
 
-export const KNOWN_ADDRESSES = {
+export const ADDRESSES_ALIASES = {
     '0x0': 'IOTA System Account',
     '0x1': 'Move stdlib Package',
     '0x2': 'IOTA Framework Package',
@@ -20,6 +21,13 @@ export const KNOWN_ADDRESSES = {
     '0x403': 'IOTA Denylist Object',
     '0x7b4a34f6a011794f0ecbe5e5beb96102d3eef6122eb929b9f50a8d757bfbdd67': 'IOTA EVM',
 };
+
+export const KNOWN_ADDRESSES_ALIASES = Object.fromEntries(
+    Object.entries(ADDRESSES_ALIASES).map(([address, alias]) => [
+        normalizeIotaAddress(address),
+        alias,
+    ]),
+);
 
 export const NAME_ADDRESS_RESOLUTION_FEATURE: FeatureEnabledByNetwork = {
     [Network.Mainnet]: false,

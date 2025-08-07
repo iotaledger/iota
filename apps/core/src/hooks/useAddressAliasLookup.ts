@@ -1,44 +1,61 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureValue } from '@growthbook/growthbook-react';
 import { Feature } from '../enums';
-import { trimOrFormatAddress } from '@iota/iota-sdk/utils';
-import { useCallback } from 'react';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { getNetwork, Network } from '@iota/iota-sdk/client';
+import { useNetwork } from './useNetwork';
+import { useFeatureValue } from '@growthbook/growthbook-react';
+import { useMemo } from 'react';
 
-export interface GetAddressAliasParams {
-    address: string;
-    formatUnknownAddress?: boolean;
-}
+const ADDRESSES_ALIAS_FALLBACK: KnownAddressAliasesFeature = {
+    enabled: false,
+    addresses: {},
+};
+
+type AddressAliases = Record<string, string>;
+
+type KnownAddressAliasesFeature = {
+    enabled: boolean;
+    addresses: AddressAliases;
+};
+
+type ValidatorAddressAliasFeature = {
+    [key in Network]?: KnownAddressAliasesFeature;
+};
 
 export function useAddressAliasLookup() {
-    const knownAddressesFeature = useFeatureValue<{
-        enabled: boolean;
-        addresses: Record<string, string>;
-    }>(Feature.KnownAddressAlias as string, {
-        enabled: false,
-        addresses: {},
-    });
+    const networkId = useNetwork();
+    const network = getNetwork(networkId).id;
 
-    return useCallback(
-        ({ address, formatUnknownAddress: formatUnknownAddress }: GetAddressAliasParams) => {
-            const formattedAddress = trimOrFormatAddress(address);
-
-            if (!knownAddressesFeature.enabled) {
-                return {
-                    address: formatUnknownAddress ? trimOrFormatAddress(address) : address,
-                    alias: undefined,
-                };
-            }
-
-            const addressAlias = knownAddressesFeature.addresses[formattedAddress];
-            const isKnownAddress = !!addressAlias;
-
-            return {
-                address: isKnownAddress || formatUnknownAddress ? formattedAddress : address,
-                alias: addressAlias,
-            };
-        },
-        [knownAddressesFeature],
+    const knownAddresses = useFeatureValue<KnownAddressAliasesFeature>(
+        Feature.KnownAddressAlias,
+        ADDRESSES_ALIAS_FALLBACK,
     );
+
+    const validatorAliasesByNetwork = useFeatureValue<ValidatorAddressAliasFeature>(
+        Feature.ValidatorAddressAlias,
+        {},
+    );
+
+    const networkValidatorAliases = useMemo(
+        () => validatorAliasesByNetwork[network]?.addresses || ADDRESSES_ALIAS_FALLBACK.addresses,
+        [network],
+    );
+
+    const addressAliasMap = {
+        ...networkValidatorAliases,
+        ...knownAddresses.addresses,
+    };
+
+    return (address: string) => {
+        if (!knownAddresses || !knownAddresses.enabled) {
+            return null;
+        }
+
+        const normalized = normalizeIotaAddress(address);
+        const addressAlias = addressAliasMap[normalized];
+
+        return addressAlias;
+    };
 }

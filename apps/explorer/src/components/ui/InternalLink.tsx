@@ -63,16 +63,17 @@ function createInternalLink<T extends string>(
             return (
                 <AddressAlias
                     address={id}
-                    noFormatAddress={noTruncate}
                     onCopy={copyText ? handleCopyClick : undefined}
-                    renderAddress={(address) => (
+                    noTruncate={noTruncate}
+                    truncateUnknown={!noTruncate}
+                    renderAddress={(addr) => (
                         <Link
                             className="text-iota-primary-30 dark:text-iota-primary-80"
                             variant="mono"
                             to={to}
                             {...props}
                         >
-                            {label || address}
+                            {label || addr}
                         </Link>
                     )}
                     renderAlias={renderAddressAlias}
