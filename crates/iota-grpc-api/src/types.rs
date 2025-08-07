@@ -269,6 +269,14 @@ impl GrpcReader {
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
         self.state_reader.get_epoch_last_checkpoint(epoch)
     }
+
+    fn get_full_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
+        self.state_reader.get_checkpoint_data(seq)
+    }
+
+    pub fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
+        self.state_reader.get_latest_checkpoint_sequence()
+    }
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
@@ -302,16 +310,6 @@ impl GrpcStateReader for RestStateReaderAdapter {
             Ok(None) => Ok(None),
             Err(e) => Err(e.into()),
         }
-    }
-}
-
-impl GrpcReader {
-    fn get_full_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
-        self.state_reader.get_checkpoint_data(seq)
-    }
-
-    pub fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
-        self.state_reader.get_latest_checkpoint_sequence()
     }
 }
 
