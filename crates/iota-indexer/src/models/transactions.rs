@@ -40,6 +40,8 @@ use crate::{
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
 pub struct TxGlobalOrder {
+    /// Sequence number of transaction according to checkpoint ordering.
+    /// Set after transaction is checkpoint-indexed.
     pub chk_tx_sequence_number: Option<i64>,
     /// Number that represents the global ordering between optimistic and
     /// checkpointed transactions.
@@ -168,29 +170,12 @@ pub struct OptimisticTransaction {
 impl From<OptimisticTransaction> for StoredTransaction {
     fn from(tx: OptimisticTransaction) -> Self {
         StoredTransaction {
-            tx_sequence_number: tx.global_sequence_number,
+            tx_sequence_number: tx.optimistic_sequence_number,
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
             checkpoint_sequence_number: -1,
             timestamp_ms: -1,
-            object_changes: tx.object_changes,
-            balance_changes: tx.balance_changes,
-            events: tx.events,
-            transaction_kind: tx.transaction_kind,
-            success_command_count: tx.success_command_count,
-        }
-    }
-}
-
-impl From<StoredTransaction> for OptimisticTransaction {
-    fn from(tx: StoredTransaction) -> Self {
-        OptimisticTransaction {
-            global_sequence_number: 0,
-            optimistic_sequence_number: tx.tx_sequence_number,
-            transaction_digest: tx.transaction_digest,
-            raw_transaction: tx.raw_transaction,
-            raw_effects: tx.raw_effects,
             object_changes: tx.object_changes,
             balance_changes: tx.balance_changes,
             events: tx.events,

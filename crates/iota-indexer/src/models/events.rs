@@ -109,7 +109,7 @@ impl From<IndexedEvent> for StoredEvent {
 impl From<OptimisticEvent> for StoredEvent {
     fn from(event: OptimisticEvent) -> Self {
         Self {
-            tx_sequence_number: event.global_sequence_number,
+            tx_sequence_number: event.optimistic_sequence_number,
             event_sequence_number: event.event_sequence_number,
             transaction_digest: event.transaction_digest,
             senders: event.senders,
