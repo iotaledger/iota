@@ -250,6 +250,10 @@ impl StateRead for AuthorityState {
         )
     }
 
+    async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
+        Ok(self.try_get_object(object_id).await?)
+    }
+
     fn get_object_read(&self, object_id: &ObjectID) -> StateReadResult<ObjectRead> {
         Ok(self.get_object_read(object_id)?)
     }
