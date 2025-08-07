@@ -288,29 +288,29 @@ diesel::table! {
     optimistic_event_emit_module (package, module, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
         package -> Bytea,
         module -> Text,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_event_emit_package (package, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
         package -> Bytea,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_event_senders (sender, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
         sender -> Bytea,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
-        global_sequence_number -> Int8,
     }
 }
 
@@ -319,10 +319,10 @@ diesel::table! {
         package -> Bytea,
         module -> Text,
         type_instantiation -> Text,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
@@ -330,10 +330,10 @@ diesel::table! {
     optimistic_event_struct_module (package, module, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
         package -> Bytea,
         module -> Text,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
@@ -342,25 +342,26 @@ diesel::table! {
         package -> Bytea,
         module -> Text,
         type_name -> Text,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_event_struct_package (package, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
         package -> Bytea,
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_events (global_sequence_number, optimistic_sequence_number, event_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         event_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -369,12 +370,12 @@ diesel::table! {
         module -> Text,
         event_type -> Text,
         bcs -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_transactions (global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         transaction_digest -> Bytea,
         raw_transaction -> Bytea,
@@ -384,80 +385,79 @@ diesel::table! {
         events -> Array<Nullable<Bytea>>,
         transaction_kind -> Int2,
         success_command_count -> Int2,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_calls_fun (package, module, func, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         package -> Bytea,
         module -> Text,
         func -> Text,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_calls_mod (package, module, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         package -> Bytea,
         module -> Text,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_calls_pkg (package, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         package -> Bytea,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_changed_objects (object_id, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         object_id -> Bytea,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_input_objects (object_id, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         object_id -> Bytea,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_kinds (tx_kind, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         tx_kind -> Int2,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_recipients (recipient, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         recipient -> Bytea,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
 diesel::table! {
     optimistic_tx_senders (sender, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         sender -> Bytea,
-        global_sequence_number -> Int8,
     }
 }
 
