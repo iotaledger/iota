@@ -153,8 +153,8 @@ impl CertTxGuard {
 
 impl CertLockGuard {
     pub fn guard_for_tests() -> Self {
-        let lock = Arc::new(tokio::sync::Mutex::new(()));
-        Self(lock.try_lock_owned().unwrap())
+        let lock = Arc::new(parking_lot::Mutex::new(()));
+        Self(lock.try_lock_arc().unwrap())
     }
 }
 
@@ -1217,17 +1217,17 @@ impl AuthorityPerEpochStore {
         &self.execution_component.executor
     }
 
-    pub async fn acquire_tx_guard(
+    pub fn acquire_tx_guard(
         &self,
         cert: &VerifiedExecutableTransaction,
     ) -> IotaResult<CertTxGuard> {
         let digest = cert.digest();
-        Ok(CertTxGuard(self.acquire_tx_lock(digest).await))
+        Ok(CertTxGuard(self.acquire_tx_lock(digest)))
     }
 
     /// Acquire the lock for a tx without writing to the WAL.
-    pub async fn acquire_tx_lock(&self, digest: &TransactionDigest) -> CertLockGuard {
-        CertLockGuard(self.mutex_table.acquire_lock(*digest).await)
+    pub fn acquire_tx_lock(&self, digest: &TransactionDigest) -> CertLockGuard {
+        CertLockGuard(self.mutex_table.acquire_lock(*digest))
     }
 
     pub fn store_reconfig_state(&self, new_state: &ReconfigState) -> IotaResult {
@@ -1612,7 +1612,7 @@ impl AuthorityPerEpochStore {
     // Because all paths that assign shared versions for a shared object transaction
     // call this function, it is impossible for parent_sync to be updated before
     // this function completes successfully for each affected object id.
-    pub(crate) async fn get_or_init_next_object_versions(
+    pub(crate) fn get_or_init_next_object_versions(
         &self,
         objects_to_init: &[(ObjectID, SequenceNumber)],
         cache_reader: &dyn ObjectCacheRead,
@@ -1691,7 +1691,7 @@ impl AuthorityPerEpochStore {
         Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 
-    async fn set_assigned_shared_object_versions_with_db_batch(
+    fn set_assigned_shared_object_versions_with_db_batch(
         &self,
         versions: AssignedTxAndVersions,
         db_batch: &mut DBBatch,
@@ -1709,7 +1709,7 @@ impl AuthorityPerEpochStore {
     /// idempotent. We should call this function when we are assigning shared
     /// object versions outside of consensus and do not want to taint the
     /// next_shared_object_versions table.
-    pub async fn assign_shared_object_versions_idempotent(
+    pub fn assign_shared_object_versions_idempotent(
         &self,
         cache_reader: &dyn ObjectCacheRead,
         certificates: &[VerifiedExecutableTransaction],
@@ -1721,11 +1721,9 @@ impl AuthorityPerEpochStore {
             certificates,
             None,
             &BTreeMap::new(),
-        )
-        .await?
+        )?
         .assigned_versions;
-        self.set_assigned_shared_object_versions_with_db_batch(assigned_versions, &mut db_batch)
-            .await?;
+        self.set_assigned_shared_object_versions_with_db_batch(assigned_versions, &mut db_batch)?;
         db_batch.write()?;
         Ok(())
     }
@@ -1944,11 +1942,9 @@ impl AuthorityPerEpochStore {
             &[(certificate, effects)],
             self,
             cache_reader,
-        )
-        .await?;
+        )?;
         let mut db_batch = self.tables()?.assigned_shared_object_versions.batch();
-        self.set_assigned_shared_object_versions_with_db_batch(versions, &mut db_batch)
-            .await?;
+        self.set_assigned_shared_object_versions_with_db_batch(versions, &mut db_batch)?;
         db_batch.write()?;
         Ok(())
     }
@@ -3051,7 +3047,7 @@ impl AuthorityPerEpochStore {
     // version state. Shared object versions in cancelled transactions are
     // assigned to special versions that will cause the transactions to be
     // cancelled in execution engine.
-    async fn process_consensus_transaction_shared_object_versions(
+    fn process_consensus_transaction_shared_object_versions(
         &self,
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
@@ -3068,8 +3064,7 @@ impl AuthorityPerEpochStore {
             transactions,
             randomness_round,
             cancelled_txns,
-        )
-        .await?;
+        )?;
         output.set_assigned_shared_object_versions(assigned_versions, shared_input_next_versions);
         Ok(())
     }
@@ -3112,7 +3107,7 @@ impl AuthorityPerEpochStore {
         .await
     }
 
-    pub async fn assign_shared_object_versions_for_tests(
+    pub fn assign_shared_object_versions_for_tests(
         self: &Arc<Self>,
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
@@ -3124,8 +3119,7 @@ impl AuthorityPerEpochStore {
             None,
             &BTreeMap::new(),
             &mut output,
-        )
-        .await?;
+        )?;
         let mut batch = self.db_batch()?;
         output.write_to_batch(self, &mut batch)?;
         batch.write()?;
@@ -3373,8 +3367,7 @@ impl AuthorityPerEpochStore {
             randomness_round,
             &cancelled_txns,
             output,
-        )
-        .await?;
+        )?;
 
         let (lock, final_round) = self.process_end_of_publish_transactions_and_reconfig(
             output,
