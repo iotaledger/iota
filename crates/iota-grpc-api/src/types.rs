@@ -197,7 +197,7 @@ where
             };
 
             while start <= end {
-                // Phase 1: Serve historical data from storage
+                // try fetching historical data from the DB first
                 if start <= latest {
                     if let Some(item) = reader.get_item(start) {
                         tracing::debug!("[profile][grpc] Fetched checkpoint data for index {start} from storage.");
@@ -212,7 +212,8 @@ where
                     }
                 }
 
-                // Phase 2: Live streaming from broadcast channel
+                // latest < start, live phase
+                // wait for broadcast
                 match rx.recv().await {
                     Ok(item) => {
                         tracing::debug!("[profile][grpc] Received checkpoint data for index {} from broadcast channel", reader.get_sequence_number(&item));
@@ -225,10 +226,10 @@ where
                             start += 1;
                             continue;
                         }
-                        // Sequence number mismatch - drop item and continue waiting
+                        // else item sequence doesn't match, drop it and continue
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                        // Channel lagged - historical data should catch up via storage
+                        // continue, lagged item should be picked up from history DB
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                         Err(Status::internal("Checkpoint data channel closed."))?;
