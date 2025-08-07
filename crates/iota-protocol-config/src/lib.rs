@@ -1315,6 +1315,12 @@ impl ProtocolConfig {
     pub fn additional_multisig_checks(&self) -> bool {
         self.feature_flags.additional_multisig_checks
     }
+
+    pub fn consensus_num_requested_prior_commits_at_startup(&self) -> u32 {
+        // TODO: this will eventually be the max of some number of other
+        // parameters.
+        0
+    }
 }
 
 #[cfg(not(msim))]
