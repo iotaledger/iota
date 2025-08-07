@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Built-in gRPC streaming server for Simulacrum
-//!
-//! This module provides an integrated gRPC server that can be started with a
-//! Simulacrum instance, eliminating the need for users to manually implement
-//! gRPC streaming functionality.
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
