@@ -647,7 +647,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let blocks = self
             .service
-            .handle_fetch_latest_blocks(peer_index, authorities)
+            .handle_fetch_latest_block_headers(peer_index, authorities)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchLatestBlockHeadersResponse, tonic::Status>> =
@@ -831,7 +831,7 @@ impl<S: NetworkService> TonicManager<S> {
             .into_axum_router()
             .route_layer(layers);
 
-        let tls_server_config = iota_tls::create_rustls_server_config(
+        let tls_server_config = iota_tls::create_rustls_server_config_with_client_verifier(
             self.network_keypair.clone().private_key().into_inner(),
             certificate_server_name(&self.context),
             AllowPublicKeys::new(
@@ -1098,12 +1098,12 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 }
 
 impl ResponseHandler for MetricsResponseCallback {
-    fn on_response(self, response: &http::response::Parts) {
-        self.on_response(response)
+    fn on_response(&mut self, response: &http::response::Parts) {
+        MetricsResponseCallback::on_response(self, response)
     }
 
-    fn on_error<E>(self, err: &E) {
-        self.on_error(err)
+    fn on_error<E>(&mut self, err: &E) {
+        MetricsResponseCallback::on_error(self, err)
     }
 }
 
