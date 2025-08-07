@@ -2951,7 +2951,7 @@ async fn test_authority_persist() {
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     // Create an authority
     let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
             .await
             .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
@@ -2978,7 +2978,7 @@ async fn test_authority_persist() {
     let committee = genesis.committee().unwrap();
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
             .await
             .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;

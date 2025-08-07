@@ -51,7 +51,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -182,7 +181,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -313,7 +311,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -444,7 +441,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -575,7 +571,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -706,7 +701,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -837,7 +831,6 @@ validator_configs:
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
