@@ -318,8 +318,8 @@ impl CheckpointReader<GrpcCheckpointData> for GrpcReader {
         item.sequence_number()
     }
 
-    fn get_item(&self, ix: u64) -> Option<Arc<GrpcCheckpointData>> {
-        self.get_full_checkpoint_data(ix)
+    fn get_item(&self, seq: u64) -> Option<Arc<GrpcCheckpointData>> {
+        self.get_full_checkpoint_data(seq)
             .map(GrpcCheckpointData::from)
             .map(Arc::new)
     }
