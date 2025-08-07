@@ -7,7 +7,7 @@
 
 set -euo pipefail
 IFS=$'\n\t'
-SEED=${SEED:-42}
+
 
 log() {
   echo "$(date -Iseconds) $1"
@@ -55,6 +55,7 @@ touch "$LOCKFILE"
 duration_total=${TEST_DURATION}
 
 NUM_VALIDATORS=4
+SEED=${SEED:-42}
 while getopts "n:s:" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
@@ -74,6 +75,8 @@ echo "Logging into $LOG_DIR"
 # Start script logging at the top
 TIMESTAMP_START=$(date +%Y%m%d-%H%M%S)
 SCRIPT_LOG="$LOG_DIR/fuzz-test-script-$TIMESTAMP_START.log"
+
+trap 'echo "Interrupted! Cleaning up…"; cleanup_all; exit 1' INT TERM
 # Capture all script stdout/stderr to the script log
 exec > >(tee -a "$SCRIPT_LOG") 2>&1
 # Seed RANDOM after logging is set up
@@ -92,11 +95,10 @@ cleanup_all() {
     docker unpause "$v" 2>/dev/null || true
     docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc del dev eth0 root 2>/dev/null || true
     docker run --rm --privileged --net container:"$v" nicolaka/netshoot sh -c "iptables -F" 2>/dev/null || true
-    docker run --rm --privileged --net container:"$A" nicolaka/netshoot \
+    docker run --rm --privileged --net container:"$v" nicolaka/netshoot \
           sh -c "tc qdisc del dev eth0 root || true; iptables -t mangle -F" >/dev/null 2>&1 || true
   done
 }
-trap 'echo "Interrupted! Cleaning up…"; cleanup_all; exit 1' INT TERM
 
 # === ACTION HELPERS ===
 
