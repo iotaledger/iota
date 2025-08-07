@@ -225,7 +225,6 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         let source_table_alias = self.source_table_alias;
         let source_table_or_query = self.source_table_or_query;
         let main_filter_condition = self.main_filter_condition;
-        let smallest_tx_seq_with_global_order = self.smallest_tx_seq_with_global_order;
         let limit = self.limit;
         let global_order_cursor_clause = self.get_with_global_order_cursor_clause();
         let order_str = &self.order_str;
@@ -233,10 +232,8 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         format!(
             "SELECT {fields_to_select} \
             FROM {source_table_or_query} \
-            JOIN tx_digests on {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} = tx_digests.{TX_SEQUENCE_NUMBER_STR} \
-            JOIN tx_global_order ON tx_global_order.tx_digest = tx_digests.tx_digest \
-            WHERE {main_filter_condition} \
-            {global_order_cursor_clause} AND {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} >= {smallest_tx_seq_with_global_order} \
+            JOIN tx_global_order ON tx_global_order.chk_tx_sequence_number = {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} \
+            WHERE {main_filter_condition} {global_order_cursor_clause} \
             ORDER BY tx_global_order.global_sequence_number {order_str}, tx_global_order.optimistic_sequence_number {order_str} \
             LIMIT {limit} \
             ",
@@ -1130,11 +1127,8 @@ impl IndexerReader {
         // TODO: consider making it cached
         let pool = self.get_pool();
         Ok(run_query_async!(&pool, move |conn| {
-            tx_digests::table
-                .inner_join(
-                    tx_global_order::table.on(tx_digests::tx_digest.eq(tx_global_order::tx_digest)),
-                )
-                .select(diesel::dsl::min(tx_digests::tx_sequence_number))
+            tx_global_order::table
+                .select(diesel::dsl::min(tx_global_order::chk_tx_sequence_number))
                 .first::<Option<i64>>(conn)
         })?
         .unwrap_or(i64::MAX))
