@@ -851,6 +851,8 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 IotaAddress::try_from_unpadded(&zklogin.inputs)
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
+            // TODO: handle this
+            GenericSignature::MoveAuthenticator(move_authenticator) => todo!(),
         }
     }
 }

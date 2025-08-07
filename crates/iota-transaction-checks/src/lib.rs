@@ -66,6 +66,30 @@ mod checked {
     }
 
     #[instrument(level = "trace", skip_all)]
+    pub fn check_auth_inputs(
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        transaction: &TransactionData,
+        input_objects: InputObjects,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+        for object in input_objects.iter() {
+            if object.is_mutable() {
+                panic!("Mutable objects are not allowed") // TODO: Error handling
+            }
+        }
+
+        let gas_status = get_gas_status(
+            &input_objects,
+            transaction.gas(),
+            protocol_config,
+            reference_gas_price,
+            transaction,
+        )?;
+
+        Ok((gas_status, input_objects.into_checked()))
+    }
+
+    #[instrument(level = "trace", skip_all)]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,

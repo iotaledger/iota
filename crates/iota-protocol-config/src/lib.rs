@@ -520,6 +520,9 @@ pub struct ProtocolConfig {
     /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
 
+    /// Maximum gas budget in NANOS that a authentification transaction can use.
+    max_auth_gas: Option<u64>,
+
     /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
     max_gas_price: Option<u64>,
@@ -1494,6 +1497,8 @@ impl ProtocolConfig {
             max_publish_or_upgrade_per_ptb: Some(5),
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
+            // max gas budget is in NANOS and an absolute value 50IOTA
+            max_auth_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
             max_gas_computation_bucket: Some(5_000_000),
             max_loop_depth: Some(5),

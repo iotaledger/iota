@@ -266,6 +266,8 @@ impl AuthenticatorTrait for MultiSig {
                         )
                         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
                 }
+                // TODO: handle this case
+                CompressedSignature::Move(move_authentificator_as_bytes) => todo!(),
             };
             if res.is_ok() {
                 weight_sum += *weight as u16;
