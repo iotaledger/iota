@@ -1389,9 +1389,19 @@ impl ObjectCacheRead for WritebackCache {
             .record_cache_request("package", "package_cache");
         if let Some(p) = self.packages.get(package_id) {
             if cfg!(debug_assertions) {
-                if let Some(store_package) = self.store.try_get_object(package_id).unwrap() {
+                let canonical_package = self
+                    .dirty
+                    .objects
+                    .get(package_id)
+                    .and_then(|v| match v.get_highest().map(|v| v.1.clone()) {
+                        Some(ObjectEntry::Object(object)) => Some(object),
+                        _ => None,
+                    })
+                    .or_else(|| self.store.get_object(package_id));
+
+                if let Some(canonical_package) = canonical_package {
                     assert_eq!(
-                        store_package.digest(),
+                        canonical_package.digest(),
                         p.object().digest(),
                         "Package object cache is inconsistent for package {package_id:?}"
                     );
