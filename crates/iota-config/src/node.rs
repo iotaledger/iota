@@ -168,11 +168,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
-    /// Defines a threshold for an object size above which object
-    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
-    #[serde(default)]
-    pub indirect_objects_threshold: usize,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
