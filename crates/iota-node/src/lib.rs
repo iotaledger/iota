@@ -2281,7 +2281,7 @@ async fn build_grpc_server(
     let (data_tx, _) = broadcast::channel(grpc_config.checkpoint_broadcast_buffer_size);
 
     let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
-    let grpc_reader = GrpcReader::from_rest_state_reader(rest_read_store);
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
 
     let grpc_service = CheckpointGrpcService::new(grpc_reader, summary_tx.clone(), data_tx.clone());
 
