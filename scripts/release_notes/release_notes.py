@@ -13,6 +13,8 @@ import sys
 from typing import NamedTuple
 import urllib.request
 
+GH_TOKEN = os.environ.get('GH_TOKEN')
+
 RE_NUM = re.compile("[0-9_]+")
 
 RE_PR = re.compile(
@@ -139,6 +141,8 @@ def extract_notes_from_commit(commit):
     headers = {
         "Accept": "application/vnd.github.v3+json",
     }
+    if GH_TOKEN is not None:
+        headers["Authorization"] = f"token {GH_TOKEN}"
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req) as response:
         data = json.load(response)
@@ -154,13 +158,15 @@ def extract_notes_from_pr(pr_number):
     headers = {
         "Accept": "application/vnd.github.v3+json",
     }
+    if GH_TOKEN is not None:
+        headers["Authorization"] = f"token {GH_TOKEN}"
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req) as response:
         data = json.load(response)
         pr_notes = data["body"] if data["body"] else ""
         return pr_notes
     
-    
+
 def extract_notes(commit_or_pr, seen, is_pr):
     """Get release notes from a commit message or a PR description.
 
