@@ -7,9 +7,7 @@
 
 set -euo pipefail
 IFS=$'\n\t'
-SEED=${SEED:-$(date +%s)}
-RANDOM=$SEED
-echo "Seeding RANDOM with $SEED"
+SEED=${SEED:-42}
 
 log() {
   echo "$(date -Iseconds) $1"
@@ -56,12 +54,12 @@ touch "$LOCKFILE"
 # duration_total=$((1 * 60 * 60))  # 1 hours
 duration_total=${TEST_DURATION}
 
-# Parse optional -n flag for number of validators (default 4)
 NUM_VALIDATORS=4
-while getopts "n:" opt; do
+while getopts "n:s:" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
+    s) SEED="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
@@ -78,6 +76,9 @@ TIMESTAMP_START=$(date +%Y%m%d-%H%M%S)
 SCRIPT_LOG="$LOG_DIR/fuzz-test-script-$TIMESTAMP_START.log"
 # Capture all script stdout/stderr to the script log
 exec > >(tee -a "$SCRIPT_LOG") 2>&1
+# Seed RANDOM after logging is set up
+echo "Seeding RANDOM with $SEED"
+RANDOM=$SEED
 for i in $(seq 1 "$NUM_VALIDATORS"); do
   validators+=(validator-"$i")
 done
