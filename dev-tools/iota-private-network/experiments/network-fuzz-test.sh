@@ -6,6 +6,7 @@
 # Run a long-time fuzzy random network disruption test across validators.
 
 set -euo pipefail
+trap 'echo "Error! Cleaning up…"; cleanup_all' ERR
 IFS=$'\n\t'
 
 
@@ -72,13 +73,13 @@ validators=()
 LOG_DIR="./logs"
 mkdir -p "$LOG_DIR"
 echo "Logging into $LOG_DIR"
-# Start script logging at the top
+
+trap 'echo "Interrupted! Cleaning up…"; cleanup_all; exit 1' INT TERM EXIT
+# Capture all script stdout/stderr to the script log
 TIMESTAMP_START=$(date +%Y%m%d-%H%M%S)
 SCRIPT_LOG="$LOG_DIR/fuzz-test-script-$TIMESTAMP_START.log"
-
-trap 'echo "Interrupted! Cleaning up…"; cleanup_all; exit 1' INT TERM
-# Capture all script stdout/stderr to the script log
 exec > >(tee -a "$SCRIPT_LOG") 2>&1
+
 # Seed RANDOM after logging is set up
 echo "Seeding RANDOM with $SEED"
 RANDOM=$SEED
