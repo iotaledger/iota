@@ -27,12 +27,12 @@ pub struct CheckpointGrpcService {
 impl CheckpointGrpcService {
     /// Create a new CheckpointGrpcService with a GrpcReader
     pub fn new(
-        reader: GrpcReader,
+        reader: Arc<GrpcReader>,
         checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
         checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
     ) -> Self {
         Self {
-            reader: Arc::new(reader),
+            reader,
             checkpoint_summary_tx,
             checkpoint_data_tx,
         }
