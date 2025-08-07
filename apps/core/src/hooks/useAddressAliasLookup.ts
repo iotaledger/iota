@@ -6,7 +6,6 @@ import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import { useNetwork } from './useNetwork';
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { useMemo } from 'react';
 
 const ADDRESSES_ALIAS_FALLBACK: KnownAddressAliasesFeature = {
     enabled: false,
@@ -32,23 +31,18 @@ export function useAddressAliasLookup() {
         Feature.KnownAddressAlias,
         ADDRESSES_ALIAS_FALLBACK,
     );
-
     const validatorAliasesByNetwork = useFeatureValue<ValidatorAddressAliasFeature>(
         Feature.ValidatorAddressAlias,
         {},
     );
 
-    const networkValidatorAliases = useMemo(
-        () => validatorAliasesByNetwork[network]?.addresses || ADDRESSES_ALIAS_FALLBACK.addresses,
-        [network],
-    );
-
+    const networkValidatorAliases = validatorAliasesByNetwork[network]?.addresses;
     const addressAliasMap = {
         ...networkValidatorAliases,
         ...knownAddresses.addresses,
     };
 
-    return (address: string) => {
+    return (address: string): string | null => {
         if (!knownAddresses || !knownAddresses.enabled) {
             return null;
         }
