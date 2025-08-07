@@ -617,7 +617,7 @@ pub struct AuthorityEpochTables {
     /// Stores pending signatures
     /// The key in this table is checkpoint sequence number and an arbitrary
     /// integer
-    pending_checkpoint_signatures:
+    pub(crate) pending_checkpoint_signatures:
         DBMap<(CheckpointSequenceNumber, u64), CheckpointSignatureMessage>,
 
     /// When we see certificate through consensus for the first time, we record
@@ -804,22 +804,6 @@ impl AuthorityEpochTables {
         Ok(self.last_consensus_stats.get(&LAST_CONSENSUS_STATS_ADDR)?)
     }
 
-    pub fn get_pending_checkpoint_signatures_iter(
-        &self,
-        checkpoint_seq: CheckpointSequenceNumber,
-        starting_index: u64,
-    ) -> IotaResult<
-        impl Iterator<Item = ((CheckpointSequenceNumber, u64), CheckpointSignatureMessage)> + '_,
-    > {
-        let key = (checkpoint_seq, starting_index);
-        trace!("Scanning pending checkpoint signatures from {:?}", key);
-        let iter = self
-            .pending_checkpoint_signatures
-            .unbounded_iter()
-            .skip_to(&key)?;
-        Ok::<_, IotaError>(iter)
-    }
-
     pub fn get_locked_transaction(&self, obj_ref: &ObjectRef) -> IotaResult<Option<LockDetails>> {
         Ok(self
             .owned_object_locked_transactions
@@ -962,7 +946,7 @@ impl AuthorityPerEpochStore {
 
         let mut jwk_aggregator = JwkAggregator::new(committee.clone());
 
-        for ((authority, id, jwk), _) in tables.pending_jwks.unbounded_iter().seek_to_first() {
+        for ((authority, id, jwk), _) in tables.pending_jwks.unbounded_iter() {
             jwk_aggregator.insert(authority, (id, jwk));
         }
 
@@ -1179,9 +1163,9 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .running_root_accumulators
-            .unbounded_iter()
-            .skip_to_last()
-            .next())
+            .reversed_safe_iter_with_bounds(None, None)?
+            .next()
+            .transpose()?)
     }
 
     pub fn insert_running_root_accumulator(
@@ -3044,9 +3028,11 @@ impl AuthorityPerEpochStore {
         self.tables()
             .expect("test should not cross epoch boundary")
             .pending_checkpoints
-            .unbounded_iter()
-            .skip_to_last()
+            .reversed_safe_iter_with_bounds(None, None)
+            .unwrap()
             .next()
+            .transpose()
+            .unwrap()
             .map(|(key, _)| key)
             .unwrap_or_default()
     }
@@ -3875,11 +3861,13 @@ impl AuthorityPerEpochStore {
         last: Option<CheckpointHeight>,
     ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpoint)>> {
         let tables = self.tables()?;
-        let mut iter = tables.pending_checkpoints.unbounded_iter();
-        if let Some(last_processed_height) = last {
-            iter = iter.skip_to(&(last_processed_height + 1))?;
-        }
-        Ok(iter.collect())
+
+        let db_iter = tables
+            .pending_checkpoints
+            .safe_iter_with_bounds(last.map(|height| height + 1), None);
+        db_iter
+            .collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()
+            .map_err(Into::into)
     }
 
     pub fn get_pending_checkpoint(
@@ -3970,9 +3958,9 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .builder_checkpoint_summary
-            .unbounded_iter()
-            .skip_to_last()
+            .reversed_safe_iter_with_bounds(None, None)?
             .next()
+            .transpose()?
             .map(|(_, s)| s))
     }
 
@@ -3982,9 +3970,9 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .builder_checkpoint_summary
-            .unbounded_iter()
-            .skip_to_last()
+            .reversed_safe_iter_with_bounds(None, None)?
             .next()
+            .transpose()?
             .map(|(seq, s)| (seq, s.summary)))
     }
 
@@ -4013,9 +4001,9 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .pending_checkpoint_signatures
-            .unbounded_iter()
-            .skip_to_last()
+            .reversed_safe_iter_with_bounds(None, None)?
             .next()
+            .transpose()?
             .map(|((_, index), _)| index)
             .unwrap_or_default())
     }
