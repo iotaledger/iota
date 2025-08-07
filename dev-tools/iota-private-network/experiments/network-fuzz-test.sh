@@ -3,20 +3,40 @@
 # Copyright (c) 2025 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
+# Run a long-time fuzzy random network disruption test across validators.
+
 set -euo pipefail
 IFS=$'\n\t'
 SEED=${SEED:-$(date +%s)}
 RANDOM=$SEED
 echo "Seeding RANDOM with $SEED"
 
+log() {
+  echo "$(date -Iseconds) $1"
+}
+
+# Detect consensus protocol
+case "${CONSENSUS_PROTOCOL:-}" in
+  starfish|Starfish)
+    PROTOCOL_NAME="Starfish"
+    ;;
+  *)
+    PROTOCOL_NAME="Mysticeti"
+    ;;
+esac
+log "Using consensus protocol: ${PROTOCOL_NAME}"
+
 # === PROBABILITIES & DURATIONS ===
-BLOCK_PROB=50      # 1 in BLOCK_PROB chance to trigger each block type per pair
+BLOCK_PROB=50      # 1 in BLOCK_PROB chance to trigger each block type per pair and disruption type
 STOP_PROB=10       # percentage chance (0-100) to stop a validator
 LOSS_PROB=25       # percentage chance (0-100) to apply packet loss
 MIN_DURATION=60    # minimum disruption duration (seconds)
 MAX_DURATION=300   # maximum disruption duration (seconds)
 
-# Run a 24h fuzzy random network disruption test across validators.
+# Define total test duration as a constant (default: 1h)
+TEST_DURATION=$((1 * 60 * 60))   # total fuzz test time in seconds (default: 1h)
+
+
 
 
 # === LOCKING: Prevent multiple instances ===
@@ -29,7 +49,8 @@ trap 'rm -f "$LOCKFILE"' EXIT
 touch "$LOCKFILE"
 
 # === CONFIGURATION ===
-duration_total=$((1 * 60 * 60))  # 1 hours
+# duration_total=$((1 * 60 * 60))  # 1 hours
+duration_total=${TEST_DURATION}
 
 # Parse optional -n flag for number of validators (default 4)
 NUM_VALIDATORS=4
@@ -60,10 +81,6 @@ done
 # Announce test start with selected validator count
 echo "Starting network fuzz test with ${NUM_VALIDATORS} validators"
 
-log() {
-  echo "$(date -Iseconds) $1"
-}
-
 cleanup_all() {
   log "Cleaning up all validators"
   for v in "${validators[@]}"; do
@@ -91,10 +108,9 @@ pause_validator() {
 
 restart_validator() {
   local v=$1 d=$2
-  log "Stopping $v for ${d}s"
-  docker stop "$v"
+  docker stop "$v" >/dev/null 2>&1
   sleep $d
-  docker start "$v"
+  docker start "$v" >/dev/null 2>&1
   log "Restarted $v"
 }
 
@@ -103,6 +119,7 @@ restart_validator() {
 netem_loss() {
   local v=$1 p=$2 d=$3
   log "Applying ${p}% packet loss to $v for ${d}s"
+  docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc del dev eth0 root 2>/dev/null || true
   docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc add dev eth0 root netem loss ${p}%
   sleep $d
   docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc del dev eth0 root
@@ -180,24 +197,21 @@ apply_latency() {
            tc qdisc add dev eth0 root netem delay ${delay} ${jitter}"
 }
 
+# == Clear all latency ==
 clear_latency() {
-  local A=$1 B=$2
-  mark_pair_remove() {
-    local A=$1 B=$2
-    local IPB
-    IPB=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$B")
-    docker run --rm --privileged --net container:"$A" nicolaka/netshoot \
-      sh -c "iptables -t mangle -D OUTPUT -d ${IPB} -j MARK --set-mark 1 || true"
-  }
-  mark_pair_remove "$A" "$B"
-  docker run --rm --privileged --net container:"$A" nicolaka/netshoot \
-    sh -c "tc qdisc del dev eth0 root || true"
+  log "Clearing all latency rules"
+  for v in "${validators[@]}"; do
+    docker run --rm --privileged --net container:"$v" nicolaka/netshoot sh -c "
+      tc qdisc del dev eth0 root 2>/dev/null || true
+      iptables -t mangle -F
+    " 2>/dev/null || true
+  done
 }
 
 # === FUZZ LOOP ===
-log "Starting 24h fuzz test"
+log "Starting fuzz test (duration: ${TEST_DURATION}s, validators: ${NUM_VALIDATORS})"
 log "Warmup sleep for 30s"
-  sleep 30
+sleep 30
 
 while [[ $(date +%s) -lt $end_time ]]; do
   log "######################################"
@@ -208,8 +222,8 @@ while [[ $(date +%s) -lt $end_time ]]; do
         A=${validators[i]}
         B=${validators[j]}
         # pick random delays and jitters for each direction
-        D1=$((RANDOM % 50 + 10)) J1=$((RANDOM % 50))
-        D2=$((RANDOM % 50 + 10)) J2=$((RANDOM % 50))
+        D1=$((RANDOM % 60 + 10)) J1=$((RANDOM % 30))
+        D2=$((RANDOM % 50 + 10)) J2=$((RANDOM % 30))
         log "Injecting ${D1}ms±${J1}ms latency from $A to $B"
         mark_pair "$A" "$B"
         apply_latency "$A" "${D1}ms" "${J1}ms"
@@ -280,7 +294,6 @@ while [[ $(date +%s) -lt $end_time ]]; do
   # Overwrite intermediate script log
   cp "$SCRIPT_LOG" "$LOG_DIR/fuzz-test-script-latest.log"
   sleep 300
-  log "Clearing all latency rules"
     clear_latency
   # Recovery wait
   log "Recovery sleep for 60s"
