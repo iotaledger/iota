@@ -216,7 +216,7 @@ async fn run_simulacrum_with_grpc() -> anyhow::Result<()> {
         }
     }
 
-    // Example 3: Test epoch functionality
+    // Example 3: Demonstrate epoch functionality
     println!("\n=== Testing epoch functionality ===");
     let epoch_request = iota_grpc_api::checkpoint::EpochRequest { epoch: 0 };
 
