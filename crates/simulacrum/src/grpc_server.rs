@@ -190,29 +190,6 @@ impl<Store: SimulatorStore + Send + Sync + 'static> Simulacrum<rand::rngs::OsRng
     ///
     /// This provides a convenient way to expose the simulacrum's blockchain
     /// data via gRPC streaming APIs, useful for testing and development.
-    ///
-    /// # Example
-    /// ```ignore
-    /// use simulacrum::{Simulacrum, GrpcServerConfig};
-    ///
-    /// let mut simulacrum = Simulacrum::new();
-    ///
-    /// // Create some checkpoints
-    /// simulacrum.advance_clock(std::time::Duration::from_secs(1));
-    /// simulacrum.create_checkpoint();
-    ///
-    /// // Start gRPC server
-    /// let config = GrpcServerConfig {
-    ///     address: "127.0.0.1:9001".parse().unwrap(),
-    ///     ..Default::default()
-    /// };
-    ///
-    /// let server_handle = simulacrum.start_grpc_server(config).await?;
-    /// println!("gRPC server running on {}", server_handle.address());
-    ///
-    /// // Server runs in background, can be shut down with:
-    /// // server_handle.shutdown();
-    /// ```
     pub async fn start_grpc_server(
         self: Arc<Self>,
         config: GrpcServerConfig,
