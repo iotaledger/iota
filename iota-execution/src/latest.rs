@@ -6,13 +6,16 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
-    execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
+    execution_engine::{
+        execute_genesis_state_update, execute_transaction_to_effects, validate_transaction,
+    },
     execution_mode,
     type_layout_resolver::TypeLayoutResolver,
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    account::{AuthenticatorInfo, MoveAuthenticator},
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -163,6 +166,53 @@ impl executor::Executor for Executor {
                 &mut None,
             )
         }
+    }
+
+    fn validate_transaction(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_coins: Vec<ObjectRef>,
+        gas_status: IotaGasStatus,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        transaction_input_objects: CheckedInputObjects,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
+        validate_transaction(
+            store,
+            gas_coins,
+            gas_status,
+            authenticator,
+            authenticator_info,
+            authenticator_input_objects,
+            transaction_kind,
+            transaction_signer,
+            transaction_digest,
+            transaction_input_objects,
+            &self.0,
+            epoch_id,
+            epoch_timestamp_ms,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            certificate_deny_set,
+            trace_builder_opt,
+        )
     }
 
     fn update_genesis_state(

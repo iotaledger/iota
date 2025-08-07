@@ -15,7 +15,8 @@ mod checked {
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
+        account::{AuthenticatorInfo, MoveAuthenticator},
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -61,7 +62,7 @@ mod checked {
 
     use crate::{
         adapter::new_move_vm,
-        execution_mode::{self, ExecutionMode},
+        execution_mode::{self, ExecutionMode, Normal},
         gas_charger::GasCharger,
         programmable_transactions,
         temporary_store::TemporaryStore,
@@ -237,6 +238,189 @@ mod checked {
             effects,
             execution_result,
         )
+    }
+
+    /// This function implements a smart account transaction validation.
+    /// TODO: This function is a prototype, it will be refactored and improved.
+    /// TODO: Add more details.
+    pub fn validate_transaction(
+        store: &dyn BackingStore,
+        gas_coins: Vec<ObjectRef>,
+        gas_status: IotaGasStatus,
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+        authenticator_input_objects: CheckedInputObjects,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        transaction_input_objects: CheckedInputObjects,
+        move_vm: &Arc<MoveVM>,
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
+        // TODO: It is fake authenticator digest, which one we should use here?
+        let authenticator_digest = transaction_digest;
+
+        // Check the transaction type.
+        debug_assert!(
+            transaction_kind.is_programmable_transaction(),
+            "Only programmable transactions are allowed"
+        );
+
+        // Prepare the authenticator input objects.
+        let input_objects = authenticator_input_objects.into_inner();
+
+        let mutable_inputs = input_objects
+            .mutable_inputs()
+            .keys()
+            .copied()
+            .collect::<HashSet<_>>();
+
+        // Double check if we have only immutable inputs.
+        debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
+
+        let shared_object_refs = input_objects.filter_shared_objects();
+        let receiving_objects = Vec::new(); // transaction_kind.receiving_objects();
+        let mut transaction_dependencies = input_objects.transaction_dependencies();
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let cancelled_objects = input_objects.get_cancelled_objects();
+
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            input_objects,
+            receiving_objects,
+            authenticator_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
+        let mut gas_charger =
+            GasCharger::new(authenticator_digest, gas_coins, gas_status, protocol_config);
+
+        // TODO: AuthContext is needed to be created somewhere here.
+        let mut tx_ctx = TxContext::new_from_components(
+            &transaction_signer,
+            &authenticator_digest,
+            epoch_id,
+            epoch_timestamp_ms,
+        );
+
+        // Create an authenticator transaction.
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        builder = setup_account_authenticator_call(builder, authenticator, authenticator_info);
+
+        let authenticator_transaction = TransactionKind::programmable(builder.finish());
+
+        // TODO: Do we need to check this?
+        let deny_cert = is_certificate_denied(&authenticator_digest, certificate_deny_set);
+
+        // TODO: Check if we can use this function or execute the
+        // authenticator_transaction directly.
+        let (gas_cost_summary, execution_result) = execute_transaction::<Normal>(
+            &mut temporary_store,
+            authenticator_transaction,
+            &mut gas_charger,
+            &mut tx_ctx,
+            move_vm,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            deny_cert,
+            contains_deleted_input,
+            cancelled_objects,
+            trace_builder_opt,
+        );
+
+        let status = if let Err(error) = &execution_result {
+            // Elaborate errors in logs if they are unexpected or their status is terse.
+            use ExecutionErrorKind as K;
+            match error.kind() {
+                K::InvariantViolation | K::VMInvariantViolation => {
+                    #[skip_checked_arithmetic]
+                    tracing::error!(
+                        kind = ?error.kind(),
+                        tx_digest = ?authenticator_digest,
+                        "INVARIANT VIOLATION! Source: {:?}",
+                        error.source(),
+                    );
+                }
+
+                K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
+                    #[skip_checked_arithmetic]
+                    tracing::debug!(
+                        kind = ?error.kind(),
+                        tx_digest = ?authenticator_digest,
+                        "Verification Error. Source: {:?}",
+                        error.source(),
+                    );
+                }
+
+                K::PublishUpgradeMissingDependency | K::PublishUpgradeDependencyDowngrade => {
+                    #[skip_checked_arithmetic]
+                    tracing::debug!(
+                        kind = ?error.kind(),
+                        tx_digest = ?authenticator_digest,
+                        "Publish/Upgrade Error. Source: {:?}",
+                        error.source(),
+                    )
+                }
+
+                _ => (),
+            };
+
+            let (status, command) = error.to_execution_status();
+            ExecutionStatus::new_failure(status, command)
+        } else {
+            ExecutionStatus::Success
+        };
+
+        #[skip_checked_arithmetic]
+        trace!(
+            tx_digest = ?authenticator_digest,
+            computation_gas_cost = gas_cost_summary.computation_cost,
+            computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
+            storage_gas_cost = gas_cost_summary.storage_cost,
+            storage_gas_rebate = gas_cost_summary.storage_rebate,
+            "Finished execution of transaction with status {:?}",
+            status
+        );
+
+        // TODO: Do we need this?
+        // Genesis writes a special digest to indicate that an object was created during
+        // genesis and not written by any normal transaction - remove that from the
+        // dependencies
+        transaction_dependencies.remove(&TransactionDigest::genesis_marker());
+
+        // TODO: Do we need this?
+        if enable_expensive_checks && !Normal::allow_arbitrary_function_calls() {
+            temporary_store
+                .check_ownership_invariants(
+                    &transaction_signer,
+                    &mut gas_charger,
+                    &mutable_inputs,
+                    false,
+                )
+                .unwrap()
+        } // else, in dev inspect mode and anything goes--don't check
+
+        // TODO: Would we like to check the effects here? Object changes, events, etc.?
+        let (inner, effects) = temporary_store.into_effects(
+            shared_object_refs,
+            &authenticator_digest,
+            transaction_dependencies,
+            gas_cost_summary,
+            status,
+            &mut gas_charger,
+            *epoch_id,
+        );
+
+        (gas_charger.into_gas_status(), execution_result)
     }
 
     /// Function dedicated to the execution of a GenesisTransaction.
@@ -1301,5 +1485,25 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+    }
+
+    /// The function constructs a transaction that invokes a smart account
+    /// authenticator.
+    fn setup_account_authenticator_call(
+        mut builder: ProgrammableTransactionBuilder,
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+    ) -> ProgrammableTransactionBuilder {
+        // TODO: Result instead of expect?
+        builder
+            .move_call(
+                authenticator_info.package.into(),
+                Identifier::new(authenticator_info.module).unwrap(),
+                Identifier::new(authenticator_info.function).unwrap(),
+                vec![],
+                authenticator.inputs,
+            )
+            .expect("Unable to generate account authenticator call transaction!");
+        builder
     }
 }

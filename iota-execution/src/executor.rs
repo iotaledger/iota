@@ -6,6 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    account::{AuthenticatorInfo, MoveAuthenticator},
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -78,6 +79,32 @@ pub trait Executor {
         TransactionEffects,
         Result<Vec<ExecutionResult>, ExecutionError>,
     );
+
+    fn validate_transaction(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_coins: Vec<ObjectRef>,
+        gas_status: IotaGasStatus,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        transaction_input_objects: CheckedInputObjects,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (IotaGasStatus, Result<(), ExecutionError>);
 
     fn update_genesis_state(
         &self,

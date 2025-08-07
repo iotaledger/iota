@@ -1203,6 +1203,10 @@ impl TransactionKind {
         matches!(self, TransactionKind::EndOfEpochTransaction(_))
     }
 
+    pub fn is_programmable_transaction(&self) -> bool {
+        matches!(self, TransactionKind::ProgrammableTransaction(_))
+    }
+
     /// If this is advance epoch transaction, returns (total gas charged, total
     /// gas rebated). TODO: We should use GasCostSummary directly in
     /// ChangeEpoch struct, and return that directly.
