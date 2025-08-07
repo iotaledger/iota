@@ -159,7 +159,7 @@ where
     Self: Send + Sync + 'static,
 {
     fn get_sequence_number(&self, item: &Arc<T>) -> u64;
-    fn get_item(&self, ix: u64) -> Option<Arc<T>>;
+    fn get_item(&self, seq: u64) -> Option<Arc<T>>;
     fn get_latest(&self) -> Option<u64>;
 
     fn create_checkpoint_response(&self, item: &Arc<T>, is_full: bool) -> CheckpointStreamResult {
