@@ -56,7 +56,7 @@ pub struct TxGlobalOrder {
     /// To maintain these semantics the value should be non-positive for
     /// checkpointed transactions. More specifically we allow values
     /// in the set `[0, -1]` to represent the index status of checkpointed
-    /// transactions. See also [`CheckpointTxGlobalOrder`].
+    /// transactions.
     ///
     /// Optimistic transactions should set this value to `None`,
     /// so that it is auto-generated on the database.
