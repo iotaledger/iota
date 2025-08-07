@@ -15,7 +15,11 @@ log() {
   echo "$(date -Iseconds) $1"
 }
 
-# Detect consensus protocol
+# Detect consensus protocol from validator-1 container
+CONSENSUS_PROTOCOL=$(
+  docker exec validator-1 sh -c 'env | grep "^CONSENSUS_PROTOCOL=" || true' \
+  | sed -n 's/^CONSENSUS_PROTOCOL=//p'
+)
 case "${CONSENSUS_PROTOCOL:-}" in
   starfish|Starfish)
     PROTOCOL_NAME="Starfish"
