@@ -1,0 +1,137 @@
+---
+title: Get Attestations and Accreditations
+sidebar_label: Get Attestations and Accreditations
+description: Comprehensive guide to get attestations and accreditations.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Get Attestations and Accreditations
+
+This guide demonstrates how to get attestations and accreditations from a hierarchy.
+
+### Prerequisites
+
+- An existing hierarchy on the IOTA network
+- Access to a hierarchy client (read-only access is sufficient)
+
+### Available Read-Only Methods
+
+All hierarchies support the same comprehensive read-only interface:
+
+- **Get Attestations**: Get attestations from a hierarchy
+- **Get Accreditations**: Get accreditations from a hierarchy
+
+### 1. Set Up Read-Only Client
+
+You can use either a full client or a read-only client for inspection:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L25
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L7
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new Federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L27-L30
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L8-L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add Statements For Federation
+
+Add statements which will be used to create attestations and accreditations:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L42-L50
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L15-L21
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create and Get Accreditation to Attest
+
+Create an accreditation that allows a receiver to attest to specific statements, then retrieve it:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L52-L79
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L23-L42
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Create and Get Accreditation to Accredit
+
+Create an accreditation that allows a receiver to grant accreditations to others, then retrieve it:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L82-L97
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L46-L65
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Differences
+
+- **Accreditation to Attest**: Allows a receiver to create attestations for specific statements
+- **Accreditation to Accredit**: Allows a receiver to grant accreditations to other entities
+- **Read-Only Access**: Getting accreditations only requires read-only access to the hierarchy
+- **Verification**: Both types of accreditations can be retrieved and verified using the same read-only interface

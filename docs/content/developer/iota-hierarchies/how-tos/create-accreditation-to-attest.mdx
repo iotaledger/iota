@@ -1,0 +1,135 @@
+---
+title: Create Accreditation to Attest
+sidebar_label: Create Accreditation to Attest
+description: Guide to issue permissions for attestation in a federation.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Create Accreditation to Attest
+
+This guide demonstrates how to issue a permission to attest to a statement within a federation.
+
+### Prerequisites
+
+- An existing federation on the IOTA network
+- Root authority or accreditation permissions
+- A funded client with write access
+
+### Overview
+
+Accreditations to attest allow receivers to create attestations for specific statements. This is a key mechanism for delegating attestation authority within a hierarchy.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the hierarchy:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/04_create_accreditation_to_attest.rs#L26
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/04_create_accreditation_to_attest.ts#L21
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation and Add Statement
+
+Create a federation and add a statement that will be used for attestations:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/04_create_accreditation_to_attest.rs#L28-L53
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/04_create_accreditation_to_attest.ts#L23-L41
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Define Receiver and Statement
+
+Specify the receiver who will get the attestation permission and define the statement structure:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/04_create_accreditation_to_attest.rs#L57-L66
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/04_create_accreditation_to_attest.ts#L44-L48
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create Accreditation to Attest
+
+Issue the permission to attest to the specified receiver:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/04_create_accreditation_to_attest.rs#L68-L73
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/04_create_accreditation_to_attest.ts#L50-L53
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Accreditation Creation
+
+Verify that the accreditation was successfully created:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/04_create_accreditation_to_attest.rs#L77-L85
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/04_create_accreditation_to_attest.ts#L57-L65
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Attestation Permission**: Allows receivers to create attestations for specific statements
+- **Statement Constraints**: The accreditation specifies which statements and values can be attested
+- **Receiver Identification**: Receivers are identified by their unique ObjectID
+- **Delegation of Authority**: This mechanism enables hierarchical delegation of attestation authority

@@ -301,6 +301,11 @@ infrastructure:
   label: Infrastructure
   description: Infrastructure
 
+# Hierarchies
+hierarchies:
+  label: Hierarchies
+  description: The IOTA Hierarchies API.
+
 # Notarization
 notarization:
   label: Notarization

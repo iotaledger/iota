@@ -1,0 +1,135 @@
+---
+title: Revoke Accreditation to Accredit
+sidebar_label: Revoke Accreditation to Accredit
+description: Guide to revoke accreditation permissions in a federation.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Revoke Accreditation to Accredit
+
+This guide demonstrates how to revoke a permission to accredit within a federation.
+
+### Prerequisites
+
+- An existing federation with issued accreditations to accredit
+- Root authority permissions to revoke accreditations
+- A funded client with write access
+
+### Overview
+
+Revoking accreditations to accredit removes the ability for a receiver to grant accreditations to others. This is essential for managing hierarchical permissions within a federation.
+
+### 1. Set Up Client and Federation
+
+Initialize a client and create a federation with statements:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L26-L55
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L19-L40
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Accreditation to Accredit
+
+Issue an accreditation to accredit that will later be revoked:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L57-L74
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L42-L52
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Verify Accreditation Exists
+
+Confirm the accreditation to accredit was successfully created:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L90-L93
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L54-L57
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Revoke the Accreditation
+
+Revoke the accreditation to accredit using its ID:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L95-L106
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L59-L64
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Revocation
+
+Confirm the accreditation to accredit has been successfully revoked:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L108-L117
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L67-L70
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Higher Level Revocation**: Removes the ability to grant accreditations to others
+- **Permission ID Required**: You need the specific accreditation ID to revoke it
+- **Cascading Effect**: Revoked accreditors cannot grant new accreditations
+- **Root Authority Required**: Only root authorities can revoke accreditations to accredit
