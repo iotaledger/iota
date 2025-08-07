@@ -178,7 +178,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     /// processed, for crash recovery. Any state computed here must be a
     /// pure function of the commits observed, it cannot depend on any state
     /// recorded in the epoch db.
-    fn handle_prior_consensus_commit(&mut self, consensus_commit: impl ConsensusOutputAPI) {
+    fn handle_prior_consensus_output(&mut self, consensus_commit: impl ConsensusOutputAPI) {
         // TODO: this will be used to recover state computed from previous commits at
         // startup.
         let round = consensus_commit.leader_round();
@@ -463,7 +463,7 @@ impl MysticetiConsensusHandler {
             while let Some(consensus_output) = receiver.recv().await {
                 let commit_index = consensus_output.commit_ref.index;
                 if commit_index <= last_processed_commit_at_startup {
-                    consensus_handler.handle_prior_consensus_commit(consensus_output);
+                    consensus_handler.handle_prior_consensus_output(consensus_output);
                 } else {
                     consensus_handler
                         .handle_consensus_output(consensus_output)

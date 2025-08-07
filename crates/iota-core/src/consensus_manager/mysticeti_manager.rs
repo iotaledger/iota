@@ -149,6 +149,7 @@ impl ConsensusManagerTrait for MysticetiManager {
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
         let consensus_handler = consensus_handler_initializer.new_consensus_handler();
+
         let num_prior_commits = protocol_config.consensus_num_requested_prior_commits_at_startup();
         let last_processed_commit = consensus_handler.last_processed_subdag_index() as CommitIndex;
         let starting_commit = last_processed_commit.saturating_sub(num_prior_commits);
