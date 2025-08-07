@@ -133,7 +133,7 @@ def git(*args):
     return subprocess.check_output(["git"] + list(args)).decode().strip()
 
 
-def extract_notes_from_rebase_commit(commit):
+def extract_notes_from_commit(commit):
     # we'll need to go one level deeper to find the PR number
     url = f"https://api.github.com/repos/iotaledger/iota/commits/{commit}/pulls"
     headers = {
@@ -148,6 +148,7 @@ def extract_notes_from_rebase_commit(commit):
         pr_notes = data[0]["body"] if data[0]["body"] else ""
         return pr_number, pr_notes
     
+
 def extract_notes_from_pr(pr_number):
     url = f"https://api.github.com/repos/iotaledger/iota/pulls/{pr_number}"
     headers = {
@@ -158,8 +159,8 @@ def extract_notes_from_pr(pr_number):
         data = json.load(response)
         pr_notes = data["body"] if data["body"] else ""
         return pr_notes
-
-
+    
+    
 def extract_notes(commit_or_pr, seen, is_pr):
     """Get release notes from a commit message or a PR description.
 
@@ -174,25 +175,14 @@ def extract_notes(commit_or_pr, seen, is_pr):
     """
     if is_pr:
         pr = commit_or_pr
-        message = extract_notes_from_pr(pr)
+        notes = extract_notes_from_pr(pr)
     else:
-        message = git("show", "-s", "--format=%B", commit_or_pr)
-
-        # Extract PR number from squashed commits
-        match = RE_PR.match(message)
-        pr = match.group(1) if match else None
+        pr, notes = extract_notes_from_commit(commit_or_pr)
 
     result = {}
 
-    notes = ""
-    if pr is None:
-        # Extract PR number from rebase commits if it's not a squashed commit
-        pr, notes = extract_notes_from_rebase_commit(commit_or_pr)
-    else:
-        notes = message
-    
     # Otherwise, find the release notes section from the squashed commit message
-    match = RE_HEADING.search(message)
+    match = RE_HEADING.search(notes)
     if not match:
         return pr, []
     notes = match.group(1)
@@ -250,7 +240,7 @@ def extract_protocol_version(commit):
 def print_changelog(pr, log):
     if pr:
         print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end='')
-    print(log.replace('\n', ' '))
+    print(log)
 
 
 def do_check(commit_or_pr, is_pr):
