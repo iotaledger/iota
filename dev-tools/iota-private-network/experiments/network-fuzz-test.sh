@@ -51,6 +51,19 @@ fi
 trap 'rm -f "$LOCKFILE"' EXIT
 touch "$LOCKFILE"
 
+cleanup_all() {
+  log "Cleaning up all validators"
+  for v in "${validators[@]}"; do
+    docker unpause "$v" 2>/dev/null || true
+    docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc del dev eth0 root 2>/dev/null || true
+    docker run --rm --privileged --net container:"$v" nicolaka/netshoot sh -c "iptables -F" 2>/dev/null || true
+    docker run --rm --privileged --net container:"$v" nicolaka/netshoot \
+          sh -c "tc qdisc del dev eth0 root || true; iptables -t mangle -F" >/dev/null 2>&1 || true
+  done
+}
+
+trap 'echo "Interrupted! Cleaning up…" >&2; cleanup_all; rm -f "$LOCKFILE"; exit 1' INT TERM
+
 # === CONFIGURATION ===
 # duration_total=$((1 * 60 * 60))  # 1 hours
 duration_total=${TEST_DURATION}
@@ -74,7 +87,6 @@ LOG_DIR="./logs"
 mkdir -p "$LOG_DIR"
 echo "Logging into $LOG_DIR"
 
-trap 'echo "Interrupted! Cleaning up…"; cleanup_all; exit 1' INT TERM EXIT
 # Capture all script stdout/stderr to the script log
 TIMESTAMP_START=$(date +%Y%m%d-%H%M%S)
 SCRIPT_LOG="$LOG_DIR/fuzz-test-script-$TIMESTAMP_START.log"
@@ -89,17 +101,6 @@ done
 
 # Announce test start with selected validator count
 echo "Starting network fuzz test with ${NUM_VALIDATORS} validators"
-
-cleanup_all() {
-  log "Cleaning up all validators"
-  for v in "${validators[@]}"; do
-    docker unpause "$v" 2>/dev/null || true
-    docker run --rm --privileged --net container:"$v" gaiadocker/iproute2 qdisc del dev eth0 root 2>/dev/null || true
-    docker run --rm --privileged --net container:"$v" nicolaka/netshoot sh -c "iptables -F" 2>/dev/null || true
-    docker run --rm --privileged --net container:"$v" nicolaka/netshoot \
-          sh -c "tc qdisc del dev eth0 root || true; iptables -t mangle -F" >/dev/null 2>&1 || true
-  done
-}
 
 # === ACTION HELPERS ===
 
