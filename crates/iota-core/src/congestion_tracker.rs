@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    fs::OpenOptions,
+    io::Write,
+};
 
 use iota_types::{
     base_types::ObjectID,
@@ -12,6 +16,7 @@ use iota_types::{
     transaction::{TransactionData, TransactionDataAPI},
 };
 use moka::{ops::compute::Op, sync::Cache};
+use serde::Deserialize;
 use tracing::info;
 
 use crate::execution_cache::TransactionCacheRead;
@@ -19,11 +24,15 @@ use crate::execution_cache::TransactionCacheRead;
 /// Capacity of the congestion tracker's cache.
 const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 
+const LEARNING_RATE: f64 = 0.2;
+const DECAY_FACTOR: f64 = 1.5;
+const HOTNESS_CUTOFF: f64 = 1.0;
+
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
 
 /// Holds tracked per-object congestion info.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, serde::Serialize)]
 pub struct CongestionInfo {
     /// Timestamp of the latest checkpoint which contains transaction(s)
     /// with this object being congested.
@@ -44,9 +53,6 @@ pub struct CongestionInfo {
     /// successful execution.
     pub hotness: f64,
 }
-
-const LEARNING_RATE: f64 = 1.0;
-const HOTNESS_THRESHOLD: f64 = 1.0;
 
 impl CongestionInfo {
     /// Update this congestion info with the congestion info from a new
@@ -76,9 +82,10 @@ impl CongestionInfo {
     ) {
         // Update hotness per object based on the congestion events according to the
         // formula: hotness(i) -= SUM(tx)[hotness(i) - gas_price_feedback(tx)] *
-        // LEARNING_RATE / number_congested_transactions
+        // LEARNING_RATE / number_congested_transactions. Decrease is capped by DECAY_FACTOR.
+        let old_hotness = self.hotness;
         self.hotness -= new.hotness * LEARNING_RATE / number_congested_transactions as f64;
-        self.hotness = self.hotness.max(0.0); // Ensure hotness is non-negative
+        self.hotness = self.hotness.max(old_hotness / DECAY_FACTOR);
     }
 
     fn update_hotness_for_new_object(
@@ -167,16 +174,30 @@ impl CongestionTracker {
                     });
 
                 let tx_data = block.transaction_data();
+                let prediction_sui = self
+                    .get_prediction_suggested_gas_price(tx_data)
+                    .unwrap_or(self.reference_gas_price);
+                let prediction_ogd = self
+                    .get_suggested_gas_price_with_ogd(tx_data)
+                    .unwrap_or(self.reference_gas_price);
 
                 info!(
                     "Checkpoint: {} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?}",
                     checkpoint.sequence_number,
                     gas_price,
                     gas_price_feedback,
-                    self.get_prediction_suggested_gas_price(&tx_data)
-                        .unwrap_or(0),
-                    self.get_suggested_gas_price_with_ogd(&tx_data).unwrap_or(0)
+                    prediction_sui,
+                    prediction_ogd
                 );
+                self.dump_prediction_to_csv(
+                    "prediction.csv",
+                    checkpoint.sequence_number,
+                    gas_price,
+                    gas_price_feedback,
+                    prediction_sui,
+                    prediction_ogd,
+                )
+                .unwrap();
             } else {
                 clearing_txs_data.push((
                     gas_price,
@@ -207,6 +228,15 @@ impl CongestionTracker {
                 checkpoint.sequence_number,
                 self.get_all_hotness()
             );
+            for object in self.object_congestion_info.iter() {
+                self.dump_hotness_to_csv(
+                    "hotness.csv",
+                    checkpoint.sequence_number,
+                    *object.0,
+                    object.1.hotness,
+                )
+                .unwrap();    
+            }
         }
     }
 
@@ -256,6 +286,41 @@ impl CongestionTracker {
 }
 
 impl CongestionTracker {
+    fn dump_prediction_to_csv(
+        &self,
+        path: &str,
+        sequence_number: u64,
+        gas_price: u64,
+        gas_price_feedback: u64,
+        prediction_sui: u64,
+        prediction_ogd: u64,
+    ) -> std::io::Result<()> {
+        let mut file = OpenOptions::new().append(true).create(true).open(path)?;
+        writeln!(
+            file,
+            "{},{},{},{},{}",
+            sequence_number, gas_price, gas_price_feedback, prediction_sui, prediction_ogd
+        )?;
+
+        Ok(())
+    }
+    fn dump_hotness_to_csv(
+        &self,
+        path: &str,
+        sequence_number: u64,
+        object_id: ObjectID,
+        hotness: f64,
+    ) -> std::io::Result<()> {
+        let mut file = OpenOptions::new().append(true).create(true).open(path)?;
+        writeln!(
+            file,
+            "{},{},{}",
+            sequence_number, object_id, hotness
+        )?;
+
+        Ok(())
+    }
+
     /// Process checkpoint's congestion and clearing transactions info.
     fn process_congestion_and_clearing_txs_data(
         &self,
@@ -284,10 +349,6 @@ impl CongestionTracker {
         let mut clearing_gas_price = None;
 
         for object_id in objects {
-            info!(
-                "Getting congestion info for object: {}",
-                object_id
-            );
             if let Some(info) = self.get_congestion_info(object_id) {
                 let clearing_gas_price_for_object = match info
                     .latest_clearing_time
@@ -442,8 +503,8 @@ impl CongestionTracker {
                     .and_compute_with(|maybe_entry| {
                         if let Some(e) = maybe_entry {
                             let mut e = e.into_value();
-                            e.hotness /= 2.0;
-                            if e.hotness < HOTNESS_THRESHOLD {
+                            e.hotness /= DECAY_FACTOR;
+                            if e.hotness < HOTNESS_CUTOFF {
                                 Op::Remove
                             } else {
                                 Op::Put(e)
