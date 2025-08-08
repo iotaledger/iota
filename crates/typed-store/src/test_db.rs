@@ -224,7 +224,6 @@ where
     type Error = TypedStoreError;
     type Iterator = std::iter::Empty<(K, V)>;
     type SafeIterator = TestDBIter<'a, K, V>;
-    type Keys = TestDBKeys<'a, K>;
     type Values = TestDBValues<'a, V>;
 
     fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
@@ -322,15 +321,6 @@ where
 
     fn safe_range_iter(&'a self, _range: impl RangeBounds<K>) -> Self::SafeIterator {
         unimplemented!("unimplemented API");
-    }
-
-    fn keys(&'a self) -> Self::Keys {
-        TestDBKeysBuilder {
-            rows: self.rows.read().unwrap(),
-            iter_builder: |rows: &mut RwLockReadGuard<'a, BTreeMap<Vec<u8>, Vec<u8>>>| rows.iter(),
-            phantom: PhantomData,
-        }
-        .build()
     }
 
     fn values(&'a self) -> Self::Values {
@@ -629,18 +619,6 @@ mod test {
     }
 
     #[test]
-    fn test_keys() {
-        let db = TestDB::open();
-
-        db.insert(&123456789, &"123456789".to_string())
-            .expect("Failed to insert");
-
-        let mut keys = db.keys();
-        assert_eq!(Some(Ok(123456789)), keys.next());
-        assert_eq!(None, keys.next());
-    }
-
-    #[test]
     fn test_values() {
         let db = TestDB::open();
 
@@ -707,9 +685,9 @@ mod test {
 
         wb.write().expect("Failed to execute batch");
 
-        for k in db.keys() {
-            assert_eq!(k.unwrap() % 2, 0);
-        }
+        db.safe_iter().for_each(|item| {
+            assert!(item.unwrap().0 % 2 == 0);
+        });
     }
 
     #[test]
