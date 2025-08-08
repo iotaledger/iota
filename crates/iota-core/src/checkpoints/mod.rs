@@ -17,7 +17,7 @@ use std::{
 };
 
 use diffy::create_patch;
-use iota_common::{debug_fatal, fatal};
+use iota_common::{debug_fatal, fatal, sync::notify_read::NotifyRead};
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
@@ -146,7 +146,7 @@ pub struct BuilderCheckpointSummary {
 }
 
 #[derive(DBMapUtils)]
-pub struct CheckpointStore {
+pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
@@ -178,23 +178,48 @@ pub struct CheckpointStore {
     pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
 }
 
-impl CheckpointStore {
-    pub fn new(path: &Path) -> Arc<Self> {
-        Arc::new(Self::open_tables_read_write(
-            path.to_path_buf(),
-            MetricConf::new("checkpoint"),
-            None,
-            None,
-        ))
+impl CheckpointStoreTables {
+    pub fn new(path: &Path, metric_name: &'static str) -> Self {
+        Self::open_tables_read_write(path.to_path_buf(), MetricConf::new(metric_name), None, None)
     }
 
-    pub fn open_readonly(path: &Path) -> CheckpointStoreReadOnly {
+    pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         Self::get_read_only_handle(
             path.to_path_buf(),
             None,
             None,
             MetricConf::new("checkpoint_readonly"),
         )
+    }
+}
+
+pub struct CheckpointStore {
+    pub(crate) tables: CheckpointStoreTables,
+    synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+    executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+}
+
+impl CheckpointStore {
+    pub fn new(path: &Path) -> Arc<Self> {
+        let tables = CheckpointStoreTables::new(path, "checkpoint");
+        Arc::new(Self {
+            tables,
+            synced_checkpoint_notify_read: NotifyRead::new(),
+            executed_checkpoint_notify_read: NotifyRead::new(),
+        })
+    }
+
+    pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
+        let tables = CheckpointStoreTables::new(path, "db_checkpoint");
+        Arc::new(Self {
+            tables,
+            synced_checkpoint_notify_read: NotifyRead::new(),
+            executed_checkpoint_notify_read: NotifyRead::new(),
+        })
+    }
+
+    pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
+        CheckpointStoreTables::open_readonly(path)
     }
 
     #[instrument(level = "info", skip_all)]
@@ -243,7 +268,8 @@ impl CheckpointStore {
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        self.checkpoint_by_digest
+        self.tables
+            .checkpoint_by_digest
             .get(digest)
             .map(|maybe_checkpoint| maybe_checkpoint.map(|c| c.into()))
     }
@@ -252,7 +278,8 @@ impl CheckpointStore {
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        self.certified_checkpoints
+        self.tables
+            .certified_checkpoints
             .get(&sequence_number)
             .map(|maybe_checkpoint| maybe_checkpoint.map(|c| c.into()))
     }
@@ -261,25 +288,32 @@ impl CheckpointStore {
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<CheckpointSummary>, TypedStoreError> {
-        self.locally_computed_checkpoints.get(&sequence_number)
+        self.tables
+            .locally_computed_checkpoints
+            .get(&sequence_number)
     }
 
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.checkpoint_sequence_by_contents_digest.get(digest)
+        self.tables
+            .checkpoint_sequence_by_contents_digest
+            .get(digest)
     }
 
     pub fn delete_contents_digest_sequence_number_mapping(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<(), TypedStoreError> {
-        self.checkpoint_sequence_by_contents_digest.remove(digest)
+        self.tables
+            .checkpoint_sequence_by_contents_digest
+            .remove(digest)
     }
 
     pub fn get_latest_certified_checkpoint(&self) -> Option<VerifiedCheckpoint> {
-        self.certified_checkpoints
+        self.tables
+            .certified_checkpoints
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -287,7 +321,8 @@ impl CheckpointStore {
     }
 
     pub fn get_latest_locally_computed_checkpoint(&self) -> Option<CheckpointSummary> {
-        self.locally_computed_checkpoints
+        self.tables
+            .locally_computed_checkpoints
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -299,6 +334,7 @@ impl CheckpointStore {
         sequence_numbers: &[CheckpointSequenceNumber],
     ) -> Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError> {
         let checkpoints = self
+            .tables
             .certified_checkpoints
             .multi_get(sequence_numbers)?
             .into_iter()
@@ -312,14 +348,16 @@ impl CheckpointStore {
         &self,
         contents_digest: &[CheckpointContentsDigest],
     ) -> Result<Vec<Option<CheckpointContents>>, TypedStoreError> {
-        self.checkpoint_content.multi_get(contents_digest)
+        self.tables.checkpoint_content.multi_get(contents_digest)
     }
 
     pub fn get_highest_verified_checkpoint(
         &self,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let highest_verified = if let Some(highest_verified) =
-            self.watermarks.get(&CheckpointWatermark::HighestVerified)?
+        let highest_verified = if let Some(highest_verified) = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestVerified)?
         {
             highest_verified
         } else {
@@ -331,8 +369,10 @@ impl CheckpointStore {
     pub fn get_highest_synced_checkpoint(
         &self,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let highest_synced = if let Some(highest_synced) =
-            self.watermarks.get(&CheckpointWatermark::HighestSynced)?
+        let highest_synced = if let Some(highest_synced) = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestSynced)?
         {
             highest_synced
         } else {
@@ -344,7 +384,11 @@ impl CheckpointStore {
     pub fn get_highest_synced_checkpoint_seq_number(
         &self,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        if let Some(highest_synced) = self.watermarks.get(&CheckpointWatermark::HighestSynced)? {
+        if let Some(highest_synced) = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestSynced)?
+        {
             Ok(Some(highest_synced.0))
         } else {
             Ok(None)
@@ -354,8 +398,10 @@ impl CheckpointStore {
     pub fn get_highest_executed_checkpoint_seq_number(
         &self,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        if let Some(highest_executed) =
-            self.watermarks.get(&CheckpointWatermark::HighestExecuted)?
+        if let Some(highest_executed) = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestExecuted)?
         {
             Ok(Some(highest_executed.0))
         } else {
@@ -366,8 +412,10 @@ impl CheckpointStore {
     pub fn get_highest_executed_checkpoint(
         &self,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let highest_executed = if let Some(highest_executed) =
-            self.watermarks.get(&CheckpointWatermark::HighestExecuted)?
+        let highest_executed = if let Some(highest_executed) = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestExecuted)?
         {
             highest_executed
         } else {
@@ -380,6 +428,7 @@ impl CheckpointStore {
         &self,
     ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
         Ok(self
+            .tables
             .watermarks
             .get(&CheckpointWatermark::HighestPruned)?
             .unwrap_or_default()
@@ -390,26 +439,27 @@ impl CheckpointStore {
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
-        self.checkpoint_content.get(digest)
+        self.tables.checkpoint_content.get(digest)
     }
 
     pub fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         seq: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>, TypedStoreError> {
-        self.full_checkpoint_content.get(&seq)
+        self.tables.full_checkpoint_content.get(&seq)
     }
 
     fn prune_local_summaries(&self) -> IotaResult {
         if let Some((last_local_summary, _)) = self
+            .tables
             .locally_computed_checkpoints
             .unbounded_iter()
             .skip_to_last()
             .next()
         {
-            let mut batch = self.locally_computed_checkpoints.batch();
+            let mut batch = self.tables.locally_computed_checkpoints.batch();
             batch.schedule_delete_range(
-                &self.locally_computed_checkpoints,
+                &self.tables.locally_computed_checkpoints,
                 &0,
                 &last_local_summary,
             )?;
@@ -493,25 +543,26 @@ impl CheckpointStore {
             checkpoint_seq = checkpoint.sequence_number(),
             "Inserting certified checkpoint",
         );
-        let mut batch = self.certified_checkpoints.batch();
+        let mut batch = self.tables.certified_checkpoints.batch();
         batch
             .insert_batch(
-                &self.certified_checkpoints,
+                &self.tables.certified_checkpoints,
                 [(checkpoint.sequence_number(), checkpoint.serializable_ref())],
             )?
             .insert_batch(
-                &self.checkpoint_by_digest,
+                &self.tables.checkpoint_by_digest,
                 [(checkpoint.digest(), checkpoint.serializable_ref())],
             )?;
         if checkpoint.next_epoch_committee().is_some() {
             batch.insert_batch(
-                &self.epoch_last_checkpoint_map,
+                &self.tables.epoch_last_checkpoint_map,
                 [(&checkpoint.epoch(), checkpoint.sequence_number())],
             )?;
         }
         batch.write()?;
 
         if let Some(local_checkpoint) = self
+            .tables
             .locally_computed_checkpoints
             .get(checkpoint.sequence_number())?
         {
@@ -545,7 +596,7 @@ impl CheckpointStore {
                 checkpoint_seq = checkpoint.sequence_number(),
                 "Updating highest verified checkpoint",
             );
-            self.watermarks.insert(
+            self.tables.watermarks.insert(
                 &CheckpointWatermark::HighestVerified,
                 &(*checkpoint.sequence_number(), *checkpoint.digest()),
             )?;
@@ -558,14 +609,69 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        debug!(
-            checkpoint_seq = checkpoint.sequence_number(),
-            "Updating highest synced checkpoint",
-        );
-        self.watermarks.insert(
+        let seq = *checkpoint.sequence_number();
+        debug!(checkpoint_seq = seq, "Updating highest synced checkpoint",);
+        self.tables.watermarks.insert(
             &CheckpointWatermark::HighestSynced,
-            &(*checkpoint.sequence_number(), *checkpoint.digest()),
-        )
+            &(seq, *checkpoint.digest()),
+        )?;
+        self.synced_checkpoint_notify_read.notify(&seq, checkpoint);
+        Ok(())
+    }
+
+    async fn notify_read_checkpoint_watermark<F>(
+        &self,
+        notify_read: &NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+        seq: CheckpointSequenceNumber,
+        get_watermark: F,
+    ) -> VerifiedCheckpoint
+    where
+        F: Fn() -> Option<CheckpointSequenceNumber>,
+    {
+        type ReadResult = Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError>;
+
+        notify_read
+            .read(&[seq], |seqs| {
+                let seq = seqs[0];
+                let Some(highest) = get_watermark() else {
+                    return Ok(vec![None]) as ReadResult;
+                };
+                if highest < seq {
+                    return Ok(vec![None]) as ReadResult;
+                }
+                let checkpoint = self
+                    .get_checkpoint_by_sequence_number(seq)
+                    .expect("db error")
+                    .expect("checkpoint not found");
+                Ok(vec![Some(checkpoint)]) as ReadResult
+            })
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap()
+    }
+
+    pub async fn notify_read_synced_checkpoint(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> VerifiedCheckpoint {
+        self.notify_read_checkpoint_watermark(&self.synced_checkpoint_notify_read, seq, || {
+            self.get_highest_synced_checkpoint_seq_number()
+                .expect("db error")
+        })
+        .await
+    }
+
+    pub async fn notify_read_executed_checkpoint(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> VerifiedCheckpoint {
+        self.notify_read_checkpoint_watermark(&self.executed_checkpoint_notify_read, seq, || {
+            self.get_highest_executed_checkpoint_seq_number()
+                .expect("db error")
+        })
+        .await
     }
 
     pub fn update_highest_executed_checkpoint(
@@ -584,21 +690,22 @@ impl CheckpointStore {
                 seq_number
             );
         }
-        debug!(
-            checkpoint_seq = checkpoint.sequence_number(),
-            "Updating highest executed checkpoint",
-        );
-        self.watermarks.insert(
+        let seq = *checkpoint.sequence_number();
+        debug!(checkpoint_seq = seq, "Updating highest executed checkpoint",);
+        self.tables.watermarks.insert(
             &CheckpointWatermark::HighestExecuted,
-            &(*checkpoint.sequence_number(), *checkpoint.digest()),
-        )
+            &(seq, *checkpoint.digest()),
+        )?;
+        self.executed_checkpoint_notify_read
+            .notify(&seq, checkpoint);
+        Ok(())
     }
 
     pub fn update_highest_pruned_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        self.watermarks.insert(
+        self.tables.watermarks.insert(
             &CheckpointWatermark::HighestPruned,
             &(*checkpoint.sequence_number(), *checkpoint.digest()),
         )
@@ -613,7 +720,7 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        self.watermarks.insert(
+        self.tables.watermarks.insert(
             &CheckpointWatermark::HighestExecuted,
             &(*checkpoint.sequence_number(), *checkpoint.digest()),
         )
@@ -627,7 +734,9 @@ impl CheckpointStore {
             checkpoint_seq = ?contents.digest(),
             "Inserting checkpoint contents",
         );
-        self.checkpoint_content.insert(contents.digest(), &contents)
+        self.tables
+            .checkpoint_content
+            .insert(contents.digest(), &contents)
     }
 
     pub fn insert_verified_checkpoint_contents(
@@ -635,21 +744,24 @@ impl CheckpointStore {
         checkpoint: &VerifiedCheckpoint,
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
-        let mut batch = self.full_checkpoint_content.batch();
+        let mut batch = self.tables.full_checkpoint_content.batch();
         batch.insert_batch(
-            &self.checkpoint_sequence_by_contents_digest,
+            &self.tables.checkpoint_sequence_by_contents_digest,
             [(&checkpoint.content_digest, checkpoint.sequence_number())],
         )?;
         let full_contents = full_contents.into_inner();
         batch.insert_batch(
-            &self.full_checkpoint_content,
+            &self.tables.full_checkpoint_content,
             [(checkpoint.sequence_number(), &full_contents)],
         )?;
 
         let contents = full_contents.into_checkpoint_contents();
         assert_eq!(&checkpoint.content_digest, contents.digest());
 
-        batch.insert_batch(&self.checkpoint_content, [(contents.digest(), &contents)])?;
+        batch.insert_batch(
+            &self.tables.checkpoint_content,
+            [(contents.digest(), &contents)],
+        )?;
 
         batch.write()
     }
@@ -658,14 +770,14 @@ impl CheckpointStore {
         &self,
         seq: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
-        self.full_checkpoint_content.remove(&seq)
+        self.tables.full_checkpoint_content.remove(&seq)
     }
 
     pub fn get_epoch_last_checkpoint(
         &self,
         epoch_id: EpochId,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let seq = self.epoch_last_checkpoint_map.get(&epoch_id)?;
+        let seq = self.tables.epoch_last_checkpoint_map.get(&epoch_id)?;
         let checkpoint = match seq {
             Some(seq) => self.get_checkpoint_by_sequence_number(seq)?,
             None => None,
@@ -678,7 +790,8 @@ impl CheckpointStore {
         epoch_id: EpochId,
         checkpoint: &VerifiedCheckpoint,
     ) -> IotaResult {
-        self.epoch_last_checkpoint_map
+        self.tables
+            .epoch_last_checkpoint_map
             .insert(&epoch_id, checkpoint.sequence_number())?;
         Ok(())
     }
@@ -727,15 +840,16 @@ impl CheckpointStore {
 
     pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
         // This checkpoints the entire db and not one column family
-        self.checkpoint_content
+        self.tables
+            .checkpoint_content
             .checkpoint_db(path)
             .map_err(Into::into)
     }
 
     pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
-        let mut wb = self.watermarks.batch();
+        let mut wb = self.tables.watermarks.batch();
         wb.delete_batch(
-            &self.watermarks,
+            &self.tables.watermarks,
             std::iter::once(CheckpointWatermark::HighestExecuted),
         )?;
         wb.write()?;
@@ -744,7 +858,7 @@ impl CheckpointStore {
 
     pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
         self.delete_highest_executed_checkpoint_test_only()?;
-        self.watermarks.rocksdb.flush()?;
+        self.tables.watermarks.rocksdb.flush()?;
         Ok(())
     }
 
@@ -866,7 +980,7 @@ pub enum CheckpointWatermark {
 
 pub struct CheckpointBuilder {
     state: Arc<AuthorityState>,
-    tables: Arc<CheckpointStore>,
+    store: Arc<CheckpointStore>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     notify: Arc<Notify>,
     notify_aggregator: Arc<Notify>,
@@ -880,7 +994,7 @@ pub struct CheckpointBuilder {
 }
 
 pub struct CheckpointAggregator {
-    tables: Arc<CheckpointStore>,
+    store: Arc<CheckpointStore>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     notify: Arc<Notify>,
     current: Option<CheckpointSignatureAggregator>,
@@ -896,7 +1010,7 @@ pub struct CheckpointSignatureAggregator {
     digest: CheckpointDigest,
     /// Aggregates voting stake for each signed checkpoint proposal by authority
     signatures_by_digest: MultiStakeAggregator<CheckpointDigest, CheckpointSummary, true>,
-    tables: Arc<CheckpointStore>,
+    store: Arc<CheckpointStore>,
     state: Arc<AuthorityState>,
     metrics: Arc<CheckpointMetrics>,
 }
@@ -904,7 +1018,7 @@ pub struct CheckpointSignatureAggregator {
 impl CheckpointBuilder {
     fn new(
         state: Arc<AuthorityState>,
-        tables: Arc<CheckpointStore>,
+        store: Arc<CheckpointStore>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         notify: Arc<Notify>,
         effects_store: Arc<dyn TransactionCacheRead>,
@@ -918,7 +1032,7 @@ impl CheckpointBuilder {
     ) -> Self {
         Self {
             state,
-            tables,
+            store,
             epoch_store,
             notify,
             effects_store,
@@ -1185,7 +1299,7 @@ impl CheckpointBuilder {
         new_checkpoints: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
-        let mut batch = self.tables.checkpoint_content.batch();
+        let mut batch = self.store.tables.checkpoint_content.batch();
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|(_, c)| c.size()).sum());
 
@@ -1217,7 +1331,7 @@ impl CheckpointBuilder {
             all_tx_digests.extend(contents.iter().map(|digests| digests.transaction));
 
             self.output
-                .checkpoint_created(summary, contents, &self.epoch_store, &self.tables)
+                .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
                 .await?;
 
             self.metrics
@@ -1229,12 +1343,12 @@ impl CheckpointBuilder {
                 .set(sequence_number as i64);
 
             batch.insert_batch(
-                &self.tables.checkpoint_content,
+                &self.store.tables.checkpoint_content,
                 [(contents.digest(), contents)],
             )?;
 
             batch.insert_batch(
-                &self.tables.locally_computed_checkpoints,
+                &self.store.tables.locally_computed_checkpoints,
                 [(sequence_number, summary)],
             )?;
         }
@@ -1259,11 +1373,12 @@ impl CheckpointBuilder {
 
         for (local_checkpoint, _) in &new_checkpoints {
             if let Some(certified_checkpoint) = self
+                .store
                 .tables
                 .certified_checkpoints
                 .get(local_checkpoint.sequence_number())?
             {
-                self.tables
+                self.store
                     .check_for_checkpoint_fork(local_checkpoint, &certified_checkpoint.into());
             }
         }
@@ -1345,7 +1460,7 @@ impl CheckpointBuilder {
             let epoch = self.epoch_store.epoch();
             if epoch > 0 {
                 let previous_epoch = epoch - 1;
-                let last_verified = self.tables.get_epoch_last_checkpoint(previous_epoch)?;
+                let last_verified = self.store.get_epoch_last_checkpoint(previous_epoch)?;
                 last_checkpoint = last_verified.map(VerifiedCheckpoint::into_summary_and_sequence);
                 if let Some((ref seq, _)) = last_checkpoint {
                     debug!(
@@ -1569,7 +1684,7 @@ impl CheckpointBuilder {
                     checkpoint_seq = sequence_number,
                     "creating last checkpoint of epoch {}", epoch
                 );
-                if let Some(stats) = self.tables.get_epoch_stats(epoch, &summary) {
+                if let Some(stats) = self.store.get_epoch_stats(epoch, &summary) {
                     self.epoch_store
                         .report_epoch_metrics_at_last_checkpoint(stats);
                 }
@@ -1798,7 +1913,7 @@ impl CheckpointAggregator {
     ) -> Self {
         let current = None;
         Self {
-            tables,
+            store: tables,
             epoch_store,
             notify,
             current,
@@ -1868,7 +1983,7 @@ impl CheckpointAggregator {
                     signatures_by_digest: MultiStakeAggregator::new(
                         self.epoch_store.committee().clone(),
                     ),
-                    tables: self.tables.clone(),
+                    store: self.store.clone(),
                     state: self.state.clone(),
                     metrics: self.metrics.clone(),
                 });
@@ -1918,7 +2033,7 @@ impl CheckpointAggregator {
                         ),
                     );
 
-                    self.tables.insert_certified_checkpoint(&summary)?;
+                    self.store.insert_certified_checkpoint(&summary)?;
                     self.metrics
                         .last_certified_checkpoint
                         .set(current.summary.sequence_number as i64);
@@ -1938,7 +2053,8 @@ impl CheckpointAggregator {
     }
 
     fn next_checkpoint_to_certify(&self) -> CheckpointSequenceNumber {
-        self.tables
+        self.store
+            .tables
             .certified_checkpoints
             .unbounded_iter()
             .skip_to_last()
@@ -2040,7 +2156,7 @@ impl CheckpointSignatureAggregator {
             let all_unique_values = self.signatures_by_digest.get_all_unique_values();
             let local_summary = self.summary.clone();
             let state = self.state.clone();
-            let tables = self.tables.clone();
+            let tables = self.store.clone();
 
             tokio::spawn(async move {
                 diagnose_split_brain(all_unique_values, local_summary, state, tables).await;
