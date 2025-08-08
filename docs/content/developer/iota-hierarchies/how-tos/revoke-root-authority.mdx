@@ -31,7 +31,7 @@ Initialize a funded client to interact with the hierarchy:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L20
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L21
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -52,7 +52,7 @@ Create a federation and add a second root authority (to ensure we can revoke one
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L22-L40
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L23-L40
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -73,7 +73,7 @@ Confirm the second root authority is active:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L42-L52
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L42-L53
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -94,7 +94,7 @@ Revoke the second root authority:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L54-L61
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L55-L61
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -115,28 +115,13 @@ Confirm the root authority has been successfully revoked:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L64-L79
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L64-L85
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L47-L60
-```
-</TabItem>
-</Tabs>
-</div>
-
-### 6. Protection Against Revoking Last Root Authority
-
-The system prevents revoking the last remaining root authority to maintain federation governance:
-
-<div className={'hide-code-block-extras'}>
-<Tabs groupId="language" queryString>
-<TabItem value="typescript-node" label="Typescript (Node.js)">
-
-```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L68-L83
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L47-L62
 ```
 </TabItem>
 </Tabs>
