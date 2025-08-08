@@ -24,6 +24,7 @@ use iota_config::{
     genesis, transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
+pub use iota_grpc_api::GrpcServerHandle;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -57,7 +58,7 @@ use rand::rngs::OsRng;
 
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 pub use self::{
-    grpc_server::{GrpcServerConfig, GrpcServerHandle, SimulacrumGrpcReader},
+    grpc_server::SimulacrumGrpcReader,
     store::{SimulatorStore, in_mem_store::InMemoryStore},
 };
 

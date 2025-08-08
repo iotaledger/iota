@@ -77,9 +77,8 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointGrpcService, CheckpointSummaryBroadcaster,
-    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader,
-    checkpoint::checkpoint_service_server::CheckpointServiceServer,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcCheckpointDataBroadcaster,
+    GrpcCheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle, start_grpc_server,
 };
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -262,6 +261,9 @@ pub struct IotaNode {
     /// Broadcast channels for gRPC checkpoint streaming
     grpc_checkpoint_summary_tx: Option<GrpcCheckpointSummaryBroadcaster>,
     grpc_checkpoint_data_tx: Option<GrpcCheckpointDataBroadcaster>,
+
+    /// Handle to the gRPC server for graceful shutdown
+    grpc_server_handle: Option<GrpcServerHandle>,
 
     /// AuthorityAggregator of the network, created at start and beginning of
     /// each epoch. Use ArcSwap so that we could mutate it without taking
@@ -854,8 +856,19 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
-        let (grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx) =
+        let grpc_server_handle =
             build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
+
+        // Extract broadcasters from the gRPC server handle
+        let (grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx) =
+            if let Some(ref handle) = grpc_server_handle {
+                (
+                    Some(handle.checkpoint_summary_broadcaster().clone()),
+                    Some(handle.checkpoint_data_broadcaster().clone()),
+                )
+            } else {
+                (None, None)
+            };
         let validator_components = if state.is_validator(&epoch_store) {
             let (components, _) = futures::join!(
                 Self::construct_validator_components(
@@ -919,6 +932,7 @@ impl IotaNode {
 
             grpc_checkpoint_summary_tx,
             grpc_checkpoint_data_tx,
+            grpc_server_handle,
 
             auth_agg,
         };
@@ -2047,6 +2061,12 @@ impl IotaNode {
         if let Some(validator_components) = &*self.validator_components.lock().await {
             validator_components.consensus_manager.shutdown().await;
         }
+
+        // Shutdown the gRPC server if it's running
+        if let Some(grpc_handle) = &self.grpc_server_handle {
+            tracing::info!("Shutting down gRPC server");
+            grpc_handle.server_handle.abort();
+        }
     }
 
     /// Asynchronously reconfigures the state of the authority node for the next
@@ -2263,41 +2283,23 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
-) -> Result<(
-    Option<GrpcCheckpointSummaryBroadcaster>,
-    Option<GrpcCheckpointDataBroadcaster>,
-)> {
+) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
-        return Ok((None, None));
+        return Ok(None);
     }
 
     let Some(grpc_config) = &config.grpc_api_config else {
         return Err(anyhow!("gRPC API is enabled but no configuration provided"));
     };
 
-    let grpc_api_address = grpc_config.address;
-    let (summary_tx, _) = broadcast::channel(grpc_config.checkpoint_broadcast_buffer_size);
-    let (data_tx, _) = broadcast::channel(grpc_config.checkpoint_broadcast_buffer_size);
-
     let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
 
-    let grpc_service = CheckpointGrpcService::new(grpc_reader, summary_tx.clone(), data_tx.clone());
+    // Use the shared gRPC server utilities
+    let handle = start_grpc_server(grpc_reader, grpc_config.clone()).await?;
 
-    tokio::spawn(async move {
-        info!("Starting gRPC server on {grpc_api_address}");
-        tonic::transport::Server::builder()
-            .add_service(CheckpointServiceServer::new(grpc_service))
-            .serve(grpc_api_address)
-            .await
-            .expect("gRPC server failed");
-    });
-
-    Ok((
-        Some(GrpcCheckpointSummaryBroadcaster::new(summary_tx)),
-        Some(GrpcCheckpointDataBroadcaster::new(data_tx)),
-    ))
+    Ok(Some(handle))
 }
 
 /// Builds and starts the HTTP server for the IOTA node, exposing JSON-RPC and

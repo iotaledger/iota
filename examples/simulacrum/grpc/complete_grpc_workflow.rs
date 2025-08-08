@@ -12,9 +12,12 @@
 
 use std::sync::Arc;
 
-use iota_grpc_api::client::{CheckpointContent, NodeClient};
+use iota_grpc_api::{
+    Config,
+    client::{CheckpointContent, NodeClient},
+};
 use iota_types::base_types::IotaAddress;
-use simulacrum::{GrpcServerConfig, Simulacrum};
+use simulacrum::Simulacrum;
 use tokio_stream::StreamExt;
 
 /// Creates and fills a simulacrum instance with dummy transactions and
@@ -67,7 +70,7 @@ async fn run_simulacrum_with_grpc() -> anyhow::Result<()> {
     // Wrap simulacrum for sharing and start gRPC server
     let simulacrum = Arc::new(simulacrum);
 
-    let grpc_config = GrpcServerConfig::default();
+    let grpc_config = Config::default();
     let server_address = grpc_config.address;
 
     println!("Starting gRPC server on: {}", server_address);

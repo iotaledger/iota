@@ -3,10 +3,6 @@
 
 use std::{pin::Pin, sync::Arc};
 
-use iota_grpc_types::{
-    CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
-    CheckpointData as GrpcCheckpointData,
-};
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 
@@ -20,21 +16,21 @@ use crate::{
 
 pub struct CheckpointGrpcService {
     pub reader: Arc<GrpcReader>,
-    pub checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
-    pub checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
+    pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
+    pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
 }
 
 impl CheckpointGrpcService {
     /// Create a new CheckpointGrpcService with a GrpcReader
     pub fn new(
         reader: Arc<GrpcReader>,
-        checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
-        checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
+        checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
+        checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     ) -> Self {
         Self {
             reader,
-            checkpoint_summary_tx,
-            checkpoint_data_tx,
+            checkpoint_summary_broadcaster,
+            checkpoint_data_broadcaster,
         }
     }
 }
@@ -46,7 +42,7 @@ impl CheckpointGrpcService {
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send + 'static {
         let reader = (*self.reader).clone();
-        let rx = self.checkpoint_data_tx.subscribe();
+        let rx = self.checkpoint_data_broadcaster.subscribe();
         reader.create_checkpoint_stream(rx, start_sequence_number, end_sequence_number, true)
     }
 
@@ -56,7 +52,7 @@ impl CheckpointGrpcService {
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send + 'static {
         let reader = (*self.reader).clone();
-        let rx = self.checkpoint_summary_tx.subscribe();
+        let rx = self.checkpoint_summary_broadcaster.subscribe();
         reader.create_checkpoint_stream(rx, start_sequence_number, end_sequence_number, false)
     }
 }

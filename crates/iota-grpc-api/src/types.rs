@@ -40,6 +40,13 @@ impl GrpcCheckpointSummaryBroadcaster {
     ) -> Self {
         Self { sender }
     }
+
+    /// Subscribe to checkpoint summary broadcasts
+    pub fn subscribe(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<Arc<GrpcCertifiedCheckpointSummary>> {
+        self.sender.subscribe()
+    }
 }
 
 impl CheckpointSummaryBroadcaster for GrpcCheckpointSummaryBroadcaster {
@@ -59,6 +66,11 @@ pub struct GrpcCheckpointDataBroadcaster {
 impl GrpcCheckpointDataBroadcaster {
     pub fn new(sender: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>) -> Self {
         Self { sender }
+    }
+
+    /// Subscribe to checkpoint data broadcasts
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<Arc<GrpcCheckpointData>> {
+        self.sender.subscribe()
     }
 }
 
@@ -245,41 +257,6 @@ where
     }
 }
 
-/// Wrapper around RestStateReader that implements the GrpcStateReader trait
-#[derive(Clone)]
-pub struct GrpcReader {
-    state_reader: Arc<dyn GrpcStateReader>,
-}
-
-impl GrpcReader {
-    pub fn new(state_reader: Arc<dyn GrpcStateReader>) -> Self {
-        Self { state_reader }
-    }
-
-    pub fn from_rest_state_reader(state_reader: Arc<dyn RestStateReader>) -> Self {
-        Self {
-            state_reader: Arc::new(RestStateReaderAdapter {
-                inner: state_reader,
-            }),
-        }
-    }
-
-    pub fn get_epoch_last_checkpoint(
-        &self,
-        epoch: u64,
-    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
-        self.state_reader.get_epoch_last_checkpoint(epoch)
-    }
-
-    fn get_full_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
-        self.state_reader.get_checkpoint_data(seq)
-    }
-
-    pub fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
-        self.state_reader.get_latest_checkpoint_sequence()
-    }
-}
-
 /// Adapter that implements GrpcStateReader for RestStateReader
 pub struct RestStateReaderAdapter {
     inner: Arc<dyn RestStateReader>,
@@ -314,6 +291,44 @@ impl GrpcStateReader for RestStateReaderAdapter {
     }
 }
 
+/// Central gRPC data reader that provides unified access to checkpoint data. It
+/// implements `CheckpointReader` traits to support different types of
+/// checkpoint streaming.
+#[derive(Clone)]
+pub struct GrpcReader {
+    state_reader: Arc<dyn GrpcStateReader>,
+}
+
+impl GrpcReader {
+    pub fn new(state_reader: Arc<dyn GrpcStateReader>) -> Self {
+        Self { state_reader }
+    }
+
+    pub fn from_rest_state_reader(state_reader: Arc<dyn RestStateReader>) -> Self {
+        Self {
+            state_reader: Arc::new(RestStateReaderAdapter {
+                inner: state_reader,
+            }),
+        }
+    }
+
+    pub fn get_epoch_last_checkpoint(
+        &self,
+        epoch: u64,
+    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
+        self.state_reader.get_epoch_last_checkpoint(epoch)
+    }
+
+    fn get_full_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
+        self.state_reader.get_checkpoint_data(seq)
+    }
+
+    pub fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
+        self.state_reader.get_latest_checkpoint_sequence()
+    }
+}
+
+/// CheckpointReader implementation for streaming full checkpoint data
 impl CheckpointReader<GrpcCheckpointData> for GrpcReader {
     fn get_sequence_number(&self, item: &Arc<GrpcCheckpointData>) -> u64 {
         item.sequence_number()
@@ -330,6 +345,7 @@ impl CheckpointReader<GrpcCheckpointData> for GrpcReader {
     }
 }
 
+/// CheckpointReader implementation for streaming checkpoint summaries
 impl CheckpointReader<GrpcCertifiedCheckpointSummary> for GrpcReader {
     fn get_sequence_number(&self, item: &Arc<GrpcCertifiedCheckpointSummary>) -> u64 {
         item.sequence_number()
