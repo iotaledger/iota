@@ -310,6 +310,9 @@ pub enum UserInputError {
 
     #[error("Invalid identifier found in the transaction: {error}")]
     InvalidIdentifier { error: String },
+
+    #[error("Authenticator input objects should be shared or immutable")]
+    ImmutableOrSharedObjectsExpected,
 }
 
 #[derive(

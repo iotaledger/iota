@@ -73,8 +73,20 @@ mod checked {
         input_objects: InputObjects,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         for object in input_objects.iter() {
-            if object.is_mutable() {
-                panic!("Mutable objects are not allowed") // TODO: Error handling
+            let Some(object) = object.as_object() else {
+                // Skip deleted/cancelled objects
+                continue;
+            };
+
+            match object.owner {
+                Owner::Immutable | Owner::Shared { .. } => {
+                    // valid objects
+                }
+                _ => {
+                    return Err(IotaError::UserInput {
+                        error: UserInputError::ImmutableOrSharedObjectsExpected,
+                    });
+                }
             }
         }
 
