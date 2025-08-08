@@ -383,8 +383,10 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
 
-    let mut config = Config::default();
-    config.address = format!("{localhost}:{grpc_port}").parse().unwrap();
+    let mut config = Config {
+        address: format!("{localhost}:{grpc_port}").parse().unwrap(),
+        ..Config::default()
+    };
     config_customizer(&mut config);
 
     let server_handle = start_grpc_server(grpc_reader, config)
