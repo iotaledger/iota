@@ -61,7 +61,17 @@ mod checked {
             gas,
             transaction.gas_budget(),
             transaction.gas_price(),
-            Some(transaction.kind()),
+        if transaction.is_system_tx() {
+            Ok(IotaGasStatus::new_unmetered())
+        } else {
+            check_gas(
+                objects,
+                protocol_config,
+                reference_gas_price,
+                gas,
+                transaction.gas_budget(),
+                transaction.gas_price(),
+            )
         )
     }
 
