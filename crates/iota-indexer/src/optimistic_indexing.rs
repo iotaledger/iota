@@ -23,7 +23,7 @@ use crate::{
     handlers::{
         TransactionObjectChangesToCommit,
         checkpoint_handler::{
-            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
+            CheckpointHandler, IndexedTransactionComponentsV2, try_extract_df_kind,
         },
     },
     indexer_reader::IndexerReader,
@@ -40,14 +40,15 @@ use crate::{
         tx_indices::{
             OptimisticTxChangedObject, OptimisticTxFun, OptimisticTxIndices,
             OptimisticTxInputObject, OptimisticTxKind, OptimisticTxMod, OptimisticTxPkg,
-            OptimisticTxRecipients, OptimisticTxSenders,
+            OptimisticTxRecipients, OptimisticTxSenders, OptimisticTxWrappedOrDeletedObject,
+            TxIndexV2Split,
         },
     },
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{
         EventIndex, IndexedDeletedObject, IndexedObject, IndexerResult,
-        IotaTransactionBlockResponseWithOptions, TxIndex,
+        IotaTransactionBlockResponseWithOptions, TxIndexV2,
     },
 };
 
@@ -442,10 +443,10 @@ impl<'a> TransactionExtractor<'a> {
 
     fn get_indexed_transactions_events_and_displays(
         &self,
-    ) -> IndexerResult<IndexedTransactionComponents> {
+    ) -> IndexerResult<IndexedTransactionComponentsV2> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            CheckpointHandler::index_transaction(
+            CheckpointHandler::index_transaction_v2(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown
@@ -539,46 +540,62 @@ impl<'a> TransactionExtractor<'a> {
     }
 
     fn optimistic_tx_indices(
-        tx_index: TxIndex,
+        tx_index: TxIndexV2,
         global_sequence_number: i64,
     ) -> OptimisticTxIndices {
-        let (senders, recipients, input_objects, changed_objects, pkgs, mods, funs, _, kinds) =
-            tx_index.split();
+        let TxIndexV2Split {
+            tx_senders,
+            tx_recipients,
+            tx_input_objects,
+            tx_changed_objects,
+            tx_pkgs,
+            tx_mods,
+            tx_funs,
+            tx_wrapped_or_deleted_objects,
+            tx_kinds,
+            ..
+        } = tx_index.split();
 
         OptimisticTxIndices {
-            optimistic_tx_senders: senders
+            optimistic_tx_senders: tx_senders
                 .into_iter()
                 .map(|stored| OptimisticTxSenders::from_stored(global_sequence_number, stored))
                 .collect(),
-            optimistic_tx_recipients: recipients
+            optimistic_tx_recipients: tx_recipients
                 .into_iter()
                 .map(|stored| OptimisticTxRecipients::from_stored(global_sequence_number, stored))
                 .collect(),
-            optimistic_tx_input_objects: input_objects
+            optimistic_tx_input_objects: tx_input_objects
                 .into_iter()
                 .map(|stored| OptimisticTxInputObject::from_stored(global_sequence_number, stored))
                 .collect(),
-            optimistic_tx_changed_objects: changed_objects
+            optimistic_tx_changed_objects: tx_changed_objects
                 .into_iter()
                 .map(|stored| {
                     OptimisticTxChangedObject::from_stored(global_sequence_number, stored)
                 })
                 .collect(),
-            optimistic_tx_pkgs: pkgs
+            optimistic_tx_pkgs: tx_pkgs
                 .into_iter()
                 .map(|stored| OptimisticTxPkg::from_stored(global_sequence_number, stored))
                 .collect(),
-            optimistic_tx_mods: mods
+            optimistic_tx_mods: tx_mods
                 .into_iter()
                 .map(|stored| OptimisticTxMod::from_stored(global_sequence_number, stored))
                 .collect(),
-            optimistic_tx_funs: funs
+            optimistic_tx_funs: tx_funs
                 .into_iter()
                 .map(|stored| OptimisticTxFun::from_stored(global_sequence_number, stored))
                 .collect(),
-            optimistic_tx_kinds: kinds
+            optimistic_tx_kinds: tx_kinds
                 .into_iter()
                 .map(|stored| OptimisticTxKind::from_stored(global_sequence_number, stored))
+                .collect(),
+            optimistic_tx_wrapped_or_deleted_objects: tx_wrapped_or_deleted_objects
+                .into_iter()
+                .map(|stored| {
+                    OptimisticTxWrappedOrDeletedObject::from_stored(global_sequence_number, stored)
+                })
                 .collect(),
         }
     }

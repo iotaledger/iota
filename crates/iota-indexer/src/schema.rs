@@ -462,6 +462,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    optimistic_tx_wrapped_or_deleted_objects (object_id, global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
+        optimistic_sequence_number -> Int8,
+        object_id -> Bytea,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
     packages (package_id, original_id, package_version) {
         package_id -> Bytea,
         original_id -> Bytea,
@@ -594,6 +603,7 @@ diesel::table! {
         sender -> Bytea,
     }
 }
+
 diesel::table! {
     tx_wrapped_or_deleted_objects (object_id, tx_sequence_number) {
         tx_sequence_number -> Int8,
@@ -646,6 +656,7 @@ macro_rules! for_all_tables {
             optimistic_tx_kinds,
             optimistic_tx_recipients,
             optimistic_tx_senders,
+            optimistic_tx_wrapped_or_deleted_objects,
             packages,
             protocol_configs,
             pruner_cp_watermark,
