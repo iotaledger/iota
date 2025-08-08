@@ -4,7 +4,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     useFormatCoin,
-    CoinFormat,
     useGetAllOwnedObjects,
     TIMELOCK_IOTA_TYPE,
     SIZE_LIMIT_EXCEEDED,
@@ -14,7 +13,7 @@ import {
     useCoinMetadata,
     parseAmount,
 } from '@iota/core';
-import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
@@ -83,12 +82,12 @@ export function EnterTimelockedAmountView({
 
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxStakableTimelockedAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin({
         balance: possibleAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;

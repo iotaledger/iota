@@ -356,16 +356,13 @@ mod tests {
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleCertificateResponseV1, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
-            let (effects, _) = self
-                .authority
-                .try_execute_immediately(
-                    &VerifiedExecutableTransaction::new_from_certificate(
-                        VerifiedCertificate::new_unchecked(request.certificate),
-                    ),
-                    None,
-                    &epoch_store,
-                )
-                .await?;
+            let (effects, _) = self.authority.try_execute_immediately(
+                &VerifiedExecutableTransaction::new_from_certificate(
+                    VerifiedCertificate::new_unchecked(request.certificate),
+                ),
+                None,
+                &epoch_store,
+            )?;
             let events = match effects.events_digest() {
                 None => TransactionEvents::default(),
                 Some(digest) => self.authority.get_transaction_events(digest)?,

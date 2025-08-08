@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) mod adapter;
+pub(crate) mod jobs;
 pub(crate) mod task;
 
 use std::sync::Arc;
@@ -17,7 +18,9 @@ pub(crate) trait IngestionBackfill: Send + Sync {
     type ProcessedType: Send + Sync;
 
     /// Converts a `CheckpointData` into zero-or-more items (`ProcessedType`).
-    fn process_checkpoint(checkpoint: Arc<CheckpointData>) -> Vec<Self::ProcessedType>;
+    fn process_checkpoint(
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<Vec<Self::ProcessedType>, IndexerError>;
 
     /// Stores a chunk of processed items.
     async fn persist_chunk(

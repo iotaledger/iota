@@ -22,8 +22,7 @@ import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/c
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
 import { CoinSelector } from '../CoinSelector';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useCoinMetadata } from '@iota/core';
-import { parseAmount } from '../../lib/utils';
+import { useCoinMetadata, parseAmount } from '@iota/core';
 import { useAvailableBalance } from '../../hooks/useAvailableBalance';
 
 interface DepositFormProps {

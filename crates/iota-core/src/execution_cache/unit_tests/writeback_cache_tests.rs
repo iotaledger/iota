@@ -15,7 +15,6 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_macros::{register_fail_point_async, sim_test};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, random_object_ref},
@@ -27,6 +26,7 @@ use iota_types::{
 };
 use prometheus::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use tokio::sync::RwLock;
 
 use super::*;
 use crate::{
@@ -81,6 +81,7 @@ impl Scenario {
             &WritebackCacheConfig::default(),
             store.clone(),
             (*METRICS).clone(),
+            BackpressureManager::new_for_tests(),
         ));
         Self {
             authority,
@@ -350,8 +351,7 @@ impl Scenario {
         assert!(self.transactions.insert(tx), "transaction is not unique");
 
         self.cache()
-            .write_transaction_outputs(1 /* epoch */, outputs.clone())
-            .await;
+            .write_transaction_outputs(1 /* epoch */, outputs.clone());
 
         self.count_action();
         tx
@@ -363,9 +363,9 @@ impl Scenario {
         self.count_action();
     }
 
-    pub async fn clear_state_end_of_epoch(&self) {
-        let execution_guard = tokio::sync::RwLock::new(1u64);
-        let lock = execution_guard.write().await;
+    pub fn clear_state_end_of_epoch(&self) {
+        let execution_guard = RwLock::new(1u64);
+        let lock = execution_guard.try_write().unwrap();
         self.cache().clear_state_end_of_epoch(&lock);
     }
 
@@ -378,6 +378,7 @@ impl Scenario {
             &WritebackCacheConfig::default(),
             self.store.clone(),
             self.cache.metrics.clone(),
+            BackpressureManager::new_for_tests(),
         ));
 
         // reset the scenario state to match the db
@@ -850,11 +851,7 @@ async fn test_write_transaction_outputs_is_sync() {
         let outputs = s.take_outputs();
         // assert that write_transaction_outputs is sync in non-simtest, which causes
         // the fail_point_async! macros above to be elided
-        s.cache
-            .write_transaction_outputs(1, outputs)
-            .now_or_never()
-            .unwrap()
-            .unwrap();
+        s.cache.write_transaction_outputs(1, outputs).unwrap();
     })
     .await;
 }
@@ -866,7 +863,7 @@ async fn test_missing_reverts_panic() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
         s.do_tx().await;
-        s.clear_state_end_of_epoch().await;
+        s.clear_state_end_of_epoch();
     })
     .await;
 }
@@ -909,7 +906,7 @@ async fn test_revert_state_update_created() {
         s.assert_live(&[1]);
 
         s.cache().revert_state_update(&tx1);
-        s.clear_state_end_of_epoch().await;
+        s.clear_state_end_of_epoch();
 
         s.assert_not_exists(&[1]);
     })
@@ -931,7 +928,7 @@ async fn test_revert_state_update_mutated() {
         let tx = s.do_tx().await;
 
         s.cache().revert_state_update(&tx);
-        s.clear_state_end_of_epoch().await;
+        s.clear_state_end_of_epoch();
 
         let version_after_revert = s.cache().get_object(&s.obj_id(1)).unwrap().version();
         assert_eq!(v1, version_after_revert);
@@ -951,23 +948,16 @@ async fn test_invalidate_package_cache_on_revert() {
         s.assert_packages(&[2]);
 
         s.cache().revert_state_update(&tx1);
-        s.clear_state_end_of_epoch().await;
+        s.clear_state_end_of_epoch();
 
         assert!(s.cache().get_package_object(&s.obj_id(2)).is_none());
     })
     .await;
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn test_concurrent_readers() {
     telemetry_subscribers::init_for_testing();
-
-    register_fail_point_async("write_object_entry", || async {
-        tokio::task::yield_now().await;
-    });
-    register_fail_point_async("write_marker_entry", || async {
-        tokio::task::yield_now().await;
-    });
 
     let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
     let cache = s.cache.clone();
@@ -1002,11 +992,11 @@ async fn test_concurrent_readers() {
         tokio::task::spawn(async move {
             for (tx1, tx2, _, _) in txns {
                 println!("writing tx1");
-                cache.write_transaction_outputs(1, tx1).await.unwrap();
+                cache.write_transaction_outputs(1, tx1).unwrap();
 
                 barrier.wait().await;
                 println!("writing tx2");
-                cache.write_transaction_outputs(1, tx2).await.unwrap();
+                cache.write_transaction_outputs(1, tx2).unwrap();
             }
         })
     };
@@ -1084,11 +1074,11 @@ async fn test_concurrent_lockers() {
         tokio::task::spawn(async move {
             let mut results = Vec::new();
             for (tx1, _, a_ref, b_ref) in txns {
-                results.push(
-                    cache
-                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
-                        .await,
-                );
+                results.push(cache.try_acquire_transaction_locks(
+                    &epoch_store,
+                    &[a_ref, b_ref],
+                    tx1,
+                ));
                 barrier.wait().await;
             }
             results
@@ -1103,11 +1093,11 @@ async fn test_concurrent_lockers() {
         tokio::task::spawn(async move {
             let mut results = Vec::new();
             for (_, tx2, a_ref, b_ref) in txns {
-                results.push(
-                    cache
-                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx2)
-                        .await,
-                );
+                results.push(cache.try_acquire_transaction_locks(
+                    &epoch_store,
+                    &[a_ref, b_ref],
+                    tx2,
+                ));
                 barrier.wait().await;
             }
             results
@@ -1157,11 +1147,11 @@ async fn test_concurrent_lockers_same_tx() {
         tokio::task::spawn(async move {
             let mut results = Vec::new();
             for (tx1, a_ref, b_ref) in txns {
-                results.push(
-                    cache
-                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
-                        .await,
-                );
+                results.push(cache.try_acquire_transaction_locks(
+                    &epoch_store,
+                    &[a_ref, b_ref],
+                    tx1,
+                ));
                 barrier.wait().await;
             }
             results
@@ -1176,11 +1166,11 @@ async fn test_concurrent_lockers_same_tx() {
         tokio::task::spawn(async move {
             let mut results = Vec::new();
             for (tx1, a_ref, b_ref) in txns {
-                results.push(
-                    cache
-                        .try_acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
-                        .await,
-                );
+                results.push(cache.try_acquire_transaction_locks(
+                    &epoch_store,
+                    &[a_ref, b_ref],
+                    tx1,
+                ));
                 barrier.wait().await;
             }
             results
@@ -1198,6 +1188,7 @@ async fn test_concurrent_lockers_same_tx() {
 
 #[tokio::test]
 async fn latest_object_cache_race_test() {
+    telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
     let store = authority.database_for_testing().clone();
@@ -1209,6 +1200,7 @@ async fn latest_object_cache_race_test() {
         &WritebackCacheConfig::default(),
         store.clone(),
         (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
     ));
 
     let object_id = ObjectID::random();
@@ -1221,12 +1213,13 @@ async fn latest_object_cache_race_test() {
         std::thread::spawn(move || {
             let mut version = OBJECT_START_VERSION;
             while start.elapsed() < Duration::from_secs(2) {
-                let object = Object::with_id_owner_version_for_testing(object_id, version, owner);
+                let object = Object::with_id_owner_version_for_testing(
+                    object_id,
+                    version,
+                    Owner::AddressOwner(owner),
+                );
 
-                cache
-                    .write_object_entry(&object_id, version, object.into())
-                    .now_or_never()
-                    .unwrap();
+                cache.write_object_entry(&object_id, version, object.into());
 
                 version = version.next();
             }
@@ -1239,11 +1232,19 @@ async fn latest_object_cache_race_test() {
         let start = Instant::now();
         std::thread::spawn(move || {
             while start.elapsed() < Duration::from_secs(2) {
-                let Some(latest_version) = cache
+                // If you move the get_ticket_for_read to after we get the latest version,
+                // the test will fail! (this is good, it means the test is doing something)
+                let ticket = cache
                     .cached
                     .object_by_id_cache
+                    .get_ticket_for_read(&object_id);
+
+                // get the latest version, but then let it become stale
+                let Some(latest_version) = cache
+                    .dirty
+                    .objects
                     .get(&object_id)
-                    .and_then(|e| e.lock().version())
+                    .and_then(|e| e.value().get_highest().map(|v| v.0))
                 else {
                     continue;
                 };
@@ -1253,13 +1254,32 @@ async fn latest_object_cache_race_test() {
                     std::thread::sleep(Duration::from_micros(1));
                 }
 
-                let object =
-                    Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
+                let object = Object::with_id_owner_version_for_testing(
+                    object_id,
+                    latest_version,
+                    Owner::AddressOwner(owner),
+                );
 
+                // because we obtained the ticket before reading the object, we will not write a
+                // stale version to the cache.
                 cache.cache_latest_object_by_id(
                     &object_id,
                     LatestObjectCacheEntry::Object(latest_version, object.into()),
+                    ticket,
                 );
+            }
+        })
+    };
+
+    // a thread that just invalidates the cache as fast as it can
+    let invalidator = {
+        let cache = cache.clone();
+        let start = Instant::now();
+        std::thread::spawn(move || {
+            while start.elapsed() < Duration::from_secs(2) {
+                cache.cached.object_by_id_cache.invalidate(&object_id);
+                // sleep for 1 to 10µs
+                std::thread::sleep(Duration::from_micros(rand::thread_rng().gen_range(1..10)));
             }
         })
     };
@@ -1281,7 +1301,7 @@ async fn latest_object_cache_race_test() {
                     continue;
                 };
 
-                assert!(cur >= latest);
+                assert!(cur >= latest, "{} >= {}", cur, latest);
                 latest = cur;
             }
         })
@@ -1290,4 +1310,285 @@ async fn latest_object_cache_race_test() {
     writer.join().unwrap();
     reader.join().unwrap();
     checker.join().unwrap();
+    invalidator.join().unwrap();
+}
+
+#[tokio::test]
+// This test verifies that concurrent transaction insertions and reads work
+// correctly without race conditions. It specifically tests the fix that ensures
+// store operations happen before cache operations. It ensures atomicity by
+// writing to the persistent store first, then updating the cache, so readers
+// never see stale or inconsistent data.
+async fn test_transaction_cache_race() {
+    telemetry_subscribers::init_for_testing();
+    let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
+    let cache = s.cache.clone();
+    let mut txns = Vec::new();
+
+    for i in 0..1000 {
+        let a = i * 4;
+        s.with_created(&[a]);
+        s.do_tx().await;
+
+        let outputs = s.take_outputs();
+        let tx = (*outputs.transaction).clone();
+        let effects = outputs.effects.clone();
+
+        txns.push((tx, effects));
+    }
+
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+
+    let t1 = {
+        let txns = txns.clone();
+        let cache = cache.clone();
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            for (i, (tx, effects)) in txns.into_iter().enumerate() {
+                barrier.wait();
+                // test both single and multi insert
+                if i % 2 == 0 {
+                    cache.insert_transaction_and_effects(&tx, &effects);
+                } else {
+                    cache.multi_insert_transaction_and_effects(&[VerifiedExecutionData::new(
+                        tx, effects,
+                    )]);
+                }
+            }
+        })
+    };
+
+    let t2 = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            for (tx, _) in txns {
+                barrier.wait();
+                cache.get_transaction_block(tx.digest());
+            }
+        })
+    };
+
+    t1.join().unwrap();
+    t2.join().unwrap();
+}
+
+#[tokio::test]
+async fn concurrent_latest_object_cache_race_test() {
+    // This test is a thread-less variant of latest_object_cache_race_test.
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+
+    let store = authority.database_for_testing().clone();
+
+    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
+        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
+
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
+    ));
+
+    let object_id = ObjectID::random();
+    let owner = IotaAddress::random_for_testing_only();
+
+    // write a new version on request
+    let mut write_version = OBJECT_START_VERSION;
+    let mut writer = || {
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            write_version,
+            Owner::AddressOwner(owner),
+        );
+
+        cache.write_object_entry(&object_id, write_version, object.into());
+
+        write_version = write_version.next();
+    };
+
+    // invalidate the cache on request
+    let invalidator = || {
+        cache.cached.object_by_id_cache.invalidate(&object_id);
+    };
+
+    // check cache consistency, ie. it can't contain an older version
+    let mut checked_latest = OBJECT_START_VERSION;
+    let mut checker = || {
+        if let Some(cur) = cache
+            .cached
+            .object_by_id_cache
+            .get(&object_id)
+            .and_then(|e| e.lock().version())
+        {
+            assert!(cur >= checked_latest, "{} >= {}", cur, checked_latest);
+            checked_latest = cur;
+        }
+    };
+
+    // populate the cache
+    writer();
+
+    // a reader that pretends it saw some previous version on the db
+    {
+        // acquire the ticket before getting the latest version
+        let ticket = cache
+            .cached
+            .object_by_id_cache
+            .get_ticket_for_read(&object_id);
+
+        // get the latest cached version
+        let latest_version = cache
+            .dirty
+            .objects
+            .get(&object_id)
+            .and_then(|e| e.value().get_highest().map(|v| v.0))
+            .unwrap();
+
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            latest_version,
+            Owner::AddressOwner(owner),
+        );
+
+        // preempt the reader to update the latest version and invalidate the cache
+        {
+            // this write will invalidate the ticket
+            writer();
+            writer();
+            // checker observes the new latest version
+            checker();
+            // invalidate the cache to make it forget the latest version
+            invalidator();
+        }
+
+        // the following insert will not populate the cache with an older version
+        // because the ticket was invalidated
+        cache.cache_latest_object_by_id(
+            &object_id,
+            LatestObjectCacheEntry::Object(latest_version, object.into()),
+            ticket,
+        );
+    }
+
+    // the checker will not see an older version but will only get a cache miss
+    checker();
+}
+
+#[tokio::test]
+async fn concurrent_latest_object_cache_collision_test() {
+    use crate::execution_cache::cache_types::key_generation_hash;
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+
+    let store = authority.database_for_testing().clone();
+
+    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
+        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
+
+    let cache = Arc::new(WritebackCache::new(
+        &WritebackCacheConfig::default(),
+        store.clone(),
+        (*METRICS).clone(),
+        BackpressureManager::new_for_tests(),
+    ));
+
+    let mk_object_id = |i: usize| -> ObjectID {
+        let mut obj_id = [0_u8; 32];
+        obj_id[0..8].copy_from_slice(&i.to_le_bytes());
+        ObjectID::new(obj_id)
+    };
+    // these two object ids have the same hash within MonotonicCache
+    let object1_id = mk_object_id(166);
+    let object2_id = mk_object_id(170);
+    assert_eq!(
+        key_generation_hash(&object1_id),
+        key_generation_hash(&object2_id)
+    );
+
+    let owner1 = IotaAddress::random_for_testing_only();
+    let owner2 = IotaAddress::random_for_testing_only();
+
+    // write a new version on request
+    let mut write1_version = OBJECT_START_VERSION;
+    let mut write2_version = OBJECT_START_VERSION;
+    let mut writer = |object_id: ObjectID| {
+        let (write_version, owner) = if object_id == object1_id {
+            (&mut write1_version, owner1)
+        } else {
+            (&mut write2_version, owner2)
+        };
+        let object = Object::with_id_owner_version_for_testing(
+            object_id,
+            *write_version,
+            Owner::AddressOwner(owner),
+        );
+
+        cache.write_object_entry(&object_id, *write_version, object.into());
+
+        *write_version = write_version.next();
+    };
+
+    // invalidate the cache on request
+    let invalidator = |object_id: ObjectID| {
+        cache.cached.object_by_id_cache.invalidate(&object_id);
+    };
+
+    // populate the cache
+    writer(object1_id);
+    writer(object2_id);
+
+    // a reader that pretends it saw some previous version on the db
+    {
+        // acquire the ticket before getting the latest version
+        let ticket2 = cache
+            .cached
+            .object_by_id_cache
+            .get_ticket_for_read(&object2_id);
+
+        // get the latest version
+        let latest2_version = cache
+            .dirty
+            .objects
+            .get(&object2_id)
+            .and_then(|e| e.value().get_highest().map(|v| v.0))
+            .unwrap();
+
+        let object2 = Object::with_id_owner_version_for_testing(
+            object2_id,
+            latest2_version,
+            Owner::AddressOwner(owner2),
+        );
+
+        // preempt the reader
+        {
+            // this write to object1 will invalidate the ticket for object2
+            writer(object1_id);
+            // invalidate object2 cache to make it forget the latest version
+            invalidator(object2_id);
+        }
+
+        // the following insert will not populate the cache with an older version
+        // because the ticket was invalidated, although it shouldn't have been!
+        cache.cache_latest_object_by_id(
+            &object2_id,
+            LatestObjectCacheEntry::Object(latest2_version, object2.into()),
+            ticket2,
+        );
+    }
+
+    // object1 is up to date in the cache
+    assert_eq!(
+        cache
+            .cached
+            .object_by_id_cache
+            .get(&object1_id)
+            .unwrap()
+            .lock()
+            .version()
+            .unwrap(),
+        OBJECT_START_VERSION.next()
+    );
+    // but now we get a cache miss on object2 instead of getting the latest version
+    assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
 }

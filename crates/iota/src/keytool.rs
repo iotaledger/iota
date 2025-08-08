@@ -36,6 +36,7 @@ use iota_keys::{
     },
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
+use iota_ledger::Ledger;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -63,6 +64,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
+    signing::{ExternalKeySource, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -138,6 +140,16 @@ pub enum KeyToolCommand {
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
+    },
+    /// Import a key from Ledger hardware wallet.
+    ImportLedger {
+        /// Sets an alias for this address. The alias must start with a letter
+        /// and can contain only letters, digits, dots, hyphens (-), or
+        /// underscores (_).
+        #[arg(long)]
+        alias: Option<String>,
+        #[arg(default_value = "m/44'/4218'/0'/0'/0'")]
+        derivation_path: DerivationPath,
     },
     /// List all keys by its IOTA address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
@@ -533,7 +545,7 @@ impl KeyToolCommand {
                 cur_epoch,
             } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
+                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
                 let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                 match sig {
                     None => CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
@@ -661,6 +673,27 @@ impl KeyToolCommand {
                     CommandOutput::Import(key)
                 }
             },
+            KeyToolCommand::ImportLedger {
+                alias,
+                derivation_path,
+            } => {
+                info!("Importing Ledger to keystore");
+                let mut ledger = Ledger::new_with_default()?;
+                ledger.ensure_app_is_open()?;
+                let response = ledger.get_public_key(&derivation_path)?;
+                keystore.import_from_external(
+                    ExternalKeySource::Ledger.as_str(),
+                    response.public_key,
+                    Some(derivation_path),
+                    alias,
+                )?;
+                let ikp = keystore.get_key(&response.address)?;
+                let mut key = Key::from(ikp);
+
+                key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
+                CommandOutput::Import(key)
+            }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
                     .keys()
@@ -765,15 +798,8 @@ impl KeyToolCommand {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let key = keystore.get_key(&address)?;
-                let iota_signature = match key {
-                    StoredKey::KeyPair(_) => {
-                        keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?
-                    }
-                    StoredKey::External { source, .. } => {
-                        bail!("External signing is not supported for source: {source}")
-                    }
-                };
+                let iota_signature =
+                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
 
                 CommandOutput::Sign(SignData {
                     iota_address: address,
@@ -1147,7 +1173,7 @@ impl KeyToolCommand {
                * ZkLoginEnv::Prod,                 _ => bail!("Invalid
                * network"),             };
                *             let verify_params =
-               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2)); */
+               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2), true); */
 
               /*             let (serialized, res) = match IntentScope::try_from(intent_scope)
                *                 .map_err(|_| anyhow!("Invalid scope"))?

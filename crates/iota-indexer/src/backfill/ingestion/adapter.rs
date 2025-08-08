@@ -11,7 +11,7 @@ use iota_types::{
 };
 use tokio::sync::Notify;
 
-use crate::backfill::ingestion::IngestionBackfill;
+use crate::{backfill::ingestion::IngestionBackfill, errors::IndexerError};
 
 /// Bridge between the ingestion engine and the backfill task.
 #[derive(Clone)]
@@ -27,10 +27,13 @@ pub(crate) struct Adapter<T: IngestionBackfill> {
 #[async_trait::async_trait]
 impl<T: IngestionBackfill> Worker for Adapter<T> {
     type Message = ();
-    type Error = anyhow::Error;
+    type Error = IndexerError;
 
-    async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> anyhow::Result<()> {
-        let processed = T::process_checkpoint(checkpoint.clone());
+    async fn process_checkpoint(
+        &self,
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<(), IndexerError> {
+        let processed = T::process_checkpoint(checkpoint.clone())?;
         self.ready_checkpoints
             .insert(checkpoint.checkpoint_summary.sequence_number, processed);
         self.notify.notify_waiters();

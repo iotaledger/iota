@@ -38,7 +38,7 @@ pub struct ConsensusSharedObjVerAssignment {
 }
 
 impl SharedObjVerManager {
-    pub async fn assign_versions_from_consensus(
+    pub fn assign_versions_from_consensus(
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
         certificates: &[VerifiedExecutableTransaction],
@@ -50,8 +50,7 @@ impl SharedObjVerManager {
             epoch_store,
             cache_reader,
             randomness_round.is_some(),
-        )
-        .await?;
+        )?;
         let mut assigned_versions = Vec::new();
         // We must update randomness object version first before processing any
         // transaction, so that all reads are using the next version.
@@ -80,6 +79,9 @@ impl SharedObjVerManager {
                 cert,
                 &mut shared_input_next_versions,
                 cancelled_txns,
+                epoch_store
+                    .protocol_config()
+                    .congestion_control_gas_price_feedback_mechanism(),
             );
             assigned_versions.push((cert.key(), cert_assigned_versions));
         }
@@ -90,7 +92,7 @@ impl SharedObjVerManager {
         })
     }
 
-    pub async fn assign_versions_from_effects(
+    pub fn assign_versions_from_effects(
         certs_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
@@ -108,8 +110,7 @@ impl SharedObjVerManager {
             epoch_store,
             cache_reader,
             false,
-        )
-        .await?;
+        )?;
         let mut assigned_versions = Vec::new();
         for (cert, effects) in certs_and_effects {
             let cert_assigned_versions: Vec<_> = effects
@@ -132,14 +133,17 @@ impl SharedObjVerManager {
         cert: &VerifiedExecutableTransaction,
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        enable_gas_price_feedback: bool,
     ) -> Vec<(ObjectID, SequenceNumber)> {
         let tx_digest = cert.digest();
 
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
         let congested_objects_info: Option<HashSet<_>> =
-            if let Some(CancelConsensusCertificateReason::CongestionOnObjects(congested_objects)) =
-                &cancellation_info
+            if let Some(CancelConsensusCertificateReason::CongestionOnObjects {
+                congested_objects,
+                suggested_gas_price: _,
+            }) = &cancellation_info
             {
                 Some(congested_objects.iter().cloned().collect())
             } else {
@@ -164,12 +168,29 @@ impl SharedObjVerManager {
             // any shared objects.
             for SharedInputObject { id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusCertificateReason::CongestionOnObjects(_)) => {
+                    Some(CancelConsensusCertificateReason::CongestionOnObjects {
+                        congested_objects: _,
+                        suggested_gas_price,
+                    }) => {
                         if congested_objects_info
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            SequenceNumber::CONGESTED
+                            if enable_gas_price_feedback {
+                                SequenceNumber::new_congested_with_suggested_gas_price(
+                                    suggested_gas_price.expect(
+                                        "Suggested gas price for transactions cancelled due \
+                                            to congestion must not be None if the gas price \
+                                            feedback is enabled.",
+                                    ),
+                                )
+                            } else {
+                                // WARN: do not remove this `else` branch even after
+                                // `congestion_control_gas_price_feedback_mechanism` is enabled
+                                // on the mainnet. It must be kept to be able to replay old
+                                // transaction data.
+                                SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                            }
                         } else {
                             SequenceNumber::CANCELLED_READ
                         }
@@ -239,8 +260,8 @@ impl SharedObjVerManager {
     }
 }
 
-async fn get_or_init_versions(
-    transactions: impl Iterator<Item = &SenderSignedData>,
+fn get_or_init_versions<'a>(
+    transactions: impl Iterator<Item = &'a SenderSignedData>,
     epoch_store: &AuthorityPerEpochStore,
     cache_reader: &dyn ObjectCacheRead,
     generate_randomness: bool,
@@ -266,9 +287,7 @@ async fn get_or_init_versions(
     shared_input_objects.sort();
     shared_input_objects.dedup();
 
-    epoch_store
-        .get_or_init_next_object_versions(&shared_input_objects, cache_reader)
-        .await
+    epoch_store.get_or_init_next_object_versions(&shared_input_objects, cache_reader)
 }
 
 #[cfg(test)]
@@ -329,7 +348,6 @@ mod tests {
             None,
             &BTreeMap::new(),
         )
-        .await
         .unwrap();
         // Check that the shared object's next version is always initialized in the
         // epoch store.
@@ -396,7 +414,6 @@ mod tests {
             Some(RandomnessRound::new(1)),
             &BTreeMap::new(),
         )
-        .await
         .unwrap();
         // Check that the randomness object's next version is initialized.
         assert_eq!(
@@ -518,14 +535,21 @@ mod tests {
         let epoch_store = authority.epoch_store_for_testing();
 
         // Cancel transactions 2 and 4 due to congestion.
+        let suggested_gas_price = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
             (
                 *certs[1].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(vec![id1]),
+                CancelConsensusCertificateReason::CongestionOnObjects {
+                    congested_objects: vec![id1],
+                    suggested_gas_price: Some(suggested_gas_price),
+                },
             ),
             (
                 *certs[3].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(vec![id2]),
+                CancelConsensusCertificateReason::CongestionOnObjects {
+                    congested_objects: vec![id2],
+                    suggested_gas_price: Some(suggested_gas_price),
+                },
             ),
             (
                 *certs[4].digest(),
@@ -546,7 +570,6 @@ mod tests {
             None,
             &cancelled_txns,
         )
-        .await
         .unwrap();
 
         // Check that the final version of the shared object is the lamport version of
@@ -571,7 +594,12 @@ mod tests {
                 (
                     certs[1].key(),
                     vec![
-                        (id1, SequenceNumber::CONGESTED),
+                        (
+                            id1,
+                            SequenceNumber::new_congested_with_suggested_gas_price(
+                                suggested_gas_price
+                            )
+                        ),
                         (id2, SequenceNumber::CANCELLED_READ),
                     ]
                 ),
@@ -580,7 +608,12 @@ mod tests {
                     certs[3].key(),
                     vec![
                         (id1, SequenceNumber::CANCELLED_READ),
-                        (id2, SequenceNumber::CONGESTED)
+                        (
+                            id2,
+                            SequenceNumber::new_congested_with_suggested_gas_price(
+                                suggested_gas_price
+                            )
+                        )
                     ]
                 ),
                 (
@@ -640,7 +673,6 @@ mod tests {
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
         )
-        .await
         .unwrap();
         // Check that the shared object's next version is always initialized in the
         // epoch store.

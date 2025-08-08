@@ -5,7 +5,7 @@
 use async_graphql::*;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
 use iota_types::{
-    effects::TransactionEffects as NativeTransactionEffects,
+    TypeTag, effects::TransactionEffects as NativeTransactionEffects,
     transaction::TransactionData as NativeTransactionData,
 };
 
@@ -63,9 +63,10 @@ impl TryFrom<IotaExecutionResult> for DryRunEffect {
             .mutable_reference_outputs
             .iter()
             .map(|(argument, bcs, type_)| {
+                let tag: TypeTag = type_.clone().try_into()?;
                 Ok(DryRunMutation {
                     input: (*argument).into(),
-                    type_: MoveType::new(type_.clone().try_into()?),
+                    type_: tag.into(),
                     bcs: bcs.into(),
                 })
             })
@@ -79,8 +80,9 @@ impl TryFrom<IotaExecutionResult> for DryRunEffect {
             .return_values
             .iter()
             .map(|(bcs, type_)| {
+                let tag: TypeTag = type_.clone().try_into()?;
                 Ok(DryRunReturn {
-                    type_: MoveType::new(type_.clone().try_into()?),
+                    type_: tag.into(),
                     bcs: bcs.into(),
                 })
             })

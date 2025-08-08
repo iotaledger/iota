@@ -13,7 +13,6 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import {
-    CoinFormat,
     ExtendedDelegatedStake,
     GAS_SYMBOL,
     useFormatCoin,
@@ -25,6 +24,7 @@ import {
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -56,7 +56,7 @@ export function UnstakeView({
     } = useNewUnstakeTransaction(activeAddress, extendedStake.stakedIotaId);
     const [gasFormatted] = useFormatCoin({
         balance: unstakeData?.gasSummary?.totalGas,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =

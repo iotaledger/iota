@@ -100,7 +100,10 @@ impl ObjectLocks {
         };
 
         if prev_lock != new_lock {
-            debug!("lock conflict detected: {:?} != {:?}", prev_lock, new_lock);
+            debug!(
+                "lock conflict detected for {:?}: {:?} != {:?}",
+                obj_ref, prev_lock, new_lock
+            );
             Err(IotaError::ObjectLockConflict {
                 obj_ref: *obj_ref,
                 pending_transaction: prev_lock,
@@ -192,7 +195,7 @@ impl ObjectLocks {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub(crate) async fn acquire_transaction_locks(
+    pub(crate) fn acquire_transaction_locks(
         &self,
         cache: &WritebackCache,
         epoch_store: &AuthorityPerEpochStore,
@@ -263,8 +266,6 @@ impl ObjectLocks {
 
 #[cfg(test)]
 mod tests {
-    use futures::FutureExt;
-
     use crate::execution_cache::{
         ExecutionCacheWrite, writeback_cache::writeback_cache_tests::Scenario,
     };
@@ -290,7 +291,6 @@ mod tests {
 
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, new2], tx1)
-                .await
                 .expect("locks should be available");
 
             // this tx doesn't use the actual objects in question, but we just need
@@ -302,19 +302,16 @@ mod tests {
             // both locks are held by tx1, so this should fail
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, new2], tx2.clone())
-                .await
                 .unwrap_err();
 
             // new3 is lockable, but new2 is not, so this should fail
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new3, new2], tx2.clone())
-                .await
                 .unwrap_err();
 
             // new3 is unlocked
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new3], tx2)
-                .await
                 .expect("new3 should be unlocked");
         })
         .await;
@@ -343,14 +340,12 @@ mod tests {
             // fails because we are referring to an old object
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, old2], tx.clone())
-                .await
                 .unwrap_err();
 
             // succeeds because the above call releases the lock on new1 after failing
             // to get the lock on old2
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, new2], tx)
-                .await
                 .expect("new1 should be unlocked after revert");
         })
         .await;
@@ -379,7 +374,6 @@ mod tests {
             // fails because we are referring to an old object
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, old2], tx)
-                .await
                 .unwrap_err();
 
             // this tx doesn't use the actual objects in question, but we just need
@@ -392,7 +386,6 @@ mod tests {
             // to get the lock on old2
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, new2], tx2)
-                .await
                 .expect("new1 should be unlocked after revert");
         })
         .await;
@@ -418,8 +411,6 @@ mod tests {
             // the fail_point_async! macros above to be elided
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &objects, tx2)
-                .now_or_never()
-                .unwrap()
                 .unwrap();
         })
         .await;

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Live variable analysis with subsequent dead assignment elimination and
@@ -386,7 +386,7 @@ impl<'a> LiveVarAnalysis<'a> {
     }
 }
 
-impl<'a> TransferFunctions for LiveVarAnalysis<'a> {
+impl TransferFunctions for LiveVarAnalysis<'_> {
     type State = LiveVarState;
     const BACKWARD: bool = true;
 
@@ -419,7 +419,7 @@ impl<'a> TransferFunctions for LiveVarAnalysis<'a> {
     }
 }
 
-impl<'a> DataflowAnalysis for LiveVarAnalysis<'a> {}
+impl DataflowAnalysis for LiveVarAnalysis<'_> {}
 
 impl AbstractDomain for LiveVarState {
     fn join(&mut self, other: &Self) -> JoinResult {

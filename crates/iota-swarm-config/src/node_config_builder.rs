@@ -45,7 +45,7 @@ pub struct ValidatorConfigBuilder {
     force_unpruned_checkpoints: bool,
     jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    execution_cache: Option<ExecutionCacheType>,
+    execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -91,6 +91,11 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_execution_cache_type(mut self, execution_cache_type: ExecutionCacheType) -> Self {
+        self.execution_cache_type = Some(execution_cache_type);
+        self
+    }
+
     pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         self.execution_cache_config = Some(config);
         self
@@ -128,7 +133,7 @@ impl ValidatorConfigBuilder {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
@@ -231,7 +236,7 @@ impl ValidatorConfigBuilder {
                 .unwrap_or(3600),
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
-            execution_cache: self.execution_cache.unwrap_or_default(),
+            execution_cache: self.execution_cache_type.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
             jsonrpc_server_type: None,
@@ -432,7 +437,7 @@ impl FullnodeConfigBuilder {
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));

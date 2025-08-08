@@ -36,7 +36,8 @@
 		"overrides": {
 			"path-to-regexp@<0.1.12": "^0.1.12",
 			"image-size@<1.1.1": "^1.2.1",
-			"multer@1.4.4-lts.1": "^2.0.2"
+			"multer@1.4.4-lts.1": "^2.0.2",
+			"form-data@>=4.0.0 <4.0.4": "^4.0.4"
 		}
 	},
 	"engines": {

@@ -18,7 +18,6 @@ futures.workspace = true
 http.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
-rocksdb.workspace = true
 scopeguard.workspace = true
 serde.workspace = true
 tap.workspace = true
@@ -51,3 +50,8 @@ test-cluster.workspace = true
 [[bin]]
 name = "iota-faucet"
 path = "src/main.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "eyre", # imported through a procedural macro
+]

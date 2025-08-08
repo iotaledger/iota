@@ -29,6 +29,7 @@ use crate::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
+        backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
     state_accumulator::AccumulatorStore,
@@ -62,6 +63,7 @@ impl ProxyCache {
         epoch_start_config: &EpochStartConfiguration,
         store: Arc<AuthorityStore>,
         metrics: Arc<ExecutionCacheMetrics>,
+        backpressure_manager: Arc<BackpressureManager>,
     ) -> Self {
         let cache_type = epoch_start_config.execution_cache_type();
         tracing::info!("using cache impl {:?}", cache_type);
@@ -71,6 +73,7 @@ impl ProxyCache {
             &cache_config.writeback_cache,
             store.clone(),
             metrics.clone(),
+            backpressure_manager,
         );
 
         Self {
@@ -252,7 +255,7 @@ impl ExecutionCacheWrite for ProxyCache {
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
@@ -261,7 +264,7 @@ impl ExecutionCacheWrite for ProxyCache {
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_acquire_transaction_locks(
             epoch_store,
             owned_input_objects,
@@ -320,6 +323,17 @@ impl ExecutionCacheCommit for ProxyCache {
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {
         delegate_method!(self.try_persist_transactions(digests))
+    }
+
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    ) {
+        delegate_method!(self.persist_transactions_and_effects(digests))
+    }
+
+    fn approximate_pending_transaction_count(&self) -> u64 {
+        delegate_method!(self.approximate_pending_transaction_count())
     }
 }
 
