@@ -1700,7 +1700,7 @@ impl IndexerReader {
         tracing::debug!("query transaction blocks: {}", ordered_digests_query);
         let pool = self.get_pool();
         let ordered_digests = run_query_async!(&pool, move |conn| {
-            diesel::sql_query(ordered_digests_query.clone()).load::<TxDigest>(conn)
+            diesel::sql_query(ordered_digests_query).load::<TxDigest>(conn)
         })?
         .into_iter()
         .map(|stored_dig| {
