@@ -2270,8 +2270,15 @@ impl SenderSignedData {
                     }
                 }
                 GenericSignature::Signature(_) | GenericSignature::MultiSig(_) => (),
-                // TODO: handle this
-                GenericSignature::MoveAuthenticator(move_authenticator) => (),
+                GenericSignature::MoveAuthenticator(_) => {
+                    if !config.move_auth() {
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::Unsupported(
+                                "Move authentication is not enabled on this network".to_string(),
+                            ),
+                        });
+                    }
+                }
             }
         }
 

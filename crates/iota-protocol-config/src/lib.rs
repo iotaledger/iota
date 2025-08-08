@@ -316,6 +316,10 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // Enable passkey auth (SIP-9)
+    #[serde(skip_serializing_if = "is_false")]
+    move_auth: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1191,6 +1195,10 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
+    pub fn move_auth(&self) -> bool {
+        self.feature_flags.move_auth
+    }
+
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1498,7 +1506,7 @@ impl ProtocolConfig {
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             // max gas budget is in NANOS and an absolute value 50IOTA
-            max_auth_gas: Some(50_000_000_000),
+            max_auth_gas: Some(1_000_000_000),
             max_gas_price: Some(100_000),
             max_gas_computation_bucket: Some(5_000_000),
             max_loop_depth: Some(5),

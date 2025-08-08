@@ -61,42 +61,33 @@ mod checked {
             gas,
             transaction.gas_budget(),
             transaction.gas_price(),
-            transaction.kind(),
+            Some(transaction.kind()),
         )
     }
 
     #[instrument(level = "trace", skip_all)]
     pub fn check_auth_inputs(
+        sender: IotaAddress,
+        sponsor: IotaAddress,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        transaction: &TransactionData,
+        gas_budget: u64,
+        gas_price: u64,
+        gas: &[ObjectRef],
         input_objects: InputObjects,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        for object in input_objects.iter() {
-            let Some(object) = object.as_object() else {
-                // Skip deleted/cancelled objects
-                continue;
-            };
-
-            match object.owner {
-                Owner::Immutable | Owner::Shared { .. } => {
-                    // valid objects
-                }
-                _ => {
-                    return Err(IotaError::UserInput {
-                        error: UserInputError::ImmutableOrSharedObjectsExpected,
-                    });
-                }
-            }
-        }
-
-        let gas_status = get_gas_status(
+        // TODO: modify the check_gas in order to support the auth budget
+        let gas_status = check_gas(
             &input_objects,
-            transaction.gas(),
             protocol_config,
             reference_gas_price,
-            transaction,
+            gas,
+            gas_budget,
+            gas_price,
+            None,
         )?;
+
+        check_auth_objects(sender, sponsor, gas, &input_objects)?;
 
         Ok((gas_status, input_objects.into_checked()))
     }
@@ -382,29 +373,75 @@ mod checked {
         gas: &[ObjectRef],
         gas_budget: u64,
         gas_price: u64,
-        tx_kind: &TransactionKind,
+        tx_kind: Option<&TransactionKind>,
     ) -> IotaResult<IotaGasStatus> {
-        if tx_kind.is_system_tx() {
-            Ok(IotaGasStatus::new_unmetered())
-        } else {
-            let gas_status =
-                IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+        match tx_kind {
+            Some(tx_kind) if tx_kind.is_system_tx() => Ok(IotaGasStatus::new_unmetered()),
+            _ => {
+                let gas_status = IotaGasStatus::new(
+                    gas_budget,
+                    gas_price,
+                    reference_gas_price,
+                    protocol_config,
+                )?;
 
-            // check balance and coins consistency
-            // load all gas coins
-            let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
-            let mut gas_objects = vec![];
-            for obj_ref in gas {
-                let obj = objects.get(&obj_ref.0);
-                let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
-                    version: Some(obj_ref.1),
-                })?;
-                gas_objects.push(obj);
+                // check balance and coins consistency
+                // load all gas coins
+                let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
+                let mut gas_objects = vec![];
+                for obj_ref in gas {
+                    let obj = objects.get(&obj_ref.0);
+                    let obj = *obj.ok_or(UserInputError::ObjectNotFound {
+                        object_id: obj_ref.0,
+                        version: Some(obj_ref.1),
+                    })?;
+                    gas_objects.push(obj);
+                }
+                gas_status.check_gas_balance(&gas_objects, gas_budget)?;
+                Ok(gas_status)
             }
-            gas_status.check_gas_balance(&gas_objects, gas_budget)?;
-            Ok(gas_status)
         }
+    }
+
+    /// Check all the objects used in authentication
+    #[instrument(level = "trace", skip_all)]
+    fn check_auth_objects(
+        sender: IotaAddress,
+        sponsor: IotaAddress,
+        gas: &[ObjectRef],
+        objects: &InputObjects,
+    ) -> UserInputResult<()> {
+        let gas_coins: HashSet<ObjectID> = HashSet::from_iter(gas.iter().map(|obj_ref| obj_ref.0));
+        for object in objects.iter() {
+            let input_object_kind = object.input_object_kind;
+
+            match &object.object {
+                ObjectReadResultKind::Object(object) => {
+                    match object.owner {
+                        Owner::Immutable | Owner::Shared { .. } => {} // valid objects
+                        _ => {
+                            return Err(UserInputError::ImmutableOrSharedObjectsExpected);
+                        }
+                    }
+                    // For Gas Object, we check the object is owned by gas owner
+                    let owner_address = if gas_coins.contains(&object.id()) {
+                        sponsor
+                    } else {
+                        sender
+                    };
+                    // Check if the object contents match the type of lock we need for
+                    // this object.
+                    check_one_object(&owner_address, input_object_kind, object, false)?;
+                }
+                // We skip checking a deleted shared object because it no longer exists
+                ObjectReadResultKind::DeletedSharedObject(_, _) => (),
+                // We skip checking shared objects from cancelled transactions since we are not
+                // reading it.
+                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+            }
+        }
+
+        Ok(())
     }
 
     /// Check all the objects used in the transaction against the database, and

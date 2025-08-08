@@ -1747,7 +1747,7 @@ pub enum CompressedSignature {
     Secp256r1(Secp256r1SignatureAsBytes),
     ZkLogin(ZkLoginAuthenticatorAsBytes),
     Passkey(PasskeyAuthenticatorAsBytes),
-    Move(MoveAuthentificatorAsBytes),
+    Move(MoveAuthenticatorAsBytes),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
@@ -1757,7 +1757,7 @@ pub struct ZkLoginAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>)
 pub struct PasskeyAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub struct MoveAuthentificatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
+pub struct MoveAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
 
 impl AsRef<[u8]> for CompressedSignature {
     fn as_ref(&self) -> &[u8] {

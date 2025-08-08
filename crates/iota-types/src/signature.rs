@@ -216,7 +216,7 @@ impl GenericSignature {
             }
             GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
             GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
-            GenericSignature::MoveAuthenticator(s) => Err(IotaError::UnsupportedFeature {
+            GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
             }),
             _ => Err(IotaError::UnsupportedFeature {
