@@ -78,7 +78,7 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     pub fn check_auth_inputs(
         sender: IotaAddress,
-        sponsor: IotaAddress,
+        gas_owner: IotaAddress,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         gas_budget: u64,
