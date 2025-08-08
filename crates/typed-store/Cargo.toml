@@ -18,7 +18,6 @@ fdlimit.workspace = true
 hdrhistogram.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
-ouroboros = "0.18"
 prometheus.workspace = true
 rand.workspace = true
 rocksdb.workspace = true
