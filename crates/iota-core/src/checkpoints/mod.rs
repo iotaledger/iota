@@ -888,10 +888,7 @@ impl CheckpointStore {
             .expect("get_highest_executed_checkpoint_seq_number should not fail")
             .unwrap_or(0);
 
-        let Some(highest_built) = self
-            .get_latest_locally_computed_checkpoint()
-            .expect("failed to get latest locally computed checkpoint")
-        else {
+        let Ok(Some(highest_built)) = self.get_latest_locally_computed_checkpoint() else {
             info!("no locally built checkpoints to verify");
             return;
         };
