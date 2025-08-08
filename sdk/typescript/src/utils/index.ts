@@ -9,6 +9,9 @@ export {
     trimAddress,
     trimOrFormatAddress,
 } from './format.js';
+
+export { formatBalance, formatWithSubscript, CoinFormat, formatAmount } from './formatBalance.js';
+
 export {
     isValidIotaAddress,
     isValidIotaObjectId,

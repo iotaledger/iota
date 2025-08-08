@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 10;
+pub const MAX_PROTOCOL_VERSION: u64 = 11;
 
 // Record history of protocol version allocations here:
 //
@@ -70,6 +70,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //             Removes unnecessary child object mutations
 //             Add additional signature checks
 //             Add additional linkage checks
+// Version 11: Framework fix regarding candidate validator commission rate.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2021,8 +2022,10 @@ impl ProtocolConfig {
                 6 => {
                     cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
-                // version 7 is a new framework version but with no config changes
-                7 => {}
+                7 => {
+                    // version 7 is a new framework version but with no config
+                    // changes
+                }
                 8 => {
                     cfg.feature_flags.variant_nodes = true;
 
@@ -2112,6 +2115,10 @@ impl ProtocolConfig {
                     cfg.feature_flags.validate_identifier_inputs = true;
                     cfg.feature_flags.dependency_linkage_error = true;
                     cfg.feature_flags.additional_multisig_checks = true;
+                }
+                11 => {
+                    // version 11 is a new framework version but with no config
+                    // changes
                 }
                 // Use this template when making changes:
                 //

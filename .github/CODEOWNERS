@@ -127,13 +127,13 @@ vercel.json @iotaledger/tooling
 /iota-execution/ @iotaledger/vm-language
 /external-crates/ @iotaledger/vm-language
 
-# Docs and examples are for DevEx to approve upon
-/docs/ @iotaledger/devx
-/examples/ @iotaledger/devx
+# Docs and examples are for DevRel to approve upon
+/docs/ @iotaledger/devrel
+/examples/ @iotaledger/devrel
 
 # Override ownership of Boxfish Studio and the tooling team for the following files
-/docs/**/package.json @iotaledger/devx
-/docs/**/vercel.json @iotaledger/devx
+/docs/**/package.json @iotaledger/devrel
+/docs/**/vercel.json @iotaledger/devrel
 
 # CI Taskforce
 /.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron

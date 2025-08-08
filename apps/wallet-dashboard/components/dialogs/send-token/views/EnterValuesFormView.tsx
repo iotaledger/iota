@@ -4,7 +4,6 @@
 import { CoinBalance } from '@iota/iota-sdk/client';
 import {
     AddressInput,
-    CoinFormat,
     CoinSelector,
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
@@ -27,7 +26,7 @@ import {
     LoadingIndicator,
     Header,
 } from '@iota/apps-ui-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
 import { FormDataValues } from '../interfaces';
@@ -73,7 +72,7 @@ export function EnterValuesFormView({
     const [tokenBalance, _, queryResult] = useFormatCoin({
         balance: coinBalance,
         coinType,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     const coinMetadata = useCoinMetadata(coinType);
