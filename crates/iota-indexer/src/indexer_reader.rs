@@ -10,8 +10,9 @@ use std::{
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
+    OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
+    TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -701,8 +702,12 @@ impl IndexerReader {
         let optimistic_txs = run_query!(&self.pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::sequence_number
-                        .eq(tx_global_order::optimistic_sequence_number)),
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
@@ -1354,8 +1359,12 @@ impl IndexerReader {
         run_query_async!(&pool, move |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::sequence_number
-                        .eq(tx_global_order::optimistic_sequence_number)),
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
