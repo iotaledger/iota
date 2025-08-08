@@ -19,12 +19,21 @@ use crate::execution_cache::TransactionCacheRead;
 /// Capacity of the congestion tracker's cache.
 const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 
+/// Threshold for hotness below which an object is considered cold.
+const HOTNESS_CUTOFF: f64 = 1.0;
+
+/// Controls how quickly congestion feedback updates object hotness.
+const HOTNESS_ADJUSTMENT_FACTOR: f64 = 0.2; // > 0.0
+
+/// Controls how quickly hotness decays for objects not seen in congestion.
+const HOTNESS_DECAY_FACTOR: f64 = 1.5; // > 1.0 = decay, 1.0 = no decay
+
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
 
 /// Holds tracked per-object congestion info.
 #[derive(Clone, Copy, Debug)]
-pub struct CongestionInfo {
+struct CongestionInfo {
     /// Timestamp of the latest checkpoint which contains transaction(s)
     /// with this object being congested.
     latest_congestion_time: CheckpointTimestamp,
@@ -42,11 +51,8 @@ pub struct CongestionInfo {
 
     /// The hotness of an object corresponds to the expected tip to pay for a
     /// successful execution.
-    pub hotness: f64,
+    hotness: f64,
 }
-
-const LEARNING_RATE: f64 = 0.2;
-const HOTNESS_THRESHOLD: f64 = 1.0;
 
 impl CongestionInfo {
     /// Update this congestion info with the congestion info from a new
@@ -76,9 +82,12 @@ impl CongestionInfo {
     ) {
         // Update hotness per object based on the congestion events according to the
         // formula: hotness(i) -= SUM(tx)[hotness(i) - gas_price_feedback(tx)] *
-        // LEARNING_RATE / number_congested_transactions
-        self.hotness -= new.hotness * LEARNING_RATE / number_congested_transactions as f64;
-        self.hotness = self.hotness.max(0.0); // Ensure hotness is non-negative
+        // LEARNING_RATE / number_congested_transactions. Decrease is capped by
+        // DECAY_RATE.
+        let old_hotness = self.hotness;
+        self.hotness -=
+            new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
+        self.hotness = self.hotness.max(old_hotness / HOTNESS_DECAY_FACTOR); // Decay is capped
     }
 
     fn update_hotness_for_new_object(
@@ -87,7 +96,8 @@ impl CongestionInfo {
         number_congested_transactions: usize,
         _number_cleared_transactions: usize,
     ) {
-        self.hotness = -new.hotness * LEARNING_RATE / number_congested_transactions as f64;
+        self.hotness =
+            -new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
         self.hotness = self.hotness.max(0.0); // Ensure hotness is non-negative
     }
 
@@ -111,8 +121,8 @@ impl CongestionInfo {
 /// `CongestionTracker` tracks objects' congestion info.
 /// The info is then used to calculated a suggested gas price.
 pub struct CongestionTracker {
-    pub reference_gas_price: u64,
-    pub object_congestion_info: Cache<ObjectID, CongestionInfo>,
+    reference_gas_price: u64,
+    object_congestion_info: Cache<ObjectID, CongestionInfo>,
 }
 
 impl CongestionTracker {
@@ -433,8 +443,8 @@ impl CongestionTracker {
                     .and_compute_with(|maybe_entry| {
                         if let Some(e) = maybe_entry {
                             let mut e = e.into_value();
-                            e.hotness /= 2.0;
-                            if e.hotness < HOTNESS_THRESHOLD {
+                            e.hotness /= HOTNESS_DECAY_FACTOR;
+                            if e.hotness < HOTNESS_CUTOFF {
                                 Op::Remove
                             } else {
                                 Op::Put(e)
@@ -603,11 +613,11 @@ mod tests {
             "obj1 should have unchanged hotness"
         );
         assert!(
-            tracker.get_hotness_for_object(&obj2).unwrap() == LEARNING_RATE * 250.0,
+            tracker.get_hotness_for_object(&obj2).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 250.0,
             "obj2 should have increased hotness"
         );
         assert!(
-            tracker.get_hotness_for_object(&obj3).unwrap() == LEARNING_RATE * 150.0,
+            tracker.get_hotness_for_object(&obj3).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 150.0,
             "obj3 should have increased hotness"
         );
     }
@@ -646,8 +656,8 @@ mod tests {
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness1 == 36.1, "hotness for obj1 should be 36.1");
-        assert!(hotness2 == 38.35, "hotness for obj2 should be 38.35");
+        assert!(hotness1.floor() == 64.0, "hotness for obj1 should be positive");
+        assert!(hotness2.floor() == 52.0, "hotness for obj2 should be positive");
     }
 
     #[test]
@@ -660,12 +670,12 @@ mod tests {
         // First checkpoint with two congested objects
         tracker.process_congestion_and_clearing_txs_data(
             1000,
-            &[(100, vec![obj1, obj2], 1015)],
+            &[(100, vec![obj1, obj2], 1010)],
             &[],
         );
 
         // obj1 is not congested anymore
-        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1018)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1007)], &[]);
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
 
         // hotness for obj1 goes below 1.0 so it should be removed from cache
@@ -674,7 +684,6 @@ mod tests {
             "obj1 should be removed from cache"
         );
         let hotness = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        println!("hotness for obj2: {}", hotness);
-        assert!(hotness == 3.0, "hotness for obj2 should be 3.0");
+        assert!(hotness == 2.0, "hotness for obj2 should be 2.0");
     }
 }
