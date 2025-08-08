@@ -36,7 +36,7 @@ pub struct MoveAuthenticator {
 
 impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
-        self.object_id.into()
+        self.object_to_authenticate.into()
     }
 }
 

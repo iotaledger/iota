@@ -253,8 +253,8 @@ impl ToFromBytes for GenericSignature {
                     Ok(GenericSignature::PasskeyAuthenticator(passkey))
                 }
                 SignatureScheme::MoveAuthenticator => {
-                    let passkey = MoveAuthenticator::from_bytes(bytes)?;
-                    Ok(GenericSignature::MoveAuthenticator(passkey))
+                    let move_auth = MoveAuthenticator::from_bytes(bytes)?;
+                    Ok(GenericSignature::MoveAuthenticator(move_auth))
                 }
                 _ => Err(FastCryptoError::InvalidInput),
             },

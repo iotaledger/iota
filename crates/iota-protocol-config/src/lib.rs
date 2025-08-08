@@ -317,7 +317,7 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
 
-    // Enable passkey auth (SIP-9)
+    // Enable move auth
     #[serde(skip_serializing_if = "is_false")]
     move_auth: bool,
 }

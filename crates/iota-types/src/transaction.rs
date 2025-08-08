@@ -2269,7 +2269,6 @@ impl SenderSignedData {
                         });
                     }
                 }
-                GenericSignature::Signature(_) | GenericSignature::MultiSig(_) => (),
                 GenericSignature::MoveAuthenticator(_) => {
                     if !config.move_auth() {
                         return Err(IotaError::UserInput {
@@ -2279,6 +2278,7 @@ impl SenderSignedData {
                         });
                     }
                 }
+                GenericSignature::Signature(_) | GenericSignature::MultiSig(_) => (),
             }
         }
 
