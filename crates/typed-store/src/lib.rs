@@ -18,6 +18,7 @@ pub mod traits;
 pub use traits::Map;
 pub mod metrics;
 pub mod rocks;
+pub mod test_db;
 pub use metrics::DBMetrics;
 pub use typed_store_error::TypedStoreError;
 
