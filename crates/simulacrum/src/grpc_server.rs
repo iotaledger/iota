@@ -27,7 +27,7 @@ impl<Store: SimulatorStore> SimulacrumGrpcReader<Store> {
 impl<Store: SimulatorStore + Send + Sync + 'static> GrpcStateReader
     for SimulacrumGrpcReader<Store>
 {
-    fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
+    fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
         self.simulacrum
             .store()
             .get_highest_checkpoint()
@@ -64,7 +64,7 @@ impl<Store: SimulatorStore + Send + Sync + 'static> GrpcStateReader
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
         // Simple implementation for simulacrum - find the last checkpoint of the given
         // epoch
-        let latest_seq = self.get_latest_checkpoint_sequence().unwrap_or(0);
+        let latest_seq = self.get_latest_checkpoint_sequence_number().unwrap_or(0);
 
         for seq in (0..=latest_seq).rev() {
             if let Some(summary) = self.get_checkpoint_summary(seq) {
@@ -140,7 +140,7 @@ mod tests {
         let reader = SimulacrumGrpcReader::new(simulacrum);
 
         // Test basic functionality
-        assert!(reader.get_latest_checkpoint_sequence().is_some());
+        assert!(reader.get_latest_checkpoint_sequence_number().is_some());
         assert!(reader.get_checkpoint_summary(0).is_some());
         assert!(reader.get_checkpoint_data(0).is_some());
         assert!(reader.get_epoch_last_checkpoint(0).unwrap().is_some());

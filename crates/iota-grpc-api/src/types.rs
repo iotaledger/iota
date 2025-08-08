@@ -148,7 +148,7 @@ pub type CheckpointStreamResult = Result<Checkpoint, Status>;
 /// Trait for reading checkpoint data from storage
 pub trait GrpcStateReader: Send + Sync + 'static {
     /// Get the latest checkpoint sequence number
-    fn get_latest_checkpoint_sequence(&self) -> Option<u64>;
+    fn get_latest_checkpoint_sequence_number(&self) -> Option<u64>;
 
     /// Get checkpoint summary by sequence number
     fn get_checkpoint_summary(&self, seq: u64) -> Option<CertifiedCheckpointSummary>;
@@ -200,7 +200,6 @@ where
         async_stream::try_stream! {
             let mut latest = reader.get_latest().unwrap_or(0);
             tracing::debug!("[profile][grpc] Latest checkpoint index: {latest}.");
-
             let (mut start, end) = match (start_sequence_number, end_sequence_number) {
                 (None, None) => (latest, u64::MAX),
                 (None, Some(end)) => (end, end),
@@ -228,7 +227,7 @@ where
                 // wait for broadcast
                 match rx.recv().await {
                     Ok(item) => {
-                        tracing::debug!("[profile][grpc] Received checkpoint data for index {} from broadcast channel", reader.get_sequence_number(&item));
+                        tracing::debug!("[profile][grpc] Get checkpoint data for index {} from broadcast channel", reader.get_sequence_number(&item));
                         let seq_number = reader.get_sequence_number(&item);
                         if start == seq_number {
                             yield reader.create_checkpoint_response(&item, is_full)?;
@@ -244,6 +243,7 @@ where
                         // continue, lagged item should be picked up from history DB
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        // report internal error to the stream and break
                         Err(Status::internal("Checkpoint data channel closed."))?;
                         break;
                     },
@@ -251,7 +251,7 @@ where
 
                 // Update latest checkpoint info
                 latest = reader.get_latest().unwrap_or(start);
-                tracing::debug!("[profile][grpc] Updated latest checkpoint index to {latest}.");
+                tracing::debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
             }
         }
     }
@@ -263,7 +263,7 @@ pub struct RestStateReaderAdapter {
 }
 
 impl GrpcStateReader for RestStateReaderAdapter {
-    fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
+    fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
         Some(*self.inner.get_latest_checkpoint().sequence_number())
     }
 
@@ -323,8 +323,8 @@ impl GrpcReader {
         self.state_reader.get_checkpoint_data(seq)
     }
 
-    pub fn get_latest_checkpoint_sequence(&self) -> Option<u64> {
-        self.state_reader.get_latest_checkpoint_sequence()
+    pub fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
+        self.state_reader.get_latest_checkpoint_sequence_number()
     }
 }
 
@@ -341,7 +341,7 @@ impl CheckpointReader<GrpcCheckpointData> for GrpcReader {
     }
 
     fn get_latest(&self) -> Option<u64> {
-        self.state_reader.get_latest_checkpoint_sequence()
+        self.state_reader.get_latest_checkpoint_sequence_number()
     }
 }
 
@@ -359,6 +359,6 @@ impl CheckpointReader<GrpcCertifiedCheckpointSummary> for GrpcReader {
     }
 
     fn get_latest(&self) -> Option<u64> {
-        self.state_reader.get_latest_checkpoint_sequence()
+        self.state_reader.get_latest_checkpoint_sequence_number()
     }
 }
