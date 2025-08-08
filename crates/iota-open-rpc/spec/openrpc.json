@@ -1326,6 +1326,7 @@
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "minimize_child_object_mutations": false,
+                "move_auth": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
@@ -1819,6 +1820,9 @@
                 },
                 "max_arguments": {
                   "u32": "512"
+                },
+                "max_auth_gas": {
+                  "u64": "1000000000"
                 },
                 "max_back_edges_per_function": {
                   "u64": "10000"
@@ -6056,6 +6060,39 @@
         "description": "A struct that stores a Bn254 Fr field element as 32 bytes.",
         "type": "string"
       },
+      "CallArg": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "Pure"
+            ],
+            "properties": {
+              "Pure": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "uint8",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Object"
+            ],
+            "properties": {
+              "Object": {
+                "$ref": "#/components/schemas/ObjectArg"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -6335,6 +6372,18 @@
             "properties": {
               "Passkey": {
                 "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Move"
+            ],
+            "properties": {
+              "Move": {
+                "$ref": "#/components/schemas/MoveAuthenticatorAsBytes"
               }
             },
             "additionalProperties": false
@@ -7562,6 +7611,18 @@
             "properties": {
               "PasskeyAuthenticator": {
                 "$ref": "#/components/schemas/PasskeyAuthenticator"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "MoveAuthenticator"
+            ],
+            "properties": {
+              "MoveAuthenticator": {
+                "$ref": "#/components/schemas/MoveAuthenticator"
               }
             },
             "additionalProperties": false
@@ -9874,6 +9935,28 @@
           }
         }
       },
+      "MoveAuthenticator": {
+        "type": "object",
+        "required": [
+          "inputs",
+          "object_id"
+        ],
+        "properties": {
+          "inputs": {
+            "description": "Input objects or primitive values",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CallArg"
+            }
+          },
+          "object_id": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        }
+      },
+      "MoveAuthenticatorAsBytes": {
+        "$ref": "#/components/schemas/Base64"
+      },
       "MoveCallMetrics": {
         "type": "object",
         "required": [
@@ -10254,6 +10337,88 @@
             "format": "double"
           }
         }
+      },
+      "ObjectArg": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "ImmOrOwnedObject"
+            ],
+            "properties": {
+              "ImmOrOwnedObject": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SequenceNumber"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ObjectDigest"
+                  }
+                ],
+                "maxItems": 3,
+                "minItems": 3
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SharedObject"
+            ],
+            "properties": {
+              "SharedObject": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "initial_shared_version",
+                  "mutable"
+                ],
+                "properties": {
+                  "id": {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  "initial_shared_version": {
+                    "$ref": "#/components/schemas/SequenceNumber"
+                  },
+                  "mutable": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Receiving"
+            ],
+            "properties": {
+              "Receiving": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SequenceNumber"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ObjectDigest"
+                  }
+                ],
+                "maxItems": 3,
+                "minItems": 3
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "ObjectChange": {
         "description": "ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.",
