@@ -27,7 +27,7 @@ use crate::{
 pub struct MoveAuthenticator {
     /// Input objects or primitive values
     inputs: Vec<CallArg>,
-    object_id: ObjectID,
+    object_to_authenticate: ObjectID,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing [trait AsRef<[u8]>].
     #[serde(skip)]
