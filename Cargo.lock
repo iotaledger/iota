@@ -14838,7 +14838,6 @@ dependencies = [
 name = "typed-store"
 version = "1.6.0-alpha"
 dependencies = [
- "async-trait",
  "bcs",
  "bincode",
  "collectable",
@@ -14846,7 +14845,6 @@ dependencies = [
  "fdlimit",
  "hdrhistogram",
  "iota-macros",
- "itertools 0.13.0",
  "msim",
  "once_cell",
  "ouroboros 0.18.4",
