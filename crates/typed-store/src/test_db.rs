@@ -224,7 +224,6 @@ where
     type Error = TypedStoreError;
     type Iterator = std::iter::Empty<(K, V)>;
     type SafeIterator = TestDBIter<'a, K, V>;
-    type Values = TestDBValues<'a, V>;
 
     fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
         let raw_key = be_fix_int_ser(key)?;
@@ -237,13 +236,6 @@ where
         let locked = self.rows.read().unwrap();
         let res = locked.get(&raw_key);
         Ok(res.map(|raw_value| bcs::from_bytes(raw_value).ok().unwrap()))
-    }
-
-    fn get_raw_bytes(&self, key: &K) -> Result<Option<Vec<u8>>, Self::Error> {
-        let raw_key = be_fix_int_ser(key)?;
-        let locked = self.rows.read().unwrap();
-        let res = locked.get(&raw_key);
-        Ok(res.cloned())
     }
 
     fn insert(&self, key: &K, value: &V) -> Result<(), Self::Error> {
@@ -264,13 +256,6 @@ where
     fn unsafe_clear(&self) -> Result<(), Self::Error> {
         let mut locked = self.rows.write().unwrap();
         locked.clear();
-        Ok(())
-    }
-
-    fn delete_file_in_range(&self, from: &K, to: &K) -> Result<(), TypedStoreError> {
-        let mut locked = self.rows.write().unwrap();
-        locked
-            .retain(|k, _| k < &be_fix_int_ser(from).unwrap() || k >= &be_fix_int_ser(to).unwrap());
         Ok(())
     }
 
@@ -321,15 +306,6 @@ where
 
     fn safe_range_iter(&'a self, _range: impl RangeBounds<K>) -> Self::SafeIterator {
         unimplemented!("unimplemented API");
-    }
-
-    fn values(&'a self) -> Self::Values {
-        TestDBValuesBuilder {
-            rows: self.rows.read().unwrap(),
-            iter_builder: |rows: &mut RwLockReadGuard<'a, BTreeMap<Vec<u8>, Vec<u8>>>| rows.iter(),
-            phantom: PhantomData,
-        }
-        .build()
     }
 
     fn try_catch_up_with_primary(&self) -> Result<(), Self::Error> {
@@ -548,25 +524,6 @@ mod test {
     }
 
     #[test]
-    fn test_get_raw() {
-        let db = TestDB::open();
-        db.insert(&123456789, &"123456789".to_string())
-            .expect("Failed to insert");
-
-        let val_bytes = db
-            .get_raw_bytes(&123456789)
-            .expect("Failed to get_raw_bytes")
-            .unwrap();
-
-        assert_eq!(bcs::to_bytes(&"123456789".to_string()).unwrap(), val_bytes);
-        assert_eq!(
-            None,
-            db.get_raw_bytes(&000000000)
-                .expect("Failed to get_raw_bytes")
-        );
-    }
-
-    #[test]
     fn test_multi_get() {
         let db = TestDB::open();
         db.insert(&123, &"123".to_string())
@@ -624,10 +581,6 @@ mod test {
 
         db.insert(&123456789, &"123456789".to_string())
             .expect("Failed to insert");
-
-        let mut values = db.values();
-        assert_eq!(Some(Ok("123456789".to_string())), values.next());
-        assert_eq!(None, values.next());
     }
 
     #[test]
