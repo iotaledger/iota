@@ -1119,8 +1119,14 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(filter, options, cursor, limit, is_descending)
-            .await
+        self.query_transaction_blocks_impl_with_optimistic_indexing(
+            filter,
+            options,
+            cursor,
+            limit,
+            is_descending,
+        )
+        .await
     }
 
     async fn get_smallest_tx_seq_with_global_order(&self) -> IndexerResult<i64> {
@@ -1134,7 +1140,249 @@ impl IndexerReader {
         .unwrap_or(i64::MAX))
     }
 
-    async fn query_transaction_blocks_impl(
+    async fn query_transaction_blocks_impl_with_checkpointed_data_only(
+        &self,
+        filter: Option<TransactionFilter>,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let cursor_tx_seq = if let Some(cursor) = cursor {
+            let pool = self.get_pool();
+            let tx_seq = run_query_async!(&pool, move |conn| {
+                tx_digests::table
+                    .select(tx_digests::tx_sequence_number)
+                    // we filter the tx_digests table because it is indexed by digest,
+                    // transactions (and other tables) are not
+                    .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
+                    .first::<i64>(conn)
+            })?;
+            Some(tx_seq)
+        } else {
+            None
+        };
+        let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
+            if is_descending {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
+            } else {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
+            }
+        } else {
+            "".to_string()
+        };
+        let order_str = if is_descending { "DESC" } else { "ASC" };
+        let (table_name, main_where_clause) = match filter {
+            // Processed above
+            Some(TransactionFilter::Checkpoint(seq)) => {
+                return self
+                    .query_transaction_blocks_by_checkpoint_impl(
+                        seq,
+                        options,
+                        cursor_tx_seq,
+                        limit,
+                        is_descending,
+                    )
+                    .await;
+            }
+            // FIXME: sanitize module & function
+            Some(TransactionFilter::MoveFunction {
+                package,
+                module,
+                function,
+            }) => {
+                let package = Hex::encode(package.to_vec());
+                match (module, function) {
+                    (Some(module), Some(function)) => (
+                        "tx_calls_fun".into(),
+                        format!(
+                            "package = '\\x{package}'::bytea AND module = '{module}' AND func = '{function}'"
+                        ),
+                    ),
+                    (Some(module), None) => (
+                        "tx_calls_mod".into(),
+                        format!("package = '\\x{package}'::bytea AND module = '{module}'"),
+                    ),
+                    (None, Some(_)) => {
+                        return Err(IndexerError::InvalidArgument(
+                            "Function cannot be present without Module.".into(),
+                        ));
+                    }
+                    (None, None) => (
+                        "tx_calls_pkg".into(),
+                        format!("package = '\\x{package}'::bytea"),
+                    ),
+                }
+            }
+            Some(TransactionFilter::InputObject(object_id)) => {
+                let object_id = Hex::encode(object_id.to_vec());
+                (
+                    "tx_input_objects".into(),
+                    format!("object_id = '\\x{object_id}'::bytea"),
+                )
+            }
+            Some(TransactionFilter::ChangedObject(object_id)) => {
+                let object_id = Hex::encode(object_id.to_vec());
+                (
+                    "tx_changed_objects".into(),
+                    format!("object_id = '\\x{object_id}'::bytea"),
+                )
+            }
+            Some(TransactionFilter::FromAddress(from_address)) => {
+                let from_address = Hex::encode(from_address.to_vec());
+                (
+                    "tx_senders".into(),
+                    format!("sender = '\\x{from_address}'::bytea"),
+                )
+            }
+            Some(TransactionFilter::ToAddress(to_address)) => {
+                let to_address = Hex::encode(to_address.to_vec());
+                (
+                    "tx_recipients".into(),
+                    format!("recipient = '\\x{to_address}'::bytea"),
+                )
+            }
+            Some(TransactionFilter::FromAndToAddress { from, to }) => {
+                let from_address = Hex::encode(from.to_vec());
+                let to_address = Hex::encode(to.to_vec());
+                // Need to remove ambiguities for tx_sequence_number column
+                let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
+                    if is_descending {
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
+                    } else {
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
+                    }
+                } else {
+                    "".to_string()
+                };
+                let inner_query = format!(
+                    "(SELECT tx_senders.{TX_SEQUENCE_NUMBER_STR} \
+                    FROM tx_senders \
+                    JOIN tx_recipients \
+                    ON tx_senders.{TX_SEQUENCE_NUMBER_STR} = tx_recipients.{TX_SEQUENCE_NUMBER_STR} \
+                    WHERE tx_senders.sender = '\\x{from_address}'::BYTEA \
+                    AND tx_recipients.recipient = '\\x{to_address}'::BYTEA \
+                    {cursor_clause} \
+                    ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                    LIMIT {limit}) AS inner_query
+                    ",
+                );
+                (inner_query, "1 = 1".into())
+            }
+            Some(TransactionFilter::FromOrToAddress { addr }) => {
+                let address = Hex::encode(addr.to_vec());
+                let inner_query = format!(
+                    "( \
+                        ( \
+                            SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
+                            WHERE sender = '\\x{address}'::BYTEA {cursor_clause} \
+                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                            LIMIT {limit} \
+                        ) \
+                        UNION \
+                        ( \
+                            SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
+                            WHERE recipient = '\\x{address}'::BYTEA {cursor_clause} \
+                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
+                            LIMIT {limit} \
+                        ) \
+                    ) AS combined",
+                );
+                (inner_query, "1 = 1".into())
+            }
+            Some(TransactionFilter::TransactionKind(kind)) => {
+                // The `SystemTransaction` variant can be used to filter for all types of system
+                // transactions.
+                if kind == IotaTransactionKind::SystemTransaction {
+                    ("tx_kinds".into(), "tx_kind != 1".to_string())
+                } else {
+                    ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
+                }
+            }
+            Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
+                if kind_vec.is_empty() {
+                    return Err(IndexerError::InvalidArgument(
+                        "no transaction kind provided".into(),
+                    ));
+                }
+
+                let mut has_system_transaction = false;
+                let mut has_programmable_transaction = false;
+                let mut other_kinds = HashSet::new();
+
+                for kind in kind_vec.iter() {
+                    match kind {
+                        IotaTransactionKind::SystemTransaction => has_system_transaction = true,
+                        IotaTransactionKind::ProgrammableTransaction => {
+                            has_programmable_transaction = true
+                        }
+                        other => {
+                            other_kinds.insert(*other as u8);
+                        }
+                    }
+                }
+
+                let query = if has_system_transaction {
+                    // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
+                    // we need to filter out `ProgrammableTransaction`.
+                    if !has_programmable_transaction {
+                        "tx_kind != 1".to_string()
+                    } else {
+                        // No filter applied if both exist
+                        "1 = 1".to_string()
+                    }
+                } else {
+                    // Case: `ProgrammableTransaction` is present
+                    if has_programmable_transaction {
+                        other_kinds.insert(IotaTransactionKind::ProgrammableTransaction as u8);
+                    }
+
+                    if other_kinds.is_empty() {
+                        // If there's nothing to filter on, return an empty query
+                        "1 = 1".to_string()
+                    } else {
+                        let mut query = String::from("tx_kind IN (");
+                        query.push_str(
+                            &other_kinds
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        );
+                        query.push(')');
+                        query
+                    }
+                };
+
+                ("tx_kinds".into(), query)
+            }
+            None => {
+                // apply no filter
+                ("transactions".into(), "1 = 1".into())
+            }
+        };
+
+        let query = format!(
+            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {table_name} WHERE {main_where_clause} {cursor_clause} ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} LIMIT {limit}",
+        );
+
+        tracing::debug!("query transaction blocks: {}", query);
+        let pool = self.get_pool();
+        let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
+            diesel::sql_query(query.clone()).load::<TxSequenceNumber>(conn)
+        })?
+        .into_iter()
+        .map(|tsn| tsn.tx_sequence_number)
+        .collect::<Vec<i64>>();
+        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+            tx_sequence_numbers,
+            options,
+            Some(is_descending),
+        )
+        .await
+    }
+
+    async fn query_transaction_blocks_impl_with_optimistic_indexing(
         &self,
         filter: Option<TransactionFilter>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
