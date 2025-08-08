@@ -100,6 +100,160 @@ impl Clone for IndexerReader {
 
 pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
 
+#[derive(Clone, Copy)]
+enum CursorPosition {
+    BeforeGlobalOrder(i64),
+    InGlobalOrder(i64, i64),
+}
+
+struct QueryTransactionBlocksSqlQueryBuilder<'a> {
+    source_table_alias: &'a str,
+    source_table_or_query: &'a str,
+    main_filter_condition: &'a str,
+    cursor_position: Option<CursorPosition>,
+    is_descending: bool,
+    limit: usize,
+    smallest_tx_seq_with_global_order: i64,
+    order_str: String,
+}
+
+impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
+    fn new(
+        source_table_alias: &'a str,
+        source_table_or_query: &'a str,
+        main_filter_condition: &'a str,
+        cursor_position: Option<CursorPosition>,
+        is_descending: bool,
+        limit: usize,
+        smallest_tx_seq_with_global_order: i64,
+    ) -> Self {
+        Self {
+            cursor_position,
+            is_descending,
+            limit,
+            source_table_alias,
+            source_table_or_query,
+            main_filter_condition,
+            smallest_tx_seq_with_global_order,
+            order_str: if is_descending {
+                "DESC".into()
+            } else {
+                "ASC".into()
+            },
+        }
+    }
+
+    fn get_before_global_order_cursor_clause(&self) -> String {
+        if let Some(CursorPosition::BeforeGlobalOrder(cursor_tx_seq)) = self.cursor_position {
+            if self.is_descending {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
+            } else {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
+            }
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn get_with_global_order_cursor_clause(&self) -> String {
+        if let Some(CursorPosition::InGlobalOrder(global_seq, optimistic_seq)) =
+            self.cursor_position
+        {
+            if self.is_descending {
+                format!(
+                    "AND (tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number) < ({global_seq}, {optimistic_seq})"
+                )
+            } else {
+                format!(
+                    "AND (tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number) > ({global_seq}, {optimistic_seq})"
+                )
+            }
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn combine_queries(
+        query_before_global_order: String,
+        query_in_global_order: String,
+        is_descending: bool,
+        cursor_position: &Option<CursorPosition>,
+        limit: usize,
+    ) -> String {
+        if is_descending {
+            if matches!(cursor_position, Some(CursorPosition::BeforeGlobalOrder(_))) {
+                // if cursor is placed before global order bagan, and we are descending, we
+                // can safely omit global ordered entries
+                query_before_global_order
+            } else {
+                format!(
+                    "({query_in_global_order}) UNION ALL ({query_before_global_order}) LIMIT {limit}"
+                )
+            }
+        } else if matches!(cursor_position, Some(CursorPosition::InGlobalOrder(_, _))) {
+            // if cursor is placed in globally ordered area and we are ascending, we can
+            // safely omit non-global-ordered entries
+            query_in_global_order
+        } else {
+            format!(
+                "({query_before_global_order}) UNION ALL ({query_in_global_order}) LIMIT {limit}"
+            )
+        }
+    }
+
+    fn get_query_before_global_order(&self, fields_to_select: &String) -> String {
+        let source_table_alias = self.source_table_alias;
+        let source_table_or_query = self.source_table_or_query;
+        let main_filter_condition = self.main_filter_condition;
+        let smallest_tx_seq_with_global_order = self.smallest_tx_seq_with_global_order;
+        let limit = self.limit;
+        let before_global_order_cursor_clause = self.get_before_global_order_cursor_clause();
+        let order_str = &self.order_str;
+
+        format!(
+            "SELECT {fields_to_select} \
+            FROM {source_table_or_query} \
+            WHERE {main_filter_condition} \
+            {before_global_order_cursor_clause} AND {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} < {smallest_tx_seq_with_global_order} \
+            ORDER BY {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} {order_str} \
+            LIMIT {limit} \
+            ",
+        )
+    }
+
+    fn get_query_with_global_order(&self, fields_to_select: &String) -> String {
+        let source_table_alias = self.source_table_alias;
+        let source_table_or_query = self.source_table_or_query;
+        let main_filter_condition = self.main_filter_condition;
+        let limit = self.limit;
+        let global_order_cursor_clause = self.get_with_global_order_cursor_clause();
+        let order_str = &self.order_str;
+
+        format!(
+            "SELECT {fields_to_select} \
+            FROM {source_table_or_query} \
+            JOIN tx_global_order ON tx_global_order.chk_tx_sequence_number = {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} \
+            WHERE {main_filter_condition} {global_order_cursor_clause} \
+            ORDER BY tx_global_order.global_sequence_number {order_str}, tx_global_order.optimistic_sequence_number {order_str} \
+            LIMIT {limit} \
+            ",
+        )
+    }
+
+    fn get_combined_query(&self, fields_to_select: String) -> String {
+        let query_before_global_order = self.get_query_before_global_order(&fields_to_select);
+        let query_after_global_order = self.get_query_with_global_order(&fields_to_select);
+
+        QueryTransactionBlocksSqlQueryBuilder::combine_queries(
+            query_before_global_order,
+            query_after_global_order,
+            self.is_descending,
+            &self.cursor_position,
+            self.limit,
+        )
+    }
+}
+
 // Impl for common initialization and utilities
 impl IndexerReader {
     pub fn new(pool: ConnectionPool) -> Self {
@@ -965,7 +1119,7 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(
+        self.query_transaction_blocks_impl_with_optimistic_indexing(
             filter.map(TransactionFilterKind::V1),
             options,
             cursor,
@@ -983,7 +1137,7 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(
+        self.query_transaction_blocks_impl_with_optimistic_indexing(
             filter.map(TransactionFilterKind::V2),
             options,
             cursor,
@@ -993,7 +1147,19 @@ impl IndexerReader {
         .await
     }
 
-    async fn query_transaction_blocks_impl(
+    async fn get_smallest_tx_seq_with_global_order(&self) -> IndexerResult<i64> {
+        // TODO: consider making it cached
+        let pool = self.get_pool();
+        Ok(run_query_async!(&pool, move |conn| {
+            tx_global_order::table
+                .select(diesel::dsl::min(tx_global_order::chk_tx_sequence_number))
+                .first::<Option<i64>>(conn)
+        })?
+        .unwrap_or(i64::MAX))
+    }
+
+    #[expect(unused)]
+    async fn query_transaction_blocks_impl_with_checkpointed_data_only(
         &self,
         filter: Option<TransactionFilterKind>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -1252,6 +1418,366 @@ impl IndexerReader {
         let pool = self.get_pool();
         let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
             diesel::sql_query(query.clone()).load::<TxSequenceNumber>(conn)
+        })?
+        .into_iter()
+        .map(|tsn| tsn.tx_sequence_number)
+        .collect::<Vec<i64>>();
+        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+            tx_sequence_numbers,
+            options,
+            Some(is_descending),
+        )
+        .await
+    }
+
+    async fn query_transaction_blocks_impl_with_optimistic_indexing(
+        &self,
+        filter: Option<TransactionFilterKind>,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        enum FilteredDataSource {
+            SingleTable {
+                table_name: String,
+                filter_condition: String,
+            },
+            CustomQuery(String),
+        }
+
+        let smallest_tx_seq_with_global_order =
+            self.get_smallest_tx_seq_with_global_order().await?;
+
+        let (old_order_tx_seq, cursor_position) = if let Some(cursor) = cursor {
+            let pool = self.get_pool();
+            let tx_seq = run_query_async!(&pool, move |conn| {
+                tx_digests::table
+                    .select(tx_digests::tx_sequence_number)
+                    // we filter the tx_digests table because it is indexed by digest,
+                    // transactions (and other tables) are not
+                    .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
+                    .first::<i64>(conn)
+            })?;
+            let cursor_position = if tx_seq >= smallest_tx_seq_with_global_order {
+                let pool = self.get_pool();
+                let (global_seq, optimistic_seq) = run_query_async!(&pool, move |conn| {
+                    tx_global_order::table
+                        .select((
+                            tx_global_order::global_sequence_number,
+                            tx_global_order::optimistic_sequence_number,
+                        ))
+                        .filter(tx_global_order::tx_digest.eq(cursor.into_inner().to_vec()))
+                        .first::<(i64, i64)>(conn)
+                })?;
+                CursorPosition::InGlobalOrder(global_seq, optimistic_seq)
+            } else {
+                CursorPosition::BeforeGlobalOrder(tx_seq)
+            };
+            (Some(tx_seq), Some(cursor_position))
+        } else {
+            (None, None)
+        };
+
+        let filtered_data_source = match filter {
+            // Processed above
+            Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
+                return self
+                    .query_transaction_blocks_by_checkpoint_impl(
+                        seq,
+                        options,
+                        old_order_tx_seq,
+                        limit,
+                        is_descending,
+                    )
+                    .await;
+            }
+            // FIXME: sanitize module & function
+            Some(TransactionFilterKind::V1(TransactionFilter::MoveFunction {
+                package,
+                module,
+                function,
+            }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::MoveFunction {
+                package,
+                module,
+                function,
+            })) => {
+                let package = Hex::encode(package.to_vec());
+                match (module, function) {
+                    (Some(module), Some(function)) => FilteredDataSource::SingleTable {
+                        table_name: "tx_calls_fun".into(),
+                        filter_condition: format!(
+                            "package = '\\x{package}'::bytea AND module = '{module}' AND func = '{function}'"
+                        ),
+                    },
+                    (Some(module), None) => FilteredDataSource::SingleTable {
+                        table_name: "tx_calls_mod".into(),
+                        filter_condition: format!(
+                            "package = '\\x{package}'::bytea AND module = '{module}'"
+                        ),
+                    },
+                    (None, Some(_)) => {
+                        return Err(IndexerError::InvalidArgument(
+                            "Function cannot be present without Module.".into(),
+                        ));
+                    }
+                    (None, None) => FilteredDataSource::SingleTable {
+                        table_name: "tx_calls_pkg".into(),
+                        filter_condition: format!("package = '\\x{package}'::bytea"),
+                    },
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::InputObject(object_id)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::InputObject(object_id))) => {
+                let object_id = Hex::encode(object_id.to_vec());
+                FilteredDataSource::SingleTable {
+                    table_name: "tx_input_objects".into(),
+                    filter_condition: format!("object_id = '\\x{object_id}'::bytea"),
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::ChangedObject(object_id)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(object_id))) => {
+                let object_id = Hex::encode(object_id.to_vec());
+                FilteredDataSource::SingleTable {
+                    table_name: "tx_changed_objects".into(),
+                    filter_condition: format!("object_id = '\\x{object_id}'::bytea"),
+                }
+            }
+            Some(TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(
+                object_id,
+            ))) => {
+                let object_id = Hex::encode(object_id.to_vec());
+                FilteredDataSource::SingleTable {
+                    table_name: "tx_wrapped_or_deleted_objects".into(),
+                    filter_condition: format!("object_id = '\\x{}'::bytea", object_id),
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAddress(from_address))) => {
+                let from_address = Hex::encode(from_address.to_vec());
+                FilteredDataSource::SingleTable {
+                    table_name: "tx_senders".into(),
+                    filter_condition: format!("sender = '\\x{from_address}'::bytea"),
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::ToAddress(to_address)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::ToAddress(to_address))) => {
+                let to_address = Hex::encode(to_address.to_vec());
+                FilteredDataSource::SingleTable {
+                    table_name: "tx_recipients".into(),
+                    filter_condition: format!("recipient = '\\x{to_address}'::bytea"),
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { from, to }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { from, to })) =>
+            {
+                let from_address = Hex::encode(from.to_vec());
+                let to_address = Hex::encode(to.to_vec());
+
+                let data_source_query = format!(
+                    "tx_senders \
+                    JOIN tx_recipients \
+                    ON tx_senders.{TX_SEQUENCE_NUMBER_STR} = tx_recipients.{TX_SEQUENCE_NUMBER_STR}"
+                );
+                let filter_condition = format!(
+                    "tx_senders.sender = '\\x{from_address}'::BYTEA \
+                     AND tx_recipients.recipient = '\\x{to_address}'::BYTEA"
+                );
+
+                let query_builder = QueryTransactionBlocksSqlQueryBuilder::new(
+                    "tx_senders",
+                    &data_source_query,
+                    &filter_condition,
+                    cursor_position,
+                    is_descending,
+                    limit,
+                    smallest_tx_seq_with_global_order,
+                );
+
+                FilteredDataSource::CustomQuery(
+                    query_builder
+                        .get_combined_query(format!("tx_senders.{TX_SEQUENCE_NUMBER_STR}")),
+                )
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
+                let address = Hex::encode(addr.to_vec());
+                let sender_address_filter = format!("sender = '\\x{address}'::BYTEA");
+                let recipient_address_filter = format!("recipient = '\\x{address}'::BYTEA");
+                let query_builder_senders = QueryTransactionBlocksSqlQueryBuilder::new(
+                    "tx_senders",
+                    "tx_senders",
+                    &sender_address_filter,
+                    cursor_position,
+                    is_descending,
+                    limit,
+                    smallest_tx_seq_with_global_order,
+                );
+                let query_builder_recipients = QueryTransactionBlocksSqlQueryBuilder::new(
+                    "tx_recipients",
+                    "tx_recipients",
+                    &recipient_address_filter,
+                    cursor_position,
+                    is_descending,
+                    limit,
+                    smallest_tx_seq_with_global_order,
+                );
+                let order_str = &query_builder_senders.order_str;
+
+                let inner_query_before_global_order = {
+                    let senders_before = query_builder_senders.get_query_before_global_order(
+                        &format!("tx_senders.{TX_SEQUENCE_NUMBER_STR}"),
+                    );
+                    let recipients_before = query_builder_recipients.get_query_before_global_order(
+                        &format!("tx_recipients.{TX_SEQUENCE_NUMBER_STR}"),
+                    );
+
+                    format!(
+                        "SELECT {TX_SEQUENCE_NUMBER_STR} \
+                        FROM (({senders_before}) UNION ({recipients_before})) AS combined \
+                        ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str}"
+                    ) // we need UNION to remove duplicates, but we need to restore order after that
+                };
+
+                let inner_query_with_global_order = {
+                    let senders_with = query_builder_senders
+                        .get_query_with_global_order(&format!("tx_senders.{TX_SEQUENCE_NUMBER_STR}, tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number"));
+                    let recipients_with = query_builder_recipients
+                        .get_query_with_global_order(&format!("tx_recipients.{TX_SEQUENCE_NUMBER_STR}, tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number"));
+
+                    format!(
+                        "SELECT {TX_SEQUENCE_NUMBER_STR} \
+                        FROM (({senders_with}) UNION ({recipients_with})) AS combined \
+                        ORDER BY global_sequence_number {order_str}, optimistic_sequence_number {order_str}"
+                    ) // we need UNION to remove duplicates, but we need to restore order after that
+                };
+
+                let inner_query = QueryTransactionBlocksSqlQueryBuilder::combine_queries(
+                    inner_query_before_global_order,
+                    inner_query_with_global_order,
+                    is_descending,
+                    &cursor_position,
+                    limit,
+                );
+                FilteredDataSource::CustomQuery(inner_query)
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::TransactionKind(kind)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(kind))) => {
+                // The `SystemTransaction` variant can be used to filter for all types of system
+                // transactions.
+                if kind == IotaTransactionKind::SystemTransaction {
+                    FilteredDataSource::SingleTable {
+                        table_name: "tx_kinds".into(),
+                        filter_condition: "tx_kind != 1".to_string(),
+                    }
+                } else {
+                    FilteredDataSource::SingleTable {
+                        table_name: "tx_kinds".into(),
+                        filter_condition: format!("tx_kind = {}", kind as u8),
+                    }
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(kind_vec)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(kind_vec))) => {
+                if kind_vec.is_empty() {
+                    return Err(IndexerError::InvalidArgument(
+                        "no transaction kind provided".into(),
+                    ));
+                }
+
+                let mut has_system_transaction = false;
+                let mut has_programmable_transaction = false;
+                let mut other_kinds = HashSet::new();
+
+                for kind in kind_vec.iter() {
+                    match kind {
+                        IotaTransactionKind::SystemTransaction => has_system_transaction = true,
+                        IotaTransactionKind::ProgrammableTransaction => {
+                            has_programmable_transaction = true
+                        }
+                        other => {
+                            other_kinds.insert(*other as u8);
+                        }
+                    }
+                }
+
+                let query = if has_system_transaction {
+                    // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
+                    // we need to filter out `ProgrammableTransaction`.
+                    if !has_programmable_transaction {
+                        "tx_kind != 1".to_string()
+                    } else {
+                        // No filter applied if both exist
+                        "1 = 1".to_string()
+                    }
+                } else {
+                    // Case: `ProgrammableTransaction` is present
+                    if has_programmable_transaction {
+                        other_kinds.insert(IotaTransactionKind::ProgrammableTransaction as u8);
+                    }
+
+                    if other_kinds.is_empty() {
+                        // If there's nothing to filter on, return an empty query
+                        "1 = 1".to_string()
+                    } else {
+                        let mut query = String::from("tx_kind IN (");
+                        query.push_str(
+                            &other_kinds
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        );
+                        query.push(')');
+                        query
+                    }
+                };
+
+                FilteredDataSource::SingleTable {
+                    table_name: "tx_kinds".into(),
+                    filter_condition: query,
+                }
+            }
+            Some(TransactionFilterKind::V2(_)) => {
+                return Err(IndexerError::InvalidArgument(
+                    "transaction filter is not supported".into(),
+                ));
+            }
+            None => {
+                // apply no filter
+                FilteredDataSource::SingleTable {
+                    table_name: "transactions".into(),
+                    filter_condition: "1 = 1".into(),
+                }
+            }
+        };
+
+        let final_query = match filtered_data_source {
+            FilteredDataSource::CustomQuery(custom_query) => custom_query,
+            FilteredDataSource::SingleTable {
+                table_name,
+                filter_condition,
+            } => {
+                let query_builder = QueryTransactionBlocksSqlQueryBuilder::new(
+                    &table_name,
+                    &table_name,
+                    &filter_condition,
+                    cursor_position,
+                    is_descending,
+                    limit,
+                    smallest_tx_seq_with_global_order,
+                );
+
+                query_builder.get_combined_query(format!("{table_name}.{TX_SEQUENCE_NUMBER_STR}"))
+            }
+        };
+
+        tracing::debug!("query transaction blocks: {}", final_query);
+        let pool = self.get_pool();
+        let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
+            diesel::sql_query(final_query.clone()).load::<TxSequenceNumber>(conn)
         })?
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
