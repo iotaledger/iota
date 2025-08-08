@@ -40,6 +40,9 @@ use crate::{
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
 pub struct TxGlobalOrder {
+    /// Sequence number of transaction according to checkpoint ordering.
+    /// Set after transaction is checkpoint-indexed.
+    pub chk_tx_sequence_number: Option<i64>,
     /// Number that represents the global ordering between optimistic and
     /// checkpointed transactions.
     ///
@@ -55,7 +58,7 @@ pub struct TxGlobalOrder {
     /// To maintain these semantics the value should be non-positive for
     /// checkpointed transactions. More specifically we allow values
     /// in the set `[0, -1]` to represent the index status of checkpointed
-    /// transactions. See also [`CheckpointTxGlobalOrder`].
+    /// transactions.
     ///
     /// Optimistic transactions should set this value to `None`,
     /// so that it is auto-generated on the database.
@@ -66,6 +69,7 @@ pub struct TxGlobalOrder {
 impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
     fn from(tx: &IndexedTransaction) -> Self {
         Self {
+            chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
             global_sequence_number: tx.tx_sequence_number as i64,
             tx_digest: tx.tx_digest.into_inner().to_vec(),
             index_status: Some(IndexStatus::Started),
@@ -81,6 +85,7 @@ impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
 pub(crate) struct CheckpointTxGlobalOrder {
+    pub(crate) chk_tx_sequence_number: Option<i64>,
     pub(crate) global_sequence_number: i64,
     pub(crate) tx_digest: Vec<u8>,
     /// The index status of checkpointed transactions.
@@ -150,7 +155,8 @@ pub struct StoredTransaction {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = optimistic_transactions)]
 pub struct OptimisticTransaction {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub transaction_digest: Vec<u8>,
     pub raw_transaction: Vec<u8>,
     pub raw_effects: Vec<u8>,
@@ -164,7 +170,7 @@ pub struct OptimisticTransaction {
 impl From<OptimisticTransaction> for StoredTransaction {
     fn from(tx: OptimisticTransaction) -> Self {
         StoredTransaction {
-            tx_sequence_number: tx.sequence_number,
+            tx_sequence_number: tx.optimistic_sequence_number,
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
@@ -179,18 +185,19 @@ impl From<OptimisticTransaction> for StoredTransaction {
     }
 }
 
-impl From<StoredTransaction> for OptimisticTransaction {
-    fn from(tx: StoredTransaction) -> Self {
+impl OptimisticTransaction {
+    pub fn from_stored(global_sequence_number: i64, stored: StoredTransaction) -> Self {
         OptimisticTransaction {
-            sequence_number: tx.tx_sequence_number,
-            transaction_digest: tx.transaction_digest,
-            raw_transaction: tx.raw_transaction,
-            raw_effects: tx.raw_effects,
-            object_changes: tx.object_changes,
-            balance_changes: tx.balance_changes,
-            events: tx.events,
-            transaction_kind: tx.transaction_kind,
-            success_command_count: tx.success_command_count,
+            global_sequence_number,
+            optimistic_sequence_number: stored.tx_sequence_number,
+            transaction_digest: stored.transaction_digest,
+            raw_transaction: stored.raw_transaction,
+            raw_effects: stored.raw_effects,
+            object_changes: stored.object_changes,
+            balance_changes: stored.balance_changes,
+            events: stored.events,
+            transaction_kind: stored.transaction_kind,
+            success_command_count: stored.success_command_count,
         }
     }
 }

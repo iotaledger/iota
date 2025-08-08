@@ -57,7 +57,10 @@ pub struct StoredEvent {
 #[diesel(table_name = optimistic_events)]
 pub struct OptimisticEvent {
     #[diesel(sql_type = diesel::sql_types::BigInt)]
-    pub sequence_number: i64,
+    pub optimistic_sequence_number: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub global_sequence_number: i64,
 
     #[diesel(sql_type = diesel::sql_types::BigInt)]
     pub event_sequence_number: i64,
@@ -106,7 +109,7 @@ impl From<IndexedEvent> for StoredEvent {
 impl From<OptimisticEvent> for StoredEvent {
     fn from(event: OptimisticEvent) -> Self {
         Self {
-            tx_sequence_number: event.sequence_number,
+            tx_sequence_number: event.optimistic_sequence_number,
             event_sequence_number: event.event_sequence_number,
             transaction_digest: event.transaction_digest,
             senders: event.senders,
@@ -119,10 +122,11 @@ impl From<OptimisticEvent> for StoredEvent {
     }
 }
 
-impl From<StoredEvent> for OptimisticEvent {
-    fn from(event: StoredEvent) -> Self {
+impl OptimisticEvent {
+    pub fn from_stored(global_sequence_number: i64, event: StoredEvent) -> Self {
         Self {
-            sequence_number: event.tx_sequence_number,
+            global_sequence_number,
+            optimistic_sequence_number: event.tx_sequence_number,
             event_sequence_number: event.event_sequence_number,
             transaction_digest: event.transaction_digest,
             senders: event.senders,

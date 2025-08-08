@@ -152,7 +152,8 @@ impl EventIndex {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_emit_package)]
 pub struct OptimisticEventEmitPackage {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub package: Vec<u8>,
     pub sender: Vec<u8>,
@@ -161,7 +162,8 @@ pub struct OptimisticEventEmitPackage {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_emit_module)]
 pub struct OptimisticEventEmitModule {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub package: Vec<u8>,
     pub module: String,
@@ -171,7 +173,8 @@ pub struct OptimisticEventEmitModule {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_senders)]
 pub struct OptimisticEventSenders {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub sender: Vec<u8>,
 }
@@ -179,7 +182,8 @@ pub struct OptimisticEventSenders {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_struct_package)]
 pub struct OptimisticEventStructPackage {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub package: Vec<u8>,
     pub sender: Vec<u8>,
@@ -188,7 +192,8 @@ pub struct OptimisticEventStructPackage {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_struct_module)]
 pub struct OptimisticEventStructModule {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub package: Vec<u8>,
     pub module: String,
@@ -198,7 +203,8 @@ pub struct OptimisticEventStructModule {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_struct_name)]
 pub struct OptimisticEventStructName {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub package: Vec<u8>,
     pub module: String,
@@ -209,7 +215,8 @@ pub struct OptimisticEventStructName {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_event_struct_instantiation)]
 pub struct OptimisticEventStructInstantiation {
-    pub sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
     pub event_sequence_number: i64,
     pub package: Vec<u8>,
     pub module: String,
