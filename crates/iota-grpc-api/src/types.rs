@@ -346,9 +346,9 @@ impl CheckpointReader<GrpcCertifiedCheckpointSummary> for GrpcReader {
         item.sequence_number()
     }
 
-    fn get_item(&self, ix: u64) -> Option<Arc<GrpcCertifiedCheckpointSummary>> {
+    fn get_item(&self, seq: u64) -> Option<Arc<GrpcCertifiedCheckpointSummary>> {
         self.state_reader
-            .get_checkpoint_summary(ix)
+            .get_checkpoint_summary(seq)
             .map(GrpcCertifiedCheckpointSummary::from)
             .map(Arc::new)
     }
