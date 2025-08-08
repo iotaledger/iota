@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use core::result::Result::Ok;
-use std::{
-    any::Any as StdAny,
-    collections::BTreeMap,
-    time::Duration,
-};
+use std::{any::Any as StdAny, collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
@@ -905,6 +901,15 @@ impl PgIndexerStore {
                     tx_global_order::tx_digest,
                     tx_global_order::optimistic_sequence_number.eq(IndexStatus::Completed),
                     tx_global_order::optimistic_sequence_number.eq(IndexStatus::Started),
+                    conn
+                );
+                on_conflict_do_update_with_condition!(
+                    tx_global_order::table,
+                    tx_order.clone(),
+                    tx_global_order::tx_digest,
+                    tx_global_order::chk_tx_sequence_number
+                        .eq(excluded(tx_global_order::chk_tx_sequence_number)),
+                    tx_global_order::chk_tx_sequence_number.is_null(),
                     conn
                 );
                 Ok::<(), IndexerError>(())
