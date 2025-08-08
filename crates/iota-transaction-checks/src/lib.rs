@@ -417,7 +417,7 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     fn check_auth_objects(
         sender: IotaAddress,
-        sponsor: IotaAddress,
+        gas_owner: IotaAddress,
         gas: &[ObjectRef],
         objects: &InputObjects,
     ) -> UserInputResult<()> {
