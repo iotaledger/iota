@@ -2318,13 +2318,12 @@ impl AuthorityPerEpochStore {
     }
 
     pub fn get_capabilities_v1(&self) -> IotaResult<Vec<AuthorityCapabilitiesV1>> {
-        let result: Result<Vec<AuthorityCapabilitiesV1>, TypedStoreError> = self
+        Ok(self
             .tables()?
             .authority_capabilities_v1
-            .values()
-            .map_into()
-            .collect();
-        Ok(result?)
+            .safe_iter()
+            .map(|item| item.map(|(_, v)| v))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     fn record_jwk_vote(
