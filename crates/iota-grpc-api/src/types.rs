@@ -192,13 +192,12 @@ where
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         is_full: bool,
-    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send + 'static
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
     where
         Self: Send + Sync + 'static + Sized,
     {
-        let reader = self;
         async_stream::try_stream! {
-            let mut latest = reader.get_latest().unwrap_or(0);
+            let mut latest = self.get_latest().unwrap_or(0);
             tracing::debug!("[profile][grpc] Latest checkpoint index: {latest}.");
             let (mut start, end) = match (start_sequence_number, end_sequence_number) {
                 (None, None) => (latest, u64::MAX),
@@ -206,13 +205,12 @@ where
                 (Some(start), None) => (start, u64::MAX),
                 (Some(start), Some(end)) => (start, end),
             };
-
             while start <= end {
                 // try fetching historical data from the DB first
                 if start <= latest {
-                    if let Some(item) = reader.get_item(start) {
-                        tracing::debug!("[profile][grpc] Fetched checkpoint data for index {start} from storage.");
-                        yield reader.create_checkpoint_response(&item, is_full)?;
+                    if let Some(item) = self.get_item(start) {
+                        tracing::debug!("[profile][grpc] Fetched checkpoint data for index {start} from DB.");
+                        yield self.create_checkpoint_response(&item, is_full)?;
                         if start == end {
                             break;
                         }
@@ -222,15 +220,14 @@ where
                         Err(Status::internal(format!("Historical checkpoint data missing/pruned: index={start} latest={latest}.")))?;
                     }
                 }
-
                 // latest < start, live phase
                 // wait for broadcast
                 match rx.recv().await {
                     Ok(item) => {
-                        tracing::debug!("[profile][grpc] Get checkpoint data for index {} from broadcast channel", reader.get_sequence_number(&item));
-                        let seq_number = reader.get_sequence_number(&item);
+                        tracing::debug!("[profile][grpc] Get checkpoint data for index {} from broadcast channel", self.get_sequence_number(&item));
+                        let seq_number = self.get_sequence_number(&item);
                         if start == seq_number {
-                            yield reader.create_checkpoint_response(&item, is_full)?;
+                            yield self.create_checkpoint_response(&item, is_full)?;
                             if start == end {
                                 break;
                             }
@@ -248,9 +245,7 @@ where
                         break;
                     },
                 }
-
-                // Update latest checkpoint info
-                latest = reader.get_latest().unwrap_or(start);
+                latest = self.get_latest().unwrap_or(start);
                 tracing::debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
             }
         }
