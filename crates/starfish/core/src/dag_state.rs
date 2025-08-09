@@ -340,7 +340,10 @@ impl DagState {
         }
     }
 
-    pub fn update_last_available_commit_leader_round(&mut self, round: Round) {
+    pub fn update_last_available_commit_leader_round(
+        &mut self,
+        last_available_commit_leader_round: Round,
+    ) {
         let max_commit_round = self
             .last_committed_rounds
             .iter()
@@ -348,9 +351,15 @@ impl DagState {
             .expect("There should be at least one last committed round");
         info!(
             "Last commit with available transactions has leader at round {}; last commit leader round was {}",
-            round, max_commit_round
+            last_available_commit_leader_round, max_commit_round
         );
-        self.last_available_commit_leader_round = Some(round);
+        self.last_available_commit_leader_round = Some(last_available_commit_leader_round);
+        let gap = last_available_commit_leader_round.saturating_sub(*max_commit_round);
+        self.context
+            .metrics
+            .node_metrics
+            .gap_to_available_commit
+            .set(gap as i64);
     }
 
     /// Updates internal metadata for a block.
