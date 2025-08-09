@@ -20,7 +20,7 @@ use parking_lot::{Mutex, RwLock};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
-    seq::{IteratorRandom, SliceRandom},
+    seq::SliceRandom,
 };
 use starfish_config::AuthorityIndex;
 use tokio::{
@@ -44,14 +44,25 @@ use crate::{
 
 /// The number of concurrent live transaction fetch requests
 const LIVE_FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
+const PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY: usize = 5;
 
-/// Timeouts when fetching transactions.
-const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
-const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
+/// Timeout to fetch transactions from a given peer.
+const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(4_000);
 
-/// TODO: this should be calculated based on the number of authorities and
-///  should be at least 1/3 of all authorities + 1 by stake
+/// Timeout to fetch transactions from all peers
+const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(8_000);
+
+/// Maximum age for locks in the inflight transactions map. This is used to
+/// clean up the locks that are not used anymore.
+const MAX_AGE_FOR_LOCKS: Duration = Duration::from_secs(10_000);
+
+/// Maximum number of authorities that can concurrently fetch transactions for a
+/// given block ref.
 const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
+
+/// Maximum number of assignments to fetch transactions for a given block ref
+/// per one call of the fetching method
+const MAX_ASSIGNMENTS_PER_BLOCK_REF_PER_RUN: usize = 2;
 
 struct TransactionsGuard {
     map: Arc<InflightTransactionsMap>,
@@ -71,7 +82,7 @@ impl Drop for TransactionsGuard {
 // The authority ids that are currently fetching a transaction are set on the
 // corresponding `BTreeSet` and basically they act as "locks".
 struct InflightTransactionsMap {
-    inner: Mutex<HashMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+    inner: Mutex<HashMap<BlockRef, BTreeMap<AuthorityIndex, Instant>>>,
 }
 
 impl InflightTransactionsMap {
@@ -103,9 +114,9 @@ impl InflightTransactionsMap {
             // already been instructed to do that.
             let authorities = inner.entry(block_ref).or_default();
             if authorities.len() < MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION
-                && authorities.get(&peer).is_none()
+                && !authorities.contains_key(&peer)
             {
-                assert!(authorities.insert(peer));
+                authorities.insert(peer, Instant::now());
                 blocks.insert(block_ref);
             }
         }
@@ -133,17 +144,31 @@ impl InflightTransactionsMap {
         // Now mark all the transactions as fetched from the map
         let mut transactions_to_fetch = self.inner.lock();
         for block_ref in block_refs {
-            let authorities = transactions_to_fetch
-                .get_mut(block_ref)
-                .expect("Should have found a non empty map");
+            // Due to periodic cleaning of the map, it is possible that the
+            // block_ref is not present in the map anymore, so we just skip it.
+            if let Some(authorities) = transactions_to_fetch.get_mut(block_ref) {
+                authorities.remove(&peer);
 
-            assert!(authorities.remove(&peer), "Peer index should be present!");
-
-            // if the last one then just clean up
-            if authorities.is_empty() {
-                transactions_to_fetch.remove(block_ref);
+                // If the last one then just clean up
+                if authorities.is_empty() {
+                    transactions_to_fetch.remove(block_ref);
+                }
             }
         }
+    }
+
+    /// Cleans up the old locks that are older than `max_age`. This is useful
+    /// to remove the locks that are not used anymore. The latter could happen
+    /// when the timeout occurred and the locks are forgotten to be
+    /// unlocked.
+    fn cleanup_old_locks(self: &Arc<Self>, max_age: Duration) {
+        let mut inner = self.inner.lock();
+        let now = Instant::now();
+
+        inner.retain(|_block_ref, authorities| {
+            authorities.retain(|_, ts| now.duration_since(*ts) < max_age);
+            !authorities.is_empty()
+        });
     }
 
     #[cfg(test)]
@@ -304,9 +329,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     // The main loop to listen for the submitted commands.
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     async fn run(&mut self) {
-        // We want the transactions synchronizer to run periodically every 200ms to
+        // We want the transactions synchronizer to run periodically every 500ms to
         // fetch any missing transactions.
-        const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(200);
+        const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
 
         tokio::pin!(scheduler_timeout);
@@ -357,8 +382,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     };
                 },
                 () = &mut scheduler_timeout => {
-                    // we want to start a new task only if the previous one has already finished.
-                    if self.fetch_transactions_scheduler_task.is_empty() {
+                    // we want to start a new task only if the number of tasks is not too large.
+                    if self.fetch_transactions_scheduler_task.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
                         if let Err(err) = self.start_fetch_missing_transactions_task().await {
                             debug!("Core is shutting down, transactions synchronizer is shutting down: {err:?}");
                             return;
@@ -384,7 +409,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         block_verifier: Arc<V>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
     ) {
-        // TODO: limit number of live requests
         let mut requests = FuturesUnordered::new();
 
         loop {
@@ -726,9 +750,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let core_dispatcher = self.core_dispatcher.clone();
-        let inflight_transactions_map = self.inflight_transactions_map.clone();
         let commands_sender = self.commands_sender.clone();
         let block_verifier = self.block_verifier.clone();
+        let dag_state = self.dag_state.clone();
+        let inflight_transactions_map = self.inflight_transactions_map.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
@@ -821,7 +846,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         sync_method: &str,
     ) -> Vec<(TransactionsGuard, Vec<Bytes>, AuthorityIndex)> {
-        let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
+        // Clean up old locks in the inflight transactions map
+        inflight_transactions_map.cleanup_old_locks(MAX_AGE_FOR_LOCKS);
 
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
         let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<BlockRef>> = BTreeMap::new();
@@ -838,12 +864,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         let mut request_futures = FuturesUnordered::new();
 
-        // For each authority, randomize and try to lock up the
-        // maximum possible amount of acknowledged transactions in blocks.
-        // The logic is as follows:
-        // * Iterate all authorities that have acknowledged missing transactions.
-        // * Randomly select up to max_transactions_per_fetch missing transactions
-        //   acknowledged by the authority.
+        // For each authority, try to lock up the
+        // maximum possible amount of acknowledged transactions in blocks and fetch
+        // those transactions. The logic is as follows:
+        // * Iterate in random order all authorities that have acknowledged missing
+        //   transactions.
+        // * Select up to max_transactions_per_fetch missing transactions acknowledged
+        //   by the authority.
         // * Attempt to lock the selected transactions using the
         //   inflight_transactions_map. Some transactions may already be locked by other
         //   authorities, but continue with the transactions that were successfully
@@ -851,10 +878,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         //   transactions acknowledged by the authority, then try again with a new
         //   random selection. TODO: This part of the logic needs to be improved!
 
+        // Initialize randomness for shuffling authorities
+        let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
+
         // Create an iterator over authorities with their corresponding block refs
         // This will allow us to iterate over authorities in a stable (for test) or
-        // random order
-
+        // random order (for production).
         let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<BlockRef>)>> =
             if cfg!(test) {
                 // Stable order for tests
@@ -865,61 +894,59 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 Box::new(vec.into_iter())
             };
 
+        let mut assigned_block_refs_with_multiplicity: BTreeMap<BlockRef, usize> = BTreeMap::new();
+
         for (authority, authority_block_refs) in iter_authorities {
             let peer_hostname = &context.committee.authority(authority).hostname;
-            // Remove block_refs already assigned to another peer
-            let mut available_refs: BTreeSet<_> = authority_block_refs.clone();
-            // .difference(&assigned_block_refs)
-            // .cloned()
-            // .collect();
-            while !available_refs.is_empty() {
-                // TODO: remove this and use inflight_transactions_map to choose transactions
-                //  randomly
-                let selected_block_refs = available_refs
-                    .iter()
-                    .choose_multiple(&mut rng, context.parameters.max_transactions_per_fetch)
-                    .into_iter()
-                    .cloned()
-                    .collect::<BTreeSet<_>>();
 
-                if selected_block_refs.is_empty() {
-                    break;
+            // Filter: keep only blocks that have not reached the per-block limit
+            let selected_block_refs: BTreeSet<_> = authority_block_refs
+                .iter()
+                .filter(|b| {
+                    assigned_block_refs_with_multiplicity
+                        .get(*b)
+                        .copied()
+                        .unwrap_or(0)
+                        < MAX_ASSIGNMENTS_PER_BLOCK_REF_PER_RUN
+                })
+                .take(context.parameters.max_transactions_per_fetch)
+                .cloned()
+                .collect();
+            if selected_block_refs.is_empty() {
+                break;
+            }
+
+            // * If transactions are successfully locked, then send a request to the network
+            //   client to fetch the transactions from the authority.
+            if let Some(transactions_guard) =
+                inflight_transactions_map.lock_transactions(selected_block_refs.clone(), authority)
+            {
+                debug!(
+                    "[{sync_method}] Syncing {} missing committed transactions from authority {} {}: {}",
+                    selected_block_refs.len(),
+                    authority,
+                    peer_hostname,
+                    selected_block_refs
+                        .iter()
+                        .map(|b| b.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                // increment assignment counts
+                for block_ref in &transactions_guard.block_refs {
+                    *assigned_block_refs_with_multiplicity
+                        .entry(*block_ref)
+                        .or_insert(0) += 1;
                 }
 
-                // * If transactions are successfully locked, then send a request to the network
-                //   client to fetch the transactions from the authority.
-                if let Some(transactions_guard) = inflight_transactions_map
-                    .lock_transactions(selected_block_refs.clone(), authority)
-                {
-                    debug!(
-                        "[{sync_method}] Syncing {} missing committed transactions from authority {} {}: {}",
-                        selected_block_refs.len(),
-                        authority,
-                        peer_hostname,
-                        selected_block_refs
-                            .iter()
-                            .map(|b| b.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                    // assigned_block_refs.extend(&selected_block_refs);
-                    // TODO: we need to measure how many requests are sent in each run and possibly
-                    //  limit that. This can be limited after we implement Starfish with shards as
-                    //  there will definitely be more requests performed
-                    request_futures.push(Self::fetch_transactions_request(
-                        network_client.clone(),
-                        authority,
-                        transactions_guard,
-                        FETCH_REQUEST_TIMEOUT,
-                        context.clone(),
-                        sync_method,
-                    ));
-                    break;
-                } else {
-                    // Remove attempted refs and try again with the rest
-                    available_refs
-                        .retain(|ref_to_remove| !selected_block_refs.contains(ref_to_remove));
-                }
+                request_futures.push(Self::fetch_transactions_request(
+                    network_client.clone(),
+                    authority,
+                    transactions_guard,
+                    FETCH_REQUEST_TIMEOUT,
+                    context.clone(),
+                    sync_method,
+                ));
             }
         }
 
@@ -928,12 +955,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         tokio::pin!(fetcher_timeout);
 
-        // Track the number of concurrent requests
+        // Increase the number of concurrent requests
+        let number_of_requests: i64 = request_futures
+            .len()
+            .try_into()
+            .expect("We should expect a correct conversion from request_futures.len() to i64");
         context
             .metrics
             .node_metrics
             .transactions_synchronizer_inflight_requests
-            .set(request_futures.len() as i64);
+            .add(number_of_requests);
 
         loop {
             tokio::select! {
@@ -969,6 +1000,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 }
             }
         }
+
+        // Decrease the number of concurrent requests
+        context
+            .metrics
+            .node_metrics
+            .transactions_synchronizer_inflight_requests
+            .sub(number_of_requests);
 
         results
     }
@@ -1786,6 +1824,46 @@ mod tests {
             drop(guard);
             drop(all_guards);
 
+            assert_eq!(map.num_of_locked_transactions(), 0);
+        }
+    }
+
+    /// Test for cleaning up inflight transactions map after a timeout.
+    #[tokio::test]
+    async fn test_clean_up_inflight_transactions_map() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let map = InflightTransactionsMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // Lock transactions
+        {
+            let mut all_guards = Vec::new();
+
+            // Try to acquire the transaction locks for authorities 0, 1 & 2
+            for i in 0..=2 {
+                let authority = AuthorityIndex::new_for_test(i);
+
+                let guard = map.lock_transactions(missing_block_refs.clone(), authority);
+                let guard = guard.expect("Guard should be created");
+                assert_eq!(guard.block_refs.len(), 4);
+
+                all_guards.push(guard);
+            }
+            assert_eq!(map.num_of_locked_transactions(), 4);
+            let sleep_duration = Duration::from_millis(100);
+            sleep(2 * sleep_duration).await;
+
+            // Clean up inflight transactions
+            map.cleanup_old_locks(sleep_duration);
+
+            // No transactions should be locked now
             assert_eq!(map.num_of_locked_transactions(), 0);
         }
     }
