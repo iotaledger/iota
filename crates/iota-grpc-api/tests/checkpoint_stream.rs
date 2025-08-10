@@ -406,15 +406,15 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
 // Helper function to spawn a background checkpoint sender for summaries and
 // data
 fn spawn_checkpoint_sender(server_handle: &GrpcServerHandle, start_seq: u64) {
-    let summary_tx = server_handle.checkpoint_summary_broadcaster().clone();
-    let data_tx = server_handle.checkpoint_data_broadcaster().clone();
+    let summary_broadcaster = server_handle.checkpoint_summary_broadcaster().clone();
+    let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
 
     tokio::spawn(async move {
         let mut seq = start_seq;
         loop {
             let (summary, data) = mock_summary_data(seq);
-            let _ = summary_tx.send(&summary);
-            let _ = data_tx.send(&data);
+            let _ = summary_broadcaster.send(&summary);
+            let _ = data_broadcaster.send(&data);
             seq += 1;
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
@@ -674,15 +674,15 @@ async fn test_gap_fill_with_slow_client() {
 
     // Producer: generates checkpoints 11..=200, one every 100ms
     tokio::spawn({
-        let summary_tx = server_handle.checkpoint_summary_broadcaster().clone();
-        let data_tx = server_handle.checkpoint_data_broadcaster().clone();
+        let summary_broadcaster = server_handle.checkpoint_summary_broadcaster().clone();
+        let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
         let checkpoints = checkpoints.clone();
         async move {
             for i in 11..=200u64 {
                 let (summary, data) = mock_summary_data(i);
                 checkpoints.lock().unwrap().insert(i);
-                let _ = summary_tx.send(&summary);
-                let _ = data_tx.send(&data);
+                let _ = summary_broadcaster.send(&summary);
+                let _ = data_broadcaster.send(&data);
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }
