@@ -77,8 +77,8 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcCheckpointDataBroadcaster,
-    GrpcCheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle, start_grpc_server,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle,
+    start_grpc_server,
 };
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -258,11 +258,7 @@ pub struct IotaNode {
     // Channel to allow signaling upstream to shutdown iota-node
     shutdown_channel_tx: broadcast::Sender<Option<RunWithRange>>,
 
-    /// Broadcast channels for gRPC checkpoint streaming
-    grpc_checkpoint_summary_tx: Option<GrpcCheckpointSummaryBroadcaster>,
-    grpc_checkpoint_data_tx: Option<GrpcCheckpointDataBroadcaster>,
-
-    /// Handle to the gRPC server for graceful shutdown
+    /// Handle to the gRPC server for gRPC streaming and graceful shutdown
     grpc_server_handle: Option<GrpcServerHandle>,
 
     /// AuthorityAggregator of the network, created at start and beginning of
@@ -859,16 +855,6 @@ impl IotaNode {
         let grpc_server_handle =
             build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
 
-        // Extract broadcasters from the gRPC server handle
-        let (grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx) =
-            if let Some(ref handle) = grpc_server_handle {
-                (
-                    Some(handle.checkpoint_summary_broadcaster().clone()),
-                    Some(handle.checkpoint_data_broadcaster().clone()),
-                )
-            } else {
-                (None, None)
-            };
         let validator_components = if state.is_validator(&epoch_store) {
             let (components, _) = futures::join!(
                 Self::construct_validator_components(
@@ -930,8 +916,6 @@ impl IotaNode {
             _state_snapshot_uploader_handle: state_snapshot_handle,
             shutdown_channel_tx: shutdown_channel,
 
-            grpc_checkpoint_summary_tx,
-            grpc_checkpoint_data_tx,
             grpc_server_handle,
 
             auth_agg,
@@ -1743,19 +1727,19 @@ impl IotaNode {
             let mut accumulator_guard = self.accumulator.lock().await;
             let accumulator = accumulator_guard.take().unwrap();
             // Create closures that handle gRPC type conversion
-            let summary_sender = self.grpc_checkpoint_summary_tx.as_ref().map(|tx| {
-                let tx = tx.clone();
+            let summary_sender = self.grpc_server_handle.as_ref().map(|handle| {
+                let tx = handle.checkpoint_summary_broadcaster().clone();
                 Box::new(move |summary: &CertifiedCheckpointSummary| {
                     if let Err(e) = tx.send(summary) {
-                        tracing::warn!("Failed to send checkpoint summary: {e}");
+                        warn!("Failed to send checkpoint summary: {e}");
                     }
                 }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
             });
-            let data_sender = self.grpc_checkpoint_data_tx.as_ref().map(|tx| {
-                let tx = tx.clone();
+            let data_sender = self.grpc_server_handle.as_ref().map(|handle| {
+                let tx = handle.checkpoint_data_broadcaster().clone();
                 Box::new(move |data: &CheckpointData| {
                     if let Err(e) = tx.send(data) {
-                        tracing::warn!("Failed to send checkpoint data: {e}");
+                        warn!("Failed to send checkpoint data: {e}");
                     }
                 }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
             });
@@ -2064,7 +2048,7 @@ impl IotaNode {
 
         // Shutdown the gRPC server if it's running
         if let Some(grpc_handle) = &self.grpc_server_handle {
-            tracing::info!("Shutting down gRPC server");
+            info!("Shutting down gRPC server");
             grpc_handle.server_handle.abort();
         }
     }

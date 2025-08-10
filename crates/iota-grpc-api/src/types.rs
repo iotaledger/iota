@@ -13,7 +13,9 @@ use iota_types::{
     storage::RestStateReader,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
 use tonic::Status;
+use tracing::debug;
 
 use crate::checkpoint::{BcsData, Checkpoint};
 
@@ -31,20 +33,16 @@ pub trait CheckpointDataBroadcaster {
 /// broadcasting
 #[derive(Clone)]
 pub struct GrpcCheckpointSummaryBroadcaster {
-    sender: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
+    sender: Sender<Arc<GrpcCertifiedCheckpointSummary>>,
 }
 
 impl GrpcCheckpointSummaryBroadcaster {
-    pub fn new(
-        sender: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
-    ) -> Self {
+    pub fn new(sender: Sender<Arc<GrpcCertifiedCheckpointSummary>>) -> Self {
         Self { sender }
     }
 
     /// Subscribe to checkpoint summary broadcasts
-    pub fn subscribe(
-        &self,
-    ) -> tokio::sync::broadcast::Receiver<Arc<GrpcCertifiedCheckpointSummary>> {
+    pub fn subscribe(&self) -> Receiver<Arc<GrpcCertifiedCheckpointSummary>> {
         self.sender.subscribe()
     }
 }
@@ -60,16 +58,16 @@ impl CheckpointSummaryBroadcaster for GrpcCheckpointSummaryBroadcaster {
 /// Wrapper that converts native CheckpointData to gRPC type before broadcasting
 #[derive(Clone)]
 pub struct GrpcCheckpointDataBroadcaster {
-    sender: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
+    sender: Sender<Arc<GrpcCheckpointData>>,
 }
 
 impl GrpcCheckpointDataBroadcaster {
-    pub fn new(sender: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>) -> Self {
+    pub fn new(sender: Sender<Arc<GrpcCheckpointData>>) -> Self {
         Self { sender }
     }
 
     /// Subscribe to checkpoint data broadcasts
-    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<Arc<GrpcCheckpointData>> {
+    pub fn subscribe(&self) -> Receiver<Arc<GrpcCheckpointData>> {
         self.sender.subscribe()
     }
 }
@@ -85,9 +83,7 @@ impl CheckpointDataBroadcaster for GrpcCheckpointDataBroadcaster {
 // Standard implementations for common types
 
 /// Implementation for tokio broadcast sender
-impl CheckpointSummaryBroadcaster
-    for tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>
-{
+impl CheckpointSummaryBroadcaster for Sender<Arc<CertifiedCheckpointSummary>> {
     fn send(&self, summary: &CertifiedCheckpointSummary) -> anyhow::Result<()> {
         self.send(Arc::new(summary.clone()))?;
         Ok(())
@@ -95,7 +91,7 @@ impl CheckpointSummaryBroadcaster
 }
 
 /// Implementation for tokio broadcast sender
-impl CheckpointDataBroadcaster for tokio::sync::broadcast::Sender<Arc<CheckpointData>> {
+impl CheckpointDataBroadcaster for Sender<Arc<CheckpointData>> {
     fn send(&self, data: &CheckpointData) -> anyhow::Result<()> {
         self.send(Arc::new(data.clone()))?;
         Ok(())
@@ -117,8 +113,6 @@ impl CheckpointDataBroadcaster for () {
         Ok(())
     }
 }
-
-type Receiver<T> = tokio::sync::broadcast::Receiver<T>;
 
 impl BcsData {
     pub fn serialize_from<T>(data: &T) -> Result<Self, bcs::Error>
@@ -198,7 +192,8 @@ impl GrpcStateReader for RestStateReaderAdapter {
 }
 
 /// Central gRPC data reader that provides unified access to checkpoint data.
-/// It provides methods for streaming both full checkpoint data and checkpoint summaries.
+/// It provides methods for streaming both full checkpoint data and checkpoint
+/// summaries.
 #[derive(Clone)]
 pub struct GrpcReader {
     state_reader: Arc<dyn GrpcStateReader>,
@@ -232,8 +227,9 @@ impl GrpcReader {
         self.state_reader.get_latest_checkpoint_sequence_number()
     }
 
-    /// Generic checkpoint streaming implementation that works with any serializable type
-    fn create_checkpoint_stream_generic<T>(
+    /// Generic checkpoint streaming implementation that works with checkpoint
+    /// data and summaries.
+    fn create_checkpoint_stream<T>(
         self,
         mut rx: Receiver<Arc<T>>,
         start_sequence_number: Option<u64>,
@@ -241,14 +237,18 @@ impl GrpcReader {
         is_full: bool,
         fetch_historical: impl Fn(&Self, u64) -> Option<Arc<T>> + Send,
         get_sequence_number: impl Fn(&Arc<T>) -> u64 + Send,
-        data_type_name: &'static str,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
     where
         T: Serialize + Send + Sync + 'static,
     {
         async_stream::try_stream! {
+            let data_type_name = if is_full { "data" } else { "summary" };
+            // Link to issue (https://github.com/iotaledger/iota/issues/7943)
+            // TODO: Modify the latest checkpoint to start from 1.
+            // Note that we do not stream the Genesis checkpoint because its size
+            // can be very big. The genesis checkpoint should be imported directly.
             let mut latest = self.get_latest_checkpoint_sequence_number().unwrap_or(0);
-            tracing::debug!("[profile][grpc] Latest checkpoint index: {latest}.");
+            debug!("[profile][grpc] Latest checkpoint index: {latest}.");
             let (mut start, end) = match (start_sequence_number, end_sequence_number) {
                 (None, None) => (latest, u64::MAX),
                 (None, Some(end)) => (end, end),
@@ -259,7 +259,7 @@ impl GrpcReader {
                 // try fetching historical data from the DB first
                 if start <= latest {
                     if let Some(item) = fetch_historical(&self, start) {
-                        tracing::debug!("[profile][grpc] Fetched checkpoint {} for index {start} from DB.", data_type_name);
+                        debug!("[profile][grpc] Fetched checkpoint {} for index {start} from DB.", data_type_name);
                         let sequence_number = get_sequence_number(&item);
                         let response = BcsData::serialize_from(&*item)
                             .map(|data| Checkpoint {
@@ -282,7 +282,7 @@ impl GrpcReader {
                 // wait for broadcast
                 match rx.recv().await {
                     Ok(item) => {
-                        tracing::debug!("[profile][grpc] Get checkpoint {} for index {} from broadcast channel", data_type_name, get_sequence_number(&item));
+                        debug!("[profile][grpc] Get checkpoint {} for index {} from broadcast channel", data_type_name, get_sequence_number(&item));
                         let seq_number = get_sequence_number(&item);
                         if start == seq_number {
                             let response = BcsData::serialize_from(&*item)
@@ -301,17 +301,17 @@ impl GrpcReader {
                         }
                         // else item sequence doesn't match, drop it and continue
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    Err(RecvError::Lagged(_)) => {
                         // continue, lagged item should be picked up from history DB
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    Err(RecvError::Closed) => {
                         // report internal error to the stream and break
                         Err(Status::internal(format!("Checkpoint {} channel closed.", data_type_name)))?;
                         break;
                     },
                 }
                 latest = self.get_latest_checkpoint_sequence_number().unwrap_or(start);
-                tracing::debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
+                debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
             }
         }
     }
@@ -323,18 +323,18 @@ impl GrpcReader {
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
-        self.create_checkpoint_stream_generic(
+        self.create_checkpoint_stream(
             rx,
             start_sequence_number,
             end_sequence_number,
             true,
             |reader, seq| {
-                reader.get_full_checkpoint_data(seq)
+                reader
+                    .get_full_checkpoint_data(seq)
                     .map(GrpcCheckpointData::from)
                     .map(Arc::new)
             },
             |item| item.sequence_number(),
-            "data",
         )
     }
 
@@ -345,19 +345,19 @@ impl GrpcReader {
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
-        self.create_checkpoint_stream_generic(
+        self.create_checkpoint_stream(
             rx,
             start_sequence_number,
             end_sequence_number,
             false,
             |reader, seq| {
-                reader.state_reader
+                reader
+                    .state_reader
                     .get_checkpoint_summary(seq)
                     .map(GrpcCertifiedCheckpointSummary::from)
                     .map(Arc::new)
             },
             |item| item.sequence_number(),
-            "summary",
         )
     }
 }
