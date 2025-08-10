@@ -42,7 +42,8 @@ impl CheckpointGrpcService {
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let rx = self.checkpoint_data_broadcaster.subscribe();
-        self.reader.create_checkpoint_data_stream(rx, start_sequence_number, end_sequence_number)
+        self.reader
+            .create_checkpoint_data_stream(rx, start_sequence_number, end_sequence_number)
     }
 
     fn stream_checkpoint_summary(
@@ -51,7 +52,8 @@ impl CheckpointGrpcService {
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let rx = self.checkpoint_summary_broadcaster.subscribe();
-        self.reader.create_checkpoint_summary_stream(rx, start_sequence_number, end_sequence_number)
+        self.reader
+            .create_checkpoint_summary_stream(rx, start_sequence_number, end_sequence_number)
     }
 }
 

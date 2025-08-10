@@ -277,14 +277,14 @@ impl GrpcReader {
                         start += 1;
                         continue;
                     } else {
-                        Err(Status::internal(format!("Historical checkpoint {} missing/pruned: index={start} latest={latest}.", data_type_name)))?;
+                        Err(Status::internal(format!("Historical checkpoint {data_type_name} missing/pruned: index={start} latest={latest}.")))?;
                     }
                 }
                 // latest < start, live phase
                 // wait for broadcast
                 match rx.recv().await {
                     Ok(item) => {
-                        debug!("[profile][grpc] Get checkpoint {} for index {} from broadcast channel", data_type_name, get_sequence_number(&item));
+                        debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
                         let seq_number = get_sequence_number(&item);
                         if start == seq_number {
                             let response = BcsData::serialize_from(&*item)
