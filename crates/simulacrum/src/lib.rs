@@ -24,7 +24,6 @@ use iota_config::{
     genesis, transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
-pub use iota_grpc_api::GrpcServerHandle;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
