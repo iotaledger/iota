@@ -230,7 +230,7 @@ impl GrpcReader {
     /// Generic checkpoint streaming implementation that works with checkpoint
     /// data and summaries.
     fn create_checkpoint_stream<T>(
-        self,
+        &self,
         mut rx: Receiver<Arc<T>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
@@ -241,13 +241,15 @@ impl GrpcReader {
     where
         T: Serialize + Send + Sync + 'static,
     {
+        // Clone self to avoid lifetime issues with the async stream
+        let reader = self.clone();
         async_stream::try_stream! {
             let data_type_name = if is_full { "data" } else { "summary" };
             // Link to issue (https://github.com/iotaledger/iota/issues/7943)
             // TODO: Modify the latest checkpoint to start from 1.
             // Note that we do not stream the Genesis checkpoint because its size
             // can be very big. The genesis checkpoint should be imported directly.
-            let mut latest = self.get_latest_checkpoint_sequence_number().unwrap_or(0);
+            let mut latest = reader.get_latest_checkpoint_sequence_number().unwrap_or(0);
             debug!("[profile][grpc] Latest checkpoint index: {latest}.");
             let (mut start, end) = match (start_sequence_number, end_sequence_number) {
                 (None, None) => (latest, u64::MAX),
@@ -258,7 +260,7 @@ impl GrpcReader {
             while start <= end {
                 // try fetching historical data from the DB first
                 if start <= latest {
-                    if let Some(item) = fetch_historical(&self, start) {
+                    if let Some(item) = fetch_historical(&reader, start) {
                         debug!("[profile][grpc] Fetched checkpoint {} for index {start} from DB.", data_type_name);
                         let sequence_number = get_sequence_number(&item);
                         let response = BcsData::serialize_from(&*item)
@@ -310,7 +312,7 @@ impl GrpcReader {
                         break;
                     },
                 }
-                latest = self.get_latest_checkpoint_sequence_number().unwrap_or(start);
+                latest = reader.get_latest_checkpoint_sequence_number().unwrap_or(start);
                 debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
             }
         }
@@ -318,7 +320,7 @@ impl GrpcReader {
 
     /// Create a checkpoint stream for full checkpoint data
     pub fn create_checkpoint_data_stream(
-        self,
+        &self,
         rx: Receiver<Arc<GrpcCheckpointData>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
@@ -340,7 +342,7 @@ impl GrpcReader {
 
     /// Create a checkpoint stream for checkpoint summaries
     pub fn create_checkpoint_summary_stream(
-        self,
+        &self,
         rx: Receiver<Arc<GrpcCertifiedCheckpointSummary>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
