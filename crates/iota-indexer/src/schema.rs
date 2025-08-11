@@ -602,7 +602,6 @@ diesel::table! {
     }
 }
 
-
 #[macro_export]
 macro_rules! for_all_tables {
     ($action:path) => {
