@@ -16,7 +16,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
@@ -36,7 +36,6 @@ use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-const POSTGRES_URL: &str = "postgres://postgres:postgrespw@localhost:5432";
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
@@ -131,7 +130,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
 
     // start indexer in write mode
     let (pg_store, _pg_store_handle, _) = start_test_indexer(
-        get_indexer_db_url(database_name),
+        db_url(database_name.unwrap_or(DEFAULT_DB)),
         // reset the existing db
         true,
         None,
@@ -150,13 +149,6 @@ pub async fn start_test_cluster_with_read_write_indexer(
         .unwrap();
 
     (cluster, pg_store, rpc_client)
-}
-
-pub fn get_indexer_db_url(database_name: Option<&str>) -> String {
-    database_name.map_or_else(
-        || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
-        |db_name| format!("{POSTGRES_URL}/{db_name}"),
-    )
 }
 
 /// Wait for the indexer to catch up to the given checkpoint sequence number
@@ -281,7 +273,7 @@ pub async fn execute_tx_and_wait_for_indexer(
 
 /// Start an Indexer instance in `Read` mode
 fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Option<&str>) -> u16 {
-    let db_url = get_indexer_db_url(database_name);
+    let db_url = db_url(database_name.unwrap_or(DEFAULT_DB));
     let port = get_available_port(DEFAULT_INDEXER_IP);
 
     let config = JsonRpcConfig {
@@ -343,7 +335,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     });
     // Starts indexer
     let (pg_store, pg_handle, _) = start_test_indexer(
-        get_indexer_db_url(database_name),
+        db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
         format!("http://{server_url}"),
