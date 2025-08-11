@@ -80,14 +80,18 @@ impl CongestionInfo {
         number_congested_transactions: usize,
         _number_cleared_transactions: usize,
     ) {
-        // Update hotness per object based on the congestion events according to the
-        // formula: hotness(i) -= SUM(tx)[hotness(i) - gas_price_feedback(tx)] *
-        // LEARNING_RATE / number_congested_transactions. Decrease is capped by
-        // DECAY_RATE.
         let old_hotness = self.hotness;
-        self.hotness -=
-            new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
-        self.hotness = self.hotness.max(old_hotness / HOTNESS_DECAY_FACTOR); // Decay is capped
+        if number_congested_transactions > 0 {
+            // Update object i's hotness based on the congestion events following the
+            // formula: hotness_i -= SUM(tx)[SUM(i in tx)(hotness_i- gas_price_feedback_tx)]
+            // * LEARNING_RATE / number_congested_transactions.
+            self.hotness -=
+                new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
+            // Hotness decrease is capped by HOTNESS_DECAY_FACTOR.
+            self.hotness = self.hotness.max(old_hotness / HOTNESS_DECAY_FACTOR);
+        } else {
+            self.hotness = old_hotness;
+        }
     }
 
     fn update_hotness_for_new_object(
@@ -96,9 +100,12 @@ impl CongestionInfo {
         number_congested_transactions: usize,
         _number_cleared_transactions: usize,
     ) {
-        self.hotness =
-            -new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
-        self.hotness = self.hotness.max(0.0); // Ensure hotness is non-negative
+        if number_congested_transactions > 0 {
+            self.hotness =
+                -new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
+        }
+        // Ensure hotness is non-negative
+        self.hotness = self.hotness.max(0.0);
     }
 
     fn update_for_cancellation(&mut self, now: CheckpointTimestamp, gas_price: u64) {
@@ -210,7 +217,7 @@ impl CongestionTracker {
     }
 
     /// For all the mutable shared inputs, sum the hotness of the objects.
-    /// More sophisticated prediction can be implemented.
+    /// More sophisticated prediction algorithms can be implemented.
     pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> Option<u64> {
         let hotness = self
             .get_total_hotness_for_objects(
@@ -220,8 +227,9 @@ impl CongestionTracker {
                     .filter(|id| id.mutable)
                     .map(|id| id.id),
             )
-            .unwrap_or(0);
-        Some(self.reference_gas_price + hotness)
+            .unwrap_or(0.0);
+
+        Some(self.reference_gas_price + hotness as u64)
     }
 
     /// Returns a map of all objects and their hotness values.
@@ -321,7 +329,7 @@ impl CongestionTracker {
     fn get_total_hotness_for_objects(
         &self,
         objects: impl Iterator<Item = ObjectID>,
-    ) -> Option<u64> {
+    ) -> Option<f64> {
         let mut total_hotness = 0.0;
 
         for object_id in objects {
@@ -329,7 +337,7 @@ impl CongestionTracker {
                 total_hotness += info.hotness;
             }
         }
-        Some(total_hotness as u64)
+        Some(total_hotness)
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -365,8 +373,8 @@ impl CongestionTracker {
             // Adjust hotness based on the sum of hotness of objects in the transaction
             // minus the gas price feedback
             for object in &object_id_per_tx {
-                let hotness_adjustment =
-                    hotness_per_tx - *gas_price_feedback as f64 + self.reference_gas_price as f64;
+                let hotness_adjustment = hotness_per_tx - (*gas_price_feedback as f64)
+                    + (self.reference_gas_price as f64);
 
                 if let Some(info) = congestion_info_map.get_mut(object) {
                     info.hotness += hotness_adjustment;
@@ -656,8 +664,14 @@ mod tests {
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness1.floor() == 64.0, "hotness for obj1 should be positive");
-        assert!(hotness2.floor() == 52.0, "hotness for obj2 should be positive");
+        assert!(
+            hotness1.floor() == 64.0,
+            "hotness for obj1 should be positive"
+        );
+        assert!(
+            hotness2.floor() == 52.0,
+            "hotness for obj2 should be positive"
+        );
     }
 
     #[test]
