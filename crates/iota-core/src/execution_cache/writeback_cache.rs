@@ -57,7 +57,7 @@ use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::WritebackCacheConfig;
-use iota_macros::{fail_point, fail_point_async};
+use iota_macros::fail_point;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
@@ -950,12 +950,12 @@ impl WritebackCache {
 
     // Commits dirty data for the given TransactionDigest to the db.
     #[instrument(level = "debug", skip_all)]
-    async fn commit_transaction_outputs(
+    fn commit_transaction_outputs(
         &self,
         epoch: EpochId,
         digests: &[TransactionDigest],
     ) -> IotaResult {
-        fail_point_async!("writeback-cache-commit");
+        fail_point!("writeback-cache-commit");
         trace!(?digests);
 
         let mut all_outputs = Vec::with_capacity(digests.len());
@@ -1356,12 +1356,12 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
-        WritebackCache::commit_transaction_outputs(self, epoch, digests).boxed()
+        digests: &[TransactionDigest],
+    ) -> IotaResult {
+        WritebackCache::commit_transaction_outputs(self, epoch, digests)
     }
 
     fn try_persist_transactions<'a>(

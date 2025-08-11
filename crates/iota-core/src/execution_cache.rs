@@ -157,23 +157,16 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult>;
+        digests: &[TransactionDigest],
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_commit_transaction_outputs`.
-    fn commit_transaction_outputs<'a>(
-        &'a self,
-        epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_commit_transaction_outputs(epoch, digests)
-                .await
-                .expect("storage access failed")
-        })
+    fn commit_transaction_outputs(&self, epoch: EpochId, digests: &[TransactionDigest]) {
+        self.try_commit_transaction_outputs(epoch, digests)
+            .expect("storage access failed");
     }
 
     /// Durably commit transactions (but not their outputs) to the database.

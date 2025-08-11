@@ -1154,7 +1154,11 @@ impl AuthorityPerEpochStore {
         &self,
         checkpoint: &CheckpointSequenceNumber,
     ) -> IotaResult<Option<Accumulator>> {
-        Ok(self.tables()?.state_hash_by_checkpoint.get(checkpoint)?)
+        Ok(self
+            .tables()?
+            .state_hash_by_checkpoint
+            .get(checkpoint)
+            .expect("db error"))
     }
 
     pub fn insert_state_hash_for_checkpoint(
@@ -1162,10 +1166,11 @@ impl AuthorityPerEpochStore {
         checkpoint: &CheckpointSequenceNumber,
         accumulator: &Accumulator,
     ) -> IotaResult {
-        Ok(self
-            .tables()?
+        self.tables()?
             .state_hash_by_checkpoint
-            .insert(checkpoint, accumulator)?)
+            .insert(checkpoint, accumulator)
+            .expect("db error");
+        Ok(())
     }
 
     pub fn get_running_root_accumulator(
@@ -1935,7 +1940,7 @@ impl AuthorityPerEpochStore {
     /// catch up by state sync.
     // TODO: We should be able to pass in a vector of certs/effects and acquire them all at once.
     #[instrument(level = "trace", skip_all)]
-    pub async fn acquire_shared_version_assignments_from_effects(
+    pub fn acquire_shared_version_assignments_from_effects(
         &self,
         certificate: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
@@ -1945,7 +1950,7 @@ impl AuthorityPerEpochStore {
             &[(certificate, effects)],
             self,
             cache_reader,
-        )?;
+        );
         let mut db_batch = self.tables()?.assigned_shared_object_versions.batch();
         self.set_assigned_shared_object_versions_with_db_batch(versions, &mut db_batch)?;
         db_batch.write()?;
