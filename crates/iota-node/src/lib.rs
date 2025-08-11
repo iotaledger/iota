@@ -1269,6 +1269,7 @@ impl IotaNode {
             connection_monitor_status.clone(),
             &validator_registry,
             client.clone(),
+            checkpoint_store.clone(),
         ));
         let consensus_manager = ConsensusManager::new(
             &config,
@@ -1503,6 +1504,7 @@ impl IotaNode {
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         prometheus_registry: &Registry,
         consensus_client: Arc<dyn ConsensusClient>,
+        checkpoint_store: Arc<CheckpointStore>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
         // The consensus adapter allows the authority to send user certificates through
@@ -1510,6 +1512,7 @@ impl IotaNode {
 
         ConsensusAdapter::new(
             consensus_client,
+            checkpoint_store,
             authority,
             connection_monitor_status,
             consensus_config.max_pending_transactions(),
