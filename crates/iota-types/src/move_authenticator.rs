@@ -27,7 +27,8 @@ use crate::{
 pub struct MoveAuthenticator {
     /// Input objects or primitive values
     inputs: Vec<CallArg>,
-    /// The reference to the object that this authenticates. This object represents the account being the sender of the transaction.
+    /// The reference to the object that this authenticates. This object
+    /// represents the account being the sender of the transaction.
     object_to_authenticate: ObjectRef,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing [trait AsRef<[u8]>].
