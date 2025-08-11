@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
     fmt::{self, Display, Formatter, Write},
     sync::Arc,
 };
@@ -48,7 +47,6 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use ordered_float::OrderedFloat;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -1134,8 +1132,6 @@ pub struct DryRunTransactionBlockResponse {
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price: Option<u64>,
-    #[schemars(with = "Option<HashMap<ObjectID, f64>>")]
-    pub objects_hotness: Option<HashMap<ObjectID, OrderedFloat<f64>>>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]

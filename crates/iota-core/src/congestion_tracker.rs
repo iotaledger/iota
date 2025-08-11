@@ -12,7 +12,6 @@ use iota_types::{
     transaction::{TransactionData, TransactionDataAPI},
 };
 use moka::{ops::compute::Op, sync::Cache};
-use ordered_float::OrderedFloat;
 
 use crate::execution_cache::TransactionCacheRead;
 
@@ -248,23 +247,6 @@ impl CongestionTracker {
         self.object_congestion_info
             .get(object_id)
             .map(|info| info.hotness)
-    }
-
-    /// Given a transaction, return a map from touched ObjectID to its hotness
-    /// (if present). This is useful for third party clients who want to
-    /// implement their own gas price prediction algorithm. Returns `None`
-    /// if none of the transaction's objects have hotness info.
-    pub fn get_hotness_for_transaction(
-        &self,
-        tx: &TransactionData,
-    ) -> Option<HashMap<ObjectID, OrderedFloat<f64>>> {
-        let mut map = HashMap::new();
-        for obj in tx.shared_input_objects().into_iter().filter(|o| o.mutable) {
-            if let Some(info) = self.get_congestion_info(obj.id) {
-                map.insert(obj.id, OrderedFloat(info.hotness));
-            }
-        }
-        if map.is_empty() { None } else { Some(map) }
     }
 }
 
