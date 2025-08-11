@@ -75,7 +75,6 @@ use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;
-use typed_store::rocks::MetricConf;
 
 pub mod commands;
 pub mod db_tool;
@@ -849,12 +848,7 @@ pub async fn download_formal_snapshot(
         &genesis_committee,
         None,
     ));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
 
     let summaries_handle = start_summary_sync(
         perpetual_db.clone(),
