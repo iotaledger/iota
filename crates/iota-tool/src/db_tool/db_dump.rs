@@ -206,12 +206,7 @@ pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
 
 pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        db_path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
     let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
     let highest_pruned_checkpoint = checkpoint_store.get_highest_pruned_checkpoint_seq_number()?;
     let latest_checkpoint = checkpoint_store.get_highest_executed_checkpoint()?;
@@ -242,12 +237,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
 
 pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        db_path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
     let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
     info!("Pruning setup for db at path: {:?}", db_path.display());
