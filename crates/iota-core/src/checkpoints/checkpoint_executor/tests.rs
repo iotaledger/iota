@@ -194,6 +194,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
 
     authority_state
         .get_checkpoint_store()
+        .tables
         .epoch_last_checkpoint_map
         .insert(
             &end_of_epoch_0_checkpoint.epoch,
@@ -202,6 +203,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         .unwrap();
     authority_state
         .get_checkpoint_store()
+        .tables
         .certified_checkpoints
         .insert(
             end_of_epoch_0_checkpoint.sequence_number(),

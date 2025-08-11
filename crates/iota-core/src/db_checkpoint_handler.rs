@@ -18,7 +18,6 @@ use iota_storage::object_store::util::{
 use object_store::{DynObjectStore, path::Path};
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
-use typed_store::rocks::MetricConf;
 
 use crate::{
     authority::{
@@ -274,11 +273,8 @@ impl DBCheckpointHandler {
         epoch_duration_ms: u64,
     ) -> Result<()> {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-        let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-            db_path.join("checkpoints"),
-            MetricConf::new("db_checkpoint"),
-            None,
-            None,
+        let checkpoint_store = Arc::new(CheckpointStore::new_for_db_checkpoint_handler(
+            &db_path.join("checkpoints"),
         ));
         let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
         let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
