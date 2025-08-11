@@ -120,7 +120,7 @@ impl WrappedObject {
     }
 }
 
-fn accumulate_effects(effects: Vec<TransactionEffects>) -> Accumulator {
+fn accumulate_effects(effects: &[TransactionEffects]) -> Accumulator {
     let mut acc = Accumulator::default();
 
     // process insertions to the set
@@ -173,9 +173,9 @@ impl StateAccumulator {
     /// accumulator.
     pub fn accumulate_checkpoint(
         &self,
-        effects: Vec<TransactionEffects>,
+        effects: &[TransactionEffects],
         checkpoint_seq_num: CheckpointSequenceNumber,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
+        epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Accumulator> {
         let _scope = monitored_scope("AccumulateCheckpoint");
         if let Some(acc) = epoch_store.get_state_hash_for_checkpoint(&checkpoint_seq_num)? {
@@ -356,7 +356,7 @@ impl StateAccumulator {
         Ok(running_root.clone())
     }
 
-    pub fn accumulate_effects(&self, effects: Vec<TransactionEffects>) -> Accumulator {
+    pub fn accumulate_effects(&self, effects: &[TransactionEffects]) -> Accumulator {
         accumulate_effects(effects)
     }
 }
