@@ -700,6 +700,26 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
 
+        let dag_state = self.dag_state.clone();
+
+        // Compute the gap to unavailable transactions.
+        // If no missing transactions, the gap is zero; Otherwise, it is the difference
+        // between the highest accepted round and the earliest unavailable transaction
+        // round.
+        let accepted_round = dag_state.read().highest_accepted_round();
+        let earliest_unavailable_transaction_round = missing_transactions
+            .first_key_value()
+            .map(|(block_ref, _)| block_ref.round)
+            .unwrap_or(accepted_round);
+        let gap_to_unavailable_transactions =
+            accepted_round.saturating_sub(earliest_unavailable_transaction_round);
+        self.context
+            .metrics
+            .node_metrics
+            .gap_to_unavailable_transactions
+            .set(gap_to_unavailable_transactions as i64);
+
+        // If there are no missing transactions, we don't need to fetch anything.
         if missing_transactions.is_empty() {
             return Ok(());
         }
@@ -709,7 +729,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let commands_sender = self.commands_sender.clone();
         let block_verifier = self.block_verifier.clone();
-        let dag_state = self.dag_state.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
