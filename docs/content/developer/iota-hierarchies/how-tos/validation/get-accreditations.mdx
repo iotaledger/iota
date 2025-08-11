@@ -135,3 +135,28 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 - **Accreditation to Accredit**: Allows a receiver to grant accreditations to other entities
 - **Read-Only Access**: Getting accreditations only requires read-only access to the hierarchy
 - **Verification**: Both types of accreditations can be retrieved and verified using the same read-only interface
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts
+```
+</TabItem>
+</Tabs>
+</div>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup.
