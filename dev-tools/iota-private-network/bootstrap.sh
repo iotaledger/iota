@@ -68,7 +68,9 @@ generate_genesis_files() {
         .db-path = $overlay.db-path |
         .consensus-config.db-path = $overlay.consensus-config.db-path |
         .expensive-safety-check-config = $overlay.expensive-safety-check-config |
-        .epoch_duration_ms = $overlay.epoch_duration_ms
+        .epoch_duration_ms = $overlay.epoch_duration_ms |
+        del(.["execution-cache"]) |
+        del(.["execution-cache-config"])
       ' "$file" "$OVERLAY_PATH" >"${file}.tmp" && mv "${file}.tmp" "$file"
     fi
   done
