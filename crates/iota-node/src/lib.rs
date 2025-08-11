@@ -2279,8 +2279,6 @@ async fn build_grpc_server(
 
     let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
-
-    // Use the shared gRPC server utilities
     let handle = start_grpc_server(grpc_reader, grpc_config.clone()).await?;
 
     Ok(Some(handle))
