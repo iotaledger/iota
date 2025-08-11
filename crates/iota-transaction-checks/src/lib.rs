@@ -190,6 +190,15 @@ mod checked {
         Ok(input_objects.into_checked())
     }
 
+    #[instrument(level = "trace", skip_all)]
+    pub fn check_authenticator_input(
+        authenticator_input_objects: InputObjects,
+    ) -> IotaResult<CheckedInputObjects> {
+        check_authenticator_objects(&authenticator_input_objects)?;
+
+        Ok(authenticator_input_objects.into_checked())
+    }
+
     // Common checks performed for transactions and certificates.
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
@@ -541,6 +550,135 @@ mod checked {
                         object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                     });
                 }
+            }
+            InputObjectKind::SharedMoveObject {
+                initial_shared_version: input_initial_shared_version,
+                ..
+            } => {
+                fp_ensure!(
+                    object.version() < SequenceNumber::MAX_VALID_EXCL,
+                    UserInputError::InvalidSequenceNumber
+                );
+
+                match object.owner {
+                    Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+                        // When someone locks an object as shared it must be shared already.
+                        return Err(UserInputError::NotSharedObject);
+                    }
+                    Owner::Shared {
+                        initial_shared_version: actual_initial_shared_version,
+                    } => {
+                        fp_ensure!(
+                            input_initial_shared_version == actual_initial_shared_version,
+                            UserInputError::SharedObjectStartingVersionMismatch
+                        )
+                    }
+                }
+            }
+        };
+        Ok(())
+    }
+
+    /// Check all the objects used in the authenticator against the database.
+    #[instrument(level = "trace", skip_all)]
+    fn check_authenticator_objects(objects: &InputObjects) -> UserInputResult<()> {
+        for object in objects.iter() {
+            fp_ensure!(
+                !object.is_mutable(),
+                UserInputError::ImmutableParameterExpected {
+                    object_id: object.id()
+                }
+            );
+
+            let input_object_kind = object.input_object_kind;
+
+            match &object.object {
+                ObjectReadResultKind::Object(object) => {
+                    check_one_authenticator_object(input_object_kind, object)?;
+                }
+                // We skip checking a deleted shared object because it no longer exists
+                ObjectReadResultKind::DeletedSharedObject(_, _) => (),
+                // We skip checking shared objects from cancelled transactions since we are not
+                // reading it.
+                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check one authenticator input object against a reference
+    fn check_one_authenticator_object(
+        object_kind: InputObjectKind,
+        object: &Object,
+    ) -> UserInputResult {
+        match object_kind {
+            InputObjectKind::MovePackage(package_id) => {
+                return Err(UserInputError::PackageIsInAuthenticatorInput { package_id });
+            }
+            InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
+                fp_ensure!(
+                    !object.is_package(),
+                    UserInputError::MovePackageAsObject { object_id }
+                );
+                fp_ensure!(
+                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
+                    UserInputError::InvalidSequenceNumber
+                );
+
+                // This is an invariant - we just load the object with the given ID and version.
+                assert_eq!(
+                    object.version(),
+                    sequence_number,
+                    "The fetched object version {} does not match the requested version {}, object id: {}",
+                    object.version(),
+                    sequence_number,
+                    object.id(),
+                );
+
+                // Check the digest matches - user could give a mismatched ObjectDigest
+                let expected_digest = object.digest();
+                fp_ensure!(
+                    expected_digest == object_digest,
+                    UserInputError::InvalidObjectDigest {
+                        object_id,
+                        expected_digest
+                    }
+                );
+
+                match object.owner {
+                    Owner::Immutable => {
+                        // Nothing else to check for Immutable.
+                    }
+                    Owner::AddressOwner { .. } => {
+                        return Err(UserInputError::AddressOwnedIsInAuthenticatorInput {
+                            object_id: object.id(),
+                        });
+                    }
+                    Owner::ObjectOwner { .. } => {
+                        return Err(UserInputError::ObjectOwnedIsInAuthenticatorInput {
+                            object_id: object.id(),
+                        });
+                    }
+                    Owner::Shared { .. } => {
+                        // This object is a mutable shared object. However the transaction
+                        // specifies it as an owned object. This is inconsistent.
+                        return Err(UserInputError::NotSharedObject);
+                    }
+                };
+            }
+            InputObjectKind::SharedMoveObject {
+                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                ..
+            } => {
+                return Err(UserInputError::InaccessibleSystemObject {
+                    object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                });
+            }
+            InputObjectKind::SharedMoveObject {
+                id, mutable: true, ..
+            } => {
+                return Err(UserInputError::MutableSharedIsInAuthenticatorInput { object_id: id });
             }
             InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,

@@ -869,17 +869,44 @@ impl AuthorityState {
         let input_object_kinds = tx_data.input_objects()?;
         let receiving_objects_refs = tx_data.receiving_objects();
 
+        let signatures = transaction.tx_signatures();
+
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
         iota_transaction_checks::deny::check_transaction_for_signing(
             tx_data,
-            transaction.tx_signatures(),
+            signatures,
             &input_object_kinds,
             &receiving_objects_refs,
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
+
+        // TODO: It is a temporal condition that needs to be rechecked.
+        if signatures.len() == 1 && signatures[0].is_move_authenticator() {
+            // TODO: We need to resolve teh authenticator inputs.
+            let authenticator_input_object_kinds = Vec::new(); // move_authenticator.input_objects()?;
+            let authenticator_receiving_objects_refs = ReceivingObjects::from(Vec::new()); // move_authenticator.receiving_objects();
+
+            // It is forbidden to have Receiving inputs for a MoveAuthenticator
+            // TODO: replace with an error.
+            assert!(authenticator_receiving_objects_refs.objects.is_empty());
+
+            let (authenticator_input_objects, authenticator_receiving_objects) =
+                self.input_loader.read_objects_for_signing(
+                    // TODO: We need to have an auth digest here.
+                    Some(tx_digest),
+                    &authenticator_input_object_kinds,
+                    &Vec::new(),
+                    epoch_store.epoch(),
+                )?;
+
+            // TODO: replace with an error?
+            assert!(authenticator_receiving_objects.objects.is_empty());
+
+            iota_transaction_checks::check_authenticator_input(authenticator_input_objects)?;
+        }
 
         let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(tx_digest),

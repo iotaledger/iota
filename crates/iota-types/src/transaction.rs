@@ -2311,6 +2311,8 @@ impl SenderSignedData {
             return Err(IotaError::TransactionExpired);
         }
 
+        // TODO: Is there any validity check for MoveAuthenticator?
+
         // Enforce overall transaction size limit.
         let tx_size = self.serialized_size()?;
         let max_tx_size_bytes = config.max_tx_size_bytes();
