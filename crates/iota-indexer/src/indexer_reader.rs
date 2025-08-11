@@ -1769,17 +1769,16 @@ impl IndexerReader {
             .map(|(index, &id)| (id, index))
             .collect();
 
-        Ok(self
+        let mut transactions = self
             .multi_get_transaction_block_response_in_blocking_task_impl(&ordered_digests, options)
-            .await?
-            .into_iter()
-            .sorted_by_key(|tx| {
-                order_map
-                    .get(&tx.digest)
-                    .copied()
-                    .expect("All digests should have some order")
-            })
-            .collect::<Vec<_>>())
+            .await?;
+        transactions.sort_unstable_by_key(|tx| {
+            order_map
+                .get(&tx.digest)
+                .copied()
+                .expect("All digests should have some order")
+        });
+        Ok(transactions)
     }
 
     pub async fn get_transaction_events_in_blocking_task(
