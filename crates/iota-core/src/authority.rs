@@ -1091,13 +1091,11 @@ impl AuthorityState {
         );
 
         if transaction.contains_shared_object() {
-            epoch_store
-                .acquire_shared_version_assignments_from_effects(
-                    transaction,
-                    effects.data(),
-                    self.get_object_cache_reader().as_ref(),
-                )
-                .await?;
+            epoch_store.acquire_shared_version_assignments_from_effects(
+                transaction,
+                effects.data(),
+                self.get_object_cache_reader().as_ref(),
+            )?;
         }
 
         let expected_effects_digest = effects.digest();
