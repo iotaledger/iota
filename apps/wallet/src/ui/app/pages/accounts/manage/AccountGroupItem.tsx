@@ -42,7 +42,7 @@ export function AccountGroupItem({
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
-    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,

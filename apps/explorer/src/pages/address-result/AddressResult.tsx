@@ -14,9 +14,10 @@ import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
-import { AddressAlias, useCopyToClipboard } from '@iota/core';
+import { AddressAlias, useCopyToClipboard, useGetDefaultIotaName } from '@iota/core';
 import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
 import { onCopySuccess } from '~/lib';
+import { isValidIotaName } from '@iota/iota-names-sdk';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
@@ -26,6 +27,8 @@ interface AddressResultPageHeaderProps {
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): React.JSX.Element {
     const copyToClipboard = useCopyToClipboard(onCopySuccess);
+    const { data: name, isLoading: isLoadingName } = useGetDefaultIotaName(address);
+
     return (
         <PageHeader
             type="Address"
@@ -38,26 +41,31 @@ function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): Rea
                     />
                 </div>
             }
+            isLoadingSubtitle={isLoadingName}
+            subtitle={name}
             showCopyButton={false}
         />
     );
 }
 
-function AddressResult({ address }: { address: string }): JSX.Element {
+function AddressOrNameResult({ addressOrName }: { addressOrName: string }): JSX.Element {
+    const isName = isValidIotaName(addressOrName);
+    const { data } = useGetDefaultIotaName(isName ? addressOrName : undefined);
+
     return (
         <>
             <Panel>
                 <Title title="Owned Objects" />
                 <Divider />
                 <div className="flex flex-col gap-2xl">
-                    <OwnedObjectsPanel address={address} />
+                    <OwnedObjectsPanel address={data ?? addressOrName} />
                 </div>
             </Panel>
 
             <Panel>
                 <Title title="Transaction Blocks" />
                 <div className="flex flex-col gap-2xl p-md--rs">
-                    <TransactionBlocksPanel address={address} />
+                    <TransactionBlocksPanel address={data ?? addressOrName} />
                 </div>
             </Panel>
         </>
@@ -73,7 +81,7 @@ export function AddressResultPage(): JSX.Element {
                 <div className="flex flex-col gap-2xl">
                     <AddressResultPageHeader address={id!} />
                     <AddressBalanceBreakdown address={id!} />
-                    <AddressResult address={id!} />
+                    <AddressOrNameResult addressOrName={id!} />
                 </div>
             }
         />
