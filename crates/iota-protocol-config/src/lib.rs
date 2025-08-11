@@ -317,7 +317,7 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
 
-    // Enable move auth
+    // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     move_auth: bool,
 }
