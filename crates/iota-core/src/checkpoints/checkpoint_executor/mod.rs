@@ -1394,7 +1394,7 @@ async fn finalize_checkpoint(
                 PackageStoreWithFallback::new(state.get_backing_package_store(), &checkpoint_data),
             ));
 
-            rest_index.index_checkpoint(&checkpoint_data, layout_resolver.as_mut())?;
+            rest_index.index_checkpoint(&checkpoint_data, layout_resolver.as_mut());
         }
 
         if let Some(path) = data_ingestion_dir {
