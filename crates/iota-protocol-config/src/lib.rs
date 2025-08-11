@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 11;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -71,6 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 11;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: Introduce gas cost for 'create_auth_info_v1_cost_base'
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -767,6 +768,11 @@ pub struct ProtocolConfig {
     buffer_stake_for_protocol_upgrade_bps: Option<u64>,
 
     // === Native Function Costs ===
+
+    // `account` module
+    // Cost params for the Move native function `create_auth_info_v1(package: address, module:
+    // String, function: String`
+    create_auth_info_v1_cost_base: Option<u64>,
 
     // `address` module
     // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
@@ -1559,6 +1565,7 @@ impl ProtocolConfig {
 
             // === Native Function Costs ===
             // `address` module
+            create_auth_info_v1_cost_base: None,
             // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
             address_from_bytes_cost_base: Some(52),
             // Cost params for the Move native function `address::to_u256(address): u256`
@@ -2119,6 +2126,12 @@ impl ProtocolConfig {
                 11 => {
                     // version 11 is a new framework version but with no config
                     // changes
+                }
+                12 => {
+                    // === Native Function Costs ===
+                    // `account` module
+                    cfg.create_auth_info_v1_cost_base = Some(1000); /* TODO how do you decide on a good gas
+                    * price? */
                 }
                 // Use this template when making changes:
                 //

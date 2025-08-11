@@ -20,6 +20,7 @@ smallvec.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-verifier = { path = "../iota-verifier", package = "iota-verifier-latest" }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true

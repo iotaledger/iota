@@ -11,6 +11,7 @@ use std::{
 };
 
 use move_binary_format::{
+    CompiledModule,
     errors::{ExecutionState, PartialVMError, PartialVMResult},
     file_format::AbilitySet,
 };
@@ -129,6 +130,20 @@ impl<'a, 'b> NativeContext<'a, 'b> {
 }
 
 impl<'b> NativeContext<'_, 'b> {
+    // Nasty heck expecting that all the relevant modules have been loaded.
+    pub fn load_module(&self, module_identifier: Identifier) -> PartialVMResult<CompiledModule> {
+        match self
+            .resolver
+            .loader()
+            .loaded_modules()
+            .iter()
+            .find(|module| module.name().as_str() == module_identifier.as_str())
+        {
+            Some(module) => PartialVMResult::Ok(module.clone()),
+            None => PartialVMResult::Err(PartialVMError::new(StatusCode::ABORTED)),
+        }
+    }
+
     pub fn print_stack_trace<B: Write>(&self, buf: &mut B) -> PartialVMResult<()> {
         self.interpreter
             .debug_print_stack_trace(buf, self.resolver.loader())

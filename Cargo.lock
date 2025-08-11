@@ -6905,6 +6905,7 @@ dependencies = [
  "indexmap 2.5.0",
  "iota-protocol-config",
  "iota-types",
+ "iota-verifier-latest",
  "move-binary-format",
  "move-core-types",
  "move-stdlib-natives",

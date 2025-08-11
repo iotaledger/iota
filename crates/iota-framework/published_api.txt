@@ -1126,6 +1126,18 @@ vdf_verify
 vdf_verify_internal
 	fun
 	0x2::vdf
+AuthenticatorInfoV1
+	public struct
+	0x2::account
+create_auth_info_v1
+	public fun
+	0x2::account
+create_auth_info_v1_impl
+	fun
+	0x2::account
+drop_auth_info_v1
+	public fun
+	0x2::account
 encode
 	public fun
 	0x2::hex

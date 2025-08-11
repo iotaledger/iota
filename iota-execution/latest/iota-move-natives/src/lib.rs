@@ -67,14 +67,16 @@ use self::{
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
-use crate::crypto::{
-    group_ops,
-    group_ops::GroupOpsCostParams,
-    poseidon::PoseidonBN254CostParams,
-    zklogin,
-    zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+use crate::{
+    account::CreateAuthInfoV1ImplCostParams,
+    crypto::{
+        group_ops::{self, GroupOpsCostParams},
+        poseidon::PoseidonBN254CostParams,
+        zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+    },
 };
 
+mod account;
 mod address;
 mod config;
 mod crypto;
@@ -92,6 +94,8 @@ mod validator;
 
 #[derive(Tid)]
 pub struct NativesCostTable {
+    // Account natives
+    pub account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams,
     // Address natives
     pub address_from_bytes_cost_params: AddressFromBytesCostParams,
     pub address_to_u256_cost_params: AddressToU256CostParams,
@@ -184,6 +188,13 @@ pub struct NativesCostTable {
 impl NativesCostTable {
     pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> NativesCostTable {
         Self {
+            // account
+            account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams {
+                create_auth_info_v1_cost_base: protocol_config
+                    .create_auth_info_v1_cost_base()
+                    .into(),
+            },
+            // address
             address_from_bytes_cost_params: AddressFromBytesCostParams {
                 address_from_bytes_cost_base: protocol_config.address_from_bytes_cost_base().into(),
             },
@@ -770,6 +781,11 @@ pub fn make_stdlib_gas_params_for_protocol_config(
 
 pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunctionTable {
     let iota_framework_natives: &[(&str, &str, NativeFunction)] = &[
+        (
+            "account",
+            "create_auth_info_v1_impl",
+            make_native!(account::create_auth_info_v1_impl),
+        ),
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
         ("address", "from_u256", make_native!(address::from_u256)),
