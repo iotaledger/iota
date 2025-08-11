@@ -182,7 +182,6 @@ impl CheckpointStoreTables {
     pub fn new(path: &Path, metric_name: &'static str) -> Self {
         Self::open_tables_read_write(path.to_path_buf(), MetricConf::new(metric_name), None, None)
     }
-
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         Self::get_read_only_handle(
             path.to_path_buf(),
@@ -207,6 +206,11 @@ impl CheckpointStore {
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
         })
+    }
+
+    pub fn new_for_tests() -> Arc<Self> {
+        let ckpt_dir = tempfile::tempdir().unwrap();
+        CheckpointStore::new(ckpt_dir.path())
     }
 
     pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
