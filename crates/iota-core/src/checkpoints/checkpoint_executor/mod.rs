@@ -454,7 +454,6 @@ impl CheckpointExecutor {
         debug!("committing checkpoint transactions to disk");
         cache_commit
             .try_commit_transaction_outputs(epoch_store.epoch(), all_tx_digests)
-            .await
             .expect("commit_transaction_outputs cannot fail");
 
         epoch_store
@@ -654,7 +653,6 @@ impl CheckpointExecutor {
                     &change_epoch_fx,
                     self.object_cache_reader.as_ref(),
                 )
-                .await
                 .expect("Acquiring shared version assignments for change_epoch tx cannot fail");
         }
 
@@ -719,7 +717,6 @@ impl CheckpointExecutor {
                     let cache_commit = self.state.get_cache_commit();
                     cache_commit
                         .try_commit_transaction_outputs(cur_epoch, &[change_epoch_tx_digest])
-                        .await
                         .expect("commit_transaction_outputs cannot fail");
                     fail_point_async!("prune-and-compact");
 
@@ -1304,13 +1301,11 @@ async fn execute_transactions(
 
     for (tx, _) in &executable_txns {
         if tx.contains_shared_object() {
-            epoch_store
-                .acquire_shared_version_assignments_from_effects(
-                    tx,
-                    digest_to_effects.get(tx.digest()).unwrap(),
-                    object_cache_reader,
-                )
-                .await?;
+            epoch_store.acquire_shared_version_assignments_from_effects(
+                tx,
+                digest_to_effects.get(tx.digest()).unwrap(),
+                object_cache_reader,
+            )?;
         }
     }
 
@@ -1390,7 +1385,7 @@ async fn finalize_checkpoint(
         )?;
 
     let checkpoint_acc =
-        accumulator.accumulate_checkpoint(effects, checkpoint.sequence_number, epoch_store)?;
+        accumulator.accumulate_checkpoint(&effects, checkpoint.sequence_number, epoch_store)?;
 
     let checkpoint_data = if state.rest_index.is_some() || data_ingestion_dir.is_some() {
         let checkpoint_data = load_checkpoint_data(
@@ -1408,7 +1403,7 @@ async fn finalize_checkpoint(
                 PackageStoreWithFallback::new(state.get_backing_package_store(), &checkpoint_data),
             ));
 
-            rest_index.index_checkpoint(&checkpoint_data, layout_resolver.as_mut())?;
+            rest_index.index_checkpoint(&checkpoint_data, layout_resolver.as_mut());
         }
 
         if let Some(path) = data_ingestion_dir {

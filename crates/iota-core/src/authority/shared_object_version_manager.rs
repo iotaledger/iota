@@ -96,7 +96,7 @@ impl SharedObjVerManager {
         certs_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
-    ) -> IotaResult<AssignedTxAndVersions> {
+    ) -> AssignedTxAndVersions {
         // We don't care about the results since we can use effects to assign versions.
         // But we must call it to make sure whenever a shared object is touched the
         // first time during an epoch, either through consensus or through
@@ -110,7 +110,7 @@ impl SharedObjVerManager {
             epoch_store,
             cache_reader,
             false,
-        )?;
+        );
         let mut assigned_versions = Vec::new();
         for (cert, effects) in certs_and_effects {
             let cert_assigned_versions: Vec<_> = effects
@@ -126,7 +126,7 @@ impl SharedObjVerManager {
             );
             assigned_versions.push((tx_key, cert_assigned_versions));
         }
-        Ok(assigned_versions)
+        assigned_versions
     }
 
     pub fn assign_versions_for_certificate(
@@ -672,8 +672,7 @@ mod tests {
                 .as_slice(),
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-        )
-        .unwrap();
+        );
         // Check that the shared object's next version is always initialized in the
         // epoch store.
         assert_eq!(
