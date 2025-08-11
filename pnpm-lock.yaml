@@ -227,8 +227,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/graphql-transport
       '@iota/iota-names-sdk':
-        specifier: ^0.1.0
-        version: 0.1.0(typescript@5.6.2)
+        specifier: ^0.1.1
+        version: 0.1.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -457,8 +457,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
       '@iota/iota-names-sdk':
-        specifier: ^0.1.0
-        version: 0.1.0(typescript@5.6.2)
+        specifier: ^0.1.1
+        version: 0.1.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -777,8 +777,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
       '@iota/iota-names-sdk':
-        specifier: ^0.1.0
-        version: 0.1.0(typescript@5.6.2)
+        specifier: ^0.1.1
+        version: 0.1.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -1081,8 +1081,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
       '@iota/iota-names-sdk':
-        specifier: ^0.1.0
-        version: 0.1.0(typescript@5.6.2)
+        specifier: ^0.1.1
+        version: 0.1.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -5596,16 +5596,11 @@ packages:
     resolution: {integrity: sha512-XvJRx+2KR3YXyYtPUUy+qd9i7p+GO9Ko6VIIpWlBrpWwXDv8WLFeHTxz35CfQFUiBMLXlGHhGzys7lqit9gWag==}
     engines: {node: '>=18'}
 
-  '@iota/bcs@1.2.0':
-    resolution: {integrity: sha512-QdRSR0KpJ87tdjVNmM/j0+0DvE0aTxHIa02337iluaOsMqtJ8OdgUCfSyLduC/3qS+8tJE+UB1KOw55tF+sN2w==}
-
-  '@iota/iota-names-sdk@0.1.0':
-    resolution: {integrity: sha512-wUhdBpB87hyENWcU8oBs10JzGLTIZP/wz6K6Ld1VxaeL96AMHJrAlmbayt93ffP9lx7lrEQPa0OhH9nSUK31LQ==}
+  '@iota/iota-names-sdk@0.1.1':
+    resolution: {integrity: sha512-tuvRvxfmWANlx58vDPZVItgqMvCMPD7R8jmrPKgNTr6TV7oBP5WnZ4doieGVHrtqyPUWtsejueGQtfUUDmPqRg==}
     engines: {node: '>=20'}
-
-  '@iota/iota-sdk@1.5.0':
-    resolution: {integrity: sha512-R5Tx78Z3ZMh+P7uAqN3U+JylfY+rbnnzjqEehef+bYatyddkh8uEr7S2l/0++Vrp56bpZnSdLTld1PvKKWyXaQ==}
-    engines: {node: '>=20'}
+    peerDependencies:
+      '@iota/iota-sdk': ^1.5.0
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -25110,38 +25105,10 @@ snapshots:
     dependencies:
       mute-stream: 1.0.0
 
-  '@iota/bcs@1.2.0':
+  '@iota/iota-names-sdk@0.1.1(@iota/iota-sdk@sdk+typescript)':
     dependencies:
-      bs58: 6.0.0
-
-  '@iota/iota-names-sdk@0.1.0(typescript@5.6.2)':
-    dependencies:
-      '@iota/iota-sdk': 1.5.0(typescript@5.6.2)
+      '@iota/iota-sdk': link:sdk/typescript
       '@noble/hashes': 1.8.0
-    transitivePeerDependencies:
-      - '@gql.tada/svelte-support'
-      - '@gql.tada/vue-support'
-      - typescript
-
-  '@iota/iota-sdk@1.5.0(typescript@5.6.2)':
-    dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.9.0)
-      '@iota/bcs': 1.2.0
-      '@noble/curves': 1.9.2
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      '@suchipi/femver': 1.0.0
-      bech32: 2.0.0
-      bignumber.js: 9.1.2
-      gql.tada: 1.8.9(graphql@16.9.0)(typescript@5.6.2)
-      graphql: 16.9.0
-      tweetnacl: 1.0.3
-      valibot: 0.36.0
-    transitivePeerDependencies:
-      - '@gql.tada/svelte-support'
-      - '@gql.tada/vue-support'
-      - typescript
 
   '@isaacs/cliui@8.0.2':
     dependencies:
