@@ -104,6 +104,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) gap_to_available_commit: IntGauge,
+    pub(crate) gap_to_unavailable_transactions: IntGauge,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
     pub(crate) lowest_verified_authority_round: IntGaugeVec,
     pub(crate) block_proposal_interval: Histogram,
@@ -295,6 +297,16 @@ impl NodeMetrics {
                 "core_add_blocks_batch_size",
                 "The number of blocks received from Core for processing on a single batch",
                 NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            gap_to_available_commit: register_int_gauge_with_registry!(
+                "gap_to_available_commit",
+                "Gap in rounds between last pending commit and last available commit",
+                registry,
+            ).unwrap(),
+            gap_to_unavailable_transactions: register_int_gauge_with_registry!(
+                "gap_to_unavailable_transactions",
+                "Gap in rounds between current round and the oldest unavailable transaction",
                 registry,
             ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(
