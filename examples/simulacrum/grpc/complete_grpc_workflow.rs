@@ -81,7 +81,7 @@ async fn run_simulacrum_with_grpc() -> anyhow::Result<()> {
 
     // Connect to the gRPC server using NodeClient
     let server_url = format!("http://{}", server_address);
-    println!("Connecting to gRPC server at: {}", server_url);
+    println!("Connecting to gRPC server at: {server_url}");
 
     let node_client = NodeClient::connect(&server_url).await?;
     let mut checkpoint_client = node_client
@@ -110,7 +110,7 @@ async fn run_simulacrum_with_grpc() -> anyhow::Result<()> {
                 println!("Unexpected summary content when requesting data");
             }
             Err(e) => {
-                println!("Stream error: {:?}", e);
+                println!("Stream error: {e:?}");
                 break;
             }
         }
@@ -123,10 +123,10 @@ async fn run_simulacrum_with_grpc() -> anyhow::Result<()> {
         .await
     {
         Ok(first_seq) => {
-            println!("First checkpoint of epoch 0: {}", first_seq);
+            println!("First checkpoint of epoch 0: {first_seq}");
         }
         Err(e) => {
-            println!("Epoch request error: {:?}", e);
+            println!("Epoch request error: {e:?}");
         }
     }
 
