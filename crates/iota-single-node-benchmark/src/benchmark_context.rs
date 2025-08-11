@@ -123,8 +123,7 @@ impl BenchmarkContext {
                 .commit_transaction_outputs(
                     effects.executed_epoch(),
                     &[*effects.transaction_digest()],
-                )
-                .await;
+                );
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
@@ -193,9 +192,7 @@ impl BenchmarkContext {
             // object store, hence requiring these objects committed to DB.
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
-            cache_commit
-                .commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()])
-                .await;
+            cache_commit.commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()]);
         }
         self.refresh_gas_objects(new_gas_objects);
         info!("Finished preparing shared objects");
