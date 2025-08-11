@@ -364,7 +364,6 @@ tracing-subscriber = { version = "0.3.15", default-features = false, features = 
 unescape = "0.1.0"
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
-ordered-float = {version = "5.0.0", features = ["serde"] }
 
 # internal dependencies
 ### Workspace Members ###

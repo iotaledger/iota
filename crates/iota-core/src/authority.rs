@@ -1893,9 +1893,6 @@ impl AuthorityState {
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
-                objects_hotness: self
-                    .congestion_tracker
-                    .get_hotness_for_transaction(&transaction),
                 input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
                     .map_err(|e| IotaError::TransactionSerialization {
                         error: format!(
