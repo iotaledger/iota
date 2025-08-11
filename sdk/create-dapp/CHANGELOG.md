@@ -1,5 +1,25 @@
 # @iota/create-dapp
 
+## 0.3.11
+
+### Patch Changes
+
+-   d8e3086: Fixes issue regarding refetching object data too soon after executing transactions
+-   Updated dependencies [40576ed]
+-   Updated dependencies [61b0944]
+-   Updated dependencies [966f83c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [733df30]
+-   Updated dependencies [13ca264]
+-   Updated dependencies [5bbafa8]
+-   Updated dependencies [28ce666]
+-   Updated dependencies [c855f8c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [464c15a]
+-   Updated dependencies [75554e6]
+    -   @iota/iota-sdk@1.5.0
+    -   @iota/dapp-kit@0.5.1
+
 ## 0.3.10
 
 ### Patch Changes

@@ -8,6 +8,7 @@ export default function Disclaimer(): React.JSX.Element {
 		disclaimer: {
 			title: 'This website uses cookies',
 			body: 'We use cookies to improve your experience. You can manage your preferences below. ',
+			policyUrl: '/cookie-policy',
 		},
 		services: {
 			googleAnalytics4Id: 'G-SEE2W8WK21'
