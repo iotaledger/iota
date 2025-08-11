@@ -12,17 +12,17 @@ const hierarchies = [
     //         'developer/iota-hierarchies/getting-started/local-network-setup',
     //     ],
     // },
-    // {
-    //     type: 'category',
-    //     label: 'Explanations',
-    //     items: [
-    //         'developer/iota-hierarchies/explanations/about-hierarchies',
-    //         'developer/iota-hierarchies/explanations/federations',
-    //         'developer/iota-hierarchies/explanations/statements',
-    //         'developer/iota-hierarchies/explanations/accreditations',
-    //         'developer/iota-hierarchies/explanations/attestations',
-    //     ],
-    // },
+    {
+        type: 'category',
+        label: 'Explanations',
+        items: [
+            'developer/iota-hierarchies/explanations/hierarchies',
+            // 'developer/iota-hierarchies/explanations/federations',
+            // 'developer/iota-hierarchies/explanations/statements',
+            // 'developer/iota-hierarchies/explanations/accreditations',
+            // 'developer/iota-hierarchies/explanations/attestations',
+        ],
+    },
     {
         type: 'category',
         label: 'How To',
