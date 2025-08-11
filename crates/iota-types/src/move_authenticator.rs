@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentMessage;
 
 use crate::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::SignatureScheme,
     digests::ZKLoginInputsDigest,
@@ -27,7 +27,7 @@ use crate::{
 pub struct MoveAuthenticator {
     /// Input objects or primitive values
     inputs: Vec<CallArg>,
-    object_to_authenticate: ObjectID,
+    object_ref_to_authenticate: ObjectRef,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing [trait AsRef<[u8]>].
     #[serde(skip)]
@@ -36,7 +36,7 @@ pub struct MoveAuthenticator {
 
 impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
-        self.object_to_authenticate.into()
+        self.object_ref_to_authenticate.0.into()
     }
 }
 
