@@ -314,7 +314,7 @@ impl CheckpointExecutor {
                 }
 
                 if let Some(checkpoint_data) = ckpt_state.full_data.take() {
-                    self.commit_index_updates_and_enqueue_to_subscription_service(checkpoint_data);
+                    self.commit_index_updates(checkpoint_data);
                 }
 
                 self.accumulator
@@ -763,9 +763,8 @@ impl CheckpointExecutor {
     }
 
     /// If configured, commit the pending index updates for the provided
-    /// checkpoint as well as enqueuing the checkpoint to the subscription
-    /// service
-    fn commit_index_updates_and_enqueue_to_subscription_service(&self, checkpoint: CheckpointData) {
+    /// checkpoint
+    fn commit_index_updates(&self, checkpoint: CheckpointData) {
         if let Some(rest_index) = &self.state.rest_index {
             rest_index
                 .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
