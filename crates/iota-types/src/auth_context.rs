@@ -21,12 +21,12 @@ pub struct AuthContext {
 impl AuthContext {
     pub fn new_from_components(
         auth_digest: MoveAuthenticationDigest,
-        ptb: ProgrammableTransaction,
+        ptb: &ProgrammableTransaction,
     ) -> Self {
         Self {
             auth_digest,
-            tx_inputs: ptb.inputs,
-            tx_commands: ptb.commands,
+            tx_inputs: ptb.inputs.clone(),
+            tx_commands: ptb.commands.clone(),
         }
     }
 }
