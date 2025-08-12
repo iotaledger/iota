@@ -2,8 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Feature, useFeatureEnabledByNetwork, useIotaNamesClient } from '@iota/core';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import type { IotaClient, LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { type IotaNamesClient, isValidIotaName } from '@iota/iota-names-sdk';
+import {
+    getNetwork,
+    type IotaClient,
+    type LatestIotaSystemStateSummary,
+} from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
@@ -11,6 +17,7 @@ import {
     normalizeIotaObjectId,
 } from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
+import { useNetwork } from './useNetwork';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
 
@@ -66,7 +73,26 @@ const getResultsForCheckpoint = async (
     ];
 };
 
-const getResultsForAddress = async (client: IotaClient, query: string): Promise<Results | null> => {
+const getResultsForAddress = async (
+    client: IotaClient,
+    query: string,
+    isNamesEnabled: boolean,
+    iotaNamesClient: IotaNamesClient | null,
+): Promise<Results | null> => {
+    if (iotaNamesClient && isNamesEnabled && isValidIotaName(query)) {
+        const nameRecord = await iotaNamesClient.getNameRecord(query.toLowerCase());
+
+        if (!nameRecord) return null;
+
+        return [
+            {
+                id: nameRecord.targetAddress,
+                label: nameRecord.targetAddress,
+                type: 'address',
+            },
+        ];
+    }
+
     const normalized = normalizeIotaObjectId(query);
     if (!isValidIotaAddress(normalized) || isGenesisLibAddress(normalized)) return null;
 
@@ -125,6 +151,11 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
     const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
+    const [networkId] = useNetwork();
+    const network = getNetwork(networkId).id;
+
+    const isNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
+    const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -134,7 +165,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                 await Promise.allSettled([
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
-                    getResultsForAddress(client, query),
+                    getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
                 ])

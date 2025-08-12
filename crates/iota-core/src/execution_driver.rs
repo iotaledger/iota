@@ -141,8 +141,7 @@ pub async fn execution_process(
                 fail_point_async!("transaction_execution_delay");
                 attempts += 1;
                 let res = authority
-                    .try_execute_immediately(&certificate, expected_effects_digest, &epoch_store_clone)
-                    .await;
+                    .try_execute_immediately(&certificate, expected_effects_digest, &epoch_store_clone);
                 if let Err(e) = res {
                     // Tighten this check everywhere except mainnet - if we don't see an increase in
                     // these crashes we will remove the retries.
