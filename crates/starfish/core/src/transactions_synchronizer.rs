@@ -102,7 +102,6 @@ impl InflightTransactionsMap {
         let mut inner = self.inner.lock();
         let mut selected_block_refs_num = 0;
 
-
         for block_ref in missing_block_refs {
             // check that the number of authorities that are already instructed to fetch the
             // transaction is not higher than the allowed and the `peer_index` has not
@@ -847,10 +846,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // those transactions. The logic is as follows:
         // * Iterate in random order all authorities that have acknowledged missing
         //   transactions.
-        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using the
-        //   inflight_transactions_map. Some transactions may already be locked by other
-        //   authorities, but continue with the transactions that were successfully
-        //   locked.
+        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using
+        //   the inflight_transactions_map. Some transactions may already be locked by
+        //   other authorities, but continue with the transactions that were
+        //   successfully locked.
         // TODO: This part of the logic needs to be improved!
 
         // Initialize randomness for shuffling authorities
@@ -874,9 +873,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
             // * If transactions are successfully locked, then send a request to the network
             //   client to fetch the transactions from the authority.
-            if let Some(transactions_guard) =
-                inflight_transactions_map.lock_transactions(authority_block_refs.clone(), authority, context.parameters.max_transactions_per_fetch)
-            {
+            if let Some(transactions_guard) = inflight_transactions_map.lock_transactions(
+                authority_block_refs.clone(),
+                authority,
+                context.parameters.max_transactions_per_fetch,
+            ) {
                 debug!(
                     "[{sync_method}] Syncing {} missing committed transactions from authority {} {}",
                     transactions_guard.block_refs.len(),
@@ -1726,14 +1727,22 @@ mod tests {
             for i in 0..=2 {
                 let authority = AuthorityIndex::new_for_test(i);
 
-                let guard = map.lock_transactions(missing_block_refs.clone(), authority, context.parameters.max_transactions_per_fetch);
+                let guard = map.lock_transactions(
+                    missing_block_refs.clone(),
+                    authority,
+                    context.parameters.max_transactions_per_fetch,
+                );
                 let guard = guard.expect("Guard should be created");
                 assert_eq!(guard.block_refs.len(), 4);
 
                 all_guards.push(guard);
 
                 // trying to acquire any of them again will not succeed
-                let guard = map.lock_transactions(missing_block_refs.clone(), authority, context.parameters.max_transactions_per_fetch);
+                let guard = map.lock_transactions(
+                    missing_block_refs.clone(),
+                    authority,
+                    context.parameters.max_transactions_per_fetch,
+                );
                 assert!(guard.is_none());
             }
 
@@ -1741,14 +1750,22 @@ mod tests {
             // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 3)
             let authority_3 = AuthorityIndex::new_for_test(3);
 
-            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3, context.parameters.max_transactions_per_fetch);
+            let guard = map.lock_transactions(
+                missing_block_refs.clone(),
+                authority_3,
+                context.parameters.max_transactions_per_fetch,
+            );
             assert!(guard.is_none());
 
             // Explicitly drop the guard of authority 1 and try for authority 3 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
-            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3, context.parameters.max_transactions_per_fetch);
+            let guard = map.lock_transactions(
+                missing_block_refs.clone(),
+                authority_3,
+                context.parameters.max_transactions_per_fetch,
+            );
             let guard = guard.expect("Guard should be successfully acquired");
 
             assert_eq!(guard.block_refs, missing_block_refs);
