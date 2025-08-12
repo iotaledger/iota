@@ -30,7 +30,7 @@ export function NamedAddress({
         <div
             className={clsx(
                 'flex flex-col gap-y-xxs items-center',
-                addMarginRightToCenter && iotaName ? '-mr-xl' : '',
+                addMarginRightToCenter ? '-mr-xl' : '',
             )}
         >
             {iotaName ? (
