@@ -1,11 +1,10 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module iota::auth_context;
+module iota::programmable_transaction;
 
 use std::ascii::String;
-
+use std::type_name::TypeName;
 // === Constants ===
 const EBadTxHashLength: u64 = 0;
 
@@ -18,26 +17,12 @@ public enum CallArgType has copy, drop {
 
 public enum CommandArgType has copy, drop {
     MoveCall(ProgrammableMoveCall),
-    TransferObjects(TransferObjectsData),
+    TransferObjects(vector<Argument>, Argument),
     SplitCoins(SplitCoinsData),
     MergeCoins(MergeCoinsData),
     Publish(PublishData),
     MakeMoveVec(MakeMoveVecData),
     Upgrade(UpgradeData),
-}
-
-public enum TypeInput has copy, drop {
-    BoolType(bool),
-    U8Type(bool),
-    U16Type(bool),
-    U32Type(bool),
-    U64Type(bool),
-    U128Type(bool),
-    U256Type(bool),
-    AddressType(bool),
-    SignerType(bool),
-    // TODO: VectorType(Box<TypeInput>)
-    // TODO: StructType(StructInput)
 }
 
 public enum ArgumentType has copy, drop {
@@ -55,20 +40,17 @@ public enum ObjectArgType has copy, drop {
 
 // === Structs ===
 
-public struct CallArg has copy, drop {
-    call_type: CallArgType,
-}
-
-public struct Command has copy, drop {
-    command_type: CommandArgType,
-}
-
 public struct ProgrammableMoveCall has copy, drop {
     package: ID,
     module_name: String,
     function: String,
-    type_arguments: vector<std::type_name::TypeName>,
+    type_arguments: vector<TypeName>,
     arguments: vector<Argument>,
+}
+
+public struct ProgrammableTransaction has copy, drop {  
+    inputs: vector<CallArgType>,  
+    commands: vector<CommandArgType>,  
 }
 
 // --- Command Data ---
@@ -94,7 +76,7 @@ public struct PublishData has copy, drop {
 }
 
 public struct MakeMoveVecData has copy, drop {
-    type_input: Option<TypeInput>,
+    type_input: Option<TypeName>,
     arguments: vector<Argument>,
 }
 
@@ -124,8 +106,8 @@ public struct SharedObjectData has copy, drop {
 
 public struct ObjectRef has copy, drop {
     object_id: ID,
-    sequence_number: SequenceNumber,
-    object_digest: ObjectDigest,
+    sequence_number: u64,
+    object_digest: vector<u8>,
 }
 
 public struct ObjectDigest has copy, drop {
@@ -143,42 +125,40 @@ public struct Digest has copy, drop, store {
 // === CallArg Helpers ===
 
 #[test_only]
-public fun new_pure(data: vector<u8>): CallArg {
-    CallArg {
-        call_type: CallArgType::PureData(data),
-    }
+public fun new_pure(data: vector<u8>): CallArgType {
+        CallArgType::PureData(data)
+    
 }
 
 #[test_only]
-public fun new_object(obj: ObjectArgType): CallArg {
-    CallArg {
-        call_type: CallArgType::ObjectData(obj),
-    }
+public fun new_object(obj: ObjectArgType): CallArgType {
+    CallArgType::ObjectData(obj)
+    
 }
 
-public fun is_pure_data(arg: &CallArg): bool {
-    match (&arg.call_type) {
+public fun is_pure_data(arg: &CallArgType): bool {
+    match (arg) {
         CallArgType::PureData(_) => true,
         _ => false,
     }
 }
 
-public fun is_object_data(arg: &CallArg): bool {
-    match (&arg.call_type) {
+public fun is_object_data(arg: &CallArgType): bool {
+    match (arg) {
         CallArgType::ObjectData(_) => true,
         _ => false,
     }
 }
 
-public fun get_pure_data(arg: &CallArg): &vector<u8> {
-    match (&arg.call_type) {
+public fun get_pure_data(arg: &CallArgType): &vector<u8> {
+    match (arg) {
         CallArgType::PureData(data) => data,
         _ => abort EBadTxHashLength,
     }
 }
 
-public fun get_object_data(arg: &CallArg): &ObjectArgType {
-    match (&arg.call_type) {
+public fun get_object_data(arg: &CallArgType): &ObjectArgType {
+    match (arg) {
         CallArgType::ObjectData(obj) => obj,
         _ => abort EBadTxHashLength,
     }
@@ -187,51 +167,44 @@ public fun get_object_data(arg: &CallArg): &ObjectArgType {
 // === Command Helpers ===
 
 #[test_only]
-public fun new_move_call(call: ProgrammableMoveCall): Command {
-    Command {
-        command_type: CommandArgType::MoveCall(call),
-    }
+public fun new_move_call(call: ProgrammableMoveCall): CommandArgType {
+        CommandArgType::MoveCall(call)
 }
 
 #[test_only]
-public fun new_transfer_objects(data: TransferObjectsData): Command {
-    Command {
-        command_type: CommandArgType::TransferObjects(data),
-    }
+public fun new_transfer_objects(data: TransferObjectsData): CommandArgType {
+        CommandArgType::TransferObjects(data.objects, data.recipient)
 }
 
 #[test_only]
-public fun new_split_coins(data: SplitCoinsData): Command {
-    Command {
-        command_type: CommandArgType::SplitCoins(data),
-    }
+public fun new_split_coins(data: SplitCoinsData): CommandArgType {
+         CommandArgType::SplitCoins(data)
 }
 
 #[test_only]
-public fun new_merge_coins(data: MergeCoinsData): Command {
-    Command {
-        command_type: CommandArgType::MergeCoins(data),
-    }
+public fun new_merge_coins(data: MergeCoinsData): CommandArgType {
+
+    CommandArgType::MergeCoins(data)
+    
 }
 
 #[test_only]
-public fun new_publish_data(data: PublishData): Command {
-    Command {
-        command_type: CommandArgType::PublishData(data),
-    }
+public fun new_publish_data(data: PublishData): CommandArgType {
+    
+    CommandArgType::Publish(data)
+    
 }
 
 #[test_only]
-public fun new_upgrade_data(data: UpgradeData): Command {
-    Command {
-        command_type: CommandArgType::UpgradeData(data),
-    }
+public fun new_upgrade_data(data: UpgradeData): CommandArgType {
+    
+    CommandArgType::Upgrade(data)
 }
 
 // === Command Getters ===
 
-public fun get_command_type(command: &Command): CommandArgType {
-    command.command_type
+public fun get_command_type(command: &CommandArgType): CommandArgType {
+    *command
 }
 
 // === ProgrammableMoveCall Getters ===
@@ -241,7 +214,7 @@ public fun new_programmable_move_call(
     package: ID,
     module_name: String,
     function: String,
-    type_arguments: vector<std::type_name::TypeName>,
+    type_arguments: vector<TypeName>,
     arguments: vector<Argument>,
 ): ProgrammableMoveCall {
     ProgrammableMoveCall {
@@ -265,7 +238,7 @@ public fun get_function_name(call: &ProgrammableMoveCall): String {
     call.function
 }
 
-public fun get_type_arguments(call: &ProgrammableMoveCall): vector<std::type_name::TypeName> {
+public fun get_type_arguments(call: &ProgrammableMoveCall): vector<TypeName> {
     call.type_arguments
 }
 
@@ -278,13 +251,10 @@ public fun get_arguments(call: &ProgrammableMoveCall): vector<Argument> {
 #[test_only]
 public fun new_argument(arg_type: ArgumentType): Argument {
     Argument {
-        argument_type: arg_type,
+        argument_type: arg_type
     }
 }
 
 public fun get_argument_type(arg: &Argument): ArgumentType {
     arg.argument_type
 }
-
-// ==== test-only functions ====
-// TODO
