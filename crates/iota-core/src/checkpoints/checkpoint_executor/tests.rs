@@ -44,7 +44,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CheckpointExecutor,
         Arc<StateAccumulator>,
         CommitteeFixture,
-    ) = init_executor_test(buffer_size, checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone()).await;
 
     assert!(
         checkpoint_store
@@ -138,7 +138,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         CheckpointExecutor,
         Arc<StateAccumulator>,
         CommitteeFixture,
-    ) = init_executor_test(buffer_size, checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone()).await;
 
     let epoch_store = authority_state.epoch_store_for_testing();
     let epoch = epoch_store.epoch();
@@ -159,7 +159,6 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         &first_committee,
     );
 
-    tracing::warn!("Synced {} checkpoints", cold_start_checkpoints.len());
     // sync end of epoch checkpoint
     let last_executed_checkpoint = cold_start_checkpoints.last().cloned().unwrap();
     let (end_of_epoch_0_checkpoint, second_committee) = sync_end_of_epoch_checkpoint(
@@ -315,11 +314,7 @@ pub async fn test_reconfig_crash_recovery() {
         CheckpointExecutor,
         Arc<StateAccumulator>,
         CommitteeFixture,
-    ) = init_executor_test(
-        10, // StateSync -> Executor channel buffer size
-        checkpoint_store.clone(),
-    )
-    .await;
+    ) = init_executor_test(checkpoint_store.clone()).await;
 
     assert!(
         checkpoint_store
@@ -393,7 +388,6 @@ pub async fn test_reconfig_crash_recovery() {
 }
 
 async fn init_executor_test(
-    _buffer_size: usize,
     store: Arc<CheckpointStore>,
 ) -> (
     Arc<AuthorityState>,
