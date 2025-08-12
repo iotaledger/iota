@@ -18,11 +18,11 @@ use crate::{
 };
 
 pub(crate) fn load_checkpoint_data(
-    ckpt: &CheckpointExecutionData,
+    checkpoint_exec_data: &CheckpointExecutionData,
     object_cache_reader: &dyn ObjectCacheRead,
     transaction_cache_reader: &dyn TransactionCacheRead,
 ) -> IotaResult<CheckpointData> {
-    let event_digests = ckpt
+    let event_digests = checkpoint_exec_data
         .effects
         .iter()
         .flat_map(|fx| fx.events_digest().copied())
@@ -38,8 +38,12 @@ pub(crate) fn load_checkpoint_data(
         .collect::<IotaResult<Vec<_>>>()?;
 
     let events: HashMap<_, _> = event_digests.into_iter().zip(events).collect();
-    let mut full_transactions = Vec::with_capacity(ckpt.transactions.len());
-    for (tx, fx) in ckpt.transactions.iter().zip(ckpt.effects.iter()) {
+    let mut full_transactions = Vec::with_capacity(checkpoint_exec_data.transactions.len());
+    for (tx, fx) in checkpoint_exec_data
+        .transactions
+        .iter()
+        .zip(checkpoint_exec_data.effects.iter())
+    {
         let events = fx.events_digest().map(|event_digest| {
             events
                 .get(event_digest)
@@ -97,8 +101,8 @@ pub(crate) fn load_checkpoint_data(
         full_transactions.push(full_transaction);
     }
     let checkpoint_data = CheckpointData {
-        checkpoint_summary: ckpt.checkpoint.clone().into(),
-        checkpoint_contents: ckpt.checkpoint_contents.clone(),
+        checkpoint_summary: checkpoint_exec_data.checkpoint.clone().into(),
+        checkpoint_contents: checkpoint_exec_data.checkpoint_contents.clone(),
         transactions: full_transactions,
     };
     Ok(checkpoint_data)

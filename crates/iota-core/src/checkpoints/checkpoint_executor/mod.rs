@@ -242,10 +242,7 @@ impl CheckpointExecutor {
         .map(|ckpt_state| this.clone().commit_checkpoint(ckpt_state))
         // Take the last value from the stream to determine if we completed the epoch
         .fold(false, |state, is_final_checkpoint| {
-            assert!(
-                !state,
-                "fold can't be called again after the final checkpoint"
-            );
+            assert!(!state, "Cannot execute checkpoint after epoch end");
             is_final_checkpoint
         })
         .await;
