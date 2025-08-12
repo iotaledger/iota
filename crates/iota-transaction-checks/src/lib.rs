@@ -191,12 +191,12 @@ mod checked {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn check_authenticator_input(
-        authenticator_input_objects: InputObjects,
+    pub fn check_move_authenticator_input(
+        input_objects: InputObjects,
     ) -> IotaResult<CheckedInputObjects> {
-        check_authenticator_objects(&authenticator_input_objects)?;
+        check_move_authenticator_objects(&input_objects)?;
 
-        Ok(authenticator_input_objects.into_checked())
+        Ok(input_objects.into_checked())
     }
 
     // Common checks performed for transactions and certificates.
@@ -579,9 +579,10 @@ mod checked {
         Ok(())
     }
 
-    /// Check all the objects used in the authenticator against the database.
+    /// Check all the input objects used in the MoveAuthenticator against the
+    /// database.
     #[instrument(level = "trace", skip_all)]
-    fn check_authenticator_objects(objects: &InputObjects) -> UserInputResult<()> {
+    fn check_move_authenticator_objects(objects: &InputObjects) -> UserInputResult<()> {
         for object in objects.iter() {
             fp_ensure!(
                 !object.is_mutable(),
@@ -594,7 +595,7 @@ mod checked {
 
             match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    check_one_authenticator_object(input_object_kind, object)?;
+                    check_one_move_authenticator_object(input_object_kind, object)?;
                 }
                 // We skip checking a deleted shared object because it no longer exists
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
@@ -607,14 +608,14 @@ mod checked {
         Ok(())
     }
 
-    /// Check one authenticator input object against a reference
-    fn check_one_authenticator_object(
+    /// Check one MoveAuthenticator input object against a reference.
+    fn check_one_move_authenticator_object(
         object_kind: InputObjectKind,
         object: &Object,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
-                return Err(UserInputError::PackageIsInAuthenticatorInput { package_id });
+                return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
             }
             InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
                 fp_ensure!(
@@ -651,12 +652,12 @@ mod checked {
                         // Nothing else to check for Immutable.
                     }
                     Owner::AddressOwner { .. } => {
-                        return Err(UserInputError::AddressOwnedIsInAuthenticatorInput {
+                        return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
                     }
                     Owner::ObjectOwner { .. } => {
-                        return Err(UserInputError::ObjectOwnedIsInAuthenticatorInput {
+                        return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
                     }
@@ -678,7 +679,9 @@ mod checked {
             InputObjectKind::SharedMoveObject {
                 id, mutable: true, ..
             } => {
-                return Err(UserInputError::MutableSharedIsInAuthenticatorInput { object_id: id });
+                return Err(UserInputError::MutableSharedIsInMoveAuthenticatorInput {
+                    object_id: id,
+                });
             }
             InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,

@@ -311,15 +311,21 @@ pub enum UserInputError {
     #[error("Invalid identifier found in the transaction: {error}")]
     InvalidIdentifier { error: String },
 
-    #[error("Package {package_id} is in the authenticator input that is unsupported")]
-    PackageIsInAuthenticatorInput { package_id: ObjectID },
+    #[error("Package {package_id} is in the MoveAuthenticator input that is unsupported")]
+    PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
 
-    #[error("Address-owned object {object_id} is in the authenticator input that is unsupported")]
-    AddressOwnedIsInAuthenticatorInput { object_id: ObjectID },
-    #[error("Object-owned object {object_id} is in the authenticator input that is unsupported")]
-    ObjectOwnedIsInAuthenticatorInput { object_id: ObjectID },
-    #[error("Mutable shared object {object_id} is in the authenticator input that is unsupported")]
-    MutableSharedIsInAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Address-owned object {object_id} is in the MoveAuthenticator input that is unsupported"
+    )]
+    AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Object-owned object {object_id} is in the MoveAuthenticator input that is unsupported"
+    )]
+    ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Mutable shared object {object_id} is in the MoveAuthenticator input that is unsupported"
+    )]
+    MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
 }
 
 #[derive(

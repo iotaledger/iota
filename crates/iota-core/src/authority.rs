@@ -54,7 +54,7 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::AuthenticatorInfo,
+    account::{AUTHENTICATOR_DF_NAME, AuthenticatorInfo, MoveAuthenticator},
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -101,6 +101,7 @@ use iota_types::{
         MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
+    signature::GenericSignature,
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
@@ -884,56 +885,16 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
-        // TODO: It is a temporal condition that needs to be rechecked.
-        if signatures.len() == 1 && signatures[0].is_move_authenticator() {
-            // Check the related account object.
+        if let Some(move_authenticator) = move_authenticator(signatures) {
+            // Make sure the sender is a smart account.
+            self.check_smart_account(transaction.sender_address())?;
 
-            // TODO: Is this the correct way to load an account object?
-            let account_object_id = ObjectID::from(transaction.sender_address());
-            let account_object = self.get_object_read(&account_object_id)?;
-
-            // TODO: Create a dedicated function and add error handling.
-            match account_object {
-                ObjectRead::Exists(_, object, _) => {
-                    if !object.is_shared() {
-                        todo!()
-                    }
-
-                    const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
-                    let authenticator = self.get_dynamic_field_object_id(
-                        account_object_id,
-                        AuthenticatorInfo::tag().into(),
-                        AUTHENTICATOR_DF_NAME.as_bytes(),
-                    )?;
-
-                    if authenticator.is_none() {
-                        todo!()
-                    }
-                }
-                ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => todo!(),
-            };
-
-            // Check the authenticator input objects.
-
-            // TODO: We need to resolve the authenticator inputs.
-            let authenticator_input_object_kinds = Vec::new(); // move_authenticator.input_objects()?;
-            let authenticator_receiving_objects_refs = ReceivingObjects::from(Vec::new()); // move_authenticator.receiving_objects();
-
-            // TODO: Replace with an error.
-            assert!(authenticator_receiving_objects_refs.objects.is_empty());
-
-            let (authenticator_input_objects, authenticator_receiving_objects) =
-                self.input_loader.read_objects_for_signing(
-                    // TODO: We need to have an auth digest here.
-                    Some(tx_digest),
-                    &authenticator_input_object_kinds,
-                    &Vec::new(),
-                    epoch_store.epoch(),
-                )?;
-
-            assert!(authenticator_receiving_objects.objects.is_empty());
-
-            iota_transaction_checks::check_authenticator_input(authenticator_input_objects)?;
+            // Check the MoveAuthenticator input objects.
+            self.check_move_authenticator_inputs_for_signing(
+                &move_authenticator,
+                tx_digest,
+                epoch_store,
+            )?;
         }
 
         let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
@@ -5034,6 +4995,66 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
+    // TODO: Is this logic enough to check if the sender is a smart account?
+
+    /// Checks if the sender is a smart account.
+    fn check_smart_account(&self, sender: IotaAddress) -> IotaResult<()> {
+        // TODO: Is this the correct way to load an account object?
+        let account_object_id = ObjectID::from(sender);
+        let account_object = self.get_object_read(&account_object_id)?;
+
+        // TODO: Add error handling.
+        match account_object {
+            ObjectRead::Exists(_, object, _) => {
+                if !object.is_shared() {
+                    todo!()
+                }
+
+                let authenticator = self.get_dynamic_field_object_id(
+                    account_object_id,
+                    AuthenticatorInfo::tag().into(),
+                    AUTHENTICATOR_DF_NAME.as_bytes(),
+                )?;
+
+                if authenticator.is_none() {
+                    todo!()
+                }
+            }
+            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => todo!(),
+        };
+
+        Ok(())
+    }
+
+    /// Checks the MoveAuthenticator inputs for the given transaction digest.
+    fn check_move_authenticator_inputs_for_signing(
+        &self,
+        _authenticator: &MoveAuthenticator,
+        tx_digest: &TransactionDigest,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<()> {
+        // TODO: We need to resolve the authenticator inputs.
+        let input_object_kinds = Vec::new(); // authenticator.input_objects()?;
+        let receiving_objects_refs = ReceivingObjects::from(Vec::new()); // authenticator.receiving_objects();
+
+        // TODO: Replace with an error.
+        assert!(receiving_objects_refs.objects.is_empty());
+
+        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
+            // TODO: We need to have an authenticator digest here.
+            Some(tx_digest),
+            &input_object_kinds,
+            &Vec::new(),
+            epoch_store.epoch(),
+        )?;
+
+        assert!(receiving_objects.objects.is_empty());
+
+        iota_transaction_checks::check_move_authenticator_input(input_objects)?;
+
+        Ok(())
+    }
+
     #[cfg(test)]
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
@@ -5589,5 +5610,14 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
+    }
+}
+
+// TODO: A temporaly created function. Needs to be replaced with a proper check.
+fn move_authenticator(signatures: &[GenericSignature]) -> Option<MoveAuthenticator> {
+    if signatures.len() == 1 && signatures[0].is_move_authenticator() {
+        Some(MoveAuthenticator { inputs: Vec::new() })
+    } else {
+        None
     }
 }

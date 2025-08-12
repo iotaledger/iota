@@ -4,6 +4,9 @@ use crate::{base_types::ObjectID, transaction::CallArg};
 
 /// Temporary created structures.
 /// This part will be removed once the real types are implemented.
+
+pub const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
+
 pub struct MoveAuthenticator {
     pub inputs: Vec<CallArg>,
 }
