@@ -21,11 +21,13 @@ const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 /// Threshold for hotness below which an object is considered cold.
 const HOTNESS_CUTOFF: f64 = 1.0;
 
-/// Controls how quickly congestion feedback updates object hotness.
-const HOTNESS_ADJUSTMENT_FACTOR: f64 = 0.2; // > 0.0
+/// Controls how quickly congestion tracker updates object hotness.
+/// Values should be > 0.0.
+const HOTNESS_ADJUSTMENT_FACTOR: f64 = 0.2;
 
 /// Controls how quickly hotness decays for objects not seen in congestion.
-const HOTNESS_DECAY_FACTOR: f64 = 1.5; // > 1.0 = decay, 1.0 = no decay
+/// Values should be >= 1.0: set to > 1.0 for decay, or 1.0 for no decay.
+const HOTNESS_DECAY_FACTOR: f64 = 1.5;
 
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
@@ -79,17 +81,14 @@ impl CongestionInfo {
         number_congested_transactions: usize,
         _number_cleared_transactions: usize,
     ) {
-        let old_hotness = self.hotness;
         if number_congested_transactions > 0 {
             // Update object i's hotness based on the congestion events following the
-            // formula: hotness_i -= SUM(tx)[SUM(i in tx)(hotness_i- gas_price_feedback_tx)]
-            // * LEARNING_RATE / number_congested_transactions.
-            self.hotness -=
-                new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
+            // formula: hotness_i -= SUM(tx)[SUM(j in tx)(hotness_j - gas_price_feedback)]
+            // * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions.
+            let new_hotness = self.hotness
+                - new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
             // Hotness decrease is capped by HOTNESS_DECAY_FACTOR.
-            self.hotness = self.hotness.max(old_hotness / HOTNESS_DECAY_FACTOR);
-        } else {
-            self.hotness = old_hotness;
+            self.hotness = new_hotness.max(self.hotness / HOTNESS_DECAY_FACTOR);
         }
     }
 
@@ -107,10 +106,11 @@ impl CongestionInfo {
         self.hotness = self.hotness.max(0.0);
     }
 
-    fn update_for_cancellation(&mut self, now: CheckpointTimestamp, gas_price: u64) {
-        self.latest_congestion_time = now;
-        self.highest_congestion_gas_price =
-            std::cmp::max(self.highest_congestion_gas_price, gas_price);
+        /// Update the highest gas price and the latest time with the data from a
+    /// congested transaction.
+    fn update_for_congested_tx(&mut self, time: CheckpointTimestamp, gas_price: u64) {
+        self.latest_congestion_time = time;
+        self.highest_congestion_gas_price = self.highest_congestion_gas_price.max(gas_price);
     }
 
     /// Update the lowest gas price and the latest time with the data from a
@@ -128,6 +128,7 @@ impl CongestionInfo {
 /// The info is then used to calculated a suggested gas price.
 pub struct CongestionTracker {
     reference_gas_price: u64,
+    /// Key-value cache for storing congestion info of objects.
     object_congestion_info: Cache<ObjectID, CongestionInfo>,
 }
 
@@ -233,13 +234,10 @@ impl CongestionTracker {
 
     /// Returns a map of all objects and their hotness values.
     pub fn get_all_hotness(&self) -> HashMap<ObjectID, f64> {
-        let mut hotness = HashMap::new();
-
-        for entry in self.object_congestion_info.iter() {
-            hotness.insert(*entry.0, entry.1.hotness);
-        }
-
-        hotness
+        self.object_congestion_info
+            .iter()
+            .map(|entry| (*entry.0, entry.1.hotness))
+            .collect()
     }
 
     /// Returns the hotness of a specific object, if it exists.
@@ -308,18 +306,11 @@ impl CongestionTracker {
         clearing_gas_price
     }
 
-    fn get_total_hotness_for_objects(
-        &self,
-        objects: impl Iterator<Item = ObjectID>,
-    ) -> Option<f64> {
-        let mut total_hotness = 0.0;
-
-        for object_id in objects {
-            if let Some(info) = self.get_congestion_info(object_id) {
-                total_hotness += info.hotness;
-            }
-        }
-        Some(total_hotness)
+    fn get_total_hotness_for_objects(&self, objects: impl Iterator<Item = ObjectID>) -> f64 {
+        objects
+            .filter_map(|object_id| self.get_congestion_info(object_id))
+            .map(|info| info.hotness)
+            .sum()
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -327,9 +318,8 @@ impl CongestionTracker {
         time: CheckpointTimestamp,
         congestion_txs_data: &[(u64, Vec<ObjectID>, u64)],
         clearing_txs_data: &[(u64, Vec<ObjectID>)],
-    ) -> HashMap<ObjectID, CongestionInfo> {
-        let mut congestion_info_map: HashMap<ObjectID, CongestionInfo> = HashMap::new();
-        let mut object_id_per_tx: Vec<ObjectID> = Vec::new();
+    ) -> CongestionInfoMap {
+        let mut congestion_info_map = CongestionInfoMap::new();
 
         for (gas_price, objects, gas_price_feedback) in congestion_txs_data {
             let mut hotness_per_tx = 0.0;
@@ -365,15 +355,15 @@ impl CongestionTracker {
         }
 
         for (gas_price, objects) in clearing_txs_data {
-            for object in objects {
+            objects.iter().for_each(|object_id| {
                 // We only record clearing prices if the object has observed cancellations
                 // recently
-                match congestion_info_map.entry(*object) {
+                match congestion_info_map.entry(*object_id) {
                     Entry::Occupied(entry) => {
                         entry.into_mut().update_for_clearing_tx(time, *gas_price);
                     }
                     Entry::Vacant(entry) => {
-                        if let Some(prev) = self.get_congestion_info(*object) {
+                        if let Some(prev) = self.get_congestion_info(*object_id) {
                             entry.insert(CongestionInfo {
                                 latest_congestion_time: prev.latest_congestion_time,
                                 highest_congestion_gas_price: prev.highest_congestion_gas_price,
