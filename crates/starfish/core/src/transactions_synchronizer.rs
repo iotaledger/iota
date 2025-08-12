@@ -141,15 +141,13 @@ impl InflightTransactionsMap {
         // Now mark all the transactions as fetched from the map
         let mut transactions_to_fetch = self.inner.lock();
         for block_ref in block_refs {
-            // Due to periodic cleaning of the map, it is possible that the
-            // block_ref is not present in the map anymore, so we just skip it.
-            if let Some(authorities) = transactions_to_fetch.get_mut(block_ref) {
-                authorities.remove(&peer);
-
-                // If the last one then just clean up
-                if authorities.is_empty() {
-                    transactions_to_fetch.remove(block_ref);
-                }
+            let authorities = transactions_to_fetch
+                .get_mut(block_ref)
+                .expect("We should expect a non empty map with at least one peer");
+            assert!(authorities.remove(&peer), "Peer index should be present!");
+            // If the last one then just clean up
+            if authorities.is_empty() {
+                transactions_to_fetch.remove(block_ref);
             }
         }
     }
