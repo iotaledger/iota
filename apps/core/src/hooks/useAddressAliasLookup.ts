@@ -18,19 +18,18 @@ type KnownAddressAliasesFeature = {
     addresses: AddressAliases;
 };
 
-
 export function useAddressAliasLookup() {
     const knownAddresses = useFeatureValue<KnownAddressAliasesFeature>(
         Feature.KnownAddressAlias,
         ADDRESSES_ALIAS_FALLBACK,
     );
 
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState'); 
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
 
-    const validatorsAddresses = systemState?.activeValidators.reduce((acc, validator) => {
-        acc[validator.iotaAddress] = validator.name;
-        return acc
-    }, {} as AddressAliases);
+    const validatorsAddresses = Object.fromEntries(
+        systemState?.activeValidators.map((validator) => [validator.iotaAddress, validator.name]) ??
+            [],
+    );
 
     const addressAliasMap = {
         ...validatorsAddresses,
