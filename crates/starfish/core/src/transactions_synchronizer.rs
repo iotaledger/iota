@@ -52,17 +52,9 @@ const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// Timeout to fetch transactions from all peers
 const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(8_000);
 
-/// Maximum age for locks in the inflight transactions map. This is used to
-/// clean up the locks that are not used anymore.
-const MAX_AGE_FOR_LOCKS: Duration = Duration::from_secs(10_000);
-
 /// Maximum number of authorities that can concurrently fetch transactions for a
 /// given block ref.
 const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
-
-/// Maximum number of assignments to fetch transactions for a given block ref
-/// per one call of the fetching method
-const MAX_ASSIGNMENTS_PER_BLOCK_REF_PER_RUN: usize = 2;
 
 struct TransactionsGuard {
     map: Arc<InflightTransactionsMap>,
@@ -82,7 +74,7 @@ impl Drop for TransactionsGuard {
 // The authority ids that are currently fetching a transaction are set on the
 // corresponding `BTreeSet` and basically they act as "locks".
 struct InflightTransactionsMap {
-    inner: Mutex<HashMap<BlockRef, BTreeMap<AuthorityIndex, Instant>>>,
+    inner: Mutex<HashMap<BlockRef, BTreeSet<AuthorityIndex>>>,
 }
 
 impl InflightTransactionsMap {
@@ -104,9 +96,12 @@ impl InflightTransactionsMap {
         self: &Arc<Self>,
         missing_block_refs: BTreeSet<BlockRef>,
         peer: AuthorityIndex,
+        max_number_transactions_per_fetch: usize,
     ) -> Option<TransactionsGuard> {
         let mut blocks = BTreeSet::new();
         let mut inner = self.inner.lock();
+        let mut selected_block_refs_num = 0;
+
 
         for block_ref in missing_block_refs {
             // check that the number of authorities that are already instructed to fetch the
@@ -114,10 +109,13 @@ impl InflightTransactionsMap {
             // already been instructed to do that.
             let authorities = inner.entry(block_ref).or_default();
             if authorities.len() < MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION
-                && !authorities.contains_key(&peer)
+                && authorities.insert(peer)
             {
-                authorities.insert(peer, Instant::now());
                 blocks.insert(block_ref);
+                selected_block_refs_num += 1;
+            }
+            if selected_block_refs_num >= max_number_transactions_per_fetch {
+                break;
             }
         }
 
@@ -156,21 +154,6 @@ impl InflightTransactionsMap {
             }
         }
     }
-
-    /// Cleans up the old locks that are older than `max_age`. This is useful
-    /// to remove the locks that are not used anymore. The latter could happen
-    /// when the timeout occurred and the locks are forgotten to be
-    /// unlocked.
-    fn cleanup_old_locks(self: &Arc<Self>, max_age: Duration) {
-        let mut inner = self.inner.lock();
-        let now = Instant::now();
-
-        inner.retain(|_block_ref, authorities| {
-            authorities.retain(|_, ts| now.duration_since(*ts) < max_age);
-            !authorities.is_empty()
-        });
-    }
-
     #[cfg(test)]
     fn num_of_locked_transactions(self: &Arc<Self>) -> usize {
         let inner = self.inner.lock();
@@ -640,6 +623,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         TransactionsGuard,
         AuthorityIndex,
     ) {
+        // Track concurrent inflight requests
+        let inflight_metric = &context
+            .metrics
+            .node_metrics
+            .transactions_synchronizer_inflight_requests;
+        inflight_metric.inc();
+        let _guard = InflightGuard {
+            metric: inflight_metric,
+        };
+
         let block_refs = transactions_guard
             .block_refs
             .iter()
@@ -648,12 +641,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         let peer_hostname = &context.committee.authority(peer).hostname;
         let start_time = Instant::now();
-        // Update inflight requests metric
-        context
-            .metrics
-            .node_metrics
-            .transactions_synchronizer_inflight_requests
-            .inc();
         // Fetch the transactions from the peer
         let result = timeout(
             request_timeout,
@@ -671,12 +658,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             .transactions_synchronizer_fetch_latency
             .with_label_values(&[peer_hostname.as_str(), sync_method])
             .observe(fetch_duration.as_secs_f64());
-        // Update inflight requests metric
-        context
-            .metrics
-            .node_metrics
-            .transactions_synchronizer_inflight_requests
-            .dec();
 
         let resp = match result {
             Ok(Err(err)) => {
@@ -846,9 +827,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         sync_method: &str,
     ) -> Vec<(TransactionsGuard, Vec<Bytes>, AuthorityIndex)> {
-        // Clean up old locks in the inflight transactions map
-        inflight_transactions_map.cleanup_old_locks(MAX_AGE_FOR_LOCKS);
-
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
         let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<BlockRef>> = BTreeMap::new();
         for (block_ref, authorities) in &missing_transactions {
@@ -865,18 +843,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let mut request_futures = FuturesUnordered::new();
 
         // For each authority, try to lock up the
-        // maximum possible amount of acknowledged transactions in blocks and fetch
+        // maximum possible amount of acknowledged transactions and fetch
         // those transactions. The logic is as follows:
         // * Iterate in random order all authorities that have acknowledged missing
         //   transactions.
-        // * Select up to max_transactions_per_fetch missing transactions acknowledged
-        //   by the authority.
-        // * Attempt to lock the selected transactions using the
+        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using the
         //   inflight_transactions_map. Some transactions may already be locked by other
         //   authorities, but continue with the transactions that were successfully
-        //   locked. If no transactions can be locked and there are remaining missing
-        //   transactions acknowledged by the authority, then try again with a new
-        //   random selection. TODO: This part of the logic needs to be improved!
+        //   locked.
+        // TODO: This part of the logic needs to be improved!
 
         // Initialize randomness for shuffling authorities
         let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
@@ -894,50 +869,20 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 Box::new(vec.into_iter())
             };
 
-        let mut assigned_block_refs_with_multiplicity: BTreeMap<BlockRef, usize> = BTreeMap::new();
-
         for (authority, authority_block_refs) in iter_authorities {
             let peer_hostname = &context.committee.authority(authority).hostname;
-
-            // Filter: keep only blocks that have not reached the per-block limit
-            let selected_block_refs: BTreeSet<_> = authority_block_refs
-                .iter()
-                .filter(|b| {
-                    assigned_block_refs_with_multiplicity
-                        .get(*b)
-                        .copied()
-                        .unwrap_or(0)
-                        < MAX_ASSIGNMENTS_PER_BLOCK_REF_PER_RUN
-                })
-                .take(context.parameters.max_transactions_per_fetch)
-                .cloned()
-                .collect();
-            if selected_block_refs.is_empty() {
-                break;
-            }
 
             // * If transactions are successfully locked, then send a request to the network
             //   client to fetch the transactions from the authority.
             if let Some(transactions_guard) =
-                inflight_transactions_map.lock_transactions(selected_block_refs.clone(), authority)
+                inflight_transactions_map.lock_transactions(authority_block_refs.clone(), authority, context.parameters.max_transactions_per_fetch)
             {
                 debug!(
-                    "[{sync_method}] Syncing {} missing committed transactions from authority {} {}: {}",
-                    selected_block_refs.len(),
+                    "[{sync_method}] Syncing {} missing committed transactions from authority {} {}",
+                    transactions_guard.block_refs.len(),
                     authority,
                     peer_hostname,
-                    selected_block_refs
-                        .iter()
-                        .map(|b| b.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
                 );
-                // increment assignment counts
-                for block_ref in &transactions_guard.block_refs {
-                    *assigned_block_refs_with_multiplicity
-                        .entry(*block_ref)
-                        .or_insert(0) += 1;
-                }
 
                 request_futures.push(Self::fetch_transactions_request(
                     network_client.clone(),
@@ -955,17 +900,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         tokio::pin!(fetcher_timeout);
 
-        // Increase the number of concurrent requests
-        let number_of_requests: i64 = request_futures
-            .len()
-            .try_into()
-            .expect("We should expect a correct conversion from request_futures.len() to i64");
-        context
-            .metrics
-            .node_metrics
-            .transactions_synchronizer_inflight_requests
-            .add(number_of_requests);
-
         loop {
             tokio::select! {
                 Some((response, transactions_guard, peer_index)) = request_futures.next() => {
@@ -973,10 +907,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     match response {
                         Ok(fetched_blocks) => {
                             results.push((transactions_guard, fetched_blocks, peer_index));
-
-                            // Update concurrent requests metric
-                            context.metrics.node_metrics.transactions_synchronizer_inflight_requests
-                                .set(request_futures.len() as i64);
 
                             // no more pending requests are left, break the loop
                             if request_futures.is_empty() {
@@ -988,27 +918,29 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             // we don't necessarily need to do, but dropping the guard here to unlock the blocks
                             drop(transactions_guard);
 
-                            // Update concurrent requests metric
-                            context.metrics.node_metrics.transactions_synchronizer_inflight_requests
-                                .set(request_futures.len() as i64);
                         }
                     }
                 },
                 _ = &mut fetcher_timeout => {
                     debug!("Timed out while fetching missing blocks");
+                     // Drop all pending requests immediately — frees all transaction guards
+                    drop(request_futures);
                     break;
                 }
             }
         }
 
-        // Decrease the number of concurrent requests
-        context
-            .metrics
-            .node_metrics
-            .transactions_synchronizer_inflight_requests
-            .sub(number_of_requests);
-
         results
+    }
+}
+
+struct InflightGuard<'a> {
+    metric: &'a prometheus::IntGauge,
+}
+
+impl<'a> Drop for InflightGuard<'a> {
+    fn drop(&mut self) {
+        self.metric.dec();
     }
 }
 
@@ -1783,6 +1715,7 @@ mod tests {
             BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
             BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
         ];
+        let context = Context::new_for_test(4).0;
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
 
         // Lock & unlock transactions
@@ -1793,14 +1726,14 @@ mod tests {
             for i in 0..=2 {
                 let authority = AuthorityIndex::new_for_test(i);
 
-                let guard = map.lock_transactions(missing_block_refs.clone(), authority);
+                let guard = map.lock_transactions(missing_block_refs.clone(), authority, context.parameters.max_transactions_per_fetch);
                 let guard = guard.expect("Guard should be created");
                 assert_eq!(guard.block_refs.len(), 4);
 
                 all_guards.push(guard);
 
                 // trying to acquire any of them again will not succeed
-                let guard = map.lock_transactions(missing_block_refs.clone(), authority);
+                let guard = map.lock_transactions(missing_block_refs.clone(), authority, context.parameters.max_transactions_per_fetch);
                 assert!(guard.is_none());
             }
 
@@ -1808,14 +1741,14 @@ mod tests {
             // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 3)
             let authority_3 = AuthorityIndex::new_for_test(3);
 
-            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3);
+            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3, context.parameters.max_transactions_per_fetch);
             assert!(guard.is_none());
 
             // Explicitly drop the guard of authority 1 and try for authority 3 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
-            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3);
+            let guard = map.lock_transactions(missing_block_refs.clone(), authority_3, context.parameters.max_transactions_per_fetch);
             let guard = guard.expect("Guard should be successfully acquired");
 
             assert_eq!(guard.block_refs, missing_block_refs);
@@ -1827,47 +1760,6 @@ mod tests {
             assert_eq!(map.num_of_locked_transactions(), 0);
         }
     }
-
-    /// Test for cleaning up inflight transactions map after a timeout.
-    #[tokio::test]
-    async fn test_clean_up_inflight_transactions_map() {
-        telemetry_subscribers::init_for_testing();
-        // GIVEN
-        let map = InflightTransactionsMap::new();
-        let some_block_refs = [
-            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-            BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-        ];
-        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
-
-        // Lock transactions
-        {
-            let mut all_guards = Vec::new();
-
-            // Try to acquire the transaction locks for authorities 0, 1 & 2
-            for i in 0..=2 {
-                let authority = AuthorityIndex::new_for_test(i);
-
-                let guard = map.lock_transactions(missing_block_refs.clone(), authority);
-                let guard = guard.expect("Guard should be created");
-                assert_eq!(guard.block_refs.len(), 4);
-
-                all_guards.push(guard);
-            }
-            assert_eq!(map.num_of_locked_transactions(), 4);
-            let sleep_duration = Duration::from_millis(100);
-            sleep(2 * sleep_duration).await;
-
-            // Clean up inflight transactions
-            map.cleanup_old_locks(sleep_duration);
-
-            // No transactions should be locked now
-            assert_eq!(map.num_of_locked_transactions(), 0);
-        }
-    }
-
     struct MockNetworkClient {
         transactions: Arc<Mutex<HashMap<(AuthorityIndex, BlockRef), Bytes>>>,
         error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
