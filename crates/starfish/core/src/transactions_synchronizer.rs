@@ -1703,8 +1703,8 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
-    #[test]
-    fn inflight_transactions_map() {
+    #[tokio::test]
+    async fn inflight_transactions_map() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let map = InflightTransactionsMap::new();
