@@ -5,7 +5,6 @@ import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
 import { NAME_ADDRESS_RESOLUTION_FEATURE, KNOWN_ADDRESSES_ALIASES } from './features.constants';
-import { VALIDATOR_ALIASES_BY_NETWORK } from './constants/validatorAlias.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -103,9 +102,6 @@ export class FeaturesController {
                 },
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
-                },
-                [Feature.ValidatorAddressAlias]: {
-                    defaultValue: VALIDATOR_ALIASES_BY_NETWORK,
                 },
             },
             dateUpdated: new Date().toISOString(),
@@ -207,9 +203,6 @@ export class FeaturesController {
                 },
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
-                },
-                [Feature.ValidatorAddressAlias]: {
-                    defaultValue: VALIDATOR_ALIASES_BY_NETWORK,
                 },
             },
             dateUpdated: new Date().toISOString(),

@@ -3,9 +3,8 @@
 
 import { Feature } from '../enums';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { getNetwork, Network } from '@iota/iota-sdk/client';
-import { useNetwork } from './useNetwork';
 import { useFeatureValue } from '@growthbook/growthbook-react';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const ADDRESSES_ALIAS_FALLBACK: KnownAddressAliasesFeature = {
     enabled: false,
@@ -19,26 +18,22 @@ type KnownAddressAliasesFeature = {
     addresses: AddressAliases;
 };
 
-type ValidatorAddressAliasFeature = {
-    [key in Network]?: KnownAddressAliasesFeature;
-};
 
 export function useAddressAliasLookup() {
-    const networkId = useNetwork();
-    const network = getNetwork(networkId).id;
-
     const knownAddresses = useFeatureValue<KnownAddressAliasesFeature>(
         Feature.KnownAddressAlias,
         ADDRESSES_ALIAS_FALLBACK,
     );
-    const validatorAliasesByNetwork = useFeatureValue<ValidatorAddressAliasFeature>(
-        Feature.ValidatorAddressAlias,
-        {},
-    );
 
-    const networkValidatorAliases = validatorAliasesByNetwork[network]?.addresses;
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState'); 
+
+    const validatorsAddresses = systemState?.activeValidators.reduce((acc, validator) => {
+        acc[validator.iotaAddress] = validator.name;
+        return acc
+    }, {} as AddressAliases);
+
     const addressAliasMap = {
-        ...networkValidatorAliases,
+        ...validatorsAddresses,
         ...knownAddresses.addresses,
     };
 
