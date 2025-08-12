@@ -13,6 +13,8 @@ use iota_json_rpc_types::{IotaData, IotaObjectDataOptions, IotaRawData};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType},
+    error::UserInputError,
+    fp_ensure,
     gas_coin::GasCoin,
     move_package::MovePackage,
     object::{Object, Owner},
@@ -127,26 +129,10 @@ impl TransactionBuilder {
         type_args: &[TypeTag],
         json_args: Vec<IotaJsonValue>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
-        let object = self
-            .0
-            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
-            .await?
-            .into_object()?;
-        let Some(IotaRawData::Package(package)) = object.bcs else {
-            bail!(
-                "Bcs field in object [{}] is missing or not a package.",
-                package_id
-            );
-        };
-        let package: MovePackage = MovePackage::new(
-            package.id,
-            object.version,
-            package.module_map,
-            ProtocolConfig::get_for_min_version().max_move_package_size(),
-            package.type_origin_table,
-            package.linkage_table,
-        )?;
+        // Fetch the move package for the given package ID.
+        let package = self.fetch_move_package(package_id).await?;
 
+        // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &package,
             module.clone(),
@@ -155,13 +141,13 @@ impl TransactionBuilder {
             json_args,
         )?;
 
+        // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
         let mut objects = BTreeMap::new();
         let module = package.deserialize_module(module, &BinaryConfig::standard())?;
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
-
                 ResolvedCallArg::Object(id) => builder.input(CallArg::Object(
                     self.get_object_arg(
                         id,
@@ -174,7 +160,6 @@ impl TransactionBuilder {
                     )
                     .await?,
                 )),
-
                 ResolvedCallArg::ObjVec(v) => {
                     let mut object_ids = vec![];
                     for id in v {
@@ -192,6 +177,97 @@ impl TransactionBuilder {
                     }
                     builder.make_obj_vec(object_ids)
                 }
+            }?);
+        }
+
+        Ok(args)
+    }
+
+    /// Convert provided JSON arguments for a move view function to their
+    /// [`Argument`] representation and check that the passed function
+    /// is compliant to the Move View Function specification.
+    pub async fn resolve_and_checks_view_function_json_args(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        package_id: ObjectID,
+        module_ident: &Identifier,
+        function_ident: &Identifier,
+        type_args: &[TypeTag],
+        json_args: Vec<IotaJsonValue>,
+    ) -> Result<Vec<Argument>, anyhow::Error> {
+        // Fetch the move package for the given package ID.
+        let package = self.fetch_move_package(package_id).await?;
+
+        // Extract the expected function signature and check the return type.
+        // If the function is a view function, it MUST return at least a value.
+        let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
+        let function_str = function_ident.as_ident_str();
+        let fdef = module
+            .function_defs
+            .iter()
+            .find(|fdef| {
+                module.identifier_at(module.function_handle_at(fdef.function).name) == function_str
+            })
+            .ok_or_else(|| {
+                anyhow!(
+                    "Could not resolve function {} in module {}",
+                    function_ident,
+                    module_ident
+                )
+            })?;
+        let function_signature = module.function_handle_at(fdef.function);
+        fp_ensure!(
+            !&module.signature_at(function_signature.return_).is_empty(),
+            UserInputError::InvalidMoveViewFunction {
+                error: "No return type for this function".to_owned(),
+            }
+            .into()
+        );
+
+        // Then resolve the function parameters type.
+        let json_args_and_tokens = resolve_move_function_args(
+            &package,
+            module_ident.clone(),
+            function_ident.clone(),
+            type_args,
+            json_args,
+        )?;
+
+        // Finally construct the input arguments for the builder, while checking that
+        // none of these are mutable references.
+        let mut args = Vec::new();
+        let mut objects = BTreeMap::new();
+        for (arg, expected_type) in json_args_and_tokens {
+            args.push(match arg {
+                // Move View Functions can accept pure arguments.
+                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                // Move View Functions can accept only immutable object references.
+                ResolvedCallArg::Object(id) => {
+                    fp_ensure!(
+                        matches!(expected_type, SignatureToken::Reference(_)),
+                        UserInputError::InvalidMoveViewFunction {
+                            error: format!("Found a function parameter which is not an immutable reference {expected_type:?}")
+                                .to_owned(),
+                        }
+                        .into()
+                    );
+                    builder.input(CallArg::Object(
+                        self.get_object_arg(
+                            id,
+                            &mut objects,
+                            // Setting false is safe because of fp_ensure! above
+                            false,
+                            &module,
+                            &expected_type,
+                        )
+                        .await?,
+                    ))
+                }
+                // Move View Functions can not accept vector of object by value (this case).
+                ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
+                    error: "Found a function parameter which is a vactor of objects".to_owned(),
+                }
+                .into()),
             }?);
         }
 
@@ -219,5 +295,27 @@ impl TransactionBuilder {
             .into_object()?;
 
         Ok((object.object_ref(), object.object_type()?))
+    }
+
+    async fn fetch_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
+        let object = self
+            .0
+            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
+            .await?
+            .into_object()?;
+        let Some(IotaRawData::Package(package)) = object.bcs else {
+            bail!(
+                "Bcs field in object [{}] is missing or not a package.",
+                package_id
+            );
+        };
+        Ok(MovePackage::new(
+            package.id,
+            object.version,
+            package.module_map,
+            ProtocolConfig::get_for_min_version().max_move_package_size(),
+            package.type_origin_table,
+            package.linkage_table,
+        )?)
     }
 }
