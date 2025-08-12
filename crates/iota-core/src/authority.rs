@@ -54,6 +54,7 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
+    account::AuthenticatorInfo,
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -885,12 +886,40 @@ impl AuthorityState {
 
         // TODO: It is a temporal condition that needs to be rechecked.
         if signatures.len() == 1 && signatures[0].is_move_authenticator() {
-            // TODO: We need to resolve teh authenticator inputs.
+            // Check the related account object.
+
+            // TODO: Is this the correct way to load an account object?
+            let account_object_id = ObjectID::from(transaction.sender_address());
+            let account_object = self.get_object_read(&account_object_id)?;
+
+            // TODO: Create a dedicated function and add error handling.
+            match account_object {
+                ObjectRead::Exists(_, object, _) => {
+                    if !object.is_shared() {
+                        todo!()
+                    }
+
+                    const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
+                    let authenticator = self.get_dynamic_field_object_id(
+                        account_object_id,
+                        AuthenticatorInfo::tag().into(),
+                        AUTHENTICATOR_DF_NAME.as_bytes(),
+                    )?;
+
+                    if authenticator.is_none() {
+                        todo!()
+                    }
+                }
+                ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => todo!(),
+            };
+
+            // Check the authenticator input objects.
+
+            // TODO: We need to resolve the authenticator inputs.
             let authenticator_input_object_kinds = Vec::new(); // move_authenticator.input_objects()?;
             let authenticator_receiving_objects_refs = ReceivingObjects::from(Vec::new()); // move_authenticator.receiving_objects();
 
-            // It is forbidden to have Receiving inputs for a MoveAuthenticator
-            // TODO: replace with an error.
+            // TODO: Replace with an error.
             assert!(authenticator_receiving_objects_refs.objects.is_empty());
 
             let (authenticator_input_objects, authenticator_receiving_objects) =
@@ -902,7 +931,6 @@ impl AuthorityState {
                     epoch_store.epoch(),
                 )?;
 
-            // TODO: replace with an error?
             assert!(authenticator_receiving_objects.objects.is_empty());
 
             iota_transaction_checks::check_authenticator_input(authenticator_input_objects)?;
