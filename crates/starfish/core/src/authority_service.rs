@@ -1063,7 +1063,7 @@ async fn make_recv_future<T: Clone>(
 #[cfg(test)]
 mod tests {
     use std::{
-        cmp::max,
+        cmp::{max, min},
         collections::{BTreeMap, BTreeSet},
         sync::Arc,
         time::Duration,
@@ -1079,7 +1079,9 @@ mod tests {
 
     use crate::{
         CommitConsumer, Round, Transaction, TransactionClient,
-        authority_service::{AuthorityService, BroadcastedBlockStream, SubscriptionCounter},
+        authority_service::{
+            AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
+        },
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
             VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
@@ -2049,7 +2051,7 @@ mod tests {
             }
             assert_eq!(
                 authority_service.received_block_headers.size(),
-                validators * round as usize - 1
+                min(validators * round as usize - 1, MAX_FILTER_SIZE as usize)
             )
         }
     }

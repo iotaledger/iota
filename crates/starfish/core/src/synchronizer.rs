@@ -1544,7 +1544,7 @@ mod tests {
     }
 
     #[test]
-    fn inflight_blocks_map() {
+    fn test_inflight_blocks_map() {
         // GIVEN
         let map = InflightBlockHeadersMap::new();
         let some_block_refs = [
@@ -1574,14 +1574,14 @@ mod tests {
                 assert!(guard.is_none());
             }
 
-            // Trying to acquire for authority 4 it will fail - as we have maxed out the
+            // Trying to acquire for authority 4, it will fail - as we have maxed out the
             // number of allowed peers
             let authority_4 = AuthorityIndex::new_for_test(4);
 
             let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
             assert!(guard.is_none());
 
-            // Explicitly drop the guard of authority 1 and try for authority 3 again - it
+            // Explicitly drop the guard of authority 1 and try for authority 4 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
@@ -1608,8 +1608,22 @@ mod tests {
             // Now swap the locks for authority 2
             let authority_2 = AuthorityIndex::new_for_test(2);
             let guard = map.swap_locks(guard, authority_2);
-
-            assert_eq!(guard.unwrap().block_refs, missing_block_refs);
+            let guard = guard.expect("Guard should be created");
+            assert_eq!(guard.block_refs, missing_block_refs);
+            let mut all_guards = Vec::new();
+            all_guards.push(guard);
+            // authority 1 should now be unlocked, so now we can lock the same refs
+            // authorities 3 & 4, but not for 5
+            for i in 3..=4 {
+                let authority = AuthorityIndex::new_for_test(i);
+                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard = guard.expect("Guard should be created");
+                assert_eq!(guard.block_refs.len(), 4);
+                all_guards.push(guard);
+            }
+            let authority = AuthorityIndex::new_for_test(5);
+            let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+            assert!(guard.is_none());
         }
     }
 
@@ -1644,30 +1658,35 @@ mod tests {
             false,
         );
 
-        // Create some test blocks
-        let expected_blocks = (0..10)
+        // Create some test block headers
+        let expected_block_headers = (0..10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let missing_blocks = expected_blocks
+        let missing_block_headers = expected_block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
 
-        // AND stub the fetch_blocks request from peer 1
+        // AND stub the fetch_block_headers request from peer 1
         let peer = AuthorityIndex::new_for_test(1);
         network_client
-            .stub_fetch_headers(expected_blocks.clone(), peer, None)
+            .stub_fetch_headers(expected_block_headers.clone(), peer, None)
             .await;
 
         // WHEN request missing blocks from peer 1
-        assert!(handle.fetch_headers(missing_blocks, peer).await.is_ok());
+        assert!(
+            handle
+                .fetch_headers(missing_block_headers, peer)
+                .await
+                .is_ok()
+        );
 
         // Wait a little bit until those have been added in core
         sleep(Duration::from_millis(1_000)).await;
 
         // THEN ensure those ended up in Core
         let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_blocks, expected_blocks);
+        assert_eq!(added_blocks, expected_block_headers);
     }
 
     #[tokio::test]
@@ -2553,5 +2572,76 @@ mod tests {
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes5, &expected5);
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_headers_with_future_timestamp() {
+        let validators = 4;
+        let (context, _) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+
+        let network_client = Arc::new(MockNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let handle = Synchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create two block headers - one with a normal timestamp, one with a future
+        // timestamp
+        let normal_block_header = TestBlockHeader::new(1, 0)
+            .set_timestamp_ms(context.clock.timestamp_utc_ms())
+            .build();
+        let future_block_header = TestBlockHeader::new(2, 1)
+            .set_timestamp_ms(
+                context.clock.timestamp_utc_ms() + Duration::from_secs(3600).as_millis() as u64,
+            )
+            .build();
+
+        let normal_block_header = VerifiedBlockHeader::new_for_test(normal_block_header);
+        let future_block_header = VerifiedBlockHeader::new_for_test(future_block_header);
+        let headers_refs = [
+            normal_block_header.reference(),
+            future_block_header.reference(),
+        ]
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+        let peer = AuthorityIndex::new_for_test(1);
+        network_client
+            .stub_fetch_headers(
+                [normal_block_header.clone(), future_block_header.clone()].to_vec(),
+                peer,
+                None,
+            )
+            .await;
+        let _ = handle.fetch_headers(headers_refs, peer).await.is_ok();
+        // Wait a little bit until those have been added in core
+        sleep(Duration::from_millis(1_000)).await;
+
+        // THEN ensure those ended up in Core
+        let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(added_blocks.len(), 1);
+        assert_eq!(added_blocks[0], normal_block_header);
     }
 }
