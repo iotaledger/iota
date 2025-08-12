@@ -101,16 +101,17 @@ impl CommitteeStore {
     }
 
     // todo - make use of cache or remove this method
-    pub fn get_latest_committee(&self) -> Committee {
-        self.tables
+    pub fn get_latest_committee(&self) -> IotaResult<Committee> {
+        Ok(self
+            .tables
             .committee_map
-            .unbounded_iter()
-            .skip_to_last()
+            .reversed_safe_iter_with_bounds(None, None)?
             .next()
+            .transpose()?
             // unwrap safe because we guarantee there is at least a genesis epoch
             // when initializing the store.
             .unwrap()
-            .1
+            .1)
     }
     /// Return the committee specified by `epoch`. If `epoch` is `None`, return
     /// the latest committee.
@@ -121,7 +122,7 @@ impl CommitteeStore {
                 .get_committee(&epoch)?
                 .ok_or(IotaError::MissingCommitteeAtEpoch(epoch))
                 .map(|c| Committee::clone(&*c))?,
-            None => self.get_latest_committee(),
+            None => self.get_latest_committee()?,
         })
     }
 
