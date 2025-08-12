@@ -20,7 +20,7 @@ export function AccountItemApproveConnection({
     selected,
     onLock,
 }: AccountItemApproveConnectionProps) {
-    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
 
     const { unlockAccount, lockAccount } = useUnlockAccount();

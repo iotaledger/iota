@@ -27,6 +27,7 @@ export interface PageHeaderProps {
     error?: string;
     loading?: boolean;
     showCopyButton?: boolean;
+    isLoadingSubtitle?: boolean;
 }
 
 export function PageHeader({
@@ -38,6 +39,7 @@ export function PageHeader({
     after,
     status,
     showCopyButton = true,
+    isLoadingSubtitle,
 }: PageHeaderProps): JSX.Element {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         event.stopPropagation();
@@ -107,11 +109,15 @@ export function PageHeader({
                                         )}
                                     </div>
                                 )}
-                                {subtitle && (
+
+                                {isLoadingSubtitle ? (
+                                    <Placeholder width="w-48" />
+                                ) : subtitle ? (
                                     <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                         {subtitle}
                                     </span>
-                                )}
+                                ) : null}
+
                                 {error && (
                                     <div className="mt-xs--rs flex">
                                         <InfoBox

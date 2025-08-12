@@ -1,5 +1,28 @@
 # @iota/graphql-transport
 
+## 0.9.0
+
+### Minor Changes
+
+-   61b0944: Added support for WrappedOrDeletedObject in TransactionBlockFilter
+-   464c15a: Sync the APIs with the "Domain" -> "Name" rename of IotaNames
+
+### Patch Changes
+
+-   Updated dependencies [40576ed]
+-   Updated dependencies [61b0944]
+-   Updated dependencies [966f83c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [733df30]
+-   Updated dependencies [13ca264]
+-   Updated dependencies [5bbafa8]
+-   Updated dependencies [28ce666]
+-   Updated dependencies [c855f8c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [464c15a]
+    -   @iota/iota-sdk@1.5.0
+    -   @iota/bcs@1.2.0
+
 ## 0.8.0
 
 ### Minor Changes
