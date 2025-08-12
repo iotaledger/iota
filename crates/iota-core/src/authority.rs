@@ -131,7 +131,7 @@ use self::{
     authority_store::ExecutionLockWriteGuard, authority_store_pruner::AuthorityStorePruningMetrics,
 };
 #[cfg(msim)]
-pub use crate::checkpoints::checkpoint_executor::{
+pub use crate::checkpoints::checkpoint_executor::utils::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
 };
 use crate::{
