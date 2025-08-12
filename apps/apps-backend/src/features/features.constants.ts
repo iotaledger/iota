@@ -23,7 +23,7 @@ export const KNOWN_ADDRESSES = {
 
 export const NAME_ADDRESS_RESOLUTION_FEATURE: FeatureEnabledByNetwork = {
     [Network.Mainnet]: false,
-    [Network.Testnet]: false,
+    [Network.Testnet]: true,
     [Network.Devnet]: true,
     [Network.Localnet]: false,
     [Network.Custom]: false,
