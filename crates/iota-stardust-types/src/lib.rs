@@ -11,14 +11,7 @@
     clippy::significant_drop_tightening,
     clippy::empty_docs
 )]
-// Allowed in Cargo.toml for examples
-#![deny(clippy::expect_fun_call, clippy::single_element_loop)]
 
 extern crate alloc;
 
 pub mod types;
-
-pub use crypto;
-pub use packable;
-pub use primitive_types::U256;
-pub mod utils;

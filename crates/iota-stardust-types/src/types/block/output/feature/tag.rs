@@ -69,24 +69,3 @@ impl core::fmt::Debug for TagFeature {
         write!(f, "TagFeature({self})")
     }
 }
-
-#[cfg(feature = "serde")]
-pub(crate) mod dto {
-    use alloc::boxed::Box;
-
-    use serde::{Deserialize, Serialize};
-
-    use crate::utils::serde::prefix_hex_bytes;
-
-    #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-    pub struct TagFeatureDto {
-        #[serde(rename = "type")]
-        pub kind: u8,
-        #[serde(
-            skip_serializing_if = "<[_]>::is_empty",
-            default,
-            with = "prefix_hex_bytes"
-        )]
-        pub tag: Box<[u8]>,
-    }
-}

@@ -1,19 +1,15 @@
 // Copyright 2021 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::block::{
-    Error, address::Address, output::verify_output_amount, protocol::ProtocolParameters,
-};
+use crate::types::block::{Error, address::Address, output::verify_output_amount};
 
 /// Defines the amount of IOTAs used as storage deposit that have to be returned
 /// to the return [`Address`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, packable::Packable)]
-#[packable(unpack_visitor = ProtocolParameters)]
 pub struct StorageDepositReturnUnlockCondition {
     // The [`Address`] to return the amount to.
     return_address: Address,
     // Amount of IOTA coins the consuming transaction should deposit to `return_address`.
-    #[packable(verify_with = verify_amount_packable)]
     amount: u64,
 }
 
@@ -57,71 +53,4 @@ fn verify_amount<const VERIFY: bool>(amount: &u64, token_supply: &u64) -> Result
     }
 
     Ok(())
-}
-
-fn verify_amount_packable<const VERIFY: bool>(
-    amount: &u64,
-    protocol_parameters: &ProtocolParameters,
-) -> Result<(), Error> {
-    verify_amount::<VERIFY>(amount, &protocol_parameters.token_supply())
-}
-
-#[cfg(feature = "serde")]
-pub(crate) mod dto {
-    use alloc::string::{String, ToString};
-
-    use serde::{Deserialize, Serialize};
-
-    use super::*;
-    use crate::types::{
-        TryFromDto, ValidationParams,
-        block::{Error, address::dto::AddressDto},
-    };
-
-    #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct StorageDepositReturnUnlockConditionDto {
-        #[serde(rename = "type")]
-        pub kind: u8,
-        pub return_address: AddressDto,
-        pub amount: String,
-    }
-
-    impl From<&StorageDepositReturnUnlockCondition> for StorageDepositReturnUnlockConditionDto {
-        fn from(value: &StorageDepositReturnUnlockCondition) -> Self {
-            Self {
-                kind: StorageDepositReturnUnlockCondition::KIND,
-                return_address: AddressDto::from(value.return_address()),
-                amount: value.amount().to_string(),
-            }
-        }
-    }
-
-    impl TryFromDto for StorageDepositReturnUnlockCondition {
-        type Dto = StorageDepositReturnUnlockConditionDto;
-        type Error = Error;
-
-        fn try_from_dto_with_params_inner(
-            dto: Self::Dto,
-            params: ValidationParams<'_>,
-        ) -> Result<Self, Self::Error> {
-            Ok(if let Some(token_supply) = params.token_supply() {
-                Self::new(
-                    Address::try_from(dto.return_address)?,
-                    dto.amount
-                        .parse::<u64>()
-                        .map_err(|_| Error::InvalidField("amount"))?,
-                    token_supply,
-                )?
-            } else {
-                Self {
-                    return_address: Address::try_from(dto.return_address)?,
-                    amount: dto
-                        .amount
-                        .parse::<u64>()
-                        .map_err(|_| Error::InvalidField("amount"))?,
-                }
-            })
-        }
-    }
 }

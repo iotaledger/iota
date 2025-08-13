@@ -8,19 +8,10 @@ use crypto::Error as CryptoError;
 use prefix_hex::Error as HexError;
 use primitive_types::U256;
 
-use crate::types::block::{
-    input::UtxoInput,
-    output::{
-        AliasId, ChainId, MetadataFeatureLength, NativeTokenCount, NftId, OutputIndex,
-        StateMetadataLength, TagFeatureLength, feature::FeatureCount,
-        unlock_condition::UnlockConditionCount,
-    },
-    parent::ParentCount,
-    payload::{
-        InputCount, MilestoneMetadataLength, MilestoneOptionCount, OutputCount, ReceiptFundsCount,
-        SignatureCount, TagLength, TaggedDataLength, milestone::BinaryParametersLength,
-    },
-    unlock::{UnlockCount, UnlockIndex},
+use crate::types::block::output::{
+    AliasId, ChainId, MetadataFeatureLength, NativeTokenCount, NftId, OutputIndex,
+    StateMetadataLength, TagFeatureLength, feature::FeatureCount,
+    unlock_condition::UnlockConditionCount,
 };
 
 /// Error occurring when creating/parsing/validating blocks.
@@ -33,7 +24,6 @@ pub enum Error {
     CreatedNativeTokensAmountOverflow,
     Crypto(CryptoError),
     DuplicateSignatureUnlock(u16),
-    DuplicateUtxo(UtxoInput),
     ExpirationUnlockConditionZero,
     FeaturesNotUniqueSorted,
     InputUnlockCountMismatch {
@@ -42,7 +32,6 @@ pub enum Error {
     },
     InvalidAddress,
     InvalidAddressKind(u8),
-    InvalidAliasIndex(<UnlockIndex as TryFrom<u16>>::Error),
     InvalidStorageDepositAmount(u64),
     // The above is used by `Packable` to denote out-of-range values. The following denotes the
     // actual amount.
@@ -58,7 +47,6 @@ pub enum Error {
         deposit: u64,
         required: u64,
     },
-    InvalidBinaryParametersLength(<BinaryParametersLength as TryFrom<usize>>::Error),
     InvalidEssenceKind(u8),
     InvalidFeatureCount(<FeatureCount as TryFrom<usize>>::Error),
     InvalidFeatureKind(u8),
@@ -69,43 +57,31 @@ pub enum Error {
     },
     Hex(HexError),
     InvalidInputKind(u8),
-    InvalidInputCount(<InputCount as TryFrom<usize>>::Error),
     InvalidInputOutputIndex(<OutputIndex as TryFrom<u16>>::Error),
-    InvalidBech32Hrp(String),
     InvalidBlockLength(usize),
     InvalidStateMetadataLength(<StateMetadataLength as TryFrom<usize>>::Error),
     InvalidMetadataFeatureLength(<MetadataFeatureLength as TryFrom<usize>>::Error),
-    InvalidMilestoneMetadataLength(<MilestoneMetadataLength as TryFrom<usize>>::Error),
-    InvalidMilestoneOptionCount(<MilestoneOptionCount as TryFrom<usize>>::Error),
     InvalidMilestoneOptionKind(u8),
     InvalidMigratedFundsEntryAmount(u64),
     InvalidNativeTokenCount(<NativeTokenCount as TryFrom<usize>>::Error),
     InvalidNetworkName(FromUtf8Error),
-    InvalidNftIndex(<UnlockIndex as TryFrom<u16>>::Error),
     InvalidOutputAmount(u64),
-    InvalidOutputCount(<OutputCount as TryFrom<usize>>::Error),
     InvalidOutputKind(u8),
-    InvalidParentCount(<ParentCount as TryFrom<usize>>::Error),
     InvalidPayloadKind(u32),
     InvalidPayloadLength {
         expected: usize,
         actual: usize,
     },
-    InvalidReceiptFundsCount(<ReceiptFundsCount as TryFrom<usize>>::Error),
     InvalidReceiptFundsSum(u128),
-    InvalidReferenceIndex(<UnlockIndex as TryFrom<u16>>::Error),
     InvalidSignature,
     InvalidSignatureKind(u8),
     InvalidStringPrefix(<u8 as TryFrom<usize>>::Error),
-    InvalidTaggedDataLength(<TaggedDataLength as TryFrom<usize>>::Error),
     InvalidTagFeatureLength(<TagFeatureLength as TryFrom<usize>>::Error),
-    InvalidTagLength(<TagLength as TryFrom<usize>>::Error),
     InvalidTailTransactionHash,
     InvalidTokenSchemeKind(u8),
     InvalidTransactionAmountSum(u128),
     InvalidTransactionNativeTokensCount(u16),
     InvalidTreasuryOutputAmount(u64),
-    InvalidUnlockCount(<UnlockCount as TryFrom<usize>>::Error),
     InvalidUnlockKind(u8),
     InvalidUnlockReference(u16),
     InvalidUnlockAlias(u16),
@@ -113,7 +89,6 @@ pub enum Error {
     InvalidUnlockConditionCount(<UnlockConditionCount as TryFrom<usize>>::Error),
     InvalidUnlockConditionKind(u8),
     InvalidFoundryZeroSerialNumber,
-    MilestoneInvalidSignatureCount(<SignatureCount as TryFrom<usize>>::Error),
     MilestonePublicKeysSignaturesCountMismatch {
         key_count: usize,
         sig_count: usize,
@@ -183,7 +158,6 @@ impl fmt::Display for Error {
             Self::DuplicateSignatureUnlock(index) => {
                 write!(f, "duplicate signature unlock at index: {index}")
             }
-            Self::DuplicateUtxo(utxo) => write!(f, "duplicate UTXO {utxo:?} in inputs"),
             Self::ExpirationUnlockConditionZero => {
                 write!(
                     f,
@@ -202,11 +176,6 @@ impl fmt::Display for Error {
             }
             Self::InvalidAddress => write!(f, "invalid address provided"),
             Self::InvalidAddressKind(k) => write!(f, "invalid address kind: {k}"),
-            Self::InvalidAliasIndex(index) => write!(f, "invalid alias index: {index}"),
-            Self::InvalidBech32Hrp(err) => write!(f, "invalid bech32 hrp: {err}"),
-            Self::InvalidBinaryParametersLength(length) => {
-                write!(f, "invalid binary parameters length: {length}")
-            }
             Self::InvalidStorageDepositAmount(amount) => {
                 write!(f, "invalid storage deposit amount: {amount}")
             }
@@ -239,7 +208,6 @@ impl fmt::Display for Error {
             ),
             Self::Hex(error) => write!(f, "hex error: {error}"),
             Self::InvalidInputKind(k) => write!(f, "invalid input kind: {k}"),
-            Self::InvalidInputCount(count) => write!(f, "invalid input count: {count}"),
             Self::InvalidInputOutputIndex(index) => {
                 write!(f, "invalid input or output index: {index}")
             }
@@ -250,12 +218,7 @@ impl fmt::Display for Error {
             Self::InvalidMetadataFeatureLength(length) => {
                 write!(f, "invalid metadata feature length {length}")
             }
-            Self::InvalidMilestoneMetadataLength(length) => {
-                write!(f, "invalid milestone metadata length {length}")
-            }
-            Self::InvalidMilestoneOptionCount(count) => {
-                write!(f, "invalid milestone option count: {count}")
-            }
+
             Self::InvalidMilestoneOptionKind(k) => write!(f, "invalid milestone option kind: {k}"),
             Self::InvalidMigratedFundsEntryAmount(amount) => {
                 write!(f, "invalid migrated funds entry amount: {amount}")
@@ -264,13 +227,9 @@ impl fmt::Display for Error {
                 write!(f, "invalid native token count: {count}")
             }
             Self::InvalidNetworkName(err) => write!(f, "invalid network name: {err}"),
-            Self::InvalidNftIndex(index) => write!(f, "invalid nft index: {index}"),
             Self::InvalidOutputAmount(amount) => write!(f, "invalid output amount: {amount}"),
-            Self::InvalidOutputCount(count) => write!(f, "invalid output count: {count}"),
             Self::InvalidOutputKind(k) => write!(f, "invalid output kind: {k}"),
-            Self::InvalidParentCount(count) => {
-                write!(f, "invalid parents count: {count}")
-            }
+
             Self::InvalidPayloadKind(k) => write!(f, "invalid payload kind: {k}"),
             Self::InvalidPayloadLength { expected, actual } => {
                 write!(
@@ -278,22 +237,13 @@ impl fmt::Display for Error {
                     "invalid payload length: expected {expected} but got {actual}"
                 )
             }
-            Self::InvalidReceiptFundsCount(count) => {
-                write!(f, "invalid receipt funds count: {count}")
-            }
+
             Self::InvalidReceiptFundsSum(sum) => write!(f, "invalid receipt amount sum: {sum}"),
-            Self::InvalidReferenceIndex(index) => write!(f, "invalid reference index: {index}"),
             Self::InvalidSignature => write!(f, "invalid signature provided"),
             Self::InvalidSignatureKind(k) => write!(f, "invalid signature kind: {k}"),
             Self::InvalidStringPrefix(p) => write!(f, "invalid string prefix: {p}"),
-            Self::InvalidTaggedDataLength(length) => {
-                write!(f, "invalid tagged data length {length}")
-            }
             Self::InvalidTagFeatureLength(length) => {
                 write!(f, "invalid tag feature length {length}")
-            }
-            Self::InvalidTagLength(length) => {
-                write!(f, "invalid tag length {length}")
             }
             Self::InvalidTailTransactionHash => write!(f, "invalid tail transaction hash"),
             Self::InvalidTokenSchemeKind(k) => write!(f, "invalid token scheme kind {k}"),
@@ -306,7 +256,6 @@ impl fmt::Display for Error {
             Self::InvalidTreasuryOutputAmount(amount) => {
                 write!(f, "invalid treasury amount: {amount}")
             }
-            Self::InvalidUnlockCount(count) => write!(f, "invalid unlock count: {count}"),
             Self::InvalidUnlockKind(k) => write!(f, "invalid unlock kind: {k}"),
             Self::InvalidUnlockReference(index) => {
                 write!(f, "invalid unlock reference: {index}")
@@ -322,9 +271,7 @@ impl fmt::Display for Error {
             }
             Self::InvalidUnlockConditionKind(k) => write!(f, "invalid unlock condition kind: {k}"),
             Self::InvalidFoundryZeroSerialNumber => write!(f, "invalid foundry zero serial number"),
-            Self::MilestoneInvalidSignatureCount(count) => {
-                write!(f, "invalid milestone signature count: {count}")
-            }
+
             Self::MilestonePublicKeysSignaturesCountMismatch {
                 key_count,
                 sig_count,

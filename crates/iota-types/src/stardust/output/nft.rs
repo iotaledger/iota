@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_types::types::block::output::{
@@ -175,7 +177,7 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
                     .iter()
                     .map(|(addr, value)| {
                         Ok(Entry {
-                            key: stardust_to_iota_address(addr.inner())?,
+                            key: IotaAddress::from_str(&addr)?,
                             value: FixedPoint32::try_from(*value)?,
                         })
                     })

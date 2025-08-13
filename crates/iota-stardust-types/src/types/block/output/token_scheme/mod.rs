@@ -44,38 +44,3 @@ impl TokenScheme {
         scheme
     }
 }
-
-#[cfg(feature = "serde")]
-pub(crate) mod dto {
-    use derive_more::From;
-    use serde::{Deserialize, Serialize};
-
-    pub use super::simple::dto::SimpleTokenSchemeDto;
-    use super::*;
-    use crate::types::block::Error;
-
-    #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, From)]
-    #[serde(untagged)]
-    pub enum TokenSchemeDto {
-        /// A simple token scheme.
-        Simple(SimpleTokenSchemeDto),
-    }
-
-    impl From<&TokenScheme> for TokenSchemeDto {
-        fn from(value: &TokenScheme) -> Self {
-            match value {
-                TokenScheme::Simple(v) => Self::Simple(v.into()),
-            }
-        }
-    }
-
-    impl TryFrom<TokenSchemeDto> for TokenScheme {
-        type Error = Error;
-
-        fn try_from(value: TokenSchemeDto) -> Result<Self, Self::Error> {
-            Ok(match value {
-                TokenSchemeDto::Simple(v) => Self::Simple(v.try_into()?),
-            })
-        }
-    }
-}

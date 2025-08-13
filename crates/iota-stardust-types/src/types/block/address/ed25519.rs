@@ -3,7 +3,6 @@
 
 use core::str::FromStr;
 
-use crypto::signatures::ed25519::PublicKey;
 use derive_more::{AsRef, Deref, From};
 
 use crate::types::block::Error;
@@ -20,7 +19,7 @@ impl Ed25519Address {
     /// [`Ed25519Address`].
     pub const KIND: u8 = 0;
     /// The length of an [`Ed25519Address`].
-    pub const LENGTH: usize = PublicKey::LENGTH;
+    pub const LENGTH: usize = 32;
 
     /// Creates a new [`Ed25519Address`].
     #[inline(always)]
@@ -49,44 +48,5 @@ impl core::fmt::Display for Ed25519Address {
 impl core::fmt::Debug for Ed25519Address {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Ed25519Address({self})")
-    }
-}
-
-#[cfg(feature = "serde")]
-pub(crate) mod dto {
-    use alloc::string::{String, ToString};
-
-    use serde::{Deserialize, Serialize};
-
-    use super::*;
-    use crate::types::block::Error;
-
-    /// Describes an Ed25519 address.
-    #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Ed25519AddressDto {
-        #[serde(rename = "type")]
-        pub kind: u8,
-        pub pub_key_hash: String,
-    }
-
-    impl From<&Ed25519Address> for Ed25519AddressDto {
-        fn from(value: &Ed25519Address) -> Self {
-            Self {
-                kind: Ed25519Address::KIND,
-                pub_key_hash: value.to_string(),
-            }
-        }
-    }
-
-    impl TryFrom<Ed25519AddressDto> for Ed25519Address {
-        type Error = Error;
-
-        fn try_from(value: Ed25519AddressDto) -> Result<Self, Self::Error> {
-            value
-                .pub_key_hash
-                .parse::<Self>()
-                .map_err(|_| Error::InvalidField("pubKeyHash"))
-        }
     }
 }

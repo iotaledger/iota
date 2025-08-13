@@ -3369,9 +3369,9 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.18"
+version = "0.99.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
+checksum = "6edb4b64a43d977b8e99788fe3a04d483834fba1215a7e02caa415b626497f7f"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -3619,7 +3619,6 @@ dependencies = [
  "digest 0.10.7",
  "elliptic-curve",
  "rfc6979",
- "serdect",
  "signature 2.2.0",
  "spki 0.7.3",
 ]
@@ -3631,7 +3630,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8 0.10.2",
- "serde",
  "signature 2.2.0",
  "zeroize",
 ]
@@ -3677,7 +3675,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "rand_core 0.6.4",
- "serde",
  "sha2 0.10.8",
  "zeroize",
 ]
@@ -3877,7 +3874,7 @@ dependencies = [
  "cbc",
  "ctr",
  "curve25519-dalek-ng",
- "derive_more 0.99.18",
+ "derive_more 0.99.20",
  "digest 0.10.7",
  "ecdsa",
  "ed25519-consensus",
@@ -3969,7 +3966,7 @@ dependencies = [
  "ark-snark",
  "bcs",
  "byte-slice-cast",
- "derive_more 0.99.18",
+ "derive_more 0.99.20",
  "fastcrypto",
  "ff",
  "im",
@@ -4589,7 +4586,6 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
- "serde",
 ]
 
 [[package]]
@@ -5848,14 +5844,6 @@ dependencies = [
  "blake2",
  "digest 0.10.7",
  "ed25519-zebra",
- "hmac",
- "iterator-sorted 0.1.0",
- "k256",
- "num-traits",
- "pbkdf2 0.12.2",
- "serde",
- "sha2 0.10.8",
- "unicode-normalization",
  "zeroize",
 ]
 
@@ -7504,22 +7492,15 @@ dependencies = [
 name = "iota-stardust-types"
 version = "1.5.0-alpha"
 dependencies = [
- "bech32",
  "bitflags 2.9.1",
- "bytemuck",
- "derive_more 0.99.18",
+ "derive_more 0.99.20",
  "getset",
- "hashbrown 0.14.5",
- "hex",
- "instant",
  "iota-crypto",
- "iterator-sorted 0.2.0",
+ "iterator-sorted",
  "packable",
  "prefix-hex",
  "pretty_assertions",
  "primitive-types 0.12.2",
- "rand 0.8.5",
- "regex",
  "serde",
  "serde_json",
  "serde_repr",
@@ -7983,12 +7964,6 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
 name = "iterator-sorted"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d101775d2bc8f99f4ac18bf29b9ed70c0dd138b9a1e88d7b80179470cbbe8bd2"
-
-[[package]]
-name = "iterator-sorted"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed3c1d66191fc266439b989dc1a9a69d9c4156e803ce456221231398b84c35d1"
@@ -8291,8 +8266,6 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
- "once_cell",
- "serdect",
  "sha2 0.10.8",
 ]
 

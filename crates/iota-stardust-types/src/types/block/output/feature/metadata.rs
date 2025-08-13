@@ -115,7 +115,6 @@ pub(crate) mod irc_27 {
     use url::Url;
 
     use super::*;
-    use crate::types::block::address::Bech32Address;
 
     /// The IRC27 NFT standard schema.
     #[derive(Clone, Debug, Serialize, Deserialize, Getters, PartialEq)]
@@ -144,7 +143,7 @@ pub(crate) mod irc_27 {
         collection_name: Option<String>,
         /// Royalty payment addresses mapped to the payout percentage.
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-        royalties: BTreeMap<Bech32Address, f64>,
+        royalties: BTreeMap<String, f64>,
         /// The human-readable name of the native token creator.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         issuer_name: Option<String>,
@@ -176,12 +175,12 @@ pub(crate) mod irc_27 {
             self
         }
 
-        pub fn add_royalty(mut self, address: Bech32Address, percentage: f64) -> Self {
+        pub fn add_royalty(mut self, address: String, percentage: f64) -> Self {
             self.royalties.insert(address, percentage);
             self
         }
 
-        pub fn with_royalties(mut self, royalties: BTreeMap<Bech32Address, f64>) -> Self {
+        pub fn with_royalties(mut self, royalties: BTreeMap<String, f64>) -> Self {
             self.royalties = royalties;
             self
         }
@@ -263,194 +262,5 @@ pub(crate) mod irc_27 {
         fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
             self.trait_type.hash(state);
         }
-    }
-
-    #[cfg(test)]
-    mod test {
-        use pretty_assertions::assert_eq;
-
-        use super::*;
-        use crate::types::block::{address::ToBech32Ext, rand::address::rand_address};
-
-        #[test]
-        fn serialization() {
-            let metadata = Irc27Metadata::new(
-                "image/jpeg",
-                "https://mywebsite.com/my-nft-files-1.jpeg".parse().unwrap(),
-                "My NFT #0001",
-            )
-            .with_collection_name("My Collection of Art")
-            .add_royalty(rand_address().to_bech32_unchecked("iota1"), 0.025)
-            .add_royalty(rand_address().to_bech32_unchecked("iota1"), 0.025)
-            .with_issuer_name("My Artist Name")
-            .with_description("A little information about my NFT collection")
-            .add_attribute(Attribute::new("Background", "Purple"))
-            .add_attribute(Attribute::new("Element", "Water"))
-            .add_attribute(Attribute::new("Attack", 150))
-            .add_attribute(Attribute::new("Health", 500));
-            let json = serde_json::json!(
-                {
-                    "standard": "IRC27",
-                    "version": metadata.version(),
-                    "type": metadata.media_type(),
-                    "uri": metadata.uri(),
-                    "name": metadata.name(),
-                    "collectionName": metadata.collection_name(),
-                    "royalties": metadata.royalties(),
-                    "issuerName": metadata.issuer_name(),
-                    "description": metadata.description(),
-                    "attributes": metadata.attributes()
-                  }
-            );
-            let metadata_deser = serde_json::from_value::<Irc27Metadata>(json.clone()).unwrap();
-
-            assert_eq!(metadata, metadata_deser);
-            assert_eq!(json, serde_json::to_value(metadata).unwrap())
-        }
-    }
-}
-
-#[cfg(feature = "irc_30")]
-pub(crate) mod irc_30 {
-    use alloc::string::String;
-
-    use getset::Getters;
-    use serde::{Deserialize, Serialize};
-    use url::Url;
-
-    use super::*;
-
-    /// The IRC30 native token metadata standard schema.
-    #[derive(Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq)]
-    #[serde(rename_all = "camelCase")]
-    #[serde(tag = "standard", rename = "IRC30")]
-    #[getset(get = "pub")]
-    pub struct Irc30Metadata {
-        /// The human-readable name of the native token.
-        name: String,
-        /// The symbol/ticker of the token.
-        symbol: String,
-        /// Number of decimals the token uses (divide the token amount by
-        /// `10^decimals` to get its user representation).
-        decimals: u32,
-        /// The human-readable description of the token.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        description: Option<String>,
-        /// URL pointing to more resources about the token.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        url: Option<Url>,
-        /// URL pointing to an image resource of the token logo.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        logo_url: Option<Url>,
-        /// The svg logo of the token encoded as a byte string.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        logo: Option<String>,
-    }
-
-    impl Irc30Metadata {
-        pub fn new(name: impl Into<String>, symbol: impl Into<String>, decimals: u32) -> Self {
-            Self {
-                name: name.into(),
-                symbol: symbol.into(),
-                decimals,
-                description: Default::default(),
-                url: Default::default(),
-                logo_url: Default::default(),
-                logo: Default::default(),
-            }
-        }
-
-        pub fn with_description(mut self, description: impl Into<String>) -> Self {
-            self.description.replace(description.into());
-            self
-        }
-
-        pub fn with_url(mut self, url: Url) -> Self {
-            self.url.replace(url);
-            self
-        }
-
-        pub fn with_logo_url(mut self, logo_url: Url) -> Self {
-            self.logo_url.replace(logo_url);
-            self
-        }
-
-        pub fn with_logo(mut self, logo: impl Into<String>) -> Self {
-            self.logo.replace(logo.into());
-            self
-        }
-
-        pub fn to_bytes(&self) -> Vec<u8> {
-            // Unwrap: Safe because this struct is known to be valid
-            serde_json::to_string(self).unwrap().into_bytes()
-        }
-    }
-
-    impl TryFrom<Irc30Metadata> for MetadataFeature {
-        type Error = Error;
-        fn try_from(value: Irc30Metadata) -> Result<Self, Error> {
-            Self::new(value.to_bytes())
-        }
-    }
-
-    impl From<Irc30Metadata> for Vec<u8> {
-        fn from(value: Irc30Metadata) -> Self {
-            value.to_bytes()
-        }
-    }
-
-    #[cfg(test)]
-    mod test {
-        use super::*;
-
-        #[test]
-        fn serialization() {
-            let description = "FooCoin is the utility and governance token of FooLand, \
-                a revolutionary protocol in the play-to-earn crypto gaming field.";
-            let metadata = Irc30Metadata::new("FooCoin", "FOO", 3)
-                .with_description(description)
-                .with_url("https://foocoin.io/".parse().unwrap())
-                .with_logo_url(
-                    "https://ipfs.io/ipfs/QmR36VFfo1hH2RAwVs4zVJ5btkopGip5cW7ydY4jUQBrkR"
-                        .parse()
-                        .unwrap(),
-                );
-            let json = serde_json::json!(
-                {
-                    "standard": "IRC30",
-                    "name": metadata.name(),
-                    "description": metadata.description(),
-                    "decimals": metadata.decimals(),
-                    "symbol": metadata.symbol(),
-                    "url": metadata.url(),
-                    "logoUrl": metadata.logo_url()
-                }
-            );
-            let metadata_deser = serde_json::from_value::<Irc30Metadata>(json.clone()).unwrap();
-
-            assert_eq!(metadata, metadata_deser);
-            assert_eq!(json, serde_json::to_value(metadata).unwrap())
-        }
-    }
-}
-
-#[cfg(feature = "serde")]
-pub(crate) mod dto {
-    use alloc::boxed::Box;
-
-    use serde::{Deserialize, Serialize};
-
-    use crate::utils::serde::prefix_hex_bytes;
-
-    #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-    pub struct MetadataFeatureDto {
-        #[serde(rename = "type")]
-        pub kind: u8,
-        #[serde(
-            skip_serializing_if = "<[_]>::is_empty",
-            default,
-            with = "prefix_hex_bytes"
-        )]
-        pub data: Box<[u8]>,
     }
 }
