@@ -14,8 +14,8 @@ use anyhow::{Context, bail};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use iota_config::genesis::{
-    Delegations, Genesis, GenesisCeremonyParameters, GenesisChainParameters,
-    TokenDistributionSchedule, UnsignedGenesis,
+    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
+    UnsignedGenesis,
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
@@ -74,8 +74,6 @@ pub const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
 const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distribution-schedule";
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
-const GENESIS_BUILDER_DELEGATOR_FILE: &str = "delegator";
-const GENESIS_BUILDER_DELEGATOR_MAP_FILE: &str = "delegator-map";
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -85,15 +83,6 @@ pub struct Builder {
     // Validator signatures over checkpoint
     signatures: BTreeMap<AuthorityPublicKeyBytes, AuthoritySignInfo>,
     built_genesis: Option<UnsignedGenesis>,
-    delegation: Option<GenesisDelegation>,
-}
-
-enum GenesisDelegation {
-    /// Represents a single delegator address that applies to all validators.
-    OneToAll(IotaAddress),
-    /// Represents a map of delegator addresses to validator addresses and
-    /// a specified stake and gas allocation.
-    ManyToMany(Delegations),
 }
 
 impl Default for Builder {
@@ -111,22 +100,7 @@ impl Builder {
             validators: Default::default(),
             signatures: Default::default(),
             built_genesis: None,
-            delegation: None,
         }
-    }
-
-    /// Set the genesis delegation to be a `OneToAll` kind and set the
-    /// delegator address.
-    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
-        self.delegation = Some(GenesisDelegation::OneToAll(delegator));
-        self
-    }
-
-    /// Set the genesis delegation to be a `ManyToMany` kind and set the
-    /// delegator map.
-    pub fn with_delegations(mut self, delegations: Delegations) -> Self {
-        self.delegation = Some(GenesisDelegation::ManyToMany(delegations));
-        self
     }
 
     pub fn with_parameters(mut self, parameters: GenesisCeremonyParameters) -> Self {
@@ -223,17 +197,17 @@ impl Builder {
     /// Evaluate the genesis [`TokenDistributionSchedule`].
     ///
     /// There are 2 cases for evaluating this:
-    /// 1. The genesis is built
+    /// The genesis is built
     ///    1. and a schedule is given as input -> then just use the input
     ///       schedule;
     ///    2. and the schedule is NOT given as input -> then instantiate a
     ///       default token distribution schedule for a genesis.
     fn resolve_token_distribution_schedule(&mut self) -> TokenDistributionSchedule {
         if let Some(schedule) = self.token_distribution_schedule.take() {
-            // Case 1.1
+            // Case 1
             schedule
         } else {
-            // Case 1.2
+            // Case 2
             TokenDistributionSchedule::new_for_validators_with_default_allocation(
                 self.validators.values().map(|v| v.info.iota_address()),
             )
@@ -695,26 +669,6 @@ impl Builder {
             signatures.insert(sigs.authority, sigs);
         }
 
-        // Load delegator
-        let delegator_file = path.join(GENESIS_BUILDER_DELEGATOR_FILE);
-        let delegator = if delegator_file.exists() {
-            Some(serde_json::from_slice(&fs::read(delegator_file)?)?)
-        } else {
-            None
-        };
-
-        // Load delegator map
-        let delegator_map_file = path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE);
-        let delegator_map = if delegator_map_file.exists() {
-            Some(Delegations::from_csv(fs::File::open(delegator_map_file)?)?)
-        } else {
-            None
-        };
-
-        let delegation = delegator
-            .map(GenesisDelegation::OneToAll)
-            .or(delegator_map.map(GenesisDelegation::ManyToMany));
-
         let mut builder = Self {
             parameters,
             token_distribution_schedule,
@@ -722,7 +676,6 @@ impl Builder {
             validators: committee,
             signatures,
             built_genesis: None, // Leave this as none, will build and compare below
-            delegation,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -797,23 +750,6 @@ impl Builder {
                 path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE),
             )?);
             bcs::serialize_into(&mut write, &genesis)?;
-        }
-
-        if let Some(delegation) = &self.delegation {
-            match delegation {
-                GenesisDelegation::OneToAll(delegator) => {
-                    // Write delegator to file
-                    let file = path.join(GENESIS_BUILDER_DELEGATOR_FILE);
-                    let delegator_json = serde_json::to_string(delegator)?;
-                    fs::write(file, delegator_json)?;
-                }
-                GenesisDelegation::ManyToMany(delegator_map) => {
-                    // Write delegator map to CSV file
-                    delegator_map.to_csv(fs::File::create(
-                        path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE),
-                    )?)?;
-                }
-            }
         }
 
         Ok(())

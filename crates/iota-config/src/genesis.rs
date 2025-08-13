@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs::File,
     io::{BufReader, BufWriter},
     path::Path,
@@ -658,98 +658,6 @@ pub struct Delegation {
     /// The allocation to a validator receiving a stake and/or a gas payment
     #[serde(flatten)]
     pub validator_allocation: ValidatorAllocation,
-}
-
-/// Represents genesis delegations to validators.
-///
-/// This struct maps a delegator address to a list of validators and their
-/// stake and gas allocations. Each ValidatorAllocation contains the address of
-/// a validator that will receive an amount of nanos to stake and an amount as
-/// gas payment.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct Delegations {
-    pub allocations: BTreeMap<IotaAddress, Vec<ValidatorAllocation>>,
-}
-
-impl Delegations {
-    pub fn new_for_validators_with_default_allocation(
-        validators: impl IntoIterator<Item = IotaAddress>,
-        delegator: IotaAddress,
-    ) -> Self {
-        let validator_allocations = validators
-            .into_iter()
-            .map(|address| ValidatorAllocation {
-                validator: address,
-                amount_nanos_to_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
-                amount_nanos_to_pay_gas: 0,
-            })
-            .collect();
-
-        let mut allocations = BTreeMap::new();
-        allocations.insert(delegator, validator_allocations);
-
-        Self { allocations }
-    }
-
-    /// Helper to read a Delegations struct from a csv file.
-    ///
-    /// The file is encoded such that the final entry in the CSV file is used to
-    /// denote the allocation coming from a delegator. It must be in the
-    /// following format:
-    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
-    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
-    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
-    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
-    ///
-    /// Comments are optional, and start with a `#` character.
-    /// Only entries that start with this character are treated as comments.
-    pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
-        let mut reader = csv_reader_with_comments(reader);
-
-        let mut delegations = Self::default();
-        for delegation in reader.deserialize::<Delegation>() {
-            let delegation = delegation?;
-            delegations
-                .allocations
-                .entry(delegation.delegator)
-                .or_default()
-                .push(delegation.validator_allocation);
-        }
-
-        Ok(delegations)
-    }
-
-    /// Helper to write a Delegations struct into a csv file.
-    ///
-    /// It writes in the following format:
-    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
-    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
-    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
-    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
-    pub fn to_csv<W: std::io::Write>(&self, writer: W) -> Result<()> {
-        let mut writer = csv::Writer::from_writer(writer);
-
-        writer.write_record([
-            "delegator",
-            "validator",
-            "amount-nanos-to-stake",
-            "amount-nanos-to-pay-gas",
-        ])?;
-
-        for (&delegator, validator_allocations) in &self.allocations {
-            for validator_allocation in validator_allocations {
-                writer.write_record(&[
-                    delegator.to_string(),
-                    validator_allocation.validator.to_string(),
-                    validator_allocation.amount_nanos_to_stake.to_string(),
-                    validator_allocation.amount_nanos_to_pay_gas.to_string(),
-                ])?;
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /// Helper function to create a CSV reader with custom settings.

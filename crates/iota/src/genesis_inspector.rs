@@ -14,7 +14,7 @@ use iota_types::{
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, Owner},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::{
         timelock::{TimeLock, is_timelocked_gas_balance},
@@ -38,10 +38,7 @@ const STR_IOTA_DISTRIBUTION: &str = "IOTA Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
-pub(crate) fn examine_genesis_checkpoint(
-    genesis: UnsignedGenesis,
-    migration_objects: impl Iterator<Item = Object>,
-) {
+pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let system_object = genesis
         .iota_system_object()
         .into_genesis_version_for_tooling();
@@ -90,7 +87,7 @@ pub(crate) fn examine_genesis_checkpoint(
     let additional_objects = genesis.objects();
     let tot_additional_objects = additional_objects.len();
     let mut total_objects = 0;
-    for object in additional_objects.iter().cloned().chain(migration_objects) {
+    for object in additional_objects.iter().cloned() {
         total_objects += 1;
         let object_id = object.id();
         let object_id_str = object_id.to_string();
@@ -183,7 +180,7 @@ pub(crate) fn examine_genesis_checkpoint(
     }
 
     println!(
-        "Total Number of Migration Objects: {}",
+        "Total Number of initial Objects: {}",
         total_objects - tot_additional_objects
     );
     println!("Total Number of Objects/Packages: {total_objects}");

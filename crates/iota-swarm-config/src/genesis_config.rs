@@ -205,7 +205,6 @@ pub struct GenesisConfig {
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
-    pub delegator: Option<IotaAddress>,
 }
 
 impl Config for GenesisConfig {}
@@ -386,7 +385,6 @@ impl GenesisConfig {
             validator_config_info: Some(validator_config_info),
             parameters,
             accounts: account_configs,
-            delegator: Default::default(),
         }
     }
 
@@ -406,11 +404,6 @@ impl GenesisConfig {
             address: None,
             gas_amounts: vec![DEFAULT_GAS_AMOUNT; DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT],
         });
-        self
-    }
-
-    pub fn add_delegator(mut self, address: IotaAddress) -> Self {
-        self.delegator = Some(address);
         self
     }
 }

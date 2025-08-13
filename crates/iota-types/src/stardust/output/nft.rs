@@ -177,7 +177,7 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
                     .iter()
                     .map(|(addr, value)| {
                         Ok(Entry {
-                            key: IotaAddress::from_str(&addr)?,
+                            key: IotaAddress::from_str(addr)?,
                             value: FixedPoint32::try_from(*value)?,
                         })
                     })
