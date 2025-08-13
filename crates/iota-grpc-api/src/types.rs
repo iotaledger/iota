@@ -285,7 +285,7 @@ impl GrpcReader {
                 match rx.recv().await {
                     Ok(item) => {
                         debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
-                        let seq_number = get_sequence_number(&item);
+                        let sequence_number = get_sequence_number(&item);
                         if start == seq_number {
                             let response = BcsData::serialize_from(&*item)
                                 .map(|data| Checkpoint {
