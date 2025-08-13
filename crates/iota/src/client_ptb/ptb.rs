@@ -20,8 +20,8 @@ use serde::Serialize;
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
     client_commands::{
-        DisplayOption, IotaClientCommandResult, Opts, OptsWithGas, dry_run_or_execute_or_serialize,
-        parse_display_option,
+        DisplayOption, GasDataArgs, IotaClientCommandResult, TxProcessingArgs,
+        dry_run_or_execute_or_serialize, parse_display_option,
     },
     client_ptb::{
         ast::{ParsedProgram, Program},
@@ -60,7 +60,7 @@ pub struct Summary {
 pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
-    CommandResult(IotaClientCommandResult),
+    CommandResult(Box<IotaClientCommandResult>),
     DevInspect(Box<DevInspectResults>),
     Json(serde_json::Value),
     Help { long: bool },
@@ -128,7 +128,7 @@ impl PTB {
                 let rendered = build_error_reports(&source_string, errors);
                 eprintln!("Encountered error{suffix} when parsing PTB:");
                 for e in rendered.iter() {
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 bail!("Could not build PTB due to previous error{suffix}");
             }
@@ -149,7 +149,7 @@ impl PTB {
 
         let client = context.get_client().await?;
 
-        let (res, warnings) = Self::build_ptb(program, context, client).await;
+        let (res, warnings) = Self::build_ptb(program, context, client.clone()).await;
 
         // Render warnings
         if !warnings.is_empty() {
@@ -157,7 +157,7 @@ impl PTB {
             eprintln!("Warning{suffix} produced when building PTB:");
             let rendered = build_error_reports(&source_string, warnings);
             for e in rendered.iter() {
-                eprintln!("{:?}", e);
+                eprintln!("{e:?}");
             }
         }
         let ptb = match res {
@@ -166,23 +166,25 @@ impl PTB {
                 eprintln!("Encountered error{suffix} when building PTB:");
                 let rendered = build_error_reports(&source_string, errors);
                 for e in rendered.iter() {
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 bail!("Could not build PTB due to previous error{suffix}");
             }
             Ok(x) => x,
         };
 
-        // get all the metadata needed for executing the PTB: sender, gas, signing tx
-        let gas = program_metadata.gas_object_id.map(|x| x.value);
+        let gas: Vec<_> = program_metadata
+            .gas_object_ids
+            .into_iter()
+            .flatten()
+            .map(|x| x.value)
+            .collect();
 
-        // the sender is the gas object if gas is provided, otherwise the active address
-        let sender = match gas {
-            Some(gas) => context
-                .get_object_owner(&gas)
-                .await
-                .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
-            None => context.active_address()?,
+        let sender = if let Some(sender) = program_metadata.sender {
+            sender.value.into_inner().into()
+        } else {
+            // the sender is the gas object if gas is provided, otherwise the active address
+            context.infer_sender(&gas).await?
         };
 
         // build the tx kind
@@ -191,28 +193,44 @@ impl PTB {
             commands: ptb.commands,
         });
 
-        let opts = OptsWithGas {
-            gas: program_metadata.gas_object_id.map(|x| x.value),
-            rest: Opts {
-                dry_run: program_metadata.dry_run_set,
-                dev_inspect: program_metadata.dev_inspect_set,
-                gas_budget: program_metadata.gas_budget.map(|x| x.value),
-                serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
-                serialize_signed_transaction: program_metadata.serialize_signed_set,
-                display: self.display,
-            },
+        let gas_data = GasDataArgs {
+            gas_budget: program_metadata.gas_budget.map(|x| x.value),
+            gas_price: program_metadata.gas_price.map(|x| x.value),
+            gas_sponsor: program_metadata
+                .gas_sponsor
+                .map(|x| x.value.into_inner().into()),
         };
 
-        let res = dry_run_or_execute_or_serialize(
-            sender, tx_kind, context, None, None, opts.gas, opts.rest,
+        let processing = TxProcessingArgs {
+            tx_digest: program_metadata.tx_digest_set,
+            dry_run: program_metadata.dry_run_set,
+            dev_inspect: program_metadata.dev_inspect_set,
+            serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
+            serialize_signed_transaction: program_metadata.serialize_signed_set,
+            sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
+            display: self.display,
+        };
+
+        let gas_payment = client.transaction_builder().input_refs(&gas).await?;
+
+        let transaction_response = dry_run_or_execute_or_serialize(
+            sender,
+            tx_kind,
+            context,
+            gas_payment,
+            gas_data,
+            processing,
         )
         .await?;
 
-        let transaction_response = match res {
-            IotaClientCommandResult::DryRun(_)
+        let transaction_response = match transaction_response {
+            IotaClientCommandResult::ComputeTransactionDigest(_)
+            | IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                return Ok(PTBCommandResult::CommandResult(res));
+                return Ok(PTBCommandResult::CommandResult(Box::new(
+                    transaction_response,
+                )));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
@@ -259,9 +277,9 @@ impl PTB {
                 Ok(PTBCommandResult::Summary(summary))
             }
         } else {
-            Ok(PTBCommandResult::CommandResult(
+            Ok(PTBCommandResult::CommandResult(Box::new(
                 IotaClientCommandResult::TransactionBlock(transaction_response),
-            ))
+            )))
         }
     }
 
@@ -351,8 +369,8 @@ pub fn ptb_description() -> clap::Command {
             "Perform a dev-inspect of the PTB instead of executing it."
         ))
         .arg(arg!(
-            --"gas-coin" <ID> ...
-            "The object ID of the gas coin to use. If not specified, it will try to use the first \
+            --"gas-coins" <ID> ...
+            "The object IDs for the gas coins to use. If not specified, it will try to use the first \
             gas coin that it finds that has at least the requested gas-budget balance."
         ))
         .arg(arg!(
@@ -361,6 +379,16 @@ pub fn ptb_description() -> clap::Command {
             tool will first perform a dry run to estimate the gas cost, and then it will execute \
             the transaction. Please note that this incurs a small cost in performance due to the \
             additional dry run call."
+        ))
+        .arg(arg!(
+            --"gas-price" <NANOS>
+            "An optional gas price for this PTB (in NANOS). If not specified, the reference gas price \
+            is fetched from RPC."
+        ))
+        .arg(arg!(
+            --"gas-sponsor" <ADDRESS>
+            "An optional gas sponsor for this PTB. If not specified, the sender is used as the gas \
+            sponsor."
         ))
         .arg(arg!(
             --"make-move-vec" <MAKE_MOVE_VEC>
@@ -441,7 +469,15 @@ pub fn ptb_description() -> clap::Command {
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
             --"preview"
-            "Preview the list of PTB transactions instead of executing them."
+            "Instead of executing the transaction, preview its PTB commands."
+        ))
+        .arg(arg!(
+            --"tx-digest"
+            "Instead of executing the transaction, print its digest."
+        ))
+        .arg(arg!(
+            --"sender" <SENDER>
+            "Set the sender to this address instead of the active address."
         ))
         .arg(arg!(
             --"serialize-unsigned-transaction"

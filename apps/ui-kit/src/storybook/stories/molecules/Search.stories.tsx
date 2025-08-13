@@ -49,10 +49,10 @@ const meta: Meta<typeof Search> = {
                                     suggestion.supportingText ? 'justify-between' : 'justify-start',
                                 )}
                             >
-                                <span className="text-body-lg text-neutral-10 dark:text-neutral-92">
+                                <span className="text-body-lg text-iota-neutral-10 names:text-names-neutral-92 dark:text-iota-neutral-92">
                                     {suggestion.label}
                                 </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                                <span className="text-body-md text-iota-neutral-40 names:text-names-neutral-60 dark:text-iota-neutral-60">
                                     {suggestion.supportingText}
                                 </span>
                             </div>

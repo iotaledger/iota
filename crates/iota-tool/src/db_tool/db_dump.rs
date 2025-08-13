@@ -47,7 +47,7 @@ pub enum StoreName {
 }
 impl std::fmt::Display for StoreName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -164,7 +164,7 @@ pub fn print_table_metadata(
         table.add_row(row);
     }
 
-    eprintln!("{}", table);
+    eprintln!("{table}");
     Ok(())
 }
 
@@ -329,7 +329,7 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.into_path();
+        let primary_path = tempfile::tempdir()?.keep();
 
         // Open the DB for writing
         let _: AuthorityEpochTables = AuthorityEpochTables::open(0, &primary_path, None);
@@ -347,7 +347,7 @@ mod test {
 
         let mut missing_tables = vec![];
         for t in tables {
-            println!("{}", t);
+            println!("{t}");
             if dump_table(
                 StoreName::Validator,
                 Some(0),

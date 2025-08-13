@@ -9,6 +9,7 @@ import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
+import { useGetDefaultIotaName } from '@iota/core';
 
 interface AccountItemProps {
     accountID: string;
@@ -29,7 +30,9 @@ export function AccountItem({
 }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
-    const accountName = formatAccountName(account?.nickname, account?.address);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const copyAddress = useCopyToClipboard(account?.address || '', {
         copySuccessMessage: 'Address copied',
     });
@@ -65,8 +68,8 @@ function AccountAvatar({ isLocked, icon }: { isLocked?: boolean; icon?: ReactNod
             className={cn(
                 'flex h-10 w-10 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 ',
                 isLocked
-                    ? 'bg-neutral-96 dark:bg-neutral-12 [&_svg]:text-neutral-10 [&_svg]:dark:text-neutral-92'
-                    : 'bg-primary-30 [&_svg]:text-white',
+                    ? 'bg-iota-neutral-96 dark:bg-iota-neutral-12 [&_svg]:text-iota-neutral-10 [&_svg]:dark:text-iota-neutral-92'
+                    : 'bg-iota-primary-30 [&_svg]:text-white',
             )}
         >
             {icon}

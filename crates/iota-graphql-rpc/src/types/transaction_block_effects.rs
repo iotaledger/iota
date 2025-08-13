@@ -148,7 +148,7 @@ impl TransactionBlockEffects {
                         break 'error error.to_string();
                     };
                     let fname_string = if let Some(fname) = &loc.function_name {
-                        format!("::{}'", fname)
+                        format!("::{fname}'")
                     } else {
                         "'".to_string()
                     };

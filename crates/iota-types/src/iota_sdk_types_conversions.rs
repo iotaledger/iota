@@ -1236,6 +1236,14 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
             ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable => {
                 Self::ExecutionCancelledDueToRandomnessUnavailable
             }
+            ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects,
+                suggested_gas_price,
+            } => Self::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: congested_objects.0.into_iter().map(Into::into).collect(),
+                suggested_gas_price,
+            },
+            ExecutionFailureStatus::InvalidLinkage => Self::InvalidLinkage,
         }
     }
 }
@@ -1430,6 +1438,16 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
             ExecutionError::ExecutionCancelledDueToRandomnessUnavailable => {
                 Self::ExecutionCancelledDueToRandomnessUnavailable
             }
+            ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects,
+                suggested_gas_price,
+            } => Self::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: crate::execution_status::CongestedObjects(
+                    congested_objects.into_iter().map(Into::into).collect(),
+                ),
+                suggested_gas_price,
+            },
+            ExecutionError::InvalidLinkage => Self::InvalidLinkage,
         }
     }
 }
@@ -1702,7 +1720,12 @@ impl TryFrom<crate::transaction::Command> for Command {
                 type_arguments: programmable_move_call
                     .type_arguments
                     .into_iter()
-                    .map(type_tag_core_to_sdk)
+                    .map(|type_input| {
+                        type_input
+                            .into_type_tag()
+                            .map_err(|err| err.into())
+                            .and_then(type_tag_core_to_sdk)
+                    })
                     .collect::<Result<_, _>>()?,
                 arguments: programmable_move_call
                     .arguments
@@ -1729,7 +1752,14 @@ impl TryFrom<crate::transaction::Command> for Command {
                 dependencies: dependencies.into_iter().map(Into::into).collect(),
             }),
             InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
-                type_: type_tag.map(type_tag_core_to_sdk).transpose()?,
+                type_: type_tag
+                    .map(|type_input| {
+                        type_input
+                            .into_type_tag()
+                            .map_err(|err| err.into())
+                            .and_then(type_tag_core_to_sdk)
+                    })
+                    .transpose()?,
                 elements: elements.into_iter().map(Into::into).collect(),
             }),
             InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
@@ -1750,21 +1780,19 @@ impl TryFrom<Command> for crate::transaction::Command {
 
     fn try_from(value: Command) -> Result<Self, Self::Error> {
         match value {
-            Command::MoveCall(move_call) => {
-                Self::MoveCall(Box::new(crate::transaction::ProgrammableMoveCall {
-                    package: move_call.package.into(),
-                    module: crate::Identifier::new(move_call.module.as_str())
-                        .expect("invalid move call module identifier"),
-                    function: crate::Identifier::new(move_call.function.as_str())
-                        .expect("invalid move call function identifier"),
-                    type_arguments: move_call
-                        .type_arguments
-                        .into_iter()
-                        .map(type_tag_sdk_to_core)
-                        .collect::<Result<_, _>>()?,
-                    arguments: move_call.arguments.into_iter().map(Into::into).collect(),
-                }))
-            }
+            Command::MoveCall(move_call) => Self::move_call(
+                move_call.package.into(),
+                crate::Identifier::new(move_call.module.as_str())
+                    .expect("invalid move call module identifier"),
+                crate::Identifier::new(move_call.function.as_str())
+                    .expect("invalid move call function identifier"),
+                move_call
+                    .type_arguments
+                    .into_iter()
+                    .map(type_tag_sdk_to_core)
+                    .collect::<Result<_, _>>()?,
+                move_call.arguments.into_iter().map(Into::into).collect(),
+            ),
             Command::TransferObjects(transfer_objects) => Self::TransferObjects(
                 transfer_objects
                     .objects
@@ -1789,7 +1817,7 @@ impl TryFrom<Command> for crate::transaction::Command {
                 publish.modules,
                 publish.dependencies.into_iter().map(Into::into).collect(),
             ),
-            Command::MakeMoveVector(make_move_vector) => Self::MakeMoveVec(
+            Command::MakeMoveVector(make_move_vector) => Self::make_move_vec(
                 make_move_vector
                     .type_
                     .map(type_tag_sdk_to_core)

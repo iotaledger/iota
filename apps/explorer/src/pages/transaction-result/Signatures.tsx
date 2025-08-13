@@ -10,7 +10,7 @@ import {
     type SignatureScheme,
 } from '@iota/iota-sdk/cryptography';
 import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
-import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
+import { normalizeIotaAddress, toBase64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 
 import { AddressLink } from '~/components/ui';
@@ -38,7 +38,6 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
                     <AddressLink
                         address={'address' in data ? data.address : data.publicKey.toIotaAddress()}
                         copyText={'address' in data ? data.address : data.publicKey.toIotaAddress()}
-                        onCopySuccess={onCopySuccess}
                     />
                 }
                 fullwidth
@@ -55,9 +54,9 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
             ) : null}
             <KeyValueInfo
                 keyText="Signature"
-                copyText={toB64(signature)}
+                copyText={toBase64(signature)}
                 onCopySuccess={onCopySuccess}
-                value={toB64(signature)}
+                value={toBase64(signature)}
                 isTruncated
                 fullwidth
             />

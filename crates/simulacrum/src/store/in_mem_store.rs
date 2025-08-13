@@ -310,14 +310,14 @@ impl ModuleResolver for InMemoryStore {
 }
 
 impl ObjectStore for InMemoryStore {
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: iota_types::base_types::VersionNumber,

@@ -96,7 +96,7 @@ impl ConsensusClient for LazyMysticetiClient {
             .await
             .tap_err(|err| {
                 // Will be logged by caller as well.
-                let msg = format!("Transaction submission failed with: {:?}", err);
+                let msg = format!("Transaction submission failed with: {err:?}");
                 match err {
                     ClientError::ConsensusShuttingDown(_) => {
                         info!("{}", msg);

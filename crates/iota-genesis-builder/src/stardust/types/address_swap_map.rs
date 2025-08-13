@@ -200,7 +200,7 @@ mod tests {
 
     fn write_temp_file(content: &str) -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();
-        writeln!(file, "{}", content).unwrap();
+        writeln!(file, "{content}").unwrap();
         file
     }
 

@@ -78,7 +78,6 @@ export function ProtectAccountForm({
             acceptedTos: !!hideToS,
             autoLock: parseAutoLock(autoLock.data || null),
         },
-        shouldUnregister: true,
     });
     const {
         watch,
@@ -110,7 +109,7 @@ export function ProtectAccountForm({
                     label="Create Password"
                     placeholder="Password"
                     errorMessage={form.formState.errors.password?.input?.message}
-                    {...register('password.input')}
+                    {...register('password.input', { shouldUnregister: true })}
                     name="password.input"
                     data-testid="password.input"
                 />
@@ -120,7 +119,7 @@ export function ProtectAccountForm({
                     label="Confirm Password"
                     placeholder="Password"
                     errorMessage={form.formState.errors.password?.confirmation?.message}
-                    {...register('password.confirmation')}
+                    {...register('password.confirmation', { shouldUnregister: true })}
                     name="password.confirmation"
                     data-testid="password.confirmation"
                 />
@@ -132,12 +131,12 @@ export function ProtectAccountForm({
                         name="acceptedTos"
                         label={
                             <div className="flex items-center gap-x-0.5 whitespace-nowrap">
-                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                                <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                                     I read and agreed to the
                                 </span>
                                 <a
                                     href={ToS_LINK}
-                                    className="text-label-lg text-primary-30 dark:text-primary-80"
+                                    className="text-label-lg text-iota-primary-30 dark:text-iota-primary-80"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >

@@ -1,0 +1,23 @@
+---
+source: crates/iota/tests/shell_tests.rs
+---
+----- script -----
+# Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# checks that testing a package that implicitly depends on `Kiosk` works
+iota move test -p example 2> /dev/null
+----- results -----
+success: true
+exit_code: 0
+----- stdout -----
+INCLUDING DEPENDENCY IotaSystem
+INCLUDING DEPENDENCY Stardust
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING example
+Running Move unit tests
+Test result: OK. Total tests: 0; passed: 0; failed: 0
+
+----- stderr -----

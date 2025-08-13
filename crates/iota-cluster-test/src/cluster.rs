@@ -158,7 +158,7 @@ impl LocalNewCluster {
 #[async_trait]
 impl Cluster for LocalNewCluster {
     async fn start(options: &ClusterTestOpt) -> Result<Self, anyhow::Error> {
-        let data_ingestion_path = tempdir()?.into_path();
+        let data_ingestion_path = tempdir()?.keep();
         // TODO: options should contain port instead of address
         let fullnode_rpc_addr = options.fullnode_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()
@@ -185,8 +185,7 @@ impl Cluster for LocalNewCluster {
                 committee_with_network: _,
             } = PersistedConfig::read(&network_config_path).map_err(|err| {
                 err.context(format!(
-                    "Cannot open IOTA network config file at {:?}",
-                    network_config_path
+                    "Cannot open IOTA network config file at {network_config_path:?}"
                 ))
             })?;
 
@@ -383,9 +382,6 @@ pub fn new_wallet_context_from_cluster(
     );
 
     WalletContext::new(&wallet_config_path, None, None).unwrap_or_else(|e| {
-        panic!(
-            "Failed to init wallet context from path {:?}, error: {e}",
-            wallet_config_path
-        )
+        panic!("Failed to init wallet context from path {wallet_config_path:?}, error: {e}")
     })
 }

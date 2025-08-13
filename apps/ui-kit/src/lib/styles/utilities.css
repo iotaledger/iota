@@ -1,0 +1,61 @@
+@layer utilities {
+    .state-layer,
+    .state-layer-inverted,
+    .state-active,
+    .state-layer-secondary {
+        &::after {
+            content: '';
+            border-radius: inherit;
+            @apply absolute;
+            @apply h-full w-full;
+            @apply left-0 top-0;
+            @apply transition-opacity duration-75;
+            @apply pointer-events-none;
+        }
+    }
+
+    .state-layer,
+    .state-layer-secondary,
+    .state-layer-inverted {
+        &::after {
+            @apply opacity-0;
+        }
+
+        &:hover::after {
+            @apply opacity-8;
+        }
+
+        &:active::after {
+            @apply opacity-12;
+        }
+
+        &:disabled::after {
+            @apply opacity-0;
+        }
+    }
+
+    .state-active,
+    .state-layer {
+        &::after {
+            background-color: var(--state-layer-bg-color);
+        }
+    }
+
+    .state-layer-inverted {
+        &::after {
+            background-color: var(--state-layer-inverted-bg-color);
+        }
+    }
+
+    .state-layer-secondary {
+        &::after {
+            background-color: var(--state-layer-secondary-bg-color);
+        }
+    }
+
+    .state-active {
+        &::after {
+            @apply opacity-12;
+        }
+    }
+}

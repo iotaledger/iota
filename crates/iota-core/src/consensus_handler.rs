@@ -34,6 +34,7 @@ use crate::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
         },
+        backpressure::{BackpressureManager, BackpressureSubscriber},
         epoch_start_configuration::EpochStartConfigTrait,
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
@@ -48,6 +49,7 @@ pub struct ConsensusHandlerInitializer {
     checkpoint_service: Arc<CheckpointService>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
+    backpressure_manager: Arc<BackpressureManager>,
 }
 
 impl ConsensusHandlerInitializer {
@@ -56,12 +58,14 @@ impl ConsensusHandlerInitializer {
         checkpoint_service: Arc<CheckpointService>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
+        backpressure_manager: Arc<BackpressureManager>,
     ) -> Self {
         Self {
             state,
             checkpoint_service,
             epoch_store,
             low_scoring_authorities,
+            backpressure_manager,
         }
     }
 
@@ -69,11 +73,13 @@ impl ConsensusHandlerInitializer {
         state: Arc<AuthorityState>,
         checkpoint_service: Arc<CheckpointService>,
     ) -> Self {
+        let backpressure_manager = BackpressureManager::new_for_tests();
         Self {
             state: state.clone(),
             checkpoint_service,
             epoch_store: state.epoch_store_for_testing().clone(),
             low_scoring_authorities: Arc::new(Default::default()),
+            backpressure_manager,
         }
     }
 
@@ -89,6 +95,7 @@ impl ConsensusHandlerInitializer {
             self.low_scoring_authorities.clone(),
             consensus_committee,
             self.state.metrics.clone(),
+            self.backpressure_manager.subscribe(),
         )
     }
 }
@@ -119,6 +126,8 @@ pub struct ConsensusHandler<C> {
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
+
+    backpressure_subscriber: BackpressureSubscriber,
 }
 
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
@@ -132,6 +141,7 @@ impl<C> ConsensusHandler<C> {
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
+        backpressure_subscriber: BackpressureSubscriber,
     ) -> Self {
         // Recover last_consensus_stats so it is consistent across validators.
         let mut last_consensus_stats = epoch_store
@@ -153,6 +163,7 @@ impl<C> ConsensusHandler<C> {
             metrics,
             processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
             transaction_scheduler,
+            backpressure_subscriber,
         }
     }
 
@@ -165,6 +176,13 @@ impl<C> ConsensusHandler<C> {
 impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
+        // This may block until one of two conditions happens:
+        // - Number of uncommitted transactions in the writeback cache goes below the
+        //   backpressure threshold.
+        // - The highest executed checkpoint catches up to the highest certified
+        //   checkpoint.
+        self.backpressure_subscriber.await_no_backpressure().await;
+
         let _scope = monitored_scope("HandleConsensusOutput");
 
         let last_committed_round = self.last_consensus_stats.index.last_committed_round;
@@ -513,6 +531,7 @@ pub struct SequencedConsensusTransaction {
 }
 
 #[derive(Debug, Clone)]
+#[expect(clippy::large_enum_variant)]
 pub enum SequencedConsensusTransactionKind {
     External(ConsensusTransaction),
     System(VerifiedExecutableTransaction),
@@ -538,18 +557,20 @@ impl<'de> Deserialize<'de> for SequencedConsensusTransactionKind {
 // design). This wrapper allows us to convert to a serializable format easily.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum SerializableSequencedConsensusTransactionKind {
-    External(ConsensusTransaction),
-    System(TrustedExecutableTransaction),
+    External(Box<ConsensusTransaction>),
+    System(Box<TrustedExecutableTransaction>),
 }
 
 impl From<&SequencedConsensusTransactionKind> for SerializableSequencedConsensusTransactionKind {
     fn from(kind: &SequencedConsensusTransactionKind) -> Self {
         match kind {
             SequencedConsensusTransactionKind::External(ext) => {
-                SerializableSequencedConsensusTransactionKind::External(ext.clone())
+                SerializableSequencedConsensusTransactionKind::External(Box::new(ext.clone()))
             }
             SequencedConsensusTransactionKind::System(txn) => {
-                SerializableSequencedConsensusTransactionKind::System(txn.clone().serializable())
+                SerializableSequencedConsensusTransactionKind::System(Box::new(
+                    txn.clone().serializable(),
+                ))
             }
         }
     }
@@ -559,10 +580,10 @@ impl From<SerializableSequencedConsensusTransactionKind> for SequencedConsensusT
     fn from(kind: SerializableSequencedConsensusTransactionKind) -> Self {
         match kind {
             SerializableSequencedConsensusTransactionKind::External(ext) => {
-                SequencedConsensusTransactionKind::External(ext)
+                SequencedConsensusTransactionKind::External(*ext)
             }
             SerializableSequencedConsensusTransactionKind::System(txn) => {
-                SequencedConsensusTransactionKind::System(txn.into())
+                SequencedConsensusTransactionKind::System((*txn).into())
             }
         }
     }
@@ -699,7 +720,6 @@ pub struct ConsensusCommitInfo {
     pub timestamp: u64,
     pub consensus_commit_digest: ConsensusCommitDigest,
 
-    #[cfg(any(test, feature = "test-utils"))]
     skip_consensus_commit_prologue_in_test: bool,
 }
 
@@ -710,12 +730,10 @@ impl ConsensusCommitInfo {
             timestamp: consensus_output.commit_timestamp_ms(),
             consensus_commit_digest: consensus_output.consensus_digest(),
 
-            #[cfg(any(test, feature = "test-utils"))]
             skip_consensus_commit_prologue_in_test: false,
         }
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(
         commit_round: u64,
         commit_timestamp: u64,
@@ -729,7 +747,6 @@ impl ConsensusCommitInfo {
         }
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub fn skip_consensus_commit_prologue_in_test(&self) -> bool {
         self.skip_consensus_commit_prologue_in_test
     }
@@ -763,6 +780,7 @@ mod tests {
     use consensus_core::{
         BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
     };
+    use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
@@ -791,7 +809,7 @@ mod tests {
         post_consensus_tx_reorder::PostConsensusTxReorder,
     };
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_consensus_handler() {
         // GIVEN
         let mut objects = test_gas_objects();
@@ -814,6 +832,8 @@ mod tests {
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
+        let backpressure_manager = BackpressureManager::new_for_tests();
+
         let mut consensus_handler = ConsensusHandler::new(
             epoch_store,
             Arc::new(CheckpointServiceNoop {}),
@@ -822,6 +842,7 @@ mod tests {
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,
+            backpressure_manager.subscribe(),
         );
 
         // AND
@@ -855,10 +876,29 @@ mod tests {
             vec![],
         );
 
+        // Test that the consensus handler respects backpressure.
+        backpressure_manager.set_backpressure(true);
+        // Default watermarks are 0,0 which will suppress the backpressure.
+        backpressure_manager.update_highest_certified_checkpoint(1);
+
         // AND processing the consensus output once
-        consensus_handler
-            .handle_consensus_output(committed_sub_dag.clone())
-            .await;
+        {
+            let waiter = consensus_handler.handle_consensus_output(committed_sub_dag.clone());
+            pin_mut!(waiter);
+
+            // waiter should not complete within 5 seconds
+            tokio::time::timeout(std::time::Duration::from_secs(5), &mut waiter)
+                .await
+                .unwrap_err();
+
+            // lift backpressure
+            backpressure_manager.set_backpressure(false);
+
+            // waiter completes now.
+            tokio::time::timeout(std::time::Duration::from_secs(100), waiter)
+                .await
+                .unwrap();
+        }
 
         // AND capturing the consensus stats
         let num_blocks = blocks.len();

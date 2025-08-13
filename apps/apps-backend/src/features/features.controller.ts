@@ -4,6 +4,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
+import { KNOWN_ADDRESSES, NAME_ADDRESS_RESOLUTION_FEATURE } from './features.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -90,6 +91,20 @@ export class FeaturesController {
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
                     },
+                },
+                [Feature.KnownAddressAlias]: {
+                    defaultValue: {
+                        enabled: true,
+                        addresses: KNOWN_ADDRESSES,
+                    },
+                },
+                [Feature.KnownIotaEVMCoinTypes]: {
+                    defaultValue: [
+                        '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD',
+                    ],
+                },
+                [Feature.IotaNames]: {
+                    defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
             },
             dateUpdated: new Date().toISOString(),
@@ -180,6 +195,20 @@ export class FeaturesController {
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
                     },
+                },
+                [Feature.KnownAddressAlias]: {
+                    defaultValue: {
+                        enabled: true,
+                        addresses: KNOWN_ADDRESSES,
+                    },
+                },
+                [Feature.KnownIotaEVMCoinTypes]: {
+                    defaultValue: [
+                        '0xd3b63e603a78786facf65ff22e79701f3e824881a12fa3268d62a75530fe904f::vusd::VUSD',
+                    ],
+                },
+                [Feature.IotaNames]: {
+                    defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
             },
             dateUpdated: new Date().toISOString(),

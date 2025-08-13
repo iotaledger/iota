@@ -1,0 +1,65 @@
+{
+    "name": "@iota/signers",
+    "version": "0.1.0",
+    "description": "A collection of signers for various providers",
+    "license": "Apache-2.0",
+    "author": "IOTA Foundation <info@iota.org>",
+    "type": "commonjs",
+    "exports": {
+        "./ledger": {
+            "import": "./dist/esm/ledger/index.js",
+            "require": "./dist/cjs/ledger/index.js"
+        },
+        "./webcrypto": {
+            "import": "./dist/esm/webcrypto/index.js",
+            "require": "./dist/cjs/webcrypto/index.js"
+        }
+    },
+    "sideEffects": false,
+    "files": [
+        "CHANGELOG.md",
+        "LICENSE",
+        "README.md",
+        "dist",
+        "ledger",
+        "src",
+        "webcrypto"
+    ],
+    "scripts": {
+        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+        "build": "build-package",
+        "prepublishOnly": "pnpm turbo build",
+        "prettier:check": "prettier -c --ignore-unknown .",
+        "prettier:fix": "prettier -w --ignore-unknown .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "test": "echo 'No tests specified for sdk/signers package yet.'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/iotaledger/iota.git"
+    },
+    "bugs": {
+        "url": "https://github.com/iotaledger/iota/issues"
+    },
+    "homepage": "https://github.com/iotaledger/iota#readme",
+    "devDependencies": {
+        "@iota/build-scripts": "workspace:*",
+        "@types/node": "^20.14.10",
+        "dotenv": "^16.4.5",
+        "typescript": "^5.5.3",
+        "vitest": "^2.1.9"
+    },
+    "dependencies": {
+        "@iota/iota-sdk": "workspace:*",
+        "@iota/ledgerjs-hw-app-iota": "workspace:*",
+        "@noble/curves": "^1.4.2",
+        "@noble/hashes": "^1.4.0",
+        "asn1-ts": "^8.0.2"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

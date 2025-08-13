@@ -101,7 +101,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                             <TokenLink
                                 key={coinBalance.coinType}
                                 coinBalance={coinBalance}
-                                icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
+                                icon={<RecognizedBadge className="h-4 w-4 text-iota-primary-40" />}
                             />
                         ))}
                     {[TokenCategory.All, TokenCategory.Unrecognized].includes(

@@ -19,7 +19,7 @@ use formatting::{FormattedField, format_list, format_param, singular_or_plural};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::IotaClient;
+use iota_sdk::apis::ReadApi;
 use iota_types::{
     base_types::ObjectID, execution_config_utils::to_binary_config, move_package::UpgradePolicy,
 };
@@ -665,15 +665,14 @@ upgrade_codes!(
 /// Check the upgrade compatibility of a new package with an existing on-chain
 /// package.
 pub(crate) async fn check_compatibility(
-    client: &IotaClient,
+    read_api: &ReadApi,
     package_id: ObjectID,
     new_package: CompiledPackage,
     package_path: PathBuf,
     upgrade_policy: u8,
     protocol_config: ProtocolConfig,
 ) -> Result<(), Error> {
-    let existing_obj_read = client
-        .read_api()
+    let existing_obj_read = read_api
         .get_object_with_options(package_id, IotaObjectDataOptions::new().with_bcs())
         .await
         .context("Unable to get existing package")?;
@@ -699,18 +698,27 @@ pub(crate) async fn check_compatibility(
     let policy =
         UpgradePolicy::try_from(upgrade_policy).map_err(|_| anyhow!("Invalid upgrade policy"))?;
 
-    compare_packages(existing_modules, new_package, package_path, policy)
+    compare_packages(
+        *existing_package
+            .to_move_package(u64::MAX /* safe as this pkg comes from the network */)?
+            .original_package_id(),
+        existing_modules,
+        new_package,
+        package_path,
+        policy,
+    )
 }
 
 /// Collect all the errors into a single error message.
 fn compare_packages(
+    package_id: AccountAddress,
     existing_modules: Vec<CompiledModule>,
     mut new_package: CompiledPackage,
     package_path: PathBuf,
     policy: UpgradePolicy,
 ) -> Result<(), Error> {
     // create a map from the new modules
-    let new_modules_map: HashMap<Identifier, CompiledModule> = new_package
+    let mut new_modules_map: HashMap<Identifier, CompiledModule> = new_package
         .get_modules()
         .map(|m| (m.self_id().name().to_owned(), m.clone()))
         .collect();
@@ -739,8 +747,17 @@ fn compare_packages(
 
     for existing_module in existing_modules {
         let name = existing_module.self_id().name().to_owned();
-        match new_modules_map.get(&name) {
+        match new_modules_map.get_mut(&name) {
             Some(new_module) => {
+                let new_module_address_idx = new_module.self_handle().address;
+                let addrs = &mut new_module.address_identifiers;
+                if let Some(address_mut) = addrs.get_mut(new_module_address_idx.0 as usize) {
+                    if *address_mut == AccountAddress::ZERO {
+                        // if the new module address is zero, set it to the on-chain address
+                        *address_mut = package_id;
+                    }
+                }
+
                 let compiled_unit_with_source = new_package
                     .package
                     .get_module_by_name_from_root(name.as_str())
@@ -1335,13 +1352,13 @@ fn function_signature_mismatch_diag(
                             format_list(
                                 new_type_param
                                     .into_iter()
-                                    .map(|t| format!("'{:?}'", t).to_lowercase()),
+                                    .map(|t| format!("'{t:?}'").to_lowercase()),
                                 Some(("constraint", "constraints"))
                             ),
                             format_list(
                                 old_type_param
                                     .into_iter()
-                                    .map(|t| format!("'{:?}'", t).to_lowercase()),
+                                    .map(|t| format!("'{t:?}'").to_lowercase()),
                                 None
                             ),
                         ),
@@ -1496,11 +1513,11 @@ fn ability_mismatch_label(
 
     let missing_abilities_list: Vec<String> = missing_abilities
         .into_iter()
-        .map(|a| format!("'{:?}'", a).to_lowercase())
+        .map(|a| format!("'{a:?}'").to_lowercase())
         .collect();
     let extra_abilities_list: Vec<String> = extra_abilities
         .into_iter()
-        .map(|a| format!("'{:?}'", a).to_lowercase())
+        .map(|a| format!("'{a:?}'").to_lowercase())
         .collect();
 
     match (
@@ -1554,7 +1571,7 @@ fn struct_ability_mismatch_diag(
         let old_abilities: Vec<String> = old_struct
             .abilities
             .into_iter()
-            .map(|a| format!("'{:?}'", a).to_lowercase())
+            .map(|a| format!("'{a:?}'").to_lowercase())
             .collect();
 
         diags.add(Diagnostic::new(
@@ -1585,7 +1602,7 @@ fn struct_ability_mismatch_diag(
                         old_struct
                             .abilities
                             .into_iter()
-                            .map(|a| format!("'{:?}'", a).to_lowercase()),
+                            .map(|a| format!("'{a:?}'").to_lowercase()),
                         None
                     ),
                 ),
@@ -1802,7 +1819,7 @@ fn enum_ability_mismatch_diag(
         let old_abilities: Vec<String> = old_enum
             .abilities
             .into_iter()
-            .map(|a| format!("'{:?}'", a).to_lowercase())
+            .map(|a| format!("'{a:?}'").to_lowercase())
             .collect();
 
         let reason = if public_visibility_related_error {
@@ -1836,7 +1853,7 @@ fn enum_ability_mismatch_diag(
                         old_enum
                             .abilities
                             .into_iter()
-                            .map(|a| format!("'{:?}'", a).to_lowercase()),
+                            .map(|a| format!("'{a:?}'").to_lowercase()),
                         None
                     ),
                 ),
@@ -2253,7 +2270,7 @@ fn function_new_diag(
         Declarations::NewDeclaration,
         (
             def_loc,
-            format!("New unexpected function '{}'.", function_name),
+            format!("New unexpected function '{function_name}'."),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
@@ -2493,8 +2510,7 @@ fn file_format_version_downgrade_diag(
         (
             def_loc,
             format!(
-                "Downgrading from file format version {} to {} is not supported.",
-                old_version, new_version
+                "Downgrading from file format version {old_version} to {new_version} is not supported."
             ),
         ),
         Vec::<(Loc, String)>::new(),

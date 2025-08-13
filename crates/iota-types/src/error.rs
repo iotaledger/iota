@@ -90,7 +90,7 @@ macro_rules! assert_invariant {
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
 pub enum UserInputError {
-    #[error("Mutable object {object_id} cannot appear more than one in one transaction")]
+    #[error("Mutable object {object_id} cannot appear more than once in one transaction")]
     MutableObjectUsedMoreThanOnce { object_id: ObjectID },
     #[error("Wrong number of parameters for the transaction")]
     ObjectInputArityViolation,
@@ -307,6 +307,9 @@ pub enum UserInputError {
 
     #[error("Coin type is globally paused for use: {coin_type}")]
     CoinTypeGlobalPause { coin_type: String },
+
+    #[error("Invalid identifier found in the transaction: {error}")]
+    InvalidIdentifier { error: String },
 }
 
 #[derive(
@@ -967,7 +970,7 @@ impl ExecutionError {
 
 impl std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ExecutionError: {:?}", self)
+        write!(f, "ExecutionError: {self:?}")
     }
 }
 

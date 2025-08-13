@@ -120,7 +120,7 @@ export function DisplayStats({
                         </Tooltip>
                     )}
                 </div>
-                {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
+                {icon && <span className="display-stats-icon-color">{icon}</span>}
             </div>
             <div className="flex w-full flex-row items-baseline gap-xxs">
                 <span className={cx('break-all', valueClass)}>{value}</span>
@@ -132,7 +132,7 @@ export function DisplayStats({
                 {copyText && (
                     <div className="self-center">
                         <ButtonUnstyled onClick={handleCopyClick}>
-                            <Copy className="text-neutral-60 dark:text-neutral-40" />
+                            <Copy className="display-stats-copy-icon-color" />
                         </ButtonUnstyled>
                     </div>
                 )}

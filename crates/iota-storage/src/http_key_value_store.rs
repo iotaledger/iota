@@ -304,7 +304,7 @@ impl HttpKVStore {
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
         } else {
-            format!("{}/", base_url)
+            format!("{base_url}/")
         };
 
         let base_url = Url::parse(&base_url).into_iota_result()?;

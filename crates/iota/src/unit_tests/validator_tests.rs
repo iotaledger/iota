@@ -12,7 +12,9 @@ use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
 use crate::{
-    client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas},
+    client_commands::{
+        GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
+    },
     validator_commands::{IotaValidatorCommand, IotaValidatorCommandResponse, MetadataUpdate},
 };
 
@@ -64,14 +66,15 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         module: "iota_system".to_string(),
         function: "request_add_stake".to_string(),
         type_args: vec![],
-        gas_price: None,
         args: vec![
             IotaJsonValue::from_str("0x5").unwrap(),
             IotaJsonValue::from_str(&coins.data.first().unwrap().coin_object_id.to_string())
                 .unwrap(),
             IotaJsonValue::from_str(&address.to_string()).unwrap(),
         ],
-        opts: OptsWithGas::for_testing(None, 1000000000),
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs::default(),
+        processing: TxProcessingArgs::default(),
     }
     .execute(&mut test_cluster.wallet)
     .await?;

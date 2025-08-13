@@ -6,11 +6,9 @@ import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Loader } from '@iota/apps-ui-icons';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
-import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 
 function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
-    const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
     const name = displayMeta?.name ?? displayMeta?.description;
@@ -26,16 +24,15 @@ function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                 label={
                     <div className="group relative">
                         <ObjectVideoImage
-                            fadeIn
                             disablePreview
                             title={name || '--'}
                             subtitle={type}
                             src={src}
-                            video={video}
                             variant="medium"
+                            disableAutoPlay
                         />
                         <div className="absolute bottom-0 flex h-full w-full items-end justify-start rounded-xl p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-48 group-hover:opacity-100 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48">
-                            <span className="self-center text-label-md text-neutral-100">
+                            <span className="self-center text-label-md text-iota-neutral-100">
                                 {displayName}
                             </span>
                         </div>
@@ -50,7 +47,7 @@ function ThumbnailsOnlyLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
-                <div key={index} className="md:h-31.5 md:w-31.5 h-16 w-16 text-primary-30">
+                <div key={index} className="md:h-31.5 md:w-31.5 h-16 w-16 text-iota-primary-30">
                     <Loader className="animate-spin" />
                 </div>
             ))}

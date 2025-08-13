@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Contains types and related functions.
@@ -1182,7 +1182,7 @@ pub enum TypeDisplayContext<'a> {
     },
 }
 
-impl<'a> TypeDisplayContext<'a> {
+impl TypeDisplayContext<'_> {
     pub fn symbol_pool(&self) -> &SymbolPool {
         match self {
             TypeDisplayContext::WithEnv { env, .. } => env.symbol_pool(),
@@ -1206,7 +1206,7 @@ impl Type {
     }
 }
 
-impl<'a> fmt::Display for TypeDisplay<'a> {
+impl fmt::Display for TypeDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use Type::*;
         let comma_list = |f: &mut Formatter<'_>, ts: &[Type]| -> fmt::Result {
@@ -1283,7 +1283,7 @@ impl<'a> fmt::Display for TypeDisplay<'a> {
     }
 }
 
-impl<'a> TypeDisplay<'a> {
+impl TypeDisplay<'_> {
     fn datatype_str(&self, mid: ModuleId, sid: DatatypeId) -> String {
         match self.context {
             TypeDisplayContext::WithoutEnv {

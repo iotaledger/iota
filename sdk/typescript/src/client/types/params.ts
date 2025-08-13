@@ -460,7 +460,7 @@ export interface UnsafeMoveCallParams {
     typeArguments: string[];
     /**
      * the arguments to be passed into the Move function, in
-     * [IotaJson](https://docs.iota.org/references/iota-api) format
+     * [IotaJson](https://docs.iota.org/developer/references/iota-api) format
      */
     arguments: unknown[];
     /**

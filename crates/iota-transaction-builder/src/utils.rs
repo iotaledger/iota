@@ -28,7 +28,7 @@ use crate::TransactionBuilder;
 
 impl TransactionBuilder {
     /// Select a gas coin for the provided gas budget.
-    pub(crate) async fn select_gas(
+    pub async fn select_gas(
         &self,
         signer: IotaAddress,
         input_gas: impl Into<Option<ObjectID>>,

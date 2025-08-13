@@ -62,7 +62,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Transaction sent {}", transaction_response.digest);
     println!("Object changes:");
     for object_change in transaction_response.object_changes.unwrap() {
-        println!("{:?}", object_change);
+        println!("{object_change:?}");
     }
 
     // Unstake IOTA, if staking for longer than 1 epoch already
@@ -89,7 +89,7 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("Transaction sent {}", transaction_response.digest);
         println!("Object changes:");
         for object_change in transaction_response.object_changes.unwrap() {
-            println!("{:?}", object_change);
+            println!("{object_change:?}");
         }
     } else {
         println!("No stake found that can be unlocked (must be staked >= 1 epoch)")

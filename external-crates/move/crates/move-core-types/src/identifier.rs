@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! An identifier is the name of an entity (module, resource, function, etc) in
@@ -36,7 +36,8 @@ use anyhow::{Result, bail};
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::prelude::*;
 use ref_cast::RefCast;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_with::{DeserializeAs, SerializeAs};
 
 use crate::gas_algebra::AbstractMemorySize;
 
@@ -97,11 +98,29 @@ pub(crate) static ALLOWED_NO_SELF_IDENTIFIERS: &str =
 /// An owned identifier.
 ///
 /// For more details, see the module level documentation.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
 pub struct Identifier(Box<str>);
 // An identifier cannot be mutated so use Box<str> instead of String -- it is 1
 // word smaller.
+
+impl Serialize for Identifier {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde_with::DisplayFromStr::serialize_as(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Identifier {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        serde_with::DisplayFromStr::deserialize_as(deserializer)
+    }
+}
 
 impl Identifier {
     /// Creates a new `Identifier` instance.
