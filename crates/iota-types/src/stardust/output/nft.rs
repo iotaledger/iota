@@ -3,7 +3,7 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_stardust_sdk::types::block::output::{
+use iota_stardust_types::types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -208,7 +208,7 @@ impl Default for Irc27Metadata {
         let media_type = "image/png".to_owned();
         // A placeholder for NFTs without metadata from which we can extract a URI.
         let uri = Url::try_from(
-            iota_stardust_sdk::Url::parse("https://opensea.io/static/images/placeholder.png")
+            url::Url::parse("https://opensea.io/static/images/placeholder.png")
                 .expect("should be a valid url")
                 .to_string(),
         )

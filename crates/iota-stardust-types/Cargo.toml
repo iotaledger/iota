@@ -1,0 +1,116 @@
+[package]
+name = "iota-stardust-types"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+bech32 = { version = "0.9.1", default-features = false }
+bitflags = { version = "2.4.2", default-features = false }
+bytemuck = { version = "1.14.3", default-features = false }
+derive_more = { version = "0.99.17", default-features = false, features = ["from", "as_ref", "deref", "deref_mut", "display"] }
+getset = { version = "0.1.2", default-features = false }
+hashbrown = { version = "0.14.3", default-features = false, features = ["ahash", "inline-more"] }
+hex = { version = "0.4.3", default-features = false }
+iota-crypto = { version = "0.23.2", default-features = false, features = ["blake2b", "ed25519", "secp256k1", "ternary_encoding", "bip39", "bip39-en", "slip10"] }
+iterator-sorted = { version = "0.2.0", default-features = false }
+packable = { version = "0.8.3", default-features = false, features = ["primitive-types"] }
+prefix-hex = { version = "0.7.1", default-features = false, features = ["primitive-types"] }
+primitive-types = { version = "0.12.2", default-features = false }
+serde = { version = "1.0.196", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0.113", default-features = false, features = ["alloc"] }
+url = { version = "2.5.0", default-features = false, features = ["serde"], optional = true }
+# anemo.workspace = true
+# anyhow.workspace = true
+# async-trait.workspace = true
+# bcs.workspace = true
+# better_any.workspace = true
+# bincode.workspace = true
+# byteorder.workspace = true
+# derive_more = { workspace = true, features = [
+#     "as_ref",
+#     "from",
+#     "debug",
+#     "display",
+# ] }
+# either.workspace = true
+# enum_dispatch.workspace = true
+# eyre.workspace = true
+# fastcrypto = { workspace = true, features = ["copy_key"] }
+# fastcrypto-tbls.workspace = true
+# fastcrypto-zkp.workspace = true
+# hex.workspace = true
+# im.workspace = true
+# indexmap.workspace = true
+# iota-sdk2.workspace = true
+# itertools.workspace = true
+# lru.workspace = true
+# nonempty.workspace = true
+# num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
+# num-rational = "0.4"
+# num-traits = "0.2.18"
+# once_cell.workspace = true
+# packable = { version = "0.8", default-features = false, features = ["io"] }
+# parking_lot.workspace = true
+# passkey-types.workspace = true
+# prometheus.workspace = true
+# proptest = { workspace = true, optional = true }
+# proptest-derive = { workspace = true, optional = true }
+# rand.workspace = true
+# roaring.workspace = true
+# schemars.workspace = true
+# serde.workspace = true
+# serde-name = "0.2.1"
+# serde_json.workspace = true
+# serde_with.workspace = true
+# signature.workspace = true
+# static_assertions.workspace = true
+# strum.workspace = true
+# strum_macros.workspace = true
+# tap.workspace = true
+# thiserror.workspace = true
+# tonic.workspace = true
+# tracing.workspace = true
+
+# internal dependencies
+
+# optional dependencies
+instant = { version = "0.1.12", default-features = false, optional = true }
+rand = { version = "0.8.5", default-features = false, features = ["min_const_gen"], optional = true }
+regex = { version = "1.10.3", default-features = false, features = ["unicode-perl"], optional = true }
+serde_repr = { version = "0.1.18", default-features = false, optional = true }
+zeroize = { version = "1.7.0", default-features = false, features = ["zeroize_derive"], optional = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+instant = { version = "0.1.12", default-features = false, features = ["wasm-bindgen"], optional = true }
+
+[dev-dependencies]
+pretty_assertions = { version = "1.4.0", default-features = false, features = ["alloc"] }
+
+[features]
+default = ["std", "serde"]
+irc_27 = ["url", "serde"]
+irc_30 = ["url", "serde"]
+serde = [
+  "serde_repr",
+  "hashbrown/serde",
+  "packable/serde",
+  "primitive-types/serde_no_std",
+  "zeroize?/serde",
+]
+std = [
+  "packable/std",
+  "prefix-hex/std",
+  "primitive-types/std",
+  "bech32/std",
+  "bitflags/std",
+  "rand?/std_rng",
+  "regex?/std",
+  "iota-crypto/std",
+]

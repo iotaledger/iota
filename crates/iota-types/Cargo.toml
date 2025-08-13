@@ -64,7 +64,7 @@ iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
+iota-stardust-types = { workspace = true, features = ["irc_27"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
@@ -72,6 +72,7 @@ move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
 shared-crypto.workspace = true
 typed-store-error.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
@@ -85,7 +86,6 @@ passkey-client.workspace = true
 proptest.workspace = true
 serde_yaml.workspace = true
 tokio.workspace = true
-url.workspace = true
 
 [[bench]]
 name = "accumulator_bench"

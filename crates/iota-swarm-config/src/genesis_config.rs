@@ -12,10 +12,7 @@ use iota_config::{
     local_ip_utils,
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{
-    SnapshotSource,
-    validator_info::{GenesisValidatorInfo, ValidatorInfo},
-};
+use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -208,7 +205,6 @@ pub struct GenesisConfig {
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
-    pub migration_sources: Vec<SnapshotSource>,
     pub delegator: Option<IotaAddress>,
 }
 
@@ -390,7 +386,6 @@ impl GenesisConfig {
             validator_config_info: Some(validator_config_info),
             parameters,
             accounts: account_configs,
-            migration_sources: Default::default(),
             delegator: Default::default(),
         }
     }
