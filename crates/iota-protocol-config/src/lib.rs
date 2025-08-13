@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 10;
+pub const MAX_PROTOCOL_VERSION: u64 = 11;
 
 // Record history of protocol version allocations here:
 //
@@ -68,6 +68,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //             Enable the gas price feedback mechanism in devnet.
 //             Enable Identifier input validation.
 //             Removes unnecessary child object mutations
+//             Add additional signature checks
+//             Add additional linkage checks
+// Version 11: Framework fix regarding candidate validator commission rate.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -305,6 +308,14 @@ struct FeatureFlags {
     // mutations
     #[serde(skip_serializing_if = "is_false")]
     minimize_child_object_mutations: bool,
+
+    // If true enable additional linkage checks.
+    #[serde(skip_serializing_if = "is_false")]
+    dependency_linkage_error: bool,
+
+    // If true enable additional multisig checks.
+    #[serde(skip_serializing_if = "is_false")]
+    additional_multisig_checks: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1296,6 +1307,14 @@ impl ProtocolConfig {
     pub fn minimize_child_object_mutations(&self) -> bool {
         self.feature_flags.minimize_child_object_mutations
     }
+
+    pub fn dependency_linkage_error(&self) -> bool {
+        self.feature_flags.dependency_linkage_error
+    }
+
+    pub fn additional_multisig_checks(&self) -> bool {
+        self.feature_flags.additional_multisig_checks
+    }
 }
 
 #[cfg(not(msim))]
@@ -2003,8 +2022,10 @@ impl ProtocolConfig {
                 6 => {
                     cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
-                // version 7 is a new framework version but with no config changes
-                7 => {}
+                7 => {
+                    // version 7 is a new framework version but with no config
+                    // changes
+                }
                 8 => {
                     cfg.feature_flags.variant_nodes = true;
 
@@ -2092,6 +2113,12 @@ impl ProtocolConfig {
                     }
 
                     cfg.feature_flags.validate_identifier_inputs = true;
+                    cfg.feature_flags.dependency_linkage_error = true;
+                    cfg.feature_flags.additional_multisig_checks = true;
+                }
+                11 => {
+                    // version 11 is a new framework version but with no config
+                    // changes
                 }
                 // Use this template when making changes:
                 //

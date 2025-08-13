@@ -117,7 +117,6 @@ impl RemoteStore {
                 };
                 let historical = HistoricalReader::new(config)
                     .inspect_err(|e| error!("Unable to instantiate historical reader: {e}"))?;
-                historical.sync_manifest_once().await?;
 
                 let live = live_url
                     .map(|url| create_remote_store_client(url, Default::default(), timeout_secs))
@@ -225,7 +224,14 @@ impl CheckpointReaderActor {
         // If the requested checkpoint is beyond what's currently available in our
         // cached manifest, we need to refresh it to check for newer checkpoints.
         if self.current_checkpoint_number > historical_reader.latest_available_checkpoint().await? {
-            historical_reader.sync_manifest_once().await?;
+            timeout(
+                Duration::from_secs(self.reader_options.timeout_secs),
+                historical_reader.sync_manifest_once(),
+            )
+            .await
+            .map_err(|_| {
+                IngestionError::HistoryRead("Reading Manifest exceeded the timeout".into())
+            })??;
 
             // Verify the requested checkpoint is now available after the manifest refresh.
             // If it's still not available, the checkpoint hasn't been published yet.
@@ -252,11 +258,19 @@ impl CheckpointReaderActor {
             .enumerate()
             .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
         {
-            let checkpoints = historical_reader
-                .iter_for_file(metadata.file_path())
-                .await?
-                .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
-                .collect::<Vec<CheckpointData>>();
+            let checkpoints = timeout(
+                Duration::from_secs(self.reader_options.timeout_secs),
+                historical_reader.iter_for_file(metadata.file_path()),
+            )
+            .await
+            .map_err(|_| {
+                IngestionError::HistoryRead(format!(
+                    "Reading checkpoint {} exceeded the timeout",
+                    metadata.file_path()
+                ))
+            })??
+            .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
+            .collect::<Vec<CheckpointData>>();
 
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
@@ -494,7 +508,7 @@ impl CheckpointReader {
 
         let path = match config.ingestion_path {
             Some(p) => p,
-            None => tempfile::tempdir()?.into_path(),
+            None => tempfile::tempdir()?.keep(),
         };
 
         let reader = CheckpointReaderActor {

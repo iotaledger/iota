@@ -777,7 +777,7 @@ async fn start(
     // the genesis command, which sets data_ingestion_dir to None.
     #[cfg(feature = "indexer")]
     if with_indexer.is_some() && data_ingestion_dir.is_none() {
-        data_ingestion_dir = Some(tempdir()?.into_path())
+        data_ingestion_dir = Some(tempdir()?.keep())
     }
 
     #[cfg(feature = "indexer")]
@@ -879,7 +879,7 @@ async fn start(
         tracing::info!("Starting the faucet service at {faucet_address}");
         let faucet_config_dir = if force_regenesis {
             // tempdir is used so the faucet file is cleaned up afterwards
-            tempdir()?.into_path()
+            tempdir()?.keep()
         } else {
             config_path
         };

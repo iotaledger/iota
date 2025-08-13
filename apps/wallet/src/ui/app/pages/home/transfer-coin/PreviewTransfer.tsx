@@ -4,9 +4,15 @@
 
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_hooks';
-import { CoinFormat, parseAmount, useCoinMetadata, useFormatCoin } from '@iota/core';
+import {
+    NamedAddressTooltip,
+    parseAmount,
+    useCoinMetadata,
+    useFormatCoin,
+    useGetIotaNameRecord,
+} from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -23,6 +29,7 @@ export function PreviewTransfer({
     coinBalance,
     gasBudget,
 }: PreviewTransferProps) {
+    const { data: nameRecord } = useGetIotaNameRecord(to);
     const accountAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
@@ -32,7 +39,7 @@ export function PreviewTransfer({
 
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
         balance: gasBudget,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return (
@@ -61,9 +68,17 @@ export function PreviewTransfer({
                 <KeyValueInfo
                     keyText={'To'}
                     value={
-                        <ExplorerLink type={ExplorerLinkType.Address} address={to || ''}>
-                            {formatAddress(to || '')}
-                        </ExplorerLink>
+                        <NamedAddressTooltip
+                            address={nameRecord?.targetAddress || to}
+                            name={nameRecord?.name}
+                        >
+                            <ExplorerLink
+                                type={ExplorerLinkType.Address}
+                                address={nameRecord?.targetAddress || to}
+                            >
+                                {nameRecord ? nameRecord.name : formatAddress(to || '')}
+                            </ExplorerLink>
+                        </NamedAddressTooltip>
                     }
                     fullwidth
                 />

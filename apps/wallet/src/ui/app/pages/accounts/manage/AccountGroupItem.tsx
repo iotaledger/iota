@@ -8,7 +8,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
-import { toast, useGetIotaName } from '@iota/core';
+import { toast, useGetDefaultIotaName } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
@@ -17,7 +17,6 @@ import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
-import { normalizeIotaName } from '@iota/iota-names-sdk';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -43,8 +42,7 @@ export function AccountGroupItem({
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
-    const { data: defaultName } = useGetIotaName(account?.address);
-    const iotaName = defaultName && normalizeIotaName(defaultName);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
@@ -73,7 +71,7 @@ export function AccountGroupItem({
         setDialogNicknameOpen(true);
     }
 
-    function handleExportPrivateKey() {
+    function handleExportKeys() {
         navigate(`/accounts/export/${account!.id}`);
     }
 
@@ -170,11 +168,9 @@ export function AccountGroupItem({
                                 <ListItem hideBottomBorder onClick={handleRename}>
                                     Rename
                                 </ListItem>
-                                {account.isKeyPairExportable ? (
-                                    <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
-                                        Export Private Key
-                                    </ListItem>
-                                ) : null}
+                                <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                    Export Account Keys
+                                </ListItem>
                                 {allAccounts.isPending ? null : (
                                     <ListItem hideBottomBorder onClick={handleRemove}>
                                         Delete

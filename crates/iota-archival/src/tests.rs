@@ -50,7 +50,7 @@ struct TestState {
 fn temp_dir() -> std::path::PathBuf {
     tempdir()
         .expect("Failed to open temporary directory")
-        .into_path()
+        .keep()
 }
 
 async fn write_new_checkpoints_to_store(

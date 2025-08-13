@@ -226,7 +226,7 @@ fn create_category_file(prefix: &str) {
             "label": label,
             "link": {
                 "type": "generated-index",
-                "slug": format!("/references/framework/{}", prefix),
+                "slug": format!("/developer/references/framework/{}", prefix),
                 "description": format!(
                     "Documentation for the modules in the iota/crates/iota-framework/packages/{prefix} crate. Select a module from the list to see its details."
                 )

@@ -147,6 +147,17 @@ impl AuthenticatorTrait for MultiSig {
                     })?;
             let res = match sig {
                 CompressedSignature::Ed25519(s) => {
+                    if verify_params.additional_multisig_checks
+                        && !matches!(subsig_pubkey.scheme(), SignatureScheme::ED25519)
+                    {
+                        return Err(IotaError::InvalidSignature {
+                            error: format!(
+                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                subsig_pubkey.encode_base64(),
+                                IotaAddress::from(subsig_pubkey)
+                            ),
+                        });
+                    }
                     let pk =
                         Ed25519PublicKey::from_bytes(subsig_pubkey.as_ref()).map_err(|_| {
                             IotaError::InvalidSignature {
@@ -161,6 +172,17 @@ impl AuthenticatorTrait for MultiSig {
                     )
                 }
                 CompressedSignature::Secp256k1(s) => {
+                    if verify_params.additional_multisig_checks
+                        && !matches!(subsig_pubkey.scheme(), SignatureScheme::Secp256k1)
+                    {
+                        return Err(IotaError::InvalidSignature {
+                            error: format!(
+                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                subsig_pubkey.encode_base64(),
+                                IotaAddress::from(subsig_pubkey)
+                            ),
+                        });
+                    }
                     let pk =
                         Secp256k1PublicKey::from_bytes(subsig_pubkey.as_ref()).map_err(|_| {
                             IotaError::InvalidSignature {
@@ -175,6 +197,17 @@ impl AuthenticatorTrait for MultiSig {
                     )
                 }
                 CompressedSignature::Secp256r1(s) => {
+                    if verify_params.additional_multisig_checks
+                        && !matches!(subsig_pubkey.scheme(), SignatureScheme::Secp256r1)
+                    {
+                        return Err(IotaError::InvalidSignature {
+                            error: format!(
+                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                subsig_pubkey.encode_base64(),
+                                IotaAddress::from(subsig_pubkey)
+                            ),
+                        });
+                    }
                     let pk =
                         Secp256r1PublicKey::from_bytes(subsig_pubkey.as_ref()).map_err(|_| {
                             IotaError::InvalidSignature {
@@ -189,6 +222,20 @@ impl AuthenticatorTrait for MultiSig {
                     )
                 }
                 CompressedSignature::ZkLogin(z) => {
+                    if verify_params.additional_multisig_checks
+                        && !matches!(
+                            subsig_pubkey.scheme(),
+                            SignatureScheme::ZkLoginAuthenticator
+                        )
+                    {
+                        return Err(IotaError::InvalidSignature {
+                            error: format!(
+                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                subsig_pubkey.encode_base64(),
+                                IotaAddress::from(subsig_pubkey)
+                            ),
+                        });
+                    }
                     let authenticator = ZkLoginAuthenticator::from_bytes(&z.0).map_err(|_| {
                         IotaError::InvalidSignature {
                             error: "Invalid zklogin authenticator bytes".to_string(),

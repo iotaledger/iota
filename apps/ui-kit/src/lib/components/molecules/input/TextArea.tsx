@@ -62,6 +62,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
         isResizeEnabled,
         required,
         isContentVisible,
+        defaultValue,
         ...textareaProps
     },
     ref,
@@ -101,7 +102,8 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
                         isInputContentVisible && isResizeEnabled ? 'resize-y' : 'resize-none',
                         !isInputContentVisible && 'not-visible select-none text-transparent',
                     )}
-                    value={isInputContentVisible ? value : ''}
+                    defaultValue={isInputContentVisible && defaultValue ? defaultValue : undefined}
+                    value={isInputContentVisible && value ? value : undefined}
                     {...textareaProps}
                 />
                 {!isInputContentVisible && (
