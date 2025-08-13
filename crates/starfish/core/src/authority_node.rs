@@ -76,7 +76,7 @@ impl ConsensusAuthority {
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
+            "Starting Starfish consensus authority {} {}, {:?}, boot counter {}",
             own_index, own_hostname, protocol_config.version, boot_counter
         );
         info!(
