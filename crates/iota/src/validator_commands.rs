@@ -107,8 +107,8 @@ pub enum IotaValidatorCommand {
     DisplayMetadata {
         #[arg(name = "validator-address")]
         validator_address: Option<IotaAddress>,
-        #[arg(name = "json", long)]
-        json: Option<bool>,
+        #[arg(long, global = true)]
+        json: bool,
     },
     /// Update the validator metadata.
     UpdateMetadata {
@@ -342,7 +342,7 @@ impl IotaValidatorCommand {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
                 let iota_client = context.get_client().await?;
-                display_metadata(&iota_client, validator_address, json.unwrap_or(true)).await?;
+                display_metadata(&iota_client, validator_address, json).await?;
                 IotaValidatorCommandResponse::DisplayMetadata
             }
 
