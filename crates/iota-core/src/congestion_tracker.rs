@@ -35,6 +35,13 @@ const HOTNESS_DECAY_FACTOR: f64 = 1.5;
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
 
+/// Struct to hold data about a given transaction
+struct TxData {
+    objects: Vec<ObjectID>,
+    gas_price: u64,
+    gas_price_feedback: Option<u64>,
+}
+
 /// Holds tracked per-object congestion info.
 #[derive(Clone, Copy, Debug)]
 struct CongestionInfo {
@@ -146,9 +153,8 @@ impl CongestionTracker {
         effects: &[TransactionEffects],
     ) {
         // Containers for checkpoint's congestion and clearing transactions data.
-        let mut congestion_txs_data: Vec<(u64, Vec<ObjectID>, u64)> =
-            Vec::with_capacity(effects.len());
-        let mut clearing_txs_data: Vec<(u64, Vec<ObjectID>)> = Vec::with_capacity(effects.len());
+        let mut congestion_txs_data: Vec<TxData> = Vec::with_capacity(effects.len());
+        let mut clearing_txs_data: Vec<TxData> = Vec::with_capacity(effects.len());
 
         for effects in effects {
             let gas_price = transaction_cache_reader
@@ -169,15 +175,14 @@ impl CongestionTracker {
                     .status()
                     .get_feedback_suggested_gas_price()
                     .unwrap_or(self.reference_gas_price);
-                congestion_txs_data.push((
+                congestion_txs_data.push(TxData {
+                    objects: congested_objects.clone(),
                     gas_price,
-                    congested_objects.clone(),
-                    gas_price_feedback,
-                ));
+                    gas_price_feedback: Some(gas_price_feedback),
+                });
             } else {
-                clearing_txs_data.push((
-                    gas_price,
-                    effects
+                clearing_txs_data.push(TxData {
+                    objects: effects
                         .input_shared_objects()
                         .into_iter()
                         .filter_map(|object| match object {
@@ -188,7 +193,9 @@ impl CongestionTracker {
                             | InputSharedObject::MutateDeleted(_, _) => None,
                         })
                         .collect::<Vec<_>>(),
-                ));
+                    gas_price,
+                    gas_price_feedback: None,
+                });
             }
         }
 
@@ -248,8 +255,8 @@ impl CongestionTracker {
     fn process_congestion_and_clearing_txs_data(
         &self,
         time: CheckpointTimestamp,
-        congestion_txs_data: &[(u64, Vec<ObjectID>, u64)],
-        clearing_txs_data: &[(u64, Vec<ObjectID>)],
+        congestion_txs_data: &[TxData],
+        clearing_txs_data: &[TxData],
     ) {
         let congestion_info_map = self.compute_per_checkpoint_congestion_info(
             time,
@@ -307,12 +314,17 @@ impl CongestionTracker {
     fn compute_per_checkpoint_congestion_info(
         &self,
         time: CheckpointTimestamp,
-        congestion_txs_data: &[(u64, Vec<ObjectID>, u64)],
-        clearing_txs_data: &[(u64, Vec<ObjectID>)],
+        congestion_txs_data: &[TxData],
+        clearing_txs_data: &[TxData],
     ) -> CongestionInfoMap {
         let mut congestion_info_map = CongestionInfoMap::new();
 
-        for (gas_price, objects, gas_price_feedback) in congestion_txs_data {
+        for TxData {
+            objects,
+            gas_price,
+            gas_price_feedback,
+        } in congestion_txs_data
+        {
             let hotness_per_tx = self.get_total_hotness_for_objects(objects.iter().cloned());
             objects.iter().for_each(|object_id| {
                 match congestion_info_map.entry(*object_id) {
@@ -334,7 +346,7 @@ impl CongestionTracker {
                 // hotness of objects in the transaction + reference gas price) and actual gas
                 // price feedback.
                 let hotness_adjustment = hotness_per_tx + (self.reference_gas_price as f64)
-                    - (*gas_price_feedback as f64);
+                    - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
 
                 congestion_info_map
                     .entry(*object_id)
@@ -342,7 +354,10 @@ impl CongestionTracker {
             });
         }
 
-        for (gas_price, objects) in clearing_txs_data {
+        for TxData {
+            objects, gas_price, ..
+        } in clearing_txs_data
+        {
             objects.iter().for_each(|object_id| {
                 // We only record clearing prices if the object has observed cancellations
                 // recently
@@ -434,7 +449,18 @@ mod tests {
         let object_2 = ObjectID::random();
 
         let time = 1_000;
-        let congestion_txs_data = vec![(100, vec![object_1], 1000), (200, vec![object_2], 1000)];
+        let congestion_txs_data = vec![
+            TxData {
+                objects: vec![object_1],
+                gas_price: 100,
+                gas_price_feedback: Some(1000),
+            },
+            TxData {
+                objects: vec![object_2],
+                gas_price: 200,
+                gas_price_feedback: Some(1000),
+            },
+        ];
         let clearing_txs_data = vec![];
 
         tracker.process_congestion_and_clearing_txs_data(
@@ -462,7 +488,18 @@ mod tests {
         // Congestion transactions only, no clearing ones. The highest congestion
         // gas price should be used.
         let time = 1_000;
-        let congestion_txs_data = vec![(100, vec![object], 1000), (75, vec![object], 1000)];
+        let congestion_txs_data = vec![
+            TxData {
+                gas_price: 100,
+                objects: vec![object],
+                gas_price_feedback: Some(1000),
+            },
+            TxData {
+                gas_price: 75,
+                objects: vec![object],
+                gas_price_feedback: Some(1000),
+            },
+        ];
         let clearing_txs_data = vec![];
         tracker.process_congestion_and_clearing_txs_data(
             time,
@@ -477,7 +514,11 @@ mod tests {
         // No congestion transactions data in last checkpoint, so no congestion.
         let time = 2_000;
         let congestion_txs_data = vec![];
-        let clearing_txs_data = vec![(150, vec![object])];
+        let clearing_txs_data = vec![TxData {
+            objects: vec![object],
+            gas_price: 150,
+            gas_price_feedback: None,
+        }];
         tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
@@ -491,8 +532,23 @@ mod tests {
         // Next checkpoint has both congestion and clearing transactions,
         // so the lowest clearing gas price should be used.
         let time = 3_000;
-        let congestion_txs_data = vec![(100, vec![object], 1000)];
-        let clearing_txs_data = vec![(175, vec![object]), (125, vec![object])];
+        let congestion_txs_data = vec![TxData {
+            objects: vec![object],
+            gas_price: 100,
+            gas_price_feedback: Some(1000),
+        }];
+        let clearing_txs_data = vec![
+            TxData {
+                objects: vec![object],
+                gas_price: 175,
+                gas_price_feedback: None,
+            },
+            TxData {
+                objects: vec![object],
+                gas_price: 125,
+                gas_price_feedback: None,
+            },
+        ];
         tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
@@ -512,7 +568,18 @@ mod tests {
         let object_2 = ObjectID::random();
 
         let time = 1_000;
-        let congestion_txs_data = vec![(100, vec![object_1], 1000), (200, vec![object_2], 1000)];
+        let congestion_txs_data = vec![
+            TxData {
+                objects: vec![object_1],
+                gas_price: 100,
+                gas_price_feedback: Some(1000),
+            },
+            TxData {
+                objects: vec![object_2],
+                gas_price: 200,
+                gas_price_feedback: Some(1000),
+            },
+        ];
         let clearing_txs_data = vec![];
         tracker.process_congestion_and_clearing_txs_data(
             time,
@@ -526,8 +593,30 @@ mod tests {
         );
 
         let time = 2_000;
-        let congestion_txs_data = vec![(100, vec![object_1], 1000), (200, vec![object_2], 1000)];
-        let clearing_txs_data = vec![(100, vec![object_1]), (150, vec![object_2])];
+        let congestion_txs_data = vec![
+            TxData {
+                objects: vec![object_1],
+                gas_price: 100,
+                gas_price_feedback: Some(1000),
+            },
+            TxData {
+                objects: vec![object_2],
+                gas_price: 200,
+                gas_price_feedback: Some(1000),
+            },
+        ];
+        let clearing_txs_data = vec![
+            TxData {
+                objects: vec![object_1],
+                gas_price: 100,
+                gas_price_feedback: None,
+            },
+            TxData {
+                objects: vec![object_2],
+                gas_price: 150,
+                gas_price_feedback: None,
+            },
+        ];
         tracker.process_congestion_and_clearing_txs_data(
             time,
             &congestion_txs_data,
@@ -553,13 +642,27 @@ mod tests {
         // Congestion events: both objects are congested with different gas price
         // feedback
         let congestion_events = vec![
-            (1000, vec![obj1], 900),  // should result in unchanged hotness for obj1
-            (1000, vec![obj2], 1200), // should result in positive hotness adjustment for obj2
-            (1000, vec![obj2], 1200),
-            (1000, vec![obj2, obj3], 1600), /* should result in positive hotness adjustment for
-                                             * obj3 */
+            TxData {
+                objects: vec![obj1],
+                gas_price: 1000,
+                gas_price_feedback: Some(900),
+            },
+            TxData {
+                objects: vec![obj2],
+                gas_price: 1000,
+                gas_price_feedback: Some(1200),
+            },
+            TxData {
+                objects: vec![obj2],
+                gas_price: 1000,
+                gas_price_feedback: Some(1200),
+            },
+            TxData {
+                objects: vec![obj2, obj3],
+                gas_price: 1000,
+                gas_price_feedback: Some(1600),
+            },
         ];
-
         let cleared_events = vec![]; // no clearing in this round
 
         tracker.process_congestion_and_clearing_txs_data(now, &congestion_events, &cleared_events);
@@ -589,12 +692,24 @@ mod tests {
         let obj2 = ObjectID::random();
 
         // First checkpoint
-        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj1], 1500)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(
+            1000,
+            &[TxData {
+                objects: vec![obj1],
+                gas_price: 100,
+                gas_price_feedback: Some(1500),
+            }],
+            &[],
+        );
 
         // Second checkpoint, touches same object and new one
         tracker.process_congestion_and_clearing_txs_data(
             1100,
-            &[(100, vec![obj1, obj2], 1700)],
+            &[TxData {
+                objects: vec![obj1, obj2],
+                gas_price: 100,
+                gas_price_feedback: Some(1700),
+            }],
             &[],
         );
 
@@ -605,11 +720,30 @@ mod tests {
 
         // Additional checkpoints
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
-        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1050)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(
+            1000,
+            &[TxData {
+                objects: vec![obj2],
+                gas_price: 100,
+                gas_price_feedback: Some(1050),
+            }],
+            &[],
+        );
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
         tracker.process_congestion_and_clearing_txs_data(
             1000,
-            &[(100, vec![obj1, obj2], 1150), (100, vec![obj1], 1020)],
+            &[
+                TxData {
+                    objects: vec![obj1, obj2],
+                    gas_price: 100,
+                    gas_price_feedback: Some(1150),
+                },
+                TxData {
+                    objects: vec![obj1],
+                    gas_price: 100,
+                    gas_price_feedback: Some(1020),
+                },
+            ],
             &[],
         );
 
@@ -635,12 +769,24 @@ mod tests {
         // First checkpoint with two congested objects
         tracker.process_congestion_and_clearing_txs_data(
             1000,
-            &[(100, vec![obj1, obj2], 1010)],
+            &[TxData {
+                objects: vec![obj1, obj2],
+                gas_price: 100,
+                gas_price_feedback: Some(1010),
+            }],
             &[],
         );
 
         // obj1 is not congested anymore
-        tracker.process_congestion_and_clearing_txs_data(1000, &[(100, vec![obj2], 1007)], &[]);
+        tracker.process_congestion_and_clearing_txs_data(
+            1000,
+            &[TxData {
+                objects: vec![obj2],
+                gas_price: 100,
+                gas_price_feedback: Some(1007),
+            }],
+            &[],
+        );
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
 
         // hotness for obj1 goes below 1.0 so it should be removed from cache
