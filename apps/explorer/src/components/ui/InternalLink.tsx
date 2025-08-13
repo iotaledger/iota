@@ -67,10 +67,11 @@ function createInternalLink<T extends string>(
             return (
                 <AddressAlias
                     address={id}
-                    noFormatAddress={noTruncate}
                     onCopy={copyText ? handleCopyClick : undefined}
+                    noTruncate={noTruncate}
+                    truncateUnknown={!noTruncate}
                     renderAddress={(address) => (
-                        <NamedAddressTooltip name={iotaName} address={id}>
+                        <NamedAddressTooltip name={iotaName} address={address}>
                             <Link
                                 className="text-iota-primary-30 dark:text-iota-primary-80"
                                 variant="mono"
