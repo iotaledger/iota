@@ -259,19 +259,20 @@ mod checked {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
-        certificate_deny_set: &HashSet<TransactionDigest>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>) {
         // TODO: It is fake authenticator digest, which one we should use here?
         let authenticator_digest = transaction_digest;
 
-        // Check the transaction type.
+        // Check the preconditions.
+
         debug_assert!(
             transaction_kind.is_programmable_transaction(),
             "Only programmable transactions are allowed"
         );
 
-        // Prepare the authenticator input objects.
+        // Prepare the move authenticator input objects.
+
         let input_objects = authenticator_input_objects.into_inner();
 
         let mutable_inputs = input_objects
@@ -280,14 +281,21 @@ mod checked {
             .copied()
             .collect::<HashSet<_>>();
 
-        // Double check if we have only immutable inputs.
         debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
 
         let shared_object_refs = input_objects.filter_shared_objects();
-        let receiving_objects = Vec::new(); // transaction_kind.receiving_objects();
+        let receiving_objects = authenticator.receiving_objects();
+
+        debug_assert!(
+            receiving_objects.is_empty(),
+            "No receiving inputs are allowed"
+        );
+
         let mut transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
+
+        // Prepare an environment for the transaction execution.
 
         let mut temporary_store = TemporaryStore::new(
             store,
@@ -309,15 +317,14 @@ mod checked {
             epoch_timestamp_ms,
         );
 
-        // Create an authenticator transaction.
+        // Create a move authenticator transaction.
         let mut builder = ProgrammableTransactionBuilder::new();
 
         builder = setup_account_authenticator_call(builder, authenticator, authenticator_info);
 
         let authenticator_transaction = TransactionKind::programmable(builder.finish());
 
-        // TODO: Do we need to check this?
-        let deny_cert = is_certificate_denied(&authenticator_digest, certificate_deny_set);
+        // Execute the authenticator transaction.
 
         // TODO: Check if we can use this function or execute the
         // authenticator_transaction directly.
@@ -330,11 +337,13 @@ mod checked {
             protocol_config,
             metrics,
             enable_expensive_checks,
-            deny_cert,
+            false,
             contains_deleted_input,
             cancelled_objects,
             trace_builder_opt,
         );
+
+        // Check the execution result.
 
         let status = if let Err(error) = &execution_result {
             // Elaborate errors in logs if they are unexpected or their status is terse.
@@ -360,16 +369,6 @@ mod checked {
                     );
                 }
 
-                K::PublishUpgradeMissingDependency | K::PublishUpgradeDependencyDowngrade => {
-                    #[skip_checked_arithmetic]
-                    tracing::debug!(
-                        kind = ?error.kind(),
-                        tx_digest = ?authenticator_digest,
-                        "Publish/Upgrade Error. Source: {:?}",
-                        error.source(),
-                    )
-                }
-
                 _ => (),
             };
 
@@ -390,7 +389,6 @@ mod checked {
             status
         );
 
-        // TODO: Do we need this?
         // Genesis writes a special digest to indicate that an object was created during
         // genesis and not written by any normal transaction - remove that from the
         // dependencies

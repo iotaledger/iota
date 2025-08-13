@@ -1728,7 +1728,6 @@ impl AuthorityState {
                     self.config
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
-                    self.config.certificate_deny_config.certificate_deny_set(),
                     &epoch_store.epoch_start_config().epoch_data().epoch_id(),
                     epoch_store
                         .epoch_start_config()

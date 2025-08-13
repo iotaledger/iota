@@ -175,7 +175,6 @@ impl executor::Executor for Executor {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
-        certificate_deny_set: &HashSet<TransactionDigest>,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -208,7 +207,6 @@ impl executor::Executor for Executor {
             protocol_config,
             metrics,
             enable_expensive_checks,
-            certificate_deny_set,
             trace_builder_opt,
         )
     }

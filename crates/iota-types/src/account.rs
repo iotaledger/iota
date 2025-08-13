@@ -2,7 +2,7 @@ use move_core_types::{account_address::AccountAddress, ident_str, language_stora
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::ObjectID,
+    base_types::{ObjectID, ObjectRef},
     error::IotaError,
     object::{Data, Object},
     transaction::CallArg,
@@ -22,6 +22,15 @@ pub struct AuthenticatorInfo {
     pub package: ObjectID,
     pub module: String,
     pub function: String,
+}
+
+impl MoveAuthenticator {
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+        self.inputs
+            .iter()
+            .flat_map(|arg| arg.receiving_objects())
+            .collect()
+    }
 }
 
 impl AuthenticatorInfo {

@@ -512,7 +512,7 @@ impl CallArg {
         }
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match self {
             CallArg::Pure(_) => vec![],
             CallArg::Object(o) => match o {
