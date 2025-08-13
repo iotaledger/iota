@@ -147,7 +147,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             <AddressLink
                                 address={validatorData.iotaAddress}
                                 copyText={validatorData.iotaAddress}
-                                noTruncate={true}
+                                noTruncate
                             />
                         }
                     />
