@@ -104,11 +104,11 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
 
     let response = IotaValidatorCommand::DisplayMetadata {
         validator_address: None,
-        json: None,
+        json: false,
     }
     .execute(&mut test_cluster.wallet)
     .await?;
-    let IotaValidatorCommandResponse::DisplayMetadata = response else {
+    let IotaValidatorCommandResponse::DisplayMetadata(_) = response else {
         panic!("Expected DisplayMetadata");
     };
 

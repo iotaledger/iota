@@ -160,14 +160,14 @@ pub enum IotaValidatorCommand {
 #[serde(untagged)]
 pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
-    DisplayMetadata,
+    DisplayMetadata(String),
     BecomeCandidate(IotaTransactionBlockResponse),
     JoinValidators(IotaTransactionBlockResponse),
     LeaveValidators(IotaTransactionBlockResponse),
     UpdateMetadata(IotaTransactionBlockResponse),
     ReportValidator(IotaTransactionBlockResponse),
     SerializedPayload(String),
-    List,
+    List(String),
 }
 
 fn make_key_files(
@@ -345,8 +345,8 @@ impl IotaValidatorCommand {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
                 let iota_client = context.get_client().await?;
-                display_metadata(&iota_client, validator_address, json).await?;
-                IotaValidatorCommandResponse::DisplayMetadata
+                let resp = display_metadata(&iota_client, validator_address, json).await?;
+                IotaValidatorCommandResponse::DisplayMetadata(resp)
             }
 
             IotaValidatorCommand::UpdateMetadata {
@@ -451,19 +451,18 @@ impl IotaValidatorCommand {
                     }));
                 }
 
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&entries)?);
+                let resp = if json {
+                    serde_json::to_string_pretty(&entries)?
                 } else {
-                    let table = builder
+                    builder
                         .build()
                         .with(Style::rounded())
                         .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
                         .with(Modify::new(Column::from(4)).with(Alignment::center()))
-                        .to_string();
-                    println!("{table}");
-                }
+                        .to_string()
+                };
 
-                IotaValidatorCommandResponse::List
+                IotaValidatorCommandResponse::List(resp)
             }
         });
         ret
@@ -646,31 +645,32 @@ async fn call_0x5(
         .map_err(|err| anyhow::anyhow!(err.to_string()))
 }
 
+impl PrintableResult for IotaValidatorCommandResponse {
+    // pretty is unused here, as this is handled for each command separately
+    fn print(&self, _pretty: bool) {
+        println!("{self}");
+    }
+}
+
 impl Display for IotaValidatorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
             IotaValidatorCommandResponse::MakeValidatorInfo => {}
-            IotaValidatorCommandResponse::DisplayMetadata => {}
-            IotaValidatorCommandResponse::BecomeCandidate(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
+            IotaValidatorCommandResponse::DisplayMetadata(resp)
+            | IotaValidatorCommandResponse::List(resp) => {
+                write!(writer, "{resp}")?;
             }
-            IotaValidatorCommandResponse::JoinValidators(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::LeaveValidators(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::UpdateMetadata(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::ReportValidator(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
+            IotaValidatorCommandResponse::BecomeCandidate(resp)
+            | IotaValidatorCommandResponse::JoinValidators(resp)
+            | IotaValidatorCommandResponse::LeaveValidators(resp)
+            | IotaValidatorCommandResponse::UpdateMetadata(resp)
+            | IotaValidatorCommandResponse::ReportValidator(resp) => {
+                write!(writer, "{}", write_transaction_response(resp)?)?;
             }
             IotaValidatorCommandResponse::SerializedPayload(response) => {
                 write!(writer, "Serialized payload: {response}")?;
             }
-            IotaValidatorCommandResponse::List => return std::fmt::Result::Ok(()),
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
@@ -706,12 +706,6 @@ impl Debug for IotaValidatorCommandResponse {
             Err(err) => format!("{err}").red().to_string(),
         };
         write!(f, "{s}")
-    }
-}
-
-impl PrintableResult for IotaValidatorCommandResponse {
-    fn should_print(&self) -> bool {
-        !matches!(self, Self::MakeValidatorInfo | Self::DisplayMetadata)
     }
 }
 
@@ -868,27 +862,30 @@ async fn display_metadata(
     client: &IotaClient,
     validator_address: IotaAddress,
     json: bool,
-) -> anyhow::Result<()> {
-    match get_validator_summary(client, validator_address).await? {
-        None => println!("{validator_address} is not a validator"),
-        Some((status, metadata)) => {
-            if json {
-                let obj = serde_json::json!({
-                    "status": format!("{status:?}"),
-                    "metadata": metadata
-                });
-                println!("{}", serde_json::to_string_pretty(&obj)?);
-            } else {
-                println!("{validator_address}'s validator status: {status:?}");
-                if let serde_json::Value::Object(map) = serde_json::to_value(&metadata).unwrap() {
-                    for (key, value) in map {
-                        println!("{key}: {value}");
+) -> anyhow::Result<String> {
+    Ok(
+        match get_validator_summary(client, validator_address).await? {
+            None => format!("{validator_address} is not a validator"),
+            Some((status, metadata)) => {
+                if json {
+                    let obj = serde_json::json!({
+                        "status": format!("{status:?}"),
+                        "metadata": metadata
+                    });
+                    serde_json::to_string_pretty(&obj)?
+                } else {
+                    let mut result = format!("{validator_address}'s validator status: {status:?}");
+                    if let serde_json::Value::Object(map) = serde_json::to_value(&metadata).unwrap()
+                    {
+                        for (key, value) in map {
+                            write!(result, "\n{key}: {value}").unwrap();
+                        }
                     }
+                    result
                 }
             }
-        }
-    }
-    Ok(())
+        },
+    )
 }
 
 async fn get_pending_candidate_summary(
