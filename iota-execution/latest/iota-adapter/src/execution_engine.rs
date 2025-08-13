@@ -253,7 +253,6 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_input_objects: CheckedInputObjects,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,

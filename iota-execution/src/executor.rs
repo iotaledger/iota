@@ -102,7 +102,6 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_input_objects: CheckedInputObjects,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>);
 

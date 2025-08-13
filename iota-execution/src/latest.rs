@@ -190,7 +190,6 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_input_objects: CheckedInputObjects,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>) {
         validate_transaction(
@@ -203,7 +202,6 @@ impl executor::Executor for Executor {
             transaction_kind,
             transaction_signer,
             transaction_digest,
-            transaction_input_objects,
             &self.0,
             epoch_id,
             epoch_timestamp_ms,
