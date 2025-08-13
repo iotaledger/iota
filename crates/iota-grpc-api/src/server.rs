@@ -6,8 +6,9 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
+use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 
 use crate::{
@@ -20,7 +21,7 @@ pub struct GrpcServerHandle {
     /// Handle to the server task
     pub server_handle: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
     /// Shutdown signal sender
-    shutdown_tx: Option<oneshot::Sender<()>>,
+    shutdown_token: CancellationToken,
     /// Broadcaster for checkpoint summaries
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     /// Broadcaster for checkpoint data
@@ -31,15 +32,11 @@ pub struct GrpcServerHandle {
 
 impl GrpcServerHandle {
     /// Graceful shutdown of the gRPC server
-    pub async fn shutdown(mut self) -> Result<()> {
-        if let Some(shutdown_tx) = self.shutdown_tx.take() {
-            let _ = shutdown_tx.send(());
-            match self.server_handle.await {
-                Ok(result) => result.map_err(Into::into),
-                Err(join_error) => Err(anyhow::anyhow!("Server task failed: {join_error}")),
-            }
-        } else {
-            Ok(())
+    pub async fn shutdown(self) -> Result<()> {
+        self.shutdown_token.cancel();
+        match self.server_handle.await {
+            Ok(result) => result.map_err(Into::into),
+            Err(join_error) => Err(anyhow::anyhow!("Server task failed: {join_error}")),
         }
     }
 
@@ -72,17 +69,16 @@ pub async fn start_grpc_server(
     let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
     let (checkpoint_data_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
 
-    // Create shutdown signal
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
     // Create broadcasters
     let checkpoint_summary_broadcaster =
         GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
 
+    let shutdown_token = grpc_reader.cancellation_token().clone();
+
     // Create the gRPC service using the provided grpc_reader
     let service = CheckpointGrpcService::new(
-        grpc_reader,
+        grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
     );
@@ -103,20 +99,20 @@ pub async fn start_grpc_server(
 
     // Spawn the server task with graceful shutdown
     let server_handle = tokio::spawn(async move {
-        let server = server_builder.serve_with_incoming(TcpListenerStream::new(listener));
+        let result = server_builder
+            .serve_with_incoming_shutdown(
+                TcpListenerStream::new(listener),
+                grpc_reader.cancellation_token().cancelled(),
+            )
+            .await;
 
-        tokio::select! {
-            result = server => result,
-            _ = shutdown_rx => {
-                tracing::info!("gRPC server shutting down gracefully");
-                Ok(())
-            }
-        }
+        tracing::info!("gRPC server shutdown completed");
+        result
     });
 
     Ok(GrpcServerHandle {
         server_handle,
-        shutdown_tx: Some(shutdown_tx),
+        shutdown_token,
         checkpoint_summary_broadcaster,
         checkpoint_data_broadcaster,
         address: actual_addr,

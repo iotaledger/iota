@@ -14,6 +14,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
+use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
 
@@ -197,11 +198,15 @@ impl GrpcStateReader for RestStateReaderAdapter {
 #[derive(Clone)]
 pub struct GrpcReader {
     state_reader: Arc<dyn GrpcStateReader>,
+    cancellation_token: CancellationToken,
 }
 
 impl GrpcReader {
     pub fn new(state_reader: Arc<dyn GrpcStateReader>) -> Self {
-        Self { state_reader }
+        Self {
+            state_reader,
+            cancellation_token: CancellationToken::new(),
+        }
     }
 
     pub fn from_rest_state_reader(state_reader: Arc<dyn RestStateReader>) -> Self {
@@ -209,6 +214,7 @@ impl GrpcReader {
             state_reader: Arc::new(RestStateReaderAdapter {
                 inner: state_reader,
             }),
+            cancellation_token: CancellationToken::new(),
         }
     }
 
@@ -217,6 +223,10 @@ impl GrpcReader {
         epoch: u64,
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
         self.state_reader.get_epoch_last_checkpoint(epoch)
+    }
+
+    pub fn cancellation_token(&self) -> &CancellationToken {
+        &self.cancellation_token
     }
 
     fn get_full_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
@@ -281,36 +291,53 @@ impl GrpcReader {
                     }
                 }
                 // latest < start, live phase
-                // wait for broadcast
-                match rx.recv().await {
-                    Ok(item) => {
-                        debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
-                        let sequence_number = get_sequence_number(&item);
-                        if start == sequence_number {
-                            let response = BcsData::serialize_from(&*item)
-                                .map(|data| Checkpoint {
-                                    sequence_number,
-                                    bcs_data: Some(data),
-                                    is_full,
-                                })
-                                .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
-                            yield response;
-                            if start == end {
+                // wait for broadcast or cancellation
+                let item_result = tokio::select! {
+                    // note: tokio::select! cannot return results, so we put the match logic after the select
+                    recv_result = rx.recv() => Some(recv_result),
+                    _ = reader.cancellation_token.cancelled() => {
+                        debug!("[profile][grpc] Checkpoint {data_type_name} stream cancelled");
+                        None
+                    }
+                };
+
+                match item_result {
+                    Some(recv_result) => {
+                        match recv_result {
+                            Ok(item) => {
+                                debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
+                                let sequence_number = get_sequence_number(&item);
+                                if start == sequence_number {
+                                    let response = BcsData::serialize_from(&*item)
+                                        .map(|data| Checkpoint {
+                                            sequence_number,
+                                            bcs_data: Some(data),
+                                            is_full,
+                                        })
+                                        .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
+                                    yield response;
+                                    if start == end {
+                                        break;
+                                    }
+                                    start += 1;
+                                    continue;
+                                }
+                                // else item sequence doesn't match, drop it and continue
+                            }
+                            Err(RecvError::Lagged(_)) => {
+                                // continue, lagged item should be picked up from history DB
+                            }
+                            Err(RecvError::Closed) => {
+                                // report internal error to the stream and break
+                                Err(Status::internal(format!("Checkpoint {} channel closed.", data_type_name)))?;
                                 break;
                             }
-                            start += 1;
-                            continue;
                         }
-                        // else item sequence doesn't match, drop it and continue
                     }
-                    Err(RecvError::Lagged(_)) => {
-                        // continue, lagged item should be picked up from history DB
-                    }
-                    Err(RecvError::Closed) => {
-                        // report internal error to the stream and break
-                        Err(Status::internal(format!("Checkpoint {} channel closed.", data_type_name)))?;
+                    None => {
+                        // Cancellation was triggered
                         break;
-                    },
+                    }
                 }
                 latest = reader.get_latest_checkpoint_sequence_number().unwrap_or(start);
                 debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
