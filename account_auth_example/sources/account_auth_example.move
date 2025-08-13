@@ -1,13 +1,35 @@
 module account_auth_example::m;
 
-use iota::account;
-use std::ascii;
+// temporary placeholder
+public struct AuthContext has drop {}
 
-public fun crate_auth() {
-    let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"authenticate"));
-    account::drop_auth_info_v1(account_info);
+public fun bind_to_test_module() {}
+
+public fun minimally_viable_auth_function(_auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+#[allow(unused_function)]
+fun has_to_be_public_auth_function(_auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public fun at_least_two_args(_ctx: &TxContext) {}
+
+public fun auth_context_cant_be_value(_auth_ctx: AuthContext, _ctx: &TxContext) {}
+
+public fun auth_context_cant_be_mutable_ref(_auth_ctx: &mut AuthContext, _ctx: &TxContext) {}
+
+public fun tx_context_cant_be_value(_auth_ctx: &AuthContext, _ctx: TxContext) {}
+
+public fun tx_context_cant_be_mutable_ref(_auth_ctx: &AuthContext, _ctx: &mut TxContext) {}
+
+public fun auth_context_isnt_struct(_auth_ctx: u64, _ctx: &TxContext) {}
+
+public fun tx_context_isnt_struct(_auth_ctx: &AuthContext, _ctx: u64) {}
+
+public struct Object has key {
+    id: iota::object::UID,
 }
 
-public fun authenticate(): bool {
-    true
-}
+public fun arg_immutable_ref(_object: &Object, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public fun arg_value(_val: u8, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public fun arg_mutable_value(mut _val: u8, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
