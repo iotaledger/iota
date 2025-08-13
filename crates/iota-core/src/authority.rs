@@ -1223,8 +1223,14 @@ impl AuthorityState {
             tx_guard.release();
             return Ok((effects, None));
         }
+
         let input_objects =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
+        let move_authenticator_input_objects = self.read_authenticator_objects_for_execution(
+            tx_guard.as_lock_guard(),
+            certificate,
+            epoch_store,
+        )?;
 
         // If no expected_effects_digest was provided, try to get it from storage.
         // We could be re-executing a previously executed but uncommitted transaction,
@@ -1238,6 +1244,7 @@ impl AuthorityState {
             tx_guard,
             certificate,
             input_objects,
+            move_authenticator_input_objects,
             expected_effects_digest,
             epoch_store,
         )
@@ -1267,6 +1274,39 @@ impl AuthorityState {
             input_objects,
             epoch_store.epoch(),
         )
+    }
+
+    pub fn read_authenticator_objects_for_execution(
+        &self,
+        tx_lock: &CertLockGuard,
+        certificate: &VerifiedExecutableTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<Option<InputObjects>> {
+        // TODO: Should we change the scope name?
+        let _scope = monitored_scope("Execution::load_input_objects");
+        let _metrics_guard = self
+            .metrics
+            .execution_load_input_objects_latency
+            .start_timer();
+
+        let move_authenticator_input_objects =
+            if let Some(_move_authenticator) = move_authenticator(certificate.tx_signatures()) {
+                // TODO: We need to resolve the authenticator inputs.
+                let move_authenticator_input_object_kinds = Vec::new(); // authenticator.input_objects()?;
+
+                Some(self.input_loader.read_objects_for_execution(
+                    epoch_store,
+                    // TODO: Check if we can use this digest.
+                    &certificate.key(),
+                    tx_lock,
+                    &move_authenticator_input_object_kinds,
+                    epoch_store.epoch(),
+                )?)
+            } else {
+                None
+            };
+
+        Ok(move_authenticator_input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -1352,6 +1392,7 @@ impl AuthorityState {
         tx_guard: CertTxGuard,
         certificate: &VerifiedExecutableTransaction,
         input_objects: InputObjects,
+        authenticator_input_objects: Option<InputObjects>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
@@ -1400,6 +1441,7 @@ impl AuthorityState {
             &execution_guard,
             certificate,
             input_objects,
+            authenticator_input_objects,
             epoch_store,
         ) {
             Err(e) => {
@@ -1625,6 +1667,7 @@ impl AuthorityState {
         _execution_guard: &ExecutionLockReadGuard<'_>,
         certificate: &VerifiedExecutableTransaction,
         input_objects: InputObjects,
+        authenticator_input_objects: Option<InputObjects>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(
         InnerTemporaryStore,
@@ -1642,7 +1685,7 @@ impl AuthorityState {
 
         // The cost of partially re-auditing a transaction before execution is
         // tolerated.
-        let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
+        let (mut gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             certificate,
             input_objects,
             epoch_store.protocol_config(),
@@ -1655,6 +1698,52 @@ impl AuthorityState {
         let protocol_config = epoch_store.protocol_config();
         let transaction_data = &certificate.data().intent_message().value;
         let (kind, signer, gas) = transaction_data.execution_parts();
+
+        if let Some(move_authenticator) = move_authenticator(certificate.tx_signatures()) {
+            let authenticator_info = self.check_smart_account(certificate.sender_address())?;
+
+            let authenticator_input_objects = authenticator_input_objects
+                .expect("In case of a MoveAuthenticator, the input objects must be provided");
+
+            // Check the MoveAuthenticator input objects.
+            let authenticator_input_objects =
+                self.check_move_authenticator_inputs_for_executing(authenticator_input_objects)?;
+
+            // Execute the authenticator.
+            let (authenticator_gas_status, validation_result) =
+                epoch_store.executor().validate_transaction(
+                    self.get_backing_store().as_ref(),
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    // TODO: would be nice to pass the whole NodeConfig here, but it creates a
+                    // cyclic dependency w/ iota-adapter
+                    self.config
+                        .expensive_safety_check_config
+                        .enable_deep_per_tx_iota_conservation_check(),
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+                    epoch_store
+                        .epoch_start_config()
+                        .epoch_data()
+                        .epoch_start_timestamp(),
+                    gas.clone(),
+                    gas_status,
+                    move_authenticator,
+                    authenticator_info,
+                    authenticator_input_objects,
+                    kind.clone(),
+                    signer,
+                    tx_digest,
+                    &mut None,
+                );
+
+            // TODO: Return the validation error.
+            if let Err(_validation_error) = validation_result {
+                todo!()
+            }
+
+            gas_status = authenticator_gas_status;
+        }
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let (inner_temp_store, _, mut effects, execution_error_opt) =
@@ -1710,7 +1799,13 @@ impl AuthorityState {
         let lock: RwLock<EpochId> = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
 
-        self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
+        self.prepare_certificate(
+            &execution_guard,
+            certificate,
+            input_objects,
+            None,
+            epoch_store,
+        )
     }
 
     pub async fn dry_exec_transaction(
@@ -4887,8 +4982,13 @@ impl AuthorityState {
         let input_objects =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
-        let (temporary_store, effects, _execution_error_opt) =
-            self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
+        let (temporary_store, effects, _execution_error_opt) = self.prepare_certificate(
+            &execution_guard,
+            &executable_tx,
+            input_objects,
+            None,
+            epoch_store,
+        )?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
         // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
@@ -4998,7 +5098,7 @@ impl AuthorityState {
     // TODO: Is this logic enough to check if the sender is a smart account?
 
     /// Checks if the sender is a smart account.
-    fn check_smart_account(&self, sender: IotaAddress) -> IotaResult<()> {
+    fn check_smart_account(&self, sender: IotaAddress) -> IotaResult<AuthenticatorInfo> {
         // TODO: Is this the correct way to load an account object?
         let account_object_id = ObjectID::from(sender);
         let account_object = self.get_object_read(&account_object_id)?;
@@ -5010,23 +5110,32 @@ impl AuthorityState {
                     todo!()
                 }
 
-                let authenticator = self.get_dynamic_field_object_id(
+                let authenticator_id = self.get_dynamic_field_object_id(
                     account_object_id,
                     AuthenticatorInfo::tag().into(),
                     AUTHENTICATOR_DF_NAME.as_bytes(),
                 )?;
 
-                if authenticator.is_none() {
-                    todo!()
+                match authenticator_id {
+                    Some(authenticator_id) => {
+                        let authenticator_info = self.get_object_read(&authenticator_id)?;
+
+                        match authenticator_info {
+                            ObjectRead::Exists(_, object, _) => AuthenticatorInfo::try_from(object),
+                            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
+                                todo!()
+                            }
+                        }
+                    }
+                    None => todo!(),
                 }
             }
             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => todo!(),
-        };
-
-        Ok(())
+        }
     }
 
-    /// Checks the MoveAuthenticator inputs for the given transaction digest.
+    /// Checks the MoveAuthenticator inputs for signing for the given
+    /// transaction digest.
     fn check_move_authenticator_inputs_for_signing(
         &self,
         _authenticator: &MoveAuthenticator,
@@ -5053,6 +5162,17 @@ impl AuthorityState {
         iota_transaction_checks::check_move_authenticator_input(input_objects)?;
 
         Ok(())
+    }
+
+    /// Checks the MoveAuthenticator inputs for executing for the given
+    /// transaction digest.
+    fn check_move_authenticator_inputs_for_executing(
+        &self,
+        input_objects: InputObjects,
+    ) -> IotaResult<CheckedInputObjects> {
+        // The receiving objects are checned on the signing step.
+
+        iota_transaction_checks::check_move_authenticator_input(input_objects)
     }
 
     #[cfg(test)]
