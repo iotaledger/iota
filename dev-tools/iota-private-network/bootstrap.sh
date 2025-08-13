@@ -12,15 +12,40 @@ TEMP_EXPORT_DIR="${TEMP_EXPORT_DIR-"$PRIVNET_DIR/configs/temp"}"
 VALIDATOR_CONFIGS_DIR="$PRIVNET_DIR/configs/validators"
 GENESIS_DIR="$PRIVNET_DIR/configs/genesis"
 OVERLAY_PATH="$PRIVNET_DIR/configs/validator-common.yaml"
-# Parse `-n` for number of validators (default 4)
+# Parse `-n` for number of validators (default 4), and `-p` for protocol
 NUM_VALIDATORS=4
-while getopts "n:" opt; do
+PROTOCOL=""
+while getopts "n:p:" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
+    p) PROTOCOL="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators] [-p protocol]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
+set_env_var() {
+  # Usage: set_env_var KEY VALUE FILE
+  local key="$1" value="$2" file="$3"
+  mkdir -p "$(dirname "$file")"
+  if [ -f "$file" ]; then
+    if grep -q "^${key}=" "$file"; then
+      # portable in-place replace without sed -i
+      tmpfile="$(mktemp)"
+      awk -v k="$key" -v v="$value" 'BEGIN{changed=0} {if ($0 ~ "^"k"=") {print k"="v; changed=1} else {print}} END{if (!changed) print k"="v}' "$file" > "$tmpfile" && mv "$tmpfile" "$file"
+    else
+      echo "${key}=${value}" >> "$file"
+    fi
+  else
+    echo "${key}=${value}" > "$file"
+  fi
+}
+unset_env_var() {
+  # Usage: unset_env_var KEY FILE
+  local key="$1" file="$2"
+  [ -f "$file" ] || return 0
+  tmpfile="$(mktemp)"
+  awk -v k="$key" 'BEGIN{removed=0} $0 !~ "^"k"=" {print} $0 ~ "^"k"=" {removed=1} END{}' "$file" > "$tmpfile" && mv "$tmpfile" "$file"
+}
 
 # Select the matching genesis template
 GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template-${NUM_VALIDATORS}.yaml"
@@ -125,6 +150,16 @@ main() {
 
   generate_genesis_files
   create_folder_for_postgres
+
+  # Manage CONSENSUS_PROTOCOL in .env: set if provided, otherwise remove it
+  ENV_FILE="$PRIVNET_DIR/.env"
+  if [ -n "$PROTOCOL" ]; then
+    set_env_var CONSENSUS_PROTOCOL "$PROTOCOL" "$ENV_FILE"
+    echo "Set CONSENSUS_PROTOCOL=$PROTOCOL in $ENV_FILE"
+  else
+    unset_env_var CONSENSUS_PROTOCOL "$ENV_FILE"
+    echo "Cleared CONSENSUS_PROTOCOL from $ENV_FILE (no -p provided)"
+  fi
 
   echo "Done"
 }

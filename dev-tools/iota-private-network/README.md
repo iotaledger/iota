@@ -41,6 +41,17 @@ Generate the genesis files and validators’ configuration:
 ./bootstrap.sh -n 19
 ```
 
+### Optional: Selecting a Consensus Protocol
+
+You can start the network with an optional consensus protocol flag.\
+If the flag is not provided, the default protocol from `docker-compose.yaml` (or none, if unset) will be used.
+
+For example, to bootstrap a **Starfish** network:
+
+````bash
+./bootstrap.sh -p starfish
+
+
 ### 3. Start the Network
 
 The script supports different modes, which can be used individually or in combination. Regardless of the mode chosen, the validators will always be active.
@@ -57,7 +68,7 @@ To bring up everything:
 
 ```bash
 ./run.sh all
-```
+````
 
 To bring up 4 validators, three full nodes (one with the backup feature enabled), one indexer, and one faucet:
 
