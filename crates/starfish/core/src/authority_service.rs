@@ -170,7 +170,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_blocks
+                .invalid_block_headers
                 .with_label_values(&[
                     peer_hostname.as_str(),
                     "handle_subscribed_block_bundle",
@@ -186,7 +186,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_blocks
+                .invalid_block_headers
                 .with_label_values(&[
                     peer_hostname.as_str(),
                     "handle_subscribed_block_bundle",
