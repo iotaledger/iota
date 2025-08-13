@@ -29,7 +29,7 @@ pub struct MoveAuthenticator {
     inputs: Vec<CallArg>,
     /// The reference to the object that this authenticates. This object
     /// represents the account being the sender of the transaction.
-    object_ref_to_authenticate: ObjectRef,
+    object_to_authenticate: ObjectRef,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing [trait AsRef<[u8]>].
     #[serde(skip)]
@@ -38,7 +38,7 @@ pub struct MoveAuthenticator {
 
 impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
-        self.object_ref_to_authenticate.0.into()
+        self.object_to_authenticate.0.into()
     }
 }
 
