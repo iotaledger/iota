@@ -94,7 +94,6 @@ Execute a 24h randomized chaos test:
 
 Results are logged to `logs` directory with timestamps for analysis.
 
-````
 ### 7. `run-all.sh`
 
 Automates the full workflow: optionally rebuilds the `iota-node` and `iota-tools` Docker images, bootstraps the network, runs the private network, and launches the `network-fuzz-test.sh` script.
