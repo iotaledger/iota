@@ -2049,7 +2049,7 @@ impl IotaNode {
         // Shutdown the gRPC server if it's running
         if let Some(grpc_handle) = &self.grpc_server_handle {
             info!("Shutting down gRPC server");
-            grpc_handle.server_handle.abort();
+            grpc_handle.shutdown();
         }
     }
 
