@@ -1,5 +1,20 @@
 # @iota/apps-ui-kit
 
+## 0.7.1
+
+### Patch Changes
+
+-   b3b2b4b: fix double scroll bar in the select component
+-   5a3fd67: remove gradient from outline button & add CSS classes to components
+-   8b8bf41: Improve typeset for the names theme
+-   4a25f42: Add supportingValue to input
+-   23c13dc: add new state-layer-secondary
+-   4e7d5ae: Add colors for iota names
+-   eebb4f5: add gradient border to outline button
+-   c7ba8c4: export SecondaryText component
+-   Updated dependencies [3d09899]
+    -   @iota/apps-ui-icons@0.4.1
+
 ## 0.7.0
 
 ### Minor Changes
