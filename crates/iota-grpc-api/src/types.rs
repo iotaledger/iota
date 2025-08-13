@@ -302,37 +302,33 @@ impl GrpcReader {
                 };
 
                 match item_result {
-                    Some(recv_result) => {
-                        match recv_result {
-                            Ok(item) => {
-                                debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
-                                let sequence_number = get_sequence_number(&item);
-                                if start == sequence_number {
-                                    let response = BcsData::serialize_from(&*item)
-                                        .map(|data| Checkpoint {
-                                            sequence_number,
-                                            bcs_data: Some(data),
-                                            is_full,
-                                        })
-                                        .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
-                                    yield response;
-                                    if start == end {
-                                        break;
-                                    }
-                                    start += 1;
-                                    continue;
-                                }
-                                // else item sequence doesn't match, drop it and continue
-                            }
-                            Err(RecvError::Lagged(_)) => {
-                                // continue, lagged item should be picked up from history DB
-                            }
-                            Err(RecvError::Closed) => {
-                                // report internal error to the stream and break
-                                Err(Status::internal(format!("Checkpoint {} channel closed.", data_type_name)))?;
+                    Some(Ok(item)) => {
+                        debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
+                        let sequence_number = get_sequence_number(&item);
+                        if start == sequence_number {
+                            let response = BcsData::serialize_from(&*item)
+                                .map(|data| Checkpoint {
+                                    sequence_number,
+                                    bcs_data: Some(data),
+                                    is_full,
+                                })
+                                .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
+                            yield response;
+                            if start == end {
                                 break;
                             }
+                            start += 1;
+                            continue;
                         }
+                        // else item sequence doesn't match, drop it and continue
+                    }
+                    Some(Err(RecvError::Lagged(_))) => {
+                        // continue, lagged item should be picked up from history DB
+                    }
+                    Some(Err(RecvError::Closed)) => {
+                        // report internal error to the stream and break
+                        Err(Status::internal(format!("Checkpoint {} channel closed.", data_type_name)))?;
+                        break;
                     }
                     None => {
                         // Cancellation was triggered
