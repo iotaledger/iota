@@ -1,5 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Make Node treat .svg as an empty string during tests (prevents "Unexpected token '<'")
+/* eslint-disable @typescript-eslint/no-explicit-any */
+(require as any).extensions ||= {};
+(require as any).extensions['.svg'] = (module: any) => {
+  module.exports = '';
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
