@@ -2,7 +2,7 @@ import { IotaClient, CoinStruct } from '@iota/iota-sdk/client';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { IOTA_TYPE_ARG, IOTA_DECIMALS } from '@iota/iota-sdk/utils';
-import { parseAmount } from '@iota/core';
+import { parseAmount } from '@iota/core/src/utils/parseAmount';
 import { createDepositTransactionL1 } from '../../src/lib/utils/transaction/createDepositTransactionL1';
 import { CONFIG } from '../config/config';
 import { TOOL_COIN_OBJECT_ID, TOOL_COIN_TYPE } from '../utils/constants';
