@@ -150,7 +150,10 @@ pub enum IotaValidatorCommand {
     },
     /// Get a list of the validators in the network. Use the `display-metadata`
     /// command to see the complete data for a validator.
-    List,
+    List {
+        #[arg(long, global = true)]
+        json: bool,
+    },
 }
 
 #[derive(Serialize)]
@@ -389,7 +392,7 @@ impl IotaValidatorCommand {
                 DEFAULT_EPOCH_ID.write(&mut intent_msg_bytes);
                 IotaValidatorCommandResponse::SerializedPayload(Base64::encode(&intent_msg_bytes))
             }
-            IotaValidatorCommand::List => {
+            IotaValidatorCommand::List { json } => {
                 let mut builder = Builder::default();
 
                 builder.set_header([
@@ -414,6 +417,7 @@ impl IotaValidatorCommand {
                     _ => panic!("unsupported IotaSystemStateSummary"),
                 };
 
+                let mut entries = Vec::new();
                 for (
                     index,
                     IotaValidatorSummary {
@@ -433,20 +437,31 @@ impl IotaValidatorCommand {
                         .unwrap_or(true);
                     builder.push_record([
                         iota_address.to_string(),
-                        name,
+                        name.clone(),
                         staking_pool_iota_balance.to_string(),
                         pending_stake.to_string(),
                         if committee_member { "✓" } else { "" }.to_string(),
                     ]);
+                    entries.push(serde_json::json!({
+                        "iota_address": iota_address.to_string(),
+                        "name": name,
+                        "staking_pool_balance": staking_pool_iota_balance.to_string(),
+                        "pending_stake": pending_stake.to_string(),
+                        "committee_member": committee_member,
+                    }));
                 }
 
-                let table = builder
-                    .build()
-                    .with(Style::rounded())
-                    .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
-                    .with(Modify::new(Column::from(4)).with(Alignment::center()))
-                    .to_string();
-                println!("{table}");
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&entries)?);
+                } else {
+                    let table = builder
+                        .build()
+                        .with(Style::rounded())
+                        .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
+                        .with(Modify::new(Column::from(4)).with(Alignment::center()))
+                        .to_string();
+                    println!("{table}");
+                }
 
                 IotaValidatorCommandResponse::List
             }
@@ -655,7 +670,7 @@ impl Display for IotaValidatorCommandResponse {
             IotaValidatorCommandResponse::SerializedPayload(response) => {
                 write!(writer, "Serialized payload: {response}")?;
             }
-            IotaValidatorCommandResponse::List => {}
+            IotaValidatorCommandResponse::List => return std::fmt::Result::Ok(()),
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
