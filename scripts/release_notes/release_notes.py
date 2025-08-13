@@ -13,7 +13,7 @@ import sys
 from typing import NamedTuple
 import urllib.request
 
-GH_TOKEN = os.environ.get('GH_TOKEN')
+GH_TOKEN = os.environ.get("GH_TOKEN")
 
 RE_NUM = re.compile("[0-9_]+")
 
@@ -123,7 +123,7 @@ def parse_args():
     )
 
     check_p.add_argument(
-        "pr_number",
+        "pr-number",
         help="The number of the PR to check.",
     )
 
@@ -151,7 +151,7 @@ def extract_notes_from_commit(commit):
         pr_number = data[0]["number"]
         pr_notes = data[0]["body"] if data[0]["body"] else ""
         return pr_number, pr_notes
-    
+
 
 def extract_notes_from_pr(pr_number):
     url = f"https://api.github.com/repos/iotaledger/iota/pulls/{pr_number}"
@@ -165,7 +165,7 @@ def extract_notes_from_pr(pr_number):
         data = json.load(response)
         pr_notes = data["body"] if data["body"] else ""
         return pr_notes
-    
+
 
 def extract_notes(commit_or_pr, seen, is_pr):
     """Get release notes from a commit message or a PR description.
@@ -245,7 +245,7 @@ def extract_protocol_version(commit):
 
 def print_changelog(pr, log):
     if pr:
-        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end='')
+        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end="")
     print(log)
 
 
@@ -259,14 +259,11 @@ def do_check(commit_or_pr, is_pr):
     """
 
     _, notes = extract_notes(commit_or_pr, set(), is_pr)
-    
+
     issues = []
     any_checked = False
     for impacted, note in notes:
-        any_checked |= note.checked;
-
-        if "\n" in note.note:
-            issues.append(f" - Note for {impacted} has multiple lines.")
+        any_checked |= note.checked
 
         if impacted not in NOTE_ORDER:
             issues.append(f" - Found unfamiliar impact area '{impacted}'.")
@@ -280,7 +277,7 @@ def do_check(commit_or_pr, is_pr):
             )
 
     if not any_checked and len(notes) > 0:
-        issues.append(f" - No checked items in release notes");
+        issues.append(f" - No checked items in release notes")
 
     if not issues:
         return
@@ -361,4 +358,4 @@ if args["command"] == "generate":
 elif args["command"] == "check":
     do_check(args["commit"], False)
 elif args["command"] == "check-pr":
-    do_check(args["pr_number"], True)
+    do_check(args["pr-number"], True)
