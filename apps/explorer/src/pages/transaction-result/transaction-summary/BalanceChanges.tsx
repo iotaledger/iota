@@ -93,7 +93,9 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                         <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                             Owner
                         </span>
-                        <AddressLink address={owner} copyText={owner} />
+                        <div className="flex flex-row items-center gap-xs">
+                            <AddressLink address={owner} copyText={owner} />
+                        </div>
                     </div>
                 ) : null
             }
