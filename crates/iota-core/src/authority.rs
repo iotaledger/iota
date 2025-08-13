@@ -886,6 +886,14 @@ impl AuthorityState {
         )?;
 
         if let Some(move_authenticator) = move_authenticator(signatures) {
+            // TODO: Should this be a part of the function like
+            // `SenderSignedData::validity_check`?
+            //
+            // Make sure that the transaction is a PTB.
+            if !tx_data.kind().is_programmable_transaction() {
+                todo!()
+            }
+
             // Make sure the sender is a smart account.
             self.check_smart_account(transaction.sender_address())?;
 
