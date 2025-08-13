@@ -261,7 +261,7 @@ impl GrpcReader {
                 // try fetching historical data from the DB first
                 if start <= latest {
                     if let Some(item) = fetch_historical(&reader, start) {
-                        debug!("[profile][grpc] Fetched checkpoint {} for index {start} from DB.", data_type_name);
+                        debug!("[profile][grpc] Fetched checkpoint {data_type_name} for index {start} from DB.");
                         let sequence_number = get_sequence_number(&item);
                         let response = BcsData::serialize_from(&*item)
                             .map(|data| Checkpoint {
@@ -286,10 +286,10 @@ impl GrpcReader {
                     Ok(item) => {
                         debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
                         let sequence_number = get_sequence_number(&item);
-                        if start == seq_number {
+                        if start == sequence_number {
                             let response = BcsData::serialize_from(&*item)
                                 .map(|data| Checkpoint {
-                                    sequence_number: seq_number,
+                                    sequence_number,
                                     bcs_data: Some(data),
                                     is_full,
                                 })
