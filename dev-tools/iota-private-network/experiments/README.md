@@ -79,6 +79,7 @@ Execute a 24h randomized chaos test:
 
 - Default: 4 validators; specify up to 19 with `-n`.
 
+- Simulates p2p latencies between the validators.
 - Randomly selects validators to:
   - Stop & restart
   - Apply packet loss (20–100%)
@@ -91,7 +92,30 @@ Execute a 24h randomized chaos test:
 ./network-fuzz-test.sh -n 19  # run with 19 validators
 ```
 
-Results are logged to **fuzz.log** with timestamps for analysis.
+Results are logged to `logs` directory with timestamps for analysis.
+
+````
+### 7. `run-all.sh`
+
+Automates the full workflow: optionally rebuilds the `iota-node` and `iota-tools` Docker images, bootstraps the network, runs the private network, and launches the `network-fuzz-test.sh` script.
+
+Supports the following flags:
+
+- `-n <NUM>` to set the number of validators (default: 4)
+- `-p <protocol>` to set an optional consensus protocol (e.g., `starfish`)
+- `-build <true|false>` to choose whether to rebuild images (default: true)
+
+The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory. It is recommended to run it inside a `screen` session to avoid interruptions.
+
+**Usage:**
+
+```bash
+./run-all.sh
+./run-all.sh -n 19 -p starfish
+./run-all.sh -n 4 -p starfish -build false
+````
+
+Logs from `network-fuzz-test.sh` will be stored in the `logs` directory.
 
 ---
 
