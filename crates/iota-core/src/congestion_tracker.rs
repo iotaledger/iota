@@ -78,7 +78,12 @@ impl CongestionInfo {
         }
     }
 
-    fn update_hotness(&mut self, new: &CongestionInfo, number_congested_transactions: usize, is_new: bool) {
+    fn update_hotness(
+        &mut self,
+        new: &CongestionInfo,
+        number_congested_transactions: usize,
+        is_new: bool,
+    ) {
         if number_congested_transactions > 0 {
             // Update object i's hotness based on the congestion events following the
             // formula: hotness_i -= SUM(tx)[SUM(j in tx)(hotness_j - gas_price_feedback)]
@@ -93,7 +98,6 @@ impl CongestionInfo {
                 self.hotness =
                     -new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
                 // Ensure hotness is non-negative
-                
             }
             self.hotness = self.hotness.max(0.0);
         }
@@ -307,13 +311,11 @@ impl CongestionTracker {
         clearing_txs_data: &[(u64, Vec<ObjectID>)],
     ) -> CongestionInfoMap {
         let mut congestion_info_map = CongestionInfoMap::new();
-        let mut object_id_per_tx: Vec<ObjectID> = Vec::new();
 
         for (gas_price, objects, gas_price_feedback) in congestion_txs_data {
-            let mut hotness_per_tx = 0.0;
-            object_id_per_tx.clear();
-            for object in objects {
-                match congestion_info_map.entry(*object) {
+            let hotness_per_tx = self.get_total_hotness_for_objects(objects.iter().cloned());
+            objects.iter().for_each(|object_id| {
+                match congestion_info_map.entry(*object_id) {
                     Entry::Occupied(entry) => {
                         entry.into_mut().update_for_congested_tx(time, *gas_price);
                     }
@@ -327,19 +329,17 @@ impl CongestionTracker {
                         });
                     }
                 }
-                hotness_per_tx += self.get_hotness_for_object(object).unwrap_or(0.0);
-                object_id_per_tx.push(*object);
-            }
-            // Adjust hotness based on the sum of hotness of objects in the transaction
-            // minus the gas price feedback
-            for object in &object_id_per_tx {
-                let hotness_adjustment = hotness_per_tx - (*gas_price_feedback as f64)
-                    + (self.reference_gas_price as f64);
 
-                if let Some(info) = congestion_info_map.get_mut(object) {
-                    info.hotness += hotness_adjustment;
-                }
-            }
+                // Adjust hotness based on the loss function comparing prediction (sum of
+                // hotness of objects in the transaction + reference gas price) and actual gas
+                // price feedback.
+                let hotness_adjustment = hotness_per_tx + (self.reference_gas_price as f64)
+                    - (*gas_price_feedback as f64);
+
+                congestion_info_map
+                    .entry(*object_id)
+                    .and_modify(|info| info.hotness += hotness_adjustment);
+            });
         }
 
         for (gas_price, objects) in clearing_txs_data {
@@ -414,8 +414,6 @@ impl CongestionTracker {
                     });
             }
         }
-
-        println!("{:?}", self.get_all_hotness());
     }
 
     /// Get congestion info for a given object.
@@ -569,9 +567,6 @@ mod tests {
         // New hotness values should be 0 (obj1), 50 (obj2) and 30 (obj3)
         // For obj3, this is calculated as:
         // LEARNING_RATE * [hotness (1600) - gas_price_feedback (1000)] / num_txs (4)
-        
-        println!("{:?}", tracker.get_all_hotness());
-
         assert!(
             tracker.get_hotness_for_object(&obj1).unwrap() == 0.0,
             "obj1 should have unchanged hotness"
