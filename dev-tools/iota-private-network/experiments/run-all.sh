@@ -62,9 +62,9 @@ fi
 
 # 2) Bootstrap network
 if [ -n "$PROTOCOL" ]; then
-  ( cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS" -p "$PROTOCOL" )
+  ( cd .. && sudo ./bootstrap.sh -n "$NUM_VALIDATORS" -p "$PROTOCOL" )
 else
-  ( cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS" )
+  ( cd .. && sudo ./bootstrap.sh -n "$NUM_VALIDATORS" )
 fi
 
 # 3) Bring up docker network
