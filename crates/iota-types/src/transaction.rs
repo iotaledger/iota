@@ -487,7 +487,7 @@ impl EndOfEpochTransactionKind {
 }
 
 impl CallArg {
-    fn input_objects(&self) -> Vec<InputObjectKind> {
+    pub fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             CallArg::Pure(_) => vec![],
             CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {

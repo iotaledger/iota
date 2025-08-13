@@ -5,7 +5,7 @@ use crate::{
     base_types::{ObjectID, ObjectRef},
     error::IotaError,
     object::{Data, Object},
-    transaction::CallArg,
+    transaction::{CallArg, InputObjectKind},
 };
 
 /// Temporary created structures.
@@ -25,6 +25,13 @@ pub struct AuthenticatorInfo {
 }
 
 impl MoveAuthenticator {
+    pub fn input_objects(&self) -> Vec<InputObjectKind> {
+        self.inputs
+            .iter()
+            .flat_map(|arg| arg.input_objects())
+            .collect::<Vec<_>>()
+    }
+
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.inputs
             .iter()

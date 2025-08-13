@@ -1297,24 +1297,23 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let move_authenticator_input_objects =
-            if let Some(_move_authenticator) = move_authenticator(certificate.tx_signatures()) {
-                // TODO: We need to resolve the authenticator inputs.
-                let move_authenticator_input_object_kinds = Vec::new(); // authenticator.input_objects()?;
+        let input_objects =
+            if let Some(move_authenticator) = move_authenticator(certificate.tx_signatures()) {
+                let input_object_kinds = move_authenticator.input_objects();
 
                 Some(self.input_loader.read_objects_for_execution(
                     epoch_store,
                     // TODO: Check if we can use this digest.
                     &certificate.key(),
                     tx_lock,
-                    &move_authenticator_input_object_kinds,
+                    &input_object_kinds,
                     epoch_store.epoch(),
                 )?)
             } else {
                 None
             };
 
-        Ok(move_authenticator_input_objects)
+        Ok(input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -5145,19 +5144,18 @@ impl AuthorityState {
     /// transaction digest.
     fn check_move_authenticator_inputs_for_signing(
         &self,
-        _authenticator: &MoveAuthenticator,
+        move_authenticator: &MoveAuthenticator,
         tx_digest: &TransactionDigest,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<()> {
-        // TODO: We need to resolve the authenticator inputs.
-        let input_object_kinds = Vec::new(); // authenticator.input_objects()?;
-        let receiving_objects_refs = ReceivingObjects::from(Vec::new()); // authenticator.receiving_objects();
+        let input_object_kinds = move_authenticator.input_objects();
+        let receiving_objects_refs = move_authenticator.receiving_objects();
 
         // TODO: Replace with an error.
-        assert!(receiving_objects_refs.objects.is_empty());
+        assert!(receiving_objects_refs.is_empty());
 
         let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
-            // TODO: We need to have an authenticator digest here.
+            // TODO: We need to have a move authenticator digest here.
             Some(tx_digest),
             &input_object_kinds,
             &Vec::new(),
