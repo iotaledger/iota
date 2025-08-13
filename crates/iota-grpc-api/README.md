@@ -48,10 +48,3 @@ while let Some(Ok(checkpoint)) = stream.next().await {
     // checkpoint.data is BCS-encoded CheckpointData
 }
 ```
-
-**Simulacrum Example:**
-
-```bash
-cd examples/simulacrum/grpc
-cargo run --bin complete_grpc_workflow
-```

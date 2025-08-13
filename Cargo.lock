@@ -13190,8 +13190,6 @@ dependencies = [
  "fastcrypto",
  "iota-config",
  "iota-execution",
- "iota-grpc-api",
- "iota-grpc-types",
  "iota-protocol-config",
  "iota-storage",
  "iota-swarm-config",
@@ -13202,10 +13200,6 @@ dependencies = [
  "move-core-types",
  "prometheus",
  "rand 0.8.5",
- "tokio",
- "tokio-stream",
- "tonic 0.13.1",
- "tracing",
 ]
 
 [[package]]

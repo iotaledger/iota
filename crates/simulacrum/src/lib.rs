@@ -13,7 +13,6 @@
 //! [`Simulacrum`]: crate::Simulacrum
 
 mod epoch_state;
-pub mod grpc_server;
 pub mod store;
 
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
@@ -55,11 +54,8 @@ use iota_types::{
 };
 use rand::rngs::OsRng;
 
+pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
-pub use self::{
-    grpc_server::SimulacrumGrpcReader,
-    store::{SimulatorStore, in_mem_store::InMemoryStore},
-};
 
 /// A `Simulacrum` of IOTA.
 ///
