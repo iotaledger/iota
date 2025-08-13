@@ -459,7 +459,10 @@ async fn test_start_sequence_number_only() {
     assert_eq!(result, (5..=30).collect::<Vec<_>>());
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
@@ -499,7 +502,10 @@ async fn test_start_and_future_end_sequence_number() {
     assert_eq!(result, (3..=7).collect::<Vec<_>>());
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
@@ -533,7 +539,10 @@ async fn test_historical_end_sequence_number_only() {
     assert_eq!(result, vec![4]);
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
@@ -574,7 +583,10 @@ async fn test_future_end_sequence_number_only_full() {
     assert_eq!(result, vec![100]);
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
@@ -613,7 +625,10 @@ async fn test_both_indices_omitted() {
     assert_eq!(&result[..], &(10..=24).collect::<Vec<_>>()[..]);
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
@@ -661,7 +676,10 @@ async fn test_historical_to_live_gap_fill() {
     assert_eq!(received, (0..=150u64).collect::<Vec<_>>());
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -720,5 +738,8 @@ async fn test_gap_fill_with_slow_client() {
     assert_eq!(received, (0..=20u64).collect::<Vec<_>>());
 
     // Clean up
-    server_handle.shutdown();
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }

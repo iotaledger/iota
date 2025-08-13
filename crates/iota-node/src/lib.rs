@@ -259,7 +259,7 @@ pub struct IotaNode {
     shutdown_channel_tx: broadcast::Sender<Option<RunWithRange>>,
 
     /// Handle to the gRPC server for gRPC streaming and graceful shutdown
-    grpc_server_handle: Option<GrpcServerHandle>,
+    grpc_server_handle: Mutex<Option<GrpcServerHandle>>,
 
     /// AuthorityAggregator of the network, created at start and beginning of
     /// each epoch. Use ArcSwap so that we could mutate it without taking
@@ -916,7 +916,7 @@ impl IotaNode {
             _state_snapshot_uploader_handle: state_snapshot_handle,
             shutdown_channel_tx: shutdown_channel,
 
-            grpc_server_handle,
+            grpc_server_handle: Mutex::new(grpc_server_handle),
 
             auth_agg,
         };
@@ -1727,22 +1727,30 @@ impl IotaNode {
             let mut accumulator_guard = self.accumulator.lock().await;
             let accumulator = accumulator_guard.take().unwrap();
             // Create closures that handle gRPC type conversion
-            let summary_sender = self.grpc_server_handle.as_ref().map(|handle| {
-                let tx = handle.checkpoint_summary_broadcaster().clone();
-                Box::new(move |summary: &CertifiedCheckpointSummary| {
-                    if let Err(e) = tx.send(summary) {
-                        warn!("Failed to send checkpoint summary: {e}");
-                    }
-                }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
-            });
-            let data_sender = self.grpc_server_handle.as_ref().map(|handle| {
-                let tx = handle.checkpoint_data_broadcaster().clone();
-                Box::new(move |data: &CheckpointData| {
-                    if let Err(e) = tx.send(data) {
-                        warn!("Failed to send checkpoint data: {e}");
-                    }
-                }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
-            });
+            let summary_sender = if let Ok(guard) = self.grpc_server_handle.try_lock() {
+                guard.as_ref().map(|handle| {
+                    let tx = handle.checkpoint_summary_broadcaster().clone();
+                    Box::new(move |summary: &CertifiedCheckpointSummary| {
+                        if let Err(e) = tx.send(summary) {
+                            warn!("Failed to send checkpoint summary: {e}");
+                        }
+                    }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
+                })
+            } else {
+                None
+            };
+            let data_sender = if let Ok(guard) = self.grpc_server_handle.try_lock() {
+                guard.as_ref().map(|handle| {
+                    let tx = handle.checkpoint_data_broadcaster().clone();
+                    Box::new(move |data: &CheckpointData| {
+                        if let Err(e) = tx.send(data) {
+                            warn!("Failed to send checkpoint data: {e}");
+                        }
+                    }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
+                })
+            } else {
+                None
+            };
 
             let mut checkpoint_executor = CheckpointExecutor::new(
                 self.state_sync_handle.subscribe_to_synced_checkpoints(),
@@ -2047,9 +2055,11 @@ impl IotaNode {
         }
 
         // Shutdown the gRPC server if it's running
-        if let Some(grpc_handle) = &self.grpc_server_handle {
+        if let Some(grpc_handle) = self.grpc_server_handle.lock().await.take() {
             info!("Shutting down gRPC server");
-            grpc_handle.shutdown();
+            if let Err(e) = grpc_handle.shutdown().await {
+                warn!("Failed to gracefully shutdown gRPC server: {e}");
+            }
         }
     }
 
