@@ -856,12 +856,20 @@ async fn display_metadata(
 ) -> anyhow::Result<()> {
     match get_validator_summary(client, validator_address).await? {
         None => println!("{validator_address} is not a validator"),
-        Some((status, info)) => {
-            println!("{validator_address}'s validator status: {status:?}");
+        Some((status, metadata)) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&info)?);
+                let obj = serde_json::json!({
+                    "status": format!("{status:?}"),
+                    "metadata": metadata
+                });
+                println!("{}", serde_json::to_string_pretty(&obj)?);
             } else {
-                println!("{info:#?}");
+                println!("{validator_address}'s validator status: {status:?}");
+                if let serde_json::Value::Object(map) = serde_json::to_value(&metadata).unwrap() {
+                    for (key, value) in map {
+                        println!("{key}: {value}");
+                    }
+                }
             }
         }
     }
