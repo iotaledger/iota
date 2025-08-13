@@ -4901,7 +4901,7 @@ async fn test_consensus_commit_prologue_generation() {
             .data()
             .transaction_data()
             .kind(),
-        TransactionKind::ConsensusCommitPrologueV1(..)
+        TransactionKind::ConsensusCommitPrologueV4(..)
     ));
 
     // Tests that the system clock object is updated by the new consensus commit
@@ -6559,7 +6559,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // transaction, and it must be the first one.
     assert!(matches!(
         scheduled_txns[0].data().transaction_data().kind(),
-        TransactionKind::ConsensusCommitPrologueV1(..)
+        TransactionKind::ConsensusCommitPrologueV4(..)
     ));
     assert!(
         scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
@@ -6569,7 +6569,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
         scheduled_txns[0].data().transaction_data().kind(),
-        TransactionKind::ConsensusCommitPrologueV1(..)
+        TransactionKind::ConsensusCommitPrologueV4(..)
     ));
     assert!(
         scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
@@ -6657,7 +6657,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_txn) =
+    if let TransactionKind::ConsensusCommitPrologueV4(prologue_txn) =
         scheduled_txns[0].data().transaction_data().kind()
     {
         assert!(matches!(
@@ -6682,7 +6682,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             )]
         ));
     } else {
-        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV4 transaction.");
     }
 }
 

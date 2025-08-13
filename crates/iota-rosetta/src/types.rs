@@ -425,7 +425,8 @@ impl From<&IotaTransactionBlockKind> for OperationType {
     fn from(tx: &IotaTransactionBlockKind) -> Self {
         match tx {
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
-            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_) => {
+            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_)
+            | IotaTransactionBlockKind::ConsensusCommitPrologueV4(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {

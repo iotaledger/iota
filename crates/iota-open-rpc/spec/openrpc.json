@@ -1333,6 +1333,7 @@
                 "normalize_ptb_arguments": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
+                "record_additional_state_digest_in_prologue": false,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
@@ -1459,6 +1460,7 @@
                 "consensus_bad_nodes_stake_threshold": {
                   "u64": "20"
                 },
+                "consensus_commit_rate_estimation_window_size": null,
                 "consensus_gc_depth": null,
                 "consensus_max_acknowledgments_per_block": null,
                 "consensus_max_num_transactions_in_block": {
@@ -6016,6 +6018,9 @@
   ],
   "components": {
     "schemas": {
+      "AdditionalConsensusStateDigest": {
+        "$ref": "#/components/schemas/Digest"
+      },
       "AddressMetrics": {
         "description": "Provides metrics about the addresses.",
         "type": "object",
@@ -10925,6 +10930,55 @@
                 "type": "string",
                 "enum": [
                   "VersionTooHigh"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "additional_state_digest",
+              "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
+              "epoch",
+              "kind",
+              "round"
+            ],
+            "properties": {
+              "additional_state_digest": {
+                "$ref": "#/components/schemas/AdditionalConsensusStateDigest"
+              },
+              "commit_timestamp_ms": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "consensus_commit_digest": {
+                "$ref": "#/components/schemas/ConsensusCommitDigest"
+              },
+              "consensus_determined_version_assignments": {
+                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
+              },
+              "epoch": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ConsensusCommitPrologueV4"
+                ]
+              },
+              "round": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "sub_dag_index": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BigInt_for_uint64"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               }
             }

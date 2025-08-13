@@ -18,7 +18,10 @@ use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
-    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
+    digests::{
+        AdditionalConsensusStateDigest, ConsensusCommitDigest, ObjectDigest,
+        TransactionEventsDigest,
+    },
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
@@ -454,6 +457,7 @@ pub enum IotaTransactionBlockKind {
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
+    ConsensusCommitPrologueV4(IotaConsensusCommitPrologueV4),
     // .. more transaction types go here
 }
 
@@ -474,6 +478,19 @@ impl Display for IotaTransactionBlockKind {
                     p.sub_dag_index,
                     p.commit_timestamp_ms,
                     p.consensus_commit_digest
+                )?;
+            }
+            Self::ConsensusCommitPrologueV4(p) => {
+                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V4")?;
+                writeln!(
+                    writer,
+                    "Epoch: {}, Round: {}, SubDagIndex: {:?}, Timestamp: {}, ConsensusCommitDigest: {} AdditionalStateDigest: {}",
+                    p.epoch,
+                    p.round,
+                    p.sub_dag_index,
+                    p.commit_timestamp_ms,
+                    p.consensus_commit_digest,
+                    p.additional_state_digest
                 )?;
             }
             Self::ProgrammableTransaction(p) => {
@@ -519,6 +536,18 @@ impl IotaTransactionBlockKind {
                     consensus_commit_digest: p.consensus_commit_digest,
                     consensus_determined_version_assignments: p
                         .consensus_determined_version_assignments,
+                })
+            }
+            TransactionKind::ConsensusCommitPrologueV4(p) => {
+                Self::ConsensusCommitPrologueV4(IotaConsensusCommitPrologueV4 {
+                    epoch: p.epoch,
+                    round: p.round,
+                    sub_dag_index: p.sub_dag_index,
+                    commit_timestamp_ms: p.commit_timestamp_ms,
+                    consensus_commit_digest: p.consensus_commit_digest,
+                    consensus_determined_version_assignments: p
+                        .consensus_determined_version_assignments,
+                    additional_state_digest: p.additional_state_digest,
                 })
             }
             TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
@@ -599,6 +628,18 @@ impl IotaTransactionBlockKind {
                         .consensus_determined_version_assignments,
                 })
             }
+            TransactionKind::ConsensusCommitPrologueV4(p) => {
+                Self::ConsensusCommitPrologueV4(IotaConsensusCommitPrologueV4 {
+                    epoch: p.epoch,
+                    round: p.round,
+                    sub_dag_index: p.sub_dag_index,
+                    commit_timestamp_ms: p.commit_timestamp_ms,
+                    consensus_commit_digest: p.consensus_commit_digest,
+                    consensus_determined_version_assignments: p
+                        .consensus_determined_version_assignments,
+                    additional_state_digest: p.additional_state_digest,
+                })
+            }
             TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_package_resolver(
                     p,
@@ -666,6 +707,7 @@ impl IotaTransactionBlockKind {
         match self {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
+            Self::ConsensusCommitPrologueV4(_) => "ConsensusCommitPrologueV4",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1748,6 +1790,26 @@ pub struct IotaConsensusCommitPrologueV1 {
     pub commit_timestamp_ms: u64,
     pub consensus_commit_digest: ConsensusCommitDigest,
     pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaConsensusCommitPrologueV4 {
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub epoch: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub round: u64,
+    #[schemars(with = "Option<BigInt<u64>>")]
+    #[serde_as(as = "Option<BigInt<u64>>")]
+    pub sub_dag_index: Option<u64>,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub commit_timestamp_ms: u64,
+    pub consensus_commit_digest: ConsensusCommitDigest,
+    pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+    pub additional_state_digest: AdditionalConsensusStateDigest,
 }
 
 #[serde_as]

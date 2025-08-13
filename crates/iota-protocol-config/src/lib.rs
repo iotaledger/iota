@@ -326,6 +326,10 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     minimize_child_object_mutations: bool,
 
+    // If true, record the additional state digest in the consensus commit prologue.
+    #[serde(skip_serializing_if = "is_false")]
+    record_additional_state_digest_in_prologue: bool,
+
     // If true enable additional linkage checks.
     #[serde(skip_serializing_if = "is_false")]
     dependency_linkage_error: bool,
@@ -1174,6 +1178,10 @@ pub struct ProtocolConfig {
     /// for any single commit. Any overshoot is tracked as a debt that must
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
+
+    /// The number of commits to consider when computing a deterministic commit
+    /// rate.
+    consensus_commit_rate_estimation_window_size: Option<u32>,
 }
 
 // feature flags
@@ -1385,6 +1393,11 @@ impl ProtocolConfig {
         self.feature_flags.minimize_child_object_mutations
     }
 
+    pub fn record_additional_state_digest_in_prologue(&self) -> bool {
+        self.feature_flags
+            .record_additional_state_digest_in_prologue
+    }
+
     pub fn dependency_linkage_error(&self) -> bool {
         self.feature_flags.dependency_linkage_error
     }
@@ -1393,10 +1406,20 @@ impl ProtocolConfig {
         self.feature_flags.additional_multisig_checks
     }
 
+    pub fn get_consensus_commit_rate_estimation_window_size(&self) -> u32 {
+        self.consensus_commit_rate_estimation_window_size
+            .unwrap_or(0)
+    }
+
     pub fn consensus_num_requested_prior_commits_at_startup(&self) -> u32 {
-        // TODO: this will eventually be the max of some number of other
-        // parameters.
-        0
+        // Currently there is only one parameter driving this value. If there are
+        // multiple things computed from prior consensus commits, this function
+        // must return the max of all of them.
+        let window_size = self.get_consensus_commit_rate_estimation_window_size();
+        // Ensure we are not using past commits without recording a state digest in the
+        // prologue.
+        assert!(window_size == 0 || self.record_additional_state_digest_in_prologue());
+        window_size
     }
 
     pub fn normalize_ptb_arguments(&self) -> bool {
@@ -2003,6 +2026,8 @@ impl ProtocolConfig {
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            consensus_commit_rate_estimation_window_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2294,6 +2319,13 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Switch consensus protocol to Starfish in devnet
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+
+                        // TODO: when do we want to enable these features?
+                        // if chain != Chain::Mainnet && chain != Chain::Testnet
+                        // {    cfg.feature_flags.
+                        // record_additional_state_digest_in_prologue = true;
+                        //    cfg.consensus_commit_rate_estimation_window_size =
+                        // Some(10);
                     }
                 }
                 15 => {
