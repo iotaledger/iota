@@ -107,8 +107,6 @@ pub enum IotaValidatorCommand {
     DisplayMetadata {
         #[arg(name = "validator-address")]
         validator_address: Option<IotaAddress>,
-        #[arg(long, global = true)]
-        json: bool,
     },
     /// Update the validator metadata.
     UpdateMetadata {
@@ -150,10 +148,7 @@ pub enum IotaValidatorCommand {
     },
     /// Get a list of the validators in the network. Use the `display-metadata`
     /// command to see the complete data for a validator.
-    List {
-        #[arg(long, global = true)]
-        json: bool,
-    },
+    List,
 }
 
 #[derive(Serialize)]
@@ -203,6 +198,7 @@ impl IotaValidatorCommand {
     pub async fn execute(
         self,
         context: &mut WalletContext,
+        json: bool,
     ) -> Result<IotaValidatorCommandResponse, anyhow::Error> {
         let iota_address = context.active_address()?;
 
@@ -338,10 +334,7 @@ impl IotaValidatorCommand {
                 IotaValidatorCommandResponse::LeaveValidators(response)
             }
 
-            IotaValidatorCommand::DisplayMetadata {
-                validator_address,
-                json,
-            } => {
+            IotaValidatorCommand::DisplayMetadata { validator_address } => {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
                 let iota_client = context.get_client().await?;
@@ -392,7 +385,7 @@ impl IotaValidatorCommand {
                 DEFAULT_EPOCH_ID.write(&mut intent_msg_bytes);
                 IotaValidatorCommandResponse::SerializedPayload(Base64::encode(&intent_msg_bytes))
             }
-            IotaValidatorCommand::List { json } => {
+            IotaValidatorCommand::List => {
                 let mut builder = Builder::default();
 
                 builder.set_header([

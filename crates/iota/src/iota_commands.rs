@@ -495,7 +495,7 @@ impl IotaCommand {
                 prompt_if_no_config(&config_path, accept_defaults, true, true)?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 if let Some(cmd) = cmd {
-                    cmd.execute(&mut context).await?.print(!json);
+                    cmd.execute(&mut context, json).await?.print(!json);
                 } else {
                     // Print help
                     let mut app: Command = IotaCommand::command();
