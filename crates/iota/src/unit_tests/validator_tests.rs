@@ -21,6 +21,7 @@ use crate::{
 #[tokio::test]
 async fn test_become_validator() -> Result<(), anyhow::Error> {
     cleanup_fs();
+    let json = false;
     let config_dir = TempDir::new().unwrap();
 
     let mut test_cluster = TestClusterBuilder::new()
@@ -38,7 +39,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         project_url: "https://www.iota.org".to_string(),
         host_name: "127.0.0.1".to_string(),
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await?;
     let IotaValidatorCommandResponse::MakeValidatorInfo = response else {
         panic!("Expected MakeValidatorInfo");
@@ -48,7 +49,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         file: "validator.info".into(),
         gas_budget: None,
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await?;
     let IotaValidatorCommandResponse::BecomeCandidate(_become_candidate_tx) = response else {
         panic!("Expected BecomeCandidate");
@@ -76,7 +77,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await?;
     let IotaClientCommandResult::TransactionBlock(_) = stake_result else {
         panic!("Expected TransactionBlock");
@@ -90,12 +91,12 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         },
         gas_budget: None,
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await
     .expect_err("Can't update metadata network address before joining validators");
 
     let response = IotaValidatorCommand::JoinValidators { gas_budget: None }
-        .execute(&mut test_cluster.wallet)
+        .execute(&mut test_cluster.wallet, json)
         .await?;
     let IotaValidatorCommandResponse::JoinValidators(_tx) = response else {
         panic!("Expected JoinValidators");
@@ -104,9 +105,8 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
 
     let response = IotaValidatorCommand::DisplayMetadata {
         validator_address: None,
-        json: false,
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await?;
     let IotaValidatorCommandResponse::DisplayMetadata(_) = response else {
         panic!("Expected DisplayMetadata");
@@ -118,7 +118,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         },
         gas_budget: None,
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await?;
     if let IotaValidatorCommandResponse::UpdateMetadata(tx) = response {
         assert!(
@@ -138,7 +138,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         },
         gas_budget: None,
     }
-    .execute(&mut test_cluster.wallet)
+    .execute(&mut test_cluster.wallet, json)
     .await?;
     if let IotaValidatorCommandResponse::UpdateMetadata(tx) = response {
         assert!(
@@ -150,7 +150,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     };
 
     let response = IotaValidatorCommand::LeaveValidators { gas_budget: None }
-        .execute(&mut test_cluster.wallet)
+        .execute(&mut test_cluster.wallet, json)
         .await?;
     if let IotaValidatorCommandResponse::LeaveValidators(tx) = response {
         assert!(
