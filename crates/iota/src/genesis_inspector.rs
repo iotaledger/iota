@@ -15,7 +15,6 @@ use iota_types::{
     iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
     object::{MoveObject, Owner},
-    stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::{
         timelock::{TimeLock, is_timelocked_gas_balance},
         timelocked_staked_iota::TimelockedStakedIota,
@@ -28,9 +27,6 @@ const STR_IOTA: &str = "Iota";
 const STR_STAKED_IOTA: &str = "StakedIota";
 const STR_TIMELOCKED_IOTA: &str = "TimelockedIota";
 const STR_TIMELOCKED_STAKED_IOTA: &str = "TimelockedStakedIota";
-const STR_ALIAS_OUTPUT_IOTA: &str = "AliasOutputIota";
-const STR_BASIC_OUTPUT_IOTA: &str = "BasicOutputIota";
-const STR_NFT_OUTPUT_IOTA: &str = "NftOutputIota";
 const STR_PACKAGE: &str = "Package";
 const STR_COIN_METADATA: &str = "CoinMetadata";
 const STR_OTHER: &str = "Other";
@@ -78,9 +74,6 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let mut staked_iota_map = BTreeMap::new();
     let mut timelocked_iota_map = BTreeMap::new();
     let mut timelocked_staked_iota_map = BTreeMap::new();
-    let mut alias_output_iota_map = BTreeMap::new();
-    let mut basic_output_iota_map = BTreeMap::new();
-    let mut nft_output_iota_map = BTreeMap::new();
     let mut coin_metadata_map = BTreeMap::new();
     let mut other_object_map = BTreeMap::new();
 
@@ -125,33 +118,6 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                         (STR_TIMELOCKED_IOTA, timelock_balance.locked().value()),
                     );
                     timelocked_iota_map.insert(object.id(), timelock_balance);
-                } else if let Ok(alias_output) = AliasOutput::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_ALIAS_OUTPUT_IOTA, alias_output.balance.value()),
-                    );
-                    alias_output_iota_map.insert(object.id(), alias_output);
-                } else if let Ok(basic_output) = BasicOutput::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_BASIC_OUTPUT_IOTA, basic_output.balance.value()),
-                    );
-                    basic_output_iota_map.insert(object.id(), basic_output);
-                } else if let Ok(nft_output) = NftOutput::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_NFT_OUTPUT_IOTA, nft_output.balance.value()),
-                    );
-                    nft_output_iota_map.insert(object.id(), nft_output);
                 } else if let Ok(timelocked_staked_iota) = TimelockedStakedIota::try_from(&object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
@@ -214,9 +180,6 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                     &staked_iota_map,
                     &timelocked_iota_map,
                     &timelocked_staked_iota_map,
-                    &alias_output_iota_map,
-                    &basic_output_iota_map,
-                    &nft_output_iota_map,
                     &coin_metadata_map,
                     &other_object_map,
                 );
@@ -266,9 +229,6 @@ fn examine_object(
     staked_iota_map: &BTreeMap<ObjectID, StakedIota>,
     timelocked_iota_map: &BTreeMap<ObjectID, TimeLock<Balance>>,
     timelocked_staked_iota: &BTreeMap<ObjectID, TimelockedStakedIota>,
-    alias_output_iota_map: &BTreeMap<ObjectID, AliasOutput>,
-    basic_output_iota_map: &BTreeMap<ObjectID, BasicOutput>,
-    nft_output_iota_map: &BTreeMap<ObjectID, NftOutput>,
     coin_metadata_map: &BTreeMap<ObjectID, CoinMetadata>,
     other_object_map: &BTreeMap<ObjectID, MoveObject>,
 ) {
@@ -277,9 +237,6 @@ fn examine_object(
         STR_STAKED_IOTA,
         STR_TIMELOCKED_IOTA,
         STR_TIMELOCKED_STAKED_IOTA,
-        STR_ALIAS_OUTPUT_IOTA,
-        STR_BASIC_OUTPUT_IOTA,
-        STR_NFT_OUTPUT_IOTA,
         STR_COIN_METADATA,
         STR_PACKAGE,
         STR_OTHER,
@@ -320,24 +277,6 @@ fn examine_object(
                     );
                 }
                 print_divider(STR_TIMELOCKED_STAKED_IOTA);
-            }
-            Ok(name) if name == STR_ALIAS_OUTPUT_IOTA => {
-                for alias_output in alias_output_iota_map.values() {
-                    println!("{alias_output:#?}");
-                }
-                print_divider(STR_ALIAS_OUTPUT_IOTA);
-            }
-            Ok(name) if name == STR_BASIC_OUTPUT_IOTA => {
-                for basic_output in basic_output_iota_map.values() {
-                    println!("{basic_output:#?}");
-                }
-                print_divider(STR_BASIC_OUTPUT_IOTA);
-            }
-            Ok(name) if name == STR_NFT_OUTPUT_IOTA => {
-                for nft_output in nft_output_iota_map.values() {
-                    println!("{nft_output:#?}");
-                }
-                print_divider(STR_NFT_OUTPUT_IOTA);
             }
             Ok(name) if name == STR_PACKAGE => {
                 for package in package_map.values() {
