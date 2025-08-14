@@ -10,13 +10,8 @@ mod utils;
 
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{DevInspectResults, IotaTypeTag};
-use iota_sdk::{
-    IotaClient, types::programmable_transaction_builder::ProgrammableTransactionBuilder,
-};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    transaction::{ProgrammableTransaction, TransactionKind},
-};
+use iota_sdk::IotaClient;
+use iota_types::base_types::{IotaAddress, ObjectID};
 use serde_json::json;
 use utils::setup_for_read;
 
@@ -68,41 +63,13 @@ async fn move_view_function_dev_inspect(
     type_args: Vec<IotaTypeTag>,
     args: Vec<IotaJsonValue>,
 ) -> Result<DevInspectResults, anyhow::Error> {
-    let pt = construct_move_view_function_call(
-        client,
-        package_id,
-        module_name,
-        function_name,
-        type_args,
-        args,
-    )
-    .await?;
+    let pt = client
+        .transaction_builder()
+        .move_view_call_tx_kind(package_id, module_name, function_name, type_args, args)
+        .await?;
 
     Ok(client
         .read_api()
-        .dev_inspect_transaction_block(sender, TransactionKind::programmable(pt), None, None, None)
+        .dev_inspect_transaction_block(sender, pt, None, None, None)
         .await?)
-}
-
-async fn construct_move_view_function_call(
-    client: &IotaClient,
-    package_id: ObjectID,
-    module_name: &str,
-    function_name: &str,
-    type_args: Vec<IotaTypeTag>,
-    args: Vec<IotaJsonValue>,
-) -> Result<ProgrammableTransaction, anyhow::Error> {
-    let mut ptb = ProgrammableTransactionBuilder::new();
-    client
-        .transaction_builder()
-        .single_move_view_call(
-            &mut ptb,
-            package_id,
-            module_name,
-            function_name,
-            type_args,
-            args,
-        )
-        .await?;
-    Ok(ptb.finish())
 }
