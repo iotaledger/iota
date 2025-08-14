@@ -43,6 +43,7 @@ use iota_types::{
     transaction::{CallArg, Command, ObjectArg, TransactionData},
     utils::to_sender_signed_transaction,
 };
+use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use move_core_types::{
     annotated_value::MoveValue,
@@ -50,10 +51,14 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 
-use crate::common::{
-    ApiTestSetup, execute_tx_must_succeed, indexer_wait_for_checkpoint,
-    indexer_wait_for_latest_checkpoint, indexer_wait_for_object, indexer_wait_for_transaction,
-    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+use crate::{
+    coin_api::execute_move_call,
+    common::{
+        ApiTestSetup, execute_tx_must_succeed, indexer_wait_for_checkpoint,
+        indexer_wait_for_latest_checkpoint, indexer_wait_for_object, indexer_wait_for_transaction,
+        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+    },
+    write_api::{create_basic_object, deploy_basics_pkg},
 };
 
 #[test]
@@ -116,6 +121,249 @@ fn query_events_no_events_ascending() {
 
         assert_eq!(indexer_events, EventPage::empty())
     });
+}
+
+#[test]
+fn query_events_by_sender() -> Result<(), IndexerError> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+
+        let mut expected_event_ids = Vec::new();
+        // Generate 5 events to test pagination
+        for _ in 0..5 {
+            let res = execute_move_call(
+                client,
+                sender,
+                &sender_kp,
+                package_id,
+                "object_basics".to_string(),
+                "update".to_string(),
+                type_args![].unwrap(),
+                call_args!(basic_obj_1, basic_obj_2).unwrap(),
+                None,
+            )
+            .await?;
+            assert_eq!(res.status_ok(), Some(true));
+
+            let event_id = res
+                .events
+                .as_ref()
+                .unwrap()
+                .data
+                .iter()
+                .exactly_one()
+                .unwrap()
+                .id;
+            expected_event_ids.push(event_id);
+        }
+
+        assert_paginated_filtered_events(
+            client,
+            expected_event_ids.as_slice(),
+            EventFilter::Sender(sender),
+            2,
+        )
+        .await?;
+
+        // ensure all events are checkpointed
+        indexer_wait_for_transaction(expected_event_ids.last().unwrap().tx_digest, store, client)
+            .await;
+
+        assert_paginated_filtered_events(
+            client,
+            expected_event_ids.as_slice(),
+            EventFilter::Sender(sender),
+            2,
+        )
+        .await?;
+
+        Ok::<(), IndexerError>(())
+    })
+}
+
+#[test]
+fn query_events_by_tx_digest() -> Result<(), IndexerError> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+
+        let res = execute_move_call(
+            client,
+            sender,
+            &sender_kp,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
+        )
+        .await?;
+        assert_eq!(res.status_ok(), Some(true));
+
+        let event_id = res
+            .events
+            .as_ref()
+            .unwrap()
+            .data
+            .iter()
+            .exactly_one()
+            .unwrap()
+            .id;
+
+        let all_events = client
+            .query_events(EventFilter::Transaction(res.digest), None, None, None)
+            .await
+            .unwrap();
+        let returned_event_ids: Vec<_> = all_events.data.iter().map(|e| e.id).collect();
+        assert_eq!(returned_event_ids, vec![event_id]);
+
+        // ensure event is checkpointed
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let all_events = client
+            .query_events(EventFilter::Transaction(res.digest), None, None, None)
+            .await
+            .unwrap();
+        let returned_event_ids: Vec<_> = all_events.data.iter().map(|e| e.id).collect();
+        assert_eq!(returned_event_ids, vec![event_id]);
+
+        Ok::<(), IndexerError>(())
+    })
+}
+
+#[test]
+fn query_events_by_package() -> Result<(), IndexerError> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+
+        // Generate multiple events by calling update function multiple times
+        let mut expected_event_ids = Vec::new();
+
+        // Generate 5 events to test pagination
+        for _ in 0..5 {
+            let res = execute_move_call(
+                client,
+                sender,
+                &sender_kp,
+                package_id,
+                "object_basics".to_string(),
+                "update".to_string(),
+                type_args![].unwrap(),
+                call_args!(basic_obj_1, basic_obj_2).unwrap(),
+                None,
+            )
+            .await?;
+            assert_eq!(res.status_ok(), Some(true));
+
+            let event_id = res
+                .events
+                .as_ref()
+                .unwrap()
+                .data
+                .iter()
+                .exactly_one()
+                .unwrap()
+                .id;
+            expected_event_ids.push(event_id);
+        }
+
+        assert_paginated_filtered_events(
+            client,
+            expected_event_ids.as_slice(),
+            EventFilter::Package(package_id),
+            2,
+        )
+        .await?;
+
+        // ensure all events are checkpointed
+        indexer_wait_for_transaction(expected_event_ids.last().unwrap().tx_digest, store, client)
+            .await;
+
+        assert_paginated_filtered_events(
+            client,
+            expected_event_ids.as_slice(),
+            EventFilter::Package(package_id),
+            2,
+        )
+        .await?;
+
+        Ok::<(), IndexerError>(())
+    })
 }
 
 #[test]
@@ -1586,4 +1834,103 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
 
         Ok(())
     })
+}
+
+async fn assert_paginated_filtered_events(
+    client: &HttpClient,
+    expected_event_ids: &[iota_types::event::EventID],
+    filter: EventFilter,
+    page_size: usize,
+) -> Result<(), IndexerError> {
+    // Test querying all events (ascending order - default)
+    let all_events = client
+        .query_events(filter.clone(), None, None, None)
+        .await
+        .unwrap();
+
+    // Verify events are returned in ascending order
+    let returned_event_ids: Vec<_> = all_events.data.iter().map(|e| e.id).collect();
+    assert_eq!(returned_event_ids, expected_event_ids);
+
+    assert_paginated_events_ascending(client, expected_event_ids, &filter, page_size).await?;
+    assert_paginated_events_descending(client, expected_event_ids, &filter, page_size).await?;
+
+    Ok(())
+}
+
+async fn assert_paginated_events_ascending(
+    client: &HttpClient,
+    expected_event_ids: &[iota_types::event::EventID],
+    filter: &EventFilter,
+    page_size: usize,
+) -> Result<(), IndexerError> {
+    let mut cursor = None;
+    let mut events_processed = 0;
+    let total_events = expected_event_ids.len();
+
+    loop {
+        let page = client
+            .query_events(filter.clone(), cursor, Some(page_size), None)
+            .await
+            .unwrap();
+
+        let events_remaining = total_events - events_processed;
+        let expected_page_size = std::cmp::min(page_size, events_remaining);
+        let is_last_page = events_processed + expected_page_size >= total_events;
+
+        let actual_event_ids: Vec<_> = page.data.iter().map(|e| e.id).collect();
+        let expected_event_ids_slice =
+            &expected_event_ids[events_processed..events_processed + expected_page_size];
+
+        assert_eq!(actual_event_ids, expected_event_ids_slice);
+        assert_eq!(page.has_next_page, !is_last_page);
+
+        if is_last_page {
+            break;
+        }
+        cursor = page.next_cursor;
+        events_processed += expected_page_size;
+    }
+
+    Ok(())
+}
+
+async fn assert_paginated_events_descending(
+    client: &HttpClient,
+    expected_event_ids: &[iota_types::event::EventID],
+    filter: &EventFilter,
+    page_size: usize,
+) -> Result<(), IndexerError> {
+    let mut cursor = None;
+    let mut events_processed = 0;
+    let total_events = expected_event_ids.len();
+
+    // In descending order, we expect events in reverse chronological order
+    let expected_desc_events: Vec<_> = expected_event_ids.iter().rev().cloned().collect();
+
+    loop {
+        let page = client
+            .query_events(filter.clone(), cursor, Some(page_size), Some(true))
+            .await
+            .unwrap();
+
+        let events_remaining = total_events - events_processed;
+        let expected_page_size = std::cmp::min(page_size, events_remaining);
+        let is_last_page = events_processed + expected_page_size >= total_events;
+
+        let actual_event_ids: Vec<_> = page.data.iter().map(|e| e.id).collect();
+        let expected_event_ids_slice =
+            &expected_desc_events[events_processed..events_processed + expected_page_size];
+
+        assert_eq!(actual_event_ids, expected_event_ids_slice);
+        assert_eq!(page.has_next_page, !is_last_page);
+
+        if is_last_page {
+            break;
+        }
+        cursor = page.next_cursor;
+        events_processed += expected_page_size;
+    }
+
+    Ok(())
 }
