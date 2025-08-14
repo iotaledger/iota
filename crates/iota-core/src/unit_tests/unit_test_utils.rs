@@ -80,8 +80,8 @@ async fn init_genesis(
     for (_, key) in &key_pairs {
         builder = builder.add_validator_signature(key);
     }
-    let genesis_build_effects = builder.build();
-    (genesis_build_effects.genesis, key_pairs, pkg_id)
+    let genesis = builder.build();
+    (genesis, key_pairs, pkg_id)
 }
 
 #[cfg(test)]
