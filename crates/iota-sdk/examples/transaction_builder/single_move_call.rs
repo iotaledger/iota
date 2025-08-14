@@ -42,6 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 IotaJsonValue::new(json!(coin.coin_object_id))?,
                 IotaJsonValue::new(json!(recipient))?,
             ],
+            false, // Not a view function
         )
         .await?;
     let pt = ptb.finish();

@@ -377,6 +377,7 @@ impl TransactionBuilder {
             function,
             type_args,
             call_args,
+            false, // Not a view function
         )
         .await?;
         let pt = builder.finish();
@@ -396,13 +397,14 @@ impl TransactionBuilder {
         call_args: Vec<IotaJsonValue>,
     ) -> Result<TransactionKind, anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
-        self.single_move_view_call(
+        self.single_move_call(
             &mut builder,
             package_object_id,
             module,
             function,
             type_args,
             call_args,
+            true, // A view function
         )
         .await?;
         let pt = builder.finish();
@@ -432,6 +434,7 @@ impl TransactionBuilder {
             function,
             type_args,
             call_args,
+            false, // Not a view function
         )
         .await?;
         let pt = builder.finish();
@@ -462,7 +465,8 @@ impl TransactionBuilder {
     }
 
     /// Add a single move call to the provided
-    /// [`ProgrammableTransactionBuilder`].
+    /// [`ProgrammableTransactionBuilder`]. If `is_view` is true, check that the
+    /// passed function is compliant to the Move View Function specification.
     pub async fn single_move_call(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -471,6 +475,7 @@ impl TransactionBuilder {
         function: &str,
         type_args: Vec<IotaTypeTag>,
         call_args: Vec<IotaJsonValue>,
+        is_view: bool,
     ) -> anyhow::Result<()> {
         let module = Identifier::from_str(module)?;
         let function = Identifier::from_str(function)?;
@@ -482,39 +487,7 @@ impl TransactionBuilder {
 
         let call_args = self
             .resolve_and_checks_json_args(
-                builder, package, &module, &function, &type_args, call_args,
-            )
-            .await?;
-
-        builder.command(Command::move_call(
-            package, module, function, type_args, call_args,
-        ));
-        Ok(())
-    }
-
-    /// Add a single move view call to the provided
-    /// [`ProgrammableTransactionBuilder`]. It checks that the passed function
-    /// is compliant to the Move View Function specification.
-    pub async fn single_move_view_call(
-        &self,
-        builder: &mut ProgrammableTransactionBuilder,
-        package: ObjectID,
-        module: &str,
-        function: &str,
-        type_args: Vec<IotaTypeTag>,
-        call_args: Vec<IotaJsonValue>,
-    ) -> anyhow::Result<()> {
-        let module = Identifier::from_str(module)?;
-        let function = Identifier::from_str(function)?;
-
-        let type_args = type_args
-            .into_iter()
-            .map(|ty| ty.try_into())
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let call_args = self
-            .resolve_and_checks_view_function_json_args(
-                builder, package, &module, &function, &type_args, call_args,
+                builder, package, &module, &function, &type_args, call_args, is_view,
             )
             .await?;
 
@@ -759,6 +732,7 @@ impl TransactionBuilder {
                         &param.function,
                         param.type_arguments,
                         param.arguments,
+                        false, // Not a view function
                     )
                     .await?
                 }
