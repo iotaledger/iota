@@ -21,7 +21,6 @@ primitive-types = { version = "0.12.2", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 # optional dependencies
-serde_repr = { version = "0.1.18", default-features = false, optional = true }
 url = { workspace = true, features = ["serde"], optional = true }
 zeroize = { version = "1.7.0", default-features = false, features = ["zeroize_derive"], optional = true }
 
@@ -31,10 +30,5 @@ pretty_assertions = { version = "1.4.0", default-features = false, features = ["
 [features]
 default = ["std", "serde"]
 irc_27 = ["url", "serde"]
-serde = [
-  "packable/serde",
-  "primitive-types/serde_no_std",
-  "serde_repr",
-  "zeroize?/serde",
-]
+serde = ["packable/serde", "primitive-types/serde_no_std", "zeroize?/serde"]
 std = ["packable/std", "prefix-hex/std", "primitive-types/std", "bitflags/std"]

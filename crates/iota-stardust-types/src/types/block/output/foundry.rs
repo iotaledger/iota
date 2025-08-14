@@ -255,7 +255,7 @@ pub struct FoundryOutput {
 }
 
 impl FoundryOutput {
-    /// The [`Output`] kind of a [`FoundryOutput`].
+    /// The [`super::Output`] kind of a [`FoundryOutput`].
     pub const KIND: u8 = 5;
     /// The set of allowed [`UnlockCondition`]s for a [`FoundryOutput`].
     pub const ALLOWED_UNLOCK_CONDITIONS: UnlockConditionFlags =
