@@ -5,7 +5,6 @@
 use std::{fmt, path::PathBuf};
 
 use clap::*;
-use iota_genesis_builder::SnapshotUrl;
 use regex::Regex;
 
 #[derive(Parser, Clone, ValueEnum, Debug)]
@@ -39,12 +38,6 @@ pub struct ClusterTestOpt {
     /// URL for the indexer RPC server
     #[arg(long)]
     pub graphql_address: Option<String>,
-    /// Locations for local migration snapshots.
-    #[arg(long, name = "path", num_args(0..))]
-    pub local_migration_snapshots: Vec<PathBuf>,
-    /// Remote migration snapshots.
-    #[arg(long, name = "iota|<full-url>", num_args(0..))]
-    pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }
 
 // This is not actually dead, but rust thinks it is because it is only used in
@@ -80,8 +73,6 @@ impl ClusterTestOpt {
             pg_address: None,
             config_dir: None,
             graphql_address: None,
-            local_migration_snapshots: Default::default(),
-            remote_migration_snapshots: Default::default(),
         }
     }
 }
