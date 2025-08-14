@@ -63,7 +63,7 @@ use url::Url;
 use crate::name_commands;
 use crate::{
     PrintableResult,
-    client_commands::{IotaClientCommands, pkg_tree_shake},
+    client_commands::{IotaClientCommands, implicit_deps_for_protocol_version, pkg_tree_shake},
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
@@ -544,8 +544,11 @@ impl IotaCommand {
                         };
 
                         let rerooted_path = move_cli::base::reroot_path(package_path.as_deref())?;
-                        let build_config =
+                        let mut build_config =
                             resolve_lock_file_path(build_config, Some(&rerooted_path))?;
+                        let protocol_config = read_api.get_protocol_config(None).await?;
+                        build_config.implicit_dependencies =
+                            implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
                         let mut pkg = IotaBuildConfig {
                             config: build_config,
                             run_bytecode_verifier: true,
