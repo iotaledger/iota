@@ -1,4 +1,4 @@
-// Copyright 2025 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::block::output::FoundryId;

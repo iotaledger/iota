@@ -1,4 +1,4 @@
-// Copyright 2025 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::block::{Error, address::Address, output::verify_output_amount};
