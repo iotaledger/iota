@@ -26,9 +26,10 @@ use crate::{
 ///
 /// Typical use:
 /// ```move
-/// public fun authenticate(tx_hash: vector<u8>, input: &MyAuthInput, ctx: &AuthContext): bool {
-///     let is_valid = ed25519::ed25519_verify(&input.sig, &input.pk, &tx_hash);
-///     ctx.sender() == extract_address_from_pk(input.pk) && is_valid
+/// public fun authenticate(tx_hash: vector<u8>, input: &MyAuthInput, ctx: &AuthContext) {
+///     assert!(ed25519::ed25519_verify(&input.sig, &input.pk, &tx_hash), 0);
+///     assert!(verify_digest(ctx.digest()), 1);
+///     ...
 /// }
 /// ```
 // Conceptually similar to `TxContext`, but designed specifically for use in the authentication
@@ -36,11 +37,11 @@ use crate::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
-    pub auth_digest: MoveAuthenticationDigest,
+    auth_digest: MoveAuthenticationDigest,
     /// The authentication input objects or primitive values
-    pub tx_inputs: Vec<CallArg>,
+    tx_inputs: Vec<CallArg>,
     /// The authentication commands to be executed sequentially.
-    pub tx_commands: Vec<Command>,
+    tx_commands: Vec<Command>,
 }
 
 impl AuthContext {
@@ -53,5 +54,17 @@ impl AuthContext {
             tx_inputs: ptb.inputs.clone(),
             tx_commands: ptb.commands.clone(),
         }
+    }
+
+    pub fn digest(&self) -> &MoveAuthenticationDigest {
+        &self.auth_digest
+    }
+
+    pub fn tx_inputs(&self) -> &Vec<CallArg> {
+        &self.tx_inputs
+    }
+
+    pub fn tx_commands(&self) -> &Vec<Command> {
+        &self.tx_commands
     }
 }

@@ -1075,6 +1075,10 @@ mod test {
     }
 }
 
+/// MoveAuthenticationDigest is the hash (digest) of the `GenericSignature``
+/// payload when the transaction uses a MoveAuthenticator as its signature
+/// scheme. It is evaluated during the authentication phase of a transaction and
+/// is part of the AuthContext.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct MoveAuthenticationDigest(Digest);
 
