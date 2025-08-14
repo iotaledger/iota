@@ -72,7 +72,7 @@ export function ConnectLedgerModal({
                                     <ArrowTopRight />
                                 </Link>
                                 <Link
-                                    to="https://docs.iota.org/users/iota-wallet/how-to/import/ledger?install-method=manual"
+                                    to="https://docs.iota.org/users/iota-wallet/how-to/import/ledger?install-method=manual#install-the-iota-app-on-your-ledger-device"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"
