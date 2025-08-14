@@ -77,7 +77,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
     }
-    .execute(&mut test_cluster.wallet, json)
+    .execute(&mut test_cluster.wallet)
     .await?;
     let IotaClientCommandResult::TransactionBlock(_) = stake_result else {
         panic!("Expected TransactionBlock");
