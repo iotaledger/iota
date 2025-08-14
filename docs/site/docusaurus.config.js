@@ -183,6 +183,14 @@ const config = {
             {
               from: '/about-iota/wallet-dashboard',
               to: '/users/iota-wallet-dashboard',
+            },
+            {
+              from: '/about-iota/iota-wallet/how-to/integrate-ledger',
+              to: '/users/iota-wallet/how-to/import/ledger'
+            },
+            {
+              from: '/about-iota/iota-wallet/how-to/integrate-ledger#manually-for-deprecated-devices-such-as-ledger-nano-s',
+              to: '/users/iota-wallet/how-to/import/ledger?install-method=manual#install-the-iota-app-on-your-ledger-device'
             }
           ];
           let paths = [];
