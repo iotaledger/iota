@@ -33,8 +33,7 @@ use crate::{
 use crate::{
     ancestor::{AncestorState, AncestorStateManager},
     block::{
-        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND, Round,
-        SignedBlock, Slot, VerifiedBlock,
+        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, MisbehaviorProof, MisbehaviorReport, Round, SignedBlock, Slot, VerifiedBlock, GENESIS_ROUND
     },
     block_manager::BlockManager,
     commit::{
@@ -49,7 +48,7 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
     universal_committer::{
-        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
+        universal_committer_builder::UniversalCommitterBuilder, UniversalCommitter
     },
 };
 
@@ -562,7 +561,7 @@ impl Core {
 
         // Determine the ancestors to be included in proposal.
         // Smart ancestor selection requires distributed scoring to be enabled.
-        let (ancestors, excluded_ancestors) = if self
+        let (ancestors, excluded_ancestors, equivocation_reports) = if self
             .context
             .protocol_config
             .consensus_distributed_vote_scoring_strategy()
@@ -571,7 +570,7 @@ impl Core {
                 .protocol_config
                 .consensus_smart_ancestor_selection()
         {
-            let (ancestors, excluded_and_equivocating_ancestors) =
+            let (ancestors, excluded_and_equivocating_ancestors, equivocation_reports) =
                 self.smart_ancestors_to_propose(clock_round, !force);
 
             // If we did not find enough good ancestors to propose, continue to wait before
@@ -596,9 +595,9 @@ impl Core {
                 .take(excluded_ancestors_limit)
                 .collect();
 
-            (ancestors, excluded_ancestors)
+            (ancestors, excluded_ancestors, equivocation_reports)
         } else {
-            (self.ancestors_to_propose(clock_round), vec![])
+            (self.ancestors_to_propose(clock_round), vec![], vec![])
         };
 
         // Update the last included ancestor block refs
@@ -670,6 +669,11 @@ impl Core {
             .write()
             .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
 
+        // Assemble misbehavior reports.
+        let mut misbehavior_reports = Vec::new();
+        misbehavior_reports.extend(equivocation_reports);
+
+
         // Create the block and insert to storage.
         let block = Block::V1(BlockV1::new(
             self.context.committee.epoch(),
@@ -679,7 +683,7 @@ impl Core {
             ancestors.iter().map(|b| b.reference()).collect(),
             transactions,
             commit_votes,
-            vec![],
+            misbehavior_reports,
         ));
         let signed_block =
             SignedBlock::new(block, &self.block_signer).expect("Block signing failed.");
@@ -1165,7 +1169,11 @@ impl Core {
         &mut self,
         clock_round: Round,
         smart_select: bool,
-    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+    ) -> (
+        Vec<VerifiedBlock>,
+        BTreeSet<BlockRef>,
+        Vec<MisbehaviorReport>,
+    ) {
         let node_metrics = &self.context.metrics.node_metrics;
         let _s = node_metrics
             .scope_processing_time
@@ -1192,6 +1200,7 @@ impl Core {
 
         let mut score_and_pending_excluded_ancestors = Vec::new();
         let mut excluded_and_equivocating_ancestors = BTreeSet::new();
+        let mut equivocation_reports = Vec::new();
 
         // Propose only ancestors of higher rounds than what has already been proposed.
         // And always include own last proposed block first among ancestors.
@@ -1213,8 +1222,19 @@ impl Core {
                             }
                         }
 
-                        // We will never include equivocating ancestors so add them immediately
-                        excluded_and_equivocating_ancestors.extend(equivocating_ancestors);
+                        // Create a misbehavior report for the equivocating ancestors.
+                        if let Some(equivocating_ancestor) =
+                            equivocating_ancestors.first()
+                        {
+                            equivocation_reports
+                                .push(MisbehaviorReport::new(
+                                    ancestor.author(),
+                                    MisbehaviorProof::Equivocation { first: ancestor.reference(), second: equivocating_ancestor.clone() },
+                                ));
+
+                            // We will never include equivocating ancestors so add them immediately
+                            excluded_and_equivocating_ancestors.extend(equivocating_ancestors);
+                        }
 
                         let ancestor_state = ancestor_state_map[ancestor.author()];
                         match ancestor_state {
@@ -1249,7 +1269,7 @@ impl Core {
                 "Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.",
                 parent_round_quorum.stake()
             );
-            return (vec![], BTreeSet::new());
+            return (vec![], BTreeSet::new(), Vec::new());
         }
 
         // Sort scores descending so we can include the best of the pending excluded
@@ -1377,7 +1397,7 @@ impl Core {
             excluded_and_equivocating_ancestors.len()
         );
 
-        (ancestors_to_propose, excluded_and_equivocating_ancestors)
+        (ancestors_to_propose, excluded_and_equivocating_ancestors, equivocation_reports)
     }
 
     /// Checks whether all the leaders of the round exist.

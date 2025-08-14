@@ -627,11 +627,21 @@ pub struct MisbehaviorReport {
     pub proof: MisbehaviorProof,
 }
 
+impl MisbehaviorReport {
+    pub fn new(target: AuthorityIndex, proof: MisbehaviorProof) -> Self {
+        Self { target, proof }
+    }
+}
+
 /// Proof of misbehavior are usually signed block(s) from the misbehaving
 /// authority.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum MisbehaviorProof {
     InvalidBlock(BlockRef),
+    Equivocation {
+        first: BlockRef,
+        second: BlockRef,
+    },
 }
 
 // TODO: add basic verification for BlockRef and BlockDigest.
