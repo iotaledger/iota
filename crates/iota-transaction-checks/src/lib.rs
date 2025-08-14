@@ -395,7 +395,15 @@ mod checked {
         Ok(gas_status)
     }
 
-    /// Check all the objects used in authentication
+    /// Validates the set of Move objects used during custom authentication.
+    ///
+    /// This function ensures that:
+    /// - Only **shared** or **immutable** objects are passed into the
+    ///   authenticator context.
+    /// - If the object is used as a **gas coin**, it must be owned by the
+    ///   `gas_owner`.
+    /// - Otherwise, it must be owned by the `sender`.
+    /// - Any object that fails this ownership check results in an error.
     #[instrument(level = "trace", skip_all)]
     fn check_auth_objects(
         sender: IotaAddress,
