@@ -57,6 +57,7 @@ tap.workspace = true
 thiserror.workspace = true
 tonic.workspace = true
 tracing.workspace = true
+url.workspace = true
 
 # internal dependencies
 consensus-config.workspace = true
@@ -72,7 +73,6 @@ move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
 shared-crypto.workspace = true
 typed-store-error.workspace = true
-url.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
