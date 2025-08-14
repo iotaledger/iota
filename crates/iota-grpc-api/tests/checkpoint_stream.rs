@@ -7,13 +7,11 @@ use std::{
     time::Duration,
 };
 
+use iota_config::local_ip_utils;
 use iota_grpc_api::{
-    CheckpointGrpcService,
-    checkpoint::{CheckpointStreamRequest, checkpoint_service_server::CheckpointService},
-};
-use iota_grpc_types::{
-    CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
-    CheckpointData as GrpcCheckpointData,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, GrpcReader, GrpcServerHandle,
+    client::{CheckpointClient, CheckpointContent, NodeClient},
+    start_grpc_server,
 };
 use iota_types::{
     base_types::ObjectID,
@@ -26,9 +24,7 @@ use iota_types::{
     },
     storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
 };
-use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
-use tonic::Request;
 
 struct MockRestStateReader {
     checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
@@ -372,29 +368,53 @@ impl RestStateReader for MockRestStateReader {
     }
 }
 
-async fn test_service() -> CheckpointGrpcService {
-    let mock = Arc::new(MockRestStateReader::new_from_iter(0..=10));
-    let config = iota_grpc_api::Config::default();
-    let (grpc_checkpoint_summary_tx, _) =
-        tokio::sync::broadcast::channel(config.checkpoint_broadcast_buffer_size);
-    let (grpc_checkpoint_data_tx, _) =
-        tokio::sync::broadcast::channel(config.checkpoint_broadcast_buffer_size);
-    CheckpointGrpcService::new(mock, grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx)
+async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
+    checkpoint_range: I,
+    config_customizer: impl FnOnce(&mut Config),
+) -> (
+    GrpcServerHandle,
+    CheckpointClient,
+    Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
+) {
+    let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
+    let checkpoints = mock.checkpoints.clone();
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(mock));
+
+    let localhost = local_ip_utils::localhost_for_testing();
+    let grpc_port = local_ip_utils::get_available_port(&localhost);
+
+    let mut config = Config {
+        address: format!("{localhost}:{grpc_port}").parse().unwrap(),
+        ..Config::default()
+    };
+    config_customizer(&mut config);
+
+    let server_handle = start_grpc_server(grpc_reader, config)
+        .await
+        .expect("Failed to start gRPC server");
+
+    let server_addr = server_handle.address();
+    let client = NodeClient::connect(&format!("http://{server_addr}"))
+        .await
+        .expect("Failed to connect to gRPC server")
+        .checkpoint_client()
+        .expect("Checkpoint client should be available");
+
+    (server_handle, client, checkpoints)
 }
 
 // Helper function to spawn a background checkpoint sender for summaries and
 // data
-fn spawn_checkpoint_sender(
-    summary_tx: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
-    data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
-    start_seq: u64,
-) {
+fn spawn_checkpoint_sender(server_handle: &GrpcServerHandle, start_seq: u64) {
+    let summary_broadcaster = server_handle.checkpoint_summary_broadcaster().clone();
+    let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
+
     tokio::spawn(async move {
         let mut seq = start_seq;
         loop {
             let (summary, data) = mock_summary_data(seq);
-            let _ = summary_tx.send(Arc::new(GrpcCertifiedCheckpointSummary::from(summary)));
-            let _ = data_tx.send(Arc::new(GrpcCheckpointData::from(data)));
+            let _ = summary_broadcaster.send(&summary);
+            let _ = data_broadcaster.send(&data);
             seq += 1;
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
@@ -403,34 +423,30 @@ fn spawn_checkpoint_sender(
 
 #[tokio::test]
 async fn test_start_sequence_number_only() {
-    let svc = test_service().await;
+    let (server_handle, mut client, _) = test_server_and_client_setup(0..=10, |_| {}).await;
 
-    spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        11,
-    );
-    let req = CheckpointStreamRequest {
-        start_sequence_number: Some(5),
-        end_sequence_number: None,
-        full: true,
-    };
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
+    let mut stream = client
+        .stream_checkpoints(Some(5), None, true)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut result = Vec::new();
+
+    // Start the checkpoint sender after we've subscribed to the stream
+    spawn_checkpoint_sender(&server_handle, 11);
 
     tokio::time::timeout(Duration::from_secs(120), async {
         while let Some(res) = stream.next().await {
             match res {
-                Ok(cp) => {
+                Ok(CheckpointContent::Data(data)) => {
+                    let sequence_number = data.sequence_number();
                     // Only collect the expected range
-                    if cp.sequence_number > 30 {
+                    if sequence_number > 30 {
                         break;
                     }
-                    result.push(cp.sequence_number)
+                    result.push(sequence_number)
+                }
+                Ok(CheckpointContent::Summary(_)) => {
+                    panic!("Expected checkpoint data, got summary");
                 }
                 Err(status) if status.code() == tonic::Code::NotFound => break,
                 Err(e) => panic!("Unexpected error: {e:?}"),
@@ -441,38 +457,39 @@ async fn test_start_sequence_number_only() {
     .expect("waiting for checkpoints timed out");
 
     assert_eq!(result, (5..=30).collect::<Vec<_>>());
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
 async fn test_start_and_future_end_sequence_number() {
-    let svc = test_service().await;
+    let (server_handle, mut client, _) = test_server_and_client_setup(0..=10, |_| {}).await;
 
-    spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        11,
-    );
-    let req = CheckpointStreamRequest {
-        start_sequence_number: Some(3),
-        end_sequence_number: Some(15),
-        full: false,
-    };
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
+    spawn_checkpoint_sender(&server_handle, 11);
+
+    let mut stream = client
+        .stream_checkpoints(Some(3), Some(15), false)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut result = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(120), async {
         while let Some(res) = stream.next().await {
             match res {
-                Ok(cp) => {
+                Ok(CheckpointContent::Summary(summary)) => {
+                    let sequence_number = summary.sequence_number();
                     // Only collect the expected range
-                    if cp.sequence_number > 7 {
+                    if sequence_number > 7 {
                         break;
                     }
-                    result.push(cp.sequence_number)
+                    result.push(sequence_number)
+                }
+                Ok(CheckpointContent::Data(_)) => {
+                    panic!("Expected checkpoint summary, got data");
                 }
                 Err(status) if status.code() == tonic::Code::NotFound => break,
                 Err(e) => panic!("Unexpected error: {e:?}"),
@@ -483,28 +500,34 @@ async fn test_start_and_future_end_sequence_number() {
     .expect("waiting for checkpoints timed out");
 
     assert_eq!(result, (3..=7).collect::<Vec<_>>());
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
 async fn test_historical_end_sequence_number_only() {
-    let svc = test_service().await;
+    let (server_handle, mut client, _) = test_server_and_client_setup(0..=10, |_| {}).await;
 
-    let req = CheckpointStreamRequest {
-        start_sequence_number: None,
-        end_sequence_number: Some(4),
-        full: false,
-    };
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
+    let mut stream = client
+        .stream_checkpoints(None, Some(4), false)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut result = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(120), async {
         while let Some(res) = stream.next().await {
             match res {
-                Ok(cp) => result.push(cp.sequence_number),
+                Ok(CheckpointContent::Summary(summary)) => {
+                    let sequence_number = summary.sequence_number();
+                    result.push(sequence_number);
+                }
+                Ok(CheckpointContent::Data(_)) => {
+                    panic!("Expected checkpoint summary, got data");
+                }
                 Err(status) if status.code() == tonic::Code::NotFound => break,
                 Err(e) => panic!("Unexpected error: {e:?}"),
             }
@@ -514,38 +537,38 @@ async fn test_historical_end_sequence_number_only() {
     .expect("waiting for checkpoints timed out");
 
     assert_eq!(result, vec![4]);
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
 async fn test_future_end_sequence_number_only_full() {
-    let svc = test_service().await;
-    spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        11,
-    );
+    let (server_handle, mut client, _) = test_server_and_client_setup(0..=10, |_| {}).await;
+    spawn_checkpoint_sender(&server_handle, 11);
 
-    let req = CheckpointStreamRequest {
-        start_sequence_number: None,
-        end_sequence_number: Some(100),
-        full: true,
-    };
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
+    let mut stream = client
+        .stream_checkpoints(None, Some(100), true)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut result = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(120), async {
         if let Some(res) = stream.next().await {
             match res {
-                Ok(cp) => {
+                Ok(CheckpointContent::Data(data)) => {
                     // For this test, we just need to verify we got checkpoint 100
                     // The BCS data deserialization is handled automatically by the client API
                     // but this test is working with the raw service, so we check the metadata
-                    assert_eq!(cp.sequence_number, 100);
-                    result.push(cp.sequence_number);
+                    let sequence_number = data.sequence_number();
+                    assert_eq!(sequence_number, 100);
+                    result.push(sequence_number);
+                }
+                Ok(CheckpointContent::Summary(_)) => {
+                    panic!("Expected checkpoint data, got summary");
                 }
                 Err(status) if status.code() == tonic::Code::NotFound => {
                     panic!("Stream ended unexpectedly before receiving enough checkpoints")
@@ -558,38 +581,37 @@ async fn test_future_end_sequence_number_only_full() {
     .expect("waiting for checkpoint data timed out");
 
     assert_eq!(result, vec![100]);
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
 async fn test_both_indices_omitted() {
-    let svc = test_service().await;
-    let req = CheckpointStreamRequest {
-        start_sequence_number: None,
-        end_sequence_number: None,
-        full: false,
-    };
+    let (server_handle, mut client, _) = test_server_and_client_setup(0..=10, |_| {}).await;
 
     // Subscribe to the stream after buffer is pre-filled (0..=10)
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
-        .await
-        .unwrap()
-        .into_inner();
+    let mut stream = client.stream_checkpoints(None, None, false).await.unwrap();
     let mut result = Vec::new();
 
     // Now send new checkpoints (live) after subscribing
-    spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        11,
-    );
+    spawn_checkpoint_sender(&server_handle, 11);
 
     // Collect enough checkpoints to see both buffered and live ones
     tokio::time::timeout(Duration::from_secs(120), async {
         for _ in 0..15 {
             if let Some(res) = stream.next().await {
                 match res {
-                    Ok(cp) => result.push(cp.sequence_number),
+                    Ok(CheckpointContent::Summary(summary)) => {
+                        let sequence_number = summary.sequence_number();
+                        result.push(sequence_number);
+                    }
+                    Ok(CheckpointContent::Data(_)) => {
+                        panic!("Expected checkpoint summary, got data");
+                    }
                     Err(status) if status.code() == tonic::Code::NotFound => break,
                     Err(e) => panic!("Unexpected error: {e:?}"),
                 }
@@ -601,46 +623,49 @@ async fn test_both_indices_omitted() {
 
     // The first 11 should be 0..=10 (buffered), then live ones (11, 12, ...)
     assert_eq!(&result[..], &(10..=24).collect::<Vec<_>>()[..]);
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test]
 async fn test_historical_to_live_gap_fill() {
     // Simulate storage with checkpoints 0..=150
-    let mock = Arc::new(MockRestStateReader::new_from_iter(0..=150));
-    let (grpc_checkpoint_summary_tx, _) = broadcast::channel(10);
-    let (grpc_checkpoint_data_tx, _) = broadcast::channel(10);
-    let svc = CheckpointGrpcService::new(
-        mock.clone(),
-        grpc_checkpoint_summary_tx.clone(),
-        grpc_checkpoint_data_tx.clone(),
-    );
+    let (server_handle, mut client, _) = test_server_and_client_setup(0..=150, |_| {}).await;
 
     // Simulate broadcast channel at 150
     let (summary_150, data_150) = mock_summary_data(150);
-    let _ = grpc_checkpoint_summary_tx
-        .send(Arc::new(GrpcCertifiedCheckpointSummary::from(summary_150)));
-    let _ = grpc_checkpoint_data_tx.send(Arc::new(GrpcCheckpointData::from(data_150)));
+    let _ = server_handle
+        .checkpoint_summary_broadcaster()
+        .send(&summary_150);
+    let _ = server_handle.checkpoint_data_broadcaster().send(&data_150);
 
     // Client requests from 0 (historical)
-    let req = CheckpointStreamRequest {
-        start_sequence_number: Some(0),
-        end_sequence_number: None,
-        full: true,
-    };
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
+    let mut stream = client
+        .stream_checkpoints(Some(0), None, true)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut received = Vec::new();
     // Collect up to 151 checkpoints
 
     tokio::time::timeout(Duration::from_secs(120), async {
-        while let Some(Ok(cp)) = stream.next().await {
-            // For this test, we just need the sequence numbers
-            received.push(cp.sequence_number);
-            if cp.sequence_number == 150 {
-                break;
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(CheckpointContent::Data(data)) => {
+                    // For this test, we just need the sequence numbers
+                    let sequence_number = data.sequence_number();
+                    received.push(sequence_number);
+                    if sequence_number == 150 {
+                        break;
+                    }
+                }
+                Ok(CheckpointContent::Summary(_)) => {
+                    panic!("Expected checkpoint data, got summary");
+                }
+                Err(e) => panic!("Unexpected error: {e:?}"),
             }
         }
     })
@@ -649,57 +674,61 @@ async fn test_historical_to_live_gap_fill() {
 
     // Assert we got all checkpoints 0..=150
     assert_eq!(received, (0..=150u64).collect::<Vec<_>>());
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn test_gap_fill_with_slow_client() {
-    // Pre-populate storage with checkpoints 0..=10 before spawning the producer and
-    let mock = Arc::new(MockRestStateReader::new_from_iter(0..=10));
-    let checkpoints = mock.checkpoints.clone();
-    let (grpc_checkpoint_summary_tx, _) = broadcast::channel(5);
-    let (grpc_checkpoint_data_tx, _) = broadcast::channel(5);
-    let svc = CheckpointGrpcService::new(
-        mock,
-        grpc_checkpoint_summary_tx.clone(),
-        grpc_checkpoint_data_tx.clone(),
-    );
+    // Pre-populate storage with checkpoints 0..=10 before spawning the producer
+    let (server_handle, mut client, checkpoints) = test_server_and_client_setup(0..=10, |config| {
+        config.checkpoint_broadcast_buffer_size = 5;
+    })
+    .await;
 
-    // Producer: generates checkpoints 0..=200, one every 100ms
+    // Producer: generates checkpoints 11..=200, one every 100ms
     tokio::spawn({
-        let grpc_checkpoint_summary_tx = grpc_checkpoint_summary_tx.clone();
-        let grpc_checkpoint_data_tx = grpc_checkpoint_data_tx.clone();
+        let summary_broadcaster = server_handle.checkpoint_summary_broadcaster().clone();
+        let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
+        let checkpoints = checkpoints.clone();
         async move {
             for i in 11..=200u64 {
                 let (summary, data) = mock_summary_data(i);
                 checkpoints.lock().unwrap().insert(i);
-                let _ = grpc_checkpoint_summary_tx
-                    .send(Arc::new(GrpcCertifiedCheckpointSummary::from(summary)));
-                let _ = grpc_checkpoint_data_tx.send(Arc::new(GrpcCheckpointData::from(data)));
+                let _ = summary_broadcaster.send(&summary);
+                let _ = data_broadcaster.send(&data);
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }
     });
 
     // Client: slow consumer
-    let req = CheckpointStreamRequest {
-        start_sequence_number: Some(0),
-        end_sequence_number: None,
-        full: true,
-    };
-    let mut stream = svc
-        .stream_checkpoints(Request::new(req))
+    let mut stream = client
+        .stream_checkpoints(Some(0), None, true)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut received = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(120), async {
-        while let Some(Ok(cp)) = stream.next().await {
-            // For this test, we just need the sequence numbers
-            received.push(cp.sequence_number);
-            tokio::time::sleep(Duration::from_millis(500)).await; // slow down the client
-            if cp.sequence_number == 20 {
-                break;
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(CheckpointContent::Data(data)) => {
+                    // For this test, we just need the sequence numbers
+                    let sequence_number = data.sequence_number();
+                    received.push(sequence_number);
+                    tokio::time::sleep(Duration::from_millis(500)).await; // slow down the client
+                    if sequence_number == 20 {
+                        break;
+                    }
+                }
+                Ok(CheckpointContent::Summary(_)) => {
+                    panic!("Expected checkpoint data, got summary");
+                }
+                Err(e) => panic!("Unexpected error: {e:?}"),
             }
         }
     })
@@ -707,4 +736,10 @@ async fn test_gap_fill_with_slow_client() {
     .expect("waiting for checkpoint data timed out");
 
     assert_eq!(received, (0..=20u64).collect::<Vec<_>>());
+
+    // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
 }

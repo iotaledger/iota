@@ -17,7 +17,7 @@ pub struct NodeClient {
 
 impl NodeClient {
     /// Connect to a gRPC server and create a new NodeClient instance.
-    pub async fn connect(url: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn connect(url: &str) -> anyhow::Result<Self> {
         let channel = Channel::from_shared(url.to_string())?.connect().await?;
 
         Ok(Self {

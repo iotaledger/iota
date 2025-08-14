@@ -84,11 +84,11 @@ impl CheckpointClient {
     /// checkpoint type.
     fn deserialize_checkpoint(
         checkpoint: &crate::checkpoint::Checkpoint,
-    ) -> Result<CheckpointContent, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> anyhow::Result<CheckpointContent> {
         let bcs_data = checkpoint
             .bcs_data
             .as_ref()
-            .ok_or("Missing BCS data in checkpoint")?;
+            .ok_or_else(|| anyhow::anyhow!("Missing BCS data in checkpoint"))?;
 
         if checkpoint.is_full {
             let checkpoint_data = bcs_data.deserialize_into::<CheckpointData>()?;

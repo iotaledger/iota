@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 # external dependencies
+anyhow.workspace = true
 async-stream = "0.3"
 bcs.workspace = true
 futures.workspace = true
@@ -12,6 +13,7 @@ prost.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
+tokio-util.workspace = true
 tonic.workspace = true
 tracing.workspace = true
 
