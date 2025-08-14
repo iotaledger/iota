@@ -23,7 +23,7 @@ use crate::{
     transaction::CallArg,
 };
 
-/// MoveAuthenticator is a new GenericSignature variant that enables a new
+/// MoveAuthenticator is a GenericSignature variant that enables a new
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
