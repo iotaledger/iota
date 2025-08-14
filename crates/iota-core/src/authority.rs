@@ -4734,6 +4734,39 @@ impl AuthorityState {
         (next_protocol_version, system_packages)
     }
 
+    /// Returns the indices of validators that support the given protocol
+    /// version. This includes both committee and non-committee validators
+    /// based on their capabilities. Uses active validators instead of committee
+    /// indices.
+    fn get_validators_supporting_protocol_version(
+        target_protocol_version: ProtocolVersion,
+        active_validators: Vec<AuthorityPublicKey>,
+        capabilities: Vec<AuthorityCapabilitiesV1>,
+    ) -> Vec<u64> {
+        let mut eligible_validators = Vec::new();
+
+        for capability in capabilities {
+            // Check if this validator supports the target protocol version and digest
+            if capability
+                .supported_protocol_versions
+                .get_version_digest(target_protocol_version)
+                .is_some()
+            {
+                // Find the validator's index in the active validators list
+                if let Some(index) = active_validators
+                    .iter()
+                    .position(|name| AuthorityName::from(name) == capability.authority)
+                {
+                    eligible_validators.push(index as u64);
+                }
+            }
+        }
+
+        // Sort indices for deterministic behavior
+        eligible_validators.sort();
+        eligible_validators
+    }
+
     #[instrument(level = "debug", skip_all)]
     fn create_authenticator_state_tx(
         &self,
@@ -4842,7 +4875,7 @@ impl AuthorityState {
 
         // Use ChangeEpochV3 when the feature flag is enabled and ChangeEpochV2
         // requirements are met
-        let should_use_change_epoch_v3 = config.select_committee_supporting_protocol_version()
+        let should_use_change_epoch_v3 = config.select_committee_from_eligible_validators()
             && config.protocol_defined_base_fee()
             && config.max_committee_members_count_as_option().is_some();
 
@@ -5363,39 +5396,6 @@ pub mod framework_injection {
 
     pub type PackageUpgradeCallback =
         Box<dyn Fn(AuthorityName) -> Option<Framework> + Send + Sync + 'static>;
-    /// Returns the indices of validators that support the given protocol
-    /// version. This includes both committee and non-committee validators
-    /// based on their capabilities. Uses active validators instead of committee
-    /// indices.
-    fn get_validators_supporting_protocol_version(
-        target_protocol_version: ProtocolVersion,
-        active_validators: Vec<(AuthorityName, AuthorityPublicKey)>,
-        capabilities: Vec<AuthorityCapabilitiesV1>,
-    ) -> Vec<u64> {
-        let mut eligible_validators = Vec::new();
-
-        for capability in capabilities {
-            // Check if this validator supports the target protocol version and digest
-            if capability
-                .supported_protocol_versions
-                .get_version_digest(target_protocol_version)
-                .is_some()
-            {
-                // Find the validator's index in the active validators list
-                if let Some(index) = active_validators
-                    .iter()
-                    .position(|(name, _)| *name == capability.authority)
-                {
-                    eligible_validators.push(index as u64);
-                }
-            }
-        }
-
-        // Sort indices for deterministic behavior
-        eligible_validators.sort();
-        eligible_validators
-    }
-
 
     enum PackageOverrideConfig {
         Global(Framework),
