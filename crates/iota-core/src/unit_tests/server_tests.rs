@@ -96,8 +96,8 @@ async fn test_authority_reject_authority_capabilities() {
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
     ));
 
-    // Create authority capabilities message containing the authority's identity and
-    // supported features
+    // Create an authority capabilities message containing the authority's identity
+    // and supported features
     let capabilities = AuthorityCapabilitiesV1::new(
         AuthorityName::new(sender_key.public().pubkey.to_bytes()), // Authority identifier
         Chain::Mainnet,                                            // Target blockchain network
@@ -106,7 +106,7 @@ async fn test_authority_reject_authority_capabilities() {
                                                                     * for this test */
     );
 
-    // Sign the capabilities message with the authority's private key
+    // Sign the capability message with the authority's private key
     // This creates a cryptographic proof that the message came from the claimed
     // authority
     let signature = AuthoritySignature::new_secure(
@@ -157,8 +157,8 @@ async fn test_authority_reject_authority_capabilities() {
         ),
     };
 
-    // This should also be rejected - authorities should not accept capability
-    // notifications from themselves or other committee members
+    // This should also be rejected - committee validators should not accept
+    // capability notifications from themselves or other committee members
     assert!(
         validator_service
             .handle_capability_notification_v1(make_tonic_request_for_testing(request2))
