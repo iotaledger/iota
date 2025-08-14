@@ -1,8 +1,9 @@
-use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectID, ObjectRef},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{MoveObjectType, ObjectID, ObjectRef},
     error::IotaError,
     object::{Data, Object},
     transaction::{CallArg, InputObjectKind},
@@ -12,6 +13,9 @@ use crate::{
 /// This part will be removed once the real types are implemented.
 
 pub const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
+
+pub const AUTHENTICATOR_INFO_MODULE_NAME: &IdentStr = ident_str!("account");
+pub const AUTHENTICATOR_INFO_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorInfo");
 
 pub struct MoveAuthenticator {
     pub inputs: Vec<CallArg>,
@@ -43,17 +47,24 @@ impl MoveAuthenticator {
 impl AuthenticatorInfo {
     pub fn tag() -> StructTag {
         StructTag {
-            address: AccountAddress::ZERO,
-            module: ident_str!("account").to_owned(),
-            name: ident_str!("AuthenticatorInfoV1").to_owned(),
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: AUTHENTICATOR_INFO_MODULE_NAME.to_owned(),
+            name: AUTHENTICATOR_INFO_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
     }
 
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize TreasuryCap object: {err}"),
+            error: format!("Unable to deserialize AuthenticatorInfo object: {err}"),
         })
+    }
+
+    // TODO: Needs to be moved to MoveObjectType.
+    pub fn is_authenticator_info(other: &MoveObjectType) -> bool {
+        other.address() == IOTA_FRAMEWORK_ADDRESS
+            && other.module() == AUTHENTICATOR_INFO_MODULE_NAME
+            && other.name() == AUTHENTICATOR_INFO_STRUCT_NAME
     }
 }
 
@@ -62,7 +73,7 @@ impl TryFrom<Object> for AuthenticatorInfo {
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_treasury_cap() {
+                if AuthenticatorInfo::is_authenticator_info(o.type_()) {
                     return AuthenticatorInfo::from_bcs_bytes(o.contents());
                 }
             }
