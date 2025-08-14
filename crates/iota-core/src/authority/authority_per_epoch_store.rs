@@ -1627,7 +1627,6 @@ impl AuthorityPerEpochStore {
             .version_assignment_mutex_table
             .acquire_locks(objects_to_init.iter().map(|(id, _)| *id));
         let tables = self.tables()?;
-        let ids: Vec<_> = objects_to_init.iter().map(|(id, _)| *id).collect();
 
         let next_versions = tables
             .next_shared_object_versions
@@ -1647,7 +1646,11 @@ impl AuthorityPerEpochStore {
         // used in an epoch.
         if uninitialized_objects.is_empty() {
             // unwrap ok - we already verified that next_versions is not missing any keys.
-            return Ok(izip!(ids, next_versions.into_iter().map(|v| v.unwrap())).collect());
+            return Ok(izip!(
+                objects_to_init.iter().map(|(id, _)| *id),
+                next_versions.into_iter().map(|v| v.unwrap())
+            )
+            .collect());
         }
 
         let versions_to_write: Vec<_> = uninitialized_objects
@@ -1663,12 +1666,15 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
-        let ret = izip!(ids.clone(), next_versions.into_iter(),)
-            // take all the previously initialized versions
-            .filter_map(|(id, next_version)| next_version.map(|v| (id, v)))
-            // add all the versions we're going to write
-            .chain(versions_to_write.iter().cloned())
-            .collect();
+        let ret = izip!(
+            objects_to_init.iter().map(|(id, _)| *id),
+            next_versions.into_iter(),
+        )
+        // take all the previously initialized versions
+        .filter_map(|(id, next_version)| next_version.map(|v| (id, v)))
+        // add all the versions we're going to write
+        .chain(versions_to_write.iter().cloned())
+        .collect();
 
         debug!(
             ?versions_to_write,
