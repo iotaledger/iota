@@ -5105,6 +5105,13 @@ async fn test_choose_next_system_packages() {
     let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
     protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(7500);
 
+    // Create an active validators list for testing
+    // get_validators_supporting_protocol_version
+    let active_validators: Vec<(AuthorityName, AuthorityPublicKey)> = v
+        .iter()
+        .map(|(name, _weight)| (*name, committee.public_key(name).unwrap().clone()))
+        .collect();
+
     // all validators agree on new system packages, but without a new protocol
     // version, so no upgrade.
     let capabilities = vec![
@@ -5114,15 +5121,22 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(1, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), vec![]), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // for decided version
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0, // decided protocol version
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     // one validator disagrees, stake buffer means no upgrade
     let capabilities = vec![
@@ -5132,28 +5146,42 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities.clone(),
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), vec![]), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // for decided version
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0, // decided protocol version
+        active_validators.clone(),
+        capabilities.clone(),
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators still support version 1
 
     // Now 2f+1 is enough to upgrade
     protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(0);
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // for decided version
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0, // decided protocol version (ver(2))
+        active_validators.clone(),
+        capabilities.clone(),
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support
 
     // committee is split, can't upgrade even with 0 stake buffer
     let capabilities = vec![
@@ -5163,15 +5191,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), vec![]), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1 without upgrading
 
     // all validators agree on packages, and a proto upgrade
     let capabilities = vec![
@@ -5181,15 +5215,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 2
 
     // all validators agree on packages, but not protocol version.
     let capabilities = vec![
@@ -5199,15 +5239,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), vec![]), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1  without making an upgrade
 
     // all validators support 3, so we advance by multiple versions at once.
     let capabilities = vec![
@@ -5217,15 +5263,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(3, v[3].0, vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(3), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 3
 
     // one validator is having a problem with packages, so its vote does not count.
     let capabilities = vec![
@@ -5235,15 +5287,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), vec![]), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     let capabilities = vec![
         make_capabilities!(3, v[0].0, vec![o1, o2]),
@@ -5254,15 +5312,21 @@ async fn test_choose_next_system_packages() {
 
     // packages are identical between all currently supported versions, so we can
     // upgrade to 3 which is the highest supported version
-    assert_eq!(
-        (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(3), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 3
 
     let capabilities = vec![
         make_capabilities!(2, v[0].0, vec![]),
@@ -5275,15 +5339,21 @@ async fn test_choose_next_system_packages() {
     // about the packages. In this situation it is likely that (v2, []) is a
     // valid upgrade, but we don't have a way to detect that. The upgrade simply
     // won't happen until everyone moves to 3.
-    assert_eq!(
-        (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), sort(vec![])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     // all validators support 2, but they disagree on the digest of the protocol
     // config for 2, so no upgrade happens.
@@ -5296,15 +5366,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2], digest_b),
     ];
 
-    assert_eq!(
-        (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), sort(vec![])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        active_validators.clone(),
+        capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     // === Test cases with non-committee authorities (0 voting weight) ===
 
@@ -5319,6 +5395,12 @@ async fn test_choose_next_system_packages() {
         .map(|key| AuthorityName::from(key.public()))
         .collect();
 
+    // Create expanded active_validators list including zero-weight authorities
+    let mut all_active_validators = active_validators.clone();
+    for (i, auth) in zero_weight_authorities.iter().enumerate() {
+        all_active_validators.push((*auth, all_keys[4 + i].public().clone())); // Indices 4, 5, 6 for zero-weight authorities
+    }
+
     // Test 1: Zero-weight authorities support the same version as quorum - should
     // not affect an outcome
     let capabilities_with_zero_weight = vec![
@@ -5332,15 +5414,22 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, zero_weight_authorities[2], vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_with_zero_weight,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_with_zero_weight.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // including zero-weight authorities
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_with_zero_weight,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators (including zero-weight) support version 2
 
     // Test 2: Zero-weight authorities support a higher version than quorum
     let capabilities_higher_version = vec![
@@ -5354,15 +5443,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(5, zero_weight_authorities[2], vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_higher_version,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_higher_version.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_higher_version,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 2 (zero-weight authorities support higher versions)
 
     // Test 3: Zero-weight authorities support lower version than quorum
     let capabilities_lower_version = vec![
@@ -5376,15 +5471,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(1, zero_weight_authorities[2], vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_lower_version,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_lower_version.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(3), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_lower_version,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // Only the committee validators support version 3
 
     // Test 4: Zero-weight authorities support different objects/capabilities
     let capabilities_different_objects = vec![
@@ -5398,15 +5499,21 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, zero_weight_authorities[2], vec![o3]),
     ];
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_different_objects,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_different_objects.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_different_objects,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 2
 
     // Test 5: Edge case - Only capabilities from zero-weight authorities
     let capabilities_only_zero_weight = vec![
@@ -5422,15 +5529,21 @@ async fn test_choose_next_system_packages() {
     ];
 
     // Should not upgrade since zero-weight authorities cannot form a quorum
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_only_zero_weight,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_only_zero_weight.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(1), vec![]), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_only_zero_weight,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 1
 
     // Test 6: Zero-weight authorities with conflicting capabilities don't interfere
     let capabilities_conflicting_zero_weight = vec![
@@ -5446,15 +5559,21 @@ async fn test_choose_next_system_packages() {
     ];
 
     // Should upgrade to v2 with o1,o2 despite zero-weight conflicting opinions
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_conflicting_zero_weight,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_conflicting_zero_weight.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_conflicting_zero_weight,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 4, 5, 6]); // Committee validators [0,1,2] + zero-weight authorities [4,5,6] support version 2
 
     // Test 7: Mixed scenario - some zero-weight authorities agree with quorum,
     // others don't
@@ -5466,20 +5585,26 @@ async fn test_choose_next_system_packages() {
         // Some zero-weight authorities agree
         make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
         // Others disagree with version
-        make_capabilities!(3, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(1, zero_weight_authorities[1], vec![o1, o2]),
         // Others disagree with packages
         make_capabilities!(2, zero_weight_authorities[2], vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities_mixed_agreement,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        &committee,
+        capabilities_mixed_agreement.clone(),
+        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
+    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        all_active_validators.clone(),
+        capabilities_mixed_agreement,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 6]); // Committee validators [0,1,2,3] + agreeing zero-weight authorities [4,6] support version 2
 }
 
 #[tokio::test]
