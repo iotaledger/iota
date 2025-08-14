@@ -19,7 +19,7 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
-        HandleCapabilityNotificationV1Request, HandleCapabilityNotificationV1Response,
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
@@ -140,8 +140,8 @@ impl AuthorityAPI for LocalAuthorityClient {
 
     async fn handle_capability_notification_v1(
         &self,
-        request: HandleCapabilityNotificationV1Request,
-    ) -> Result<HandleCapabilityNotificationV1Response, IotaError> {
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
@@ -156,10 +156,9 @@ impl AuthorityAPI for LocalAuthorityClient {
         );
 
         state
-            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())
-            .await?;
+            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())?;
 
-        Ok(HandleCapabilityNotificationV1Response {})
+        Ok(HandleCapabilityNotificationResponseV1 {})
     }
 }
 
@@ -346,8 +345,8 @@ impl AuthorityAPI for MockAuthorityApi {
 
     async fn handle_capability_notification_v1(
         &self,
-        _request: HandleCapabilityNotificationV1Request,
-    ) -> Result<HandleCapabilityNotificationV1Response, IotaError> {
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
 }
@@ -423,8 +422,8 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
 
     async fn handle_capability_notification_v1(
         &self,
-        _request: HandleCapabilityNotificationV1Request,
-    ) -> Result<HandleCapabilityNotificationV1Response, IotaError> {
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
 }

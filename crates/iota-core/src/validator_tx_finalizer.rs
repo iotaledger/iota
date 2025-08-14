@@ -305,7 +305,7 @@ mod tests {
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
-            HandleCapabilityNotificationV1Request, HandleCapabilityNotificationV1Response,
+            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
             HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
@@ -419,8 +419,8 @@ mod tests {
 
         async fn handle_capability_notification_v1(
             &self,
-            _request: HandleCapabilityNotificationV1Request,
-        ) -> Result<HandleCapabilityNotificationV1Response, IotaError> {
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
         }
     }

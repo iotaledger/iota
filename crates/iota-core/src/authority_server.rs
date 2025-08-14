@@ -28,7 +28,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCapabilityNotificationV1Request, HandleCapabilityNotificationV1Response,
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
@@ -1125,16 +1125,25 @@ impl ValidatorService {
 
     async fn handle_capability_notification_v1_impl(
         &self,
-        request: tonic::Request<HandleCapabilityNotificationV1Request>,
-    ) -> WrappedServiceResponse<HandleCapabilityNotificationV1Response> {
+        request: tonic::Request<HandleCapabilityNotificationRequestV1>,
+    ) -> WrappedServiceResponse<HandleCapabilityNotificationResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let request = request.into_inner();
-
+        fp_ensure!(
+            epoch_store
+                .protocol_config()
+                .select_committee_supporting_protocol_version(),
+            IotaError::UnsupportedFeature {
+                error: "capability notification endpoint is not supported in this Protocol Version"
+                    .to_string()
+            }
+            .into()
+        );
         // Validate if cert can be executed
         // Fullnode does not serve handle_certificate call.
         fp_ensure!(
             !self.state.is_fullnode(&epoch_store),
-            IotaError::FullNodeCantHandleCertificate.into()
+            IotaError::FullNodeCantHandleAuthorityCapabilities.into()
         );
 
         if let Err(error) = self.consensus_adapter.check_consensus_overload() {
@@ -1166,11 +1175,10 @@ impl ValidatorService {
 
         // Store or process the capabilities as needed
         self.state
-            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())
-            .await?;
+            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())?;
 
         Ok((
-            tonic::Response::new(HandleCapabilityNotificationV1Response {}),
+            tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
             Weight::zero(),
         ))
     }
@@ -1315,8 +1323,8 @@ impl Validator for ValidatorService {
 
     async fn handle_capability_notification_v1(
         &self,
-        request: tonic::Request<HandleCapabilityNotificationV1Request>,
-    ) -> Result<tonic::Response<HandleCapabilityNotificationV1Response>, tonic::Status> {
+        request: tonic::Request<HandleCapabilityNotificationRequestV1>,
+    ) -> Result<tonic::Response<HandleCapabilityNotificationResponseV1>, tonic::Status> {
         handle_with_decoration!(self, handle_capability_notification_v1_impl, request)
     }
 }

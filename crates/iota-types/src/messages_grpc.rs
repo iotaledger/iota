@@ -275,10 +275,9 @@ pub struct HandleSoftBundleCertificatesRequestV1 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCapabilityNotificationV1Request {
+pub struct HandleCapabilityNotificationRequestV1 {
     pub message: SignedAuthorityCapabilitiesV1,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCapabilityNotificationV1Response {
-    // Currently empty, may be extended in the future
-}
+pub struct HandleCapabilityNotificationResponseV1 {}

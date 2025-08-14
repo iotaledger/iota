@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use anemo::{
     PeerId,
@@ -39,7 +39,7 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
-    fn get_non_committee_validators(&self) -> BTreeMap<AuthorityName, AuthorityPublicKey>;
+    fn get_active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)>;
 }
 
 /// This type captures the minimum amount of information from IotaSystemState
@@ -87,7 +87,7 @@ impl EpochStartSystemState {
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
         committee_validators: Vec<EpochStartValidatorInfoV1>,
-        non_committee_validators: Vec<EpochStartValidatorInfoV1>,
+        active_validators: Vec<EpochStartValidatorInfoV1>,
     ) -> Self {
         Self::V2(EpochStartSystemStateV2 {
             epoch,
@@ -97,7 +97,7 @@ impl EpochStartSystemState {
             epoch_start_timestamp_ms,
             epoch_duration_ms,
             committee_validators,
-            non_committee_validators: Some(non_committee_validators),
+            active_validators,
         })
     }
 
@@ -125,7 +125,7 @@ impl EpochStartSystemState {
                 epoch_start_timestamp_ms: state.epoch_start_timestamp_ms,
                 epoch_duration_ms: state.epoch_duration_ms,
                 committee_validators: state.committee_validators.clone(),
-                non_committee_validators: state.non_committee_validators.clone(),
+                active_validators: state.active_validators.clone(),
             }),
         }
     }
@@ -339,9 +339,18 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .collect()
     }
 
-    fn get_non_committee_validators(&self) -> BTreeMap<AuthorityName, AuthorityPublicKey> {
-        // V1 does not have non-committee validators, so return an empty map.
-        BTreeMap::new()
+    fn get_active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)> {
+        // for V1 the committee and active validators are the same as there is no
+        // additional committee selection
+        self.committee_validators
+            .iter()
+            .map(|validator| {
+                (
+                    validator.authority_name(),
+                    validator.authority_pubkey.clone(),
+                )
+            })
+            .collect()
     }
 }
 
@@ -354,7 +363,7 @@ pub struct EpochStartSystemStateV2 {
     epoch_start_timestamp_ms: u64,
     epoch_duration_ms: u64,
     committee_validators: Vec<EpochStartValidatorInfoV1>,
-    non_committee_validators: Option<Vec<EpochStartValidatorInfoV1>>,
+    active_validators: Vec<EpochStartValidatorInfoV1>,
 }
 
 impl EpochStartSystemStateV2 {
@@ -371,7 +380,7 @@ impl EpochStartSystemStateV2 {
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 1000,
             committee_validators: vec![],
-            non_committee_validators: None,
+            active_validators: vec![],
         }
     }
 }
@@ -528,10 +537,8 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
             .collect()
     }
 
-    fn get_non_committee_validators(&self) -> BTreeMap<AuthorityName, AuthorityPublicKey> {
-        self.non_committee_validators
-            .clone()
-            .unwrap_or_default()
+    fn get_active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)> {
+        self.active_validators
             .iter()
             .map(|validator| {
                 (
@@ -702,6 +709,10 @@ mod test {
             });
         }
 
+        // Create active_validators list containing all validators in the desired order
+        let mut active_validators = committee_validators.clone();
+        active_validators.extend(non_committee_validators.clone());
+
         let state = EpochStartSystemState::new_v2(
             10,
             ProtocolVersion::MAX.as_u64(),
@@ -710,13 +721,13 @@ mod test {
             0,
             0,
             committee_validators.clone(),
-            non_committee_validators.clone(),
+            active_validators,
         );
 
         // WHEN
         let iota_committee = state.get_iota_committee();
         let consensus_committee = state.get_consensus_committee();
-        let non_committee = state.get_non_committee_validators();
+        let active_validators = state.get_active_validators();
 
         // THEN
         // Assert committee validators details
@@ -749,13 +760,55 @@ mod test {
             );
         }
 
-        // Verify non-committee validators
-        assert_eq!(non_committee.len(), 10);
+        // Verify active validators (should include all: committee + non-committee)
+        assert_eq!(active_validators.len(), 20); // 10 committee + 10 non-committee
+
+        // Verify order is preserved - active_validators should contain all validators
+        // in the expected order First committee validators, then non-committee
+        // validators
+        let expected_order: Vec<_> = committee_validators
+            .iter()
+            .chain(non_committee_validators.iter())
+            .collect();
+
+        for (i, expected_validator) in expected_order.iter().enumerate() {
+            let expected_name = expected_validator.authority_name();
+            let (found_name, found_pubkey) = &active_validators[i];
+            assert_eq!(
+                *found_name, expected_name,
+                "Order not preserved: expected {} at index {}",
+                expected_name, i
+            );
+            assert_eq!(
+                found_pubkey.as_bytes(),
+                expected_validator.authority_pubkey.as_bytes()
+            );
+        }
+
+        // Verify committee validators are in active_validators
+        for validator in committee_validators.iter() {
+            let authority_name = validator.authority_name();
+            let pubkey_from_vec = active_validators
+                .iter()
+                .find(|(name, _)| *name == authority_name)
+                .map(|(_, pubkey)| pubkey)
+                .unwrap();
+            assert_eq!(
+                pubkey_from_vec.as_bytes(),
+                validator.authority_pubkey.as_bytes()
+            );
+        }
+
+        // Verify non-committee validators are in active_validators
         for validator in non_committee_validators.iter() {
             let authority_name = validator.authority_name();
-            let pubkey_from_map = non_committee.get(&authority_name).unwrap();
+            let pubkey_from_vec = active_validators
+                .iter()
+                .find(|(name, _)| *name == authority_name)
+                .map(|(_, pubkey)| pubkey)
+                .unwrap();
             assert_eq!(
-                pubkey_from_map.as_bytes(),
+                pubkey_from_vec.as_bytes(),
                 validator.authority_pubkey.as_bytes()
             );
         }
@@ -819,7 +872,7 @@ mod test {
             3_000_000,
             4_000_000,
             vec![committee_validator.clone()],
-            vec![non_committee_validator.clone()],
+            vec![committee_validator.clone(), non_committee_validator.clone()],
         );
 
         // Test V1 serialization/deserialization
@@ -842,8 +895,8 @@ mod test {
         assert_eq!(v1_validators.len(), 1);
         assert_eq!(v1_validators[0], iota_address1);
 
-        let v1_non_committee = v1_deserialized.get_non_committee_validators();
-        assert_eq!(v1_non_committee.len(), 0);
+        let v1_active_validators = v1_deserialized.get_active_validators();
+        assert_eq!(v1_active_validators.len(), 1); // in V1 committee_validators and active_validators are the same as there is no additional committee selection
 
         // Test V2 serialization/deserialization
         let v2_serialized = bcs::to_bytes(&v2_state).unwrap();
@@ -865,16 +918,29 @@ mod test {
         assert_eq!(v2_validators.len(), 1);
         assert_eq!(v2_validators[0], iota_address1);
 
-        let mut v2_non_committee = v2_deserialized.get_non_committee_validators();
-        assert_eq!(v2_non_committee.len(), 1);
-        let non_committee_validator_deserialized = v2_non_committee.pop_first().unwrap();
+        let v2_active_validators = v2_deserialized.get_active_validators();
+        assert_eq!(v2_active_validators.len(), 2); // Should contain one committee member and one validator.
+
+        let non_committee_validator_pubkey = v2_active_validators
+            .iter()
+            .find(|(name, _)| *name == non_committee_validator.authority_name())
+            .map(|(_, pubkey)| pubkey)
+            .unwrap();
+
         assert_eq!(
-            non_committee_validator_deserialized.0.as_bytes(),
-            non_committee_validator.authority_name().as_bytes()
-        );
-        assert_eq!(
-            non_committee_validator_deserialized.1.as_bytes(),
+            non_committee_validator_pubkey.as_bytes(),
             non_committee_validator.authority_pubkey.as_bytes()
+        );
+
+        let committee_validator_pubkey = v2_active_validators
+            .iter()
+            .find(|(name, _)| *name == committee_validator.authority_name())
+            .map(|(_, pubkey)| pubkey)
+            .unwrap();
+
+        assert_eq!(
+            committee_validator_pubkey.as_bytes(),
+            committee_validator.authority_pubkey.as_bytes()
         );
     }
 }

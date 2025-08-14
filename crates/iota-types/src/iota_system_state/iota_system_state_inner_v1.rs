@@ -26,7 +26,7 @@ use crate::{
     gas_coin::IotaTreasuryCap,
     id::ID,
     iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, convert_validator_to_epoch_start_info,
+        EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
     },
     multiaddr::Multiaddr,
     storage::ObjectStore,
@@ -540,6 +540,13 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
+        let committee_validators: Vec<EpochStartValidatorInfoV1> = self
+            .validators
+            .active_validators
+            .iter()
+            .map(convert_validator_to_epoch_start_info)
+            .collect();
+
         EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
@@ -547,12 +554,8 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             self.safe_mode,
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
-            self.validators
-                .active_validators
-                .iter()
-                .map(convert_validator_to_epoch_start_info)
-                .collect(),
-            Vec::new(), // V1 has no non-committee validators
+            committee_validators.clone(),
+            committee_validators, // V1 uses committee_validators as active_validators
         )
     }
 

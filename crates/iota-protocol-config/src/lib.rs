@@ -317,6 +317,11 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true, select committee among active validators supporting a protocol version in the
+    // upcoming epoch.
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_supporting_protocol_version: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1322,6 +1327,11 @@ impl ProtocolConfig {
         // parameters.
         0
     }
+
+    pub fn select_committee_supporting_protocol_version(&self) -> bool {
+        self.feature_flags
+            .select_committee_supporting_protocol_version
+    }
 }
 
 #[cfg(not(msim))]
@@ -2132,6 +2142,11 @@ impl ProtocolConfig {
                     // cancelled due to congestion in all networks
                     cfg.feature_flags
                         .congestion_control_gas_price_feedback_mechanism = true;
+                    // Enable select committee supporting protocol version in devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .select_committee_supporting_protocol_version = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -2292,6 +2307,10 @@ impl ProtocolConfig {
     pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
+    }
+    pub fn set_select_committee_supporting_protocol_version_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .select_committee_supporting_protocol_version = val;
     }
 }
 

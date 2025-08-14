@@ -1692,7 +1692,7 @@ impl AuthorityState {
 
     /// Verifies the signature on the capability notification and updates the
     /// authority capabilities after verifying the signature
-    pub async fn handle_authority_capabilities(
+    pub fn handle_authority_capabilities(
         &self,
         verified_authority_capabilities: VerifiedAuthorityCapabilitiesV1,
         _epoch_store: Arc<AuthorityPerEpochStore>,

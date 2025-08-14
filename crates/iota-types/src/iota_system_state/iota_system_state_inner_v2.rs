@@ -175,17 +175,13 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        // Convert active validators that are not in committee into non-committee
-        // validators
-        let committee_validator_set: std::collections::HashSet<_> =
-            self.validators.committee_members.iter().collect();
-        let non_committee_validators: Vec<_> = self
+        // Convert all active validators to epoch start info, maintaining the same order
+        // as in ValidatorSetV2
+        let all_active_validators: Vec<_> = self
             .validators
             .active_validators
             .iter()
-            .enumerate()
-            .filter(|(idx, _)| !committee_validator_set.contains(&(*idx as u64)))
-            .map(|(_, validator)| convert_validator_to_epoch_start_info(validator))
+            .map(convert_validator_to_epoch_start_info)
             .collect();
 
         EpochStartSystemState::new_v2(
@@ -199,7 +195,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 .iter_committee_members()
                 .map(convert_validator_to_epoch_start_info)
                 .collect(),
-            non_committee_validators,
+            all_active_validators,
         )
     }
 

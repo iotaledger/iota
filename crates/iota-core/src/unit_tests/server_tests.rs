@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_protocol_config::Chain;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id},
     crypto::{
         AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, get_authority_key_pair,
     },
+    error::IotaError,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::LayoutGenerationOption,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -68,7 +69,13 @@ async fn test_authority_reject_authority_capabilities() {
     // Create one sender, one recipient addresses, and 2 gas objects.
     let (_sender, sender_key): (_, AuthorityKeyPair) = get_authority_key_pair();
 
-    let authority_state = TestAuthorityBuilder::new().build().await;
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    protocol_config.set_select_committee_supporting_protocol_version_for_testing(true);
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
 
     // Create a validator service around the `authority_state`.
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -109,7 +116,7 @@ async fn test_authority_reject_authority_capabilities() {
     );
 
     // Package the signed capabilities into a request message
-    let request1 = HandleCapabilityNotificationV1Request {
+    let request1 = HandleCapabilityNotificationRequestV1 {
         message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
     };
 
@@ -143,7 +150,7 @@ async fn test_authority_reject_authority_capabilities() {
         &*authority_state.secret,
     );
 
-    let request2 = HandleCapabilityNotificationV1Request {
+    let request2 = HandleCapabilityNotificationRequestV1 {
         message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(
             authority_capabilities,
             authority_signature,
@@ -158,5 +165,69 @@ async fn test_authority_reject_authority_capabilities() {
             .await
             .is_err(),
         "Expected capability notification from authority itself to be rejected"
+    );
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_handle_capability_notification_v1_feature_disabled() {
+    telemetry_subscribers::init_for_testing();
+
+    let (_sender, sender_key): (_, AuthorityKeyPair) = get_authority_key_pair();
+
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    protocol_config.set_select_committee_supporting_protocol_version_for_testing(false);
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let capabilities = AuthorityCapabilitiesV1::new(
+        AuthorityName::new(sender_key.public().pubkey.to_bytes()),
+        Chain::Mainnet,
+        SupportedProtocolVersions::new_for_testing(1, 10),
+        vec![],
+    );
+
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(Intent::iota_app(AuthorityCapabilities), &capabilities),
+        &authority_state.current_epoch_for_testing(),
+        &sender_key,
+    );
+
+    let request = HandleCapabilityNotificationRequestV1 {
+        message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+    };
+
+    let result = validator_service
+        .handle_capability_notification_v1(make_tonic_request_for_testing(request))
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Expected capability notification to be rejected due to feature being disabled"
+    );
+    let err_kind = IotaError::from(result.unwrap_err());
+    assert!(
+        matches!(err_kind, IotaError::UnsupportedFeature { .. }),
+        "Expected UnsupportedFeature error, but got {:?}",
+        err_kind
     );
 }
