@@ -112,7 +112,7 @@ The script should be run from inside the `iota/dev-tools/iota-private-network/ex
 ./run-all.sh
 ./run-all.sh -n 19 -p starfish
 ./run-all.sh -n 4 -p starfish -build false
-````
+```
 
 Logs from `network-fuzz-test.sh` will be stored in the `logs` directory.
 
