@@ -107,7 +107,7 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter,
             VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
@@ -131,6 +131,11 @@ pub const EPOCH_DB_PREFIX: &str = "epoch_";
 pub(crate) type PkG = bls12381::G2Element;
 pub(crate) type EncG = bls12381::G2Element;
 
+#[path = "consensus_quarantine.rs"]
+pub(crate) mod consensus_quarantine;
+
+use consensus_quarantine::ConsensusCommitOutput;
+
 // CertLockGuard and CertTxGuard are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
 // storage, having this distinction will be useful, as we will most likely have
@@ -148,8 +153,8 @@ impl CertTxGuard {
 
 impl CertLockGuard {
     pub fn guard_for_tests() -> Self {
-        let lock = Arc::new(tokio::sync::Mutex::new(()));
-        Self(lock.try_lock_owned().unwrap())
+        let lock = Arc::new(parking_lot::Mutex::new(()));
+        Self(lock.try_lock_arc().unwrap())
     }
 }
 
@@ -1212,17 +1217,17 @@ impl AuthorityPerEpochStore {
         &self.execution_component.executor
     }
 
-    pub async fn acquire_tx_guard(
+    pub fn acquire_tx_guard(
         &self,
         cert: &VerifiedExecutableTransaction,
     ) -> IotaResult<CertTxGuard> {
         let digest = cert.digest();
-        Ok(CertTxGuard(self.acquire_tx_lock(digest).await))
+        Ok(CertTxGuard(self.acquire_tx_lock(digest)))
     }
 
     /// Acquire the lock for a tx without writing to the WAL.
-    pub async fn acquire_tx_lock(&self, digest: &TransactionDigest) -> CertLockGuard {
-        CertLockGuard(self.mutex_table.acquire_lock(*digest).await)
+    pub fn acquire_tx_lock(&self, digest: &TransactionDigest) -> CertLockGuard {
+        CertLockGuard(self.mutex_table.acquire_lock(*digest))
     }
 
     pub fn store_reconfig_state(&self, new_state: &ReconfigState) -> IotaResult {
@@ -1334,8 +1339,10 @@ impl AuthorityPerEpochStore {
         &self,
         digests: impl IntoIterator<Item = &'a TransactionDigest>,
     ) -> IotaResult<Vec<bool>> {
-        let tables = self.tables()?;
-        Ok(tables.executed_in_epoch.multi_contains_keys(digests)?)
+        Ok(self
+            .tables()?
+            .executed_in_epoch
+            .multi_contains_keys(digests)?)
     }
 
     pub fn get_effects_signature(
@@ -1605,7 +1612,7 @@ impl AuthorityPerEpochStore {
     // Because all paths that assign shared versions for a shared object transaction
     // call this function, it is impossible for parent_sync to be updated before
     // this function completes successfully for each affected object id.
-    pub(crate) async fn get_or_init_next_object_versions(
+    pub(crate) fn get_or_init_next_object_versions(
         &self,
         objects_to_init: &[(ObjectID, SequenceNumber)],
         cache_reader: &dyn ObjectCacheRead,
@@ -1684,7 +1691,7 @@ impl AuthorityPerEpochStore {
         Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 
-    async fn set_assigned_shared_object_versions_with_db_batch(
+    fn set_assigned_shared_object_versions_with_db_batch(
         &self,
         versions: AssignedTxAndVersions,
         db_batch: &mut DBBatch,
@@ -1702,7 +1709,7 @@ impl AuthorityPerEpochStore {
     /// idempotent. We should call this function when we are assigning shared
     /// object versions outside of consensus and do not want to taint the
     /// next_shared_object_versions table.
-    pub async fn assign_shared_object_versions_idempotent(
+    pub fn assign_shared_object_versions_idempotent(
         &self,
         cache_reader: &dyn ObjectCacheRead,
         certificates: &[VerifiedExecutableTransaction],
@@ -1714,11 +1721,9 @@ impl AuthorityPerEpochStore {
             certificates,
             None,
             &BTreeMap::new(),
-        )
-        .await?
+        )?
         .assigned_versions;
-        self.set_assigned_shared_object_versions_with_db_batch(assigned_versions, &mut db_batch)
-            .await?;
+        self.set_assigned_shared_object_versions_with_db_batch(assigned_versions, &mut db_batch)?;
         db_batch.write()?;
         Ok(())
     }
@@ -1937,11 +1942,9 @@ impl AuthorityPerEpochStore {
             &[(certificate, effects)],
             self,
             cache_reader,
-        )
-        .await?;
+        )?;
         let mut db_batch = self.tables()?.assigned_shared_object_versions.batch();
-        self.set_assigned_shared_object_versions_with_db_batch(versions, &mut db_batch)
-            .await?;
+        self.set_assigned_shared_object_versions_with_db_batch(versions, &mut db_batch)?;
         db_batch.write()?;
         Ok(())
     }
@@ -3044,7 +3047,7 @@ impl AuthorityPerEpochStore {
     // version state. Shared object versions in cancelled transactions are
     // assigned to special versions that will cause the transactions to be
     // cancelled in execution engine.
-    async fn process_consensus_transaction_shared_object_versions(
+    fn process_consensus_transaction_shared_object_versions(
         &self,
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
@@ -3061,8 +3064,7 @@ impl AuthorityPerEpochStore {
             transactions,
             randomness_round,
             cancelled_txns,
-        )
-        .await?;
+        )?;
         output.set_assigned_shared_object_versions(assigned_versions, shared_input_next_versions);
         Ok(())
     }
@@ -3105,7 +3107,7 @@ impl AuthorityPerEpochStore {
         .await
     }
 
-    pub async fn assign_shared_object_versions_for_tests(
+    pub fn assign_shared_object_versions_for_tests(
         self: &Arc<Self>,
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
@@ -3117,8 +3119,7 @@ impl AuthorityPerEpochStore {
             None,
             &BTreeMap::new(),
             &mut output,
-        )
-        .await?;
+        )?;
         let mut batch = self.db_batch()?;
         output.write_to_batch(self, &mut batch)?;
         batch.write()?;
@@ -3366,8 +3367,7 @@ impl AuthorityPerEpochStore {
             randomness_round,
             &cancelled_txns,
             output,
-        )
-        .await?;
+        )?;
 
         let (lock, final_round) = self.process_end_of_publish_transactions_and_reconfig(
             output,
@@ -4176,249 +4176,6 @@ impl AuthorityPerEpochStore {
                 ),
             }
         }
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct ConsensusCommitOutput {
-    // Consensus and reconfig state
-    consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
-    end_of_publish: BTreeSet<AuthorityName>,
-    reconfig_state: Option<ReconfigState>,
-    consensus_commit_stats: Option<ExecutionIndicesWithStats>,
-    pending_execution: Vec<VerifiedExecutableTransaction>,
-
-    // transaction scheduling state
-    shared_object_versions: Option<(AssignedTxAndVersions, HashMap<ObjectID, SequenceNumber>)>,
-
-    deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
-    // deferred txns that have been loaded and can be removed
-    deleted_deferred_txns: BTreeSet<DeferralKey>,
-
-    // checkpoint state
-    user_signatures_for_checkpoints: Vec<(TransactionDigest, Vec<GenericSignature>)>,
-    pending_checkpoints: Vec<PendingCheckpoint>,
-
-    // random beacon state
-    next_randomness_round: Option<(RandomnessRound, CommitTimestampMs)>,
-
-    dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
-    dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
-    dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
-
-    // jwk state
-    pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
-    active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
-}
-
-impl ConsensusCommitOutput {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    fn insert_end_of_publish(&mut self, authority: AuthorityName) {
-        self.end_of_publish.insert(authority);
-    }
-
-    fn insert_pending_execution(&mut self, transactions: &[VerifiedExecutableTransaction]) {
-        self.pending_execution.reserve(transactions.len());
-        self.pending_execution.extend_from_slice(transactions);
-    }
-
-    fn insert_user_signatures_for_checkpoints(
-        &mut self,
-        transactions: &[VerifiedExecutableTransaction],
-    ) {
-        self.user_signatures_for_checkpoints.extend(
-            transactions
-                .iter()
-                .map(|tx| (*tx.digest(), tx.tx_signatures().to_vec())),
-        );
-    }
-
-    fn record_consensus_commit_stats(&mut self, stats: ExecutionIndicesWithStats) {
-        self.consensus_commit_stats = Some(stats);
-    }
-
-    fn store_reconfig_state(&mut self, state: ReconfigState) {
-        self.reconfig_state = Some(state);
-    }
-
-    fn record_consensus_message_processed(&mut self, key: SequencedConsensusTransactionKey) {
-        self.consensus_messages_processed.insert(key);
-    }
-
-    fn set_assigned_shared_object_versions(
-        &mut self,
-        versions: AssignedTxAndVersions,
-        next_versions: HashMap<ObjectID, SequenceNumber>,
-    ) {
-        assert!(self.shared_object_versions.is_none());
-        self.shared_object_versions = Some((versions, next_versions));
-    }
-
-    fn defer_transactions(&mut self, key: DeferralKey, transactions: Vec<DeferredTransaction>) {
-        self.deferred_txns.push((key, transactions));
-    }
-
-    fn delete_loaded_deferred_transactions(&mut self, deferral_keys: &[DeferralKey]) {
-        self.deleted_deferred_txns
-            .extend(deferral_keys.iter().cloned());
-    }
-
-    fn insert_pending_checkpoint(&mut self, checkpoint: PendingCheckpoint) {
-        self.pending_checkpoints.push(checkpoint);
-    }
-
-    pub fn reserve_next_randomness_round(
-        &mut self,
-        next_randomness_round: RandomnessRound,
-        commit_timestamp: CommitTimestampMs,
-    ) {
-        assert!(self.next_randomness_round.is_none());
-        self.next_randomness_round = Some((next_randomness_round, commit_timestamp));
-    }
-
-    pub fn insert_dkg_confirmation(&mut self, conf: VersionedDkgConfirmation) {
-        self.dkg_confirmations.insert(conf.sender(), conf);
-    }
-
-    pub fn insert_dkg_processed_message(&mut self, message: VersionedProcessedMessage) {
-        self.dkg_processed_messages
-            .insert(message.sender(), message);
-    }
-
-    pub fn insert_dkg_used_messages(&mut self, used_messages: VersionedUsedProcessedMessages) {
-        self.dkg_used_message = Some(used_messages);
-    }
-
-    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
-        self.dkg_output = Some(output);
-    }
-
-    fn insert_pending_jwk(&mut self, authority: AuthorityName, id: JwkId, jwk: JWK) {
-        self.pending_jwks.insert((authority, id, jwk));
-    }
-
-    fn insert_active_jwk(&mut self, round: u64, key: (JwkId, JWK)) {
-        self.active_jwks.insert((round, key));
-    }
-
-    pub fn write_to_batch(
-        self,
-        epoch_store: &AuthorityPerEpochStore,
-        batch: &mut DBBatch,
-    ) -> IotaResult {
-        let tables = epoch_store.tables()?;
-        batch.insert_batch(
-            &tables.consensus_message_processed,
-            self.consensus_messages_processed
-                .iter()
-                .map(|key| (key, true)),
-        )?;
-
-        batch.insert_batch(
-            &tables.end_of_publish,
-            self.end_of_publish.iter().map(|authority| (authority, ())),
-        )?;
-
-        if let Some(reconfig_state) = &self.reconfig_state {
-            batch.insert_batch(
-                &tables.reconfig_state,
-                [(RECONFIG_STATE_INDEX, reconfig_state)],
-            )?;
-        }
-
-        if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
-            batch.insert_batch(
-                &tables.last_consensus_stats,
-                [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
-            )?;
-        }
-
-        batch.insert_batch(
-            &tables.pending_execution,
-            self.pending_execution
-                .into_iter()
-                .map(|tx| (*tx.inner().digest(), tx.serializable())),
-        )?;
-
-        if let Some((assigned_versions, next_versions)) = self.shared_object_versions {
-            batch.insert_batch(&tables.assigned_shared_object_versions, assigned_versions)?;
-
-            batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
-        }
-
-        if epoch_store
-            .protocol_config
-            .congestion_control_gas_price_feedback_mechanism()
-        {
-            batch.delete_batch(&tables.deferred_transactions_v2, self.deleted_deferred_txns)?;
-            batch.insert_batch(&tables.deferred_transactions_v2, self.deferred_txns)?;
-        } else {
-            batch.delete_batch(&tables.deferred_transactions, self.deleted_deferred_txns)?;
-            batch.insert_batch(
-                &tables.deferred_transactions,
-                self.deferred_txns
-                    .into_iter()
-                    .map(|entry| {
-                        (
-                            entry.0,
-                            entry
-                                .1
-                                .into_iter()
-                                .map(|tx| tx.transaction)
-                                .collect::<Vec<_>>(),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )?;
-        }
-
-        batch.insert_batch(
-            &tables.user_signatures_for_checkpoints,
-            self.user_signatures_for_checkpoints,
-        )?;
-
-        batch.insert_batch(
-            &tables.pending_checkpoints,
-            self.pending_checkpoints
-                .into_iter()
-                .map(|cp| (cp.height(), cp)),
-        )?;
-
-        if let Some((round, commit_timestamp)) = self.next_randomness_round {
-            batch.insert_batch(&tables.randomness_next_round, [(SINGLETON_KEY, round)])?;
-            batch.insert_batch(
-                &tables.randomness_last_round_timestamp,
-                [(SINGLETON_KEY, commit_timestamp)],
-            )?;
-        }
-
-        batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;
-        batch.insert_batch(&tables.dkg_processed_messages, self.dkg_processed_messages)?;
-        batch.insert_batch(
-            &tables.dkg_used_messages,
-            // using Option as iter
-            self.dkg_used_message
-                .into_iter()
-                .map(|used_msgs| (SINGLETON_KEY, used_msgs)),
-        )?;
-        if let Some(output) = self.dkg_output {
-            batch.insert_batch(&tables.dkg_output, [(SINGLETON_KEY, output)])?;
-        }
-
-        batch.insert_batch(
-            &tables.pending_jwks,
-            self.pending_jwks.into_iter().map(|j| (j, ())),
-        )?;
-        batch.insert_batch(
-            &tables.active_jwks,
-            self.active_jwks.into_iter().map(|j| (j, ())),
-        )?;
-
-        Ok(())
     }
 }
 

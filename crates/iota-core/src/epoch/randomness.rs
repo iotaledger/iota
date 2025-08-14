@@ -40,7 +40,9 @@ use typed_store::Map;
 
 use crate::{
     authority::{
-        authority_per_epoch_store::{AuthorityPerEpochStore, ConsensusCommitOutput},
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput,
+        },
         epoch_start_configuration::EpochStartConfigTrait,
     },
     consensus_adapter::SubmitToConsensus,

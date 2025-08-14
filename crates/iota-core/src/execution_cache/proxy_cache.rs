@@ -255,7 +255,7 @@ impl ExecutionCacheWrite for ProxyCache {
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
@@ -264,7 +264,7 @@ impl ExecutionCacheWrite for ProxyCache {
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_acquire_transaction_locks(
             epoch_store,
             owned_input_objects,
@@ -323,6 +323,13 @@ impl ExecutionCacheCommit for ProxyCache {
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {
         delegate_method!(self.try_persist_transactions(digests))
+    }
+
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    ) {
+        delegate_method!(self.persist_transactions_and_effects(digests))
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {

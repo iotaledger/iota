@@ -491,7 +491,7 @@ async fn test_certificate_deny() {
         CertifiedTransaction::new(tx.into_message(), vec![signature], epoch_store.committee())
             .unwrap(),
     );
-    let (effects, _) = state.execute_for_test(&cert).await;
+    let (effects, _) = state.execute_for_test(&cert);
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {

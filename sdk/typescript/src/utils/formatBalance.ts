@@ -4,7 +4,7 @@
 
 import BigNumber from 'bignumber.js';
 
-export function formatAmountParts(amount?: BigNumber | bigint | number | string | null): string[] {
+function formatAmountParts(amount?: BigNumber | bigint | number | string | null): string[] {
     if (typeof amount === 'undefined' || amount === null) {
         return ['--'];
     }
@@ -48,9 +48,7 @@ export function formatAmount(...args: Parameters<typeof formatAmountParts>) {
         .join(' ');
 }
 
-export const countDecimalLeadingZeros = (
-    input: BigNumber | bigint | number | string | null,
-): number => {
+function countDecimalLeadingZeros(input: BigNumber | bigint | number | string | null): number {
     if (input === null) {
         return 0;
     }
@@ -72,14 +70,14 @@ export const countDecimalLeadingZeros = (
     }
 
     return count;
-};
+}
 
 const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
 
-export const formatWithSubscript = (
+export function formatWithSubscript(
     input: BigNumber | bigint | number | string | null,
     zeroCount: number,
-): string => {
+): string {
     if (input === null) {
         return '0';
     }
@@ -91,4 +89,34 @@ export const formatWithSubscript = (
     const suscripts = digits.map((n) => SUBSCRIPTS[Number(n)]).join('');
 
     return `0.0${suscripts}${remainder}`;
-};
+}
+
+export enum CoinFormat {
+    Rounded = 'Rounded',
+    Full = 'Full',
+}
+
+/**
+ * Formats a coin balance based on our standard coin display logic.
+ * If the balance is less than 1, it will be displayed in its full decimal form.
+ * For values greater than 1, it will be truncated to 3 decimal places.
+ */
+export function formatBalance(
+    balance: bigint | number | string,
+    decimals: number,
+    format: CoinFormat = CoinFormat.Rounded,
+    showSign = false,
+) {
+    const bn = new BigNumber(balance.toString()).shiftedBy(-1 * decimals);
+    let formattedBalance = formatAmount(bn);
+
+    if (format === CoinFormat.Full) {
+        formattedBalance = bn.toFormat();
+    }
+
+    if (showSign && !formattedBalance.startsWith('-')) {
+        formattedBalance = `+${formattedBalance}`;
+    }
+
+    return formattedBalance;
+}

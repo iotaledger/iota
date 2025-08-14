@@ -36,7 +36,10 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
+        authority_store_pruner::ObjectsCompactionFilter,
+        authority_store_tables::{
+            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
+        },
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
@@ -497,9 +500,25 @@ impl IotaNode {
             None,
         ));
 
+        let mut pruner_db = None;
+        if config
+            .authority_store_pruning_config
+            .enable_compaction_filter
+        {
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
+                &config.db_path().join("store"),
+            )));
+        }
+        let compaction_filter = pruner_db
+            .clone()
+            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
+
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+            enable_write_stall,
+            compaction_filter,
+        };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
             Some(perpetual_tables_options),
@@ -734,6 +753,7 @@ impl IotaNode {
             archive_readers,
             validator_tx_finalizer,
             chain_identifier,
+            pruner_db,
         )
         .await;
 
@@ -2078,6 +2098,7 @@ impl IotaNode {
         tx: &Transaction,
         span: tracing::Span,
     ) {
+        let _guard = span.enter();
         let transaction =
             iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
                 iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
@@ -2087,8 +2108,6 @@ impl IotaNode {
             );
         state
             .try_execute_immediately(&transaction, None, epoch_store)
-            .instrument(span)
-            .await
             .unwrap();
     }
 
