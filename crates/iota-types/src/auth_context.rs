@@ -8,6 +8,31 @@ use crate::{
     transaction::{CallArg, Command, ProgrammableTransaction},
 };
 
+/// `AuthContext` provides a lightweight execution context used during the
+/// authentication phase of a transaction.
+///
+/// It allows authenticator functions to:
+/// - Identify the transaction sender
+/// - Access the hash of the transaction payload (for signature verification)
+/// - Inspect the programmable transaction block (PTB), if available
+/// - Perform function-level permission checks
+/// - Support OTP, time-locked auth, or regulatory rule enforcement
+///
+/// This struct is **immutable** during the auth phase and must not allow
+/// mutation of state or access to storage beyond what is declared.
+///
+/// It is guaranteed to be available to all smart accounts implementing a
+/// custom authenticator function.
+///
+/// Typical use:
+/// ```move
+/// public fun authenticate(tx_hash: vector<u8>, input: &MyAuthInput, ctx: &AuthContext): bool {
+///     let is_valid = ed25519::ed25519_verify(&input.sig, &input.pk, &tx_hash);
+///     ctx.sender() == extract_address_from_pk(input.pk) && is_valid
+/// }
+/// ```
+// Conceptually similar to `TxContext`, but designed specifically for use in the authentication
+// flow.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
