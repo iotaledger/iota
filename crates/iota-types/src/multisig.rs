@@ -268,7 +268,7 @@ impl AuthenticatorTrait for MultiSig {
                 }
                 CompressedSignature::Move(_move_authenticator_as_bytes) => {
                     return Err(IotaError::InvalidSignature {
-                        error: format!("Move authenticator cannot be used for multisig",),
+                        error: "Move authenticator cannot be used for multisig".to_string(),
                     });
                 }
             };
