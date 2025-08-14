@@ -412,7 +412,9 @@ mod checked {
                     match object.owner {
                         Owner::Immutable | Owner::Shared { .. } => {} // valid objects
                         _ => {
-                            return Err(UserInputError::ImmutableOrSharedObjectsExpected);
+                            return Err(UserInputError::ImmutableOrSharedObjectsExpected {
+                                object_id: object.id().to_string(),
+                            });
                         }
                     }
                     // For Gas Object, we check the object is owned by gas owner

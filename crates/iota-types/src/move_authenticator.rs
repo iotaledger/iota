@@ -23,6 +23,10 @@ use crate::{
     transaction::CallArg,
 };
 
+/// MoveAuthenticator is a new GenericSignature variant that enables a new
+/// method of authentication through Move code.
+/// This function represents the data received by the Move authenticate function
+/// during the Account Abstraction authentication flow.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     /// Input objects or primitive values
@@ -31,7 +35,7 @@ pub struct MoveAuthenticator {
     /// represents the account being the sender of the transaction.
     object_to_authenticate: ObjectRef,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
-    /// implementing [trait AsRef<[u8]>].
+    /// implementing trait [AsRef](core::convert::AsRef).
     #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
@@ -50,7 +54,8 @@ impl AuthenticatorTrait for MoveAuthenticator {
     ) -> IotaResult {
         Ok(())
     }
-    // TODO: handle this
+    // This function accepts all inputs, as signature verification is performed
+    // later on the Move side.
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
@@ -65,7 +70,8 @@ impl AuthenticatorTrait for MoveAuthenticator {
     }
 }
 
-/// Necessary trait for [struct SenderSignedData].
+/// Necessary trait for
+/// [SenderSignerData](crate::transaction::SenderSignedData).
 impl PartialEq for MoveAuthenticator {
     fn eq(&self, other: &Self) -> bool {
         self.as_ref() == other.as_ref()
@@ -86,10 +92,12 @@ impl ToFromBytes for MoveAuthenticator {
     }
 }
 
-/// Necessary trait for [struct SenderSignedData].
+/// Necessary trait for
+/// [SenderSignerData](crate::transaction::SenderSignedData).
 impl Eq for MoveAuthenticator {}
 
-/// Necessary trait for [struct SenderSignedData].
+/// Necessary trait for
+/// [SenderSignerData](crate::transaction::SenderSignedData).
 impl Hash for MoveAuthenticator {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
