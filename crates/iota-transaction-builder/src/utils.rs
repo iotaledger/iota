@@ -201,13 +201,8 @@ impl TransactionBuilder {
         // Extract the expected function signature and check the return type.
         // If the function is a view function, it MUST return at least a value.
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
-        let function_str = function_ident.as_ident_str();
-        let fdef = module
-            .function_defs
-            .iter()
-            .find(|fdef| {
-                module.identifier_at(module.function_handle_at(fdef.function).name) == function_str
-            })
+        let (_, fdef) = module
+            .find_function_def_by_name(function_ident.as_str())
             .ok_or_else(|| {
                 anyhow!(
                     "Could not resolve function {} in module {}",
@@ -265,7 +260,7 @@ impl TransactionBuilder {
                 }
                 // Move View Functions can not accept vector of object by value (this case).
                 ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
-                    error: "Found a function parameter which is a vactor of objects".to_owned(),
+                    error: "Found a function parameter which is a vector of objects".to_owned(),
                 }
                 .into()),
             }?);
