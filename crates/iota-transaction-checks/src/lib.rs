@@ -635,6 +635,7 @@ mod checked {
         is_gas_coin: bool,
     ) -> UserInputResult<()> {
         for object in objects.iter() {
+            // TODO: Check if the gas coins should be mutable.
             fp_ensure!(
                 !object.is_mutable(),
                 UserInputError::ImmutableParameterExpected {
