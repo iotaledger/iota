@@ -86,3 +86,33 @@ fun arg_mutable_value() {
    let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"arg_mutable_value"));
     account::drop_auth_info_v1(account_info);
 }
+
+#[test]
+fun arg_template() {
+   let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"arg_template"));
+    account::drop_auth_info_v1(account_info);
+}
+
+#[test]
+fun arg_templated_struct() {
+   let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"arg_templated_struct"));
+    account::drop_auth_info_v1(account_info);
+}
+
+#[test]
+fun with_vector() {
+   let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"with_vector"));
+    account::drop_auth_info_v1(account_info);
+}
+
+#[test]
+fun with_vector_template() {
+   let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"with_vector_template"));
+    account::drop_auth_info_v1(account_info);
+}
+
+#[test, expected_failure]
+fun with_signer() {
+   let account_info = account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"with_signer"));
+    account::drop_auth_info_v1(account_info);
+}

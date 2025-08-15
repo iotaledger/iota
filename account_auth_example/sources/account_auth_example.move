@@ -33,3 +33,20 @@ public fun arg_immutable_ref(_object: &Object, _auth_ctx: &AuthContext, _ctx: &T
 public fun arg_value(_val: u8, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
 public fun arg_mutable_value(mut _val: u8, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public fun arg_template<T: drop>(_val: T, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+#[allow(unused_field)]
+public struct Templated<T: drop> has drop {
+    t: T
+}
+
+public fun arg_templated_struct<T: drop>(_val: Templated<T>, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public struct Drop has drop {}
+
+public fun with_vector(_data: vector<Drop>, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public fun with_vector_template<T: drop>(_data: vector<Templated<T>>, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+
+public fun with_signer(_s: signer, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
