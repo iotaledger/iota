@@ -44,6 +44,7 @@ const hierarchies = [
             'developer/iota-hierarchies/how-tos/create-accreditation-to-accredit',
             'developer/iota-hierarchies/how-tos/revoke-accreditation-to-accredit',
             'developer/iota-hierarchies/how-tos/revoke-root-authority',
+            'developer/iota-hierarchies/how-tos/reinstate-root-authority',
         ],
     },
     // {
