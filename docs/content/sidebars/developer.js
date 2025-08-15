@@ -6,6 +6,7 @@ const tsSDK = require('./ts-sdk');
 const iotaEvm = require('./iota-evm');
 const notarization = require("./notarization");
 const iotaIdentity = require('./identity');
+const hierarchies = require('./hierarchies');
 
 import frameworkCategoryLink from '../developer/references/framework/iota/_category_.json';
 import systemCategoryLink from '../developer/references/framework/iota_system/_category_.json';
@@ -625,6 +626,11 @@ const developer = [
                 type: 'category',
                 label: 'Notarization',
                 items: notarization,
+            },
+            {
+                type: 'category',
+                label: 'Hierarchies',
+                items: hierarchies,
             },
         ]
     },
