@@ -865,11 +865,16 @@ impl AuthorityState {
         // Ensure that validator cannot reconfigure while we are signing the tx
         let _execution_lock = self.execution_lock_for_signing().await;
 
+        let protocol_config = epoch_store.protocol_config();
+        let reference_gas_price = epoch_store.reference_gas_price();
+
+        let epoch = epoch_store.epoch();
+
         let tx_digest = transaction.digest();
         let tx_data = transaction.data().transaction_data();
 
-        let input_object_kinds = tx_data.input_objects()?;
-        let receiving_objects_refs = tx_data.receiving_objects();
+        let tx_input_object_kinds = tx_data.input_objects()?;
+        let tx_receiving_objects_refs = tx_data.receiving_objects();
 
         let signatures = transaction.tx_signatures();
 
@@ -879,10 +884,17 @@ impl AuthorityState {
         iota_transaction_checks::deny::check_transaction_for_signing(
             tx_data,
             signatures,
-            &input_object_kinds,
-            &receiving_objects_refs,
+            &tx_input_object_kinds,
+            &tx_receiving_objects_refs,
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
+        )?;
+
+        let (tx_input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
+            Some(tx_digest),
+            &tx_input_object_kinds,
+            &tx_receiving_objects_refs,
+            epoch,
         )?;
 
         if let Some(move_authenticator) = move_authenticator(signatures) {
@@ -897,22 +909,26 @@ impl AuthorityState {
             // Make sure the sender is a smart account.
             let authenticator_info = self.check_smart_account(transaction.sender_address())?;
 
+            // Filter the gas objects input from the transaction input objects.
+            let (kind, signer, gas) = tx_data.execution_parts();
+
+            let gas_input_objects = filter_gas_input_objects(&tx_input_objects, &gas);
+
             // Check the MoveAuthenticator input objects.
             let (authenticator_gas_status, authenticator_input_objects) = self
                 .check_move_authenticator_inputs_for_signing(
                     &move_authenticator,
+                    gas_input_objects,
                     epoch_store,
-                    epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    protocol_config,
+                    reference_gas_price,
                     tx_data,
                 )?;
 
             // Execute the authenticator.
-            let (kind, signer, gas) = tx_data.execution_parts();
-
             let (_, validation_result) = epoch_store.executor().validate_transaction(
                 self.get_backing_store().as_ref(),
-                epoch_store.protocol_config(),
+                protocol_config,
                 self.metrics.limits_metrics.clone(),
                 // TODO: would be nice to pass the whole NodeConfig here, but it creates a
                 // cyclic dependency w/ iota-adapter
@@ -941,39 +957,28 @@ impl AuthorityState {
             }
         }
 
-        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
-            Some(tx_digest),
-            &input_object_kinds,
-            &receiving_objects_refs,
-            epoch_store.epoch(),
-        )?;
-
-        let (_gas_status, checked_input_objects) =
+        let (_gas_status, tx_checked_input_objects) =
             iota_transaction_checks::check_transaction_input(
-                epoch_store.protocol_config(),
-                epoch_store.reference_gas_price(),
+                protocol_config,
+                reference_gas_price,
                 tx_data,
-                input_objects,
-                &receiving_objects,
+                tx_input_objects,
+                &tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
             )?;
 
         check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
-            &checked_input_objects,
-            &receiving_objects,
+            &tx_checked_input_objects,
+            &tx_receiving_objects,
             &self.get_object_store(),
         )?;
 
-        let owned_objects = checked_input_objects.inner().filter_owned_objects();
+        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
-        let signed_transaction = VerifiedSignedTransaction::new(
-            epoch_store.epoch(),
-            transaction,
-            self.name,
-            &*self.secret,
-        );
+        let signed_transaction =
+            VerifiedSignedTransaction::new(epoch, transaction, self.name, &*self.secret);
 
         // Check and write locks, to signed transaction, into the database
         // The call to self.set_transaction_lock checks the lock is not conflicting,
@@ -1709,7 +1714,7 @@ impl AuthorityState {
         &self,
         _execution_guard: &ExecutionLockReadGuard<'_>,
         certificate: &VerifiedExecutableTransaction,
-        input_objects: InputObjects,
+        tx_input_objects: InputObjects,
         authenticator_input_objects: Option<InputObjects>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(
@@ -1721,26 +1726,30 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_certificate_start_time = tokio::time::Instant::now();
 
+        let protocol_config = epoch_store.protocol_config();
+
+        let reference_gas_price = epoch_store.reference_gas_price();
+        let enable_deep_per_tx_iota_conservation_check = self
+            .config
+            .expensive_safety_check_config
+            .enable_deep_per_tx_iota_conservation_check();
+
+        let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
+        let epoch_start_timestamp = epoch_store
+            .epoch_start_config()
+            .epoch_data()
+            .epoch_start_timestamp();
+
+        let backing_store = self.get_backing_store().as_ref();
+
         // TODO: We need to move this to a more appropriate place to avoid redundant
         // checks.
-        let tx_data = certificate.data().transaction_data();
-        tx_data.validity_check(epoch_store.protocol_config())?;
-
-        // The cost of partially re-auditing a transaction before execution is
-        // tolerated.
-        let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
-            certificate,
-            input_objects,
-            epoch_store.protocol_config(),
-            epoch_store.reference_gas_price(),
-        )?;
-
-        let owned_object_refs = input_objects.inner().filter_owned_objects();
-        self.check_owned_locks(&owned_object_refs)?;
         let tx_digest = *certificate.digest();
-        let protocol_config = epoch_store.protocol_config();
-        let transaction_data = &certificate.data().intent_message().value;
-        let (kind, signer, gas) = transaction_data.execution_parts();
+
+        let tx_data = certificate.data().transaction_data();
+        tx_data.validity_check(protocol_config)?;
+
+        let (kind, signer, gas) = tx_data.execution_parts();
 
         if let Some(move_authenticator) = move_authenticator(certificate.tx_signatures()) {
             let authenticator_info = self.check_smart_account(certificate.sender_address())?;
@@ -1749,41 +1758,29 @@ impl AuthorityState {
                 .expect("In case of a MoveAuthenticator, the input objects must be provided");
 
             // Filter the gas objects input from the transaction input objects.
-            let gas_input_objects = InputObjects::new(
-                input_objects
-                    .inner()
-                    .iter()
-                    .filter(|input| is_gas_input(&input.input_object_kind, &gas))
-                    .map(|input| input.to_owned())
-                    .collect::<Vec<_>>(),
-            );
+            let gas_input_objects = filter_gas_input_objects(&tx_input_objects, &gas);
 
             // Check the MoveAuthenticator input objects.
             let (authenticator_gas_status, authenticator_input_objects) = self
                 .check_move_authenticator_inputs_for_executing(
                     authenticator_input_objects,
                     gas_input_objects,
-                    epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
-                    transaction_data,
+                    protocol_config,
+                    reference_gas_price,
+                    tx_data,
                 )?;
 
             // Execute the authenticator.
             let (_validation_result_gas_status, validation_result) =
                 epoch_store.executor().validate_transaction(
-                    self.get_backing_store().as_ref(),
+                    backing_store,
                     protocol_config,
                     self.metrics.limits_metrics.clone(),
                     // TODO: would be nice to pass the whole NodeConfig here, but it creates a
                     // cyclic dependency w/ iota-adapter
-                    self.config
-                        .expensive_safety_check_config
-                        .enable_deep_per_tx_iota_conservation_check(),
-                    &epoch_store.epoch_start_config().epoch_data().epoch_id(),
-                    epoch_store
-                        .epoch_start_config()
-                        .epoch_data()
-                        .epoch_start_timestamp(),
+                    enable_deep_per_tx_iota_conservation_check,
+                    &epoch_id,
+                    epoch_start_timestamp,
                     gas.clone(),
                     authenticator_gas_status,
                     move_authenticator,
@@ -1805,26 +1802,33 @@ impl AuthorityState {
             // TODO: Check what `validation_result_gas_status` contains.
         }
 
+        // The cost of partially re-auditing a transaction before execution is
+        // tolerated.
+        let (tx_gas_status, tx_input_objects) = iota_transaction_checks::check_certificate_input(
+            certificate,
+            tx_input_objects,
+            protocol_config,
+            reference_gas_price,
+        )?;
+
+        let owned_object_refs = tx_input_objects.inner().filter_owned_objects();
+        self.check_owned_locks(&owned_object_refs)?;
+
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let (inner_temp_store, _, mut effects, execution_error_opt) =
             epoch_store.executor().execute_transaction_to_effects(
-                self.get_backing_store().as_ref(),
+                backing_store,
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
                 // TODO: would be nice to pass the whole NodeConfig here, but it creates a
                 // cyclic dependency w/ iota-adapter
-                self.config
-                    .expensive_safety_check_config
-                    .enable_deep_per_tx_iota_conservation_check(),
+                enable_deep_per_tx_iota_conservation_check,
                 self.config.certificate_deny_config.certificate_deny_set(),
-                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
-                epoch_store
-                    .epoch_start_config()
-                    .epoch_data()
-                    .epoch_start_timestamp(),
-                input_objects,
+                &epoch_id,
+                epoch_start_timestamp,
+                tx_input_objects,
                 gas,
-                gas_status,
+                tx_gas_status,
                 kind,
                 signer,
                 tx_digest,
@@ -5199,14 +5203,12 @@ impl AuthorityState {
     fn check_move_authenticator_inputs_for_signing(
         &self,
         move_authenticator: &MoveAuthenticator,
+        gas_input_objects: InputObjects,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let tx_digest = transaction.digest();
-        let epoch = epoch_store.epoch();
-
         // Load authenticator input objects.
 
         let authenticator_input_object_kinds = move_authenticator.input_objects();
@@ -5220,32 +5222,13 @@ impl AuthorityState {
         // different inputs but the same transaction digest.
         let (authenticator_input_objects, authenticator_receiving_objects) =
             self.input_loader.read_objects_for_signing(
-                Some(&tx_digest),
+                Some(&transaction.digest()),
                 &authenticator_input_object_kinds,
                 &Vec::new(),
-                epoch,
+                epoch_store.epoch(),
             )?;
 
         assert!(authenticator_receiving_objects.objects.is_empty());
-
-        // Load gas input objects.
-
-        let tx_gas = transaction.gas();
-
-        let gas_input_kinds = transaction
-            .input_objects()?
-            .into_iter()
-            .filter(|input| is_gas_input(input, tx_gas))
-            .collect::<Vec<_>>();
-
-        // `tx_digest_for_caching` paramenter is not used, but we need to be careful
-        // with caching becasue we call `read_objects_for_signing` several times with
-        // different inputs but the same transaction digest.
-        let (gas_input_objects, gas_input_receiving_objects) = self
-            .input_loader
-            .read_objects_for_signing(Some(&tx_digest), &gas_input_kinds, &Vec::new(), epoch)?;
-
-        assert!(gas_input_receiving_objects.objects.is_empty());
 
         // Check the inputs.
 
@@ -5847,10 +5830,16 @@ fn move_authenticator(signatures: &[GenericSignature]) -> Option<MoveAuthenticat
     }
 }
 
-// Utility function to check if a read result is a gas input object.
-fn is_gas_input(object: &InputObjectKind, gas_coins: &[ObjectRef]) -> bool {
-    match object {
-        InputObjectKind::ImmOrOwnedMoveObject(object) => gas_coins.contains(&object),
-        InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => false,
-    }
+// Utility function to filter gas input objects from the transaction input.
+fn filter_gas_input_objects(input_objects: &InputObjects, gas_coins: &[ObjectRef]) -> InputObjects {
+    InputObjects::new(
+        input_objects
+            .iter()
+            .filter(|input| match input.input_object_kind {
+                InputObjectKind::ImmOrOwnedMoveObject(object) => gas_coins.contains(&object),
+                InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => false,
+            })
+            .map(|input| input.to_owned())
+            .collect::<Vec<_>>(),
+    )
 }
