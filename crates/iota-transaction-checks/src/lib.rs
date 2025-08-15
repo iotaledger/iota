@@ -192,11 +192,44 @@ mod checked {
 
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input(
-        input_objects: InputObjects,
-    ) -> IotaResult<CheckedInputObjects> {
-        check_move_authenticator_objects(&input_objects)?;
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        transaction: &TransactionData,
+        authenticator_input_objects: InputObjects,
+        gas_input_objects: InputObjects,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+        // Check that it is enough gas to pay for the MoveAuthenticator execution.
 
-        Ok(input_objects.into_checked())
+        // TODO: check this call, what exactly it should check?
+        // TODO: Should we have a specific authenticator gas budget/gas price?
+        let gas_status = check_gas(
+            // TODO: Should we pass only `gas_input_objects` here or all the objects including
+            // `authenticator_input_objects`?
+            &gas_input_objects,
+            protocol_config,
+            reference_gas_price,
+            transaction.gas(),
+            transaction.gas_budget(),
+            transaction.gas_price(),
+            transaction.kind(),
+        )?;
+
+        check_move_authenticator_objects(
+            &authenticator_input_objects,
+            &gas_input_objects,
+            transaction.gas_owner(),
+        )?;
+
+        // Merge the gas input objects and authenticator input objects together.
+        let input_objects = InputObjects::new(
+            gas_input_objects
+                .iter()
+                .chain(authenticator_input_objects.iter())
+                .cloned()
+                .collect(),
+        );
+
+        Ok((gas_status, input_objects.into_checked()))
     }
 
     // Common checks performed for transactions and certificates.
@@ -582,7 +615,25 @@ mod checked {
     /// Check all the input objects used in the MoveAuthenticator against the
     /// database.
     #[instrument(level = "trace", skip_all)]
-    fn check_move_authenticator_objects(objects: &InputObjects) -> UserInputResult<()> {
+    fn check_move_authenticator_objects(
+        authenticator_objects: &InputObjects,
+        gas_objects: &InputObjects,
+        gas_owner: IotaAddress,
+    ) -> UserInputResult<()> {
+        check_move_authenticator_objects_impl(gas_objects, gas_owner, true)?;
+        check_move_authenticator_objects_impl(authenticator_objects, gas_owner, false)?;
+
+        Ok(())
+    }
+
+    /// Check all the input objects used in the MoveAuthenticator against the
+    /// database.
+    #[instrument(level = "trace", skip_all)]
+    fn check_move_authenticator_objects_impl(
+        objects: &InputObjects,
+        gas_owner: IotaAddress,
+        is_gas_coin: bool,
+    ) -> UserInputResult<()> {
         for object in objects.iter() {
             fp_ensure!(
                 !object.is_mutable(),
@@ -595,7 +646,12 @@ mod checked {
 
             match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    check_one_move_authenticator_object(input_object_kind, object)?;
+                    check_one_move_authenticator_object(
+                        input_object_kind,
+                        object,
+                        gas_owner,
+                        is_gas_coin,
+                    )?;
                 }
                 // We skip checking a deleted shared object because it no longer exists
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
@@ -612,6 +668,8 @@ mod checked {
     fn check_one_move_authenticator_object(
         object_kind: InputObjectKind,
         object: &Object,
+        gas_owner: IotaAddress,
+        is_gas_coin: bool,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
@@ -651,10 +709,22 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::AddressOwner { .. } => {
-                        return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
-                            object_id: object.id(),
-                        });
+                    Owner::AddressOwner(actual_owner) => {
+                        // Check the gas owner is correct.
+                        if is_gas_coin {
+                            fp_ensure!(
+                                gas_owner == actual_owner,
+                                UserInputError::IncorrectUserSignature {
+                                    error: format!(
+                                        "Object {object_id:?} is owned by account address {actual_owner:?}, but given owner/signer address is {gas_owner:?}"
+                                    ),
+                                }
+                            );
+                        } else {
+                            return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
+                                object_id: object.id(),
+                            });
+                        }
                     }
                     Owner::ObjectOwner { .. } => {
                         return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {

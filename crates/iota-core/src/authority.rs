@@ -895,14 +895,50 @@ impl AuthorityState {
             }
 
             // Make sure the sender is a smart account.
-            self.check_smart_account(transaction.sender_address())?;
+            let authenticator_info = self.check_smart_account(transaction.sender_address())?;
 
             // Check the MoveAuthenticator input objects.
-            self.check_move_authenticator_inputs_for_signing(
-                &move_authenticator,
-                tx_digest,
-                epoch_store,
-            )?;
+            let (authenticator_gas_status, authenticator_input_objects) = self
+                .check_move_authenticator_inputs_for_signing(
+                    &move_authenticator,
+                    epoch_store,
+                    epoch_store.protocol_config(),
+                    epoch_store.reference_gas_price(),
+                    tx_data,
+                )?;
+
+            // Execute the authenticator.
+            let (kind, signer, gas) = tx_data.execution_parts();
+
+            let (_, validation_result) = epoch_store.executor().validate_transaction(
+                self.get_backing_store().as_ref(),
+                epoch_store.protocol_config(),
+                self.metrics.limits_metrics.clone(),
+                // TODO: would be nice to pass the whole NodeConfig here, but it creates a
+                // cyclic dependency w/ iota-adapter
+                self.config
+                    .expensive_safety_check_config
+                    .enable_deep_per_tx_iota_conservation_check(),
+                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+                epoch_store
+                    .epoch_start_config()
+                    .epoch_data()
+                    .epoch_start_timestamp(),
+                gas,
+                authenticator_gas_status,
+                move_authenticator,
+                authenticator_info,
+                authenticator_input_objects,
+                kind,
+                signer,
+                tx_digest.to_owned(),
+                &mut None,
+            );
+
+            // TODO: Return the validation error.
+            if let Err(_validation_error) = validation_result {
+                todo!()
+            }
         }
 
         let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
@@ -1692,7 +1728,7 @@ impl AuthorityState {
 
         // The cost of partially re-auditing a transaction before execution is
         // tolerated.
-        let (mut gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
+        let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             certificate,
             input_objects,
             epoch_store.protocol_config(),
@@ -1712,12 +1748,28 @@ impl AuthorityState {
             let authenticator_input_objects = authenticator_input_objects
                 .expect("In case of a MoveAuthenticator, the input objects must be provided");
 
+            // Filter the gas objects input from the transaction input objects.
+            let gas_input_objects = InputObjects::new(
+                input_objects
+                    .inner()
+                    .iter()
+                    .filter(|input| is_gas_input(&input.input_object_kind, &gas))
+                    .map(|input| input.to_owned())
+                    .collect::<Vec<_>>(),
+            );
+
             // Check the MoveAuthenticator input objects.
-            let authenticator_input_objects =
-                self.check_move_authenticator_inputs_for_executing(authenticator_input_objects)?;
+            let (authenticator_gas_status, authenticator_input_objects) = self
+                .check_move_authenticator_inputs_for_executing(
+                    authenticator_input_objects,
+                    gas_input_objects,
+                    epoch_store.protocol_config(),
+                    epoch_store.reference_gas_price(),
+                    transaction_data,
+                )?;
 
             // Execute the authenticator.
-            let (authenticator_gas_status, validation_result) =
+            let (_validation_result_gas_status, validation_result) =
                 epoch_store.executor().validate_transaction(
                     self.get_backing_store().as_ref(),
                     protocol_config,
@@ -1733,7 +1785,7 @@ impl AuthorityState {
                         .epoch_data()
                         .epoch_start_timestamp(),
                     gas.clone(),
-                    gas_status,
+                    authenticator_gas_status,
                     move_authenticator,
                     authenticator_info,
                     authenticator_input_objects,
@@ -1748,7 +1800,9 @@ impl AuthorityState {
                 todo!()
             }
 
-            gas_status = authenticator_gas_status;
+            // TODO: The execution gas status should be updated with the
+            // authenticator computation cost somehow.
+            // TODO: Check what `validation_result_gas_status` contains.
         }
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
@@ -5145,39 +5199,84 @@ impl AuthorityState {
     fn check_move_authenticator_inputs_for_signing(
         &self,
         move_authenticator: &MoveAuthenticator,
-        tx_digest: &TransactionDigest,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<()> {
-        let input_object_kinds = move_authenticator.input_objects();
-        let receiving_objects_refs = move_authenticator.receiving_objects();
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        transaction: &TransactionData,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+        let tx_digest = transaction.digest();
+        let epoch = epoch_store.epoch();
+
+        // Load authenticator input objects.
+
+        let authenticator_input_object_kinds = move_authenticator.input_objects();
+        let authenticator_receiving_objects_refs = move_authenticator.receiving_objects();
 
         // TODO: Replace with an error.
-        assert!(receiving_objects_refs.is_empty());
+        assert!(authenticator_receiving_objects_refs.is_empty());
 
-        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
-            // TODO: We need to have a move authenticator digest here.
-            Some(tx_digest),
-            &input_object_kinds,
-            &Vec::new(),
-            epoch_store.epoch(),
-        )?;
+        // `tx_digest_for_caching` paramenter is not used, but we need to be careful
+        // with caching becasue we call `read_objects_for_signing` several times with
+        // different inputs but the same transaction digest.
+        let (authenticator_input_objects, authenticator_receiving_objects) =
+            self.input_loader.read_objects_for_signing(
+                Some(&tx_digest),
+                &authenticator_input_object_kinds,
+                &Vec::new(),
+                epoch,
+            )?;
 
-        assert!(receiving_objects.objects.is_empty());
+        assert!(authenticator_receiving_objects.objects.is_empty());
 
-        iota_transaction_checks::check_move_authenticator_input(input_objects)?;
+        // Load gas input objects.
 
-        Ok(())
+        let tx_gas = transaction.gas();
+
+        let gas_input_kinds = transaction
+            .input_objects()?
+            .into_iter()
+            .filter(|input| is_gas_input(input, tx_gas))
+            .collect::<Vec<_>>();
+
+        // `tx_digest_for_caching` paramenter is not used, but we need to be careful
+        // with caching becasue we call `read_objects_for_signing` several times with
+        // different inputs but the same transaction digest.
+        let (gas_input_objects, gas_input_receiving_objects) = self
+            .input_loader
+            .read_objects_for_signing(Some(&tx_digest), &gas_input_kinds, &Vec::new(), epoch)?;
+
+        assert!(gas_input_receiving_objects.objects.is_empty());
+
+        // Check the inputs.
+
+        iota_transaction_checks::check_move_authenticator_input(
+            protocol_config,
+            reference_gas_price,
+            transaction,
+            authenticator_input_objects,
+            gas_input_objects,
+        )
     }
 
     /// Checks the MoveAuthenticator inputs for executing for the given
     /// transaction digest.
     fn check_move_authenticator_inputs_for_executing(
         &self,
-        input_objects: InputObjects,
-    ) -> IotaResult<CheckedInputObjects> {
+        authenticator_input_objects: InputObjects,
+        gas_input_objects: InputObjects,
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        transaction: &TransactionData,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // The receiving objects are checned on the signing step.
 
-        iota_transaction_checks::check_move_authenticator_input(input_objects)
+        iota_transaction_checks::check_move_authenticator_input(
+            protocol_config,
+            reference_gas_price,
+            transaction,
+            authenticator_input_objects,
+            gas_input_objects,
+        )
     }
 
     #[cfg(test)]
@@ -5740,9 +5839,18 @@ impl NodeStateDump {
 
 // TODO: A temporaly created function. Needs to be replaced with a proper check.
 fn move_authenticator(signatures: &[GenericSignature]) -> Option<MoveAuthenticator> {
+    // TODO: Check the protocol config if the feature is enabled.
     if signatures.len() == 1 && signatures[0].is_move_authenticator() {
         Some(MoveAuthenticator { inputs: Vec::new() })
     } else {
         None
+    }
+}
+
+// Utility function to check if a read result is a gas input object.
+fn is_gas_input(object: &InputObjectKind, gas_coins: &[ObjectRef]) -> bool {
+    match object {
+        InputObjectKind::ImmOrOwnedMoveObject(object) => gas_coins.contains(&object),
+        InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => false,
     }
 }
