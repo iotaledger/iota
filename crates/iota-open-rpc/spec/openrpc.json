@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "11",
+              "maxSupportedProtocolVersion": "12",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1821,9 +1821,7 @@
                 "max_arguments": {
                   "u32": "512"
                 },
-                "max_auth_gas": {
-                  "u64": "1000000000"
-                },
+                "max_auth_gas": null,
                 "max_back_edges_per_function": {
                   "u64": "10000"
                 },

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 11;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -71,6 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 11;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: Max authentication gas budget property.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1503,10 +1504,10 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
+            // max auth gas budget
+            max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
-            // max auth gas budget is in NANOS and an absolute value 1IOTA
-            max_auth_gas: Some(1_000_000_000),
             max_gas_price: Some(100_000),
             max_gas_computation_bucket: Some(5_000_000),
             max_loop_depth: Some(5),
@@ -2132,6 +2133,11 @@ impl ProtocolConfig {
                 11 => {
                     // version 11 is a new framework version but with no config
                     // changes
+                }
+                12 => {
+                    // max auth gas budget is in NANOS and an absolute value 1IOTA
+                    cfg.max_auth_gas = Some(1_000_000_000);
+                    cfg.feature_flags.move_auth = true;
                 }
                 // Use this template when making changes:
                 //
