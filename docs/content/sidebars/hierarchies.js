@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 const hierarchies = [
-    // 'developer/iota-hierarchies/index',
+    'developer/iota-hierarchies/index',
     {
         type: 'category',
         label: 'Getting Started',
@@ -16,11 +16,11 @@ const hierarchies = [
         type: 'category',
         label: 'Explanations',
         items: [
-            'developer/iota-hierarchies/explanations/hierarchies',
-            // 'developer/iota-hierarchies/explanations/federations',
-            // 'developer/iota-hierarchies/explanations/statements',
-            // 'developer/iota-hierarchies/explanations/accreditations',
-            // 'developer/iota-hierarchies/explanations/attestations',
+            'developer/iota-hierarchies/explanations/about-hierarchies',
+            'developer/iota-hierarchies/explanations/federation',
+            'developer/iota-hierarchies/explanations/terminology',
+            'developer/iota-hierarchies/explanations/accreditation',
+            'developer/iota-hierarchies/explanations/hierarchies-vs-identity',
         ],
     },
     {
