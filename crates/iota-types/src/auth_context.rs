@@ -13,8 +13,7 @@ use crate::{
 ///
 /// It allows authenticator functions to:
 /// - Identify the transaction sender
-/// - Access the hash of the transaction payload (for signature verification)
-/// - Inspect the programmable transaction block (PTB), if available
+/// - Inspect the programmable transaction block (PTB) inputs and commands
 /// - Perform function-level permission checks
 /// - Support OTP, time-locked auth, or regulatory rule enforcement
 ///
