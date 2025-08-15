@@ -183,6 +183,8 @@ export interface DryRunTransactionBlockResponse {
     events: IotaEvent[];
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
+    /** If an input object is congested, suggest a gas price to use. */
+    suggestedGasPrice?: string | null;
 }
 export type DynamicFieldInfo =
     | {

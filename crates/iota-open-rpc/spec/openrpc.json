@@ -6676,6 +6676,17 @@
             "items": {
               "$ref": "#/components/schemas/ObjectChange"
             }
+          },
+          "suggestedGasPrice": {
+            "description": "If an input object is congested, suggest a gas price to use.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

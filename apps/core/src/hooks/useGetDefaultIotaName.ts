@@ -9,7 +9,10 @@ import { Feature } from '../enums';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaName } from '@iota/iota-names-sdk';
 
-export function useGetDefaultIotaName(address: string | null | undefined, normalized?: boolean) {
+export function useGetDefaultIotaName(
+    address: string | null | undefined,
+    normalized: boolean = true,
+) {
     const networkName = useNetwork();
     const network = getNetwork(networkName).id;
 
