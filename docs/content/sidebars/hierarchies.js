@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 const hierarchies = [
     // 'developer/iota-hierarchies/index',
-    // {
-    //     type: 'category',
-    //     label: 'Getting Started',
-    //     collapsed: false,
-    //     items: [
-    //         'developer/iota-hierarchies/getting-started/rust',
-    //         'developer/iota-hierarchies/getting-started/wasm',
-    //         'developer/iota-hierarchies/getting-started/local-network-setup',
-    //     ],
-    // },
+    {
+        type: 'category',
+        label: 'Getting Started',
+        collapsed: false,
+        items: [
+            'developer/iota-hierarchies/getting-started/rust',
+            'developer/iota-hierarchies/getting-started/wasm',
+            'developer/iota-hierarchies/getting-started/local-network-setup',
+        ],
+    },
     {
         type: 'category',
         label: 'Explanations',
