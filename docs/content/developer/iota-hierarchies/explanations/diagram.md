@@ -1,4 +1,3 @@
-
 ```mermaid
 graph TD
     subgraph network["<b>IOTA Network</b>"]
