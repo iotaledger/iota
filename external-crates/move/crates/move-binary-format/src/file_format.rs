@@ -1062,35 +1062,48 @@ impl Arbitrary for AbilitySet {
 #[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "wasm", derive(Serialize, Deserialize))]
 pub enum SignatureToken {
-    /// Boolean, `true` or `false`.
+    /// Boolean, `true` or `false`
     Bool,
-    /// Unsigned integers, 8 bits length.
+    /// Unsigned integers, 8 bits length
     U8,
-    /// Unsigned integers, 64 bits length.
+    /// Unsigned integers, 64 bits length
     U64,
-    /// Unsigned integers, 128 bits length.
+    /// Unsigned integers, 128 bits length
     U128,
-    /// Address, a 16 bytes immutable type.
+    /// Address, a 16 bytes immutable type
     Address,
     /// Signer, a 16 bytes immutable type representing the capability to publish
     /// at an address
     Signer,
     /// Vector
     Vector(Box<SignatureToken>),
-    /// User defined type
+    /// User defined type with no template parameters
+    /// ```
+    /// public struct Data {}
+    /// ```
     Datatype(DatatypeHandleIndex),
+    /// User defined type with template parameters
+    /// ```
+    /// public struct Data<T: drop> has drop {
+    ///     v: T
+    /// }
+    /// ```
     DatatypeInstantiation(Box<(DatatypeHandleIndex, Vec<SignatureToken>)>),
-    /// Reference to a type.
+    /// Reference to a type
     Reference(Box<SignatureToken>),
-    /// Mutable reference to a type.
+    /// Mutable reference to a type
     MutableReference(Box<SignatureToken>),
-    /// Type parameter.
+    /// Parameter representing an unresolved template type
+    /// ```
+    /// fun temp<T: drop>(val: T) {}
+    /// ```
+    /// `T` will be `TypeParameter`
     TypeParameter(TypeParameterIndex),
-    /// Unsigned integers, 16 bits length.
+    /// Unsigned integers, 16 bits length
     U16,
-    /// Unsigned integers, 32 bits length.
+    /// Unsigned integers, 32 bits length
     U32,
-    /// Unsigned integers, 256 bits length.
+    /// Unsigned integers, 256 bits length
     U256,
 }
 
