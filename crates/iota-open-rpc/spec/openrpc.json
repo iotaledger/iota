@@ -9936,10 +9936,11 @@
         }
       },
       "MoveAuthenticator": {
+        "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
         "type": "object",
         "required": [
           "inputs",
-          "object_id"
+          "object_to_authenticate"
         ],
         "properties": {
           "inputs": {
@@ -9949,8 +9950,22 @@
               "$ref": "#/components/schemas/CallArg"
             }
           },
-          "object_id": {
-            "$ref": "#/components/schemas/ObjectID"
+          "object_to_authenticate": {
+            "description": "The reference to the object that this authenticates. This object represents the account being the sender of the transaction.",
+            "type": "array",
+            "items": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              {
+                "$ref": "#/components/schemas/SequenceNumber"
+              },
+              {
+                "$ref": "#/components/schemas/ObjectDigest"
+              }
+            ],
+            "maxItems": 3,
+            "minItems": 3
           }
         }
       },
