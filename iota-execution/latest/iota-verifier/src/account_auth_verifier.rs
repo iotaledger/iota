@@ -9,7 +9,12 @@
 /// This is because an `authenticate` function only exists as a concept. There
 /// is no compiler support for identifying/validating them. Furthermore they are
 /// resolved dynamically during execution.
-use iota_types::{Identifier, error::ExecutionError};
+use iota_types::{
+    Identifier,
+    auth_context::{AuthContext, AuthContextKind},
+    base_types::{TxContext, TxContextKind},
+    error::ExecutionError,
+};
 use move_binary_format::{
     CompiledModule,
     file_format::{SignatureToken, Visibility},
@@ -46,6 +51,11 @@ pub fn verify_authenticate_func(
         )));
     }
 
+    // Consider alleviating these restrictions in the future by considering:
+    // - we can execute private functions from the rust side
+    // - a dev, setting this function as private, means that this is declared as not
+    //   taking part to composability with other authenticate() (same logic as using
+    //   just entry for normal functions)
     if function_definition.visibility != Visibility::Public {
         return Err(verification_failure(format!(
             "Authenticator function '{function_identifier}' must be public"
@@ -70,61 +80,43 @@ pub fn verify_authenticate_func(
         .iter()
         .take(function_signature.len() - 2)
     {
-        if token.is_mutable_reference() {
-            return Err(verification_failure(format!(
-                "Authenticator function '{function_identifier}' cannot use mutable references, offending argument: {:?}",
-                token
-            )));
+        match token {
+            SignatureToken::Signer | SignatureToken::MutableReference(_) => {
+                return Err(verification_failure(format!(
+                    "Authenticator function '{function_identifier}' cannot use mutable references or signers, offending argument: {:?}",
+                    token
+                )));
+            }
+            _ => (),
         }
     }
 
-    // check type of AuthContext and TxContext, they both must be structs with the
-    // appropriate names
+    // Check type of AuthContext and TxContext, they both must be structs with the
+    // appropriate names, addresses and access
     let auth_context = &function_signature.0[function_signature.len() - 2];
     let tx_context = &function_signature.0[function_signature.len() - 1];
 
     // AuthContext could potentially passed as value, but that opens up the
     // possibility for the `authenticate` function to receive it as mutable
     // value, from which it could mutate before passing it to further `authenticate`
-    // functions.
-    if let SignatureToken::Reference(referent) = auth_context {
-        if let SignatureToken::Datatype(datatype_handle_index) = **referent {
-            let datatype_handle = module.datatype_handle_at(datatype_handle_index);
-            let type_name = module.identifier_at(datatype_handle.name);
-            if type_name.as_str() != "AuthContext" {
-                return Err(verification_failure(format!(
-                    "Authenticator function '{function_identifier}' second to last argument must be of type 'AuthContext' got: '{type_name}'"
-                )));
-            }
-        } else {
-            return Err(verification_failure(format!(
-                "Authenticator function '{function_identifier}' second to last argument must be of type 'AuthContext'"
-            )));
-        }
-    } else {
+    // functions, so similarly to TxContext, it is simply not allowed.
+    if !matches!(
+        AuthContext::kind(module, auth_context),
+        AuthContextKind::Immutable
+    ) {
         return Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' can only receive 'AuthContext' as immutable reference"
+            "Authenticator function '{function_identifier}' can only receive
+            'AuthContext' as immutable reference"
         )));
     }
 
     // TxContext can only be an immutable reference. Passing it as mutable would
     // allow `authenticate` functions to create objects, which would be
     // problematic.
-    if let SignatureToken::Reference(referent) = tx_context {
-        if let SignatureToken::Datatype(datatype_handle_index) = **referent {
-            let datatype_handle = module.datatype_handle_at(datatype_handle_index);
-            let type_name = module.identifier_at(datatype_handle.name);
-            if type_name.as_str() != "TxContext" {
-                return Err(verification_failure(format!(
-                    "Authenticator function '{function_identifier}' last argument must be of type 'TxContext' got: '{type_name}'"
-                )));
-            }
-        } else {
-            return Err(verification_failure(format!(
-                "Authenticator function '{function_identifier}' last argument must be of type 'TxContext'"
-            )));
-        }
-    } else {
+    if !matches!(
+        TxContext::kind(module, tx_context),
+        TxContextKind::Immutable
+    ) {
         return Err(verification_failure(format!(
             "Authenticator function '{function_identifier}' can only receive 'TxContext' as immutable reference"
         )));
