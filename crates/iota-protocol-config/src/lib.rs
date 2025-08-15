@@ -2135,9 +2135,12 @@ impl ProtocolConfig {
                     // changes
                 }
                 12 => {
-                    // max auth gas budget is in NANOS and an absolute value 1IOTA
-                    cfg.max_auth_gas = Some(1_000_000_000);
-                    cfg.feature_flags.move_auth = true;
+                    // TODO: determine required networks
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // max auth gas budget is in NANOS and an absolute value 1IOTA
+                        cfg.max_auth_gas = Some(1_000_000_000);
+                        cfg.feature_flags.move_auth = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
