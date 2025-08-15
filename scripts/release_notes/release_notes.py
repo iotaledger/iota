@@ -48,6 +48,7 @@ INTERESTING_DIRECTORIES = [
     "kiosk",
     "nre",
     "iota-execution",
+    "consensus",
 ]
 
 # Start release notes with these sections, if they contain relevant
