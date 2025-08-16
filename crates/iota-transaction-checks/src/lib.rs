@@ -54,15 +54,18 @@ mod checked {
         reference_gas_price: u64,
         transaction: &TransactionData,
     ) -> IotaResult<IotaGasStatus> {
-        check_gas(
-            objects,
-            protocol_config,
-            reference_gas_price,
-            gas,
-            transaction.gas_budget(),
-            transaction.gas_price(),
-            transaction.kind(),
-        )
+        if transaction.is_system_tx() {
+            Ok(IotaGasStatus::new_unmetered())
+        } else {
+            check_gas(
+                objects,
+                protocol_config,
+                reference_gas_price,
+                gas,
+                transaction.gas_budget(),
+                transaction.gas_price(),
+            )
+        }
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -211,7 +214,6 @@ mod checked {
             transaction.gas(),
             transaction.gas_budget(),
             transaction.gas_price(),
-            transaction.kind(),
         )?;
 
         check_move_authenticator_objects(
@@ -388,29 +390,24 @@ mod checked {
         gas: &[ObjectRef],
         gas_budget: u64,
         gas_price: u64,
-        tx_kind: &TransactionKind,
     ) -> IotaResult<IotaGasStatus> {
-        if tx_kind.is_system_tx() {
-            Ok(IotaGasStatus::new_unmetered())
-        } else {
-            let gas_status =
-                IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+        let gas_status =
+            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
 
-            // check balance and coins consistency
-            // load all gas coins
-            let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
-            let mut gas_objects = vec![];
-            for obj_ref in gas {
-                let obj = objects.get(&obj_ref.0);
-                let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
-                    version: Some(obj_ref.1),
-                })?;
-                gas_objects.push(obj);
-            }
-            gas_status.check_gas_balance(&gas_objects, gas_budget)?;
-            Ok(gas_status)
+        // check balance and coins consistency
+        // load all gas coins
+        let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
+        let mut gas_objects = vec![];
+        for obj_ref in gas {
+            let obj = objects.get(&obj_ref.0);
+            let obj = *obj.ok_or(UserInputError::ObjectNotFound {
+                object_id: obj_ref.0,
+                version: Some(obj_ref.1),
+            })?;
+            gas_objects.push(obj);
         }
+        gas_status.check_gas_balance(&gas_objects, gas_budget)?;
+        Ok(gas_status)
     }
 
     /// Check all the objects used in the transaction against the database, and
@@ -636,6 +633,7 @@ mod checked {
     ) -> UserInputResult<()> {
         for object in objects.iter() {
             // TODO: Check if the gas coins should be mutable.
+            // TODO: Maybe move this check inside `check_one_move_authenticator_object`.
             fp_ensure!(
                 !object.is_mutable(),
                 UserInputError::ImmutableParameterExpected {
@@ -674,6 +672,7 @@ mod checked {
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
+                // TODO: Is this check correct?
                 return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
             }
             InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
@@ -747,6 +746,7 @@ mod checked {
                     object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                 });
             }
+            // TODO: This check is duplicated in the `check_move_authenticator_objects_impl`.
             InputObjectKind::SharedMoveObject {
                 id, mutable: true, ..
             } => {

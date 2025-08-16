@@ -915,6 +915,10 @@ impl AuthorityState {
             let gas_input_objects = filter_gas_input_objects(&tx_input_objects, &gas);
 
             // Check the MoveAuthenticator input objects.
+            //
+            // TODO: Since the authenticator input is loaded with a dedicated call, we can
+            // load the same object twice if it is presented in the transaction and
+            // authenticator inputs.
             let (authenticator_gas_status, authenticator_input_objects) = self
                 .check_move_authenticator_inputs_for_signing(
                     &move_authenticator,
@@ -1761,6 +1765,10 @@ impl AuthorityState {
             let gas_input_objects = filter_gas_input_objects(&tx_input_objects, &gas);
 
             // Check the MoveAuthenticator input objects.
+            //
+            // TODO: Since the authenticator input is loaded with a dedicated call, we
+            // can load the same object twice if it is presented in the transaction and
+            // authenticator inputs.
             let (authenticator_gas_status, authenticator_input_objects) = self
                 .check_move_authenticator_inputs_for_executing(
                     authenticator_input_objects,
