@@ -1,16 +1,16 @@
 ---
-title: Get Attestations and Accreditations
-sidebar_label: Get Attestations and Accreditations
-description: Comprehensive guide to get attestations and accreditations.
+title: Get Accreditations
+sidebar_label: Get Accreditations
+description: Comprehensive guide to accreditations.
 teams:
   - iotaledger/identity
 tags:
   - hierarchies
   - how-to
 ---
-# Get Attestations and Accreditations
+# Get Accreditations
 
-This guide demonstrates how to get attestations and accreditations from a hierarchy.
+This guide demonstrates how to get accreditations from a hierarchy.
 
 ### Prerequisites
 
@@ -21,7 +21,6 @@ This guide demonstrates how to get attestations and accreditations from a hierar
 
 All hierarchies support the same comprehensive read-only interface:
 
-- **Get Attestations**: Get attestations from a hierarchy
 - **Get Accreditations**: Get accreditations from a hierarchy
 
 ### 1. Set Up Read-Only Client
@@ -33,7 +32,7 @@ You can use either a full client or a read-only client for inspection:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L25
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditationsrs#L25
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -54,7 +53,7 @@ Create a new Federation:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L27-L30
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditationsrs#L27-L30
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -75,7 +74,7 @@ Add statements which will be used to create attestations and accreditations:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L42-L50
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditationsrs#L42-L50
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -96,7 +95,7 @@ Create an accreditation that allows a receiver to attest to specific statements,
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L52-L79
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditationsrs#L52-L79
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -117,7 +116,7 @@ Create an accreditation that allows a receiver to grant accreditations to others
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs#L82-L97
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditationsrs#L82-L97
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -131,7 +130,7 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 
 ### Key Differences
 
-- **Accreditation to Attest**: Allows a receiver to create attestations for specific statements
+- **Accreditation to Attest**: Allows a receiver to create attestations for specific properties
 - **Accreditation to Accredit**: Allows a receiver to grant accreditations to other entities
 - **Read-Only Access**: Getting accreditations only requires read-only access to the hierarchy
 - **Verification**: Both types of accreditations can be retrieved and verified using the same read-only interface
@@ -143,7 +142,7 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_attestations_and_accreditations.rs
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditationsrs
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
