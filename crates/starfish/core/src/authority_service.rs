@@ -503,13 +503,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // If last_received is a valid and more blocks have been proposed since then,
         // this call is guaranteed to return at least some recent blocks, which
         // will help with liveness.
-        // TODO:: do we need to add some headers here?
         let missed_blocks = stream::iter(
             dag_state
                 .get_cached_blocks(self.context.own_index, last_received + 1)
                 .into_iter()
-                // TODO::deal with possible error in try_from
-                .map(|block| SerializedBlockBundle::try_from(block).unwrap()),
+                .filter_map(|block| match SerializedBlockBundle::try_from(block) {
+                    Ok(block_bundle) => Some(block_bundle),
+                    Err(e) => {
+                        tracing::error!("Failed to serialize block bundle from cache: {e}");
+                        None
+                    }
+                }),
         );
 
         let broadcasted_blocks = BroadcastedBlockStream::new(
@@ -520,11 +524,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
-        // TODO::deal with possible error in try_from
         Ok(Box::pin(missed_blocks.chain({
             let dag_state = Arc::clone(&self.dag_state);
 
-            broadcasted_blocks.map(move |block| {
+            broadcasted_blocks.filter_map(move |block| {
                 let mut dag_state_guard = dag_state.write();
                 let block_headers =
                     dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
@@ -533,7 +536,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     verified_block: block,
                     verified_headers: block_headers,
                 };
-                SerializedBlockBundle::try_from(block_bundle).unwrap()
+                async move {
+                    match SerializedBlockBundle::try_from(block_bundle) {
+                        Ok(serialized_block_bundle) => Some(serialized_block_bundle),
+                        Err(e) => {
+                            tracing::error!("Failed to serialize block bundle from broadcast: {e}");
+                            None
+                        }
+                    }
+                }
             })
         })))
     }
