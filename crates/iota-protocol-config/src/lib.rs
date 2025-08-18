@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 11;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -71,6 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 11;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: Max authentication gas budget property.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -316,6 +317,10 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true, enables the authentication of account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    move_auth: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -519,6 +524,9 @@ pub struct ProtocolConfig {
 
     /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
+
+    /// Maximum gas budget in NANOS that a authentication transaction can use.
+    max_auth_gas: Option<u64>,
 
     /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
@@ -1188,6 +1196,10 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
+    pub fn move_auth(&self) -> bool {
+        self.feature_flags.move_auth
+    }
+
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1492,6 +1504,8 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
+            // max auth gas budget
+            max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
@@ -2119,6 +2133,14 @@ impl ProtocolConfig {
                 11 => {
                     // version 11 is a new framework version but with no config
                     // changes
+                }
+                12 => {
+                    // TODO: determine required networks
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // max auth gas budget is in NANOS and an absolute value 1IOTA
+                        cfg.max_auth_gas = Some(1_000_000_000);
+                        cfg.feature_flags.move_auth = true;
+                    }
                 }
                 // Use this template when making changes:
                 //

@@ -23,6 +23,7 @@ use move_core_types::{
     language_storage::TypeTag,
 };
 use nonempty::{NonEmpty, nonempty};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
@@ -79,7 +80,7 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum CallArg {
     // contains no structs or objects
     Pure(Vec<u8>),
@@ -106,7 +107,7 @@ impl CallArg {
     });
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 pub enum ObjectArg {
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedObject(ObjectRef),
@@ -2268,6 +2269,15 @@ impl SenderSignedData {
                         return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
                                 "passkey is not enabled on this network".to_string(),
+                            ),
+                        });
+                    }
+                }
+                GenericSignature::MoveAuthenticator(_) => {
+                    if !config.move_auth() {
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::Unsupported(
+                                "`Move authentication` is not enabled on this network".to_string(),
                             ),
                         });
                     }
