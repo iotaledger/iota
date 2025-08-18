@@ -491,6 +491,9 @@ pub enum IotaError {
     #[error("Unexpected message.")]
     UnexpectedMessage,
 
+    #[error("Failed to execute the Move authenticator, reason: {error:?}.")]
+    MoveAuthenticatorExecutionFailure { error: String },
+
     // Move module publishing related errors
     #[error("Failed to verify the Move module, reason: {error:?}.")]
     ModuleVerificationFailure { error: String },

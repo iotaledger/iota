@@ -955,9 +955,10 @@ impl AuthorityState {
                 &mut None,
             );
 
-            // TODO: Return the validation error.
-            if let Err(_validation_error) = validation_result {
-                todo!()
+            if let Err(validation_error) = validation_result {
+                return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                    error: validation_error.to_string(),
+                });
             }
         }
 
@@ -1800,9 +1801,10 @@ impl AuthorityState {
                     &mut None,
                 );
 
-            // TODO: Return the validation error.
-            if let Err(_validation_error) = validation_result {
-                todo!()
+            if let Err(validation_error) = validation_result {
+                return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                    error: validation_error.to_string(),
+                });
             }
 
             // TODO: The execution gas status should be updated with the
