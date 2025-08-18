@@ -8,7 +8,7 @@ tags:
   - explanation
 ---
 
-## What is IOTA Hierarchies?
+## What is Hierarchies?
 
 ### Ideological Perspective
 
@@ -24,13 +24,13 @@ Instead, Hierarchies recognizes that **expertise and responsibility should be di
 
 From a technological standpoint, IOTA Hierarchies is set of components aligned into multiple layers, each serving specific purposes in the trust distribution ecosystem:
 
-**Core Layer - Move Smart Contracts**: The foundation is implemented in the **Move programming language** - resource-oriented programming model provides inherent security guarantees, making it ideal for managing trust relationships and preventing common smart contract vulnerabilities.
-
-**Blockchain Infrastructure - IOTA Network**: The system is deployed on the **IOTA network**, leveraging its scalable and energy-efficient distributed ledger technology. This provides the immutable foundation needed for trust relationships while ensuring global accessibility and transparency.
+**Cross-Platform Access - WASM Bindings**: **WebAssembly (WASM) bindings** compile the Rust library to run in browsers and JavaScript environments, enabling **TypeScript and JavaScript** developers to use Hierarchies in web applications, Node.js servers, and other JavaScript runtimes without sacrificing performance or security.
 
 **Integration Layer - Rust Library**: A comprehensive **Rust library** provides high-level abstractions and utilities for interacting with the Move smart contracts. This library handles the complexity of blockchain interactions, transaction construction, and data serialization, making it easy for developers to integrate Hierarchies into Rust applications.
 
-**Cross-Platform Access - WASM Bindings**: **WebAssembly (WASM) bindings** compile the Rust library to run in browsers and JavaScript environments, enabling **TypeScript and JavaScript** developers to use Hierarchies in web applications, Node.js servers, and other JavaScript runtimes without sacrificing performance or security.
+**Core Layer - Move Smart Contracts**: The foundation is implemented in the **Move programming language** - resource-oriented programming model provides inherent security guarantees, making it ideal for managing trust relationships and preventing common smart contract vulnerabilities.
+
+**Blockchain Infrastructure - IOTA Network**: The system is deployed on the **IOTA network**, leveraging its scalable and energy-efficient distributed ledger technology. This provides the immutable foundation needed for trust relationships while ensuring global accessibility and transparency.
 
 ```mermaid
 graph TB
@@ -45,7 +45,7 @@ graph TB
         Rust[Rust Library<br/>Native Performance]
     end
 
-    subgraph "Ledger Layer 1"
+    subgraph "IOTA Ledger Layer 1"
         Move[Move Smart Contracts<br/>Federation Logic]
         IOTA[IOTA Network<br/>Distributed Ledger]
     end

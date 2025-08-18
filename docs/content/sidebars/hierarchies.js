@@ -20,7 +20,7 @@ const hierarchies = [
             'developer/iota-hierarchies/explanations/federation',
             'developer/iota-hierarchies/explanations/terminology',
             'developer/iota-hierarchies/explanations/accreditation',
-            'developer/iota-hierarchies/explanations/hierarchies-vs-identity',
+            'developer/iota-hierarchies/explanations/hierarchies-and-identity',
         ],
     },
     {

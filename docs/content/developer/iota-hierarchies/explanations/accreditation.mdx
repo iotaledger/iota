@@ -27,10 +27,14 @@ An accredited entity grants another the ability to make [attestations](./termino
 sequenceDiagram
     actor Accreditor as Accreditor
     actor Attester as  New Attester
-    participant Target as Target Entity
+    participant Target as Target Object
     Accreditor->>Attester: Accredit to Attest (e.g., for 'animal.type: dog')
-    Attester->>Target: Attest Statement (e.g., "This animal is a dog")
+    Attester->>Target: Attestation (attested statement)(e.g., "This animal is a dog")
 ```
+
+:::important
+The IOTA Hierarchies do not create attestations (attested statements). Instead, they allow you to verify if someone is authorized to make an attestation. An attestation requires a target object (e.g., "the animal"), which is not within the scope of the Hierarchies. For example, when a scientist says, "This animal is a dog," Hierarchies can verify if the scientist can use property `animal.type` and value `dog`.  **Attestation exists outside the IOTA Hierarchies system.**
+:::
 
 The ability to attest can be received by any object in the IOTA network, that is identified by UID.
 To provide the ability to attest you must specify the following:
@@ -42,7 +46,7 @@ To provide the ability to attest you must specify the following:
 After receiving the ability to attest, the entity can use the properties and values to make attestations.
 
 :::info
-The way an attestation is presented is determined by the receiver. It is also the receiver's responsibility to provide proof of the statement's authenticity. This could include the account's signature or any other method defined by the receiver's process.
+  The way an attestation is presented is determined by the receiver. It is also the receiver's responsibility to provide proof of the statement's authenticity. This could include the account's signature or any other method defined by the receiver's process.
 :::
 
 A typical scenario is presented here where an attestation is submitted to a third-party process. The third-party process is responsible for verifying the authenticity of the statement and interpreting its semantics.
@@ -66,6 +70,10 @@ sequenceDiagram
     ThirdParty-->>ThirdParty: Reject with reason
   end
 ```
+
+#### Where is attestation?
+
+At the beginig we mentions that accreditation to attest is ability to make a "attestion" But
 
 ### Accreditation to Accredit
 
