@@ -16,7 +16,7 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account::{AuthenticatorInfo, MoveAuthenticator},
+        account::AuthenticatorInfo,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -44,6 +44,7 @@ mod checked {
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
+        move_authenticator::MoveAuthenticator,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
@@ -1498,7 +1499,7 @@ mod checked {
                 Identifier::new(authenticator_info.module).unwrap(),
                 Identifier::new(authenticator_info.function).unwrap(),
                 vec![],
-                authenticator.inputs,
+                authenticator.inputs().to_owned(),
             )
             .expect("Unable to generate account authenticator call transaction!");
         builder

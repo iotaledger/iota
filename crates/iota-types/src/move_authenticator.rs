@@ -44,6 +44,17 @@ impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
         self.object_to_authenticate.0.into()
     }
+
+    pub fn inputs(&self) -> &Vec<CallArg> {
+        &self.inputs
+    }
+
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+        self.inputs
+            .iter()
+            .flat_map(|arg| arg.receiving_objects())
+            .collect()
+    }
 }
 
 impl AuthenticatorTrait for MoveAuthenticator {
