@@ -1162,7 +1162,7 @@ impl ValidatorService {
         let signed_authority_capabilities = request.message;
         // Verify the message signature
         let verified_authority_capabilities = epoch_store
-            .verify_authority_capabilities(signed_authority_capabilities)
+            .verify_authority_capabilities(signed_authority_capabilities.clone())
             .inspect_err(|_e| {
                 self.metrics.signature_errors.inc();
             })?;
@@ -1173,9 +1173,19 @@ impl ValidatorService {
             verified_authority_capabilities.data()
         );
 
-        // Store or process the capabilities as needed
-        self.state
-            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())?;
+        // Submit the signed capability notification to consensus instead of processing
+        // directly
+        let signed_authority_capabilities_transaction =
+            ConsensusTransaction::new_signed_capability_notification_v1(
+                signed_authority_capabilities,
+            );
+
+        // Submit to consensus - similar to how certificates are handled
+        self.consensus_adapter.submit(
+            signed_authority_capabilities_transaction,
+            None,
+            &epoch_store,
+        )?;
 
         Ok((
             tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),

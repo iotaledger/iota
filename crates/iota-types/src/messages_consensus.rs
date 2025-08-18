@@ -233,6 +233,7 @@ pub enum ConsensusTransactionKind {
     EndOfPublish(AuthorityName),
 
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
+    SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
 
@@ -377,6 +378,19 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_signed_capability_notification_v1(
+        signed_capabilities: SignedAuthorityCapabilitiesV1,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        signed_capabilities.data().hash(&mut hasher);
+        signed_capabilities.auth_sig().hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+        }
+    }
+
     pub fn new_mysticeti_certificate(
         round: u64,
         offset: u64,
@@ -456,6 +470,13 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_cap) => {
+                ConsensusTransactionKey::CapabilityNotification(
+                    signed_cap.authority,
+                    signed_cap.generation,
+                )
+            }
+
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
                 ConsensusTransactionKey::NewJWKFetched(Box::new((
                     *authority,

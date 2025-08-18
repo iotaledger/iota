@@ -212,21 +212,21 @@ impl SignatureVerifier {
         &self,
         certs: Vec<&CertifiedTransaction>,
         checkpoints: Vec<&SignedCheckpointSummary>,
+        authority_capabilities: Vec<&SignedAuthorityCapabilitiesV1>,
     ) -> IotaResult {
-        let certs: Vec<_> = certs
-            .into_iter()
-            .filter(|cert| !self.certificate_cache.is_cached(&cert.certificate_digest()))
-            .collect();
-
-        // Verify only the user sigs of certificates that were not cached already, since
-        // whenever we insert a certificate into the cache, it is already
-        // verified.
+        // Verify all user sigs, since caching is handled by the underlying
+        // implementation.
         for cert in &certs {
             self.verify_tx(cert.data())?;
         }
+
+        // Verify authority capabilities signatures. Caching is handled inside to avoid
+        // checking the same message multiple times.
+        for cap in &authority_capabilities {
+            self.verify_authority_capabilities(cap)?;
+        }
+
         batch_verify_all_certificates_and_checkpoints(&self.committee, &certs, &checkpoints)?;
-        self.certificate_cache
-            .cache_digests(certs.into_iter().map(|c| c.certificate_digest()).collect());
         Ok(())
     }
 

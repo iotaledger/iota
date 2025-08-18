@@ -2647,8 +2647,6 @@ impl AuthorityPerEpochStore {
                     }),
                 ..
             }) => {
-                // TODO: this needs to be modified as committee validators might be different
-                //  than the actual authority sending the notification.
                 if transaction.sender_authority() != *authority {
                     warn!(
                         "CapabilityNotificationV1 authority {} does not match its author from consensus {}",
@@ -2656,6 +2654,15 @@ impl AuthorityPerEpochStore {
                     );
                     return None;
                 }
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(_),
+                ..
+            }) => {
+                // Signatures are verified as part of the consensus payload
+                // verification in IotaTxValidator. We don't need to check the
+                // sender_authority as it's correct that it's different from the
+                // authority in the notification.
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),
@@ -3848,6 +3855,31 @@ impl AuthorityPerEpochStore {
                 } else {
                     debug!(
                         "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusCertificateResult::ConsensusMessage)
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+                ..
+            }) => {
+                // Records capabilities for the authority.
+                // The signature is checked in a previous step, so we can safely access data
+                let capabilities = signed_capabilities.data();
+                let authority = capabilities.authority;
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received SignedCapabilityNotificationV1 from {:?}",
+                        authority.concise()
+                    );
+                    self.record_capabilities_v1(capabilities)?;
+                } else {
+                    debug!(
+                        "Ignoring SignedCapabilityNotificationV1 from {:?} because of end of epoch",
                         authority.concise()
                     );
                 }

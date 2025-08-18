@@ -155,8 +155,8 @@ impl AuthorityAPI for LocalAuthorityClient {
             verified_authority_capabilities.data()
         );
 
-        state
-            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())?;
+        // For test clients, directly record capabilities since we don't have consensus
+        epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
         Ok(HandleCapabilityNotificationResponseV1 {})
     }
