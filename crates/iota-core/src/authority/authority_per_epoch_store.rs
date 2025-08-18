@@ -70,7 +70,7 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
-    DBMapUtils, Map, TypedStoreError, retry_transaction_forever,
+    DBMapUtils, Map, TypedStoreError,
     rocks::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
         read_size_from_env,
@@ -466,6 +466,8 @@ pub struct AuthorityPerEpochStore {
     /// MutexTable for transaction locks (prevent concurrent execution of same
     /// transaction)
     mutex_table: MutexTable<TransactionDigest>,
+    /// Mutex table for shared version assignment
+    version_assignment_mutex_table: MutexTable<ObjectID>,
 
     /// The moment when the current epoch started locally on this validator.
     /// Note that this value could be skewed if the node crashed and
@@ -996,6 +998,7 @@ impl AuthorityPerEpochStore {
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
+            version_assignment_mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             epoch_open_time: current_time,
             epoch_close_time: Default::default(),
             metrics,
@@ -1617,69 +1620,69 @@ impl AuthorityPerEpochStore {
         objects_to_init: &[(ObjectID, SequenceNumber)],
         cache_reader: &dyn ObjectCacheRead,
     ) -> IotaResult<HashMap<ObjectID, SequenceNumber>> {
-        let mut ret: HashMap<_, _>;
-        // Since this can be called from consensus task, we must retry forever - the
-        // only other option is to panic. It is extremely unlikely that more
-        // than 2 retries will be needed, as the only two writers are the
-        // consensus task and checkpoint execution.
-        retry_transaction_forever!({
-            // This code may still be correct without using a transaction snapshot, but I
-            // couldn't convince myself of that.
-            let tables = self.tables()?;
-            let mut db_transaction = tables.next_shared_object_versions.transaction()?;
+        // get_or_init_next_object_versions can be called
+        // from consensus or checkpoint executor,
+        // so we need to protect version assignment with a critical section
+        let _locks = self
+            .version_assignment_mutex_table
+            .acquire_locks(objects_to_init.iter().map(|(id, _)| *id));
+        let tables = self.tables()?;
 
-            let ids: Vec<_> = objects_to_init.iter().map(|(id, _)| *id).collect();
+        let next_versions = tables
+            .next_shared_object_versions
+            .multi_get(objects_to_init.iter().map(|(id, _)| *id))?;
 
-            let next_versions = db_transaction
-                .multi_get(&self.tables()?.next_shared_object_versions, ids.clone())?;
+        let uninitialized_objects: Vec<(ObjectID, SequenceNumber)> = next_versions
+            .iter()
+            .zip(objects_to_init)
+            .filter_map(|(next_version, id_and_version)| match next_version {
+                None => Some(*id_and_version),
+                Some(_) => None,
+            })
+            .collect();
 
-            let uninitialized_objects: Vec<(ObjectID, SequenceNumber)> = next_versions
-                .iter()
-                .zip(objects_to_init)
-                .filter_map(|(next_version, id_and_version)| match next_version {
-                    None => Some(*id_and_version),
-                    Some(_) => None,
-                })
-                .collect();
+        // The common case is that there are no uninitialized versions - this early
+        // return will happen every time except the first time an object is
+        // used in an epoch.
+        if uninitialized_objects.is_empty() {
+            // unwrap ok - we already verified that next_versions is not missing any keys.
+            return Ok(izip!(
+                objects_to_init.iter().map(|(id, _)| *id),
+                next_versions.into_iter().map(|v| v.unwrap())
+            )
+            .collect());
+        }
 
-            // The common case is that there are no uninitialized versions - this early
-            // return will happen every time except the first time an object is
-            // used in an epoch.
-            if uninitialized_objects.is_empty() {
-                // unwrap ok - we already verified that next_versions is not missing any keys.
-                return Ok(izip!(ids, next_versions.into_iter().map(|v| v.unwrap())).collect());
-            }
+        let versions_to_write: Vec<_> = uninitialized_objects
+            .iter()
+            .map(|(id, initial_version)| {
+                // Note: we don't actually need to read from the transaction here, as no writer
+                // can update object_store until after get_or_init_next_object_versions
+                // completes.
+                match cache_reader.get_object(id) {
+                    Some(obj) => (*id, obj.version()),
+                    None => (*id, *initial_version),
+                }
+            })
+            .collect();
 
-            let versions_to_write: Vec<_> = uninitialized_objects
-                .iter()
-                .map(|(id, initial_version)| {
-                    // Note: we don't actually need to read from the transaction here, as no writer
-                    // can update object_store until after get_or_init_next_object_versions
-                    // completes.
-                    match cache_reader.get_object(id) {
-                        Some(obj) => (*id, obj.version()),
-                        None => (*id, *initial_version),
-                    }
-                })
-                .collect();
+        let ret = izip!(
+            objects_to_init.iter().map(|(id, _)| *id),
+            next_versions.into_iter(),
+        )
+        // take all the previously initialized versions
+        .filter_map(|(id, next_version)| next_version.map(|v| (id, v)))
+        // add all the versions we're going to write
+        .chain(versions_to_write.iter().cloned())
+        .collect();
 
-            ret = izip!(ids.clone(), next_versions.into_iter(),)
-                // take all the previously initialized versions
-                .filter_map(|(id, next_version)| next_version.map(|v| (id, v)))
-                // add all the versions we're going to write
-                .chain(versions_to_write.iter().cloned())
-                .collect();
-
-            debug!(
-                ?versions_to_write,
-                "initializing next_shared_object_versions"
-            );
-            db_transaction.insert_batch(
-                &self.tables()?.next_shared_object_versions,
-                versions_to_write,
-            )?;
-            db_transaction.commit()
-        })?;
+        debug!(
+            ?versions_to_write,
+            "initializing next_shared_object_versions"
+        );
+        let mut batch = tables.next_shared_object_versions.batch();
+        batch.insert_batch(&tables.next_shared_object_versions, versions_to_write)?;
+        batch.write()?;
 
         Ok(ret)
     }

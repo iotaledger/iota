@@ -145,6 +145,7 @@ use crate::{
     },
     authority_client::NetworkAuthorityClient,
     checkpoints::CheckpointStore,
+    congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
     execution_cache::{
@@ -813,6 +814,8 @@ pub struct AuthorityState {
     /// The chain identifier is derived from the digest of the genesis
     /// checkpoint.
     chain_identifier: ChainIdentifier,
+
+    pub(crate) congestion_tracker: Arc<CongestionTracker>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -1886,6 +1889,10 @@ impl AuthorityState {
 
         Ok((
             DryRunTransactionBlockResponse {
+                // to avoid cloning `transaction`, fields are populated in this order
+                suggested_gas_price: self
+                    .congestion_tracker
+                    .get_prediction_suggested_gas_price(&transaction),
                 input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
                     .map_err(|e| IotaError::TransactionSerialization {
                         error: format!(
@@ -2919,6 +2926,7 @@ impl AuthorityState {
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
             chain_identifier,
+            congestion_tracker: Arc::new(CongestionTracker::new()),
         });
 
         // Start a task to execute ready certificates.
