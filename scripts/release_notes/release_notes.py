@@ -41,13 +41,14 @@ RE_NOTE = re.compile(
 # considered when generating release notes.
 INTERESTING_DIRECTORIES = [
     "crates",
-    "dashboards",
-    "doc",
+    "consensus",
     "docker",
+    "docs",
     "external-crates",
+    "iota-execution",
     "kiosk",
     "nre",
-    "iota-execution",
+    "sdk",
 ]
 
 # Start release notes with these sections, if they contain relevant
