@@ -90,15 +90,12 @@ pub struct BlockHeaderV1 {
     epoch: Epoch,
     round: Round,
     author: AuthorityIndex,
-    // TODO: during verification ensure that timestamp_ms >= ancestors.timestamp
     timestamp_ms: BlockTimestampMs,
     // ancestors are BlockRefs such that there are at least 2f+1 BlockRefs (by stake) from the
     // previous round
     ancestors: Vec<BlockRef>,
     // acknowledgments are BlockRefs for blocks for which a validator acknowledges data
     // availability of transactions
-    // TODO: we should compress it together with ancestors to
-    // avoid duplications since in most cases these sets have a big overlap
     acknowledgments: Vec<BlockRef>,
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
@@ -272,7 +269,6 @@ impl BlockRef {
     }
 }
 
-// TODO: re-evaluate formats for production debugging.
 impl fmt::Display for BlockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "B{}({},{})", self.round, self.author, self.digest)
@@ -355,11 +351,6 @@ impl AsRef<[u8]> for BlockHeaderDigest {
     }
 }
 
-// TODO: we might need to join TransactionDigest with BlockDigest since we use
-// the same parameters for both structures. TransactionDigest is used for
-// including a commitment for a transaction data to a block header. This digest
-// is used for BlockDigest computations of BlockHeader does not include
-// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 
@@ -439,7 +430,6 @@ impl From<BlockRef> for Slot {
     }
 }
 
-// TODO: re-evaluate formats for production debugging.
 impl fmt::Display for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.authority, self.round,)
@@ -709,7 +699,6 @@ impl fmt::Display for VerifiedBlockHeader {
     }
 }
 
-// TODO: re-evaluate formats for production debugging.
 impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
@@ -725,7 +714,6 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
-// TODO: make a custom Debug implementation for more control over printed data
 #[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
     transactions: Vec<Transaction>,
@@ -877,14 +865,12 @@ impl TryFrom<SerializedHeaderAndTransactions> for VerifiedBlock {
         let transactions: Vec<Transaction> =
             bcs::from_bytes(&serialized_block.serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;
-        // TODO: do we need to check the signature here?
+
         let verified_block_header = VerifiedBlockHeader::new_verified(
             signed_block_header,
             serialized_block.serialized_block_header,
         );
 
-        // TODO: we might need to check whether transaction commitment is consistent
-        // with the one in header
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
