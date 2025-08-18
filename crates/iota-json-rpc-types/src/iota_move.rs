@@ -237,11 +237,7 @@ impl From<NormalizedEnum> for IotaMoveNormalizedEnum {
     fn from(value: NormalizedEnum) -> Self {
         Self {
             abilities: value.abilities.into(),
-            type_parameters: value
-                .type_parameters
-                .into_iter()
-                .map(IotaMoveStructTypeParameter::from)
-                .collect::<Vec<IotaMoveStructTypeParameter>>(),
+            type_parameters: value.type_parameters.into_iter().map(Into::into).collect(),
             variants: value
                 .variants
                 .into_iter()
