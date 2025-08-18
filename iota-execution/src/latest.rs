@@ -175,7 +175,6 @@ impl executor::Executor for Executor {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        enable_expensive_checks: bool,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -187,9 +186,9 @@ impl executor::Executor for Executor {
         authenticator_info: AuthenticatorInfo,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
-        transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
-        transaction_digest: TransactionDigest,
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>) {
         validate_transaction(
@@ -199,15 +198,14 @@ impl executor::Executor for Executor {
             authenticator,
             authenticator_info,
             authenticator_input_objects,
-            transaction_kind,
-            transaction_signer,
-            transaction_digest,
+            authenticated_transaction_kind,
+            authenticated_transaction_signer,
+            authenticated_transaction_digest,
             &self.0,
             epoch_id,
             epoch_timestamp_ms,
             protocol_config,
             metrics,
-            enable_expensive_checks,
             trace_builder_opt,
         )
     }

@@ -733,6 +733,26 @@ impl TemporaryStore<'_> {
         );
         Ok(())
     }
+
+    pub fn check_authenticate_execution_results_consistency(&self) -> Result<(), ExecutionError> {
+        assert_invariant!(
+            self.execution_results.created_object_ids.is_empty(),
+            "Created object IDs should be empty in authenticate execution results"
+        );
+        assert_invariant!(
+            self.execution_results.written_objects.is_empty(),
+            "Written object IDs should be empty in authenticate execution results"
+        );
+        assert_invariant!(
+            self.execution_results.modified_objects.is_empty(),
+            "Modified object IDs should be empty in authenticate execution results"
+        );
+        assert_invariant!(
+            self.execution_results.deleted_object_ids.is_empty(),
+            "Deleted object IDs should be empty in authenticate execution results"
+        );
+        Ok(())
+    }
 }
 //==============================================================================
 // Charge gas current - end

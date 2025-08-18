@@ -87,7 +87,6 @@ pub trait Executor {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        enable_expensive_checks: bool,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -99,9 +98,9 @@ pub trait Executor {
         authenticator_info: AuthenticatorInfo,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
-        transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
-        transaction_digest: TransactionDigest,
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>);
 
