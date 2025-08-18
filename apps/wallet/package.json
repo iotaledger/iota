@@ -1,6 +1,6 @@
 {
     "name": "iota-wallet",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "private": true,
     "description": "A wallet for IOTA",
     "main": "./dist/ui.js",
