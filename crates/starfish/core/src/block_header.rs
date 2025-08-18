@@ -22,7 +22,6 @@ use crate::{
     context::Context,
     ensure,
     error::{ConsensusError, ConsensusResult},
-    network::SerializedHeaderAndTransactions,
 };
 
 /// Round number of a block.
@@ -869,40 +868,6 @@ impl Deref for VerifiedBlock {
 
     fn deref(&self) -> &Self::Target {
         &self.verified_block_header
-    }
-}
-
-impl TryFrom<SerializedHeaderAndTransactions> for VerifiedBlock {
-    type Error = ConsensusError;
-
-    fn try_from(serialized_block: SerializedHeaderAndTransactions) -> ConsensusResult<Self> {
-        let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block.serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
-        let transactions: Vec<Transaction> =
-            bcs::from_bytes(&serialized_block.serialized_transactions)
-                .map_err(ConsensusError::MalformedTransactions)?;
-        // TODO: https://github.com/iotaledger/iota/issues/8221
-        // do we need to check the signature here?
-        let verified_block_header = VerifiedBlockHeader::new_verified(
-            signed_block_header,
-            serialized_block.serialized_block_header,
-        );
-
-        // TODO: https://github.com/iotaledger/iota/issues/8221
-        // we might need to check whether transaction commitment is consistent
-        // with the one in header
-        let verified_transactions = VerifiedTransactions::new(
-            transactions,
-            verified_block_header.reference(),
-            verified_block_header.transactions_commitment(),
-            serialized_block.serialized_transactions,
-        );
-        // Assemble the block from the header and transactions
-        Ok(VerifiedBlock::new(
-            verified_block_header,
-            verified_transactions,
-        ))
     }
 }
 
