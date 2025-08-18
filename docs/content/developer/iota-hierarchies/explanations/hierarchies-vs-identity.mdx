@@ -8,7 +8,7 @@ tags:
   - explanation
 ---
 
-# IOTA Identity.rs vs. Hierarchies
+## IOTA Identity.rs vs. Hierarchies
 
 At first glance, IOTA Identity (as described in the [IOTA Identity Framework](https://docs.iota.org/developer/iota-identity)) and Hierarchies might seem similar, both dealing with trust and verification.
 
@@ -27,14 +27,13 @@ Here is a comparison of the two:
 The main focus of Hierarchies is distribution and management, while Identity is about protocol-level presentation and exchange.
 :::
 
-
 ## IOTA Hierarchies & IOTA Identity together
 
 The flexible and unopinionated nature of Hierarchies allows it to be integrated with IOTA Identity in various ways. Below are three proposed use cases:
 
- - IOTA Identity as Root Authority
- - IOTA Identity as Any Federation Member
- - IOTA Hierarchies as a Credential Source for IOTA Identity
+- IOTA Identity as Root Authority
+- IOTA Identity as Any Federation Member
+- IOTA Hierarchies as a Credential Source for IOTA Identity
 
 These are merely suggestions, and the inherent flexibility of the system means you can adapt and use it in numerous other ways to suit your needs.
 
@@ -64,13 +63,9 @@ flowchart TD
     identity --> DLC
 ```
 
-
-
-
 ### IOTA Identity as Any Federation Member
 
 Every entity within the hierarchy can be represented as an IOTA Identity, enhancing the overall credibility of the system. If the Federation aims for the highest level of credibility, each member can be assigned an IOTA Identity. In this setup, both the Root Authority and the Federation members are represented as IOTA Identities. Accreditors and Attesters are also recognized by the Federation as IOTA Objects with unique identifiers (UIDs), allowing their IOTA Identities' UIDs to be used for receiving accreditation to attest or further accredit.
-
 
 ```mermaid
 flowchart TD
@@ -104,9 +99,7 @@ flowchart TD
 
 ### IOTA Hierarchies as Credential Source for IOTA Identity
 
-
 An interesting scenario arises when IOTA Hierarchies is integrated into the validation process  for Iota Identity and Credentials. Consider a student who possesses a Credential containing their grades. The student wishes to present this credential to a potential employer. The employer, upon reviewing the credential, sees the professor's signature and the assigned grade. To verify whether the professor is authorized to issue such a statement about the student's grade, the employer consults the Federation.
-
 
 ```mermaid
 sequenceDiagram

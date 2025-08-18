@@ -44,9 +44,9 @@ Now, let's extend this to a real-world example: a Federation of Biologists. This
 
 ```mermaid
 graph TD
-    Federation["Federation of Biologists (Can recognize animals of different species)"] -->|Accredits| SubUnit1["Sub-Unit: Mammal Experts (Accreditors for mammals)"]
-    Federation -->|accredit| SubUnit2["Sub-Unit: Bird Experts (Accreditors for birds)"]
-    Federation -->|accredit| SubUnit3["Sub-Unit: Reptile Experts (Accreditors for reptiles)"]
+    Federation["Federation of Biologists (Can recognize animals of different species)"] -->|accredits| SubUnit1["Sub-Unit: Mammal Experts (Accreditors for mammals)"]
+    Federation -->|accredits| SubUnit2["Sub-Unit: Bird Experts (Accreditors for birds)"]
+    Federation -->|accredits| SubUnit3["Sub-Unit: Reptile Experts (Accreditors for reptiles)"]
     SubUnit1 -->|accredits to attest| Scientist1["Scientist A (Can attest: This is a dog (mammal))"]
     SubUnit1 -->|accredits to attest| Scientist2["Scientist B (Can attest: This is a wolf (mammal))"]
     SubUnit2 -->|accredits to attest| Scientist3["Scientist C (Can attest: This is an eagle (bird))"]

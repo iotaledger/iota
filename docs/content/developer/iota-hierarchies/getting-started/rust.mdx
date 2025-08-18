@@ -11,15 +11,15 @@ tags:
   - install
   - getting-started
 ---
-# Getting Started with Rust
+## Getting Started with Rust
 
-## Requirements
+### Requirements
 
 - [Rust](https://www.rust-lang.org/) (latest)
 - [Cargo](https://doc.rust-lang.org/cargo/) (latest)
 - for running example: a local network node with the IOTA Hierarchies package deployed as described [here](./local-network-setup)
 
-## Include the Library
+### Include the Library
 
 To include IOTA Hierarchies in your project, add it as a dependency in your `Cargo.toml`:
 
@@ -28,7 +28,7 @@ To include IOTA Hierarchies in your project, add it as a dependency in your `Car
 hierarchies = { git = "https://github.com/iotaledger/hierarchies", tag = "v0.1"}
 ```
 
-## Examples
+### Examples
 
 To try out the [examples](https://github.com/iotaledger/hierarchies/tree/v0.1/examples), you should:
 
@@ -50,12 +50,12 @@ cargo build
 cargo run --example 01_create_federation
 ```
 
-## API Reference
+### API Reference
 
 You can find the API reference for the Rust library [here](https://iotaledger.github.io/hierarchies/hierarchies/index.html).
 
 If you would like to build the documentation, locally you can do so with the following command:
 
-```
+```bash
 RUSTDOCFLAGS='--cfg docsrs' cargo +nightly doc -p hierarchies --all-features --no-deps --open
 ```
