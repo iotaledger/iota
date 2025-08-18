@@ -1,6 +1,6 @@
 [package]
 name = "H_depends_on_G_unpublished"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 G_unpublished = { local = "../G_unpublished" }
