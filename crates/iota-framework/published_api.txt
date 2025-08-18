@@ -1126,18 +1126,30 @@ vdf_verify
 vdf_verify_internal
 	fun
 	0x2::vdf
-AuthenticatorInfoV1
+TxContext
 	public struct
-	0x2::account
-create_auth_info_v1
+	0x2::tx_context
+sender
 	public fun
-	0x2::account
-create_auth_info_v1_impl
+	0x2::tx_context
+digest
+	public fun
+	0x2::tx_context
+epoch
+	public fun
+	0x2::tx_context
+epoch_timestamp_ms
+	public fun
+	0x2::tx_context
+fresh_object_address
+	public fun
+	0x2::tx_context
+ids_created
 	fun
-	0x2::account
-drop_auth_info_v1
-	public fun
-	0x2::account
+	0x2::tx_context
+derive_id
+	fun
+	0x2::tx_context
 encode
 	public fun
 	0x2::hex
@@ -1177,30 +1189,6 @@ length
 max
 	public fun
 	0x2::address
-TxContext
-	public struct
-	0x2::tx_context
-sender
-	public fun
-	0x2::tx_context
-digest
-	public fun
-	0x2::tx_context
-epoch
-	public fun
-	0x2::tx_context
-epoch_timestamp_ms
-	public fun
-	0x2::tx_context
-fresh_object_address
-	public fun
-	0x2::tx_context
-ids_created
-	fun
-	0x2::tx_context
-derive_id
-	fun
-	0x2::tx_context
 ID
 	public struct
 	0x2::object
@@ -1276,6 +1264,18 @@ delete_impl
 record_new_uid
 	fun
 	0x2::object
+AuthenticatorInfoV1
+	public struct
+	0x2::account
+create_auth_info_v1
+	public fun
+	0x2::account
+create_auth_info_v1_impl
+	fun
+	0x2::account
+drop_auth_info_v1
+	public fun
+	0x2::account
 ProgrammableMoveCall
 	public struct
 	0x2::programmable_transaction
