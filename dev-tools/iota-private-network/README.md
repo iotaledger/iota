@@ -34,7 +34,11 @@ Run the following commands to build the necessary Docker images:
 Generate the genesis files and validators’ configuration:
 
 ```bash
+# By default, bootstrap 4 validators:
 ./bootstrap.sh
+
+# To bootstrap 19 validators instead:
+./bootstrap.sh -n 19
 ```
 
 ### 3. Start the Network
@@ -55,11 +59,25 @@ To bring up everything:
 ./run.sh all
 ```
 
-To bring up 4 validators, three full nodes (one with the backup feature enabled), one indexer, and one faucet, use the following command:
+To bring up 4 validators, three full nodes (one with the backup feature enabled), one indexer, and one faucet:
 
 ```
 ./run.sh faucet backup indexer
 ```
+
+To bring up 19 validators and faucet:
+
+```bash
+./run.sh -n 19 faucet
+```
+
+> **Note:** Out of the box, only **4** or **19** validators are fully supported by the provided `genesis-template-4.yaml` and `genesis-template-19.yaml` templates.\
+> If you wish to run a different number, <N>, of validators, you must manually update the corresponding YAML files:
+>
+> - `configs/genesis-<N>-template.yaml` for the genesis template
+> - `docker-compose.yaml` (validator services and network IPs)
+> - `prometheus/prometheus.yaml` (scrape targets)
+> - **(Optional)** Adjust the stake distribution in the chosen `genesis-template-<N>.yaml` if you want different validator stakes.
 
 ### Ports
 

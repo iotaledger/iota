@@ -35,8 +35,12 @@ use prometheus::Registry;
 use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::AuthorityPerpetualTables,
+        AuthorityState, AuthorityStore,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_pruner::ObjectsCompactionFilter,
+        authority_store_tables::{
+            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
+        },
         epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
@@ -205,11 +209,30 @@ impl<'a> TestAuthorityBuilder<'a> {
             std::fs::create_dir(&store_base_path).unwrap();
             store_base_path
         });
+        let mut config = local_network_config.validator_configs()[0].clone();
+        let registry = Registry::new();
+        let mut pruner_db = None;
+        if config
+            .authority_store_pruning_config
+            .enable_compaction_filter
+        {
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(&path.join("store"))));
+        }
+        let compaction_filter = pruner_db
+            .clone()
+            .map(|db| ObjectsCompactionFilter::new(db, &registry));
+
         let authority_store = match self.store {
             Some(store) => store,
             None => {
-                let perpetual_tables =
-                    Arc::new(AuthorityPerpetualTables::open(&path.join("store"), None));
+                let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+                    compaction_filter,
+                    ..Default::default()
+                };
+                let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
+                    &path.join("store"),
+                    Some(perpetual_tables_options),
+                ));
                 // unwrap ok - for testing only.
                 AuthorityStore::open_with_committee_for_testing(
                     perpetual_tables,
@@ -221,7 +244,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap()
             }
         };
-        let mut config = local_network_config.validator_configs()[0].clone();
         if let Some(cache_type) = self.cache_type {
             config.execution_cache = cache_type;
         }
@@ -237,7 +259,6 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         let secret = Arc::pin(keypair.copy());
         let name: AuthorityName = secret.public().into();
-        let registry = Registry::new();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
         // `_guard` must be declared here so it is not dropped before
@@ -349,6 +370,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             ArchiveReaderBalancer::default(),
             None,
             chain_identifier,
+            pruner_db,
         )
         .await;
 
@@ -389,7 +411,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                     None,
                     &state.epoch_store_for_testing(),
                 )
-                .await
                 .unwrap();
 
             state

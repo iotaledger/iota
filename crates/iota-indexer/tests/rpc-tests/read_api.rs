@@ -5,8 +5,9 @@ use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
-    models::transactions::StoredTransaction, store::package_resolver::IndexerStorePackageResolver,
-    test_utils::TestDatabase,
+    models::transactions::StoredTransaction,
+    store::package_resolver::IndexerStorePackageResolver,
+    test_utils::{TestDatabase, db_url},
 };
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
@@ -34,10 +35,9 @@ use move_core_types::identifier::Identifier;
 use serde_json::Value;
 
 use crate::common::{
-    ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, get_indexer_db_url,
-    indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-    indexer_wait_for_transaction, rpc_call_error_msg_matches,
-    start_test_cluster_with_read_write_indexer,
+    ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+    indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
+    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
 };
 
 /// Utility function to convert hex strings in JSON values to byte arrays.
@@ -1719,8 +1719,7 @@ fn try_get_object_before_version() {
 
 #[tokio::test]
 async fn failed_stored_tx_into_transaction_block() {
-    let db_url = get_indexer_db_url(Some("test_failed_stored_tx_into_transaction_block"));
-    let mut test_db = TestDatabase::new(db_url);
+    let mut test_db = TestDatabase::new(db_url("test_failed_stored_tx_into_transaction_block"));
     test_db.recreate();
     test_db.reset_db();
     let pool = test_db.to_connection_pool();

@@ -13,6 +13,8 @@ import sys
 from typing import NamedTuple
 import urllib.request
 
+GH_TOKEN = os.environ.get("GH_TOKEN")
+
 RE_NUM = re.compile("[0-9_]+")
 
 RE_PR = re.compile(
@@ -112,6 +114,19 @@ def parse_args():
         help="The commit to check, defaults to HEAD.",
     )
 
+    check_p = sub_parser.add_parser(
+        "check-pr",
+        description=(
+            "Check if the release notes section of a given commit is complete, "
+            "i.e. that every impacted component has a non-empty note."
+        ),
+    )
+
+    check_p.add_argument(
+        "pr-number",
+        help="The number of the PR to check.",
+    )
+
     return vars(parser.parse_args())
 
 
@@ -120,12 +135,14 @@ def git(*args):
     return subprocess.check_output(["git"] + list(args)).decode().strip()
 
 
-def extract_notes_from_rebase_commit(commit):
+def extract_notes_from_commit(commit):
     # we'll need to go one level deeper to find the PR number
     url = f"https://api.github.com/repos/iotaledger/iota/commits/{commit}/pulls"
     headers = {
         "Accept": "application/vnd.github.v3+json",
     }
+    if GH_TOKEN is not None:
+        headers["Authorization"] = f"token {GH_TOKEN}"
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req) as response:
         data = json.load(response)
@@ -136,11 +153,25 @@ def extract_notes_from_rebase_commit(commit):
         return pr_number, pr_notes
 
 
-def extract_notes(commit, seen):
-    """Get release notes from a commit message.
+def extract_notes_from_pr(pr_number):
+    url = f"https://api.github.com/repos/iotaledger/iota/pulls/{pr_number}"
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+    }
+    if GH_TOKEN is not None:
+        headers["Authorization"] = f"token {GH_TOKEN}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as response:
+        data = json.load(response)
+        pr_notes = data["body"] if data["body"] else ""
+        return pr_notes
 
-    Find the 'Release notes' section in the commit message, and
-    extract the notes for each impacted area (area that has been
+
+def extract_notes(commit_or_pr, seen, is_pr):
+    """Get release notes from a commit message or a PR description.
+
+    Finds the 'Release notes' section in the message, and
+    extracts the notes for each impacted area (area that has been
     ticked).
 
     Returns a tuple of the PR number and a dictionary of impacted
@@ -148,23 +179,16 @@ def extract_notes(commit, seen):
     whether it has a note and whether it was checked (ticked).
 
     """
-    message = git("show", "-s", "--format=%B", commit)
-
-    # Extract PR number from squashed commits
-    match = RE_PR.match(message)
-    pr = match.group(1) if match else None
+    if is_pr:
+        pr = commit_or_pr
+        notes = extract_notes_from_pr(pr)
+    else:
+        pr, notes = extract_notes_from_commit(commit_or_pr)
 
     result = {}
 
-    notes = ""
-    if pr is None:
-        # Extract PR number from rebase commits if it's not a squashed commit
-        pr, notes = extract_notes_from_rebase_commit(commit)
-    else:
-        notes = message
-    
     # Otherwise, find the release notes section from the squashed commit message
-    match = RE_HEADING.search(message)
+    match = RE_HEADING.search(notes)
     if not match:
         return pr, []
     notes = match.group(1)
@@ -221,11 +245,11 @@ def extract_protocol_version(commit):
 
 def print_changelog(pr, log):
     if pr:
-        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end='')
+        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end="")
     print(log)
 
 
-def do_check(commit):
+def do_check(commit_or_pr, is_pr):
     """Check if the release notes section of a given commit is complete.
 
     This means that every impacted component has a non-empty note,
@@ -234,9 +258,13 @@ def do_check(commit):
 
     """
 
-    _, notes = extract_notes(commit, set())
+    _, notes = extract_notes(commit_or_pr, set(), is_pr)
+
     issues = []
+    any_checked = False
     for impacted, note in notes:
+        any_checked |= note.checked
+
         if impacted not in NOTE_ORDER:
             issues.append(f" - Found unfamiliar impact area '{impacted}'.")
 
@@ -248,10 +276,13 @@ def do_check(commit):
                 f" - '{impacted}' has a release note but is not checked: {note.note}"
             )
 
+    if not any_checked and len(notes) > 0:
+        issues.append(f" - No checked items in release notes")
+
     if not issues:
         return
 
-    print(f"Found issues with release notes in {commit}:")
+    print(f"Found issues with release notes in {commit_or_pr}:")
     for issue in issues:
         print(issue)
     sys.exit(1)
@@ -291,7 +322,7 @@ def do_generate(from_, to):
 
     seen_prs = set()
     for commit in commits.split("\n"):
-        pr, notes = extract_notes(commit, seen_prs)
+        pr, notes = extract_notes(commit, seen_prs, False)
         seen_prs.add(pr)
         for impacted, note in notes:
             if note.checked:
@@ -325,4 +356,6 @@ args = parse_args()
 if args["command"] == "generate":
     do_generate(args["from"], args["to"])
 elif args["command"] == "check":
-    do_check(args["commit"])
+    do_check(args["commit"], False)
+elif args["command"] == "check-pr":
+    do_check(args["pr-number"], True)

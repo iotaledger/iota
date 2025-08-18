@@ -12,7 +12,7 @@ use std::{
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::CommitConsumerMonitor;
-use iota_macros::{fail_point_async, fail_point_if};
+use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
     authenticator_state::ActiveJwk,
@@ -393,7 +393,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         });
 
-        fail_point_async!("crash"); // for tests that produce random crashes
+        fail_point!("crash"); // for tests that produce random crashes
 
         self.transaction_scheduler
             .schedule(transactions_to_schedule)

@@ -4,8 +4,9 @@
 
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
-import { AddressAlias } from '@iota/core';
-import { formatAddress, formatDigest, formatType } from '@iota/iota-sdk/utils';
+import { NamedAddressTooltip, AddressAlias, useGetDefaultIotaName } from '@iota/core';
+import { isValidIotaName } from '@iota/iota-names-sdk';
+import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import React, { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/components/ui';
@@ -43,6 +44,9 @@ function createInternalLink<T extends string>(
 
         const to = `/${base}/${encodeURI(id)}${queryStringPrefix}`;
 
+        const isResolveIotaName = base === 'address' && isValidIotaAddress(id);
+        const { data: iotaName } = useGetDefaultIotaName(isResolveIotaName ? id : null);
+
         async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
             event.stopPropagation();
             if (!navigator.clipboard) {
@@ -63,17 +67,20 @@ function createInternalLink<T extends string>(
             return (
                 <AddressAlias
                     address={id}
-                    noFormatAddress={noTruncate}
                     onCopy={copyText ? handleCopyClick : undefined}
+                    noTruncate={noTruncate}
+                    truncateUnknown={!noTruncate}
                     renderAddress={(address) => (
-                        <Link
-                            className="text-iota-primary-30 dark:text-iota-primary-80"
-                            variant="mono"
-                            to={to}
-                            {...props}
-                        >
-                            {label || address}
-                        </Link>
+                        <NamedAddressTooltip name={iotaName} address={address}>
+                            <Link
+                                className="text-iota-primary-30 dark:text-iota-primary-80"
+                                variant="mono"
+                                to={to}
+                                {...props}
+                            >
+                                {iotaName || label || address}
+                            </Link>
+                        </NamedAddressTooltip>
                     )}
                     renderAlias={renderAddressAlias}
                 />
@@ -103,9 +110,13 @@ function createInternalLink<T extends string>(
 export const EpochLink = createInternalLink('epoch', 'epoch');
 export const CheckpointLink = createInternalLink('checkpoint', 'digest', formatAddress);
 export const CheckpointSequenceLink = createInternalLink('checkpoint', 'sequence');
-export const AddressLink = createInternalLink('address', 'address', (addressOrNs) =>
-    formatAddress(addressOrNs),
-);
+export const AddressLink = createInternalLink('address', 'address', (addressOrName) => {
+    if (isValidIotaName(addressOrName)) {
+        return addressOrName;
+    }
+
+    return formatAddress(addressOrName);
+});
 export const ObjectLink = createInternalLink('object', 'objectId', formatType);
 export const TransactionLink = createInternalLink('txblock', 'digest', formatDigest);
 export const ValidatorLink = createInternalLink('validator', 'address', formatAddress);

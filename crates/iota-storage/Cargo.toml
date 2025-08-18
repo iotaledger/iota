@@ -31,7 +31,7 @@ lru.workspace = true
 moka.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
-parking_lot.workspace = true
+parking_lot = { workspace = true, features = ["arc_lock"] }
 percent-encoding = "2.3"
 prometheus.workspace = true
 reqwest.workspace = true

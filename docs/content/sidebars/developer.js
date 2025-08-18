@@ -518,8 +518,6 @@ const developer = [
             'developer/advanced/create-review-rating-dao-with-multisig',
         ],
     },
-    'developer/exchange-integration',
-    'developer/dev-cheat-sheet',
     {
         type: 'category',
         label: 'Challenges',
@@ -636,5 +634,6 @@ const developer = [
         items: iotaEvm,
     },
     'developer/exchange-integration',
+    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;
