@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    digests::MoveAuthenticationDigest,
+    digests::MoveAuthenticatorDigest,
     transaction::{CallArg, Command, ProgrammableTransaction},
 };
 
@@ -36,7 +36,7 @@ use crate::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
-    auth_digest: MoveAuthenticationDigest,
+    auth_digest: MoveAuthenticatorDigest,
     /// The authentication input objects or primitive values
     tx_inputs: Vec<CallArg>,
     /// The authentication commands to be executed sequentially.
@@ -45,7 +45,7 @@ pub struct AuthContext {
 
 impl AuthContext {
     pub fn new_from_components(
-        auth_digest: MoveAuthenticationDigest,
+        auth_digest: MoveAuthenticatorDigest,
         ptb: &ProgrammableTransaction,
     ) -> Self {
         Self {
@@ -55,7 +55,7 @@ impl AuthContext {
         }
     }
 
-    pub fn digest(&self) -> &MoveAuthenticationDigest {
+    pub fn digest(&self) -> &MoveAuthenticatorDigest {
         &self.auth_digest
     }
 

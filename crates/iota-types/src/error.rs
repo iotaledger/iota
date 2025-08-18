@@ -472,7 +472,7 @@ pub enum IotaError {
     #[error("Invalid transaction digest.")]
     InvalidTransactionDigest,
     #[error("Invalid move authentication digest.")]
-    InvalidMoveAuthenticationDigest,
+    InvalidMoveAuthenticatorDigest,
 
     #[error("Invalid digest length. Expected {expected}, got {actual}")]
     InvalidDigestLength { expected: usize, actual: usize },

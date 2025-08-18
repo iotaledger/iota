@@ -16,7 +16,7 @@ use crate::{
     base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticationDigest, ZKLoginInputsDigest},
+    digests::{MoveAuthenticatorDigest, ZKLoginInputsDigest},
     error::IotaResult,
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
@@ -44,9 +44,7 @@ pub struct MoveAuthenticator {
 /// [SenderSignerData](crate::transaction::SenderSignedData).
 impl Hash for MoveAuthenticator {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.inputs.hash(state);
-        self.object_to_authenticate.hash(state);
-        // self.bytes is skipped intentionally
+        self.as_ref().hash(state);
     }
 }
 
@@ -54,8 +52,8 @@ impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
         self.object_to_authenticate.0.into()
     }
-    pub fn digest(&self) -> MoveAuthenticationDigest {
-        MoveAuthenticationDigest::new(default_hash(self))
+    pub fn digest(&self) -> MoveAuthenticatorDigest {
+        MoveAuthenticatorDigest::new(default_hash(self))
     }
 }
 
