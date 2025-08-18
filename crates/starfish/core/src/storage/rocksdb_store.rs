@@ -19,12 +19,11 @@ use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
+        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
-    network::SerializedHeaderAndTransactions,
 };
 
 /// Persistent storage with RocksDB.
@@ -213,10 +212,23 @@ impl Store for RocksDBStore {
             if let (Some(serialized_block_header), Some(serialized_transactions)) =
                 (serialized_block_header, serialized_transactions)
             {
-                let block = VerifiedBlock::try_from(SerializedHeaderAndTransactions {
-                    serialized_block_header,
+                let signed_block_header: SignedBlockHeader =
+                    bcs::from_bytes(&serialized_block_header)
+                        .map_err(ConsensusError::MalformedHeader)?;
+                let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+                    .map_err(ConsensusError::MalformedTransactions)?;
+                // We don't check the signature as it's loaded from storage.
+                let verified_block_header =
+                    VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+                // We don't check the transactions commitment as it's loaded from storage.
+                let verified_transactions = VerifiedTransactions::new(
+                    transactions,
+                    verified_block_header.reference(),
+                    verified_block_header.transactions_commitment(),
                     serialized_transactions,
-                })?;
+                );
+
+                let block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
                 // Makes sure block data is not corrupted by comparing digests.
                 assert_eq!(*key, block.reference());
