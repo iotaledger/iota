@@ -311,19 +311,50 @@ pub enum UserInputError {
     #[error("Invalid identifier found in the transaction: {error}")]
     InvalidIdentifier { error: String },
 
-    #[error("Package {package_id} is in the MoveAuthenticator input that is unsupported")]
-    PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
+    // `MoveAuthenticator` inputs related errors
+    #[error("Account object {object_id:?} not found")]
+    AccountObjectNotFound { object_id: ObjectID },
+    #[error("Account object {object_id:?} is not a shared object that is not supported")]
+    AccountObjectNotSharedObject { object_id: ObjectID },
+    #[error(
+        "The fetched account object version {actual_version:?} does not match the expected version {expected_version:?}, object id: {object_id:?}"
+    )]
+    AccountObjectVersionMismatch {
+        object_id: ObjectID,
+        expected_version: SequenceNumber,
+        actual_version: SequenceNumber,
+    },
+    #[error(
+        "The fetched account object digest {actual_digest:?} does not match the expected digest {expected_digest:?}, object id: {object_id:?}"
+    )]
+    InvalidAccountObjectDigest {
+        object_id: ObjectID,
+        expected_digest: ObjectDigest,
+        actual_digest: ObjectDigest,
+    },
 
     #[error(
-        "Address-owned object {object_id} is in the MoveAuthenticator input that is unsupported"
+        "Move authenticator object {authenticator_object_id:?} not found for account {account_object_id:?}"
+    )]
+    MoveAuthenticatorNotFound {
+        authenticator_object_id: ObjectID,
+        account_object_id: ObjectID,
+    },
+    #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
+    UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
+
+    #[error("Package {package_id:?} is in the MoveAuthenticator input that is unsupported")]
+    PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
+    #[error(
+        "Address-owned object {object_id:?} is in the MoveAuthenticator input that is unsupported"
     )]
     AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Object-owned object {object_id} is in the MoveAuthenticator input that is unsupported"
+        "Object-owned object {object_id:?} is in the MoveAuthenticator input that is unsupported"
     )]
     ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Mutable shared object {object_id} is in the MoveAuthenticator input that is unsupported"
+        "Mutable shared object {object_id:?} is in the MoveAuthenticator input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
 }

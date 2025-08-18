@@ -45,6 +45,10 @@ impl MoveAuthenticator {
         self.object_to_authenticate.0.into()
     }
 
+    pub fn object_to_authenticate(&self) -> &ObjectRef {
+        &self.object_to_authenticate
+    }
+
     pub fn inputs(&self) -> &Vec<CallArg> {
         &self.inputs
     }

@@ -908,7 +908,8 @@ impl AuthorityState {
             }
 
             // Make sure the sender is a smart account.
-            let authenticator_info = self.check_smart_account(transaction.sender_address())?;
+            let authenticator_info =
+                self.check_smart_account(move_authenticator.object_to_authenticate())?;
 
             // Filter the gas objects input from the transaction input objects.
             let (kind, signer, gas) = tx_data.execution_parts();
@@ -1758,7 +1759,8 @@ impl AuthorityState {
         let (kind, signer, gas) = tx_data.execution_parts();
 
         if let Some(move_authenticator) = move_authenticator(certificate.tx_signatures()) {
-            let authenticator_info = self.check_smart_account(certificate.sender_address())?;
+            let authenticator_info =
+                self.check_smart_account(move_authenticator.object_to_authenticate())?;
 
             let authenticator_input_objects = authenticator_input_objects
                 .expect("In case of a MoveAuthenticator, the input objects must be provided");
@@ -5170,20 +5172,44 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
-    // TODO: Is this logic enough to check if the sender is a smart account?
-
     /// Checks if the sender is a smart account.
-    fn check_smart_account(&self, sender: IotaAddress) -> IotaResult<AuthenticatorInfo> {
-        // TODO: Is this the correct way to load an account object?
-        let account_object_id = ObjectID::from(sender);
+    fn check_smart_account(&self, account: &ObjectRef) -> IotaResult<AuthenticatorInfo> {
+        let account_object_id = account.0;
+        let account_object_seq_number = account.1;
+        let account_object_digest = account.2;
+
         let account_object = self.get_object_read(&account_object_id)?;
 
-        // TODO: Add error handling.
         match account_object {
             ObjectRead::Exists(_, object, _) => {
-                if !object.is_shared() {
-                    todo!()
-                }
+                fp_ensure!(
+                    object.is_shared(),
+                    UserInputError::AccountObjectNotSharedObject {
+                        object_id: account_object_id.clone(),
+                    }
+                    .into()
+                );
+
+                fp_ensure!(
+                    object.version() == account_object_seq_number,
+                    UserInputError::AccountObjectVersionMismatch {
+                        object_id: account_object_id.clone(),
+                        expected_version: account_object_seq_number,
+                        actual_version: object.version(),
+                    }
+                    .into()
+                );
+
+                let expected_digest = object.digest();
+                fp_ensure!(
+                    expected_digest == account_object_digest,
+                    UserInputError::InvalidAccountObjectDigest {
+                        object_id: account_object_id.clone(),
+                        expected_digest,
+                        actual_digest: account_object_digest,
+                    }
+                    .into()
+                );
 
                 let authenticator_id = self.get_dynamic_field_object_id(
                     account_object_id,
@@ -5198,14 +5224,28 @@ impl AuthorityState {
                         match authenticator_info {
                             ObjectRead::Exists(_, object, _) => AuthenticatorInfo::try_from(object),
                             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
-                                todo!()
+                                Err(UserInputError::MoveAuthenticatorNotFound {
+                                    authenticator_object_id: authenticator_id,
+                                    account_object_id: account_object_id,
+                                }
+                                .into())
                             }
                         }
                     }
-                    None => todo!(),
+                    None => {
+                        Err(
+                            UserInputError::UnableToGetMoveAuthenticatorId { account_object_id }
+                                .into(),
+                        )
+                    }
                 }
             }
-            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => todo!(),
+            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
+                Err(UserInputError::AccountObjectNotFound {
+                    object_id: account_object_id.clone(),
+                }
+                .into())
+            }
         }
     }
 

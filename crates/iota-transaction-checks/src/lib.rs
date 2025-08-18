@@ -627,6 +627,7 @@ mod checked {
         for gas_object in gas_objects.iter() {
             let gas_object_id = gas_object.id();
 
+            // TODO: Check if we can use an assert here instead of an error.
             debug_assert!(
                 gas_object.is_mutable(),
                 "Gas object {:?} is immutable, but we expect it to be mutable",
