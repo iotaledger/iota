@@ -617,29 +617,38 @@ mod checked {
         gas_objects: &InputObjects,
         gas_owner: IotaAddress,
     ) -> UserInputResult<()> {
-        check_move_authenticator_objects_impl(gas_objects, gas_owner, true)?;
-        check_move_authenticator_objects_impl(authenticator_objects, gas_owner, false)?;
+        // We require that mutable objects cannot show up more than once.
+        // We check only the gas objects because `authenticator_objects` shouldn't
+        // contain mutable objects.
+        //
+        // TODO: Does it mean that we can have the same object passed as mutable and
+        // immutable simultaneously?
+        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        for gas_object in gas_objects.iter() {
+            let gas_object_id = gas_object.id();
 
-        Ok(())
-    }
+            debug_assert!(
+                gas_object.is_mutable(),
+                "Gas object {:?} is immutable, but we expect it to be mutable",
+                gas_object_id
+            );
 
-    /// Check all the input objects used in the MoveAuthenticator against the
-    /// database.
-    #[instrument(level = "trace", skip_all)]
-    fn check_move_authenticator_objects_impl(
-        objects: &InputObjects,
-        gas_owner: IotaAddress,
-        is_gas_coin: bool,
-    ) -> UserInputResult<()> {
-        for object in objects.iter() {
-            // TODO: Check if the gas coins should be mutable.
-            // TODO: Maybe move this check inside `check_one_move_authenticator_object`.
             fp_ensure!(
-                !object.is_mutable(),
-                UserInputError::ImmutableParameterExpected {
-                    object_id: object.id()
+                used_objects.insert(gas_object_id.into()),
+                UserInputError::MutableObjectUsedMoreThanOnce {
+                    object_id: gas_object_id
                 }
             );
+        }
+
+        let iter = gas_objects
+            .iter()
+            .map(|o| (o, true))
+            .chain(authenticator_objects.iter().map(|o| (o, false)));
+
+        for item in iter {
+            let object = item.0;
+            let is_gas_object = item.1;
 
             let input_object_kind = object.input_object_kind;
 
@@ -649,7 +658,7 @@ mod checked {
                         input_object_kind,
                         object,
                         gas_owner,
-                        is_gas_coin,
+                        is_gas_object,
                     )?;
                 }
                 // We skip checking a deleted shared object because it no longer exists
@@ -668,7 +677,7 @@ mod checked {
         object_kind: InputObjectKind,
         object: &Object,
         gas_owner: IotaAddress,
-        is_gas_coin: bool,
+        is_gas_object: bool,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
@@ -711,7 +720,7 @@ mod checked {
                     }
                     Owner::AddressOwner(actual_owner) => {
                         // Check the gas owner is correct.
-                        if is_gas_coin {
+                        if is_gas_object {
                             fp_ensure!(
                                 gas_owner == actual_owner,
                                 UserInputError::IncorrectUserSignature {
@@ -746,7 +755,6 @@ mod checked {
                     object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                 });
             }
-            // TODO: This check is duplicated in the `check_move_authenticator_objects_impl`.
             InputObjectKind::SharedMoveObject {
                 id, mutable: true, ..
             } => {
