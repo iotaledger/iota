@@ -366,14 +366,54 @@ It then persists the entries to the `tx_recipients` table in the database.
 | 2       | 276.99                      | 361.01                              |
 | 3       | 185.47                      | 539.14                              |
 
+Deactivating garbage collection of processed checkpoint files resulted into:
+
+| Dataset | Backfill Rate (entries/sec) | Time to Complete Backfill (seconds) |
+| ------- | --------------------------- | ----------------------------------- |
+| 1       | 6509.06                     | 15.36                               |
+| 2       | 1432.12                     | 69.82                               |
+| 3       | 527.25                      | 189.66                              |
+
+Skipping the commit stage along with deactivated garbage collection results into:
+
+| Dataset | Processing Rate (entries/sec) without commit | Time to Complete (seconds) |
+| ------- | -------------------------------------------- | -------------------------- |
+| 1       | 8747.76                                      | 11.43                      |
+| 2       | 2839.30                                      | 35.21                      |
+| 3       | 655.92                                       | 152.88                     |
+
+Deactivating garbage collection of processed checkpoint files and disabling re-hashing in the job resulted into:
+
+| Dataset | Processing Rate (entries/sec) without re-hashing in job | Time to Complete (seconds) |
+| ------- | ------------------------------------------------------- | -------------------------- |
+| 1       | 9351.28                                                 | 10.69                      |
+| 2       | 3000.31                                                 | 33.21                      |
+| 3       | 749.52                                                  | 133.41                     |
+
 ### Findings
 
 1. Backfill rate decreases when dataset transaction size increases.
-2. Total backfill time grows accordingly with dataset size.
-3. Higher load datasets contain more transactions and therefore there are more `tx_recipients` entries to write. This
-   correlates with the slower backfill rates.
-4. The processing work done per checkpoint in the backfill job is the same across all datasets, which would further
-   suggest that the slowdown correlates with more rows to insert.
+2. Completion time grows accordingly with dataset size.
+3. With increasing dataset size, there are more `tx_recipients` entries to write. This
+   naturally correlates with decreasing backfill rates (1) and increasing completion times (2).
+4. Deactivating GC of processed checkpoints does appear to have a significant impact on the backfill
+   rate and completion time. A 16.92x speed up on dataset 1, a 5.17x speed up on dataset 2, and a 2.84x speed up on
+   dataset 3.
+5. Skipping database commits on the GC-free base further results in an expected increase in processing rate: 1.34x
+   increase for dataset 1, 1.98x for dataset 2 and 1.24x for dataset 3. These gains reflect that the commit path is an optimization
+   target.
+6. In the example of dataset 3 there are ~10,000,000 rows / 100 rows per statement which results into 100,000
+   INSERT statements/commits. Optimizing the commit path to use one transaction per range while keeping row-size 100 (
+   following the Indexers ingestion persist policy) results in a completion time of 167.62 seconds (over 189 seconds)
+   and an average rate of 596.57 entries/second (over 527.25 entries/second).
+7. The logs hint that the adapter layer notifies all processor tasks whenever a new received checkpoint is available,
+   even if the checkpoint is not relevant to them as they are waiting on their next specific sequence number. This
+   results in unnecessary wakeups. This should be an optimization target to reduce CPU overhead.
+8. Per transaction, the algorithmic work is the same across datasets. Per checkpoint, it scales linearly with the number
+   of transactions in that checkpoint. Re-hashing of every transaction digest to match the provided one should not be
+   necessary in backfill jobs and appears to be an optimization target. Without re-hashing, backfilling D3 on top of the
+   GC-free base results in: secs=133.41 rate=749.52. For dataset 1 and dataset 2, the change is less significant. This
+   is likely due to the smaller number of transactions per checkpoint, which results in fewer hashes to compute.
 
 ## Conclusion
 
@@ -385,5 +425,5 @@ transactions and total time goes up, even with constant processing work for each
 Therefore, we should focus on optimizing the database commit path to handle higher transaction loads.
 
 Another observation when creating the different datasets: the time to generate synthetic data increases significantly
-with
-the number of transactions per checkpoint, which should also be optimized to allow for larger datasets to be generated.
+with the number of transactions per checkpoint, which should also be optimized to allow for larger datasets to be
+generated.
