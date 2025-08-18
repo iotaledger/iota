@@ -1957,7 +1957,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn get_missing_blocks(
+        async fn get_missing_block_headers(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()

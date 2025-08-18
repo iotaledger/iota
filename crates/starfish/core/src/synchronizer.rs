@@ -933,7 +933,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     async fn start_periodic_sync_task(&mut self) -> ConsensusResult<()> {
         let mut missing_blocks_refs = self
             .core_dispatcher
-            .get_missing_blocks()
+            .get_missing_block_headers()
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
 
@@ -1169,8 +1169,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .collect()
         };
 
-        // Step 3: Choose at most two random peers not known to be aware of the missing
-        // block headers
+        // Step 3: Choose at most MAX_PERIODIC_SYNC_RANDOM_PEERS random peers not known
+        // to be aware of the missing block headers
         let already_chosen: HashSet<AuthorityIndex> = chosen_peers_with_block_headers
             .iter()
             .map(|(peer, _, _)| *peer)
@@ -1425,27 +1425,25 @@ mod tests {
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
     type FetchRequestHeadersResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
-    type FetchRequestBlocksResponse = (Vec<VerifiedBlock>, Option<Duration>);
     type FetchLatestBlockKey = (AuthorityIndex, Vec<AuthorityIndex>);
     type FetchLatestHeaderResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
 
     #[derive(Default)]
     struct MockNetworkClient {
-        #[allow(dead_code)]
-        fetch_blocks_requests: Mutex<BTreeMap<FetchRequestKey, FetchRequestBlocksResponse>>,
-        fetch_block_headers_requests: Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
-        fetch_latest_block_headers_requests:
+        block_headers_to_answer_fetch_requests:
+            Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
+        latest_block_headers_to_answer_fetch_requests:
             Mutex<BTreeMap<FetchLatestBlockKey, Vec<FetchLatestHeaderResponse>>>,
     }
 
     impl MockNetworkClient {
-        async fn stub_fetch_headers(
+        async fn stub_fetch_headers_response(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             latency: Option<Duration>,
         ) {
-            let mut lock = self.fetch_block_headers_requests.lock().await;
+            let mut lock = self.block_headers_to_answer_fetch_requests.lock().await;
             let block_refs = block_headers
                 .iter()
                 .map(|block| block.reference())
@@ -1453,21 +1451,27 @@ mod tests {
             lock.insert((block_refs, peer), (block_headers, latency));
         }
 
-        async fn stub_fetch_latest_block_headers(
+        async fn stub_fetch_latest_block_headers_response(
             &self,
             blocks: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             authorities: Vec<AuthorityIndex>,
             latency: Option<Duration>,
         ) {
-            let mut lock = self.fetch_latest_block_headers_requests.lock().await;
+            let mut lock = self
+                .latest_block_headers_to_answer_fetch_requests
+                .lock()
+                .await;
             lock.entry((peer, authorities))
                 .or_default()
                 .push((blocks, latency));
         }
 
         async fn fetch_latest_block_headers_pending_calls(&self) -> usize {
-            let lock = self.fetch_latest_block_headers_requests.lock().await;
+            let lock = self
+                .latest_block_headers_to_answer_fetch_requests
+                .lock()
+                .await;
             lock.len()
         }
     }
@@ -1499,7 +1503,7 @@ mod tests {
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            let mut lock = self.fetch_block_headers_requests.lock().await;
+            let mut lock = self.block_headers_to_answer_fetch_requests.lock().await;
             let response = lock
                 .remove(&(block_refs, peer))
                 .expect("Unexpected fetch block headers request made");
@@ -1533,7 +1537,10 @@ mod tests {
             authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            let mut lock = self.fetch_latest_block_headers_requests.lock().await;
+            let mut lock = self
+                .latest_block_headers_to_answer_fetch_requests
+                .lock()
+                .await;
             let mut responses = lock
                 .remove(&(peer, authorities.clone()))
                 .expect("Unexpected fetch blocks request made");
@@ -1686,7 +1693,7 @@ mod tests {
         // AND stub the fetch_block_headers request from peer 1
         let peer = AuthorityIndex::new_for_test(1);
         network_client
-            .stub_fetch_headers(expected_block_headers.clone(), peer, None)
+            .stub_fetch_headers_response(expected_block_headers.clone(), peer, None)
             .await;
 
         // WHEN request missing blocks from peer 1
@@ -1739,7 +1746,7 @@ mod tests {
         // Create some test block headers
         // We need FETCH_BLOCK_HEADERS_CONCURRENCY to saturate vector of requests,
         // FETCH_BLOCK_HEADERS_CONCURRENCY to saturate the channel, and the 2 *
-        // FETCH_BLOCK_HEADERS_CONCURRENCY + 1 header will cause saturation error.
+        // FETCH_BLOCK_HEADERS_CONCURRENCY + 1 headers will cause saturation error.
         let expected_block_headers = (0..=2 * FETCH_BLOCK_HEADERS_CONCURRENCY)
             .map(|round| {
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round as Round, 0).build())
@@ -1753,7 +1760,7 @@ mod tests {
             // stub the fetch_block_headers request from peer 1 and give some high response
             // latency so requests can start blocking the peer task.
             network_client
-                .stub_fetch_headers(
+                .stub_fetch_headers_response(
                     vec![block_header.clone()],
                     peer,
                     Some(Duration::from_millis(5_000)),
@@ -1802,34 +1809,56 @@ mod tests {
             dag_state.clone(),
         );
         // Create some test block headers
-        let expected_block_headers = (0..10)
-            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
+        let expected_block_headers_1 = (0..10)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build()))
             .collect::<Vec<_>>();
-        let missing_blocks_refs = expected_block_headers
+        let expected_block_headers_2 = (10..20)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 2).build()))
+            .collect::<Vec<_>>();
+        let missing_blocks_refs_1 = expected_block_headers_1
+            .iter()
+            .map(|block| block.reference())
+            .collect::<BTreeSet<_>>();
+        let missing_blocks_refs_2 = expected_block_headers_2
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
 
         // AND stub the missing blocks refs
         core_dispatcher
-            .stub_missing_blocks(missing_blocks_refs.clone())
+            .stub_missing_block_headers(missing_blocks_refs_1.clone())
+            .await;
+        core_dispatcher
+            .stub_missing_block_headers(missing_blocks_refs_2.clone())
             .await;
 
-        // AND stub the requests for authority 1 & 2
-        // Make the first authority timeout, so the second will be called. "We" are
-        // authority = 0, so we are skipped anyways.
+        // AND stub the request responses for authority 1 & 2. They will be picked as
+        // peers that know block_refs. Make the first authority timeout, so the
+        // second will be called. "We" are authority = 0, so we are skipped
+        // anyways.
         network_client
-            .stub_fetch_headers(
-                expected_block_headers.clone(),
+            .stub_fetch_headers_response(
+                expected_block_headers_1.clone(),
                 AuthorityIndex::new_for_test(1),
-                Some(FETCH_REQUEST_TIMEOUT),
+                Some(FETCH_REQUEST_TIMEOUT * 2),
             )
             .await;
         network_client
-            .stub_fetch_headers(
-                expected_block_headers.clone(),
+            .stub_fetch_headers_response(
+                expected_block_headers_2.clone(),
                 AuthorityIndex::new_for_test(2),
                 None,
+            )
+            .await;
+        // Stub all headers to the third peer that will be chosen (quasi)-randomly as an
+        // additional peer.
+        let mut all_expected_headers = expected_block_headers_1.clone();
+        all_expected_headers.extend(expected_block_headers_2.clone());
+        network_client
+            .stub_fetch_headers_response(
+                all_expected_headers.clone(),
+                AuthorityIndex::new_for_test(3),
+                Some(FETCH_REQUEST_TIMEOUT * 2),
             )
             .await;
 
@@ -1847,17 +1876,21 @@ mod tests {
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
 
-        // THEN the missing block headers should now be fetched and added to core
+        // THEN the missing block headers from peer 2 should now be fetched and added to
+        // core
         let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_block_headers, expected_block_headers);
+        assert_eq!(added_block_headers, expected_block_headers_2);
 
-        // AND missing blocks should have been consumed by the stub
-        assert!(
+        // AND missing blocks should contain header from peer 1
+        assert_eq!(
             core_dispatcher
-                .get_missing_blocks()
+                .get_missing_block_headers()
                 .await
                 .unwrap()
-                .is_empty()
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            missing_blocks_refs_1
         );
     }
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1898,7 +1931,9 @@ mod tests {
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
-        core_dispatcher.stub_missing_blocks(missing_blocks).await;
+        core_dispatcher
+            .stub_missing_block_headers(missing_blocks)
+            .await;
 
         // Stub the requests for authority 1 & 2 & 3
         let stub_blocks = expected_blocks
@@ -1934,13 +1969,13 @@ mod tests {
         expected_blocks.extend(stub_block_author_3.clone());
 
         network_client
-            .stub_fetch_headers(stub_block_author_1, AuthorityIndex::new_for_test(1), None)
+            .stub_fetch_headers_response(stub_block_author_1, AuthorityIndex::new_for_test(1), None)
             .await;
         network_client
-            .stub_fetch_headers(stub_block_author_2, AuthorityIndex::new_for_test(2), None)
+            .stub_fetch_headers_response(stub_block_author_2, AuthorityIndex::new_for_test(2), None)
             .await;
         network_client
-            .stub_fetch_headers(stub_block_author_3, AuthorityIndex::new_for_test(3), None)
+            .stub_fetch_headers_response(stub_block_author_3, AuthorityIndex::new_for_test(3), None)
             .await;
 
         // Now create some blocks to simulate a commit lag
@@ -2019,7 +2054,7 @@ mod tests {
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
         core_dispatcher
-            .stub_missing_blocks(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks.clone())
             .await;
 
         // AND stub the requests for authority 1 & 2
@@ -2031,14 +2066,14 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 expected_headers.clone(),
                 AuthorityIndex::new_for_test(1),
                 Some(FETCH_REQUEST_TIMEOUT),
             )
             .await;
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 expected_headers.clone(),
                 AuthorityIndex::new_for_test(2),
                 None,
@@ -2110,7 +2145,7 @@ mod tests {
 
         // Now stub again the missing blocks to fetch the exact same ones.
         core_dispatcher
-            .stub_missing_blocks(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks.clone())
             .await;
 
         sleep(2 * FETCH_REQUEST_TIMEOUT).await;
@@ -2155,7 +2190,7 @@ mod tests {
         // For peer 1 we give the block of round 10 (highest)
         let block_1 = expected_blocks.pop().unwrap();
         network_client
-            .stub_fetch_latest_block_headers(
+            .stub_fetch_latest_block_headers_response(
                 vec![block_1.clone()],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
@@ -2163,7 +2198,7 @@ mod tests {
             )
             .await;
         network_client
-            .stub_fetch_latest_block_headers(
+            .stub_fetch_latest_block_headers_response(
                 vec![block_1],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
@@ -2174,7 +2209,7 @@ mod tests {
         // For peer 2 we give the block of round 9
         let block_2 = expected_blocks.pop().unwrap();
         network_client
-            .stub_fetch_latest_block_headers(
+            .stub_fetch_latest_block_headers_response(
                 vec![block_2.clone()],
                 AuthorityIndex::new_for_test(2),
                 vec![our_index],
@@ -2182,7 +2217,7 @@ mod tests {
             )
             .await;
         network_client
-            .stub_fetch_latest_block_headers(
+            .stub_fetch_latest_block_headers_response(
                 vec![block_2],
                 AuthorityIndex::new_for_test(2),
                 vec![our_index],
@@ -2193,7 +2228,7 @@ mod tests {
         // For peer 3 we give a block with lowest round
         let block_3 = expected_blocks.pop().unwrap();
         network_client
-            .stub_fetch_latest_block_headers(
+            .stub_fetch_latest_block_headers_response(
                 vec![block_3.clone()],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
@@ -2201,7 +2236,7 @@ mod tests {
             )
             .await;
         network_client
-            .stub_fetch_latest_block_headers(
+            .stub_fetch_latest_block_headers_response(
                 vec![block_3],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
@@ -2329,7 +2364,7 @@ mod tests {
             Ok(BTreeMap::new())
         }
 
-        async fn get_missing_blocks(
+        async fn get_missing_block_headers(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(self.missing_block_headers.lock().await.clone())
@@ -2378,7 +2413,7 @@ mod tests {
                 let peer = AuthorityIndex::new_for_test(i);
                 if i == 1 || i == 4 {
                     network_client
-                        .stub_fetch_headers(
+                        .stub_fetch_headers_response(
                             vec![missing_vb.clone()],
                             peer,
                             Some(2 * FETCH_REQUEST_TIMEOUT),
@@ -2387,7 +2422,7 @@ mod tests {
                     continue;
                 }
                 network_client
-                    .stub_fetch_headers(vec![missing_vb.clone()], peer, None)
+                    .stub_fetch_headers_response(vec![missing_vb.clone()], peer, None)
                     .await;
             }
 
@@ -2499,14 +2534,14 @@ mod tests {
             if peer == AuthorityIndex::new_for_test(2) {
                 // Simulate timeout for peer 2, then fallback to peer 5
                 network_client
-                    .stub_fetch_headers(
+                    .stub_fetch_headers_response(
                         verified_block_headers.clone(),
                         peer,
                         Some(2 * FETCH_REQUEST_TIMEOUT),
                     )
                     .await;
                 network_client
-                    .stub_fetch_headers(
+                    .stub_fetch_headers_response(
                         verified_block_headers.clone(),
                         AuthorityIndex::new_for_test(5),
                         None,
@@ -2514,14 +2549,14 @@ mod tests {
                     .await;
             } else {
                 network_client
-                    .stub_fetch_headers(verified_block_headers.clone(), peer, None)
+                    .stub_fetch_headers_response(verified_block_headers.clone(), peer, None)
                     .await;
             }
         }
 
         // 4) Stub fetches from periodic path peers (1 and 4)
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 missing_verified_block_headers
                     [0..context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
@@ -2531,7 +2566,7 @@ mod tests {
             .await;
 
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 missing_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch..2 * context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(4),
@@ -2653,7 +2688,7 @@ mod tests {
         .collect::<BTreeSet<_>>();
         let peer = AuthorityIndex::new_for_test(1);
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 [normal_block_header.clone(), future_block_header.clone()].to_vec(),
                 peer,
                 None,

@@ -560,9 +560,9 @@ impl BlockManager {
         None
     }
 
-    /// Returns all the block headers that are currently missing and needed in order to
-    /// accept suspended block headers. For each block reference it returns the set of
-    /// authorities who have this block header.
+    /// Returns all the block headers that are currently missing and needed in
+    /// order to accept suspended block headers. For each block reference it
+    /// returns the set of authorities who have this block header.
     pub(crate) fn missing_block_headers(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         self.missing_block_headers.clone()
     }
