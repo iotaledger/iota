@@ -54,44 +54,15 @@ mod checked {
         reference_gas_price: u64,
         transaction: &TransactionData,
     ) -> IotaResult<IotaGasStatus> {
-        if transaction.is_system_tx() {
-            Ok(IotaGasStatus::new_unmetered())
-        } else {
-            check_gas(
-                objects,
-                protocol_config,
-                reference_gas_price,
-                gas,
-                transaction.gas_budget(),
-                transaction.gas_price(),
-            )
-        }
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub fn check_auth_inputs(
-        protocol_config: &ProtocolConfig,
-        sender: IotaAddress,
-        input_objects: InputObjects,
-        reference_gas_price: u64,
-        gas_owner: IotaAddress,
-        gas_budget: u64,
-        gas_price: u64,
-        gas: &[ObjectRef],
-    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        // TODO: modify the check_gas in order to support the auth budget
-        let gas_status = check_gas(
-            &input_objects,
+        check_gas(
+            objects,
             protocol_config,
             reference_gas_price,
             gas,
-            gas_budget,
-            gas_price,
-        )?;
-
-        check_auth_objects(sender, gas_owner, gas, &input_objects)?;
-
-        Ok((gas_status, input_objects.into_checked()))
+            transaction.gas_budget(),
+            transaction.gas_price(),
+            transaction.kind(),
+        )
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -375,75 +346,29 @@ mod checked {
         gas: &[ObjectRef],
         gas_budget: u64,
         gas_price: u64,
+        tx_kind: &TransactionKind,
     ) -> IotaResult<IotaGasStatus> {
-        let gas_status =
-            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+        if tx_kind.is_system_tx() {
+            Ok(IotaGasStatus::new_unmetered())
+        } else {
+            let gas_status =
+                IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
 
-        // check balance and coins consistency
-        // load all gas coins
-        let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
-        let mut gas_objects = vec![];
-        for obj_ref in gas {
-            let obj = objects.get(&obj_ref.0);
-            let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                object_id: obj_ref.0,
-                version: Some(obj_ref.1),
-            })?;
-            gas_objects.push(obj);
-        }
-        gas_status.check_gas_balance(&gas_objects, gas_budget)?;
-        Ok(gas_status)
-    }
-
-    /// Validates the set of Move objects used during custom authentication.
-    ///
-    /// This function ensures that:
-    /// - Only **shared** or **immutable** objects are passed into the
-    ///   authenticator context.
-    /// - If the object is used as a **gas coin**, it must be owned by the
-    ///   `gas_owner`.
-    /// - Otherwise, it must be owned by the `sender`.
-    /// - Any object that fails this ownership check results in an error.
-    #[instrument(level = "trace", skip_all)]
-    fn check_auth_objects(
-        sender: IotaAddress,
-        gas_owner: IotaAddress,
-        gas: &[ObjectRef],
-        objects: &InputObjects,
-    ) -> UserInputResult<()> {
-        let gas_coins: HashSet<ObjectID> = HashSet::from_iter(gas.iter().map(|obj_ref| obj_ref.0));
-        for object in objects.iter() {
-            let input_object_kind = object.input_object_kind;
-
-            match &object.object {
-                ObjectReadResultKind::Object(object) => {
-                    match object.owner {
-                        Owner::Immutable | Owner::Shared { .. } => {} // valid objects
-                        _ => {
-                            return Err(UserInputError::ImmutableOrSharedObjectsExpected {
-                                object_id: object.id().to_string(),
-                            });
-                        }
-                    }
-                    // For Gas Object, we check the object is owned by gas owner
-                    let owner_address = if gas_coins.contains(&object.id()) {
-                        gas_owner
-                    } else {
-                        sender
-                    };
-                    // Check if the object contents match the type of lock we need for
-                    // this object.
-                    check_one_object(&owner_address, input_object_kind, object, false)?;
-                }
-                // We skip checking a deleted shared object because it no longer exists
-                ObjectReadResultKind::DeletedSharedObject(_, _) => (),
-                // We skip checking shared objects from cancelled transactions since we are not
-                // reading it.
-                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+            // check balance and coins consistency
+            // load all gas coins
+            let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
+            let mut gas_objects = vec![];
+            for obj_ref in gas {
+                let obj = objects.get(&obj_ref.0);
+                let obj = *obj.ok_or(UserInputError::ObjectNotFound {
+                    object_id: obj_ref.0,
+                    version: Some(obj_ref.1),
+                })?;
+                gas_objects.push(obj);
             }
+            gas_status.check_gas_balance(&gas_objects, gas_budget)?;
+            Ok(gas_status)
         }
-
-        Ok(())
     }
 
     /// Check all the objects used in the transaction against the database, and
