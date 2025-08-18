@@ -620,7 +620,7 @@ impl PaymentArgs {
     pub fn into_args(self) -> Vec<String> {
         self.gas
             .into_iter()
-            .map(|gas_id| format!("--gas {}", gas_id))
+            .map(|gas_id| format!("--gas {gas_id}"))
             .collect()
     }
 }
@@ -661,13 +661,13 @@ impl GasDataArgs {
     pub fn into_args(self) -> Vec<String> {
         let mut args = Vec::new();
         if let Some(gas_budget) = self.gas_budget {
-            args.push(format!("--gas-budget {}", gas_budget));
+            args.push(format!("--gas-budget {gas_budget}"));
         }
         if let Some(gas_price) = self.gas_price {
-            args.push(format!("--gas-price {}", gas_price));
+            args.push(format!("--gas-price {gas_price}"));
         }
         if let Some(gas_sponsor) = self.gas_sponsor {
-            args.push(format!("--gas-sponsor @{}", gas_sponsor));
+            args.push(format!("--gas-sponsor @{gas_sponsor}"));
         }
         args
     }
@@ -736,7 +736,7 @@ impl TxProcessingArgs {
             args.push("--serialize-signed-transaction".to_string());
         }
         if let Some(sender) = self.sender {
-            args.push(format!("--sender @{}", sender));
+            args.push(format!("--sender @{sender}"));
         }
         if !self.display.is_empty() {
             let display_fields = self
@@ -745,7 +745,7 @@ impl TxProcessingArgs {
                 .map(|d| d.to_string())
                 .collect::<Vec<_>>()
                 .join(",");
-            args.push(format!("--display {}", display_fields));
+            args.push(format!("--display {display_fields}"));
         }
         args
     }

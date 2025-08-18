@@ -902,7 +902,7 @@ mod tests {
     };
     use more_asserts as ma;
     use prometheus::Registry;
-    use tracing::log::info;
+    use tracing::info;
     use typed_store::{
         Map,
         rocks::{DBMap, MetricConf, ReadWriteOptions, util::reference_count_merge_operator},
