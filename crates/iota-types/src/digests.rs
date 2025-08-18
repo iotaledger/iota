@@ -1095,10 +1095,6 @@ impl MoveAuthenticationDigest {
         Self(Digest::new(digest))
     }
 
-    pub const fn genesis_marker() -> Self {
-        Self::ZERO
-    }
-
     pub fn generate<R: rand::RngCore + rand::CryptoRng>(rng: R) -> Self {
         Self(Digest::generate(rng))
     }
