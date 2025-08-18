@@ -11,9 +11,9 @@ tags:
   - getting-started
 ---
 
-# Local Network Setup
+## Local Network Setup
 
-## Start the Local Chain
+### Start the Local Chain
 
 The examples in the repository and in this getting started section require a test network running locally, so if you do not already have one, [install the IOTA CLI tool](https://docs.iota.org/developer/getting-started/install-iota).
 
@@ -23,9 +23,9 @@ Next, [start the local network](../../getting-started/local-network.mdx) with th
 RUST_LOG="off,iota_node=info" iota start --force-regenesis --with-faucet
 ```
 
-## Configure IOTA Client For the Local Chain
+### Configure IOTA Client For the Local Chain
 
-### Fresh IOTA Client
+#### Fresh IOTA Client
 
 If you haven't started the IOTA CLI client features tool yet, you have to generate a config file during the first start by calling:
 
@@ -39,7 +39,7 @@ Agree to connect to a full node server. Now you can interactively provide the co
 - alias: `localnet`
 - key scheme: 0 (ed25519)
 
-### New Env
+#### New Env
 
 Alternatively, if you don't already have an environment pointing to the local node, create a new env for an IOTA full node server with the same values as described above.
 
@@ -47,7 +47,7 @@ Alternatively, if you don't already have an environment pointing to the local no
 iota client new-env --rpc "http://127.0.0.1:9000" --alias localnet
 ```
 
-### Switch to Local Node Env
+#### Switch to Local Node Env
 
 If you did one of the steps above or already have an env as described above, make sure to switch to it.
 
@@ -63,7 +63,7 @@ If your localnet does not have the asterisk in the "active" column, switch to it
 iota client switch --env localnet
 ```
 
-### Request Funds for Active Accounts
+#### Request Funds for Active Accounts
 
 Request funds for the active account, as the next step will need them. This can be done with:
 
@@ -71,7 +71,7 @@ Request funds for the active account, as the next step will need them. This can 
 iota client faucet
 ```
 
-### Publish the IOTA Hierarchies Package
+#### Publish the IOTA Hierarchies Package
 
 Now that you have your env pointing to a local node, and have an account, you're almost ready to put a checkmark on the last requirement for using the IOTA Hierarchies locally: The deployment of the smart contracts used by the library.
 

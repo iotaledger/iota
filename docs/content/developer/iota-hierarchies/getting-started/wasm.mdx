@@ -38,13 +38,13 @@ Alternatively, you can build the bindings to work with currently unreleased feat
 
 The Wasm packages are bundled for both Node.js and web. To use them, you must import them from the correct entry point:
 
-**Node.js**
+- **Node.js**
 
 ```ts
 import { ... } from '@iota/hierarchies/node';
 ```
 
-**Web**
+- **Web**
 
 ```ts
 import { ... } from '@iota/hierarchies/web';
@@ -55,10 +55,10 @@ import { ... } from '@iota/hierarchies/web';
 <Tabs groupId="language" queryString>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts
+    https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts
 ```
+
 </TabItem>
 
 <TabItem value="typescript-web" label="Typescript (Web)">
@@ -87,4 +87,3 @@ export async function createFederation(): Promise<void> {
 </Tabs>
 
 See [utils](https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
-
