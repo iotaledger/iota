@@ -199,7 +199,7 @@ impl BlockManager {
                 // We want to report this as a missing ancestor even if there is no block that
                 // is actually references it right now.
                 self.block_suspender
-                    .set_missing_ancestors_with_no_children(*block_ref);
+                    .set_unresolved_ancestors_with_no_children(*block_ref);
 
                 self.context
                     .metrics
@@ -396,7 +396,7 @@ impl BlockManager {
             .map(|b| b.reference())
             .collect::<Vec<_>>();
         let dag_state = self.dag_state.read();
-        let mut processed = block_headers
+        let mut filtered = block_headers
             .into_iter()
             .zip(dag_state.contains_block_headers(block_references))
             .filter_map(|(block_header, found)| {
@@ -419,8 +419,8 @@ impl BlockManager {
                 }
             })
             .collect::<Vec<_>>();
-        processed.sort_by_key(|h| h.round());
-        processed
+        filtered.sort_by_key(|h| h.round());
+        filtered
     }
 }
 

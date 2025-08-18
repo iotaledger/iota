@@ -14,7 +14,7 @@ use crate::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader, context::Context};
 
 struct SuspendedBlockHeader {
     block_header: VerifiedBlockHeader,
-    missing_ancestors: BTreeSet<BlockRef>,
+    unresolved_ancestors: BTreeSet<BlockRef>,
     timestamp: Instant,
 }
 
@@ -26,7 +26,7 @@ impl SuspendedBlockHeader {
         }
         Self {
             block_header: block,
-            missing_ancestors: ma,
+            unresolved_ancestors: ma,
             timestamp: Instant::now(),
         }
     }
@@ -45,7 +45,7 @@ pub(crate) struct BlockSuspender {
     /// dependency (key) to be a suspended block, so the block has been
     /// already fetched but itself is still missing some of its ancestors to be
     /// processed.
-    missing_ancestors: BTreeMap<BlockRef, BTreeSet<BlockRef>>,
+    unresolved_ancestors: BTreeMap<BlockRef, BTreeSet<BlockRef>>,
     /// A map of currently missing blocks to the set of authorities expected
     /// to have them available locally. This set is approximated based on the
     /// block's author and the authors of its direct children.
@@ -60,7 +60,7 @@ impl BlockSuspender {
         Self {
             context: context.clone(),
             suspended_block_headers: BTreeMap::new(),
-            missing_ancestors: BTreeMap::new(),
+            unresolved_ancestors: BTreeMap::new(),
             missing_blocks: BTreeMap::new(),
         }
     }
@@ -77,9 +77,9 @@ impl BlockSuspender {
     /// now unblocked due to newly accepted ancestors.
     ///
     /// # Arguments
-    /// * `missing_ancestors` - A map of verified block headers to the set of
-    ///   their unresolved ancestor references as read from the DagState by the
-    ///   caller.
+    /// * `missing_ancestors_map` - A map of verified block headers to the set
+    ///   of their unresolved ancestor references as read from the DagState by
+    ///   the caller.
     ///
     /// # Returns
     /// * `Vec<VerifiedBlockHeader>` — All headers that were accepted, either
@@ -93,12 +93,12 @@ impl BlockSuspender {
     /// - Updates internal fetch statistics.
     pub(crate) fn accept_or_suspend_received_headers(
         &mut self,
-        missing_ancestors: BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>>,
+        missing_ancestors_map: BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>>,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         // Decide which headers are resolved now, which need to be suspended, and which
         // ancestors must still be fetched
         let (fully_resolved_headers, ancestors_to_fetch) =
-            self.resolve_or_suspend_headers(missing_ancestors);
+            self.resolve_or_suspend_headers(missing_ancestors_map);
         let mut accepted_headers = vec![];
 
         for fully_resolved_header in fully_resolved_headers {
@@ -177,8 +177,8 @@ impl BlockSuspender {
             self.register_suspended_block(incoming_block_header, &missing_ancestors);
             self.report_suspended_block(&block_ref);
             for ancestor in missing_ancestors {
-                self.register_missing_ancestor(block_ref, ancestor);
-                self.report_missing_ancestor(&ancestor);
+                self.register_unresolved_ancestor(block_ref, ancestor);
+                self.report_unresolved_ancestor(&ancestor);
 
                 // If this ancestor is not already suspended and is not part of the incoming
                 // batch, we may need to fetch it
@@ -241,8 +241,8 @@ impl BlockSuspender {
     /// their own dependents are checked in turn.
     ///
     /// # Arguments
-    /// * `resolved_block` - The block that was just accepted and may unsuspend
-    ///   other blocks.
+    /// * `resolved_block_ref` - The block that was just accepted and may
+    ///   unsuspend other blocks.
     ///
     /// # Returns
     /// * A list of verified block headers that have been unsuspended.
@@ -256,7 +256,7 @@ impl BlockSuspender {
         while let Some(popped_resolved_block_ref) = stack.pop() {
             // And try to check if its direct children can be unsuspended
             if let Some(suspended_block_refs_with_missing_deps) =
-                self.missing_ancestors.remove(&popped_resolved_block_ref)
+                self.unresolved_ancestors.remove(&popped_resolved_block_ref)
             {
                 for suspended_block_ref in suspended_block_refs_with_missing_deps {
                     // For each dependency try to unsuspend it. If that's successful then we add it
@@ -279,14 +279,15 @@ impl BlockSuspender {
     ///
     /// This function is called when a block that was previously suspended (due
     /// to missing ancestors) may now be unblocked because one of its
-    /// dependencies (`accepted_dependency`) has been resolved.
+    /// dependencies (`resolved_dependency`) has been resolved.
     /// The dependency is removed from the suspended block’s set of missing
     /// ancestors. If this was the final missing dependency, the block is
     /// removed from the suspension map and returned.
     ///
     /// # Arguments
-    /// * `block_ref` - Reference to the suspended block being re-evaluated.
-    /// * `accepted_dependency` - A block reference that was just accepted and
+    /// * `suspended_block_ref` - Reference to the suspended block being
+    ///   re-evaluated.
+    /// * `resolved_dependency` - A block reference that was just accepted and
     ///   may resolve a dependency.
     ///
     /// # Returns
@@ -296,7 +297,7 @@ impl BlockSuspender {
     ///
     /// # Panics
     /// - If the block is not found in the `suspended_block_headers` map.
-    /// - If `accepted_dependency` is not in the block's `missing_ancestors`
+    /// - If `resolved_dependency` is not in the block's `missing_ancestors`
     ///   set.
     ///
     /// # Side Effects
@@ -313,13 +314,13 @@ impl BlockSuspender {
             .expect("Block should be in suspended map");
 
         assert!(
-            block.missing_ancestors.remove(resolved_dependency),
+            block.unresolved_ancestors.remove(resolved_dependency),
             "Block reference {} should be present in missing dependencies of {:?}",
             suspended_block_ref,
             block.block_header
         );
         // If there are no more missing ancestors, unsuspend and return the block
-        if block.missing_ancestors.is_empty() {
+        if block.unresolved_ancestors.is_empty() {
             return self.suspended_block_headers.remove(suspended_block_ref);
         }
         // Otherwise, keep it suspended
@@ -337,12 +338,12 @@ impl BlockSuspender {
                 v.insert(suspended_block);
             }
             Entry::Occupied(mut o) => {
-                o.get_mut().missing_ancestors.extend(missing_ancestors);
+                o.get_mut().unresolved_ancestors.extend(missing_ancestors);
             }
         };
     }
-    fn register_missing_ancestor(&mut self, block_ref: BlockRef, ancestor: BlockRef) {
-        self.missing_ancestors
+    fn register_unresolved_ancestor(&mut self, block_ref: BlockRef, ancestor: BlockRef) {
+        self.unresolved_ancestors
             .entry(ancestor)
             .or_default()
             .insert(block_ref);
@@ -355,7 +356,7 @@ impl BlockSuspender {
             .with_label_values(&[self.context.authority_hostname(block_ref.author)])
             .inc();
     }
-    fn report_missing_ancestor(&mut self, ancestor: &BlockRef) {
+    fn report_unresolved_ancestor(&mut self, ancestor: &BlockRef) {
         self.context
             .metrics
             .node_metrics
@@ -424,7 +425,7 @@ impl BlockSuspender {
             .set(self.suspended_block_headers.len() as i64);
         metrics
             .block_manager_missing_ancestors
-            .set(self.missing_ancestors.len() as i64);
+            .set(self.unresolved_ancestors.len() as i64);
         metrics
             .block_manager_missing_blocks
             .set(self.missing_blocks.len() as i64);
@@ -442,8 +443,8 @@ impl BlockSuspender {
         self.missing_blocks.insert(block_ref, set)
     }
     #[cfg(test)]
-    pub(crate) fn set_missing_ancestors_with_no_children(&mut self, block_ref: BlockRef) {
-        self.missing_ancestors.entry(block_ref).or_default();
+    pub(crate) fn set_unresolved_ancestors_with_no_children(&mut self, block_ref: BlockRef) {
+        self.unresolved_ancestors.entry(block_ref).or_default();
     }
     #[cfg(test)]
     pub(crate) fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
@@ -452,7 +453,7 @@ impl BlockSuspender {
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.suspended_block_headers.is_empty()
-            && self.missing_ancestors.is_empty()
+            && self.unresolved_ancestors.is_empty()
             && self.missing_blocks.is_empty()
     }
     #[cfg(test)]
