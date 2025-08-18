@@ -477,6 +477,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
                 &function_1,
                 &type_args,
                 iota_call_args_1,
+                false, // Not a view function
             )
             .await?;
         let cmd_1 = Command::move_call(
@@ -496,6 +497,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
                 &function_2,
                 &type_args,
                 iota_call_args_2,
+                false, // Not a view function
             )
             .await?;
         let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
