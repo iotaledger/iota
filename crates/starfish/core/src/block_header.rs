@@ -96,6 +96,9 @@ pub struct BlockHeaderV1 {
     ancestors: Vec<BlockRef>,
     // acknowledgments are BlockRefs for blocks for which a validator acknowledges data
     // availability of transactions
+    // TODO: https://github.com/iotaledger/iota/issues/8151
+    // We should compress it together with ancestors to
+    // avoid duplications since in most cases these sets have a big overlap
     acknowledgments: Vec<BlockRef>,
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
@@ -269,6 +272,8 @@ impl BlockRef {
     }
 }
 
+// TODO: https://github.com/iotaledger/iota/issues/8152
+// re-evaluate formats for production debugging.
 impl fmt::Display for BlockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "B{}({},{})", self.round, self.author, self.digest)
@@ -351,6 +356,12 @@ impl AsRef<[u8]> for BlockHeaderDigest {
     }
 }
 
+// TODO: https://github.com/iotaledger/iota/issues/8220
+// We might need to join TransactionDigest with BlockDigest since we use
+// the same parameters for both structures. TransactionDigest is used for
+// including a commitment for a transaction data to a block header. This digest
+// is used for BlockDigest computations of BlockHeader does not include
+// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 
@@ -430,6 +441,8 @@ impl From<BlockRef> for Slot {
     }
 }
 
+// TODO: https://github.com/iotaledger/iota/issues/8152
+// re-evaluate formats for production debugging.
 impl fmt::Display for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.authority, self.round,)
@@ -699,6 +712,8 @@ impl fmt::Display for VerifiedBlockHeader {
     }
 }
 
+// TODO: https://github.com/iotaledger/iota/issues/8152
+// re-evaluate formats for production debugging.
 impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
@@ -714,6 +729,8 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
+// TODO: https://github.com/iotaledger/iota/issues/8152
+// make a custom Debug implementation for more control over printed data
 #[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
     transactions: Vec<Transaction>,
@@ -865,12 +882,16 @@ impl TryFrom<SerializedHeaderAndTransactions> for VerifiedBlock {
         let transactions: Vec<Transaction> =
             bcs::from_bytes(&serialized_block.serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;
-
+        // TODO: https://github.com/iotaledger/iota/issues/8221
+        // do we need to check the signature here?
         let verified_block_header = VerifiedBlockHeader::new_verified(
             signed_block_header,
             serialized_block.serialized_block_header,
         );
 
+        // TODO: https://github.com/iotaledger/iota/issues/8221
+        // we might need to check whether transaction commitment is consistent
+        // with the one in header
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),

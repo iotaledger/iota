@@ -594,6 +594,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         };
 
         if block_refs.len() > max_fetch_size {
+            // TODO: https://github.com/iotaledger/iota/issues/8228
+            // We might need to reevaluate whether we want to reject such a request
+            // or just truncate the size. Simple truncating with warning allows for easier
+            // upgradability in future until the size of requests is settled
             return Err(ConsensusError::TooManyFetchHeadersRequested(peer));
         }
 
