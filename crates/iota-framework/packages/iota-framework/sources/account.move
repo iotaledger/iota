@@ -10,7 +10,7 @@ const AUTHENTICATOR_ID: vector<u8> = b"IOTA_AUTHENTICATION";
 
 #[allow(unused_field)]
 public struct AuthenticatorInfoV1 has store {
-  package: address,
+  package: ID,
   module_name: ascii::String,
   function_name: ascii::String,
 }
