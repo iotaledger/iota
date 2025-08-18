@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example shows how to update a PTB with a move view function call.
+//! This example shows how to create a move view function call using the
+//! transaction builder.
 //!
 //! cargo run --example move_view_function_call
 
