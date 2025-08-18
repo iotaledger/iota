@@ -473,7 +473,7 @@ pub(crate) mod tests {
     pub(crate) struct MockCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
-        missing_blocks: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        missing_block_headers: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
@@ -499,7 +499,7 @@ pub(crate) mod tests {
         }
 
         pub(crate) async fn stub_missing_blocks(&self, block_refs: BTreeSet<BlockRef>) {
-            let mut missing_blocks = self.missing_blocks.lock();
+            let mut missing_blocks = self.missing_block_headers.lock();
             for block_ref in &block_refs {
                 missing_blocks.insert(*block_ref, BTreeSet::from([block_ref.author]));
             }
@@ -589,7 +589,7 @@ pub(crate) mod tests {
         async fn get_missing_blocks(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            let mut missing_blocks = self.missing_blocks.lock();
+            let mut missing_blocks = self.missing_block_headers.lock();
             let result = missing_blocks.clone();
             missing_blocks.clear();
             Ok(result)

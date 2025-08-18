@@ -560,10 +560,10 @@ impl BlockManager {
         None
     }
 
-    /// Returns all the blocks that are currently missing and needed in order to
-    /// accept suspended blocks. For each block reference it returns the set of
-    /// authorities who have this block.
-    pub(crate) fn missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+    /// Returns all the block headers that are currently missing and needed in order to
+    /// accept suspended block headers. For each block reference it returns the set of
+    /// authorities who have this block header.
+    pub(crate) fn missing_block_headers(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         self.missing_block_headers.clone()
     }
 
@@ -714,7 +714,7 @@ mod tests {
 
         // AND each missing block should be known to all authorities
         let known_by_manager = block_manager
-            .missing_blocks()
+            .missing_block_headers()
             .iter()
             .next()
             .expect("We should expect at least two elements there")
@@ -909,7 +909,7 @@ mod tests {
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
-        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        let missing_blocks_with_authorities = block_manager.missing_block_headers();
 
         let block_round_1_authority_0 = all_blocks
             .iter()
@@ -938,7 +938,7 @@ mod tests {
         // Add a new block from round 2 from authority 1, which updates the set of
         // authorities that are aware of the missing blocks
         block_manager.try_accept_block_headers(vec![blocks_round_2[1].clone()]);
-        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        let missing_blocks_with_authorities = block_manager.missing_block_headers();
         assert_eq!(
             missing_blocks_with_authorities[&block_round_1_authority_0],
             BTreeSet::from([

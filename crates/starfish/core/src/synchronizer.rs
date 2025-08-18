@@ -2257,7 +2257,7 @@ mod tests {
     }
     #[derive(Default)]
     struct SyncMockDispatcher {
-        missing_blocks: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        missing_block_headers: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         added_blocks: Mutex<Vec<VerifiedBlock>>,
     }
 
@@ -2332,7 +2332,7 @@ mod tests {
         async fn get_missing_blocks(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(self.missing_blocks.lock().await.clone())
+            Ok(self.missing_block_headers.lock().await.clone())
         }
 
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
