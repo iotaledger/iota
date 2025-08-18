@@ -248,14 +248,10 @@ impl From<NormalizedEnum> for IotaMoveNormalizedEnum {
                 .map(|variant| {
                     (
                         variant.name.to_string(),
-                        variant
-                            .fields
-                            .into_iter()
-                            .map(IotaMoveNormalizedField::from)
-                            .collect::<Vec<IotaMoveNormalizedField>>(),
+                        variant.fields.into_iter().map(Into::into).collect(),
                     )
                 })
-                .collect::<BTreeMap<String, Vec<IotaMoveNormalizedField>>>(),
+                .collect(),
         }
     }
 }
