@@ -407,7 +407,9 @@ impl IotaValidatorCommand {
                     IotaSystemStateSummary::V2(v2) => {
                         (v2.active_validators, Some(v2.committee_members))
                     }
-                    _ => panic!("unsupported IotaSystemStateSummary"),
+                    _ => bail!(
+                        "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
+                    ),
                 };
 
                 let mut entries = Vec::new();
@@ -503,7 +505,7 @@ async fn get_cap_object_ref(
         let owner = resp.owner().unwrap();
         let cap_obj_ref = resp
             .object_ref_if_exists()
-            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} shall exist."));
+            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} does not exist"));
         if owner != Owner::AddressOwner(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
@@ -740,7 +742,9 @@ pub async fn get_validator_summary(
             v2.validator_candidates_id,
             v2.inactive_pools_id,
         ),
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => bail!(
+            "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
+        ),
     };
 
     let mut active_validators = active_validators
