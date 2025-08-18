@@ -244,7 +244,7 @@ async fn test_generate_lock_file() {
 
         [move.toolchain-version]
         compiler-version = "0.0.1"
-        edition = "2024.beta"
+        edition = "2024"
         flavor = "iota"
     "##]];
     expected.assert_eq(lock_file_contents.as_str());
