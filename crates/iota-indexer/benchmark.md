@@ -22,7 +22,7 @@ The benchmarks were conducted on a server with the following specifications:
 ### Hardware
 
 | Component    | Spec                                                              |
-|--------------|-------------------------------------------------------------------|
+| ------------ | ----------------------------------------------------------------- |
 | Server Model | Netcup Root Server RS 8000 G11 (virtualized, dedicated resources) |
 | CPU          | AMD EPYC™ 9634, 12 dedicated cores                                |
 | RAM          | 32 GB DDR5 ECC                                                    |
@@ -31,7 +31,7 @@ The benchmarks were conducted on a server with the following specifications:
 ### Software
 
 | Component    | Spec                                                                                                                              |
-|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | OS           | Ubuntu 22.04.5 amd64 (minimal)                                                                                                    |
 | Rust         | rustc 1.87.0 with required packages for the [iota](https://github.com/iotaledger/iota) repo                                       |
 | Docker       | Docker Engine 28.3.3                                                                                                              |
@@ -57,7 +57,7 @@ repeatability.
 All datasets where limited to 100,000 generated checkpoints.
 Larger datasets were considered, but (1) it appeared that the runtimes are sufficient to capture required metrics and (
 
-2) time to generate larger datasets was an issue, as the generation process is resource intensive as outlined below.
+2. time to generate larger datasets was an issue, as the generation process is resource intensive as outlined below.
 
 It should be noted, the generated datasets are designed for controlled and consistent load, and do not reflect the
 activity of a production-like network. Currently, on mainnet, we see around 4–5 checkpoints per second. Most checkpoints
@@ -75,7 +75,7 @@ The datasets were structured as follows:
 ### Configurations
 
 | Dataset | Transactions per Checkpoint | Total Checkpoints | Notes                                         | Data Generation Time |
-|---------|-----------------------------|-------------------|-----------------------------------------------|----------------------|
+| ------- | --------------------------- | ----------------- | --------------------------------------------- | -------------------- |
 | 1       | 5                           | 100 k             | Baseline, TXs per checkpoint close to mainnet | 806.79s, ~22min      |
 | 2       | 25                          | 100 k             | Mid-load, begin stressing indexing and commit | 4057.11s, ~1.12h     |
 | 3       | 100                         | 100 k             | High-load, stress indexing and commit         | 15940.90s, ~4.42h    |
@@ -206,7 +206,7 @@ Two measurement windows are used:
 ### Throughput
 
 | Dataset | Download CPS (W1) | Index CPS (W1) | Commit CPS (W1) | Commit TPS (W1) | Download CPS (W2) | Index CPS (W2) | Commit CPS (W2) | Commit TPS (W2) |
-|---------|-------------------|----------------|-----------------|-----------------|-------------------|----------------|-----------------|-----------------|
+| ------- | ----------------- | -------------- | --------------- | --------------- | ----------------- | -------------- | --------------- | --------------- |
 | 1       | 96.11             | 96.11          | 97.50           | 487.54          | 36.38             | 36.38          | 36.35           | 181.77          |
 | 2       | 113.16            | 113.16         | 113.22          | 2830            | 74.51             | 74.51          | 74.57           | 1864.42         |
 | 3       | 28.90             | 28.90          | 28.81           | 2881.35         | 21.01             | 21.01          | 21.01           | 2101            |
@@ -214,7 +214,7 @@ Two measurement windows are used:
 ### Latency (W1)
 
 | Dataset | Indexing Objects p95 (ms) | Indexing Object Changes p95 (ms) | Indexing Packages p95 (ms) | Commit p95 (ms) |
-|---------|---------------------------|----------------------------------|----------------------------|-----------------|
+| ------- | ------------------------- | -------------------------------- | -------------------------- | --------------- |
 | 1       | 0.95                      | 0.95                             | 0.95                       | 56.38           |
 | 2       | 0.95                      | 0.95                             | 0.95                       | 1541            |
 | 3       | 0.98                      | 0.95                             | 0.95                       | 4925            |
@@ -222,7 +222,7 @@ Two measurement windows are used:
 ### Checkpoints Commit Queue Depth (W1)
 
 | Dataset | Avg Queue Depth (checkpoints) |
-|---------|-------------------------------|
+| ------- | ----------------------------- |
 | 1       | 0.2                           |
 | 2       | 376.8                         |
 | 3       | 397.2                         |
@@ -230,7 +230,7 @@ Two measurement windows are used:
 ### End to end lag (W1)
 
 | Dataset | Avg Lag (checkpoints) |
-|---------|-----------------------|
+| ------- | --------------------- |
 | 1       | 0.2                   |
 | 2       | 380.4                 |
 | 3       | 397.2                 |
@@ -361,7 +361,7 @@ It then persists the entries to the `tx_recipients` table in the database.
 ## Backfilling benchmkark results:
 
 | Dataset | Backfill Rate (entries/sec) | Time to Complete Backfill (seconds) |
-|---------|-----------------------------|-------------------------------------|
+| ------- | --------------------------- | ----------------------------------- |
 | 1       | 384.65                      | 259.97                              |
 | 2       | 276.99                      | 361.01                              |
 | 3       | 185.47                      | 539.14                              |
