@@ -231,9 +231,7 @@ mod tests {
         }
 
         fn update_executed(&self, executed: u64) {
-            self.log
-                .lock()
-                .push(format!("update executed {executed}"));
+            self.log.lock().push(format!("update executed {executed}"));
             self.manager.update_highest_executed_checkpoint(executed);
         }
 
