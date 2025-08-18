@@ -449,11 +449,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map_err(|_| ConsensusError::Shutdown)?;
 
         // 9. Add block to dag, add its missing ancestors to the set
-        // TODO:: consider possible optimization:
-        //  first try to accept the block. If it fails, try to find missing ancestors
-        //  among additional headers and from block_round-1 add only them. From the
-        //  rounds < block_round-1 add all headers
-        // TODO: handle missing transactions as well
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
@@ -475,8 +470,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if !missing_committed_txns.is_empty() {
-            // TODO: decide whether to remove the live transaction fetcher
-
             if let Err(err) = self
                 .transactions_synchronizer
                 .fetch_transactions(missing_committed_txns)
@@ -601,9 +594,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         };
 
         if block_refs.len() > max_fetch_size {
-            // TODO: we might need to reevaluate whether we want to reject such a request
-            // or just truncate the size. Simple truncating with warning allows for easier
-            // upgradability in future until the size of requests is settled
             return Err(ConsensusError::TooManyFetchHeadersRequested(peer));
         }
 
