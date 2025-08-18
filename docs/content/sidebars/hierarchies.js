@@ -38,7 +38,7 @@ const hierarchies = [
             },
             'developer/iota-hierarchies/how-tos/create-federation',
             'developer/iota-hierarchies/how-tos/add-root-authority',
-            'developer/iota-hierarchies/how-tos/add-properties',
+            'developer/iota-hierarchies/how-tos/add-property',
             'developer/iota-hierarchies/how-tos/create-accreditation-to-attest',
             'developer/iota-hierarchies/how-tos/revoke-accreditation-to-attest',
             'developer/iota-hierarchies/how-tos/create-accreditation-to-accredit',
