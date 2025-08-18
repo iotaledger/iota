@@ -201,13 +201,12 @@ mod checked {
         authenticator_input_objects: InputObjects,
         gas_input_objects: InputObjects,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        // Check that it is enough gas to pay for the MoveAuthenticator execution.
+        // Check that it is enough gas to pay for the `MoveAuthenticator` execution.
 
-        // TODO: check this call, what exactly it should check?
+        // TODO: What exactly we should check?
         // TODO: Should we have a specific authenticator gas budget/gas price?
         let gas_status = check_gas(
-            // TODO: Should we pass only `gas_input_objects` here or all the objects including
-            // `authenticator_input_objects`?
+            // Only the gas input objects are used for gas checks.
             &gas_input_objects,
             protocol_config,
             reference_gas_price,
@@ -609,7 +608,7 @@ mod checked {
         Ok(())
     }
 
-    /// Check all the input objects used in the MoveAuthenticator against the
+    /// Check all the `MoveAuthenticator`-related input objects against the
     /// database.
     #[instrument(level = "trace", skip_all)]
     fn check_move_authenticator_objects(
@@ -627,7 +626,7 @@ mod checked {
         for gas_object in gas_objects.iter() {
             let gas_object_id = gas_object.id();
 
-            // TODO: Check if we can use an assert here instead of an error.
+            // TODO: Check if we can use the assert here instead of an error.
             debug_assert!(
                 gas_object.is_mutable(),
                 "Gas object {:?} is immutable, but we expect it to be mutable",
@@ -662,7 +661,7 @@ mod checked {
                         is_gas_object,
                     )?;
                 }
-                // We skip checking a deleted shared object because it no longer exists
+                // We skip checking a deleted shared object because it no longer exists.
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
@@ -673,7 +672,7 @@ mod checked {
         Ok(())
     }
 
-    /// Check one MoveAuthenticator input object against a reference.
+    /// Check one `MoveAuthenticator` input object.
     fn check_one_move_authenticator_object(
         object_kind: InputObjectKind,
         object: &Object,
@@ -705,7 +704,7 @@ mod checked {
                     object.id(),
                 );
 
-                // Check the digest matches - user could give a mismatched ObjectDigest
+                // Check the digest matches - user could give a mismatched `ObjectDigest`.
                 let expected_digest = object.digest();
                 fp_ensure!(
                     expected_digest == object_digest,

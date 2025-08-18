@@ -311,7 +311,7 @@ pub enum UserInputError {
     #[error("Invalid identifier found in the transaction: {error}")]
     InvalidIdentifier { error: String },
 
-    // `MoveAuthenticator` inputs related errors
+    // `MoveAuthenticator` related errors
     #[error("Account object {object_id:?} not found")]
     AccountObjectNotFound { object_id: ObjectID },
     #[error("Account object {object_id:?} is not a shared object that is not supported")]
@@ -343,20 +343,24 @@ pub enum UserInputError {
     #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
 
-    #[error("Package {package_id:?} is in the MoveAuthenticator input that is unsupported")]
+    #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
     #[error(
-        "Address-owned object {object_id:?} is in the MoveAuthenticator input that is unsupported"
+        "Address-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
     )]
     AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Object-owned object {object_id:?} is in the MoveAuthenticator input that is unsupported"
+        "Object-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
     )]
     ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Mutable shared object {object_id:?} is in the MoveAuthenticator input that is unsupported"
+        "Mutable shared object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Receiving objects {receiving_objects:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    ReceivingObjectsIsInMoveAuthenticatorInput { receiving_objects: Vec<ObjectRef> },
 }
 
 #[derive(
@@ -522,6 +526,8 @@ pub enum IotaError {
     #[error("Unexpected message.")]
     UnexpectedMessage,
 
+    #[error("Received transaction {digest:?} with `MoveAuthenticator` that is disabled.")]
+    MoveAuthenticatorDisabled { digest: TransactionDigest },
     #[error("Failed to execute the Move authenticator, reason: {error:?}.")]
     MoveAuthenticatorExecutionFailure { error: String },
 
