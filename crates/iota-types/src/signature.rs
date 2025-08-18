@@ -30,6 +30,7 @@ use crate::{
     },
     digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
+    move_authenticator::MoveAuthenticator,
     multisig::MultiSig,
     passkey_authenticator::PasskeyAuthenticator,
     signature_verification::VerifiedDigestCache,
@@ -98,6 +99,7 @@ pub enum GenericSignature {
     Signature,
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 }
 
 impl GenericSignature {
@@ -113,7 +115,7 @@ impl GenericSignature {
     }
 
     pub fn is_move_authenticator(&self) -> bool {
-        false
+        matches!(self, GenericSignature::MoveAuthenticator(_))
     }
 
     pub fn verify_authenticator<T>(
@@ -218,6 +220,9 @@ impl GenericSignature {
             }
             GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
             GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
+            GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
+                error: "Unsupported in MoveAuthenticator".to_string(),
+            }),
             _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
             }),
@@ -251,6 +256,10 @@ impl ToFromBytes for GenericSignature {
                     let passkey = PasskeyAuthenticator::from_bytes(bytes)?;
                     Ok(GenericSignature::PasskeyAuthenticator(passkey))
                 }
+                SignatureScheme::MoveAuthenticator => {
+                    let move_auth = MoveAuthenticator::from_bytes(bytes)?;
+                    Ok(GenericSignature::MoveAuthenticator(move_auth))
+                }
                 _ => Err(FastCryptoError::InvalidInput),
             },
             Err(_) => Err(FastCryptoError::InvalidInput),
@@ -266,6 +275,7 @@ impl AsRef<[u8]> for GenericSignature {
             GenericSignature::Signature(s) => s.as_ref(),
             GenericSignature::ZkLoginAuthenticator(s) => s.as_ref(),
             GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
+            GenericSignature::MoveAuthenticator(s) => s.as_ref(),
         }
     }
 }

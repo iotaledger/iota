@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    account::{AuthenticatorInfo, MoveAuthenticator},
+    account::AuthenticatorInfo,
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -17,6 +17,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::LimitsMetrics,
+    move_authenticator::MoveAuthenticator,
     storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };

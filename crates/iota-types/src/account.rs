@@ -3,10 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{MoveObjectType, ObjectID, ObjectRef},
+    base_types::{MoveObjectType, ObjectID},
     error::IotaError,
     object::{Data, Object},
-    transaction::{CallArg, InputObjectKind},
 };
 
 /// Temporary created structures.
@@ -17,31 +16,11 @@ pub const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
 pub const AUTHENTICATOR_INFO_MODULE_NAME: &IdentStr = ident_str!("account");
 pub const AUTHENTICATOR_INFO_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorInfo");
 
-pub struct MoveAuthenticator {
-    pub inputs: Vec<CallArg>,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorInfo {
     pub package: ObjectID,
     pub module: String,
     pub function: String,
-}
-
-impl MoveAuthenticator {
-    pub fn input_objects(&self) -> Vec<InputObjectKind> {
-        self.inputs
-            .iter()
-            .flat_map(|arg| arg.input_objects())
-            .collect::<Vec<_>>()
-    }
-
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
-        self.inputs
-            .iter()
-            .flat_map(|arg| arg.receiving_objects())
-            .collect()
-    }
 }
 
 impl AuthenticatorInfo {

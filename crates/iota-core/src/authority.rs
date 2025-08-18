@@ -54,7 +54,7 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::{AUTHENTICATOR_DF_NAME, AuthenticatorInfo, MoveAuthenticator},
+    account::{AUTHENTICATOR_DF_NAME, AuthenticatorInfo},
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -97,6 +97,7 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+    move_authenticator::MoveAuthenticator,
     object::{
         MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
@@ -5834,7 +5835,15 @@ impl NodeStateDump {
 fn move_authenticator(signatures: &[GenericSignature]) -> Option<MoveAuthenticator> {
     // TODO: Check the protocol config if the feature is enabled.
     if signatures.len() == 1 && signatures[0].is_move_authenticator() {
-        Some(MoveAuthenticator { inputs: Vec::new() })
+        match &signatures[0] {
+            GenericSignature::MoveAuthenticator(move_authenticator) => {
+                Some(move_authenticator.clone())
+            }
+            GenericSignature::MultiSig(_)
+            | GenericSignature::Signature(_)
+            | GenericSignature::ZkLoginAuthenticator(_)
+            | GenericSignature::PasskeyAuthenticator(_) => unreachable!(),
+        }
     } else {
         None
     }
