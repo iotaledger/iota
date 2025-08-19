@@ -135,7 +135,7 @@ impl DataManager {
         if !committed.is_empty() {
             let mut dag_state_guard = self.dag_state.write();
 
-            dag_state_guard.update_last_available_commit_leader_round(
+            dag_state_guard.update_last_solid_commit_leader_round(
                 committed
                     .last()
                     .expect("We should expect at least one committed subdag")

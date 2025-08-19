@@ -47,11 +47,6 @@ pub(crate) struct Linearizer {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     leader_schedule: Arc<LeaderSchedule>,
-
-    // TODO: prune this map - any entries older than latest_leader.round() - max_ack_depth -
-    //  max_linearizer_depth should be removed
-    // TODO: should this be part of the Linearizer or
-    //  its own component?
     transactions_ack_tracker: BTreeMap<BlockRef, StakeAggregator<QuorumThreshold>>,
 }
 
@@ -219,12 +214,6 @@ impl Linearizer {
 
         let mut pending_sub_dags = vec![];
 
-        let max_round_committed_leader = committed_leaders
-            .iter()
-            .map(|block| block.round())
-            .max()
-            .expect("We should expect at least one leader block");
-
         for (i, leader_block) in committed_leaders.into_iter().enumerate() {
             let reputation_scores_desc = if schedule_updated && i == 0 {
                 self.leader_schedule
@@ -258,17 +247,14 @@ impl Linearizer {
         dag_state_guard.flush();
         drop(dag_state_guard);
 
-        // Evict old acknowledgments from the tracker of the linearizer.
-        self.evict_old_acknowledgments(max_round_committed_leader);
-
-        // TODO: we should resubmit transactions from own blocks that are not sequenced
-        // and below certain round
         pending_sub_dags
     }
 
-    /// This function evicts old acknowledgments from the tracker.
-    fn evict_old_acknowledgments(&mut self, committed_leader_round: Round) {
-        let lower_bound_round = committed_leader_round
+    /// This function evicts old acknowledgments from the tracker. Should be
+    /// called for solid committed leader round since we rely on the ack
+    /// tracker in transaction synchronizer.
+    pub(crate) fn evict_old_acknowledgments(&mut self, solid_commit_leader_round: Round) {
+        let lower_bound_round = solid_commit_leader_round
             .saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH);
         let lower_bound = BlockRef::new(
             lower_bound_round + 1,
