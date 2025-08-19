@@ -623,13 +623,28 @@ impl TestBlock {
 /// A block can attach reports of misbehavior by other authorities.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MisbehaviorReport {
-    pub target: AuthorityIndex,
-    pub proof: MisbehaviorProof,
+    target: AuthorityIndex,
+    proof: MisbehaviorProof,
 }
 
 impl MisbehaviorReport {
     pub fn new(target: AuthorityIndex, proof: MisbehaviorProof) -> Self {
         Self { target, proof }
+    }
+
+    pub fn target(&self) -> AuthorityIndex {
+        self.target
+    }
+
+    pub fn proof(&self) -> &MisbehaviorProof {
+        &self.proof
+    }
+
+    pub fn references(&self) -> Vec<BlockRef> {
+        match self.proof {
+            MisbehaviorProof::InvalidBlock(block_ref) => vec![block_ref],
+            MisbehaviorProof::Equivocation { first, second } => vec![first, second],
+        }
     }
 }
 
@@ -638,10 +653,7 @@ impl MisbehaviorReport {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum MisbehaviorProof {
     InvalidBlock(BlockRef),
-    Equivocation {
-        first: BlockRef,
-        second: BlockRef,
-    },
+    Equivocation { first: BlockRef, second: BlockRef },
 }
 
 // TODO: add basic verification for BlockRef and BlockDigest.

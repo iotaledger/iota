@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::panic;
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
     Round,
     block::{
-        BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, VerifiedBlock,
-        genesis_blocks,
+        BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, MisbehaviorProof, SignedBlock,
+        VerifiedBlock, genesis_blocks,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -32,6 +33,13 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
         ancestors: &[Option<VerifiedBlock>],
         gc_enabled: bool,
         gc_round: Round,
+    ) -> ConsensusResult<()>;
+
+    // Verifies the misbehavior reports from the misbehavior reports in the block.
+    fn verify_misbehavior_reports(
+        &self,
+        block: &VerifiedBlock,
+        proof_blocks: &[Vec<SignedBlock>],
     ) -> ConsensusResult<()>;
 }
 
@@ -237,6 +245,64 @@ impl BlockVerifier for SignedBlockVerifier {
         }
         Ok(())
     }
+
+    fn verify_misbehavior_reports(
+        &self,
+        block: &VerifiedBlock,
+        proof_blocks: &[Vec<SignedBlock>],
+    ) -> ConsensusResult<()> {
+        for (index, (misbehavior_report, proof_blocks)) in block
+            .misbehavior_reports()
+            .iter()
+            .zip(proof_blocks.iter())
+            .enumerate()
+        {
+            match misbehavior_report.proof() {
+                MisbehaviorProof::InvalidBlock(block_ref) => {
+                    let proof_block = proof_blocks
+                        .first()
+                        .expect("should have at least one proof block to verify the invalid block");
+
+                    match self.verify(&proof_block) {
+                        Ok(_) => return Err(ConsensusError::InvalidMisbehaviorReport(index)),
+                        Err(e) => match e {
+                            ConsensusError::WrongEpoch { .. }
+                            | ConsensusError::UnexpectedGenesisBlock
+                            | ConsensusError::InvalidAuthorityIndex { .. } => {
+                                return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                            }
+                            // All other errors are expected for an invalid block.
+                            _ => continue,
+                        },
+                    }
+                }
+                MisbehaviorProof::Equivocation { first, second } => {
+                    // Check that the two referenced blocks are not the same.
+                    if first == second {
+                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                    }
+                    // Check that the two referenced blocks are from the same epoch, round, and
+                    // author.
+                    let first_proof_block = proof_blocks
+                        .first()
+                        .expect("should have at least one proof block to verify the equivocation");
+                    let second_proof_block = proof_blocks
+                        .get(1)
+                        .expect("should have at least two proof blocks to verify the equivocation");
+                    if first_proof_block.epoch() != second_proof_block.epoch() {
+                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                    }
+                    if first_proof_block.round() != second_proof_block.round() {
+                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                    }
+                    if first_proof_block.author() != second_proof_block.author() {
+                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -254,6 +320,14 @@ impl BlockVerifier for NoopBlockVerifier {
         _ancestors: &[Option<VerifiedBlock>],
         _gc_enabled: bool,
         _gc_round: Round,
+    ) -> ConsensusResult<()> {
+        Ok(())
+    }
+
+    fn verify_misbehavior_reports(
+        &self,
+        _block: &VerifiedBlock,
+        _proof_blocks: &[Vec<SignedBlock>],
     ) -> ConsensusResult<()> {
         Ok(())
     }
