@@ -29,25 +29,19 @@ import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
 import { growthbook } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
-import {
-    metaMaskWallet,
-    walletConnectWallet,
-    coinbaseWallet,
-} from '@rainbow-me/rainbowkit/wallets';
+import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 
 growthbook.init();
 
 const queryClient = new QueryClient();
-
-coinbaseWallet.preference = 'eoaOnly';
 
 const wagmiConfig = getDefaultConfig({
     ...L2_WAGMI_CONFIG,
     chains: [L2_CHAIN_CONFIG as Chain],
     wallets: [
         {
-            groupName: 'Supported Wallets',
-            wallets: [metaMaskWallet, walletConnectWallet, coinbaseWallet],
+            groupName: 'Popular',
+            wallets: [metaMaskWallet, walletConnectWallet],
         },
     ],
 });
