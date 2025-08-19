@@ -189,9 +189,9 @@ impl BlockManager {
             let unsuspended_blocks = self.try_unsuspend_children_blocks(block_ref);
             to_verify_timestamps_and_accept.extend(unsuspended_blocks);
 
-            // Verify block timestamps
+            // Verify block timestamps and misbehavior reports.
             let blocks_to_accept =
-                self.verify_block_timestamps_and_accept(to_verify_timestamps_and_accept);
+                self.verify_referenced_blocks_and_accept(to_verify_timestamps_and_accept);
             accepted_blocks.extend(blocks_to_accept);
         }
 
@@ -301,13 +301,15 @@ impl BlockManager {
         missing_blocks
     }
 
-    // TODO: remove once timestamping is refactored to the new approach.
-    // Verifies each block's timestamp based on its ancestors, and persists in store
+    // TODO: remove timestamp part of checks once timestamping is refactored to the
+    // new approach.
+    // Verifies each block's timestamp based on its ancestors, and
+    // then verifies any misbehavior reports in the block and persists in store
     // all the valid blocks that should be accepted. Method returns the accepted
     // and persisted blocks.
-    fn verify_block_timestamps_and_accept(
+    fn verify_referenced_blocks_and_accept(
         &mut self,
-        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlock>,
+        referenced_blocks: impl IntoIterator<Item = VerifiedBlock>,
     ) -> Vec<VerifiedBlock> {
         let (gc_enabled, gc_round) = {
             let dag_state = self.dag_state.read();
@@ -317,7 +319,7 @@ impl BlockManager {
         let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
         let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
         {
-            'block: for b in unsuspended_blocks {
+            'block: for b in referenced_blocks {
                 let ancestors = self.dag_state.read().get_blocks(b.ancestors());
                 assert_eq!(b.ancestors().len(), ancestors.len());
                 let mut ancestor_blocks = vec![];
@@ -368,6 +370,30 @@ impl BlockManager {
                         .check_ancestors(&b, &ancestor_blocks, gc_enabled, gc_round)
                 {
                     warn!("Block {:?} failed to verify ancestors: {}", b, e);
+                    blocks_to_reject.insert(b.reference(), b);
+                    continue;
+                }
+
+                let mut proof_blocks: Vec<Vec<VerifiedBlock>> = vec![];
+                for report in b.misbehavior_reports() {
+                    // get references and remove none values.
+                    let report_proof_blocks =
+                        (self.dag_state.read().get_blocks(&report.references()))
+                            .iter()
+                            .filter_map(|b| b.clone())
+                            .collect::<Vec<_>>();
+                    assert_eq!(
+                        report_proof_blocks.len(),
+                        report.references().len(),
+                        "Proof blocks length should match the references length"
+                    );
+                    proof_blocks.push(report_proof_blocks);
+                }
+                if let Err(e) = self
+                    .block_verifier
+                    .verify_misbehavior_reports(&b, &proof_blocks)
+                {
+                    warn!("Block {:?} failed to verify misbehavior reports: {}", b, e);
                     blocks_to_reject.insert(b.reference(), b);
                 } else {
                     blocks_to_accept.insert(b.reference(), b);
@@ -443,7 +469,7 @@ impl BlockManager {
         // Keep only the ancestors that are greater than the GC round to check for their
         // existence. Keep in mind that if GC is disabled then gc_round will be
         // 0 and all ancestors will be considered.
-        let ancestors = if gc_enabled {
+        let mut ancestors = if gc_enabled {
             block
                 .ancestors()
                 .iter()
@@ -453,6 +479,14 @@ impl BlockManager {
         } else {
             block.ancestors().to_vec()
         };
+
+        // extend the ancestors to include the misbehavior reports of the block.
+        ancestors.extend(
+            block
+                .misbehavior_reports()
+                .iter()
+                .flat_map(|report| report.references()),
+        );
 
         // make sure that we have all the required ancestors in store
         for (found, ancestor) in dag_state
@@ -477,9 +511,9 @@ impl BlockManager {
                     .with_label_values(&[ancestor_hostname])
                     .inc();
 
-                // Add the ancestor to the missing blocks set only if it doesn't already exist
-                // in the suspended blocks - meaning that we already have its
-                // payload.
+                // Add the ancestor to the ancestors_to_fetch set only if it doesn't already
+                // exist in the suspended blocks - meaning that we already have
+                // its payload.
                 if !self.suspended_blocks.contains_key(ancestor) {
                     // Fetches the block if it is not in dag state or suspended.
                     ancestors_to_fetch.insert(*ancestor);
@@ -671,7 +705,7 @@ impl BlockManager {
             });
 
             // Now validate their timestamps and accept them
-            let accepted_blocks = self.verify_block_timestamps_and_accept(unsuspended_blocks);
+            let accepted_blocks = self.verify_referenced_blocks_and_accept(unsuspended_blocks);
             for block in accepted_blocks {
                 let hostname = self
                     .context
@@ -1404,6 +1438,14 @@ mod tests {
             } else {
                 Ok(())
             }
+        }
+
+        fn verify_misbehavior_reports(
+            &self,
+            _block: &VerifiedBlock,
+            _proof_blocks: &[Vec<VerifiedBlock>],
+        ) -> ConsensusResult<()> {
+            Ok(())
         }
     }
 

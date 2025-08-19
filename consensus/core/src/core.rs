@@ -33,7 +33,8 @@ use crate::{
 use crate::{
     ancestor::{AncestorState, AncestorStateManager},
     block::{
-        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, MisbehaviorProof, MisbehaviorReport, Round, SignedBlock, Slot, VerifiedBlock, GENESIS_ROUND
+        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND,
+        MisbehaviorProof, MisbehaviorReport, Round, SignedBlock, Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
     commit::{
@@ -48,7 +49,7 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
     universal_committer::{
-        universal_committer_builder::UniversalCommitterBuilder, UniversalCommitter
+        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
 
@@ -270,7 +271,8 @@ impl Core {
 
     /// Processes the provided blocks and accepts them if possible when their
     /// causal history exists. The method returns:
-    /// - The references of ancestors missing their block
+    /// - The references of ancestors and misbehavior reports missing their
+    ///   block
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
@@ -290,6 +292,7 @@ impl Core {
             .core_add_blocks_batch_size
             .observe(blocks.len() as f64);
 
+        // Note: this is where missing ancestors and misbehavior reports are tracked.
         let (accepted_blocks, missing_block_refs) = self.block_manager.try_accept_blocks(blocks);
 
         if !accepted_blocks.is_empty() {
@@ -672,7 +675,6 @@ impl Core {
         // Assemble misbehavior reports.
         let mut misbehavior_reports = Vec::new();
         misbehavior_reports.extend(equivocation_reports);
-
 
         // Create the block and insert to storage.
         let block = Block::V1(BlockV1::new(
@@ -1229,7 +1231,7 @@ impl Core {
                             equivocation_reports
                                 .push(MisbehaviorReport::new(
                                     ancestor.author(),
-                                    MisbehaviorProof::Equivocation { first: ancestor.reference(), second: equivocating_ancestor.clone() },
+                                    MisbehaviorProof::Equivocation { first: ancestor.reference(), second: *equivocating_ancestor },
                                 ));
 
                             // We will never include equivocating ancestors so add them immediately
@@ -1397,7 +1399,11 @@ impl Core {
             excluded_and_equivocating_ancestors.len()
         );
 
-        (ancestors_to_propose, excluded_and_equivocating_ancestors, equivocation_reports)
+        (
+            ancestors_to_propose,
+            excluded_and_equivocating_ancestors,
+            equivocation_reports,
+        )
     }
 
     /// Checks whether all the leaders of the round exist.

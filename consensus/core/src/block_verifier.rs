@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use core::panic;
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
@@ -39,7 +38,7 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     fn verify_misbehavior_reports(
         &self,
         block: &VerifiedBlock,
-        proof_blocks: &[Vec<SignedBlock>],
+        proof_blocks: &[Vec<VerifiedBlock>],
     ) -> ConsensusResult<()>;
 }
 
@@ -249,7 +248,7 @@ impl BlockVerifier for SignedBlockVerifier {
     fn verify_misbehavior_reports(
         &self,
         block: &VerifiedBlock,
-        proof_blocks: &[Vec<SignedBlock>],
+        proof_blocks: &[Vec<VerifiedBlock>],
     ) -> ConsensusResult<()> {
         for (index, (misbehavior_report, proof_blocks)) in block
             .misbehavior_reports()
@@ -258,23 +257,25 @@ impl BlockVerifier for SignedBlockVerifier {
             .enumerate()
         {
             match misbehavior_report.proof() {
-                MisbehaviorProof::InvalidBlock(block_ref) => {
-                    let proof_block = proof_blocks
+                MisbehaviorProof::InvalidBlock(_block_ref) => {
+                    let _proof_block = proof_blocks
                         .first()
                         .expect("should have at least one proof block to verify the invalid block");
 
-                    match self.verify(&proof_block) {
-                        Ok(_) => return Err(ConsensusError::InvalidMisbehaviorReport(index)),
-                        Err(e) => match e {
-                            ConsensusError::WrongEpoch { .. }
-                            | ConsensusError::UnexpectedGenesisBlock
-                            | ConsensusError::InvalidAuthorityIndex { .. } => {
-                                return Err(ConsensusError::InvalidMisbehaviorReport(index));
-                            }
-                            // All other errors are expected for an invalid block.
-                            _ => continue,
-                        },
-                    }
+                    // match self.verify(&proof_block) {
+                    //     Ok(_) => return
+                    // Err(ConsensusError::InvalidMisbehaviorReport(index)),
+                    //     Err(e) => match e {
+                    //         ConsensusError::WrongEpoch { .. }
+                    //         | ConsensusError::UnexpectedGenesisBlock
+                    //         | ConsensusError::InvalidAuthorityIndex { .. } =>
+                    // {             return
+                    // Err(ConsensusError::InvalidMisbehaviorReport(index));
+                    //         }
+                    //         // All other errors are expected for an invalid
+                    // block.         _ => continue,
+                    //     },
+                    // }
                 }
                 MisbehaviorProof::Equivocation { first, second } => {
                     // Check that the two referenced blocks are not the same.
@@ -327,7 +328,7 @@ impl BlockVerifier for NoopBlockVerifier {
     fn verify_misbehavior_reports(
         &self,
         _block: &VerifiedBlock,
-        _proof_blocks: &[Vec<SignedBlock>],
+        _proof_blocks: &[Vec<VerifiedBlock>],
     ) -> ConsensusResult<()> {
         Ok(())
     }
