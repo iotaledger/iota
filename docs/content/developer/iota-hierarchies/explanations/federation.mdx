@@ -24,14 +24,14 @@ In Hierarchies, a Federation provides the following governance functions:
 
 - **Manage Trust Distribution**: Control which entities can make authoritative statements about target objects, ensuring that only accredited entities can attest to claims within their designated domain.
 - **Enforce Hierarchical Delegation**: Implement delegation patterns where root authorities can empower accreditors, who subsequently authorize attesters, establishing defined chains of responsibility.
-- **Validate Credibility**: Provide mechanisms to verify whether a statement is authentic and originates from an entity with legitimate authority to make such claims within the federation's scope.
-- **Maintain Accountability**: Through transparent delegation chains and revocation mechanisms, enable the withdrawal of trust when entities do not meet their designated responsibilities.
+- **Validate Credibility**: Provide mechanisms to verify whether a statement is authentic and originates from an entity with legitimate authority to make such claims within the Federation's scope.
+- **Maintain accountability**: Enable the withdrawal of trust when entities do not meet their designated responsibilities through transparent delegation chains and revocation mechanisms.
 
 ### Federation object
 
 The Federation is implemented as a shared object that can be deployed on the IOTA network as part of the Hierarchies Move module. The Federation object can be accessed in two ways:
 
-- Through the Rust/WASM bindings API: This library provides an off-chain management perspective for the Hierarchies, utilizing an API that is natively exposed by the IOTA network for the Hierarchies module.
+- Through the Rust/WASM bindings API: This library provides an off-chain management perspective for the Hierarchies, utilizing an API natively exposed by the IOTA network for the Hierarchies module.
 - Directly: This involves a pure smart contract interface, allowing direct interaction between IOTA modules installed on the network.
 
 ```mermaid
@@ -62,7 +62,7 @@ Upon Federation creation, the creator automatically becomes the first **Root Aut
 **Root Authority** possesses ultimate administrative power within its Federation
 :::
 
-The main responsibilities of Root Authority are:
+The primary responsibilities of Root Authority are:
 
 - Define properties and their conditions that are valid within the Federation's domain
 - Add additional Root Authorities, distributing administrative power among trusted entities

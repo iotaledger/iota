@@ -11,8 +11,8 @@ tags:
 
 ## Property and Value
 
-When defining the ontology we took inspiration in knowledge theory. In knowledge theory a property is a predicate that is used to describe the entity's attributes and relationships. Property has an associated value. Value is a subject that describes the property. Property and value combined form a property value pair.
-In Hierarchies we use the same concept. A property is a predicate that is used to describe the entity's attributes and relationships. Property has an associated value. Value is a subject that describes the property. Property and value exist next to each other and are combined to form a property value pair.
+When defining the ontology, we took inspiration from knowledge theory. In knowledge theory, a property is a predicate used to describe an entity's attributes and relationships. Property has an associated value, which is a subject that describes the property. When property and value are combined, they form a property-value pair.
+In Hierarchies, we use the same concept. A property is a predicate that describes the entity's attributes and relationships. Property has an associated value, which is a subject that describes the property. Property and value exist next to each other and are combined to form a property-value pair.
 
 The example of a property and value is:
 
@@ -21,7 +21,7 @@ The example of a property and value is:
 
 ## Property Value Pair
 
-A property value pair is a combination of a property and a value. It is used to describe the entity's attributes and relationships.
+A property-value pair is a combination of a property and a value. It describes an entity's attributes and relationships.
 
 The example of a property value pair is:
 
@@ -57,14 +57,14 @@ For properties that expect a text-based value, a rich set of string-specific con
 
 - **Equal**: Requires the property's value to be an exact string match (case-sensitive).
 - **Starts With**: Enforces that the property's value must begin with a specific substring.
-- **Ends With**: Enforces that the property's value must end with a specific substring.
-- **Contains**: Ensures the property's value includes a specific substring anywhere within it.
+- **Ends With**: Enforces the property's value to end with a specific substring.
+- **Contains**: Ensures the property's value includes a specific substring anywhere.
 - **One Of**: Restricts the property's value to a selection from a predefined list of strings.
 - **Any**: Allows any string value, which is useful for general-purpose text properties where the format is not critical.
 
 ### Temporal Constraints
 
-Beyond numbers and strings, IOTA Hierarchies also support temporal constraints. This allows you to define shapes for properties related to time, such as timestamps or durations, ensuring that time-sensitive data remains valid and consistent.
+Beyond numbers and strings, IOTA Hierarchies also support temporal constraints. This allows you to define shapes for time-related properties, such as timestamps or durations, ensuring that time-sensitive data remains valid and consistent.
 
 By leveraging property shapes, developers can build robust and trustworthy systems where data conforms to expected standards, reducing errors and increasing overall system reliability.
 
@@ -81,9 +81,9 @@ graph TD
 
 ## Statement
 
-A statement links a property and its value to a **target object** - the specific entity the claim describes. The target object is the receiver of the property-value pair and the thing being described.
+A statement links a property and its value to a **target object** - the specific entity the claim describes. The target object is the receiver of the property-value pair and the described thing.
 
-An examples of statement is:
+An example of a statement is:
 
 - **Property**: `animal.type`
 - **Value**: `cat`
@@ -113,7 +113,7 @@ graph TD
 
 Building on the foundation of statements, an **attestation** represents a verified claim made about an entity by an accredited authority. While a statement is a basic assertion combining a property-value pair with a target object, an attestation elevates this by incorporating credibility and validation mechanisms provided by the Federation and Hierarchies module.
 
-In essence, an attestation is a statement that has been endorsed by a trusted, accredited entity. This endorsement adds a layer of trustworthiness, as the attestation can be validated within the Hierarchies system. The Federation - a network of accredited entities - ensures that only authorized parties can issue such attestations, thereby preventing fraudulent or unauthorized claims.
+In essence, an attestation is a statement that a trusted, accredited entity has endorsed. This endorsement adds a layer of trustworthiness, as the attestation can be validated within the Hierarchies system. The Federation - a network of accredited entities - ensures that only authorized parties can issue such attestations, thereby preventing fraudulent or unauthorized claims.
 
 ### Why Attestations Matter
 
@@ -138,3 +138,4 @@ graph TD
 
     style Statement fill:#aaaaaa,color:#000000,opacity:0.5,stroke:#aaaaaa,stroke-width:2px,stroke-dasharray: 5 5
     style Attestation fill:#aaaaaa,color:#000000,opacity:0.5,stroke:#aaaaaa,stroke-width:2px,stroke-dasharray: 5 5
+```
