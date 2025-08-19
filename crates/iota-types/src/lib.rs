@@ -33,6 +33,7 @@ pub mod error;
 
 pub mod account;
 pub mod accumulator;
+pub mod auth_context;
 pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
