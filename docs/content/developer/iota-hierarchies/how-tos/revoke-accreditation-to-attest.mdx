@@ -8,9 +8,9 @@ tags:
   - hierarchies
   - how-to
 ---
-# Revoke Accreditation to Attest
+## Revoke Accreditation to Attest
 
-This guide demonstrates how to revoke a accreditation to attest to given property
+This guide demonstrates how to revoke a accreditation to attest to given Property
 
 ### Prerequisites
 
@@ -20,24 +20,24 @@ This guide demonstrates how to revoke a accreditation to attest to given propert
 
 ### Overview
 
-Revoking accreditations to attest removes the ability for a receiver to create attestations for specific properties. This is essential for managing permissions within a hierarchy.
+Revoking accreditations to attest removes the ability for a receiver to create attestations for specific Properties. This is essential for managing permissions within a hierarchy.
 
 ### 1. Set Up Client and Federation
 
-Initialize a client and create a federation with properties:
+Initialize a client and create a federation with Properties:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L26-L55
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L28-L57
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L19-L40
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L20-L40
 ```
 </TabItem>
 </Tabs>
@@ -52,7 +52,7 @@ Issue an accreditation to a receiver that will later be revoked:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L58-L76
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L62-L78
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -73,13 +73,13 @@ Confirm the accreditation was successfully created:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L90-L96
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L94-L99
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L54-L58
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L54-L57
 ```
 </TabItem>
 </Tabs>
@@ -94,13 +94,13 @@ Revoke the accreditation using its ID:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L96-L110
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L107-L113
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L60-L64
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L59-L63
 ```
 </TabItem>
 </Tabs>
@@ -115,13 +115,13 @@ Confirm the accreditation has been successfully revoked:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L112-L120
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L116-L123
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L66-L69
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L65-L67
 ```
 </TabItem>
 </Tabs>

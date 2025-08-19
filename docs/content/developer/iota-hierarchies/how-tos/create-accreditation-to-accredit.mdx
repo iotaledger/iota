@@ -8,9 +8,9 @@ tags:
   - hierarchies
   - how-to
 ---
-# Create Accreditation to Accredit
+## Create Accreditation to Accredit
 
-This guide demonstrates how to issue a permission to accredit within a federation, allowing receivers to grant accreditations to others.
+This guide demonstrates how to issue a permission to accredit within a Federation, allowing receivers to grant accreditations to others.
 
 ### Prerequisites
 
@@ -45,41 +45,41 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 
 ### 2. Create Federation and Add Property
 
-Create a federation and add a statement that will be used for accreditations:
+Create a Federation and add a Property that will be used for accreditations:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L29-L53
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L30-L57
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L23-L42
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L24-L41
 ```
 </TabItem>
 </Tabs>
 </div>
 
-### 3. Define Receiver and Statement
+### 3. Define Receiver and Property
 
-Specify the receiver who will get the accreditation and define the property structure:
+Specify the receiver who will get the accreditation and define the Property structure:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L57-L67
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L61-L71
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L44-L48
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L43-L47
 ```
 </TabItem>
 </Tabs>
@@ -94,13 +94,13 @@ Issue the permission to accredit to the specified receiver:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L69-L74
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L73-L78
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L50-L54
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L49-L53
 ```
 </TabItem>
 </Tabs>
@@ -115,13 +115,13 @@ Verify that the accreditation to accredit was successfully created:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L78-L86
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/06_create_accreditation_to_accredit.rs#L82-L90
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L56-L65
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/06_create_accreditation_to_accredit.ts#L55-L63
 ```
 </TabItem>
 </Tabs>
@@ -131,7 +131,7 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 
 - **Higher Level Permission**: Allows receivers to grant accreditations to others
 - **Hierarchical Delegation**: Enables multi-level authority distribution
-- **Statement Constraints**: The accreditation specifies which properties can be delegated
+- **Property Constraints**: The accreditation specifies which Properties can be delegated
 - **Root Authority Required**: Only root authorities can create accreditations to accredit
 
 ## Full Example Code

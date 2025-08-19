@@ -10,7 +10,7 @@ tags:
 ---
 ## Validate Properties
 
-This guide demonstrates how to validate properties against accreditations in a hierarchy using the offchain API.
+This guide demonstrates how to validate Properties against accreditations in a hierarchy using the offchain API.
 
 ### Prerequisites
 
@@ -20,7 +20,7 @@ This guide demonstrates how to validate properties against accreditations in a h
 
 ### Overview
 
-Property validation verifies that a receiver has the necessary accreditations within a federation to make specific attestation.
+Property validation verifies that a receiver has the necessary accreditations within a Federation to make specific attestation.
 
 ### 1. Set Up Client
 
@@ -45,14 +45,14 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 
 ### 2. Create Federation
 
-Create a new Federation to contain your properties:
+Create a new Federation to contain your Properties:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L24-L28
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L25-L28
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -66,14 +66,14 @@ https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wa
 
 ### 3. Add Property to Federation
 
-Add a property with allowed values to the federation:
+Add a Property with allowed values to the Federation:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L30-L39
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L32-L43
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -94,7 +94,7 @@ Issue accreditation for a receiver to attest to the property:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L41-L61
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L46-L64
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -115,7 +115,7 @@ Validate that the receiver has the necessary accreditations for the properties:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L62-L68
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L67-L73
 ```
 
 </TabItem>

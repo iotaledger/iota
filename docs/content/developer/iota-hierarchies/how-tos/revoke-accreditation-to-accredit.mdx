@@ -8,9 +8,9 @@ tags:
   - hierarchies
   - how-to
 ---
-# Revoke Accreditation to Accredit
+## Revoke Accreditation to Accredit
 
-This guide demonstrates how to revoke a permission to accredit within a federation.
+This guide demonstrates how to revoke a permission to accredit within a Federation.
 
 ### Prerequisites
 
@@ -20,24 +20,24 @@ This guide demonstrates how to revoke a permission to accredit within a federati
 
 ### Overview
 
-Revoking accreditations to accredit removes the ability for a receiver to grant accreditations to others. This is essential for managing hierarchical permissions within a federation.
+Revoking accreditations to accredit removes the ability for a receiver to grant accreditations to others. This is essential for managing hierarchical permissions within a Federation.
 
 ### 1. Set Up Client and Federation
 
-Initialize a client and create a federation with properties:
+Initialize a client and create a Federation with Properties:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L27-L55
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L28-L58
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L19-L40
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L20-L40
 ```
 </TabItem>
 </Tabs>
@@ -52,13 +52,13 @@ Issue an accreditation to accredit that will later be revoked:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L58-L75
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L62-L79
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L42-L53
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L42-L52
 ```
 </TabItem>
 </Tabs>
@@ -73,13 +73,13 @@ Confirm the accreditation to accredit was successfully created:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L90-L93
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L95-L97
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L55-L58
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L54-L56
 ```
 </TabItem>
 </Tabs>
@@ -94,13 +94,13 @@ Revoke the accreditation to accredit using its ID:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L95-L107
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L104-L110
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L60-L65
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L59-L64
 ```
 </TabItem>
 </Tabs>
@@ -115,13 +115,13 @@ Confirm the accreditation to accredit has been successfully revoked:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L109-L117
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/07_revoke_accreditation_to_accredit.rs#L113-L120
 ```
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L68-L70
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/07_revoke_accreditation_to_accredit.ts#L67-L69
 ```
 </TabItem>
 </Tabs>
