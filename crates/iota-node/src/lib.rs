@@ -143,6 +143,7 @@ use tokio::{
     sync::{Mutex, broadcast, mpsc, watch},
     task::{JoinHandle, JoinSet},
 };
+use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tracing::{Instrument, debug, error, error_span, info, warn};
 use typed_store::{
@@ -2360,10 +2361,28 @@ async fn build_grpc_server(
     };
 
     let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
+
+    // Create cancellation token for proper shutdown hierarchy
+    let shutdown_token = CancellationToken::new();
+
+    // Create GrpcReader with the server-level shutdown token
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
+        rest_read_store,
+        shutdown_token.clone(),
+    ));
+
     let grpc_event_tx =
         grpc_event_tx.expect("gRPC event channel should exist when gRPC is enabled");
-    let handle = start_grpc_server(grpc_reader, grpc_event_tx, grpc_config.clone()).await?;
+
+    // Pass the same token to both GrpcReader (already done above) and
+    // start_grpc_server
+    let handle = start_grpc_server(
+        grpc_reader,
+        grpc_event_tx,
+        grpc_config.clone(),
+        shutdown_token,
+    )
+    .await?;
 
     Ok(Some(handle))
 }

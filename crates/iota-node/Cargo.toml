@@ -28,6 +28,7 @@ reqwest.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
 tonic.workspace = true
 tower.workspace = true
 tracing.workspace = true

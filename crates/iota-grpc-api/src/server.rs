@@ -76,6 +76,7 @@ pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     grpc_event_tx: broadcast::Sender<Arc<IotaEvent>>,
     config: crate::Config,
+    shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
     let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
@@ -87,9 +88,8 @@ pub async fn start_grpc_server(
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
     let event_broadcaster = GrpcEventBroadcaster::new(grpc_event_tx.clone());
 
-    let shutdown_token = grpc_reader.cancellation_token().clone();
-
-    // Create the gRPC service using the provided grpc_reader
+    // Create the gRPC services - both get the cancellation token directly from
+    // server level
     let checkpoint_service = CheckpointGrpcService::new(
         grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
@@ -114,11 +114,12 @@ pub async fn start_grpc_server(
     );
 
     // Spawn the server task with graceful shutdown
+    let shutdown_token_for_server = shutdown_token.clone();
     let server_handle = tokio::spawn(async move {
         let result = server_builder
             .serve_with_incoming_shutdown(
                 TcpListenerStream::new(listener),
-                grpc_reader.cancellation_token().cancelled(),
+                shutdown_token_for_server.cancelled(),
             )
             .await;
 

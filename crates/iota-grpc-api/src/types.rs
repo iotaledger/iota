@@ -230,19 +230,25 @@ pub struct GrpcReader {
 }
 
 impl GrpcReader {
-    pub fn new(state_reader: Arc<dyn GrpcStateReader>) -> Self {
+    pub fn new(
+        state_reader: Arc<dyn GrpcStateReader>,
+        cancellation_token: CancellationToken,
+    ) -> Self {
         Self {
             state_reader,
-            cancellation_token: CancellationToken::new(),
+            cancellation_token,
         }
     }
 
-    pub fn from_rest_state_reader(state_reader: Arc<dyn RestStateReader>) -> Self {
+    pub fn from_rest_state_reader(
+        state_reader: Arc<dyn RestStateReader>,
+        cancellation_token: CancellationToken,
+    ) -> Self {
         Self {
             state_reader: Arc::new(RestStateReaderAdapter {
                 inner: state_reader,
             }),
-            cancellation_token: CancellationToken::new(),
+            cancellation_token,
         }
     }
 
