@@ -1430,9 +1430,8 @@ mod tests {
 
     #[derive(Default)]
     struct MockNetworkClient {
-        block_headers_to_answer_fetch_requests:
-            Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
-        latest_block_headers_to_answer_fetch_requests:
+        fetch_headers_response: Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
+        fetch_latest_header_response:
             Mutex<BTreeMap<FetchLatestBlockKey, Vec<FetchLatestHeaderResponse>>>,
     }
 
@@ -1443,7 +1442,7 @@ mod tests {
             peer: AuthorityIndex,
             latency: Option<Duration>,
         ) {
-            let mut lock = self.block_headers_to_answer_fetch_requests.lock().await;
+            let mut lock = self.fetch_headers_response.lock().await;
             let block_refs = block_headers
                 .iter()
                 .map(|block| block.reference())
@@ -1453,25 +1452,19 @@ mod tests {
 
         async fn stub_fetch_latest_block_headers_response(
             &self,
-            blocks: Vec<VerifiedBlockHeader>,
+            block_headers: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             authorities: Vec<AuthorityIndex>,
             latency: Option<Duration>,
         ) {
-            let mut lock = self
-                .latest_block_headers_to_answer_fetch_requests
-                .lock()
-                .await;
+            let mut lock = self.fetch_latest_header_response.lock().await;
             lock.entry((peer, authorities))
                 .or_default()
-                .push((blocks, latency));
+                .push((block_headers, latency));
         }
 
         async fn fetch_latest_block_headers_pending_calls(&self) -> usize {
-            let lock = self
-                .latest_block_headers_to_answer_fetch_requests
-                .lock()
-                .await;
+            let lock = self.fetch_latest_header_response.lock().await;
             lock.len()
         }
     }
@@ -1503,7 +1496,7 @@ mod tests {
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            let mut lock = self.block_headers_to_answer_fetch_requests.lock().await;
+            let mut lock = self.fetch_headers_response.lock().await;
             // If the key is not found, just return an empty vector and no delay.
             let response = match lock.remove(&(block_refs, peer)) {
                 Some(resp) => resp,
@@ -1539,10 +1532,7 @@ mod tests {
             authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            let mut lock = self
-                .latest_block_headers_to_answer_fetch_requests
-                .lock()
-                .await;
+            let mut lock = self.fetch_latest_header_response.lock().await;
             let mut responses = lock
                 .remove(&(peer, authorities.clone()))
                 .expect("Unexpected fetch blocks request made");
@@ -2197,7 +2187,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn synchronizer_fetch_own_last_block() {
+    async fn synchronizer_fetch_own_last_block_header() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context.with_parameters(Parameters {
@@ -2218,17 +2208,17 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        // Create some test blocks
-        let mut expected_blocks = (8..=10)
+        // Create some test block headers
+        let mut expected_block_headers = (8..=10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
 
-        // Now set different latest blocks for the peers
-        // For peer 1 we give the block of round 10 (highest)
-        let block_1 = expected_blocks.pop().unwrap();
+        // Now set different latest block headers for the peers
+        // For peer 1 we give the block header of round 10 (highest)
+        let block_header_1 = expected_block_headers.pop().unwrap();
         network_client
             .stub_fetch_latest_block_headers_response(
-                vec![block_1.clone()],
+                vec![block_header_1.clone()],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
@@ -2236,18 +2226,18 @@ mod tests {
             .await;
         network_client
             .stub_fetch_latest_block_headers_response(
-                vec![block_1],
+                vec![block_header_1],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
                 None,
             )
             .await;
 
-        // For peer 2 we give the block of round 9
-        let block_2 = expected_blocks.pop().unwrap();
+        // For peer 2 we give the block header of round 9
+        let block_header_2 = expected_block_headers.pop().unwrap();
         network_client
             .stub_fetch_latest_block_headers_response(
-                vec![block_2.clone()],
+                vec![block_header_2.clone()],
                 AuthorityIndex::new_for_test(2),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
@@ -2255,18 +2245,18 @@ mod tests {
             .await;
         network_client
             .stub_fetch_latest_block_headers_response(
-                vec![block_2],
+                vec![block_header_2],
                 AuthorityIndex::new_for_test(2),
                 vec![our_index],
                 None,
             )
             .await;
 
-        // For peer 3 we give a block with lowest round
-        let block_3 = expected_blocks.pop().unwrap();
+        // For peer 3 we give a block header with the lowest round
+        let block_header_3 = expected_block_headers.pop().unwrap();
         network_client
             .stub_fetch_latest_block_headers_response(
-                vec![block_3.clone()],
+                vec![block_header_3.clone()],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
@@ -2274,7 +2264,7 @@ mod tests {
             .await;
         network_client
             .stub_fetch_latest_block_headers_response(
-                vec![block_3],
+                vec![block_header_3],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
                 None,
@@ -2296,7 +2286,7 @@ mod tests {
         // Wait at least for the timeout time
         sleep(context.parameters.sync_last_known_own_block_timeout * 2).await;
 
-        // Assert that core has been called to set the min propose round
+        // Assert that core has been called to set the min proposed round
         assert_eq!(
             core_dispatcher.get_last_own_proposed_round().await,
             vec![10]
@@ -2318,6 +2308,16 @@ mod tests {
                 .sync_last_known_own_block_retries
                 .get(),
             1
+        );
+
+        // Check that we restored our last know block header correctly
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .last_known_own_block_round
+                .get(),
+            10
         );
 
         // Stop synchronizer and ensure that no panic occurred
