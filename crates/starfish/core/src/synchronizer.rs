@@ -1978,7 +1978,8 @@ mod tests {
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
-        // Authority 3 will be requested about the first block headers in the missing blocks
+        // Authority 3 will be requested about the first block headers in the missing
+        // blocks
         let stub_block_author_3 = stub_block_headers
             .iter()
             .take(context.parameters.max_headers_per_regular_sync_fetch)
@@ -2035,12 +2036,12 @@ mod tests {
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
 
-         // Stop synchronizer and ensure that no panic occurred
-         if let Err(err) = handle.stop().await {
-             if err.is_panic() {
-                 std::panic::resume_unwind(err.into_panic());
-             }
-         }
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
 
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
@@ -2447,7 +2448,11 @@ mod tests {
             // Stub *all* authorities so none panic:
             for i in 1..=9 {
                 let peer = AuthorityIndex::new_for_test(i);
-                let timeout = if i == 1 || i == 3 { Some(2 * FETCH_REQUEST_TIMEOUT) } else { None };
+                let timeout = if i == 1 || i == 3 {
+                    Some(2 * FETCH_REQUEST_TIMEOUT)
+                } else {
+                    None
+                };
                 network_client
                     .stub_fetch_headers_response(vec![missing_vbh.clone()], peer, timeout)
                     .await;
@@ -2465,10 +2470,15 @@ mod tests {
             )
                 .await;
 
-            // 5) Knowledge-based fetches should go to 2 and 3, additional random requests go to 1 (only one authority because in additional requests we ask different authorities for different headers,
+            // 5) Knowledge-based fetches should go to 2 and 3, additional random requests
+            //    go to 1 (only one authority because in additional requests we ask
+            //    different authorities for different headers,
             // and we have only one header).
-            // For authorities 1 and 3 we will have request timeout. After the request timeout they try to swap locks and request the header from remaining authorities, first two of them are authorities 4 and 5.
-            // Assert we got exactly three fetches - from 2 (knowledge-based), and from 4 and 5 (request from remaining authorities after timeout)
+            // For authorities 1 and 3 we will have request timeout. After the request
+            // timeout they try to swap locks and request the header from remaining
+            // authorities, first two of them are authorities 4 and 5. Assert we
+            // got exactly three fetches - from 2 (knowledge-based), and from 4 and 5
+            // (request from remaining authorities after timeout)
             assert_eq!(results.len(), 3);
 
             // 6) The results should come in the following order: 2, 4, 5
@@ -2604,7 +2614,8 @@ mod tests {
 
         network_client
             .stub_fetch_headers_response(
-                all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch..2 * context.parameters.max_headers_per_regular_sync_fetch]
+                all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
+                    ..2 * context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(4),
                 None,
@@ -2625,8 +2636,8 @@ mod tests {
         )
             .await;
 
-        // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of the remaining peers), peer 3, and
-        //    from 'random' 1 and 4
+        // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of
+        //    the remaining peers), peer 3, and from 'random' 1 and 4
         assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
         // 7) First fetch from peer 3 (knowledge-based)
