@@ -29,19 +29,32 @@ import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
 import { growthbook } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import {
+    metaMaskWallet,
+    walletConnectWallet,
+    coinbaseWallet,
+} from '@rainbow-me/rainbowkit/wallets';
 
 growthbook.init();
 
 const queryClient = new QueryClient();
 
+coinbaseWallet.preference = 'eoaOnly';
+
+const wagmiConfig = getDefaultConfig({
+    ...L2_WAGMI_CONFIG,
+    chains: [L2_CHAIN_CONFIG as Chain],
+    wallets: [
+        {
+            groupName: 'Supported Wallets',
+            wallets: [metaMaskWallet, walletConnectWallet, coinbaseWallet],
+        },
+    ],
+});
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <WagmiProvider
-            config={getDefaultConfig({
-                ...L2_WAGMI_CONFIG,
-                chains: [L2_CHAIN_CONFIG as Chain],
-            })}
-        >
+        <WagmiProvider config={wagmiConfig}>
             <GrowthBookProvider growthbook={growthbook}>
                 <EvmRpcClientProvider baseUrl={L2_CHAIN_CONFIG.evmRpcUrl}>
                     <QueryClientProvider client={queryClient}>
