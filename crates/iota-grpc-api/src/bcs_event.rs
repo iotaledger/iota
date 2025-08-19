@@ -28,7 +28,7 @@ pub fn try_from_bcs_bytes(bytes: &[u8]) -> Result<IotaEvent, bcs::Error> {
 
 /// Internal BCS-compatible version of IotaEvent
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct BcsIotaEvent {
+pub struct BcsIotaEvent {
     pub id: EventID,
     pub package_id: ObjectID,
     pub transaction_module: Identifier,

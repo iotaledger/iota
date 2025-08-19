@@ -47,6 +47,11 @@ impl GrpcCheckpointSummaryBroadcaster {
     pub fn subscribe(&self) -> Receiver<Arc<GrpcCertifiedCheckpointSummary>> {
         self.sender.subscribe()
     }
+
+    /// Get the number of active receivers
+    pub fn receiver_count(&self) -> usize {
+        self.sender.receiver_count()
+    }
 }
 
 impl CheckpointSummaryBroadcaster for GrpcCheckpointSummaryBroadcaster {
@@ -71,6 +76,11 @@ impl GrpcCheckpointDataBroadcaster {
     /// Subscribe to checkpoint data broadcasts
     pub fn subscribe(&self) -> Receiver<Arc<GrpcCheckpointData>> {
         self.sender.subscribe()
+    }
+
+    /// Get the number of active receivers
+    pub fn receiver_count(&self) -> usize {
+        self.sender.receiver_count()
     }
 }
 

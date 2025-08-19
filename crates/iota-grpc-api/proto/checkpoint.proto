@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package iota.grpc;
+package iota.grpc.checkpoints;
 
 service CheckpointService {
   // Checkpoint operations

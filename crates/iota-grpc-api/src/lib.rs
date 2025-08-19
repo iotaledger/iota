@@ -3,7 +3,7 @@
 
 // Generated protobuf code
 pub mod checkpoint {
-    tonic::include_proto!("iota.grpc");
+    tonic::include_proto!("iota.grpc.checkpoints");
 }
 
 pub mod events {

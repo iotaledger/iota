@@ -1773,8 +1773,24 @@ impl IotaNode {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_summary_broadcaster().clone();
                     Box::new(move |summary: &CertifiedCheckpointSummary| {
-                        if let Err(e) = tx.send(summary) {
-                            warn!("Failed to send checkpoint summary: {e}");
+                        if tx.receiver_count() > 0 {
+                            match tx.send(summary) {
+                                Ok(()) => {
+                                    debug!(
+                                        "Sent checkpoint summary #{} to {} gRPC subscriber(s)",
+                                        *summary.data().sequence_number(),
+                                        tx.receiver_count()
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!("Failed to send checkpoint summary: {e}");
+                                }
+                            }
+                        } else {
+                            debug!(
+                                "No gRPC clients subscribed for checkpoint summary #{}",
+                                *summary.data().sequence_number()
+                            );
                         }
                     }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
                 })
@@ -1785,8 +1801,24 @@ impl IotaNode {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_data_broadcaster().clone();
                     Box::new(move |data: &CheckpointData| {
-                        if let Err(e) = tx.send(data) {
-                            warn!("Failed to send checkpoint data: {e}");
+                        if tx.receiver_count() > 0 {
+                            match tx.send(data) {
+                                Ok(()) => {
+                                    debug!(
+                                        "Sent checkpoint data #{} to {} gRPC subscriber(s)",
+                                        data.checkpoint_summary.data().sequence_number,
+                                        tx.receiver_count()
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!("Failed to send checkpoint data: {e}");
+                                }
+                            }
+                        } else {
+                            debug!(
+                                "No gRPC clients subscribed for checkpoint data #{}",
+                                data.checkpoint_summary.data().sequence_number
+                            );
                         }
                     }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
                 })
