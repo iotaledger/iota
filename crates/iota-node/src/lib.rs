@@ -89,6 +89,7 @@ use iota_json_rpc::{
     transaction_execution_api::TransactionExecutionApi,
 };
 use iota_json_rpc_api::JsonRpcMetrics;
+use iota_json_rpc_types::IotaEvent;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
     RegistryID, RegistryService,
@@ -742,6 +743,20 @@ impl IotaNode {
                     &prometheus_registry,
                 )));
 
+        // Create gRPC event broadcast channel early if gRPC is enabled for fullnodes,
+        // because we need to pass it to the AuthorityState
+        let grpc_event_tx = if config.enable_grpc_api
+            && config.grpc_api_config.is_some()
+            && config.consensus_config().is_none()
+        {
+            info!("Creating gRPC event broadcast channel for fullnode");
+            let grpc_config = config.grpc_api_config.as_ref().unwrap();
+            let (tx, _) = broadcast::channel(grpc_config.event_broadcast_buffer_size);
+            Some(tx)
+        } else {
+            None
+        };
+
         info!("create authority state");
         let state = AuthorityState::new(
             authority_name,
@@ -761,6 +776,7 @@ impl IotaNode {
             config.indirect_objects_threshold,
             archive_readers,
             validator_tx_finalizer,
+            grpc_event_tx.clone(),
             chain_identifier,
             pruner_db,
         )
@@ -871,8 +887,13 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
-        let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
+        let grpc_server_handle = build_grpc_server(
+            &config,
+            state.clone(),
+            state_sync_store.clone(),
+            grpc_event_tx,
+        )
+        .await?;
 
         let validator_components = if state.is_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -2295,6 +2316,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
+    grpc_event_tx: Option<broadcast::Sender<Arc<IotaEvent>>>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2307,7 +2329,9 @@ async fn build_grpc_server(
 
     let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
-    let handle = start_grpc_server(grpc_reader, grpc_config.clone()).await?;
+    let grpc_event_tx =
+        grpc_event_tx.expect("gRPC event channel should exist when gRPC is enabled");
+    let handle = start_grpc_server(grpc_reader, grpc_event_tx, grpc_config.clone()).await?;
 
     Ok(Some(handle))
 }

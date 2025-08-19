@@ -13,8 +13,9 @@ use prometheus::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
+use tokio::sync::broadcast::Sender;
 use tokio_stream::Stream;
-use tracing::{error, instrument, trace};
+use tracing::{debug, error, instrument, trace};
 
 use crate::streamer::Streamer;
 
@@ -70,14 +71,19 @@ pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
     transaction_streamer:
         Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
+    grpc_event_broadcast_tx: Option<Sender<Arc<IotaEvent>>>,
 }
 
 impl SubscriptionHandler {
-    pub fn new(registry: &Registry) -> Self {
+    pub fn new(
+        registry: &Registry,
+        grpc_event_broadcast_tx: Option<Sender<Arc<IotaEvent>>>,
+    ) -> Self {
         let metrics = Arc::new(SubscriptionMetrics::new(registry));
         Self {
             event_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics.clone(), "event"),
             transaction_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics, "tx"),
+            grpc_event_broadcast_tx,
         }
     }
 }
@@ -104,9 +110,44 @@ impl SubscriptionHandler {
         }
 
         // serially dispatch event processing to honor events' orders.
-        for event in events.data.clone() {
-            if let Err(e) = self.event_streamer.try_send(event) {
+        for (index, event) in events.data.clone().iter().enumerate() {
+            // Send to existing event streamer
+            if let Err(e) = self.event_streamer.try_send(event.clone()) {
                 error!(error =? e, "Failed to send event to dispatch");
+            }
+
+            // Also send to gRPC broadcast channel if available
+            if let Some(ref grpc_tx) = self.grpc_event_broadcast_tx {
+                if grpc_tx.receiver_count() > 0 {
+                    let event_arc = Arc::new(event.clone());
+                    match grpc_tx.send(event_arc) {
+                        Ok(subscriber_count) => {
+                            debug!(
+                                event_index = index,
+                                subscriber_count = subscriber_count,
+                                tx_digest =? effects.transaction_digest(),
+                                event_type = %event.type_.name,
+                                "Broadcasted event to {subscriber_count} gRPC subscriber(s)"
+                            );
+                        }
+                        Err(e) => {
+                            error!(
+                                error = ?e,
+                                event_index = index,
+                                tx_digest =? effects.transaction_digest(),
+                                event_type = %event.type_.name,
+                                "Failed to broadcast event to gRPC channel"
+                            );
+                        }
+                    }
+                } else {
+                    debug!(
+                        event_index = index,
+                        tx_digest =? effects.transaction_digest(),
+                        event_type = %event.type_.name,
+                        "No gRPC subscribers, skipping broadcast"
+                    );
+                }
             }
         }
         Ok(())

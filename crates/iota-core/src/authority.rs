@@ -121,7 +121,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tap::TapFallible;
 use tokio::{
-    sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
+    sync::{RwLock, broadcast::Sender, mpsc, mpsc::unbounded_channel, oneshot},
     task::JoinHandle,
 };
 use tracing::{Instrument, debug, error, info, instrument, trace, warn};
@@ -2866,6 +2866,7 @@ impl AuthorityState {
         indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
+        grpc_event_broadcast_tx: Option<Sender<Arc<IotaEvent>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {
@@ -2913,7 +2914,10 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             indexes,
             rest_index,
-            subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
+            subscription_handler: Arc::new(SubscriptionHandler::new(
+                prometheus_registry,
+                grpc_event_broadcast_tx,
+            )),
             checkpoint_store,
             committee_store,
             transaction_manager,

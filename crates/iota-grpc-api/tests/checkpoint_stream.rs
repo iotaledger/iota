@@ -13,6 +13,7 @@ use iota_grpc_api::{
     client::{CheckpointClient, CheckpointContent, NodeClient},
     start_grpc_server,
 };
+use iota_json_rpc_types::IotaEvent;
 use iota_types::{
     base_types::ObjectID,
     committee::EpochId,
@@ -24,6 +25,7 @@ use iota_types::{
     },
     storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
 };
+use tokio::sync::broadcast::channel;
 use tokio_stream::StreamExt;
 
 struct MockRestStateReader {
@@ -389,7 +391,9 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     };
     config_customizer(&mut config);
 
-    let server_handle = start_grpc_server(grpc_reader, config)
+    // Create a dummy event channel for testing checkpoints
+    let (dummy_event_tx, _) = channel::<Arc<IotaEvent>>(1);
+    let server_handle = start_grpc_server(grpc_reader, dummy_event_tx, config)
         .await
         .expect("Failed to start gRPC server");
 

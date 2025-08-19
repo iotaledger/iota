@@ -1,0 +1,104 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.events;
+
+service EventService {
+  rpc StreamEvents (EventStreamRequest) returns (stream Event);
+}
+
+message EventStreamRequest {
+  EventFilter filter = 1;
+}
+
+message Event {
+  bytes event_data = 1;
+  EventID event_id = 2;
+  optional uint64 timestamp_ms = 3;
+}
+
+message EventID {
+  uint64 tx_seq = 1;
+  uint64 event_seq = 2;
+  string tx_digest = 3;
+}
+
+// Rich event filter that supports AND/OR logic like WebSocket/JSON-RPC
+message EventFilter {
+  oneof filter {
+    MoveEventTypeFilter move_event_type = 1;
+    MoveEventFieldFilter move_event_field = 2;
+    PackageFilter package = 3;
+    MoveEventModuleFilter move_event_module = 4;
+    AndFilter and = 5;
+    OrFilter or = 6;
+    AllFilter all = 7;
+    SenderFilter sender = 8;
+    TransactionFilter transaction = 9;
+    MoveModuleFilter move_module = 10;
+    TimeRangeFilter time_range = 11;
+  }
+}
+
+// Filter by Move event type (package::module::event_name)
+message MoveEventTypeFilter {
+  string address = 1;      // Package ID (hex string)
+  string module = 2;       // Module name (e.g., "request")
+  string name = 3;         // Event name (e.g., "RequestEvent")
+}
+
+// Filter by Move event field value
+message MoveEventFieldFilter {
+  string path = 1;         // Field path (e.g., "anchor")
+  string value = 2;        // Value to match (as JSON string)
+}
+
+// Filter by package ID
+message PackageFilter {
+  string package_id = 1;   // Package ID (hex string)
+}
+
+// Filter by package and module
+message MoveEventModuleFilter {
+  string package_id = 1;   // Package ID (hex string)
+  string module = 2;       // Module name
+}
+
+// AND filter - all child filters must match
+message AndFilter {
+  repeated EventFilter filters = 1;
+}
+
+// OR filter - any child filter can match
+message OrFilter {
+  repeated EventFilter filters = 1;
+}
+
+// Match all events (catch-all filter)
+message AllFilter {
+  // Empty - matches all events
+}
+
+// Filter by sender address
+message SenderFilter {
+  string sender = 1;           // Sender address (hex string)
+}
+
+// Filter by transaction digest
+message TransactionFilter {
+  string tx_digest = 1;        // Transaction digest (base64 string)
+}
+
+// Filter by transaction execution module (different from event definition module)
+message MoveModuleFilter {
+  string package_id = 1;       // Package ID (hex string)
+  string module = 2;           // Module name
+}
+
+// Filter by timestamp range
+message TimeRangeFilter {
+  uint64 start_time = 1;       // Start time in milliseconds since epoch (inclusive)
+  uint64 end_time = 2;         // End time in milliseconds since epoch (exclusive)
+}

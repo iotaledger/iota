@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use tonic::transport::Channel;
 
-use super::checkpoint::CheckpointClient;
+use super::{checkpoint::CheckpointClient, event::EventClient};
 
 /// gRPC client factory for IOTA node operations.
 pub struct NodeClient {
@@ -13,6 +13,8 @@ pub struct NodeClient {
     channel: Channel,
     /// Cached checkpoint client (singleton)
     checkpoint_client: OnceLock<CheckpointClient>,
+    /// Cached event client (singleton)
+    event_client: OnceLock<EventClient>,
 }
 
 impl NodeClient {
@@ -23,6 +25,7 @@ impl NodeClient {
         Ok(Self {
             channel,
             checkpoint_client: OnceLock::new(),
+            event_client: OnceLock::new(),
         })
     }
 
@@ -49,6 +52,21 @@ impl NodeClient {
         Some(
             self.checkpoint_client
                 .get_or_init(|| CheckpointClient::new(self.channel.clone()))
+                .clone(),
+        )
+    }
+
+    /// Get an event service client.
+    ///
+    /// Returns `Some(EventClient)` if the node supports event streaming
+    /// operations, `None` otherwise. The client is created only once and
+    /// cached for subsequent calls.
+    pub fn event_client(&self) -> Option<EventClient> {
+        // For now, always return Some since event service is always available
+        // In the future, this could check node capabilities first
+        Some(
+            self.event_client
+                .get_or_init(|| EventClient::new(self.channel.clone()))
                 .clone(),
         )
     }

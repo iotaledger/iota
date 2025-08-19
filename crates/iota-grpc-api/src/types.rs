@@ -8,6 +8,7 @@ use iota_grpc_types::{
     CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
     CheckpointData as GrpcCheckpointData,
 };
+use iota_json_rpc_types::IotaEvent;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
     storage::RestStateReader,
@@ -78,6 +79,28 @@ impl CheckpointDataBroadcaster for GrpcCheckpointDataBroadcaster {
         let grpc_data = Arc::new(GrpcCheckpointData::from(data.clone()));
         self.sender.send(grpc_data)?;
         Ok(())
+    }
+}
+
+/// Event broadcaster for gRPC event streaming
+#[derive(Clone)]
+pub struct GrpcEventBroadcaster {
+    sender: Sender<Arc<IotaEvent>>,
+}
+
+impl GrpcEventBroadcaster {
+    pub fn new(sender: Sender<Arc<IotaEvent>>) -> Self {
+        Self { sender }
+    }
+
+    /// Get the sender for broadcasting events
+    pub fn sender(&self) -> Sender<Arc<IotaEvent>> {
+        self.sender.clone()
+    }
+
+    /// Subscribe to event broadcasts
+    pub fn subscribe(&self) -> Receiver<Arc<IotaEvent>> {
+        self.sender.subscribe()
     }
 }
 
