@@ -277,10 +277,11 @@ mod checked {
             .copied()
             .collect::<HashSet<_>>();
         debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
-
-        let receiving_objects = vec![];
-        // To check before, in the caller: receiving_objects.is_empty(),
-
+        let receiving_objects = authenticator.receiving_objects();
+        debug_assert!(
+            receiving_objects.is_empty(),
+            "No receiving inputs are allowed"
+        );
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
