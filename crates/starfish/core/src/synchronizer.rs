@@ -2471,9 +2471,8 @@ mod tests {
             // Assert we got exactly three fetches - from 2 (knowledge-based), and from 4 and 5 (request from remaining authorities after timeout)
             assert_eq!(results.len(), 3);
 
-            // 6) The knowledge-based fetch went to peer 2 and 3 (order not guaranteed)
-            let mut peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
-            peers.sort();
+            // 6) The results should come in the following order: 2, 4, 5
+            let peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
             assert_eq!(
                 peers,
                 vec![
@@ -2515,7 +2514,7 @@ mod tests {
 
         // 2) Create 1000 missing blocks known by authorities 0, 2, and 3
         let mut missing_block_headers = BTreeMap::new();
-        let mut missing_verified_block_headers = Vec::new();
+        let mut all_verified_block_headers = Vec::new();
         let known_number_block_headers = 10;
         for i in 0..1000 {
             let verified_block_header = VerifiedBlockHeader::new_for_test(
@@ -2545,15 +2544,15 @@ mod tests {
                 missing_block_headers
                     .insert(block_ref, BTreeSet::from([AuthorityIndex::new_for_test(0)]));
             }
-            missing_verified_block_headers.push(verified_block_header);
+            all_verified_block_headers.push(verified_block_header);
         }
 
         // 3) Stub fetches for knowledge-based peers (2 and 3)
         let known_peers = [2, 3].map(AuthorityIndex::new_for_test);
-        let known_vbs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlockHeader>)> = known_peers
+        let known_vbhs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlockHeader>)> = known_peers
             .iter()
             .map(|&peer| {
-                let verified_block_headers = missing_verified_block_headers
+                let verified_block_headers = all_verified_block_headers
                     .iter()
                     .filter(|verified_block_header| {
                         missing_block_headers
@@ -2568,9 +2567,9 @@ mod tests {
             })
             .collect();
 
-        for (peer, verified_block_headers) in known_vbs_by_peer {
+        for (peer, verified_block_headers) in known_vbhs_by_peer {
             if peer == AuthorityIndex::new_for_test(2) {
-                // Simulate timeout for peer 2, then fallback to peer 5
+                // Simulate timeout for peer 2, then fall back to peer 5
                 network_client
                     .stub_fetch_headers_response(
                         verified_block_headers.clone(),
@@ -2592,10 +2591,10 @@ mod tests {
             }
         }
 
-        // 4) Stub fetches from periodic path peers (1 and 4)
+        // 4) Stub responses for fetches from additional random peers (1 and 4 in tests)
         network_client
             .stub_fetch_headers_response(
-                missing_verified_block_headers
+                all_verified_block_headers
                     [0..context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(1),
@@ -2605,7 +2604,7 @@ mod tests {
 
         network_client
             .stub_fetch_headers_response(
-                missing_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch..2 * context.parameters.max_headers_per_regular_sync_fetch]
+                all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch..2 * context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(4),
                 None,
@@ -2626,35 +2625,35 @@ mod tests {
         )
             .await;
 
-        // 6) Assert we got 4 fetches: peer 2 (timed out), fallback to 5, then periodic
-        //    from 1 and 4
+        // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of the remaining peers), peer 3, and
+        //    from 'random' 1 and 4
         assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
         // 7) First fetch from peer 3 (knowledge-based)
         let (_guard3, bytes3, peer3) = &results[0];
         assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
-        let expected2 = missing_verified_block_headers
+        let expected2 = all_verified_block_headers
             [known_number_block_headers..2 * known_number_block_headers]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes3, &expected2);
 
-        // 8) Second fetch from peer 1 (periodic)
+        // 8) Second fetch from peer 1 (additional random)
         let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
-        let expected1 = missing_verified_block_headers
+        let expected1 = all_verified_block_headers
             [0..context.parameters.max_headers_per_regular_sync_fetch]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes1, &expected1);
 
-        // 9) Third fetch from peer 4 (periodic)
+        // 9) Third fetch from peer 4 (additional random)
         let (_guard4, bytes4, peer4) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
         let expected4 =
-            missing_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
+            all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
                 ..2 * context.parameters.max_headers_per_regular_sync_fetch]
                 .iter()
                 .map(|vb| vb.serialized().clone())
@@ -2664,7 +2663,7 @@ mod tests {
         // 10) Fourth fetch from peer 5 (fallback after peer 2 timeout)
         let (_guard5, bytes5, peer5) = &results[3];
         assert_eq!(*peer5, AuthorityIndex::new_for_test(5));
-        let expected5 = missing_verified_block_headers[0..known_number_block_headers]
+        let expected5 = all_verified_block_headers[0..known_number_block_headers]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
