@@ -205,15 +205,12 @@ async fn test_event_filtering_and_bcs_serialization() {
 
     // Concurrently collect events from both clients
     let all_events_task = tokio::spawn(async move {
-        let mut all_count = 0;
         let mut all_events = Vec::new();
 
         let result = timeout(Duration::from_secs(15), async {
             while let Some(event_result) = all_stream.next().await {
                 match event_result {
                     Ok(event) => {
-                        all_count += 1;
-
                         // Verify BCS serialization integrity
                         assert!(event.timestamp_ms.is_some());
                         assert!(!event.bcs.bytes().is_empty());
@@ -226,7 +223,7 @@ async fn test_event_filtering_and_bcs_serialization() {
 
                         all_events.push(event);
 
-                        if all_count >= 4 {
+                        if all_events.len() >= 4 {
                             break;
                         }
                     }
@@ -237,19 +234,16 @@ async fn test_event_filtering_and_bcs_serialization() {
         .await;
 
         assert!(result.is_ok(), "AllFilter should receive events");
-        (all_count, all_events)
+        (all_events.len(), all_events)
     });
 
     let nested_events_task = tokio::spawn(async move {
-        let mut nested_count = 0;
         let mut nested_events = Vec::new();
 
         let result = timeout(Duration::from_secs(15), async {
             while let Some(event_result) = nested_stream.next().await {
                 match event_result {
                     Ok(event) => {
-                        nested_count += 1;
-
                         // Verify nested filter logic: ((Package AND MoveEventType) OR Sender)
                         let is_nft_event = event.package_id == nft_package_id
                             && event.type_.name.as_ident_str().as_str() == NFT_MINTED_EVENT;
@@ -273,7 +267,7 @@ async fn test_event_filtering_and_bcs_serialization() {
 
                         nested_events.push(event);
 
-                        if nested_count >= 3 {
+                        if nested_events.len() >= 3 {
                             break;
                         }
                     }
@@ -284,7 +278,7 @@ async fn test_event_filtering_and_bcs_serialization() {
         .await;
 
         assert!(result.is_ok(), "Nested filter should receive events");
-        (nested_count, nested_events)
+        (nested_events.len(), nested_events)
     });
 
     // Wait for all tasks to finish

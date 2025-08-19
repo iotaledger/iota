@@ -93,11 +93,6 @@ impl GrpcEventBroadcaster {
         Self { sender }
     }
 
-    /// Get the sender for broadcasting events
-    pub fn sender(&self) -> Sender<Arc<IotaEvent>> {
-        self.sender.clone()
-    }
-
     /// Subscribe to event broadcasts
     pub fn subscribe(&self) -> Receiver<Arc<IotaEvent>> {
         self.sender.subscribe()

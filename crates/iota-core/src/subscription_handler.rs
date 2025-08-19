@@ -119,8 +119,7 @@ impl SubscriptionHandler {
             // Also send to gRPC broadcast channel if available
             if let Some(ref grpc_tx) = self.grpc_event_broadcast_tx {
                 if grpc_tx.receiver_count() > 0 {
-                    let event_arc = Arc::new(event.clone());
-                    match grpc_tx.send(event_arc) {
+                    match grpc_tx.send(Arc::new(event.clone())) {
                         Ok(subscriber_count) => {
                             debug!(
                                 event_index = index,

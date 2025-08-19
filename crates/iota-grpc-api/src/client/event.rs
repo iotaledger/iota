@@ -5,7 +5,10 @@ use futures::{Stream, StreamExt};
 use iota_json_rpc_types::IotaEvent;
 use tonic::transport::Channel;
 
-use crate::events::{Event, EventStreamRequest, event_service_client::EventServiceClient};
+use crate::{
+    bcs_event::try_from_bcs_bytes,
+    events::{Event, EventStreamRequest, event_service_client::EventServiceClient},
+};
 
 /// Dedicated client for event-related gRPC operations.
 ///
@@ -43,7 +46,7 @@ impl EventClient {
         Ok(stream.map(|result| {
             result.and_then(|event| {
                 Self::deserialize_event(&event).map_err(|e| {
-                    tonic::Status::internal(format!("Failed to deserialize event: {}", e))
+                    tonic::Status::internal(format!("Failed to deserialize event: {e}"))
                 })
             })
         }))
@@ -51,7 +54,7 @@ impl EventClient {
 
     /// Deserialize event data from BCS bytes.
     fn deserialize_event(event: &Event) -> anyhow::Result<IotaEvent> {
-        crate::bcs_event::try_from_bcs_bytes(&event.event_data)
-            .map_err(|e| anyhow::anyhow!("BCS deserialization failed: {}", e))
+        try_from_bcs_bytes(&event.event_data)
+            .map_err(|e| anyhow::anyhow!("BCS deserialization failed: {e}"))
     }
 }

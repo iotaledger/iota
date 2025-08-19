@@ -69,9 +69,9 @@ impl GrpcServerHandle {
 /// Start a gRPC server with checkpoint and event services
 ///
 /// This function creates and starts a gRPC server that hosts checkpoint-related
-/// and event streaming services. Optionally accepts an existing event broadcast
-/// channel created upstream, enabling event broadcasting to start before the
-/// gRPC server is fully initialized.
+/// and event streaming services. Currently includes the checkpoint streaming
+/// and event streaming services, but can be extended to host additional
+/// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     grpc_event_tx: broadcast::Sender<Arc<IotaEvent>>,
