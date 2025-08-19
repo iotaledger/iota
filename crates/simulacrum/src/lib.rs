@@ -270,6 +270,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             gas_cost_summary.non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             next_epoch_system_package_bytes,
+            None,
         )];
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(kinds);

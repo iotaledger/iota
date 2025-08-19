@@ -581,7 +581,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             }
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
-        ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
+        ConsensusTransactionKind::EndOfPublish(_, _) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -1072,7 +1072,7 @@ mod tests {
     fn extract_one(t: VerifiedSequencedConsensusTransaction) -> String {
         match t.0.transaction {
             SequencedConsensusTransactionKind::External(ext) => match ext.kind {
-                ConsensusTransactionKind::EndOfPublish(authority) => {
+                ConsensusTransactionKind::EndOfPublish(authority, _) => {
                     format!("eop({})", authority.0[0])
                 }
                 ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
@@ -1090,7 +1090,7 @@ mod tests {
     fn eop_txn(a: u8) -> VerifiedSequencedConsensusTransaction {
         let mut authority = AuthorityName::default();
         authority.0[0] = a;
-        txn(ConsensusTransactionKind::EndOfPublish(authority))
+        txn(ConsensusTransactionKind::EndOfPublish(authority, vec![]))
     }
 
     fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {

@@ -4769,6 +4769,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
+        aggregated_partial_scores: Option<Vec<u32>>,
     ) -> anyhow::Result<(
         IotaSystemState,
         Option<SystemEpochInfoEvent>,
@@ -4835,6 +4836,7 @@ impl AuthorityState {
                 gas_cost_summary.non_refundable_storage_fee,
                 epoch_start_timestamp_ms,
                 next_epoch_system_package_bytes,
+                aggregated_partial_scores,
             ));
         } else {
             txns.push(EndOfEpochTransactionKind::new_change_epoch(

@@ -76,7 +76,7 @@ impl IotaTxValidator {
                     }
                 }
 
-                ConsensusTransactionKind::EndOfPublish(_)
+                ConsensusTransactionKind::EndOfPublish(_, _)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }

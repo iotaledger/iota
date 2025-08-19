@@ -185,7 +185,7 @@ impl ConsensusManagerTrait for MysticetiManager {
                 *boot_counter
             );
         }
-
+        let partial_scores = epoch_store.partial_scores.clone();
         let authority = ConsensusAuthority::start(
             network_type,
             own_index,
@@ -197,6 +197,7 @@ impl ConsensusManagerTrait for MysticetiManager {
             Arc::new(tx_validator.clone()),
             consumer,
             registry.clone(),
+            partial_scores,
             *boot_counter,
         )
         .await;

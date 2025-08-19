@@ -6,7 +6,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     future::Future,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, atomic::AtomicU64},
 };
 
 use arc_swap::ArcSwapOption;
@@ -36,7 +36,9 @@ use iota_types::{
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
-    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
+    crypto::{
+        AuthorityPublicKeyBytes, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound,
+    },
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
@@ -459,6 +461,8 @@ pub struct AuthorityPerEpochStore {
     /// epoch(and will open instance of per-epoch store for a new epoch).
     epoch_alive: tokio::sync::RwLock<bool>,
     end_of_publish: Mutex<StakeAggregator<(), true>>,
+    partial_scores_received: Mutex<StakeAggregator<Vec<u32>, true>>,
+    aggregated_partial_scores: Option<Vec<u32>>,
     /// Pending certificates that are waiting to be sequenced by the consensus.
     /// This is an in-memory 'index' of a
     /// AuthorityPerEpochTables::pending_consensus_transactions. We need to
@@ -499,6 +503,10 @@ pub struct AuthorityPerEpochStore {
     /// State machine managing randomness DKG and generation.
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
+
+    /// Local view of the validator about the other authorities' partial scores.
+    pub(crate) partial_scores: Arc<Vec<AtomicU64>>,
+    partial_scores_sent: Option<Vec<u64>>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -577,6 +585,9 @@ pub struct AuthorityEpochTables {
 
     /// Validators that have sent EndOfPublish message in this epoch
     end_of_publish: DBMap<AuthorityName, ()>,
+
+    /// Partial scores sent by authorities in EndOfPublish messages.
+    partial_scores_received: DBMap<AuthorityName, Vec<u32>>,
 
     #[allow(dead_code)]
     pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
@@ -856,6 +867,10 @@ impl AuthorityPerEpochStore {
         let tables = AuthorityEpochTables::open(epoch_id, parent_path, db_options.clone());
         let end_of_publish =
             StakeAggregator::from_iter(committee.clone(), tables.end_of_publish.unbounded_iter());
+        let partial_scores_received = StakeAggregator::from_iter(
+            committee.clone(),
+            tables.partial_scores_received.unbounded_iter(),
+        );
         let reconfig_state = tables
             .load_reconfig_state()
             .expect("Load reconfig state at initialization cannot fail");
@@ -947,7 +962,7 @@ impl AuthorityPerEpochStore {
 
         let s = Arc::new(Self {
             name,
-            committee,
+            committee: committee.clone(),
             protocol_config,
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
@@ -968,6 +983,8 @@ impl AuthorityPerEpochStore {
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
             end_of_publish: Mutex::new(end_of_publish),
+            partial_scores_received: Mutex::new(partial_scores_received),
+            aggregated_partial_scores: None,
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             version_assignment_mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -980,6 +997,12 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            partial_scores: Arc::new(
+                (0..committee.num_members())
+                    .map(|_| AtomicU64::new(u64::MAX))
+                    .collect(),
+            ),
+            partial_scores_sent: None,
         });
 
         s.update_buffer_stake_metric();
@@ -2604,7 +2627,7 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority),
+                kind: ConsensusTransactionKind::EndOfPublish(authority, _),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -2877,6 +2900,7 @@ impl AuthorityPerEpochStore {
             lock,
             final_round,
             consensus_commit_prologue_root,
+            aggregated_partial_scores,
         ) = self
             .process_consensus_transactions(
                 &mut output,
@@ -2958,6 +2982,7 @@ impl AuthorityPerEpochStore {
                     timestamp_ms: consensus_commit_info.timestamp,
                     last_of_epoch: final_round && !should_write_random_checkpoint,
                     checkpoint_height,
+                    aggregated_partial_scores: aggregated_partial_scores.clone(),
                 },
             });
             self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
@@ -2969,6 +2994,7 @@ impl AuthorityPerEpochStore {
                         timestamp_ms: consensus_commit_info.timestamp,
                         last_of_epoch: final_round,
                         checkpoint_height: checkpoint_height + 1,
+                        aggregated_partial_scores,
                     },
                 });
                 self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
@@ -3215,6 +3241,7 @@ impl AuthorityPerEpochStore {
         Option<RwLockWriteGuard<ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
+        Option<Vec<u32>>,
     )> {
         if randomness_round.is_some() {
             assert!(!dkg_failed); // invariant check
@@ -3441,11 +3468,12 @@ impl AuthorityPerEpochStore {
             output,
         )?;
 
-        let (lock, final_round) = self.process_end_of_publish_transactions_and_reconfig(
-            output,
-            end_of_publish_transactions,
-            commit_has_deferred_txns,
-        )?;
+        let (lock, aggregated_partial_scores, final_round) = self
+            .process_end_of_publish_transactions_and_reconfig(
+                output,
+                end_of_publish_transactions,
+                commit_has_deferred_txns,
+            )?;
 
         Ok((
             verified_certificates,
@@ -3453,6 +3481,7 @@ impl AuthorityPerEpochStore {
             lock,
             final_round,
             consensus_commit_prologue_root,
+            aggregated_partial_scores,
         ))
     }
 
@@ -3463,6 +3492,7 @@ impl AuthorityPerEpochStore {
         commit_has_deferred_txns: bool,
     ) -> IotaResult<(
         Option<RwLockWriteGuard<ReconfigState>>,
+        Option<Vec<u32>>,
         bool, // true if final round
     )> {
         let mut lock = None;
@@ -3474,7 +3504,7 @@ impl AuthorityPerEpochStore {
             }) = transaction;
 
             if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority),
+                kind: ConsensusTransactionKind::EndOfPublish(authority, partial_scores),
                 ..
             }) = transaction
             {
@@ -3492,10 +3522,15 @@ impl AuthorityPerEpochStore {
                         .get_reconfig_state_read_lock_guard()
                         .should_accept_consensus_certs()
                 {
-                    output.insert_end_of_publish(*authority);
+                    output.insert_end_of_publish(*authority, partial_scores.clone());
+                    self.partial_scores_received
+                        .try_lock()
+                        .expect("No contention on partial_scores_received as it is only accessed from consensus handler")
+                        .insert_generic(*authority, partial_scores.clone());
                     self.end_of_publish.try_lock()
                         .expect("No contention on Authority::end_of_publish as it is only accessed from consensus handler")
                         .insert_generic(*authority, ()).is_quorum_reached()
+
                     // end_of_publish lock is released here.
                 } else {
                     // If we past the stage where we are accepting consensus certificates we also
@@ -3514,6 +3549,7 @@ impl AuthorityPerEpochStore {
                         self.committee.epoch,
                         authority.concise(),
                     );
+
                     let mut l = self.get_reconfig_state_write_lock_guard();
                     l.close_all_certs();
                     output.store_reconfig_state(l.clone());
@@ -3554,14 +3590,20 @@ impl AuthorityPerEpochStore {
                     !self.deferred_transactions_empty(),
                 );
             }
-            return Ok((lock, false));
+            return Ok((lock, None, false));
         }
+
+        let aggregated_partial_scores = self.aggregate_partial_scores();
 
         // Acquire lock to advance state if we don't already have it.
         let mut lock = lock.unwrap_or_else(|| self.get_reconfig_state_write_lock_guard());
         lock.close_all_tx();
         output.store_reconfig_state(lock.clone());
-        Ok((Some(lock), true))
+        Ok((Some(lock), aggregated_partial_scores, true))
+    }
+
+    fn aggregate_partial_scores(&self) -> Option<Vec<u32>> {
+        None
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -3798,7 +3840,7 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(_),
+                kind: ConsensusTransactionKind::EndOfPublish(_, _),
                 ..
             }) => {
                 // these are partitioned earlier

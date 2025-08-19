@@ -330,7 +330,7 @@ impl Metrics {
         // - The maximum achievable score is u32::MAX.
 
         if faulty_blocks_provable > 0 || equivocations > 0 {
-            self.scoring_metrics.score[authority].store(0);
+            self.scoring_metrics.partial_score[authority].store(0, Ordering::Relaxed);
             self.node_metrics
                 .score_by_authority
                 .with_label_values(&[hostname])
@@ -339,7 +339,7 @@ impl Metrics {
             let score = (2 << 31) - 1
                 + (3 * (2 << 29) / (missing_proposals.saturating_add(1))
                     + (2 << 29) / (faulty_blocks_unprovable.saturating_add(1)));
-            self.scoring_metrics.score[authority].store(score);
+            self.scoring_metrics.partial_score[authority].store(score, Ordering::Relaxed);
             self.node_metrics
                 .score_by_authority
                 .with_label_values(&[hostname])
@@ -1192,22 +1192,21 @@ impl NodeMetrics {
 pub(crate) struct ValidatorScoringMetrics {
     pub(crate) uncached: Vec<UncachedScoringMetrics>,
     pub(crate) cached: Vec<CachedScoringMetrics>,
-    pub(crate) score: Vec<Score>,
+    pub(crate) partial_score: Arc<Vec<AtomicU64>>,
 }
 
 impl ValidatorScoringMetrics {
-    pub(crate) fn new(committee_size: usize) -> Self {
+    pub(crate) fn new(committee_size: usize, partial_score: Arc<Vec<AtomicU64>>) -> Self {
         let uncached = (0..committee_size)
             .map(|_| UncachedScoringMetrics::new())
             .collect();
         let cached = (0..committee_size)
             .map(|_| CachedScoringMetrics::new())
             .collect();
-        let score = (0..committee_size).map(|_| Score::new()).collect();
         Self {
             uncached,
             cached,
-            score,
+            partial_score,
         }
     }
 }
@@ -1265,10 +1264,14 @@ pub(crate) struct StoredScoringMetricsU64 {
     pub(crate) missing_proposals: u64,
 }
 
-pub(crate) fn initialise_metrics(registry: Registry, committee_size: usize) -> Arc<Metrics> {
+pub(crate) fn initialise_metrics(
+    registry: Registry,
+    committee_size: usize,
+    partial_scores: Arc<Vec<AtomicU64>>,
+) -> Arc<Metrics> {
     let node_metrics = NodeMetrics::new(&registry);
     let network_metrics = NetworkMetrics::new(&registry);
-    let scoring_metrics = ValidatorScoringMetrics::new(committee_size);
+    let scoring_metrics = ValidatorScoringMetrics::new(committee_size, partial_scores);
     Arc::new(Metrics {
         node_metrics,
         network_metrics,
@@ -1378,14 +1381,21 @@ fn is_from_commit_syncer(err: &ConsensusError) -> bool {
 
 #[cfg(test)]
 pub(crate) fn test_metrics(committee_size: usize) -> Arc<Metrics> {
-    initialise_metrics(Registry::new(), committee_size)
+    initialise_metrics(
+        Registry::new(),
+        committee_size,
+        Arc::new((0..committee_size).map(|_| AtomicU64::new(0)).collect()),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
         collections::BTreeSet,
-        sync::{Arc, atomic::Ordering},
+        sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        },
         time::Duration,
         vec,
     };
@@ -1574,7 +1584,16 @@ mod tests {
 
     #[test]
     fn test_update_scoring_metrics_on_eviction_edge_cases() {
-        let metrics = initialise_metrics(Registry::new(), 4);
+        let metrics = initialise_metrics(
+            Registry::new(),
+            4,
+            Arc::new(vec![
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+            ]),
+        );
         let authority_index = AuthorityIndex::new_for_test(0);
         let hostname = "test_host";
         let recent_refs_by_authority = BTreeSet::new();

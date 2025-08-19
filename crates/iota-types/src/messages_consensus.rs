@@ -192,7 +192,7 @@ impl AuthorityCapabilitiesV1 {
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
     CheckpointSignature(Box<CheckpointSignatureMessage>),
-    EndOfPublish(AuthorityName),
+    EndOfPublish(AuthorityName, Vec<u32>),
 
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
 
@@ -319,13 +319,13 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_end_of_publish(authority: AuthorityName) -> Self {
+    pub fn new_end_of_publish(authority: AuthorityName, partial_scores: Vec<u32>) -> Self {
         let mut hasher = DefaultHasher::new();
         authority.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::EndOfPublish(authority),
+            kind: ConsensusTransactionKind::EndOfPublish(authority, partial_scores),
         }
     }
 
@@ -412,7 +412,7 @@ impl ConsensusTransaction {
                     data.summary.sequence_number,
                 )
             }
-            ConsensusTransactionKind::EndOfPublish(authority) => {
+            ConsensusTransactionKind::EndOfPublish(authority, _) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
@@ -439,7 +439,7 @@ impl ConsensusTransaction {
     }
 
     pub fn is_end_of_publish(&self) -> bool {
-        matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_))
+        matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_, _))
     }
 }
 

@@ -383,6 +383,7 @@ impl EndOfEpochTransactionKind {
         non_refundable_storage_fee: u64,
         epoch_start_timestamp_ms: u64,
         system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        aggregated_partial_scores: Option<Vec<u32>>,
     ) -> Self {
         Self::ChangeEpochV2(ChangeEpochV2 {
             epoch: next_epoch,

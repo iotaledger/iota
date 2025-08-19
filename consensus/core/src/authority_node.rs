@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{Arc, atomic::AtomicU64},
+    time::Instant,
+};
 
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
@@ -56,6 +59,7 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
+        partial_scores: Arc<Vec<AtomicU64>>,
         // A counter that keeps track of how many times the authority node has been booted while
         // the binary or the component that is calling the `ConsensusAuthority` has been
         // running. It's mostly useful to make decisions on whether amnesia recovery should
@@ -75,6 +79,7 @@ impl ConsensusAuthority {
                     transaction_verifier,
                     commit_consumer,
                     registry,
+                    partial_scores,
                     boot_counter,
                 )
                 .await;
@@ -158,6 +163,7 @@ where
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
+        partial_scores: Arc<Vec<AtomicU64>>,
         boot_counter: u64,
     ) -> Self {
         assert!(
@@ -184,7 +190,7 @@ where
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry, committee_size),
+            initialise_metrics(registry, committee_size, partial_scores),
             Arc::new(Clock::new()),
         ));
         let start_time = Instant::now();
@@ -470,6 +476,7 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
+            Arc::new(vec![]),
             0,
         )
         .await;
@@ -852,7 +859,11 @@ mod tests {
 
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
-
+        let partial_scores = Arc::new(
+            (0..committee.size())
+                .map(|_| AtomicU64::new(u64::MAX))
+                .collect(),
+        );
         let authority = ConsensusAuthority::start(
             network_type,
             index,
@@ -864,6 +875,7 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
+            partial_scores,
             boot_counter,
         )
         .await;

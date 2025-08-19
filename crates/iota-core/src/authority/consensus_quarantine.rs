@@ -40,6 +40,7 @@ pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
     end_of_publish: BTreeSet<AuthorityName>,
+    partial_scores_received: BTreeSet<(AuthorityName, Vec<u32>)>,
     reconfig_state: Option<ReconfigState>,
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
@@ -201,6 +202,12 @@ impl ConsensusCommitOutput {
             self.end_of_publish.iter().map(|authority| (authority, ())),
         )?;
 
+        batch.insert_batch(
+            &tables.partial_scores_received,
+            self.partial_scores_received
+                .iter()
+                .map(|(authority, partial_score)| (authority, partial_score)),
+        )?;
         if let Some(reconfig_state) = &self.reconfig_state {
             batch.insert_batch(
                 &tables.reconfig_state,
