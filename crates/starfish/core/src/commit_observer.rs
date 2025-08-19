@@ -143,6 +143,17 @@ impl CommitObserver {
             sent_sub_dags.push(solid_sub_dag);
         }
         self.report_metrics(&pending_sub_dags, &solid_sub_dags);
+
+        // Evict the ack tracker using the information from the latest solid subdag
+        if !solid_sub_dags.is_empty() {
+            let max_solid_commit_leader_round = solid_sub_dags
+                .last()
+                .expect("There should be at least one solid subdag")
+                .leader
+                .round;
+            self.commit_interpreter
+                .evict_old_acknowledgments(max_solid_commit_leader_round);
+        }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
         Ok((pending_sub_dags, missing_transaction_acknowledgers))
