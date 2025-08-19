@@ -385,14 +385,13 @@ mod checked {
         (gas_charger.into_gas_status(), execution_result)
     }
 
-    /// Executes a transaction by processing the specified `TransactionKind`,
-    /// applying the necessary gas charges and running the main execution logic.
-    /// The function handles certain error conditions such as denied
-    /// certificate, deleted input objects, exceeded execution meter limits,
-    /// failed conservation checks. It also accounts for unmetered storage
-    /// rebates and adjusts for special cases like epoch change
-    /// transactions. Gas costs are managed through the `GasCharger`
-    /// argument; gas is also charged in case of errors.
+    /// Executes an authentication move callby processing the specified
+    /// `ProgrammableTransaction`, applying the necessary gas charges and
+    /// running the main execution logic. Similarly to `execute_transaction`,
+    /// this function handles certain error conditions such as denied
+    /// certificate, deleted input objects failed consistency checks. Gas costs
+    /// are managed through the `GasCharger` argument; gas is also charged
+    /// in case of errors.
     #[instrument(name = "auth_execute", level = "debug", skip_all)]
     fn execute_authentication<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
@@ -423,7 +422,7 @@ mod checked {
         // versions incremented
         let result = gas_charger.charge_input_objects(temporary_store);
         let mut result = result.and_then(|()| {
-            perform_inputs_checks(
+            run_inputs_checks(
                 protocol_config,
                 deny_cert,
                 contains_deleted_input,
@@ -533,7 +532,7 @@ mod checked {
         // versions incremented
         let result = gas_charger.charge_input_objects(temporary_store);
         let mut result = result.and_then(|()| {
-            perform_inputs_checks(
+            run_inputs_checks(
                 protocol_config,
                 deny_cert,
                 contains_deleted_input,
@@ -690,7 +689,15 @@ mod checked {
         result
     }
 
-    fn perform_inputs_checks(
+    /// Runs checks on the input objects of a transaction to ensure that they
+    /// meet the necessary conditions for execution. It checks for denied
+    /// certificates, deleted input objects, and cancelled objects due to
+    /// congestion or randomness unavailability. If any of these conditions are
+    /// met, it returns an appropriate `ExecutionError`. If all checks pass,
+    /// it returns `Ok(())`, indicating that the transaction can proceed with
+    /// execution.
+    #[instrument(name = "run_inputs_checks", level = "debug", skip_all)]
+    fn run_inputs_checks(
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
