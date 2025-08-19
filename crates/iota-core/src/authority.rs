@@ -1821,6 +1821,8 @@ impl AuthorityState {
                     &mut None,
                 );
 
+            // TODO: In case of an error during execution we return a store, effects and the
+            // execution error itself. Probably we should do the same here later.
             if let Err(validation_error) = validation_result {
                 return Err(IotaError::MoveAuthenticatorExecutionFailure {
                     error: validation_error.to_string(),
