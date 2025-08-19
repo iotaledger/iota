@@ -92,21 +92,19 @@ impl CongestionInfo {
         is_new: bool,
     ) {
         if number_congested_transactions > 0 {
-            // Update object i's hotness based on the congestion events following the
-            // formula: hotness_i -= SUM(tx)[SUM(j in tx)(hotness_j - gas_price_feedback)]
-            // * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions.
-            if !is_new {
-                let new_hotness = self.hotness
-                    - new.hotness * HOTNESS_ADJUSTMENT_FACTOR
-                        / number_congested_transactions as f64;
-                // Hotness decrease is capped by HOTNESS_DECAY_FACTOR.
-                self.hotness = new_hotness.max(self.hotness / HOTNESS_DECAY_FACTOR);
+            // Compute hotness adjustment
+            let hotness_adjustment =
+                new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
+
+            // Apply hotness change depending on whether the object is new
+            let updated_hotness = if is_new {
+                -hotness_adjustment
             } else {
-                self.hotness =
-                    -new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
-                // Ensure hotness is non-negative
-            }
-            self.hotness = self.hotness.max(0.0);
+                (self.hotness - hotness_adjustment).max(self.hotness / HOTNESS_DECAY_FACTOR)
+            };
+
+            // Ensure hotness is non-negative
+            self.hotness = updated_hotness.max(0.0);
         }
     }
 
