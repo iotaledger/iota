@@ -17,6 +17,7 @@ mod checked {
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
         account::AuthenticatorInfo,
+        auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -244,6 +245,7 @@ mod checked {
     /// This function implements a smart account transaction validation.
     /// TODO: This function is a prototype, it will be refactored and improved.
     /// TODO: Add more details.
+    #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn validate_transaction(
         store: &dyn BackingStore,
         gas_coins: Vec<ObjectRef>,
@@ -251,93 +253,84 @@ mod checked {
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
         authenticator_input_objects: CheckedInputObjects,
-        transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
-        transaction_digest: TransactionDigest,
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        enable_expensive_checks: bool,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>) {
-        // TODO: It is fake authenticator digest, which one we should use here?
-        let authenticator_digest = transaction_digest;
-
         // Check the preconditions.
-
         debug_assert!(
-            transaction_kind.is_programmable_transaction(),
+            authenticated_transaction_kind.is_programmable_transaction(),
             "Only programmable transactions are allowed"
         );
 
         // Prepare the move authenticator input objects.
-
         let input_objects = authenticator_input_objects.into_inner();
-
         let mutable_inputs = input_objects
             .mutable_inputs()
             .keys()
             .copied()
             .collect::<HashSet<_>>();
-
         debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
-
-        let shared_object_refs = input_objects.filter_shared_objects();
         let receiving_objects = authenticator.receiving_objects();
-
         debug_assert!(
             receiving_objects.is_empty(),
             "No receiving inputs are allowed"
         );
-
-        let mut transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
         // Prepare an environment for the transaction execution.
-
         let mut temporary_store = TemporaryStore::new(
             store,
             input_objects,
             receiving_objects,
-            authenticator_digest,
+            authenticated_transaction_digest,
             protocol_config,
             *epoch_id,
         );
 
-        let mut gas_charger =
-            GasCharger::new(authenticator_digest, gas_coins, gas_status, protocol_config);
+        let mut gas_charger = GasCharger::new(
+            authenticated_transaction_digest,
+            gas_coins,
+            gas_status,
+            protocol_config,
+        );
 
-        // TODO: AuthContext is needed to be created somewhere here.
+        // Prepare the authenticated transaction context.
         let mut tx_ctx = TxContext::new_from_components(
-            &transaction_signer,
-            &authenticator_digest,
+            &authenticated_transaction_signer,
+            &authenticated_transaction_digest,
             epoch_id,
             epoch_timestamp_ms,
         );
 
-        // Create a move authenticator transaction.
-        let mut builder = ProgrammableTransactionBuilder::new();
-
-        builder = setup_account_authenticator_call(builder, authenticator, authenticator_info);
-
-        let authenticator_transaction = TransactionKind::programmable(builder.finish());
+        // Prepare the authenticator context and push it as the last argument in the
+        // authemticator call.
+        let auth_ctx = {
+            let TransactionKind::ProgrammableTransaction(ptb) = authenticated_transaction_kind
+            else {
+                unreachable!("Only programmable transactions are allowed");
+            };
+            AuthContext::new_from_components(authenticator.digest(), &ptb)
+        };
+        let authenticator_move_call =
+            setup_account_authenticator_move_call(authenticator, authenticator_info, auth_ctx);
 
         // Execute the authenticator transaction.
-
-        // TODO: Check if we can use this function or execute the
-        // authenticator_transaction directly.
-        let (gas_cost_summary, execution_result) = execute_transaction::<Normal>(
+        let (gas_cost_summary, execution_result) = execute_authentication::<Normal>(
             &mut temporary_store,
-            authenticator_transaction,
+            authenticator_move_call,
             &mut gas_charger,
             &mut tx_ctx,
             move_vm,
             protocol_config,
             metrics,
-            enable_expensive_checks,
             false,
             contains_deleted_input,
             cancelled_objects,
@@ -354,7 +347,7 @@ mod checked {
                     #[skip_checked_arithmetic]
                     tracing::error!(
                         kind = ?error.kind(),
-                        tx_digest = ?authenticator_digest,
+                        tx_digest = ?authenticated_transaction_digest,
                         "INVARIANT VIOLATION! Source: {:?}",
                         error.source(),
                     );
@@ -364,7 +357,7 @@ mod checked {
                     #[skip_checked_arithmetic]
                     tracing::debug!(
                         kind = ?error.kind(),
-                        tx_digest = ?authenticator_digest,
+                        tx_digest = ?authenticated_transaction_digest,
                         "Verification Error. Source: {:?}",
                         error.source(),
                     );
@@ -381,7 +374,7 @@ mod checked {
 
         #[skip_checked_arithmetic]
         trace!(
-            tx_digest = ?authenticator_digest,
+            tx_digest = ?authenticated_transaction_digest,
             computation_gas_cost = gas_cost_summary.computation_cost,
             computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
             storage_gas_cost = gas_cost_summary.storage_cost,
@@ -390,35 +383,71 @@ mod checked {
             status
         );
 
-        // Genesis writes a special digest to indicate that an object was created during
-        // genesis and not written by any normal transaction - remove that from the
-        // dependencies
-        transaction_dependencies.remove(&TransactionDigest::genesis_marker());
+        (gas_charger.into_gas_status(), execution_result)
+    }
 
-        // TODO: Do we need this?
-        if enable_expensive_checks && !Normal::allow_arbitrary_function_calls() {
-            temporary_store
-                .check_ownership_invariants(
-                    &transaction_signer,
-                    &mut gas_charger,
-                    &mutable_inputs,
-                    false,
-                )
-                .unwrap()
-        } // else, in dev inspect mode and anything goes--don't check
+    /// Executes an authentication move callby processing the specified
+    /// `ProgrammableTransaction`, applying the necessary gas charges and
+    /// running the main execution logic. Similarly to `execute_transaction`,
+    /// this function handles certain error conditions such as denied
+    /// certificate, deleted input objects failed consistency checks. Gas costs
+    /// are managed through the `GasCharger` argument; gas is also charged
+    /// in case of errors.
+    #[instrument(name = "auth_execute", level = "debug", skip_all)]
+    fn execute_authentication<Mode: ExecutionMode>(
+        temporary_store: &mut TemporaryStore<'_>,
+        authenticator_move_call: ProgrammableTransaction,
+        gas_charger: &mut GasCharger,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        deny_cert: bool,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (
+        GasCostSummary,
+        Result<Mode::ExecutionResults, ExecutionError>,
+    ) {
+        gas_charger.smash_gas(temporary_store);
 
-        // TODO: Would we like to check the effects here? Object changes, events, etc.?
-        let (inner, effects) = temporary_store.into_effects(
-            shared_object_refs,
-            &authenticator_digest,
-            transaction_dependencies,
-            gas_cost_summary,
-            status,
-            &mut gas_charger,
-            *epoch_id,
+        // At this point no charges have been applied yet
+        debug_assert!(
+            gas_charger.no_charges(),
+            "No gas charges must be applied yet"
         );
 
-        (gas_charger.into_gas_status(), execution_result)
+        // We must charge object read here during transaction execution, because if this
+        // fails we must still ensure an effect is committed and all objects
+        // versions incremented
+        let result = gas_charger.charge_input_objects(temporary_store);
+        let mut result = result.and_then(|()| {
+            run_inputs_checks(
+                protocol_config,
+                deny_cert,
+                contains_deleted_input,
+                cancelled_objects,
+            )?;
+            programmable_transactions::execution::execute::<Mode>(
+                protocol_config,
+                metrics.clone(),
+                move_vm,
+                temporary_store,
+                tx_ctx,
+                gas_charger,
+                authenticator_move_call,
+                trace_builder_opt,
+            )
+            .and_then(|ok_result| {
+                temporary_store.check_authenticate_execution_results_consistency()?;
+                Ok(ok_result)
+            })
+        });
+
+        let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
+
+        (cost_summary, result)
     }
 
     /// Function dedicated to the execution of a GenesisTransaction.
@@ -504,54 +533,23 @@ mod checked {
         // versions incremented
         let result = gas_charger.charge_input_objects(temporary_store);
         let mut result = result.and_then(|()| {
-            let mut execution_result = if deny_cert {
-                Err(ExecutionError::new(
-                    ExecutionErrorKind::CertificateDenied,
-                    None,
-                ))
-            } else if contains_deleted_input {
-                Err(ExecutionError::new(
-                    ExecutionErrorKind::InputObjectDeleted,
-                    None,
-                ))
-            } else if let Some((cancelled_objects, reason)) = cancelled_objects {
-                match reason {
-                    version if version.is_congested() => Err(ExecutionError::new(
-                        if protocol_config.congestion_control_gas_price_feedback_mechanism() {
-                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                                congested_objects: CongestedObjects(cancelled_objects),
-                                suggested_gas_price: version
-                                    .get_congested_version_suggested_gas_price(),
-                            }
-                        } else {
-                            // WARN: do not remove this `else` branch even after
-                            // `congestion_control_gas_price_feedback_mechanism` is enabled
-                            // on the mainnet. It must be kept to be able to replay old
-                            // transaction data.
-                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                                congested_objects: CongestedObjects(cancelled_objects),
-                            }
-                        },
-                        None,
-                    )),
-                    SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
-                        ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
-                        None,
-                    )),
-                    _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
-                }
-            } else {
-                execution_loop::<Mode>(
-                    temporary_store,
-                    transaction_kind,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics.clone(),
-                    trace_builder_opt,
-                )
-            };
+            run_inputs_checks(
+                protocol_config,
+                deny_cert,
+                contains_deleted_input,
+                cancelled_objects,
+            )?;
+
+            let mut execution_result = execution_loop::<Mode>(
+                temporary_store,
+                transaction_kind,
+                tx_ctx,
+                move_vm,
+                gas_charger,
+                protocol_config,
+                metrics.clone(),
+                trace_builder_opt,
+            );
 
             let meter_check = check_meter_limit(
                 temporary_store,
@@ -690,6 +688,61 @@ mod checked {
         // does not satisfy IOTA conservation, or we're in the non-production
         // dev inspect mode which allows us to violate conservation
         result
+    }
+
+    /// Runs checks on the input objects of a transaction to ensure that they
+    /// meet the necessary conditions for execution. It checks for denied
+    /// certificates, deleted input objects, and cancelled objects due to
+    /// congestion or randomness unavailability. If any of these conditions are
+    /// met, it returns an appropriate `ExecutionError`. If all checks pass,
+    /// it returns `Ok(())`, indicating that the transaction can proceed with
+    /// execution.
+    #[instrument(name = "run_inputs_checks", level = "debug", skip_all)]
+    fn run_inputs_checks(
+        protocol_config: &ProtocolConfig,
+        deny_cert: bool,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+    ) -> Result<(), ExecutionError> {
+        if deny_cert {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::CertificateDenied,
+                None,
+            ))
+        } else if contains_deleted_input {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::InputObjectDeleted,
+                None,
+            ))
+        } else if let Some((cancelled_objects, reason)) = cancelled_objects {
+            match reason {
+                version if version.is_congested() => Err(ExecutionError::new(
+                    if protocol_config.congestion_control_gas_price_feedback_mechanism() {
+                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                            congested_objects: CongestedObjects(cancelled_objects),
+                            suggested_gas_price: version
+                                .get_congested_version_suggested_gas_price(),
+                        }
+                    } else {
+                        // WARN: do not remove this `else` branch even after
+                        // `congestion_control_gas_price_feedback_mechanism` is enabled
+                        // on the mainnet. It must be kept to be able to replay old
+                        // transaction data.
+                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
+                            congested_objects: CongestedObjects(cancelled_objects),
+                        }
+                    },
+                    None,
+                )),
+                SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
+                    ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
+                    None,
+                )),
+                _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
+            }
+        } else {
+            Ok(())
+        }
     }
 
     /// Checks if the estimated size of transaction effects exceeds predefined
@@ -1487,21 +1540,25 @@ mod checked {
 
     /// The function constructs a transaction that invokes a smart account
     /// authenticator.
-    fn setup_account_authenticator_call(
-        mut builder: ProgrammableTransactionBuilder,
+    fn setup_account_authenticator_move_call(
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
-    ) -> ProgrammableTransactionBuilder {
+        auth_ctx: AuthContext,
+    ) -> ProgrammableTransaction {
         // TODO: Result instead of expect?
+        let mut args = authenticator.call_args().clone();
+        args.push(CallArg::Pure(auth_ctx.to_vec()));
+
+        let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
-                authenticator_info.package.into(),
-                Identifier::new(authenticator_info.module).unwrap(),
-                Identifier::new(authenticator_info.function).unwrap(),
-                vec![],
-                authenticator.inputs().to_owned(),
+                authenticator_info.package,
+                Identifier::new(authenticator_info.module.clone()).unwrap(),
+                Identifier::new(authenticator_info.function.clone()).unwrap(),
+                authenticator.type_arguments().clone(),
+                args,
             )
             .expect("Unable to generate account authenticator call transaction!");
-        builder
+        builder.finish()
     }
 }
