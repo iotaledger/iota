@@ -9,7 +9,7 @@
     "generate-ts-docs": "docusaurus generate-typedoc;",
     "generate-graphql-docs": "docusaurus graphql-to-doc:devnet; docusaurus graphql-to-doc:testnet;",
     "download-iota-references": "git clean -Xdf ../content/developer/references/framework; git clean -Xdf ../content/developer/ts-sdk/api; ./scripts/get-iota-references.sh;",
-    "download-external-references": "git clean -Xdf ../content/developer/iota-evm/references/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/developer/iota-identity/references/; ./scripts/get-iota-identity-references.sh; git clean -Xdf ../content/developer/iota-notarization/references/; ./scripts/get-iota-notarization-references.sh",
+    "download-external-references": "git clean -Xdf ../content/developer/iota-evm/references/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/developer/iota-identity/references/; ./scripts/get-iota-identity-references.sh; git clean -Xdf ../content/developer/iota-notarization/references/; ./scripts/get-iota-notarization-references.sh; git clean -Xdf ../content/developer/iota-hierarchies/references/; ./scripts/get-iota-hierarchies-references.sh",
     "download-rpc-specs": "node src/utils/getopenrpcspecs.js",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
