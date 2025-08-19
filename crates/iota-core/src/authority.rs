@@ -944,11 +944,6 @@ impl AuthorityState {
                 self.get_backing_store().as_ref(),
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
-                // TODO: would be nice to pass the whole NodeConfig here, but it creates a
-                // cyclic dependency w/ iota-adapter
-                self.config
-                    .expensive_safety_check_config
-                    .enable_deep_per_tx_iota_conservation_check(),
                 &epoch_store.epoch_start_config().epoch_data().epoch_id(),
                 epoch_store
                     .epoch_start_config()
@@ -1746,10 +1741,6 @@ impl AuthorityState {
         let protocol_config = epoch_store.protocol_config();
 
         let reference_gas_price = epoch_store.reference_gas_price();
-        let enable_deep_per_tx_iota_conservation_check = self
-            .config
-            .expensive_safety_check_config
-            .enable_deep_per_tx_iota_conservation_check();
 
         let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
         let epoch_start_timestamp = epoch_store
@@ -1805,9 +1796,6 @@ impl AuthorityState {
                     backing_store,
                     protocol_config,
                     self.metrics.limits_metrics.clone(),
-                    // TODO: would be nice to pass the whole NodeConfig here, but it creates a
-                    // cyclic dependency w/ iota-adapter
-                    enable_deep_per_tx_iota_conservation_check,
                     &epoch_id,
                     epoch_start_timestamp,
                     gas.clone(),
@@ -1854,7 +1842,9 @@ impl AuthorityState {
                 self.metrics.limits_metrics.clone(),
                 // TODO: would be nice to pass the whole NodeConfig here, but it creates a
                 // cyclic dependency w/ iota-adapter
-                enable_deep_per_tx_iota_conservation_check,
+                self.config
+                    .expensive_safety_check_config
+                    .enable_deep_per_tx_iota_conservation_check(),
                 self.config.certificate_deny_config.certificate_deny_set(),
                 &epoch_id,
                 epoch_start_timestamp,
