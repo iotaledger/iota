@@ -1504,9 +1504,11 @@ mod tests {
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             let mut lock = self.block_headers_to_answer_fetch_requests.lock().await;
-            let response = lock
-                .remove(&(block_refs, peer))
-                .expect("Unexpected fetch block headers request made");
+            // If the key is not found, just return an empty vector and no delay.
+            let response = match lock.remove(&(block_refs, peer)) {
+                Some(resp) => resp,
+                None => (Vec::new(), None),
+            };
 
             let mut block_headers = vec![];
             for block_header in response.0.into_iter() {
@@ -1710,6 +1712,13 @@ mod tests {
         // THEN ensure those ended up in Core
         let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
         assert_eq!(added_blocks, expected_block_headers);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 
     #[tokio::test]
@@ -1788,6 +1797,12 @@ mod tests {
                 );
             }
         }
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1835,7 +1850,7 @@ mod tests {
         // AND stub the request responses for authority 1 & 2. They will be picked as
         // peers that know block_refs. Make the first authority timeout, so the
         // second will be called. "We" are authority = 0, so we are skipped
-        // anyways.
+        // anyway.
         network_client
             .stub_fetch_headers_response(
                 expected_block_headers_1.clone(),
@@ -1863,7 +1878,7 @@ mod tests {
             .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
-        let _handle = Synchronizer::start(
+        let handle = Synchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
@@ -1892,6 +1907,13 @@ mod tests {
                 .collect::<BTreeSet<_>>(),
             missing_blocks_refs_1
         );
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
@@ -1916,7 +1938,7 @@ mod tests {
         // AND stub some missing blocks. The highest accepted round is 0.
         // Create some blocks that are below and above the threshold sync.
         let sync_missing_block_round_threshold = context.parameters.commit_sync_batch_size;
-        let expected_blocks = (1..=sync_missing_block_round_threshold * 2)
+        let expected_block_headers = (1..=sync_missing_block_round_threshold * 2)
             .flat_map(|round| {
                 vec![
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build()),
@@ -1927,37 +1949,37 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let missing_blocks = expected_blocks
+        let missing_blocks_refs = expected_block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
         core_dispatcher
-            .stub_missing_block_headers(missing_blocks)
+            .stub_missing_block_headers(missing_blocks_refs)
             .await;
 
         // Stub the requests for authority 1 & 2 & 3
-        let stub_blocks = expected_blocks
+        let stub_block_headers = expected_block_headers
             .iter()
-            .map(|block| (block.reference(), block.clone()))
+            .map(|block_header| (block_header.reference(), block_header.clone()))
             .collect::<BTreeMap<_, _>>();
 
         // Authority 1 and 2 will be requested about their blocks
-        let stub_block_author_1 = stub_blocks
+        let stub_block_author_1 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(1))
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
-        let stub_block_author_2 = stub_blocks
+        let stub_block_author_2 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(2))
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
-        // Authority 3 will be requested about first blocks in the missing blocks
-        let stub_block_author_3 = stub_blocks
+        // Authority 3 will be requested about the first block headers in the missing blocks
+        let stub_block_author_3 = stub_block_headers
             .iter()
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .map(|(_, block)| block.clone())
@@ -2000,7 +2022,7 @@ mod tests {
 
         // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
-        let _handle = Synchronizer::start(
+        let handle = Synchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -2013,14 +2035,21 @@ mod tests {
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
 
+         // Stop synchronizer and ensure that no panic occurred
+         if let Err(err) = handle.stop().await {
+             if err.is_panic() {
+                 std::panic::resume_unwind(err.into_panic());
+             }
+         }
+
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
-        let mut added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+        let mut added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
 
-        added_blocks.sort_by_key(|block| block.reference());
+        added_block_headers.sort_by_key(|block| block.reference());
         expected_blocks.sort_by_key(|block| block.reference());
 
-        assert_eq!(added_blocks, expected_blocks);
+        assert_eq!(added_block_headers, expected_blocks);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2049,17 +2078,17 @@ mod tests {
                 + context.parameters.max_headers_per_regular_sync_fetch as u32)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let missing_blocks = stub_headers
+        let missing_blocks_refs = stub_headers
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
         core_dispatcher
-            .stub_missing_block_headers(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks_refs.clone())
             .await;
 
         // AND stub the requests for authority 1 & 2
         // Make the first authority timeout, so the second will be called. "We" are
-        // authority = 0, so we are skipped anyways.
+        // authority = 0, so we are skipped anyway.
         let mut expected_headers = stub_headers
             .iter()
             .take(context.parameters.max_headers_per_regular_sync_fetch)
@@ -2102,7 +2131,7 @@ mod tests {
 
         // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
-        let _handle = Synchronizer::start(
+        let handle = Synchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -2145,7 +2174,7 @@ mod tests {
 
         // Now stub again the missing blocks to fetch the exact same ones.
         core_dispatcher
-            .stub_missing_block_headers(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks_refs.clone())
             .await;
 
         sleep(2 * FETCH_REQUEST_TIMEOUT).await;
@@ -2157,6 +2186,13 @@ mod tests {
         expected_headers.sort_by_key(|block| block.reference());
 
         assert_eq!(added_blocks, expected_headers);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2283,7 +2319,7 @@ mod tests {
             1
         );
 
-        // Ensure that no panic occurred
+        // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await {
             if err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
@@ -2702,5 +2738,12 @@ mod tests {
         let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
         assert_eq!(added_blocks.len(), 1);
         assert_eq!(added_blocks[0], normal_block_header);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 }
