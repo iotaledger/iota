@@ -71,6 +71,7 @@ pub fn create_auth_info_v1_impl(
         Value::vector_u8(module_name.as_bytes().iter().copied()),
         Value::vector_u8(function_name.as_bytes().iter().copied()),
     ]));
+    
     Ok(NativeResult::ok(
         context.gas_used(),
         smallvec![authenticator_info_v1],
