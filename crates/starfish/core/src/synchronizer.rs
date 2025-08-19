@@ -2429,36 +2429,27 @@ mod tests {
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let inflight = InflightBlockHeadersMap::new();
 
-            // 2) One missing block
-            let missing_vb =
+            // 2) One missing block header
+            let missing_vbh =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(100, 3).build());
-            let missing_ref = missing_vb.reference();
+            let missing_ref = missing_vbh.reference();
             let missing_blocks = BTreeMap::from([(
                 missing_ref,
                 BTreeSet::from([
                     AuthorityIndex::new_for_test(2),
                     AuthorityIndex::new_for_test(3),
-                    AuthorityIndex::new_for_test(4),
+                    AuthorityIndex::new_for_test(5),
                 ]),
             )]);
 
             // 3) Prepare mocks and stubs
             let network_client = Arc::new(MockNetworkClient::default());
-            // Stub *all*  authorities so none panic:
+            // Stub *all* authorities so none panic:
             for i in 1..=9 {
                 let peer = AuthorityIndex::new_for_test(i);
-                if i == 1 || i == 4 {
-                    network_client
-                        .stub_fetch_headers_response(
-                            vec![missing_vb.clone()],
-                            peer,
-                            Some(2 * FETCH_REQUEST_TIMEOUT),
-                        )
-                        .await;
-                    continue;
-                }
+                let timeout = if i == 1 || i == 3 { Some(2 * FETCH_REQUEST_TIMEOUT) } else { None };
                 network_client
-                    .stub_fetch_headers_response(vec![missing_vb.clone()], peer, None)
+                    .stub_fetch_headers_response(vec![missing_vbh.clone()], peer, timeout)
                     .await;
             }
 
@@ -2474,18 +2465,29 @@ mod tests {
             )
                 .await;
 
-            // 5) Assert we got exactly two fetches - two from the first two who are aware
-            //    of the missing block (authority 2 and 3)
-            assert_eq!(results.len(), 2);
+            // 5) Knowledge-based fetches should go to 2 and 3, additional random requests go to 1 (only one authority because in additional requests we ask different authorities for different headers,
+            // and we have only one header).
+            // For authorities 1 and 3 we will have request timeout. After the request timeout they try to swap locks and request the header from remaining authorities, first two of them are authorities 4 and 5.
+            // Assert we got exactly three fetches - from 2 (knowledge-based), and from 4 and 5 (request from remaining authorities after timeout)
+            assert_eq!(results.len(), 3);
 
-            // 6) The  knowledge-based‐fetch went to peer 2 and 3
-            let (_hot_guard, hot_bytes, hot_peer) = &results[0];
-            assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
-            let (_periodic_guard, _periodic_bytes, periodic_peer) = &results[1];
-            assert_eq!(*periodic_peer, AuthorityIndex::new_for_test(3));
+            // 6) The knowledge-based fetch went to peer 2 and 3 (order not guaranteed)
+            let mut peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
+            peers.sort();
+            assert_eq!(
+                peers,
+                vec![
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(4),
+                    AuthorityIndex::new_for_test(5)
+                ]
+            );
+
             // 7) Verify the returned bytes correspond to that block
-            let expected = missing_vb.serialized().clone();
-            assert_eq!(hot_bytes, &vec![expected]);
+            for (_, bytes, _) in &results {
+                let expected = missing_vbh.serialized().clone();
+                assert_eq!(bytes, &vec![expected]);
+            }
         }
     }
 
