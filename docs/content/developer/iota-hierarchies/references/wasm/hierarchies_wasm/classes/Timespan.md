@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: Timespan
 
@@ -27,6 +27,7 @@ Creates a new `WasmTimespan` with default values.
 Retrieves the start timestamp.
 
 # Returns
+
 The start timestamp in milliseconds.
 
 ## Accessors
@@ -49,7 +50,7 @@ Sets the start and end timestamps for the timespan.
 
 `void`
 
-***
+---
 
 ### validUntilMs
 
@@ -60,6 +61,7 @@ Sets the start and end timestamps for the timespan.
 Retrieves the end timestamp.
 
 # Returns
+
 The end timestamp in milliseconds.
 
 ##### Returns
@@ -88,13 +90,13 @@ Sets the end timestamp for the timespan.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 

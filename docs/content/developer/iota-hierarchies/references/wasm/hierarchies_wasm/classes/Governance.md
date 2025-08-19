@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: Governance
 
@@ -15,9 +15,10 @@ Represents the governance of a federation
 Retrieves the ID of the governance.
 
 # Returns
+
 A string representing the governance ID.
 
-***
+---
 
 ### properties
 
@@ -26,9 +27,10 @@ A string representing the governance ID.
 Retrieves the properties in the governance.
 
 # Returns
+
 The properties object.
 
-***
+---
 
 ### accreditationsToAccredit
 
@@ -37,9 +39,10 @@ The properties object.
 Retrieves the accreditations to accredit mapping.
 
 # Returns
+
 A JavaScript Map object containing accreditations to accredit.
 
-***
+---
 
 ### accreditationsToAttest
 
@@ -48,6 +51,7 @@ A JavaScript Map object containing accreditations to accredit.
 Retrieves the accreditations to attest mapping.
 
 # Returns
+
 A JavaScript Map object containing accreditations to attest.
 
 ## Methods
@@ -56,13 +60,13 @@ A JavaScript Map object containing accreditations to attest.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 

@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: RootAuthority
 
@@ -15,9 +15,10 @@ Represents a root authority. A root authority is an entity that has the highest 
 Retrieves the ID of the root authority.
 
 # Returns
+
 A string representing the root authority ID.
 
-***
+---
 
 ### accountId
 
@@ -26,6 +27,7 @@ A string representing the root authority ID.
 Retrieves the account ID of the root authority.
 
 # Returns
+
 A string representing the account ID.
 
 ## Methods
@@ -34,13 +36,13 @@ A string representing the account ID.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 

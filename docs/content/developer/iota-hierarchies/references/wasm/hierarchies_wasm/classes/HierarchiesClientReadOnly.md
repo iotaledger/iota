@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: HierarchiesClientReadOnly
 
@@ -18,13 +18,17 @@ or signing capabilities. For write operations, use [HierarchiesClient](Hierarchi
 Creates a new instance of `HierarchiesClientReadOnly`.
 
 # Arguments
-* `iota_client` - The IOTA client used for interacting with the ledger.
+
+- `iota_client` - The IOTA client used for interacting with the ledger.
 
 # Returns
+
 A new `HierarchiesClientReadOnly` instance.
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with `WasmHierarchiesClientReadOnly`.
 - On failure, the promise rejects with an `Error`.
 
@@ -47,7 +51,7 @@ try {
 
 `Promise`\<`HierarchiesClientReadOnly`\>
 
-***
+---
 
 ### createWithPkgId()
 
@@ -56,14 +60,18 @@ try {
 Creates a new instance of `HierarchiesClientReadOnly` using a specific package ID.
 
 # Arguments
-* `iota_client` - The IOTA client used for interacting with the ledger.
-* `iota_hierarchies_pkg_id` - The hierarchies package ID.
+
+- `iota_client` - The IOTA client used for interacting with the ledger.
+- `iota_hierarchies_pkg_id` - The hierarchies package ID.
 
 # Returns
+
 A new `HierarchiesClientReadOnly` instance.
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with `WasmHierarchiesClientReadOnly`.
 - On failure, the promise rejects with an `Error`.
 
@@ -90,7 +98,7 @@ try {
 
 `Promise`\<`HierarchiesClientReadOnly`\>
 
-***
+---
 
 ### packageId()
 
@@ -99,13 +107,14 @@ try {
 Retrieves the package ID of the used hierarchies package.
 
 # Returns
+
 A string representing the package ID.
 
 #### Returns
 
 `string`
 
-***
+---
 
 ### packageHistory()
 
@@ -114,13 +123,14 @@ A string representing the package ID.
 Retrieves the history of hierarchies package IDs.
 
 # Returns
+
 An array of strings representing the package history.
 
 #### Returns
 
 `string`[]
 
-***
+---
 
 ### iotaClient()
 
@@ -129,13 +139,14 @@ An array of strings representing the package history.
 Retrieves the underlying IOTA client used by this client.
 
 # Returns
+
 The `IotaClient` instance.
 
 #### Returns
 
 `IotaClient`
 
-***
+---
 
 ### network()
 
@@ -144,13 +155,14 @@ The `IotaClient` instance.
 Retrieves the network identifier associated with this client.
 
 # Returns
+
 A string representing the network identifier.
 
 #### Returns
 
 `string`
 
-***
+---
 
 ### chainId()
 
@@ -159,13 +171,14 @@ A string representing the network identifier.
 Retrieves the chain ID associated with this client.
 
 # Returns
+
 A string representing the chain ID.
 
 #### Returns
 
 `string`
 
-***
+---
 
 ### getFederationById()
 
@@ -175,13 +188,16 @@ Retrieves a federation by its ID.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
+- `federation_id`: The [`ObjectID`] of the federation.
 
 # Returns
+
 A `Result` containing the [`Federation`] object or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with `WasmFederation`.
 - On failure, the promise rejects with an `Error`.
 
@@ -204,19 +220,21 @@ try {
 
 `Promise`\<[`Federation`](Federation.md)\>
 
-***
+---
 
 ### isRootAuthority()
 
 > **isRootAuthority**(`federation_id`, `user_id`): `Promise`\<`boolean`\>
 
 Check if root authority is in the federation.
+
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
 
 # Returns
+
 A `Result` containing a boolean indicating if the user is a root authority or an [`Error`].
 
 #### Parameters
@@ -233,7 +251,7 @@ A `Result` containing a boolean indicating if the user is a root authority or an
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### getProperties()
 
@@ -243,13 +261,16 @@ Retrieves all property names registered in the federation.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
+- `federation_id`: The [`ObjectID`] of the federation.
 
 # Returns
+
 A `Result` containing the list of property names or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with `WasmProperty[]`.
 - On failure, the promise rejects with an `Error`.
 
@@ -272,7 +293,7 @@ try {
 
 `Promise`\<`PropertyName`[]\>
 
-***
+---
 
 ### isPropertyInFederation()
 
@@ -282,14 +303,17 @@ Checks if a property is registered in the federation.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `property_name`: The name of the property to check.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `property_name`: The name of the property to check.
 
 # Returns
+
 A `Result` containing a boolean indicating if the property is registered or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with a `boolean`.
 - On failure, the promise rejects with an `Error`.
 
@@ -316,7 +340,7 @@ try {
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### getAccreditationsToAttest()
 
@@ -326,14 +350,17 @@ Retrieves attestation accreditations for a specific user.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
 
 # Returns
+
 A `Result` containing the attestation accreditations or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with `WasmAccreditations`.
 - On failure, the promise rejects with an `Error`.
 
@@ -360,7 +387,7 @@ try {
 
 `Promise`\<[`Accreditations`](Accreditations.md)\>
 
-***
+---
 
 ### isAttester()
 
@@ -370,14 +397,17 @@ Checks if a user has attestation accreditation.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
 
 # Returns
+
 A `Result` containing a boolean indicating if the user has attestation accreditation or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with a `boolean`.
 - On failure, the promise rejects with an `Error`.
 
@@ -404,7 +434,7 @@ try {
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### getAccreditationsToAccredit()
 
@@ -414,14 +444,17 @@ Retrieves accreditations to accredit for a specific user.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
 
 # Returns
+
 A `Result` containing the accreditations to accredit for the user or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with `WasmAccreditations`.
 - On failure, the promise rejects with an `Error`.
 
@@ -448,7 +481,7 @@ try {
 
 `Promise`\<[`Accreditations`](Accreditations.md)\>
 
-***
+---
 
 ### isAccreditor()
 
@@ -458,14 +491,17 @@ Checks if a user has accreditations to accredit.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
 
 # Returns
+
 A `Result` containing a boolean indicating if the user has accreditations to accredit or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with a `boolean`.
 - On failure, the promise rejects with an `Error`.
 
@@ -492,7 +528,7 @@ try {
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### validateProperty()
 
@@ -502,16 +538,19 @@ Validates a property for a specific user.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
-* `property_name`: The name of the property to validate.
-* `property_value`: The value of the property to validate.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
+- `property_name`: The name of the property to validate.
+- `property_value`: The value of the property to validate.
 
 # Returns
+
 A `Result` containing a boolean indicating if the property is valid or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with a `boolean`.
 - On failure, the promise rejects with an `Error`.
 
@@ -546,7 +585,7 @@ try {
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### validateProperties()
 
@@ -556,15 +595,18 @@ Validates multiple properties for a specific user.
 
 # Arguments
 
-* `federation_id`: The [`ObjectID`] of the federation.
-* `user_id`: The [`ObjectID`] of the user.
-* `properties`: The properties to validate.
+- `federation_id`: The [`ObjectID`] of the federation.
+- `user_id`: The [`ObjectID`] of the user.
+- `properties`: The properties to validate.
 
 # Returns
+
 A `Result` containing a boolean indicating if the properties are valid or an [`Error`].
 
 # TypeScript Usage
+
 This method returns a `Promise` in TypeScript.
+
 - On success, the promise resolves with a `boolean`.
 - On failure, the promise rejects with an `Error`.
 

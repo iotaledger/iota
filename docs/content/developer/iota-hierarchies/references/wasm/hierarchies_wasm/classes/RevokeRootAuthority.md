@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: RevokeRootAuthority
 
@@ -16,9 +16,9 @@ Creates a new instance of `WasmRevokeRootAuthority`.
 
 # Arguments
 
-* `federation_id` - The ID of the federation.
-* `account_id` - The ID of the account to revoke as a root authority.
-* `signer_address` - The address of the transaction signer.
+- `federation_id` - The ID of the federation.
+- `account_id` - The ID of the account to revoke as a root authority.
+- `signer_address` - The address of the transaction signer.
 
 #### Parameters
 
@@ -44,13 +44,13 @@ Creates a new instance of `WasmRevokeRootAuthority`.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 
@@ -62,7 +62,7 @@ Return stringified version of self.
 
 `string`
 
-***
+---
 
 ### buildProgrammableTransaction()
 
@@ -72,7 +72,7 @@ Builds and returns a programmable transaction for revoking a root authority.
 
 # Arguments
 
-* `client` - A read-only client for blockchain interaction.
+- `client` - A read-only client for blockchain interaction.
 
 # Returns
 
@@ -92,7 +92,7 @@ Returns an error if the transaction cannot be built.
 
 `Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>
 
-***
+---
 
 ### applyWithEvents()
 
@@ -102,9 +102,9 @@ Applies transaction effects and events to this revoke root authority operation.
 
 # Arguments
 
-* `effects` - The transaction block effects to apply.
-* `events` - The transaction block events to apply.
-* `client` - A read-only client for blockchain interaction.
+- `effects` - The transaction block effects to apply.
+- `events` - The transaction block events to apply.
+- `client` - A read-only client for blockchain interaction.
 
 #### Parameters
 

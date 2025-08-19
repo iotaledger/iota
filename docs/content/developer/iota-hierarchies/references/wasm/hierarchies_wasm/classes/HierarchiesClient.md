@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: HierarchiesClient
 
@@ -19,15 +19,14 @@ Creates a new client with signing capabilities.
 
 # Arguments
 
-* `client` - A read-only client for blockchain interaction.
-* `signer` - A signer for transaction authorization.
+- `client` - A read-only client for blockchain interaction.
+- `signer` - A signer for transaction authorization.
 
 # Errors
 
 Returns an error if the signer's public key cannot be retrieved.
 
 ```
-
 #### Parameters
 
 ##### client
@@ -425,3 +424,4 @@ Retrieves a read-only version of the hierarchies client.
 #### Returns
 
 [`HierarchiesClientReadOnly`](HierarchiesClientReadOnly.md)
+```

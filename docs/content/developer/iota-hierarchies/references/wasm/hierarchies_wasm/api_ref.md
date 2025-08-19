@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../api_ref.md)
 
-***
+---
 
 # hierarchies\_wasm
 

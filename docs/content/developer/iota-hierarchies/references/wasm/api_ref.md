@@ -1,6 +1,6 @@
 **@iota/hierarchies API documentation**
 
-***
+---
 
 # @iota/hierarchies API documentation
 

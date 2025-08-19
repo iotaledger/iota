@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: Federation
 
@@ -15,9 +15,10 @@ Represents a federation. A federation is a group of entities that have agreed to
 Retrieves the ID of the federation.
 
 # Returns
+
 A string representing the federation ID.
 
-***
+---
 
 ### governance
 
@@ -26,9 +27,10 @@ A string representing the federation ID.
 Retrieves the governance of the federation.
 
 # Returns
+
 The governance object for the federation.
 
-***
+---
 
 ### rootAuthorities
 
@@ -37,9 +39,10 @@ The governance object for the federation.
 Retrieves the root authorities of the federation.
 
 # Returns
+
 An array of root authorities.
 
-***
+---
 
 ### revokedRootAuthorities
 
@@ -48,6 +51,7 @@ An array of root authorities.
 Retrieves the revoked root authorities of the federation.
 
 # Returns
+
 An array of revoked root authorities.
 
 ## Methods
@@ -56,13 +60,13 @@ An array of revoked root authorities.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 

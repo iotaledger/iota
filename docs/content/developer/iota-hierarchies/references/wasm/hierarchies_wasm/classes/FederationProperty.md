@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: FederationProperty
 
@@ -21,9 +21,10 @@ that match the shape.
 Retrieves the property name.
 
 # Returns
+
 The property name.
 
-***
+---
 
 ### allowedValues
 
@@ -32,9 +33,10 @@ The property name.
 Retrieves the allowed values for this property.
 
 # Returns
+
 An array of allowed property values.
 
-***
+---
 
 ### allowAny
 
@@ -43,9 +45,10 @@ An array of allowed property values.
 Checks if any value is allowed for this property.
 
 # Returns
+
 A boolean indicating if any value is allowed.
 
-***
+---
 
 ### timespan
 
@@ -54,6 +57,7 @@ A boolean indicating if any value is allowed.
 Retrieves the timespan for this property.
 
 # Returns
+
 The timespan object.
 
 ## Accessors
@@ -67,6 +71,7 @@ The timespan object.
 Retrieves the condition for this property.
 
 # Returns
+
 The property value condition if present.
 
 ##### Returns
@@ -95,13 +100,13 @@ Sets the condition for this property.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 

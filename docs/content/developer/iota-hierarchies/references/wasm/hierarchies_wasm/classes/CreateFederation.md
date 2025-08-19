@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: CreateFederation
 
@@ -24,13 +24,13 @@ Creates a new instance of `WasmCreateFederation`.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 
@@ -42,7 +42,7 @@ Return stringified version of self.
 
 `string`
 
-***
+---
 
 ### buildProgrammableTransaction()
 
@@ -52,7 +52,7 @@ Builds and returns a programmable transaction for creating a new federation.
 
 # Arguments
 
-* `client` - A read-only client for blockchain interaction.
+- `client` - A read-only client for blockchain interaction.
 
 # Returns
 
@@ -72,7 +72,7 @@ Returns an error if the transaction cannot be built.
 
 `Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>
 
-***
+---
 
 ### applyWithEvents()
 
@@ -82,9 +82,9 @@ Applies transaction effects and events to this create federation operation.
 
 # Arguments
 
-* `effects` - The transaction block effects to apply.
-* `events` - The transaction block events to apply.
-* `client` - A read-only client for blockchain interaction.
+- `effects` - The transaction block effects to apply.
+- `events` - The transaction block events to apply.
+- `client` - A read-only client for blockchain interaction.
 
 # Returns
 

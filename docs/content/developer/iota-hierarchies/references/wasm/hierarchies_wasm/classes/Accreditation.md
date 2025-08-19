@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: Accreditation
 
@@ -14,7 +14,7 @@ Represents an accreditation, which is a collection of properties granted by an a
 
 Returns the unique identifier of the accreditation.
 
-***
+---
 
 ### accreditedBy
 
@@ -22,7 +22,7 @@ Returns the unique identifier of the accreditation.
 
 Returns the identifier of the entity that granted the accreditation.
 
-***
+---
 
 ### properties
 
@@ -36,13 +36,13 @@ Returns the properties associated with this accreditation as a map.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 

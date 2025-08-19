@@ -1,6 +1,6 @@
 [**@iota/hierarchies API documentation**](../../api_ref.md)
 
-***
+---
 
 # Class: Properties
 
@@ -15,6 +15,7 @@ Properties is a struct that contains a map of PropertyName to Property
 Retrieves all property names and their corresponding property data as a JavaScript Map.
 
 # Returns
+
 A list of Property objects.
 
 ## Methods
@@ -23,13 +24,13 @@ A list of Property objects.
 
 > **toJSON**(): `Object`
 
-* Return copy of self without private attributes.
+- Return copy of self without private attributes.
 
 #### Returns
 
 `Object`
 
-***
+---
 
 ### toString()
 
@@ -41,7 +42,7 @@ Return stringified version of self.
 
 `string`
 
-***
+---
 
 ### add\_property()
 
