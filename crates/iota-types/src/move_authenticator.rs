@@ -15,8 +15,8 @@ use shared_crypto::intent::IntentMessage;
 use crate::{
     base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
-    crypto::SignatureScheme,
-    digests::ZKLoginInputsDigest,
+    crypto::{SignatureScheme, default_hash},
+    digests::{MoveAuthenticatorDigest, ZKLoginInputsDigest},
     error::IotaResult,
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
@@ -40,9 +40,21 @@ pub struct MoveAuthenticator {
     bytes: OnceCell<Vec<u8>>,
 }
 
+/// Necessary trait for
+/// [SenderSignerData](crate::transaction::SenderSignedData).
+impl Hash for MoveAuthenticator {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state);
+    }
+}
+
 impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
         self.object_to_authenticate.0.into()
+    }
+
+    pub fn digest(&self) -> MoveAuthenticatorDigest {
+        MoveAuthenticatorDigest::new(default_hash(self))
     }
 
     pub fn inputs(&self) -> &Vec<CallArg> {
@@ -106,14 +118,6 @@ impl ToFromBytes for MoveAuthenticator {
 /// Necessary trait for
 /// [SenderSignerData](crate::transaction::SenderSignedData).
 impl Eq for MoveAuthenticator {}
-
-/// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData).
-impl Hash for MoveAuthenticator {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
-    }
-}
 
 impl AsRef<[u8]> for MoveAuthenticator {
     fn as_ref(&self) -> &[u8] {
