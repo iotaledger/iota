@@ -40,7 +40,7 @@ const wagmiConfig = getDefaultConfig({
     chains: [L2_CHAIN_CONFIG as Chain],
     wallets: [
         {
-            groupName: 'Popular',
+            groupName: 'Suggested',
             wallets: [metaMaskWallet, walletConnectWallet],
         },
     ],
