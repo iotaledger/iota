@@ -2032,7 +2032,7 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to check for slot [0]8 that is <= the last evicted round 8"
+        expected = "Attempted to check for slot S8[0] that is <= the last evicted round 8"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
         /// Only keep elements up to 2 rounds before the last committed round
