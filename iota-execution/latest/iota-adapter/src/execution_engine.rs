@@ -249,19 +249,26 @@ mod checked {
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn validate_transaction(
         store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
         gas_status: IotaGasStatus,
+        // Authenticator
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
         authenticator_input_objects: CheckedInputObjects,
+        // Transaction
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
-        move_vm: &Arc<MoveVM>,
-        epoch_id: &EpochId,
-        epoch_timestamp_ms: u64,
-        protocol_config: &ProtocolConfig,
-        metrics: Arc<LimitsMetrics>,
+        // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        // VM
+        move_vm: &Arc<MoveVM>,
     ) -> (u64, Result<(), ExecutionError>) {
         // Check the preconditions.
         debug_assert!(
@@ -325,10 +332,10 @@ mod checked {
         // Setup a move authenticator transaction; Push the authenticator context as the
         // last argument.
         let authenticator_move_call =
-            setup_account_authenticator_move_call(authenticator, authenticator_info, auth_ctx);
+            setup_authenticator_move_call(authenticator, authenticator_info, auth_ctx);
 
         // Execute the authenticator transaction.
-        let (computation_gas_cost, execution_result) = execute_authentication::<Normal>(
+        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Normal>(
             &mut temporary_store,
             authenticator_move_call,
             gas_charger,
@@ -399,7 +406,7 @@ mod checked {
     /// Returns the move authenticator computation gas cost without bucketing
     /// and the execution result.
     #[instrument(name = "auth_execute", level = "debug", skip_all)]
-    fn execute_authentication<Mode: ExecutionMode>(
+    fn execute_authenticator_move_call<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
         authenticator_move_call: ProgrammableTransaction,
         mut gas_charger: GasCharger,
@@ -440,7 +447,7 @@ mod checked {
                 trace_builder_opt,
             )
             .and_then(|ok_result| {
-                temporary_store.check_authenticate_execution_results_consistency()?;
+                temporary_store.check_move_authenticator_results_consistency()?;
                 Ok(ok_result)
             })
         });
@@ -1546,7 +1553,7 @@ mod checked {
 
     /// The function constructs a transaction that invokes a smart account
     /// authenticator.
-    fn setup_account_authenticator_move_call(
+    fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
         auth_ctx: AuthContext,
