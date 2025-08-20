@@ -35,6 +35,7 @@ use iota_config::{
     },
 };
 use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_grpc_api::GrpcEventBroadcaster;
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
     IotaObjectDataFilter, IotaTransactionBlockData, IotaTransactionBlockEffects,
@@ -121,7 +122,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tap::TapFallible;
 use tokio::{
-    sync::{RwLock, broadcast::Sender, mpsc, mpsc::unbounded_channel, oneshot},
+    sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
     task::JoinHandle,
 };
 use tracing::{Instrument, debug, error, info, instrument, trace, warn};
@@ -2866,7 +2867,7 @@ impl AuthorityState {
         indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
-        grpc_event_broadcast_tx: Option<Sender<Arc<IotaEvent>>>,
+        grpc_event_broadcast_tx: Option<GrpcEventBroadcaster>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {

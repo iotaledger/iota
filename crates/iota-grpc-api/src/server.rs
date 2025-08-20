@@ -6,7 +6,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_json_rpc_types::IotaEvent;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -74,7 +73,7 @@ impl GrpcServerHandle {
 /// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
-    grpc_event_tx: broadcast::Sender<Arc<IotaEvent>>,
+    grpc_event_broadcaster: GrpcEventBroadcaster,
     config: crate::Config,
     shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
@@ -86,7 +85,7 @@ pub async fn start_grpc_server(
     let checkpoint_summary_broadcaster =
         GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
-    let event_broadcaster = GrpcEventBroadcaster::new(grpc_event_tx.clone());
+    let event_broadcaster = grpc_event_broadcaster;
 
     // Create the gRPC services - both get the cancellation token directly from
     // server level

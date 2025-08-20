@@ -79,8 +79,8 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle,
-    start_grpc_server,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcEventBroadcaster, GrpcReader,
+    GrpcServerHandle, start_grpc_server,
 };
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -89,7 +89,6 @@ use iota_json_rpc::{
     transaction_execution_api::TransactionExecutionApi,
 };
 use iota_json_rpc_api::JsonRpcMetrics;
-use iota_json_rpc_types::IotaEvent;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
     RegistryID, RegistryService,
@@ -753,7 +752,7 @@ impl IotaNode {
             info!("Creating gRPC event broadcast channel for fullnode");
             let grpc_config = config.grpc_api_config.as_ref().unwrap();
             let (tx, _) = broadcast::channel(grpc_config.event_broadcast_buffer_size);
-            Some(tx)
+            Some(GrpcEventBroadcaster::new(tx))
         } else {
             None
         };
@@ -2349,7 +2348,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
-    grpc_event_tx: Option<broadcast::Sender<Arc<IotaEvent>>>,
+    grpc_event_tx: Option<GrpcEventBroadcaster>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2371,14 +2370,14 @@ async fn build_grpc_server(
         shutdown_token.clone(),
     ));
 
-    let grpc_event_tx =
+    let grpc_event_broadcaster =
         grpc_event_tx.expect("gRPC event channel should exist when gRPC is enabled");
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
         grpc_reader,
-        grpc_event_tx,
+        grpc_event_broadcaster,
         grpc_config.clone(),
         shutdown_token,
     )

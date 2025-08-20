@@ -31,6 +31,11 @@ pub trait CheckpointDataBroadcaster {
     fn send(&self, data: &CheckpointData) -> anyhow::Result<()>;
 }
 
+/// Trait for broadcasting events
+pub trait EventBroadcaster {
+    fn send(&self, event: &IotaEvent) -> anyhow::Result<()>;
+}
+
 /// Wrapper that converts native CertifiedCheckpointSummary to gRPC type before
 /// broadcasting
 #[derive(Clone)]
@@ -106,6 +111,19 @@ impl GrpcEventBroadcaster {
     /// Subscribe to event broadcasts
     pub fn subscribe(&self) -> Receiver<Arc<IotaEvent>> {
         self.sender.subscribe()
+    }
+
+    /// Get the number of active receivers
+    pub fn receiver_count(&self) -> usize {
+        self.sender.receiver_count()
+    }
+}
+
+impl EventBroadcaster for GrpcEventBroadcaster {
+    fn send(&self, event: &IotaEvent) -> anyhow::Result<()> {
+        let arc_event = Arc::new(event.clone());
+        self.sender.send(arc_event)?;
+        Ok(())
     }
 }
 

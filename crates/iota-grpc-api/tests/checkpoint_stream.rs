@@ -9,7 +9,8 @@ use std::{
 
 use iota_config::local_ip_utils;
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, GrpcReader, GrpcServerHandle,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, GrpcEventBroadcaster,
+    GrpcReader, GrpcServerHandle,
     client::{CheckpointClient, CheckpointContent, NodeClient},
     start_grpc_server,
 };
@@ -397,9 +398,15 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
 
     // Create a dummy event channel for testing checkpoints
     let (dummy_event_tx, _) = channel::<Arc<IotaEvent>>(1);
-    let server_handle = start_grpc_server(grpc_reader, dummy_event_tx, config, cancellation_token)
-        .await
-        .expect("Failed to start gRPC server");
+    let dummy_event_broadcaster = GrpcEventBroadcaster::new(dummy_event_tx);
+    let server_handle = start_grpc_server(
+        grpc_reader,
+        dummy_event_broadcaster,
+        config,
+        cancellation_token,
+    )
+    .await
+    .expect("Failed to start gRPC server");
 
     let server_addr = server_handle.address();
     let client = NodeClient::connect(&format!("http://{}", server_addr))

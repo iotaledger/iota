@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use iota_grpc_api::{EventBroadcaster, GrpcEventBroadcaster};
 use iota_json_rpc_types::{
     EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
@@ -13,7 +14,6 @@ use prometheus::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
-use tokio::sync::broadcast::Sender;
 use tokio_stream::Stream;
 use tracing::{debug, error, instrument, trace};
 
@@ -71,14 +71,11 @@ pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
     transaction_streamer:
         Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
-    grpc_event_broadcast_tx: Option<Sender<Arc<IotaEvent>>>,
+    grpc_event_broadcast_tx: Option<GrpcEventBroadcaster>,
 }
 
 impl SubscriptionHandler {
-    pub fn new(
-        registry: &Registry,
-        grpc_event_broadcast_tx: Option<Sender<Arc<IotaEvent>>>,
-    ) -> Self {
+    pub fn new(registry: &Registry, grpc_event_broadcast_tx: Option<GrpcEventBroadcaster>) -> Self {
         let metrics = Arc::new(SubscriptionMetrics::new(registry));
         Self {
             event_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics.clone(), "event"),
@@ -117,16 +114,16 @@ impl SubscriptionHandler {
             }
 
             // Also send to gRPC broadcast channel if available
-            if let Some(ref grpc_tx) = self.grpc_event_broadcast_tx {
-                if grpc_tx.receiver_count() > 0 {
-                    match grpc_tx.send(Arc::new(event.clone())) {
-                        Ok(subscriber_count) => {
+            if let Some(ref grpc_broadcaster) = self.grpc_event_broadcast_tx {
+                if grpc_broadcaster.receiver_count() > 0 {
+                    match grpc_broadcaster.send(event) {
+                        Ok(()) => {
                             debug!(
                                 event_index = index,
-                                subscriber_count = subscriber_count,
                                 tx_digest =? effects.transaction_digest(),
                                 event_type = %event.type_.name,
-                                "Broadcasted event to {subscriber_count} gRPC subscriber(s)"
+                                "Broadcasted event to {} gRPC subscriber(s)",
+                                grpc_broadcaster.receiver_count()
                             );
                         }
                         Err(e) => {
