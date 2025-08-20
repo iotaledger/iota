@@ -1862,12 +1862,30 @@ impl AuthorityPerEpochStore {
     pub fn get_all_deferred_transactions_for_test(
         &self,
     ) -> Vec<(DeferralKey, Vec<DeferredTransaction>)> {
-        self.consensus_output_cache
-            .deferred_transactions_v2
-            .lock()
-            .iter()
-            .map(|(key, txs)| (*key, txs.clone()))
-            .collect()
+        if self
+            .protocol_config
+            .congestion_control_gas_price_feedback_mechanism()
+        {
+            self.consensus_output_cache
+                .deferred_transactions_v2
+                .lock()
+                .iter()
+                .map(|(key, txs)| (*key, txs.clone()))
+                .collect()
+        } else {
+            self.consensus_output_cache
+                .deferred_transactions
+                .lock()
+                .iter()
+                .map(|(key, txs)| {
+                    let converted_txs: Vec<DeferredTransaction> = txs
+                        .iter()
+                        .map(|tx| DeferredTransaction::new(tx.clone(), None))
+                        .collect();
+                    (*key, converted_txs)
+                })
+                .collect()
+        }
     }
 
     fn get_max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
