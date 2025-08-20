@@ -17,24 +17,9 @@ The gRPC API provides the following services:
 
 ### Event Service
 
-- `StreamEvents`: Stream events with filtering capabilities including:
-  - Move event type filtering by package::module::event_name
-  - Package-based filtering
-  - Sender address filtering
-  - Transaction digest filtering
-  - Field-based filtering on event data
-  - Time range filtering
-  - AND/OR logic for combining filters
+- `StreamEvents`: Stream events with flexible filtering capabilities
 
-### Event Filters
-
-Event filters allow precise control over which events are streamed to clients:
-
-- **AllFilter**: Receives all events from the network
-- **PackageFilter**: Filter by Move package ID (e.g., NFT contracts)
-- **MoveEventTypeFilter**: Filter by specific event types (e.g., `package::module::EventName`)
-- **SenderFilter**: Filter by transaction sender address
-- **AndFilter/OrFilter**: Combine filters with boolean logic for complex queries
+Event filters allow precise control over which events are streamed to clients, including filtering by event type, package, sender, transaction, field values, time ranges, and boolean combinations. For the complete list and definitions of available filters, see [`proto/event.proto`](proto/event.proto).
 
 ## Usage
 
