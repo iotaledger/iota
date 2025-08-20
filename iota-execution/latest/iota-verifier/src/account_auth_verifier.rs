@@ -12,13 +12,15 @@
 use iota_types::{
     Identifier,
     auth_context::{AuthContext, AuthContextKind},
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_UTF8_STR, TxContext, TxContextKind},
+    base_types::{
+        RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
+    },
     error::ExecutionError,
     id::RESOLVED_IOTA_ID,
 };
 use move_binary_format::{
     CompiledModule,
-    file_format::{SignatureToken, Visibility},
+    file_format::{AbilitySet, SignatureToken, Visibility},
 };
 use move_bytecode_utils::resolve_struct;
 
@@ -77,20 +79,13 @@ pub fn verify_authenticate_func(
     // Apart from AuthContext and TxContext we only require that the arguments are
     // not mutable references. They can be mutable values, as their mutability
     // cannot affect outside state.
-    for token in function_signature
+    for param in function_signature
         .0
         .iter()
         .take(function_signature.len() - 2)
     {
-        match token {
-            SignatureToken::Signer | SignatureToken::MutableReference(_) => {
-                return Err(verification_failure(format!(
-                    "Authenticator function '{function_identifier}' cannot use mutable references or signers, offending argument: {:?}",
-                    token
-                )));
-            }
-            _ => (),
-        }
+        verify_authenticate_param_type(module, &function_handle.type_parameters, param)
+            .map_err(verification_failure)?;
     }
 
     // Check type of AuthContext and TxContext, they both must be structs with the
@@ -203,30 +198,79 @@ fn primitive(st: &SignatureToken) -> bool {
 /// On a similar notion a simple `vector<T>` and an `Option<T>` are both also
 /// acceptable as they are built-in move types with rust side counterpart as
 /// long as `T` is recursively `pure` as well.
-#[warn(dead_code)]
-fn pure_type(module: &CompiledModule, st: &SignatureToken) -> bool {
+fn verify_pure_type(
+    module: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    param: &SignatureToken,
+) -> Result<(), String> {
     use SignatureToken::*;
 
-    match st {
-        st if primitive(st) => true,
+    match param {
+        U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address => Ok(()),
+        Vector(inner) => verify_pure_type(module, function_type_args, inner),
         Datatype(handle_index) => {
             let resolved_struct = resolve_struct(module, *handle_index);
-            resolved_struct == RESOLVED_ASCII_STR
+            if resolved_struct == RESOLVED_ASCII_STR
                 || resolved_struct == RESOLVED_UTF8_STR
                 || resolved_struct == RESOLVED_IOTA_ID
+            {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Invalid pure type. A datatype must be a string or an ID, offending argument: {:?}",
+                    param
+                ))
+            }
         }
-        // DatatypeInstantiation(datatype_instance) => {
-        //     let (idx, type_tokens) = &**datatype_instance;
-        //     let resolved_struct = resolve_struct(module, *idx);
-        //     // is option of a primitive
-        //     resolved_struct == RESOLVED_STD_OPTION && type_tokens.len() == 1 // && check if type
-        // argument is of pure input }
-        // TypeParameter(idx) =>
-        //     // check if type argument is of pure type
-        // ,
-        // Vector(type_token) => {
-        //     // check if type argument is of pure input
-        // }
-        _ => false,
+        DatatypeInstantiation(datatype_instance) => {
+            let (idx, type_args) = &**datatype_instance;
+            let resolved_struct = resolve_struct(module, *idx);
+            if resolved_struct == RESOLVED_STD_OPTION && type_args.len() == 1 {
+                verify_pure_type(module, function_type_args, &type_args[0])
+            } else {
+                Err(format!(
+                    "Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: {:?}",
+                    param
+                ))
+            }
+        }
+        TypeParameter(idx) => {
+            if function_type_args[*idx as usize].has_key() {
+                Err(format!(
+                    "Invalid pure type. A type parameter cannot have the 'key' ability, offending argument: {:?}",
+                    param
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        Signer => Err(format!(
+            "Invalid pure type. Signer is not a pure type, offending argument: {:?}",
+            param
+        )),
+        Reference(_) => Err(format!(
+            "Invalid pure type. Reference is not a pure type, offending argument: {:?}",
+            param
+        )),
+        MutableReference(_) => Err(format!(
+            "Invalid pure type. MutableReference is not a pure type, offending argument: {:?}",
+            param
+        )),
+    }
+}
+
+fn verify_authenticate_param_type(
+    module: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    param: &SignatureToken,
+) -> Result<(), String> {
+    use SignatureToken::*;
+
+    match param {
+        Reference(_) => Ok(()),
+        // This mutable reference could be allowed to enable a smother authenticate() function
+        // composition, but its usage must be checked before being enabled:
+        // MutableReference(inner) => verify_pure_type(module, function_type_args, inner),
+        _ => verify_pure_type(module, function_type_args, param),
     }
 }
