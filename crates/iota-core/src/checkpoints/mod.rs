@@ -1381,9 +1381,9 @@ impl CheckpointBuilder {
         batch.write()?;
 
         // Send all checkpoint sigs to consensus.
-        for (summary, content) in &new_checkpoints {
+        for (summary, contents) in &new_checkpoints {
             self.output
-                .checkpoint_created(summary, content, &self.epoch_store, &self.tables)
+                .checkpoint_created(summary, contents, &self.epoch_store, &self.tables)
                 .await?;
         }
 

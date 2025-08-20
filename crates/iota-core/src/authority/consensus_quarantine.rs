@@ -44,7 +44,6 @@ pub(crate) struct ConsensusCommitOutput {
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
     // transaction scheduling state
-    // shared_object_versions: Option<(AssignedTxAndVersions, HashMap<ObjectID, SequenceNumber>)>,
     next_shared_object_versions: Option<HashMap<ObjectID, SequenceNumber>>,
 
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
@@ -332,7 +331,7 @@ impl ConsensusOutputCache {
 
         let deferred_transactions_v2 = tables
             .get_all_deferred_transactions_v2()
-            .expect("load deferred transactions cannot fail");
+            .expect("load deferred transactions v2 cannot fail");
 
         if !epoch_start_configuration.is_data_quarantine_active_from_beginning_of_epoch() {
             let shared_version_assignments = Self::get_all_shared_version_assignments(tables);
@@ -471,12 +470,11 @@ impl ConsensusOutputQuarantine {
             metrics: authority_metrics,
         }
     }
-}
 
-// Write methods - all methods in this block insert new data into the
-// quarantine. There are only two sources! ConsensusHandler and
-// CheckpointBuilder.
-impl ConsensusOutputQuarantine {
+    // Write methods - all methods in this block insert new data into the
+    // quarantine. There are only two sources! ConsensusHandler and
+    // CheckpointBuilder.
+
     // Push all data gathered from a consensus commit into the quarantine.
     pub(super) fn push_consensus_output(
         &mut self,
@@ -513,6 +511,7 @@ impl ConsensusOutputQuarantine {
             .insert(sequence_number, (summary, contents));
     }
 
+    // Commit methods.
     /// Update the highest executed checkpoint and commit any data which is now
     /// below the watermark.
     pub(super) fn update_highest_executed_checkpoint(
