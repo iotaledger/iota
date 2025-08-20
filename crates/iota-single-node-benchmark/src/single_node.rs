@@ -212,6 +212,7 @@ impl SingleValidator {
             objects,
             self.epoch_store.protocol_config(),
             self.epoch_store.reference_gas_price(),
+            0,
         )
         .unwrap();
         let (kind, signer, gas) = executable.transaction_data().execution_parts();

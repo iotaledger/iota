@@ -79,10 +79,21 @@ impl GasStatus {
     /// Charge for every operation and fail when there is no more gas to pay for
     /// operations. This is the instantiation that must be used when
     /// executing a user script.
-    pub fn new(cost_table: CostTable, budget: u64, gas_price: u64, gas_model_version: u64) -> Self {
+    pub fn new(
+        cost_table: CostTable,
+        budget: u64,
+        gas_spent: u64,
+        gas_price: u64,
+        gas_model_version: u64,
+    ) -> Self {
         assert!(gas_price > 0, "gas price cannot be 0");
-        let budget_in_unit = budget / gas_price;
-        let gas_left = Self::to_internal_units(budget_in_unit);
+        assert!(
+            budget >= gas_spent,
+            "`budget` cannot be less than `gas_spent`"
+        );
+
+        let initial_budget = Self::to_internal_units(budget / gas_price);
+        let gas_left = Self::to_internal_units(budget - gas_spent / gas_price);
         let (stack_height_current_tier_mult, stack_height_next_tier_start) =
             cost_table.stack_height_tier(0);
         let (stack_size_current_tier_mult, stack_size_next_tier_start) =
@@ -93,7 +104,7 @@ impl GasStatus {
             gas_model_version,
             gas_left,
             gas_price,
-            initial_budget: gas_left,
+            initial_budget,
             cost_table,
             charge: true,
             stack_height_high_water_mark: 0,

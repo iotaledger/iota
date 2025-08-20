@@ -252,6 +252,7 @@ mod checked {
 
         pub(crate) fn new_with_budget(
             gas_budget: u64,
+            gas_spent: u64,
             gas_price: u64,
             reference_gas_price: u64,
             config: &ProtocolConfig,
@@ -269,6 +270,7 @@ mod checked {
                 GasStatus::new(
                     iota_cost_table.execution_cost_table.clone(),
                     computation_budget,
+                    gas_spent,
                     gas_price,
                     config.gas_model_version(),
                 ),

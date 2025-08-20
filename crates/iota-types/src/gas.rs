@@ -65,26 +65,37 @@ pub mod checked {
             reference_gas_price: u64,
             config: &ProtocolConfig,
         ) -> IotaResult<Self> {
-            // Common checks. We may pull them into version specific status as needed, but
-            // they are unlikely to change.
+            Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
 
-            // gas price must be greater than or equal to reference gas price
-            if gas_price < reference_gas_price {
-                return Err(UserInputError::GasPriceUnderRGP {
-                    gas_price,
-                    reference_gas_price,
-                }
-                .into());
-            }
-            if gas_price > config.max_gas_price() {
-                return Err(UserInputError::GasPriceTooHigh {
-                    max_gas_price: config.max_gas_price(),
+            Ok(Self::V1(IotaGasStatusV1::new_with_budget(
+                gas_budget,
+                0,
+                gas_price,
+                reference_gas_price,
+                config,
+            )))
+        }
+
+        pub fn new_with_gas_spent(
+            gas_budget: u64,
+            gas_spent: u64,
+            gas_price: u64,
+            reference_gas_price: u64,
+            config: &ProtocolConfig,
+        ) -> IotaResult<Self> {
+            Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
+
+            if gas_budget < gas_spent {
+                return Err(UserInputError::GasBudgetLessThenGasSpent {
+                    gas_budget,
+                    gas_spent,
                 }
                 .into());
             }
 
             Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
+                gas_spent,
                 gas_price,
                 reference_gas_price,
                 config,
@@ -107,6 +118,32 @@ pub mod checked {
             match self {
                 Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
+        }
+
+        fn check_gas_preconditions(
+            gas_price: u64,
+            reference_gas_price: u64,
+            config: &ProtocolConfig,
+        ) -> IotaResult<()> {
+            // Common checks. We may pull them into version specific status as needed, but
+            // they are unlikely to change.
+
+            // gas price must be greater than or equal to reference gas price
+            if gas_price < reference_gas_price {
+                return Err(UserInputError::GasPriceUnderRGP {
+                    gas_price,
+                    reference_gas_price,
+                }
+                .into());
+            }
+            if gas_price > config.max_gas_price() {
+                return Err(UserInputError::GasPriceTooHigh {
+                    max_gas_price: config.max_gas_price(),
+                }
+                .into());
+            }
+
+            Ok(())
         }
     }
 

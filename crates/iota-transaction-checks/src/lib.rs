@@ -52,17 +52,24 @@ mod checked {
         gas: &[ObjectRef],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
+        validation_computation_cost: u64,
         transaction: &TransactionData,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
         } else {
+            let transaction_gas_budget = transaction.gas_budget();
+
             check_gas(
                 objects,
                 protocol_config,
                 reference_gas_price,
                 gas,
-                transaction.gas_budget(),
+                // To be sure that we have enough  gas to pay for the transaction execution + the
+                // verification computation cost.
+                transaction_gas_budget + validation_computation_cost,
+                transaction_gas_budget,
+                validation_computation_cost,
                 transaction.gas_price(),
             )
         }
@@ -81,6 +88,7 @@ mod checked {
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            0,
             transaction,
             &input_objects,
             &[],
@@ -113,6 +121,7 @@ mod checked {
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            0,
             transaction,
             &input_objects,
             &[gas_object_ref],
@@ -140,11 +149,13 @@ mod checked {
         input_objects: InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
+        validation_computation_cost: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let transaction = cert.data().transaction_data();
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            validation_computation_cost,
             transaction,
             &input_objects,
             &[],
@@ -197,46 +208,39 @@ mod checked {
     pub fn check_move_authenticator_input(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        transaction: &TransactionData,
+        gas: &[ObjectRef],
+        authenticator_gas_budget: u64,
+        transaction_gas_budget: u64,
+        gas_price: u64,
         authenticator_input_objects: InputObjects,
-        gas_input_objects: InputObjects,
+        transaction_input_objects: &InputObjects,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // Check that it is enough gas to pay for the `MoveAuthenticator` execution.
 
-        // TODO: What exactly we should check?
-        // TODO: Should we have a specific authenticator gas budget/gas price?
         let gas_status = check_gas(
-            // Only the gas input objects are used for gas checks.
-            &gas_input_objects,
+            // Only the transaction input objects are used for gas checks.
+            transaction_input_objects,
             protocol_config,
             reference_gas_price,
-            transaction.gas(),
-            transaction.gas_budget(),
-            transaction.gas_price(),
+            gas,
+            // We should check if it is enough gas to pay for the authenticator and transaction
+            // execution.
+            authenticator_gas_budget + transaction_gas_budget,
+            authenticator_gas_budget,
+            0,
+            gas_price,
         )?;
 
-        check_move_authenticator_objects(
-            &authenticator_input_objects,
-            &gas_input_objects,
-            transaction.gas_owner(),
-        )?;
+        check_move_authenticator_objects(&authenticator_input_objects)?;
 
-        // Merge the gas input objects and authenticator input objects together.
-        let input_objects = InputObjects::new(
-            gas_input_objects
-                .iter()
-                .chain(authenticator_input_objects.iter())
-                .cloned()
-                .collect(),
-        );
-
-        Ok((gas_status, input_objects.into_checked()))
+        Ok((gas_status, authenticator_input_objects.into_checked()))
     }
 
     // Common checks performed for transactions and certificates.
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
+        validation_computation_cost: u64,
         transaction: &TransactionData,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
@@ -254,6 +258,7 @@ mod checked {
             gas,
             protocol_config,
             reference_gas_price,
+            validation_computation_cost,
             transaction,
         )?;
         check_objects(transaction, input_objects)?;
@@ -387,11 +392,25 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         gas: &[ObjectRef],
-        gas_budget: u64,
+        gas_budget_to_check: u64,
+        gas_budget_to_use: u64,
+        gas_spent: u64,
         gas_price: u64,
     ) -> IotaResult<IotaGasStatus> {
-        let gas_status =
-            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+        debug_assert!(
+            gas_budget_to_use <= gas_budget_to_check,
+            "It is expected that the gas budget {:?} is used for execution less or equal to the gas budget {:?} is used to check the gas coins balance",
+            gas_budget_to_use,
+            gas_budget_to_check
+        );
+
+        let gas_status = IotaGasStatus::new_with_gas_spent(
+            gas_budget_to_use,
+            gas_spent,
+            gas_price,
+            reference_gas_price,
+            protocol_config,
+        )?;
 
         // check balance and coins consistency
         // load all gas coins
@@ -405,7 +424,8 @@ mod checked {
             })?;
             gas_objects.push(obj);
         }
-        gas_status.check_gas_balance(&gas_objects, gas_budget)?;
+        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
+
         Ok(gas_status)
     }
 
@@ -613,53 +633,13 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     fn check_move_authenticator_objects(
         authenticator_objects: &InputObjects,
-        gas_objects: &InputObjects,
-        gas_owner: IotaAddress,
     ) -> UserInputResult<()> {
-        // We require that mutable objects cannot show up more than once.
-        // We check only the gas objects because `authenticator_objects` shouldn't
-        // contain mutable objects.
-        //
-        // TODO: Does it mean that we can have the same object passed as mutable and
-        // immutable simultaneously?
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
-        for gas_object in gas_objects.iter() {
-            let gas_object_id = gas_object.id();
-
-            // TODO: Check if we can use the assert here instead of an error.
-            debug_assert!(
-                gas_object.is_mutable(),
-                "Gas object {:?} is immutable, but we expect it to be mutable",
-                gas_object_id
-            );
-
-            fp_ensure!(
-                used_objects.insert(gas_object_id.into()),
-                UserInputError::MutableObjectUsedMoreThanOnce {
-                    object_id: gas_object_id
-                }
-            );
-        }
-
-        let iter = gas_objects
-            .iter()
-            .map(|o| (o, true))
-            .chain(authenticator_objects.iter().map(|o| (o, false)));
-
-        for item in iter {
-            let object = item.0;
-            let is_gas_object = item.1;
-
+        for object in authenticator_objects.iter() {
             let input_object_kind = object.input_object_kind;
 
             match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    check_one_move_authenticator_object(
-                        input_object_kind,
-                        object,
-                        gas_owner,
-                        is_gas_object,
-                    )?;
+                    check_one_move_authenticator_object(input_object_kind, object)?;
                 }
                 // We skip checking a deleted shared object because it no longer exists.
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
@@ -676,8 +656,6 @@ mod checked {
     fn check_one_move_authenticator_object(
         object_kind: InputObjectKind,
         object: &Object,
-        gas_owner: IotaAddress,
-        is_gas_object: bool,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
@@ -718,22 +696,10 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::AddressOwner(actual_owner) => {
-                        // Check the gas owner is correct.
-                        if is_gas_object {
-                            fp_ensure!(
-                                gas_owner == actual_owner,
-                                UserInputError::IncorrectUserSignature {
-                                    error: format!(
-                                        "Object {object_id:?} is owned by account address {actual_owner:?}, but given owner/signer address is {gas_owner:?}"
-                                    ),
-                                }
-                            );
-                        } else {
-                            return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
-                                object_id: object.id(),
-                            });
-                        }
+                    Owner::AddressOwner { .. } => {
+                        return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
+                            object_id: object.id(),
+                        });
                     }
                     Owner::ObjectOwner { .. } => {
                         return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {

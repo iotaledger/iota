@@ -921,6 +921,7 @@ impl LocalExec {
             input_objects,
             &protocol_config,
             reference_gas_price,
+            0,
         )
         .unwrap();
         let (kind, signer, gas) = executable.transaction_data().execution_parts();
