@@ -5100,7 +5100,7 @@ impl RandomnessRoundReceiver {
         // are committed, this ensures we will be able to re-execute it.
         self.authority_state
             .get_cache_commit()
-            .persist_transactions(&transaction);
+            .persist_transaction(&transaction);
 
         // Send transaction to TransactionManager for execution.
         self.authority_state

@@ -333,7 +333,7 @@ impl ExecutionCacheCommit for PassthroughCache {
         Ok(())
     }
 
-    fn try_persist_transactions(&self, _digests: &VerifiedExecutableTransaction) -> IotaResult {
+    fn try_persist_transaction(&self, _tx: &VerifiedExecutableTransaction) -> IotaResult {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
         Ok(())

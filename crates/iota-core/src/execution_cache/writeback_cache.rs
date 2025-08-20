@@ -1298,7 +1298,7 @@ impl ExecutionCacheCommit for WritebackCache {
         WritebackCache::commit_transaction_outputs(self, epoch, digests)
     }
 
-    fn try_persist_transactions(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
         self.store.persist_transaction(tx)
     }
 

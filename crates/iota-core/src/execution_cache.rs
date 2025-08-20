@@ -173,11 +173,11 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit a transaction to the database. Used to store any
     /// transactions that cannot be reconstructed at start-up by consensus
     /// replay. Currently the only case of this is RandomnessStateUpdate.
-    fn try_persist_transactions(&self, transaction: &VerifiedExecutableTransaction) -> IotaResult;
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult;
 
     /// Non-fallible version of `try_persist_transactions`.
-    fn persist_transactions(&self, digests: &VerifiedExecutableTransaction) {
-        self.try_persist_transactions(digests)
+    fn persist_transaction(&self, tx: &VerifiedExecutableTransaction) {
+        self.try_persist_transaction(tx)
             .expect("storage access failed")
     }
 

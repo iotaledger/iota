@@ -319,8 +319,8 @@ impl ExecutionCacheCommit for ProxyCache {
         delegate_method!(self.try_commit_transaction_outputs(epoch, digests))
     }
 
-    fn try_persist_transactions(&self, digests: &VerifiedExecutableTransaction) -> IotaResult {
-        delegate_method!(self.try_persist_transactions(digests))
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
+        delegate_method!(self.try_persist_transaction(tx))
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {
