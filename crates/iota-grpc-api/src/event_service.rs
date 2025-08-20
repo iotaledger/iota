@@ -72,7 +72,7 @@ impl EventService for EventGrpcService {
 
                 match event_result {
                     Some(Ok(event_arc)) => {
-                        let event = &*event_arc;
+                        let event = event_arc.as_ref();
 
                         // Use existing filter matching logic
                         if event_filter.matches(event) {

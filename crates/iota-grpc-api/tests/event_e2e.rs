@@ -158,6 +158,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     let generate_events_task = {
         let cluster = cluster_clone.clone();
         tokio::spawn(async move {
+            // Wait for the subscription to be established.
             tokio::time::sleep(Duration::from_millis(1000)).await;
 
             // Generate 2 NFT events from sender_1 -> MATCH nested filter (both branches)
