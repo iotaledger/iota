@@ -4797,7 +4797,7 @@ async fn test_shared_object_transaction_ok() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&certificate.key())
-        .expect("Reading shared version assignments should not fail")
+        .expect("Versions should be set")
         .into_iter()
         .find_map(|(object_id, version)| {
             if object_id == shared_object_id {
@@ -4907,7 +4907,7 @@ async fn test_consensus_commit_prologue_generation() {
         authority_state
             .epoch_store_for_testing()
             .get_assigned_shared_object_versions(txn_key)
-            .unwrap()
+            .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
                 if id == &IOTA_CLOCK_OBJECT_ID {
