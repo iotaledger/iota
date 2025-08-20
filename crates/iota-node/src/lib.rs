@@ -743,9 +743,9 @@ impl IotaNode {
                     &prometheus_registry,
                 )));
 
-        // Create gRPC event broadcast channel early if gRPC is enabled for fullnodes,
-        // because we need to pass it to the AuthorityState
-        let grpc_event_tx = if config.enable_grpc_api
+        // Create gRPC event broadcaster early if gRPC is enabled for fullnodes, because
+        // we need to pass it to the AuthorityState
+        let grpc_event_broadcaster = if config.enable_grpc_api
             && config.grpc_api_config.is_some()
             && config.consensus_config().is_none()
         {
@@ -776,7 +776,7 @@ impl IotaNode {
             config.indirect_objects_threshold,
             archive_readers,
             validator_tx_finalizer,
-            grpc_event_tx.clone(),
+            grpc_event_broadcaster.clone(),
             chain_identifier,
             pruner_db,
         )
@@ -891,7 +891,7 @@ impl IotaNode {
             &config,
             state.clone(),
             state_sync_store.clone(),
-            grpc_event_tx,
+            grpc_event_broadcaster,
         )
         .await?;
 
@@ -2348,7 +2348,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
-    grpc_event_tx: Option<GrpcEventBroadcaster>,
+    grpc_event_broadcaster: Option<GrpcEventBroadcaster>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2371,7 +2371,7 @@ async fn build_grpc_server(
     ));
 
     let grpc_event_broadcaster =
-        grpc_event_tx.expect("gRPC event channel should exist when gRPC is enabled");
+        grpc_event_broadcaster.expect("gRPC event broadcaster should exist when gRPC is enabled");
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
