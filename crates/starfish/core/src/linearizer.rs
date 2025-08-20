@@ -198,6 +198,7 @@ impl Linearizer {
     // This function should be called whenever a new commit is observed. This will
     // iterate over the sequence of committed leaders and produce a list of
     // committed sub-dags.
+    // Leaders in `committed_leaders` are assumed to be ordered in increasing rounds.
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
@@ -486,13 +487,13 @@ mod tests {
         // Now retrieve all the blocks up to round leader_round_wave_1 - 1
         // And then only the leader of round leader_round_wave_1
         // Also store those to DagState
-        let mut blocks = dag_builder.block_headers(0..=leader_round_wave_1 - 1);
-        blocks.push(
+        let mut block_headers_wave_1 = dag_builder.block_headers(0..=leader_round_wave_1 - 1);
+        block_headers_wave_1.push(
             dag_builder
                 .leader_block(leader_round_wave_1)
                 .expect("Leader block should have been found"),
         );
-        dag_state.write().accept_block_headers(blocks.clone());
+        dag_state.write().accept_block_headers(block_headers_wave_1.clone());
 
         let first_leader = dag_builder
             .leader_block(leader_round_wave_1)
@@ -503,29 +504,29 @@ mod tests {
             CommitDigest::MIN,
             0,
             first_leader.reference(),
-            blocks.into_iter().map(|block| block.reference()).collect(),
+            block_headers_wave_1.into_iter().map(|block| block.reference()).collect(),
             vec![],
         );
         dag_state.write().add_commit(first_commit_data);
 
         // Now take all the blocks from round `leader_round_wave_1` up to round
         // `leader_round_wave_2-1`
-        let mut blocks = dag_builder.block_headers(leader_round_wave_1..=leader_round_wave_2 - 1);
+        let mut block_headers_wave_2 = dag_builder.block_headers(leader_round_wave_1..=leader_round_wave_2 - 1);
         // Filter out leader block of round `leader_round_wave_1`
-        blocks.retain(|block| {
+        block_headers_wave_2.retain(|block| {
             !(block.round() == leader_round_wave_1
                 && block.author() == leader_schedule.elect_leader(leader_round_wave_1, 0))
         });
         // Add the leader block of round `leader_round_wave_2`
-        blocks.push(
+        block_headers_wave_2.push(
             dag_builder
                 .leader_block(leader_round_wave_2)
                 .expect("Leader block should have been found"),
         );
         // Write them in dag state
-        dag_state.write().accept_block_headers(blocks.clone());
+        dag_state.write().accept_block_headers(block_headers_wave_2.clone());
 
-        let mut blocks: Vec<_> = blocks.into_iter().map(|block| block.reference()).collect();
+        let mut block_refs_wave_2: Vec<_> = block_headers_wave_2.into_iter().map(|block| block.reference()).collect();
 
         // Now get the latest leader which is the leader round of wave 2
         let leader = dag_builder
@@ -538,7 +539,7 @@ mod tests {
             CommitDigest::MIN,
             0,
             leader.reference(),
-            blocks.clone(),
+            block_refs_wave_2.clone(),
             vec![],
         );
 
@@ -552,7 +553,7 @@ mod tests {
         assert_eq!(subdag.commit_ref.index, expected_second_commit.index());
 
         // Using the same sorting as used in CommittedSubDag::sort
-        blocks.sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
+        block_refs_wave_2.sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
         assert_eq!(
             subdag
                 .blocks
@@ -560,7 +561,7 @@ mod tests {
                 .into_iter()
                 .map(|b| b.reference())
                 .collect::<Vec<_>>(),
-            blocks
+            block_refs_wave_2
         );
         for block in subdag.blocks.iter() {
             assert!(block.round() <= expected_second_commit.leader().round);
@@ -587,7 +588,7 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        // Authorities of index 0->2 will always creates blocks that see each other, but
+        // Authorities of index 0-2 will always create blocks that see each other, but
         // until round 5 they won't see the blocks of authority 3. For authority
         // 3 we create blocks that connect to all the other authorities.
         // On round 5 we finally make the other authorities see the blocks of authority
@@ -674,7 +675,7 @@ mod tests {
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round <= leaders[idx].round());
+                assert!(committed_transactions_ref.round < leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
