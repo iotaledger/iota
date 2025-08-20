@@ -741,7 +741,7 @@ impl TemporaryStore<'_> {
         );
         assert_invariant!(
             self.execution_results.written_objects.is_empty(),
-            "Objects cannot be changed during authenticator execution"
+            "Objects cannot be written during authenticator execution"
         );
         assert_invariant!(
             self.execution_results.modified_objects.is_empty(),
