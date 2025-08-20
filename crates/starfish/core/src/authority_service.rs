@@ -594,11 +594,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         };
 
         if block_refs.len() > max_fetch_size {
-            // TODO: https://github.com/iotaledger/iota/issues/8228
-            // We might need to reevaluate whether we want to reject such a request
-            // or just truncate the size. Simple truncating with warning allows for easier
-            // upgradability in future until the size of requests is settled
-            return Err(ConsensusError::TooManyFetchHeadersRequested(peer));
+            warn!(
+                "Truncated fetch headers request from {} to {} blocks for peer {}",
+                block_refs.len(),
+                max_fetch_size,
+                peer
+            );
+            block_refs.truncate(max_fetch_size);
         }
 
         // Get requested blocks from store.
@@ -2566,7 +2568,7 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request: Vec<BlockRef> = (1..=rounds)
+        let block_refs_to_request: Vec<BlockRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
@@ -2575,30 +2577,21 @@ mod tests {
             .collect();
 
         let peer = context.committee.to_authority_index(1).unwrap();
-        let err = authority_service
-            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![])
-            .await
-            .expect_err("Expected TooManyFetchHeadersRequested error");
-
-        assert!(matches!(err, ConsensusError::TooManyFetchHeadersRequested(p) if p == peer));
-
-        block_refs_to_request.truncate(context.parameters.max_headers_per_commit_sync_fetch);
-
-        let serialized_block_headers = authority_service
+        let truncated_headers = authority_service
             .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![])
             .await
             .expect("Should return a valid vector of serialized block headers");
 
         // Verify that we received requested block headers
         assert_eq!(
-            serialized_block_headers.len(),
-            block_refs_to_request.len(),
+            truncated_headers.len(),
+            context.parameters.max_headers_per_commit_sync_fetch,
             "Should receive {} block headers",
-            block_refs_to_request.len()
+            context.parameters.max_headers_per_commit_sync_fetch
         );
 
         // Check the correctness of the received blocks
-        for (i, serialized_block_header) in serialized_block_headers.into_iter().enumerate() {
+        for (i, serialized_block_header) in truncated_headers.into_iter().enumerate() {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
                 .map_err(ConsensusError::MalformedHeader)
                 .unwrap();
@@ -2730,30 +2723,21 @@ mod tests {
             err,
             ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         ));
-        let err = authority_service
-            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
-            .await
-            .expect_err("Expected TooManyFetchHeadersRequested error");
-
-        assert!(matches!(err, ConsensusError::TooManyFetchHeadersRequested(p) if p == peer));
-
-        block_refs_to_request.truncate(context.parameters.max_headers_per_regular_sync_fetch);
-
-        let serialized_block_headers = authority_service
+        let truncated_headers = authority_service
             .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
             .await
             .expect("Should return a valid vector of serialized block headers");
 
         // Verify that we received requested block headers
         assert_eq!(
-            serialized_block_headers.len(),
-            block_refs_to_request.len(),
+            truncated_headers.len(),
+            context.parameters.max_headers_per_regular_sync_fetch,
             "Should receive {} block headers",
-            block_refs_to_request.len()
+            context.parameters.max_headers_per_regular_sync_fetch
         );
 
         // Check the correctness of the received blocks
-        for (i, serialized_block_header) in serialized_block_headers.into_iter().enumerate() {
+        for (i, serialized_block_header) in truncated_headers.into_iter().enumerate() {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
                 .map_err(ConsensusError::MalformedHeader)
                 .unwrap();
