@@ -1279,9 +1279,9 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
-        let input_objects =
+        let tx_input_objects =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
-        let move_authenticator_input_objects = self.read_authenticator_objects_for_execution(
+        let authenticator_input_objects = self.read_authenticator_objects_for_execution(
             tx_guard.as_lock_guard(),
             certificate,
             epoch_store,
@@ -1298,8 +1298,8 @@ impl AuthorityState {
         self.process_certificate(
             tx_guard,
             certificate,
-            input_objects,
-            move_authenticator_input_objects,
+            tx_input_objects,
+            authenticator_input_objects,
             expected_effects_digest,
             epoch_store,
         )
@@ -1331,6 +1331,8 @@ impl AuthorityState {
         )
     }
 
+    /// Reads the Move authenticator input objects if a `MoveAuthenticator`
+    /// signature is used in the transaction.
     pub fn read_authenticator_objects_for_execution(
         &self,
         tx_lock: &CertLockGuard,
@@ -1346,7 +1348,7 @@ impl AuthorityState {
 
         // TODO: This happens before the certificate preparing. It would be good not to
         // load the inputs if the feature is disabled.
-        let input_objects =
+        let authenticator_input_objects =
             if let Some(move_authenticator) = move_authenticator(certificate.tx_signatures()) {
                 let input_object_kinds = move_authenticator.input_objects();
 
@@ -1362,7 +1364,7 @@ impl AuthorityState {
                 None
             };
 
-        Ok(input_objects)
+        Ok(authenticator_input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -1447,7 +1449,7 @@ impl AuthorityState {
         &self,
         tx_guard: CertTxGuard,
         certificate: &VerifiedExecutableTransaction,
-        input_objects: InputObjects,
+        tx_input_objects: InputObjects,
         authenticator_input_objects: Option<InputObjects>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1496,7 +1498,7 @@ impl AuthorityState {
         let (inner_temporary_store, effects, execution_error_opt) = match self.prepare_certificate(
             &execution_guard,
             certificate,
-            input_objects,
+            tx_input_objects,
             authenticator_input_objects,
             epoch_store,
         ) {
@@ -1755,7 +1757,7 @@ impl AuthorityState {
 
         let (kind, signer, gas) = tx_data.execution_parts();
 
-        let validation_computation_cost = if let Some(move_authenticator) =
+        let authenticator_computation_cost = if let Some(move_authenticator) =
             move_authenticator(certificate.tx_signatures())
         {
             // TODO: Is it necessary to recheck this here?
@@ -1786,7 +1788,7 @@ impl AuthorityState {
                 )?;
 
             // Execute the Move authenticator.
-            let (validation_computation_cost, validation_result) =
+            let (authenticator_computation_cost, validation_result) =
                 epoch_store.executor().validate_transaction(
                     backing_store,
                     protocol_config,
@@ -1811,7 +1813,7 @@ impl AuthorityState {
                 });
             }
 
-            validation_computation_cost
+            authenticator_computation_cost
         } else {
             0
         };
@@ -1823,7 +1825,7 @@ impl AuthorityState {
             tx_input_objects,
             protocol_config,
             reference_gas_price,
-            validation_computation_cost,
+            authenticator_computation_cost,
         )?;
 
         let owned_object_refs = tx_input_objects.inner().filter_owned_objects();
@@ -5258,7 +5260,7 @@ impl AuthorityState {
     fn check_move_authenticator_inputs_for_signing(
         &self,
         move_authenticator: &MoveAuthenticator,
-        transaction_input_objects: &InputObjects,
+        tx_input_objects: &InputObjects,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -5312,7 +5314,7 @@ impl AuthorityState {
             transaction.gas_budget(),
             transaction.gas_price(),
             authenticator_input_objects,
-            transaction_input_objects,
+            tx_input_objects,
         )
     }
 
@@ -5322,7 +5324,7 @@ impl AuthorityState {
         reference_gas_price: u64,
         transaction: &TransactionData,
         authenticator_input_objects: InputObjects,
-        transaction_input_objects: &InputObjects,
+        tx_input_objects: &InputObjects,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // The `MoveAuthenticator` receiving objects are checked on the signing step.
 
@@ -5338,7 +5340,7 @@ impl AuthorityState {
             transaction.gas_budget(),
             transaction.gas_price(),
             authenticator_input_objects,
-            transaction_input_objects,
+            tx_input_objects,
         )
     }
 

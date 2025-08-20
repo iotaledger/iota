@@ -52,7 +52,7 @@ mod checked {
         gas: &[ObjectRef],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        validation_computation_cost: u64,
+        authenticator_computation_cost: u64,
         transaction: &TransactionData,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
@@ -65,11 +65,11 @@ mod checked {
                 protocol_config,
                 reference_gas_price,
                 gas,
-                // To be sure that we have enough  gas to pay for the transaction execution + the
-                // verification computation cost.
-                transaction_gas_budget + validation_computation_cost,
+                // To be sure that we have enough gas to pay for the transaction execution + the
+                // Move authenticator cost.
+                transaction_gas_budget + authenticator_computation_cost,
                 transaction_gas_budget,
-                validation_computation_cost,
+                authenticator_computation_cost,
                 transaction.gas_price(),
             )
         }
@@ -149,13 +149,13 @@ mod checked {
         input_objects: InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        validation_computation_cost: u64,
+        authenticator_computation_cost: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let transaction = cert.data().transaction_data();
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
-            validation_computation_cost,
+            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[],
@@ -204,6 +204,12 @@ mod checked {
         Ok(input_objects.into_checked())
     }
 
+    /// A common function to check the `MoveAuthenticator` inputs for signing
+    /// and execution.
+    ///
+    /// Checks that there is enough gas to pay for the authenticator and
+    /// transaction execution in the transaction inputs. And that the
+    /// authenticator inputs meet the requirements.
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input(
         protocol_config: &ProtocolConfig,
@@ -213,13 +219,11 @@ mod checked {
         transaction_gas_budget: u64,
         gas_price: u64,
         authenticator_input_objects: InputObjects,
-        transaction_input_objects: &InputObjects,
+        tx_input_objects: &InputObjects,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        // Check that it is enough gas to pay for the `MoveAuthenticator` execution.
-
         let gas_status = check_gas(
             // Only the transaction input objects are used for gas checks.
-            transaction_input_objects,
+            tx_input_objects,
             protocol_config,
             reference_gas_price,
             gas,
@@ -240,7 +244,7 @@ mod checked {
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        validation_computation_cost: u64,
+        authenticator_computation_cost: u64,
         transaction: &TransactionData,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
@@ -258,7 +262,7 @@ mod checked {
             gas,
             protocol_config,
             reference_gas_price,
-            validation_computation_cost,
+            authenticator_computation_cost,
             transaction,
         )?;
         check_objects(transaction, input_objects)?;
