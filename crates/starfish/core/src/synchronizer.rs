@@ -1498,10 +1498,9 @@ mod tests {
         ) -> ConsensusResult<Vec<Bytes>> {
             let mut lock = self.fetch_headers_response.lock().await;
             // If the key is not found, just return an empty vector and no delay.
-            let response = match lock.remove(&(block_refs, peer)) {
-                Some(resp) => resp,
-                None => (Vec::new(), None),
-            };
+            let response = lock
+                .remove(&(block_refs, peer))
+                .unwrap_or((Vec::new(), None));
 
             let mut block_headers = vec![];
             for block_header in response.0.into_iter() {
