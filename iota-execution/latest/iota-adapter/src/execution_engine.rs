@@ -243,8 +243,9 @@ mod checked {
     }
 
     /// This function implements a smart account transaction validation.
-    /// TODO: This function is a prototype, it will be refactored and improved.
-    /// TODO: Add more details.
+    /// It prepares a `MoveAuthenticator` transaction for execution, then
+    /// executes it through an inner execution method and finally returns
+    /// the move authenticator computation gas cost without bucketing.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn validate_transaction(
         store: &dyn BackingStore,
@@ -286,7 +287,7 @@ mod checked {
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
-        // Prepare an environment for the transaction execution.
+        // Prepare an environment for the move authenticator transaction execution.
         let mut temporary_store = TemporaryStore::new(
             store,
             input_objects,
@@ -298,7 +299,7 @@ mod checked {
 
         let gas_charger = GasCharger::new(
             authenticated_transaction_digest,
-            // Gas objects are not used during validation.
+            // Gas objects are not used when verifying smart account transactions.
             Vec::new(),
             gas_status,
             protocol_config,
@@ -312,8 +313,7 @@ mod checked {
             epoch_timestamp_ms,
         );
 
-        // Prepare the authenticator context and push it as the last argument in the
-        // authemticator call.
+        // Prepare the authenticator context.
         let auth_ctx = {
             let TransactionKind::ProgrammableTransaction(ptb) = authenticated_transaction_kind
             else {
@@ -321,6 +321,9 @@ mod checked {
             };
             AuthContext::new_from_components(authenticator.digest(), &ptb)
         };
+
+        // Setup a move authenticator transaction; Push the authenticator context as the
+        // last argument.
         let authenticator_move_call =
             setup_account_authenticator_move_call(authenticator, authenticator_info, auth_ctx);
 
@@ -385,12 +388,16 @@ mod checked {
     }
 
     /// Executes an authentication move call by processing the specified
-    /// `ProgrammableTransaction`, applying the necessary gas charges and
-    /// running the main execution logic. Similarly to `execute_transaction`,
-    /// this function handles certain error conditions such as denied
-    /// certificate, deleted input objects failed consistency checks. Gas costs
-    /// are managed through the `GasCharger` argument; gas is also charged
-    /// in case of errors.
+    /// `ProgrammableTransaction`, running the main execution logic.
+    /// Similarly to `execute_transaction`, this function handles certain error
+    /// conditions such as denied certificate, deleted input objects failed
+    /// consistency checks.
+    ///
+    /// Gas costs are managed through the `GasCharger` argument and charged only
+    /// for the authenticator move call execution.
+    ///
+    /// Returns the move authenticator computation gas cost without bucketing
+    /// and the execution result.
     #[instrument(name = "auth_execute", level = "debug", skip_all)]
     fn execute_authentication<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
@@ -687,12 +694,15 @@ mod checked {
     }
 
     /// Runs checks on the input objects of a transaction to ensure that they
-    /// meet the necessary conditions for execution. It checks for denied
-    /// certificates, deleted input objects, and cancelled objects due to
-    /// congestion or randomness unavailability. If any of these conditions are
-    /// met, it returns an appropriate `ExecutionError`. If all checks pass,
-    /// it returns `Ok(())`, indicating that the transaction can proceed with
-    /// execution.
+    /// meet the necessary conditions for execution.
+    ///
+    /// It checks for denied certificates, deleted input objects, and cancelled
+    /// objects due to congestion or randomness unavailability. If any of
+    /// these conditions are met, it returns an appropriate
+    /// `ExecutionError`.
+    ///
+    /// If all checks pass, it returns `Ok(())`, indicating that the transaction
+    /// can proceed with execution.
     #[instrument(name = "run_inputs_checks", level = "debug", skip_all)]
     fn run_inputs_checks(
         protocol_config: &ProtocolConfig,
