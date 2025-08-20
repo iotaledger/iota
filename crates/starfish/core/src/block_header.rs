@@ -271,8 +271,6 @@ impl BlockRef {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8152
-// re-evaluate formats for production debugging.
 impl fmt::Display for BlockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "B{}({},{})", self.round, self.author, self.digest)
@@ -281,7 +279,7 @@ impl fmt::Display for BlockRef {
 
 impl fmt::Debug for BlockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "B{}({},{:?})", self.round, self.author, self.digest)
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -440,17 +438,15 @@ impl From<BlockRef> for Slot {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8152
-// re-evaluate formats for production debugging.
 impl fmt::Display for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.authority, self.round,)
+        write!(f, "S{}{}", self.round, self.authority)
     }
 }
 
 impl fmt::Debug for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -711,8 +707,6 @@ impl fmt::Display for VerifiedBlockHeader {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8152
-// re-evaluate formats for production debugging.
 impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
@@ -728,8 +722,6 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
-// TODO: https://github.com/iotaledger/iota/issues/8152
-// make a custom Debug implementation for more control over printed data
 #[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
     transactions: Vec<Transaction>,
