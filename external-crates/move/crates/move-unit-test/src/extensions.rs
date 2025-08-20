@@ -9,7 +9,7 @@
 
 use std::sync::Mutex;
 
-use move_vm_runtime::native_extensions::NativeContextExtensions;
+use move_vm_runtime::native_extensions::{NativeContextExtensions, NativeExtensionMarker};
 use once_cell::sync::Lazy;
 
 static EXTENSION_HOOK: Lazy<
@@ -62,6 +62,7 @@ mod tests {
 
     #[derive(Tid)]
     struct TestExtension();
+    impl NativeExtensionMarker<'_> for TestExtension {}
 
     fn my_hook(ext: &mut NativeContextExtensions) {
         ext.add(TestExtension())
