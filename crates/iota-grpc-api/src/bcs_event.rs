@@ -4,7 +4,7 @@
 //! BCS serialization utilities for IotaEvent.
 //!
 //! IotaEvent cannot be directly BCS serialized because it uses
-//! serde_json::Value, #[serde(flatten)], and #[serde_as] annotations.
+//! serde_json::Value, and annotations like #[serde(flatten)].
 
 use iota_json_rpc_types::IotaEvent;
 use iota_types::{
