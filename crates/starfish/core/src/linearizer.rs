@@ -34,14 +34,14 @@ pub(crate) trait BlockStoreAPI {
 }
 
 impl BlockStoreAPI
-    for parking_lot::lock_api::RwLockWriteGuard<'_, parking_lot::RawRwLock, DagState>
+    for parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, DagState>
 {
     fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
         DagState::get_block_headers(self, refs)
     }
 }
 
-/// Expand a committed sequence of leader into a sequence of sub-dags.
+/// Expand a committed sequence of leaders into a sequence of sub-dags.
 pub(crate) struct Linearizer {
     /// In-memory block store representing the dag state
     context: Arc<Context>,
@@ -64,7 +64,7 @@ impl Linearizer {
         }
     }
 
-    /// Collect the sub-dag and the corresponding commit from a specific leader
+    /// Collect the sub-dag and the corresponding commit from a specific leader,
     /// excluding any duplicates or blocks that have already been committed
     /// (within previous sub-dags).
     fn collect_sub_dag_and_commit(
@@ -80,7 +80,7 @@ impl Linearizer {
             .with_label_values(&["Linearizer::collect_sub_dag_and_commit"])
             .start_timer();
         // Grab latest commit state from dag state
-        let mut dag_state_guard = self.dag_state.write();
+        let dag_state_guard = self.dag_state.read();
         let last_commit_index = dag_state_guard.last_commit_index();
         let last_commit_digest = dag_state_guard.last_commit_digest();
         let last_commit_timestamp_ms = dag_state_guard.last_commit_timestamp_ms();
@@ -91,7 +91,7 @@ impl Linearizer {
         let to_commit = Self::linearize_sub_dag(
             leader_block.clone(),
             last_committed_rounds,
-            &mut dag_state_guard,
+            &dag_state_guard,
         );
 
         drop(dag_state_guard);
@@ -103,14 +103,14 @@ impl Linearizer {
             // Add the acknowledgments to the tracker and collect the ones that reached quorum.
             // This will return a vector of block references that reached the quorum threshold, so
             // using flat_map here to avoid nested vectors.
-            .flat_map(|block| {
+            .flat_map(|block_header| {
                 self.add_committed_transaction_acks(
-                    block.round(),
-                    block.author(),
-                    block.acknowledgments().to_vec(),
+                    block_header.round(),
+                    block_header.author(),
+                    block_header.acknowledgments().to_vec(),
                 )
             })
-            // Remove duplicate block references
+            // Remove duplicate block references (although this should not happen)
             .unique()
             .collect::<Vec<BlockRef>>();
 
@@ -147,7 +147,7 @@ impl Linearizer {
     pub(crate) fn linearize_sub_dag(
         leader_block: VerifiedBlockHeader,
         last_committed_rounds: Vec<u32>,
-        dag_state: &mut impl BlockStoreAPI,
+        dag_state: &impl BlockStoreAPI,
     ) -> Vec<VerifiedBlockHeader> {
         let leader_block_ref = leader_block.reference();
         let leader_round = leader_block.round();

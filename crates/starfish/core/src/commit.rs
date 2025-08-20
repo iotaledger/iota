@@ -602,10 +602,10 @@ impl fmt::Debug for PendingSubDag {
     }
 }
 
-// Sort the blocks of the sub-dag blocks by round number then authority index.
-// Any deterministic and stable algorithm works.
-pub(crate) fn sort_sub_dag_blocks(blocks: &mut [VerifiedBlockHeader]) {
-    blocks.sort_by(|a, b| {
+// Sort the block headers of the sub-dag blocks by round number then authority
+// index. Any deterministic and stable algorithm works.
+pub(crate) fn sort_sub_dag_blocks(block_headers: &mut [VerifiedBlockHeader]) {
+    block_headers.sort_by(|a, b| {
         a.round()
             .cmp(&b.round())
             .then_with(|| a.author().cmp(&b.author()))

@@ -256,7 +256,7 @@ impl DagBuilder {
                     .collect()
             }
         }
-        let mut storage = BlockStorage {
+        let storage = BlockStorage {
             block_headers: self
                 .block_headers
                 .clone()
@@ -277,7 +277,7 @@ impl DagBuilder {
             let to_commit = Linearizer::linearize_sub_dag(
                 leader_block,
                 self.last_committed_rounds.clone(),
-                &mut storage,
+                &storage,
             );
 
             // Update the last committed rounds
