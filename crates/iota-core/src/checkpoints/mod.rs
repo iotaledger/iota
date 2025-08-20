@@ -879,6 +879,7 @@ impl CheckpointStore {
     /// crash recovery. All transactions thus re-executed are guaranteed to
     /// not have any missing dependencies, because we start from the highest
     /// executed checkpoint, and proceed through checkpoints in order.
+    // tracking issue: https://github.com/iotaledger/iota/issues/8290
     #[instrument(level = "debug", skip_all)]
     pub async fn reexecute_local_checkpoints(
         &self,
