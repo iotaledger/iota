@@ -91,7 +91,6 @@ pub trait Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
@@ -102,7 +101,7 @@ pub trait Executor {
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (IotaGasStatus, Result<(), ExecutionError>);
+    ) -> (u64, Result<(), ExecutionError>);
 
     fn update_genesis_state(
         &self,

@@ -37,7 +37,7 @@ mod checked {
         execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
-        gas::{GasCostSummary, IotaGasStatus},
+        gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
@@ -248,7 +248,6 @@ mod checked {
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn validate_transaction(
         store: &dyn BackingStore,
-        gas_coins: Vec<ObjectRef>,
         gas_status: IotaGasStatus,
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
@@ -262,7 +261,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
+    ) -> (u64, Result<(), ExecutionError>) {
         // Check the preconditions.
         debug_assert!(
             authenticated_transaction_kind.is_programmable_transaction(),
@@ -271,12 +270,14 @@ mod checked {
 
         // Prepare the move authenticator input objects.
         let input_objects = authenticator_input_objects.into_inner();
+
         let mutable_inputs = input_objects
             .mutable_inputs()
             .keys()
             .copied()
             .collect::<HashSet<_>>();
         debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
+
         let receiving_objects = authenticator.receiving_objects();
         debug_assert!(
             receiving_objects.is_empty(),
@@ -295,9 +296,10 @@ mod checked {
             *epoch_id,
         );
 
-        let mut gas_charger = GasCharger::new(
+        let gas_charger = GasCharger::new(
             authenticated_transaction_digest,
-            gas_coins,
+            // Gas objects are not used during validation.
+            Vec::new(),
             gas_status,
             protocol_config,
         );
@@ -323,10 +325,10 @@ mod checked {
             setup_account_authenticator_move_call(authenticator, authenticator_info, auth_ctx);
 
         // Execute the authenticator transaction.
-        let (gas_cost_summary, execution_result) = execute_authentication::<Normal>(
+        let (computation_gas_cost, execution_result) = execute_authentication::<Normal>(
             &mut temporary_store,
             authenticator_move_call,
-            &mut gas_charger,
+            gas_charger,
             &mut tx_ctx,
             move_vm,
             protocol_config,
@@ -338,7 +340,6 @@ mod checked {
         );
 
         // Check the execution result.
-
         let status = if let Err(error) = &execution_result {
             // Elaborate errors in logs if they are unexpected or their status is terse.
             use ExecutionErrorKind as K;
@@ -348,7 +349,7 @@ mod checked {
                     tracing::error!(
                         kind = ?error.kind(),
                         tx_digest = ?authenticated_transaction_digest,
-                        "INVARIANT VIOLATION! Source: {:?}",
+                        "INVARIANT VIOLATION in authenticator! Source: {:?}",
                         error.source(),
                     );
                 }
@@ -358,7 +359,7 @@ mod checked {
                     tracing::debug!(
                         kind = ?error.kind(),
                         tx_digest = ?authenticated_transaction_digest,
-                        "Verification Error. Source: {:?}",
+                        "Authenticator Verification Error. Source: {:?}",
                         error.source(),
                     );
                 }
@@ -375,18 +376,15 @@ mod checked {
         #[skip_checked_arithmetic]
         trace!(
             tx_digest = ?authenticated_transaction_digest,
-            computation_gas_cost = gas_cost_summary.computation_cost,
-            computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
-            storage_gas_cost = gas_cost_summary.storage_cost,
-            storage_gas_rebate = gas_cost_summary.storage_rebate,
-            "Finished execution of transaction with status {:?}",
+            computation_gas_cost,
+            "Finished authenticator execution of transaction with status {:?}",
             status
         );
 
-        (gas_charger.into_gas_status(), execution_result)
+        (computation_gas_cost, execution_result)
     }
 
-    /// Executes an authentication move callby processing the specified
+    /// Executes an authentication move call by processing the specified
     /// `ProgrammableTransaction`, applying the necessary gas charges and
     /// running the main execution logic. Similarly to `execute_transaction`,
     /// this function handles certain error conditions such as denied
@@ -397,7 +395,7 @@ mod checked {
     fn execute_authentication<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
         authenticator_move_call: ProgrammableTransaction,
-        gas_charger: &mut GasCharger,
+        mut gas_charger: GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
         protocol_config: &ProtocolConfig,
@@ -406,13 +404,8 @@ mod checked {
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (
-        GasCostSummary,
-        Result<Mode::ExecutionResults, ExecutionError>,
-    ) {
-        gas_charger.smash_gas(temporary_store);
-
-        // At this point no charges have been applied yet
+    ) -> (u64, Result<Mode::ExecutionResults, ExecutionError>) {
+        // At this point no charges have been applied yet.
         debug_assert!(
             gas_charger.no_charges(),
             "No gas charges must be applied yet"
@@ -420,9 +413,9 @@ mod checked {
 
         // We must charge object read here during transaction execution, because if this
         // fails we must still ensure an effect is committed and all objects
-        // versions incremented
+        // versions incremented.
         let result = gas_charger.charge_input_objects(temporary_store);
-        let mut result = result.and_then(|()| {
+        let result = result.and_then(|()| {
             run_inputs_checks(
                 protocol_config,
                 deny_cert,
@@ -435,7 +428,7 @@ mod checked {
                 move_vm,
                 temporary_store,
                 tx_ctx,
-                gas_charger,
+                &mut gas_charger,
                 authenticator_move_call,
                 trace_builder_opt,
             )
@@ -445,9 +438,12 @@ mod checked {
             })
         });
 
-        let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
+        let gas_status = gas_charger.into_gas_status();
 
-        (cost_summary, result)
+        // Return the gas used for execution without bucketing.
+        //
+        // TODO: Check if this is the price we expect.
+        (gas_status.gas_used() * gas_status.gas_price(), result)
     }
 
     /// Function dedicated to the execution of a GenesisTransaction.
@@ -1545,11 +1541,12 @@ mod checked {
         authenticator_info: AuthenticatorInfo,
         auth_ctx: AuthContext,
     ) -> ProgrammableTransaction {
-        // TODO: Result instead of expect?
+        let mut builder = ProgrammableTransactionBuilder::new();
+
         let mut args = authenticator.call_args().clone();
         args.push(CallArg::Pure(auth_ctx.to_vec()));
 
-        let mut builder = ProgrammableTransactionBuilder::new();
+        // TODO: Result instead of expect?
         builder
             .move_call(
                 authenticator_info.package,
@@ -1559,6 +1556,7 @@ mod checked {
                 args,
             )
             .expect("Unable to generate account authenticator call transaction!");
+
         builder.finish()
     }
 }
