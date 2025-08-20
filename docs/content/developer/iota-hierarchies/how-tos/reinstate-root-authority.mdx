@@ -1,0 +1,176 @@
+---
+title: Reinstate Root Authority
+sidebar_label: Reinstate Root Authority
+description: Guide to reinstate a previously revoked root authority in a federation.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Reinstate Root Authority
+
+This guide demonstrates how to reinstate a previously revoked root authority in a federation.
+
+### Prerequisites
+
+- An existing federation with revoked root authorities
+- Root authority permissions to reinstate other root authorities
+- A funded client with write access
+
+### Overview
+
+Reinstating a root authority restores full permissions to a previously revoked entity. This allows for flexible authority management where temporary revocations can be reversed when needed.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the hierarchy:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs#L22
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts#L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation and Add Second Root Authority
+
+Create a federation and add a second root authority that will be revoked and then reinstated:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs#L24-L38
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts#L12-L24
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Revoke Root Authority
+
+First, revoke the root authority that will later be reinstated:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs#L51-L57
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts#L34-L38
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Verify Revocation Status
+
+Check the federation state after revocation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs#L70-L79
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts#L50-L53
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Reinstate Root Authority
+
+Reinstate the previously revoked root authority:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs#L81-L87
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts#L55-L59
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Verify Reinstatement
+
+Confirm the root authority has been successfully reinstated:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs#L89-L106
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts#L61-L73
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Flexibility**: Allows temporary revocation and restoration of root authority permissions
+- **Authority Required**: Only existing root authorities can reinstate revoked authorities
+- **State Tracking**: The federation tracks both active and revoked root authorities
+- **Immediate Effect**: Reinstatement takes effect immediately, restoring full permissions
+- **Reversible Action**: Unlike permanent removal, revoked authorities can be restored
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/09_reinstate_root_authority.rs
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/09_reinstate_root_authority.ts
+```
+</TabItem>
+</Tabs>
+</div>

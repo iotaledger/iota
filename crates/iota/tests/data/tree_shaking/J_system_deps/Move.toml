@@ -1,6 +1,6 @@
 [package]
 name = "J_system_deps"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 # this is relative to the temp directory where this whole tree shaking dir is copied to
