@@ -749,7 +749,7 @@ impl IotaNode {
             && config.grpc_api_config.is_some()
             && config.consensus_config().is_none()
         {
-            info!("Creating gRPC event broadcast channel for fullnode");
+            info!("Creating gRPC event broadcaster for fullnode");
             let grpc_config = config.grpc_api_config.as_ref().unwrap();
             let (tx, _) = broadcast::channel(grpc_config.event_broadcast_buffer_size);
             Some(GrpcEventBroadcaster::new(tx))
