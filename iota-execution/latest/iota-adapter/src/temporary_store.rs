@@ -734,14 +734,14 @@ impl TemporaryStore<'_> {
         Ok(())
     }
 
-    pub fn check_authenticate_execution_results_consistency(&self) -> Result<(), ExecutionError> {
+    pub fn check_move_authenticator_results_consistency(&self) -> Result<(), ExecutionError> {
         assert_invariant!(
             self.execution_results.created_object_ids.is_empty(),
             "Objects cannot be created during authenticator execution"
         );
         assert_invariant!(
             self.execution_results.written_objects.is_empty(),
-            "Objects cannot be changed during authenticator execution"
+            "Objects cannot be written during authenticator execution"
         );
         assert_invariant!(
             self.execution_results.modified_objects.is_empty(),

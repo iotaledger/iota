@@ -188,10 +188,15 @@ impl executor::Executor for Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (u64, Result<(), ExecutionError>) {
         validate_transaction(
             store,
+            protocol_config,
+            metrics,
+            epoch_id,
+            epoch_timestamp_ms,
             gas_status,
             authenticator,
             authenticator_info,
@@ -199,12 +204,8 @@ impl executor::Executor for Executor {
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
-            &self.0,
-            epoch_id,
-            epoch_timestamp_ms,
-            protocol_config,
-            metrics,
             trace_builder_opt,
+            &self.0,
         )
     }
 
