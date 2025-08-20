@@ -67,7 +67,7 @@ impl AuthContext {
         &self.tx_commands
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }
 }

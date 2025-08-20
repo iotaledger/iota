@@ -1561,7 +1561,7 @@ mod checked {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         let mut args = authenticator.call_args().clone();
-        args.push(CallArg::Pure(auth_ctx.to_vec()));
+        args.push(CallArg::Pure(auth_ctx.to_bcs_bytes()));
 
         // TODO: Result instead of expect?
         builder
