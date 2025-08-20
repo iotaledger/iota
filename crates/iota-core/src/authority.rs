@@ -2867,7 +2867,7 @@ impl AuthorityState {
         indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
-        grpc_event_broadcast_tx: Option<GrpcEventBroadcaster>,
+        grpc_event_broadcaster: Option<GrpcEventBroadcaster>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {
@@ -2917,7 +2917,7 @@ impl AuthorityState {
             rest_index,
             subscription_handler: Arc::new(SubscriptionHandler::new(
                 prometheus_registry,
-                grpc_event_broadcast_tx,
+                grpc_event_broadcaster,
             )),
             checkpoint_store,
             committee_store,

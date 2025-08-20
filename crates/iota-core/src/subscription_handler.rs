@@ -71,16 +71,16 @@ pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
     transaction_streamer:
         Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
-    grpc_event_broadcast_tx: Option<GrpcEventBroadcaster>,
+    grpc_event_broadcaster: Option<GrpcEventBroadcaster>,
 }
 
 impl SubscriptionHandler {
-    pub fn new(registry: &Registry, grpc_event_broadcast_tx: Option<GrpcEventBroadcaster>) -> Self {
+    pub fn new(registry: &Registry, grpc_event_broadcaster: Option<GrpcEventBroadcaster>) -> Self {
         let metrics = Arc::new(SubscriptionMetrics::new(registry));
         Self {
             event_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics.clone(), "event"),
             transaction_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics, "tx"),
-            grpc_event_broadcast_tx,
+            grpc_event_broadcaster,
         }
     }
 }
@@ -114,16 +114,16 @@ impl SubscriptionHandler {
             }
 
             // Also send to gRPC broadcast channel if available
-            if let Some(ref grpc_broadcaster) = self.grpc_event_broadcast_tx {
-                if grpc_broadcaster.receiver_count() > 0 {
-                    match grpc_broadcaster.send(event) {
+            if let Some(ref grpc_event_broadcaster) = self.grpc_event_broadcaster {
+                if grpc_event_broadcaster.receiver_count() > 0 {
+                    match grpc_event_broadcaster.send(event) {
                         Ok(()) => {
                             debug!(
                                 event_index = index,
                                 tx_digest =? effects.transaction_digest(),
                                 event_type = %event.type_.name,
                                 "Broadcasted event to {} gRPC subscriber(s)",
-                                grpc_broadcaster.receiver_count()
+                                grpc_event_broadcaster.receiver_count()
                             );
                         }
                         Err(e) => {
