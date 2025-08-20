@@ -447,6 +447,10 @@ mod test {
             unimplemented!()
         }
 
+        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
             unimplemented!()
         }

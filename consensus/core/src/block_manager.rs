@@ -129,6 +129,13 @@ impl BlockManager {
         accepted_blocks
     }
 
+    /// Add faulty blocks to the block manager.
+    pub(crate) fn add_faulty_blocks(&mut self, block_refs: Vec<BlockRef>) {
+        let _s = monitored_scope("BlockManager::add_faulty_blocks");
+        // Add the blocks to the dag state and update the metrics.
+        self.dag_state.write().add_faulty_blocks(block_refs);
+    }
+
     /// Attempts to accept the provided blocks. When `committed = true` then the
     /// blocks are considered to be committed via certified commits and
     /// are handled differently.

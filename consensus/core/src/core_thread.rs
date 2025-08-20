@@ -52,6 +52,8 @@ enum CoreThreadCommand {
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
+    /// Faulty blocks to be added to dag state.
+    AddFaultyBlocks(Vec<BlockRef>, oneshot::Sender<()>),
 }
 
 #[derive(Error, Debug)]
@@ -82,6 +84,8 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn get_missing_blocks(
         &self,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
+
+    async fn add_faulty_blocks(&self, blocks: Vec<BlockRef>) -> Result<(), CoreError>;
 
     /// Informs the core whether consumer of produced blocks exists.
     /// This is only used by core to decide if it should propose new blocks.
@@ -162,6 +166,11 @@ impl CoreThread {
                         CoreThreadCommand::GetMissingBlocks(sender) => {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
+                        }
+                        CoreThreadCommand::AddFaultyBlocks(block_refs, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::add_faulty_blocks");
+                            self.core.add_faulty_blocks(block_refs);
+                            sender.send(()).ok();
                         }
                     }
                 }
@@ -365,6 +374,14 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
+    async fn add_faulty_blocks(&self, blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+        // For faulty blocks, we do not update the highest received rounds.
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddFaultyBlocks(blocks, sender))
+            .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
+    }
+
     fn set_quorum_subscribers_exists(&self, exists: bool) -> Result<(), CoreError> {
         self.tx_quorum_subscribers_exists
             .send(exists)
@@ -489,6 +506,10 @@ pub(crate) mod tests {
             let result = missing_blocks.clone();
             missing_blocks.clear();
             Ok(result)
+        }
+
+        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+            Ok(())
         }
 
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {

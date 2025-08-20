@@ -292,7 +292,6 @@ impl Core {
             .core_add_blocks_batch_size
             .observe(blocks.len() as f64);
 
-        // Note: this is where missing ancestors and misbehavior reports are tracked.
         let (accepted_blocks, missing_block_refs) = self.block_manager.try_accept_blocks(blocks);
 
         if !accepted_blocks.is_empty() {
@@ -323,6 +322,11 @@ impl Core {
             );
         }
         Ok(missing_block_refs)
+    }
+
+    /// Adds faulty blocks.
+    pub(crate) fn add_faulty_blocks(&mut self, block_refs: Vec<BlockRef>) {
+        self.block_manager.add_faulty_blocks(block_refs);
     }
 
     /// Checks if provided block refs have been accepted. If not, missing block
@@ -1202,7 +1206,7 @@ impl Core {
 
         let mut score_and_pending_excluded_ancestors = Vec::new();
         let mut excluded_and_equivocating_ancestors = BTreeSet::new();
-        let mut equivocation_reports = Vec::new();
+        let mut misbehavior_reports = Vec::new();
 
         // Propose only ancestors of higher rounds than what has already been proposed.
         // And always include own last proposed block first among ancestors.
@@ -1228,7 +1232,7 @@ impl Core {
                         if let Some(equivocating_ancestor) =
                             equivocating_ancestors.first()
                         {
-                            equivocation_reports
+                            misbehavior_reports
                                 .push(MisbehaviorReport::new(
                                     ancestor.author(),
                                     MisbehaviorProof::Equivocation { first: ancestor.reference(), second: *equivocating_ancestor },
@@ -1388,6 +1392,14 @@ impl Core {
                 .inc();
         }
 
+        // Add any provably faulty blocks to the misbehavior reports.
+        for faulty_block_ref in self.dag_state.read().get_recent_provably_faulty_blocks() {
+            misbehavior_reports.push(MisbehaviorReport::new(
+                faulty_block_ref.author,
+                MisbehaviorProof::InvalidBlock(faulty_block_ref.clone()),
+            ))
+        }
+
         assert!(
             parent_round_quorum.reached_threshold(&self.context.committee),
             "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core."
@@ -1402,7 +1414,7 @@ impl Core {
         (
             ancestors_to_propose,
             excluded_and_equivocating_ancestors,
-            equivocation_reports,
+            misbehavior_reports,
         )
     }
 

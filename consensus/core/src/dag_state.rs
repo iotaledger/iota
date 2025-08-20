@@ -62,6 +62,9 @@ pub(crate) struct DagState {
     // Vec position corresponds to the authority index.
     recent_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
+    // Recent provably faulty blocks that have been received.
+    recent_provably_faulty_blocks: Vec<BlockRef>,
+
     // Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
@@ -179,6 +182,7 @@ impl DagState {
             genesis,
             recent_blocks: BTreeMap::new(),
             recent_refs_by_authority: vec![BTreeSet::new(); num_authorities],
+            recent_provably_faulty_blocks: vec![],
             threshold_clock,
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
@@ -355,6 +359,20 @@ impl DagState {
             .accepted_blocks
             .with_label_values(&[source])
             .inc();
+    }
+
+    /// Adds provably faulty blocks to the DagState.
+    pub(crate) fn add_faulty_blocks(&mut self, block_refs: Vec<BlockRef>) {
+        for block_ref in block_refs {
+            if !self.recent_provably_faulty_blocks.contains(&block_ref) {
+                self.recent_provably_faulty_blocks.push(block_ref);
+            }
+        }
+    }
+
+    /// Gets the recent provably faulty blocks.
+    pub(crate) fn get_recent_provably_faulty_blocks(&self) -> Vec<BlockRef> {
+        self.recent_provably_faulty_blocks.clone()
     }
 
     /// Updates internal metadata for a block.
@@ -1071,6 +1089,11 @@ impl DagState {
             }
             self.evicted_rounds[authority_index] = eviction_round;
         }
+
+        // Faulty blocks do not need to be persisted, they are only needed when
+        // selecting ancestors and they can then be discarded, so we can safely remove
+        // them here.
+        self.recent_provably_faulty_blocks.clear();
 
         let metrics = &self.context.metrics.node_metrics;
         metrics

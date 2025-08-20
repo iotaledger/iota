@@ -108,21 +108,42 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
-        // Reject blocks failing validations.
         if let Err(e) = self.block_verifier.verify(&signed_block) {
-            self.context
-                .metrics
-                .node_metrics
-                .invalid_blocks
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_send_block",
-                    e.clone().name(),
-                ])
-                .inc();
-            info!("Invalid block from {}: {}", peer, e);
-            return Err(e);
+            match e {
+                // Reject blocks failing pre-signature and signature verifications.
+                ConsensusError::UnexpectedGenesisBlock
+                | ConsensusError::InvalidAuthorityIndex { .. }
+                | ConsensusError::WrongEpoch { .. }
+                | ConsensusError::SerializationFailure(_)
+                | ConsensusError::MalformedSignature(_)
+                | ConsensusError::SignatureVerificationFailure(_) => {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .invalid_blocks
+                        .with_label_values(&[
+                            peer_hostname.as_str(),
+                            "handle_send_block",
+                            e.clone().name(),
+                        ])
+                        .inc();
+                    info!("Invalid block from {}: {}", peer, e);
+                    return Err(e);
+                }
+                // Add provably faulty blocks to the dag state so they can be used in misbehavior
+                // reports.
+                _ => {
+                    let provably_faulty_block =
+                        VerifiedBlock::new_verified(signed_block, serialized_block.block);
+                    self.core_dispatcher
+                        .add_faulty_blocks(vec![provably_faulty_block.reference()])
+                        .await
+                        .map_err(|_| ConsensusError::Shutdown)?;
+                    return Ok(());
+                }
+            }
         }
+
         let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block.block);
         let block_ref = verified_block.reference();
         debug!("Received block {} via send block.", block_ref);
@@ -920,6 +941,10 @@ pub(crate) mod tests {
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(Default::default())
+        }
+
+        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+            Ok(())
         }
 
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
