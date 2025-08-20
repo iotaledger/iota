@@ -38,6 +38,7 @@ const queryClient = new QueryClient();
 const wagmiConfig = getDefaultConfig({
     ...L2_WAGMI_CONFIG,
     chains: [L2_CHAIN_CONFIG as Chain],
+    multiInjectedProviderDiscovery: false,
     wallets: [
         {
             groupName: 'Suggested',
