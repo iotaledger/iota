@@ -228,7 +228,7 @@ async fn test_event_filtering_and_bcs_serialization() {
                             break;
                         }
                     }
-                    Err(e) => panic!("AllFilter client error: {}", e),
+                    Err(e) => panic!("AllFilter client error: {e}"),
                 }
             }
         })
@@ -272,7 +272,7 @@ async fn test_event_filtering_and_bcs_serialization() {
                             break;
                         }
                     }
-                    Err(e) => panic!("Nested OR(AND, Sender) filter client error: {}", e),
+                    Err(e) => panic!("Nested OR(AND, Sender) filter client error: {e}"),
                 }
             }
         })
