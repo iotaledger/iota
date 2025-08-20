@@ -1,14 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import {
-    CoinFormat,
-    formatBalance,
-    formatBalanceToUSD,
-    useBalanceInUSD,
-    useFormatCoin,
-} from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatBalanceToUSD, useBalanceInUSD, useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG, CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
 import BigNumber from 'bignumber.js';
@@ -62,7 +56,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
                         text={formatBalance(
                             walletBalance,
                             coinMetadata?.decimals ?? 9,
-                            CoinFormat.FULL,
+                            CoinFormat.Full,
                         )}
                         position={TooltipPosition.Bottom}
                     >

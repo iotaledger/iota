@@ -300,6 +300,7 @@ impl DBCheckpointHandler {
             &checkpoint_store,
             Some(&rest_index),
             &lock_table,
+            None,
             self.pruning_config.clone(),
             metrics,
             self.indirect_objects_threshold,

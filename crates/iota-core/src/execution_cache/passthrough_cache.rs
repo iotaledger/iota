@@ -247,40 +247,36 @@ impl ExecutionCacheWrite for PassthroughCache {
         &'a self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'a, IotaResult> {
-        async move {
-            let tx_digest = *tx_outputs.transaction.digest();
-            let effects_digest = tx_outputs.effects.digest();
+    ) -> IotaResult {
+        let tx_digest = *tx_outputs.transaction.digest();
+        let effects_digest = tx_outputs.effects.digest();
 
-            // NOTE: We just check here that live markers exist, not that they are locked to
-            // a specific TX. Why?
-            // 1. Live markers existence prevents re-execution of old certs when objects
-            //    have been upgraded
-            // 2. Not all validators lock, just 2f+1, so transaction should proceed
-            //    regardless (But the live markers should exist which means previous
-            //    transactions finished)
-            // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
-            //    TX its fine
-            // 4. Live markers may have existed when we started processing this tx, but
-            //    could have since been deleted by a concurrent tx that finished first. In
-            //    that case, check if the tx effects exist.
-            self.store
-                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
+        // NOTE: We just check here that live markers exist, not that they are locked to
+        // a specific TX. Why?
+        // 1. Live markers existence prevents re-execution of old certs when objects
+        //    have been upgraded
+        // 2. Not all validators lock, just 2f+1, so transaction should proceed
+        //    regardless (But the live markers should exist which means previous
+        //    transactions finished)
+        // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
+        //    TX its fine
+        // 4. Live markers may have existed when we started processing this tx, but
+        //    could have since been deleted by a concurrent tx that finished first. In
+        //    that case, check if the tx effects exist.
+        self.store
+            .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
 
-            self.store
-                .write_transaction_outputs(epoch_id, &[tx_outputs])
-                .await?;
+        self.store
+            .write_transaction_outputs(epoch_id, &[tx_outputs])?;
 
-            self.executed_effects_digests_notify_read
-                .notify(&tx_digest, &effects_digest);
+        self.executed_effects_digests_notify_read
+            .notify(&tx_digest, &effects_digest);
 
-            self.metrics
-                .pending_notify_read
-                .set(self.executed_effects_digests_notify_read.num_pending() as i64);
+        self.metrics
+            .pending_notify_read
+            .set(self.executed_effects_digests_notify_read.num_pending() as i64);
 
-            Ok(())
-        }
-        .boxed()
+        Ok(())
     }
 
     fn try_acquire_transaction_locks<'a>(
@@ -288,10 +284,9 @@ impl ExecutionCacheWrite for PassthroughCache {
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> IotaResult {
         self.store
             .acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
-            .boxed()
     }
 }
 
@@ -344,6 +339,25 @@ impl ExecutionCacheCommit for PassthroughCache {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
         async { Ok(()) }.boxed()
+    }
+
+    fn persist_transactions_and_effects(
+        &self,
+        _digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    ) {
+        // Nothing needs to be done since all the data was already written.
+
+        // Explanation:
+        // In the WritebackCache, the `persist_transactions_and_effects`
+        // function is responsible for writing the pending transaction
+        // outputs and effects from `dirty.pending_transaction_writes` to the
+        // store (`perpetual_tables.transactions`, `perpetual_tables.
+        // events`). The only function that adds entries to the dirty set
+        // is `try_write_transaction_outputs`.
+        //
+        // In the PassthroughCache, exactly this function
+        // `try_write_transaction_outputs` already writes the data to the store,
+        // via `write_transaction_outputs` => `write_one_transaction_outputs`.
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {
