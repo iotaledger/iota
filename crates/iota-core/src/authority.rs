@@ -2866,7 +2866,6 @@ impl AuthorityState {
         indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
-
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {
