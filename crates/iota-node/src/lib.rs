@@ -43,7 +43,9 @@ use iota_core::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
-    authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
+    authority_aggregator::{
+        AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
+    },
     authority_client::NetworkAuthorityClient,
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::{
@@ -1831,9 +1833,14 @@ impl IotaNode {
                     .submit(transaction, None, &cur_epoch_store)?;
             } else {
                 // Send signed capabilities to committee validators if we are a non-committee
-                // validator
-                self.send_signed_capability_notification_to_committee(&cur_epoch_store)
-                    .await?;
+                // validator in a separate task to not block the caller
+                let epoch_store = cur_epoch_store.clone();
+                let node_clone = self.clone();
+                spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
+                    node_clone
+                        .send_signed_capability_notification_to_committee_with_retry(&epoch_store)
+                        .await;
+                }));
             }
 
             let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
@@ -2186,11 +2193,19 @@ impl IotaNode {
     }
 
     /// Sends signed capability notification to committee validators for
-    /// non-committee validators
-    async fn send_signed_capability_notification_to_committee(
+    /// non-committee validators. This method implements retry logic to handle
+    /// failed attempts to send the notification. It will retry sending the
+    /// notification with an increasing interval until it receives a successful
+    /// response from a f+1 committee members or 2f+1 non-retryable errors.
+    async fn send_signed_capability_notification_to_committee_with_retry(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<()> {
+    ) {
+        const INITIAL_RETRY_INTERVAL_SECS: u64 = 5;
+        const RETRY_INTERVAL_INCREMENT_SECS: u64 = 5;
+        const MAX_RETRY_INTERVAL_SECS: u64 = 300; // 5 minutes
+
+        // Create the capability notification once
         let config = epoch_store.protocol_config();
         let binary_config = to_binary_config(config);
 
@@ -2221,19 +2236,50 @@ impl IotaNode {
             message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
         };
 
-        // Send capability notification to a quorum of committee validators using
-        // validity threshold
-        let auth_agg = self.auth_agg.load();
-        if let Err(err) = auth_agg
-            .send_capability_notification_to_quorum(request)
-            .await
-        {
-            warn!(
-                "Failed to send capability notification to committee: {:?}",
-                err
-            );
+        let mut retry_interval = Duration::from_secs(INITIAL_RETRY_INTERVAL_SECS);
+
+        loop {
+            let auth_agg = self.auth_agg.load();
+            match auth_agg
+                .send_capability_notification_to_quorum(request.clone())
+                .await
+            {
+                Ok(_) => {
+                    info!("Successfully sent capability notification to committee");
+                    break;
+                }
+                Err(err) => {
+                    match &err {
+                        AggregatorSendCapabilityNotificationError::RetryableNotification {
+                            errors,
+                        } => {
+                            warn!(
+                                "Failed to send capability notification to committee (retryable error), will retry in {:?}: {:?}",
+                                retry_interval, errors
+                            );
+                        }
+                        AggregatorSendCapabilityNotificationError::NonRetryableNotification {
+                            errors,
+                        } => {
+                            error!(
+                                "Failed to send capability notification to committee (non-retryable error): {:?}",
+                                errors
+                            );
+                            break;
+                        }
+                    };
+
+                    // Wait before retrying
+                    tokio::time::sleep(retry_interval).await;
+
+                    // Increase retry interval for the next attempt, capped at max
+                    retry_interval = std::cmp::min(
+                        retry_interval + Duration::from_secs(RETRY_INTERVAL_INCREMENT_SECS),
+                        Duration::from_secs(MAX_RETRY_INTERVAL_SECS),
+                    );
+                }
+            }
         }
-        Ok(())
     }
 }
 
