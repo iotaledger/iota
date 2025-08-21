@@ -51,7 +51,7 @@ function GasBudgetComponent({
     objectType?: string | null;
 }) {
     const { values, isValid } = useFormikContext<SendNftFormValues>();
-    const recipientAddress = isValid ? (values.resolvedAddress ?? values.to ?? '') : '';
+    const recipientAddress = isValid ? values.resolvedAddress || values.to || '' : '';
 
     const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
         objectId,

@@ -2,8 +2,7 @@ import { useAccount, useBalance } from 'wagmi';
 import { useGasEstimateL2 } from './useGasEstimateL2';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { formatEther } from 'viem';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
-import { parseAmount } from '@iota/core';
+import { IOTA_DECIMALS, parseIotaToNanos } from '@iota/iota-sdk/utils';
 
 const GENERIC_IOTA_ADDRESS = '0x1111111111111111111111111111111111111111111111111111111111111111';
 
@@ -23,7 +22,7 @@ export function useAvailableIotaBalanceL2(): {
 
     const layer2TotalBalance = layer2BalanceData?.value || 0n;
 
-    const amount = parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS);
+    const amount = parseIotaToNanos(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS);
     const { data: gasEstimationData, isPending: isGasEstimationLoading } = useGasEstimateL2({
         address: GENERIC_IOTA_ADDRESS,
         amount,
@@ -39,7 +38,7 @@ export function useAvailableIotaBalanceL2(): {
 
     // Convert the available balance to IOTA format because the balance is in wei (18 decimals)
     const formattedIota = formatEther(availableBalance);
-    const availableBalanceInIota = parseAmount(formattedIota, IOTA_DECIMALS);
+    const availableBalanceInIota = parseIotaToNanos(formattedIota, IOTA_DECIMALS);
 
     return {
         availableBalance: availableBalanceInIota,
