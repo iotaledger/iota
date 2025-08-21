@@ -1,9 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
-use iota_json_rpc_types::{EventFilter, Filter, IotaEvent};
+use futures::StreamExt;
+use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
@@ -16,21 +17,21 @@ use tracing::debug;
 
 use crate::{
     events::{Event, EventId, EventStreamRequest, event_service_server::EventService},
-    types::GrpcEventBroadcaster,
+    types::EventSubscriber,
 };
 
 pub struct EventGrpcService {
-    pub event_broadcaster: GrpcEventBroadcaster,
+    pub event_subscriber: Arc<dyn EventSubscriber>,
     pub cancellation_token: CancellationToken,
 }
 
 impl EventGrpcService {
     pub fn new(
-        event_broadcaster: GrpcEventBroadcaster,
+        event_subscriber: Arc<dyn EventSubscriber>,
         cancellation_token: CancellationToken,
     ) -> Self {
         Self {
-            event_broadcaster,
+            event_subscriber,
             cancellation_token,
         }
     }
@@ -56,13 +57,18 @@ impl EventService for EventGrpcService {
         let event_filter = create_event_filter(&proto_filter)?;
         debug!("New gRPC client subscribed with filter: {event_filter:?}");
 
-        let mut event_rx = self.event_broadcaster.subscribe();
+        // Subscribe to events using the EventSubscriber trait
+        let event_stream = self.event_subscriber.subscribe_events(event_filter);
         let cancellation_token = self.cancellation_token.clone();
 
         let stream = async_stream::try_stream! {
+            // Pin the stream for use with .next() and tokio::select!
+            // Safe because the stream has Unpin bound
+            let mut pinned_stream = std::pin::Pin::new(event_stream);
+
             loop {
                 let event_result = tokio::select! {
-                    recv_result = event_rx.recv() => Some(recv_result),
+                    event_option = pinned_stream.next() => event_option,
                     _ = cancellation_token.cancelled() => {
                         debug!("Event stream cancelled");
                         None
@@ -70,30 +76,22 @@ impl EventService for EventGrpcService {
                 };
 
                 match event_result {
-                    Some(Ok(event_arc)) => {
-                        let event = event_arc.as_ref();
+                    Some(event) => {
+                        debug!(
+                            "Event matched filter: TX: {}, Type: {}, Sender: {}",
+                            event.id.tx_digest,
+                            event.type_.name.as_ident_str(),
+                            event.sender
+                        );
 
-                        // Use existing filter matching logic
-                        if event_filter.matches(event) {
-                            debug!(
-                                "Event matched filter: TX: {}, Type: {}, Sender: {}",
-                                event.id.tx_digest,
-                                event.type_.name.as_ident_str(),
-                                event.sender
-                            );
+                        // Convert to protobuf Event
+                        let proto_event = Event::from(&event);
 
-                            // Convert to protobuf Event
-                            let proto_event = Event::from(event);
-
-                            yield proto_event;
-                        }
-                    }
-                    Some(Err(_)) => {
-                        debug!("Event broadcast channel closed");
-                        break;
+                        yield proto_event;
                     }
                     None => {
-                        // Cancellation occurred
+                        // Stream ended or cancellation occurred
+                        debug!("Event stream ended");
                         break;
                     }
                 }

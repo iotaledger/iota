@@ -8,7 +8,7 @@ use iota_grpc_types::{
     CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
     CheckpointData as GrpcCheckpointData,
 };
-use iota_json_rpc_types::IotaEvent;
+use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
     storage::RestStateReader,
@@ -31,9 +31,13 @@ pub trait CheckpointDataBroadcaster {
     fn send(&self, data: &CheckpointData) -> anyhow::Result<()>;
 }
 
-/// Trait for broadcasting events
-pub trait EventBroadcaster {
-    fn send(&self, event: &IotaEvent) -> anyhow::Result<()>;
+/// Trait for subscribing to event streams (used by gRPC service)
+pub trait EventSubscriber: Send + Sync {
+    /// Subscribe to events with the given filter
+    fn subscribe_events(
+        &self,
+        filter: iota_json_rpc_types::EventFilter,
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin>;
 }
 
 /// Wrapper that converts native CertifiedCheckpointSummary to gRPC type before
@@ -97,36 +101,6 @@ impl CheckpointDataBroadcaster for GrpcCheckpointDataBroadcaster {
     }
 }
 
-/// Event broadcaster for gRPC event streaming
-#[derive(Clone)]
-pub struct GrpcEventBroadcaster {
-    sender: Sender<Arc<IotaEvent>>,
-}
-
-impl GrpcEventBroadcaster {
-    pub fn new(sender: Sender<Arc<IotaEvent>>) -> Self {
-        Self { sender }
-    }
-
-    /// Subscribe to event broadcasts
-    pub fn subscribe(&self) -> Receiver<Arc<IotaEvent>> {
-        self.sender.subscribe()
-    }
-
-    /// Get the number of active receivers
-    pub fn receiver_count(&self) -> usize {
-        self.sender.receiver_count()
-    }
-}
-
-impl EventBroadcaster for GrpcEventBroadcaster {
-    fn send(&self, event: &IotaEvent) -> anyhow::Result<()> {
-        let arc_event = Arc::new(event.clone());
-        self.sender.send(arc_event)?;
-        Ok(())
-    }
-}
-
 // Standard implementations for common types
 
 /// Implementation for tokio broadcast sender
@@ -158,6 +132,17 @@ impl CheckpointSummaryBroadcaster for () {
 impl CheckpointDataBroadcaster for () {
     fn send(&self, _data: &CheckpointData) -> anyhow::Result<()> {
         Ok(())
+    }
+}
+
+/// No-op implementation for unit type (used in tests and when event
+/// subscription is not needed)
+impl EventSubscriber for () {
+    fn subscribe_events(
+        &self,
+        _filter: EventFilter,
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
+        Box::new(Box::pin(futures::stream::empty()))
     }
 }
 

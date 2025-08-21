@@ -79,8 +79,8 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcEventBroadcaster, GrpcReader,
-    GrpcServerHandle, start_grpc_server,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle,
+    start_grpc_server,
 };
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -743,20 +743,6 @@ impl IotaNode {
                     &prometheus_registry,
                 )));
 
-        // Create gRPC event broadcaster early if gRPC is enabled for fullnodes, because
-        // we need to pass it to the AuthorityState
-        let grpc_event_broadcaster = if config.enable_grpc_api
-            && config.grpc_api_config.is_some()
-            && config.consensus_config().is_none()
-        {
-            info!("Creating gRPC event broadcaster for fullnode");
-            let grpc_config = config.grpc_api_config.as_ref().unwrap();
-            let (tx, _) = broadcast::channel(grpc_config.event_broadcast_buffer_size);
-            Some(GrpcEventBroadcaster::new(tx))
-        } else {
-            None
-        };
-
         info!("create authority state");
         let state = AuthorityState::new(
             authority_name,
@@ -776,7 +762,6 @@ impl IotaNode {
             config.indirect_objects_threshold,
             archive_readers,
             validator_tx_finalizer,
-            grpc_event_broadcaster.clone(),
             chain_identifier,
             pruner_db,
         )
@@ -887,13 +872,8 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
-        let grpc_server_handle = build_grpc_server(
-            &config,
-            state.clone(),
-            state_sync_store.clone(),
-            grpc_event_broadcaster,
-        )
-        .await?;
+        let grpc_server_handle =
+            build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
 
         let validator_components = if state.is_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -2348,7 +2328,6 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
-    grpc_event_broadcaster: Option<GrpcEventBroadcaster>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2359,7 +2338,7 @@ async fn build_grpc_server(
         return Err(anyhow!("gRPC API is enabled but no configuration provided"));
     };
 
-    let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
+    let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
 
     // Create cancellation token for proper shutdown hierarchy
     let shutdown_token = CancellationToken::new();
@@ -2370,14 +2349,15 @@ async fn build_grpc_server(
         shutdown_token.clone(),
     ));
 
-    let grpc_event_broadcaster =
-        grpc_event_broadcaster.expect("gRPC event broadcaster should exist when gRPC is enabled");
+    // Get the subscription handler from the state for event streaming
+    let event_subscriber =
+        state.subscription_handler.clone() as Arc<dyn iota_grpc_api::EventSubscriber>;
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
         grpc_reader,
-        grpc_event_broadcaster,
+        event_subscriber,
         grpc_config.clone(),
         shutdown_token,
     )

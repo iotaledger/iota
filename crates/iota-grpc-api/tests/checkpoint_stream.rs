@@ -9,12 +9,11 @@ use std::{
 
 use iota_config::local_ip_utils;
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, GrpcEventBroadcaster,
-    GrpcReader, GrpcServerHandle,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, EventSubscriber, GrpcReader,
+    GrpcServerHandle,
     client::{CheckpointClient, CheckpointContent, NodeClient},
     start_grpc_server,
 };
-use iota_json_rpc_types::IotaEvent;
 use iota_types::{
     base_types::ObjectID,
     committee::EpochId,
@@ -26,7 +25,6 @@ use iota_types::{
     },
     storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
 };
-use tokio::sync::broadcast::channel;
 use tokio_stream::StreamExt;
 
 struct MockRestStateReader {
@@ -396,12 +394,12 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     };
     config_customizer(&mut config);
 
-    // Create a dummy event channel for testing checkpoints
-    let (dummy_event_tx, _) = channel::<Arc<IotaEvent>>(1);
-    let dummy_event_broadcaster = GrpcEventBroadcaster::new(dummy_event_tx);
+    // Use the no-op EventSubscriber implementation for unit type
+    let dummy_event_subscriber = Arc::new(()) as Arc<dyn EventSubscriber>;
+
     let server_handle = start_grpc_server(
         grpc_reader,
-        dummy_event_broadcaster,
+        dummy_event_subscriber,
         config,
         cancellation_token,
     )

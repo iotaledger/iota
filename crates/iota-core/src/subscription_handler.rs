@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_grpc_api::{EventBroadcaster, GrpcEventBroadcaster};
+use iota_grpc_api::EventSubscriber;
 use iota_json_rpc_types::{
     EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
@@ -15,7 +15,7 @@ use prometheus::{
     register_int_gauge_vec_with_registry,
 };
 use tokio_stream::Stream;
-use tracing::{debug, error, instrument, trace};
+use tracing::{error, instrument, trace};
 
 use crate::streamer::Streamer;
 
@@ -71,16 +71,14 @@ pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
     transaction_streamer:
         Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
-    grpc_event_broadcaster: Option<GrpcEventBroadcaster>,
 }
 
 impl SubscriptionHandler {
-    pub fn new(registry: &Registry, grpc_event_broadcaster: Option<GrpcEventBroadcaster>) -> Self {
+    pub fn new(registry: &Registry) -> Self {
         let metrics = Arc::new(SubscriptionMetrics::new(registry));
         Self {
             event_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics.clone(), "event"),
             transaction_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics, "tx"),
-            grpc_event_broadcaster,
         }
     }
 }
@@ -107,43 +105,10 @@ impl SubscriptionHandler {
         }
 
         // serially dispatch event processing to honor events' orders.
-        for (index, event) in events.data.clone().iter().enumerate() {
-            // Send to existing event streamer
+        for event in events.data.clone().iter() {
+            // Send to unified event streamer (serves both JSON-RPC and gRPC subscribers)
             if let Err(e) = self.event_streamer.try_send(event.clone()) {
                 error!(error =? e, "Failed to send event to dispatch");
-            }
-
-            // Also send to gRPC broadcast channel if available
-            if let Some(ref grpc_event_broadcaster) = self.grpc_event_broadcaster {
-                if grpc_event_broadcaster.receiver_count() > 0 {
-                    match grpc_event_broadcaster.send(event) {
-                        Ok(()) => {
-                            debug!(
-                                event_index = index,
-                                tx_digest =? effects.transaction_digest(),
-                                event_type = %event.type_.name,
-                                "Broadcasted event to {} gRPC subscriber(s)",
-                                grpc_event_broadcaster.receiver_count()
-                            );
-                        }
-                        Err(e) => {
-                            error!(
-                                error = ?e,
-                                event_index = index,
-                                tx_digest =? effects.transaction_digest(),
-                                event_type = %event.type_.name,
-                                "Failed to broadcast event to gRPC channel"
-                            );
-                        }
-                    }
-                } else {
-                    debug!(
-                        event_index = index,
-                        tx_digest =? effects.transaction_digest(),
-                        event_type = %event.type_.name,
-                        "No gRPC subscribers, skipping broadcast"
-                    );
-                }
             }
         }
         Ok(())
@@ -158,5 +123,15 @@ impl SubscriptionHandler {
         filter: TransactionFilter,
     ) -> impl Stream<Item = IotaTransactionBlockEffects> {
         self.transaction_streamer.subscribe(filter)
+    }
+}
+
+// Implement EventSubscriber trait for gRPC integration
+impl EventSubscriber for SubscriptionHandler {
+    fn subscribe_events(
+        &self,
+        filter: EventFilter,
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
+        Box::new(Box::pin(self.event_streamer.subscribe(filter)))
     }
 }

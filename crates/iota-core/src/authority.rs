@@ -35,7 +35,6 @@ use iota_config::{
     },
 };
 use iota_framework::{BuiltInFramework, SystemPackage};
-use iota_grpc_api::GrpcEventBroadcaster;
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
     IotaObjectDataFilter, IotaTransactionBlockData, IotaTransactionBlockEffects,
@@ -2867,7 +2866,7 @@ impl AuthorityState {
         indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
-        grpc_event_broadcaster: Option<GrpcEventBroadcaster>,
+
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
     ) -> Arc<Self> {
@@ -2915,10 +2914,7 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             indexes,
             rest_index,
-            subscription_handler: Arc::new(SubscriptionHandler::new(
-                prometheus_registry,
-                grpc_event_broadcaster,
-            )),
+            subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
             transaction_manager,

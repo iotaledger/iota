@@ -13,7 +13,7 @@ use tonic::transport::Server;
 
 use crate::{
     CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
-    GrpcCheckpointSummaryBroadcaster, GrpcEventBroadcaster, GrpcReader,
+    GrpcCheckpointSummaryBroadcaster, GrpcReader,
     checkpoint::checkpoint_service_server::CheckpointServiceServer,
     events::event_service_server::EventServiceServer,
 };
@@ -28,8 +28,6 @@ pub struct GrpcServerHandle {
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     /// Broadcaster for checkpoint data
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
-    /// Broadcaster for events
-    pub event_broadcaster: GrpcEventBroadcaster,
     /// Actual server address (with resolved port)
     pub address: SocketAddr,
 }
@@ -58,11 +56,6 @@ impl GrpcServerHandle {
     pub fn checkpoint_data_broadcaster(&self) -> &GrpcCheckpointDataBroadcaster {
         &self.checkpoint_data_broadcaster
     }
-
-    /// Get a reference to the event broadcaster
-    pub fn event_broadcaster(&self) -> &GrpcEventBroadcaster {
-        &self.event_broadcaster
-    }
 }
 
 /// Start a gRPC server with checkpoint and event services
@@ -73,7 +66,7 @@ impl GrpcServerHandle {
 /// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
-    grpc_event_broadcaster: GrpcEventBroadcaster,
+    event_subscriber: Arc<dyn crate::EventSubscriber>,
     config: crate::Config,
     shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
@@ -85,7 +78,6 @@ pub async fn start_grpc_server(
     let checkpoint_summary_broadcaster =
         GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
-    let event_broadcaster = grpc_event_broadcaster;
 
     // Create the gRPC services - both get the cancellation token directly from
     // server level
@@ -94,7 +86,7 @@ pub async fn start_grpc_server(
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
     );
-    let event_service = EventGrpcService::new(event_broadcaster.clone(), shutdown_token.clone());
+    let event_service = EventGrpcService::new(event_subscriber, shutdown_token.clone());
 
     // Create the server with proper address binding
     let server_builder = Server::builder()
@@ -131,7 +123,6 @@ pub async fn start_grpc_server(
         shutdown_token,
         checkpoint_summary_broadcaster,
         checkpoint_data_broadcaster,
-        event_broadcaster,
         address: actual_addr,
     })
 }

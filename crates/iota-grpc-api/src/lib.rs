@@ -29,7 +29,7 @@ pub use config::Config;
 pub use event_service::EventGrpcService;
 pub use server::{GrpcServerHandle, start_grpc_server};
 pub use types::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventBroadcaster,
-    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcEventBroadcaster,
-    GrpcReader, GrpcStateReader, RestStateReaderAdapter,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber,
+    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, GrpcStateReader,
+    RestStateReaderAdapter,
 };

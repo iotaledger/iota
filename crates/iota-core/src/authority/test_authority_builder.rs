@@ -369,7 +369,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             usize::MAX,
             ArchiveReaderBalancer::default(),
             None,
-            None, // grpc_event_broadcaster - not needed in authority tests
             chain_identifier,
             pruner_db,
         )
