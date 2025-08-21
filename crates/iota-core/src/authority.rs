@@ -1782,7 +1782,7 @@ impl AuthorityState {
                 Self::check_move_authenticator_inputs_for_executing(
                     protocol_config,
                     reference_gas_price,
-                    &tx_data,
+                    tx_data,
                     authenticator_input_objects,
                     &tx_input_objects,
                 )?;
@@ -5194,7 +5194,7 @@ impl AuthorityState {
                 fp_ensure!(
                     object.is_shared(),
                     UserInputError::AccountObjectNotSharedObject {
-                        object_id: account_object_id.clone(),
+                        object_id: account_object_id,
                     }
                     .into()
                 );
@@ -5202,7 +5202,7 @@ impl AuthorityState {
                 fp_ensure!(
                     object.version() == account_object_seq_number,
                     UserInputError::AccountObjectVersionMismatch {
-                        object_id: account_object_id.clone(),
+                        object_id: account_object_id,
                         expected_version: account_object_seq_number,
                         actual_version: object.version(),
                     }
@@ -5213,7 +5213,7 @@ impl AuthorityState {
                 fp_ensure!(
                     expected_digest == account_object_digest,
                     UserInputError::InvalidAccountObjectDigest {
-                        object_id: account_object_id.clone(),
+                        object_id: account_object_id,
                         expected_digest,
                         actual_digest: account_object_digest,
                     }
@@ -5235,7 +5235,7 @@ impl AuthorityState {
                             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
                                 Err(UserInputError::MoveAuthenticatorNotFound {
                                     authenticator_object_id: authenticator_id,
-                                    account_object_id: account_object_id,
+                                    account_object_id,
                                 }
                                 .into())
                             }
@@ -5251,7 +5251,7 @@ impl AuthorityState {
             }
             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
                 Err(UserInputError::AccountObjectNotFound {
-                    object_id: account_object_id.clone(),
+                    object_id: account_object_id,
                 }
                 .into())
             }
