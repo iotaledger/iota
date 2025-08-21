@@ -7,6 +7,7 @@ use futures::StreamExt;
 use iota_config::local_ip_utils;
 use iota_grpc_api::{
     client::{EventClient, NodeClient},
+    common::Address,
     events::{
         AllFilter, AndFilter, EventFilter, MoveEventTypeFilter, OrFilter, PackageFilter,
         SenderFilter, event_filter::Filter,
@@ -126,12 +127,16 @@ async fn test_event_filtering_and_bcs_serialization() {
                         filters: vec![
                             EventFilter {
                                 filter: Some(Filter::Package(PackageFilter {
-                                    package_id: nft_package_id.to_hex_literal(),
+                                    package_id: Some(Address {
+                                        address: nft_package_id.to_vec(),
+                                    }),
                                 })),
                             },
                             EventFilter {
                                 filter: Some(Filter::MoveEventType(MoveEventTypeFilter {
-                                    address: nft_package_id.to_hex_literal(),
+                                    address: Some(Address {
+                                        address: nft_package_id.to_vec(),
+                                    }),
                                     module: NFT_MODULE.to_string(),
                                     name: NFT_MINTED_EVENT.to_string(),
                                 })),
@@ -142,7 +147,9 @@ async fn test_event_filtering_and_bcs_serialization() {
                 // Branch 2: Sender filter (matches events from sender_1)
                 EventFilter {
                     filter: Some(Filter::Sender(SenderFilter {
-                        sender: sender_1.to_string(),
+                        sender: Some(Address {
+                            address: sender_1.to_vec(),
+                        }),
                     })),
                 },
             ],

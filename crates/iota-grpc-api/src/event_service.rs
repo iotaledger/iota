@@ -15,7 +15,6 @@ use tonic::{Request, Response, Status};
 use tracing::debug;
 
 use crate::{
-    bcs_event::try_to_bcs_bytes,
     events::{Event, EventId, EventStreamRequest, event_service_server::EventService},
     types::GrpcEventBroadcaster,
 };
@@ -84,8 +83,7 @@ impl EventService for EventGrpcService {
                             );
 
                             // Convert to protobuf Event
-                            let proto_event = Event::try_from(event)
-                                .map_err(|e| Status::internal(format!("Failed to convert event: {e}")))?;
+                            let proto_event = Event::from(event);
 
                             yield proto_event;
                         }
@@ -112,8 +110,9 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
 
     match &proto_filter.filter {
         Some(Filter::MoveEventType(f)) => {
+            let object_id = parse_object_id(&f.address, "Address")?;
             let struct_tag = StructTag {
-                address: *parse_object_id(&f.address)?,
+                address: *object_id,
                 module: parse_identifier(&f.module, "module name")?,
                 name: parse_identifier(&f.name, "event name")?,
                 type_params: vec![],
@@ -124,11 +123,17 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
             path: f.path.clone(),
             value: serde_json::Value::String(f.value.clone()),
         }),
-        Some(Filter::Package(f)) => Ok(EventFilter::Package(parse_object_id(&f.package_id)?)),
-        Some(Filter::MoveEventModule(f)) => Ok(EventFilter::MoveEventModule {
-            package: parse_object_id(&f.package_id)?,
-            module: parse_identifier(&f.module, "module name")?,
-        }),
+        Some(Filter::Package(f)) => {
+            let package_id = parse_object_id(&f.package_id, "Package ID")?;
+            Ok(EventFilter::Package(package_id))
+        }
+        Some(Filter::MoveEventModule(f)) => {
+            let package_id = parse_object_id(&f.package_id, "Package ID")?;
+            Ok(EventFilter::MoveEventModule {
+                package: package_id,
+                module: parse_identifier(&f.module, "module name")?,
+            })
+        }
         Some(Filter::And(f)) => {
             let filters = parse_filter_list(&f.filters)?;
             build_and_filter(filters)
@@ -138,14 +143,21 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
             build_or_filter(filters)
         }
         Some(Filter::All(_)) => Ok(EventFilter::All(vec![])),
-        Some(Filter::Sender(f)) => Ok(EventFilter::Sender(parse_address(&f.sender)?)),
-        Some(Filter::Transaction(f)) => {
-            Ok(EventFilter::Transaction(parse_tx_digest(&f.tx_digest)?))
+        Some(Filter::Sender(f)) => {
+            let sender = parse_iota_address(&f.sender, "Sender address")?;
+            Ok(EventFilter::Sender(sender))
         }
-        Some(Filter::MoveModule(f)) => Ok(EventFilter::MoveModule {
-            package: parse_object_id(&f.package_id)?,
-            module: parse_identifier(&f.module, "module name")?,
-        }),
+        Some(Filter::Transaction(f)) => {
+            let tx_digest = parse_tx_digest(&f.tx_digest, "Transaction digest")?;
+            Ok(EventFilter::Transaction(tx_digest))
+        }
+        Some(Filter::MoveModule(f)) => {
+            let package_id = parse_object_id(&f.package_id, "Package ID")?;
+            Ok(EventFilter::MoveModule {
+                package: package_id,
+                module: parse_identifier(&f.module, "module name")?,
+            })
+        }
         Some(Filter::TimeRange(f)) => Ok(EventFilter::TimeRange {
             start_time: f.start_time,
             end_time: f.end_time,
@@ -155,9 +167,15 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
 }
 
 // Helper functions to reduce repetition and improve error messages
-fn parse_object_id(hex_str: &str) -> Result<ObjectID, Status> {
-    ObjectID::from_hex_literal(hex_str)
-        .map_err(|e| Status::invalid_argument(format!("Invalid object ID '{hex_str}': {e}")))
+fn parse_object_id(
+    address: &Option<crate::common::Address>,
+    field_name: &str,
+) -> Result<ObjectID, Status> {
+    let address = address
+        .as_ref()
+        .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
+    ObjectID::from_bytes(&address.address)
+        .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }
 
 fn parse_identifier(id_str: &str, field_name: &str) -> Result<Identifier, Status> {
@@ -165,15 +183,26 @@ fn parse_identifier(id_str: &str, field_name: &str) -> Result<Identifier, Status
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name} '{id_str}': {e}")))
 }
 
-fn parse_address(addr_str: &str) -> Result<IotaAddress, Status> {
-    IotaAddress::from_str(addr_str)
-        .map_err(|e| Status::invalid_argument(format!("Invalid address '{addr_str}': {e}")))
+fn parse_iota_address(
+    address: &Option<crate::common::Address>,
+    field_name: &str,
+) -> Result<IotaAddress, Status> {
+    let address = address
+        .as_ref()
+        .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
+    IotaAddress::from_bytes(&address.address)
+        .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }
 
-fn parse_tx_digest(digest_str: &str) -> Result<TransactionDigest, Status> {
-    TransactionDigest::from_str(digest_str).map_err(|e| {
-        Status::invalid_argument(format!("Invalid transaction digest '{digest_str}': {e}"))
-    })
+fn parse_tx_digest(
+    digest: &Option<crate::common::TransactionDigest>,
+    field_name: &str,
+) -> Result<TransactionDigest, Status> {
+    let digest = digest
+        .as_ref()
+        .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
+    TransactionDigest::try_from(digest.digest.as_slice())
+        .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }
 
 fn parse_filter_list(filters: &[crate::events::EventFilter]) -> Result<Vec<EventFilter>, Status> {
@@ -214,18 +243,28 @@ fn build_or_filter(filters: Vec<EventFilter>) -> Result<EventFilter, Status> {
 }
 
 // Convert IotaEvent to protobuf Event
-impl TryFrom<&IotaEvent> for Event {
-    type Error = anyhow::Error;
-
-    fn try_from(event: &IotaEvent) -> Result<Self, Self::Error> {
-        Ok(Event {
-            event_data: try_to_bcs_bytes(event)?,
+impl From<&IotaEvent> for Event {
+    fn from(event: &IotaEvent) -> Self {
+        Event {
             event_id: Some(EventId {
-                tx_seq: event.id.event_seq,
                 event_seq: event.id.event_seq,
-                tx_digest: event.id.tx_digest.to_string(),
+                tx_digest: Some(crate::common::TransactionDigest {
+                    digest: event.id.tx_digest.into_inner().to_vec(),
+                }),
             }),
+            package_id: Some(crate::common::Address {
+                address: event.package_id.to_vec(),
+            }),
+            transaction_module: event.transaction_module.to_string(),
+            sender: Some(crate::common::Address {
+                address: event.sender.to_vec(),
+            }),
+            type_name: event.type_.to_string(),
+            parsed_json: event.parsed_json.to_string(),
             timestamp_ms: event.timestamp_ms,
-        })
+            event_data: Some(crate::common::BcsData {
+                data: event.bcs.bytes().to_vec(),
+            }),
+        }
     }
 }

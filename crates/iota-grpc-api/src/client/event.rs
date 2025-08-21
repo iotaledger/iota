@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::{Stream, StreamExt};
-use iota_json_rpc_types::IotaEvent;
+use iota_json_rpc_types::{BcsEvent, IotaEvent};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    event::EventID,
+};
+use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use tonic::transport::Channel;
 
-use crate::{
-    bcs_event::try_from_bcs_bytes,
-    events::{Event, EventStreamRequest, event_service_client::EventServiceClient},
-};
+use crate::events::{Event, EventStreamRequest, event_service_client::EventServiceClient};
 
 /// Dedicated client for event-related gRPC operations.
 ///
@@ -54,7 +56,62 @@ impl EventClient {
 
     /// Deserialize event data from BCS bytes.
     fn deserialize_event(event: &Event) -> anyhow::Result<IotaEvent> {
-        try_from_bcs_bytes(&event.event_data)
-            .map_err(|e| anyhow::anyhow!("BCS deserialization failed: {e}"))
+        let event_id = event
+            .event_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing event ID"))?;
+
+        let tx_digest = event_id
+            .tx_digest
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing transaction digest"))?;
+
+        let package_id = event
+            .package_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing package ID"))?;
+
+        let sender = event
+            .sender
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing sender"))?;
+
+        let bcs_data = event
+            .event_data
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing event data"))?;
+
+        // Parse the StructTag from string
+        let type_tag: StructTag = event
+            .type_name
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Failed to parse type tag: {e}"))?;
+
+        // Parse the JSON
+        let parsed_json: serde_json::Value = serde_json::from_str(&event.parsed_json)
+            .map_err(|e| anyhow::anyhow!("Failed to parse JSON: {e}"))?;
+
+        Ok(IotaEvent {
+            id: EventID {
+                tx_digest: iota_types::base_types::TransactionDigest::new(
+                    tx_digest
+                        .digest
+                        .clone()
+                        .try_into()
+                        .map_err(|_| anyhow::anyhow!("Invalid transaction digest length"))?,
+                ),
+                event_seq: event_id.event_seq,
+            },
+            package_id: ObjectID::from_bytes(&package_id.address)
+                .map_err(|e| anyhow::anyhow!("Invalid package ID: {e}"))?,
+            transaction_module: Identifier::new(event.transaction_module.clone())
+                .map_err(|e| anyhow::anyhow!("Invalid transaction module: {e}"))?,
+            sender: IotaAddress::from_bytes(&sender.address)
+                .map_err(|e| anyhow::anyhow!("Invalid sender address: {e}"))?,
+            type_: type_tag,
+            parsed_json,
+            bcs: BcsEvent::new(bcs_data.data.clone()),
+            timestamp_ms: event.timestamp_ms,
+        })
     }
 }

@@ -4,7 +4,11 @@
 fn main() {
     tonic_build::configure()
         .compile_protos(
-            &["proto/checkpoint.proto", "proto/event.proto"],
+            &[
+                "proto/common.proto",
+                "proto/checkpoint.proto",
+                "proto/event.proto",
+            ],
             &["proto/"],
         )
         .unwrap();

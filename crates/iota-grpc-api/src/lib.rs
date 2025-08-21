@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Generated protobuf code
+pub mod common {
+    tonic::include_proto!("iota.grpc.common");
+}
+
 pub mod checkpoint {
     tonic::include_proto!("iota.grpc.checkpoints");
 }
@@ -11,7 +15,6 @@ pub mod events {
 }
 
 // Modules
-pub mod bcs_event;
 pub mod checkpoint_service;
 pub mod client;
 pub mod config;

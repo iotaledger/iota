@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
 
-use crate::checkpoint::{BcsData, Checkpoint};
+use crate::{checkpoint::Checkpoint, common::BcsData};
 
 /// Trait for broadcasting checkpoint summaries
 pub trait CheckpointSummaryBroadcaster {
