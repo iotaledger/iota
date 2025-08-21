@@ -35,6 +35,8 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
+    /// Stores faulty blocks that were provably faulty.
+    faulty_blocks: DBMap<BlockRef, ()>,
     /// Stores scoring metrics for each authority.
     scoring_metrics: DBMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
@@ -45,6 +47,7 @@ impl RocksDBStore {
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
+    const FAULTY_BLOCKS: &'static str = "faulty_blocks";
     const SCORING_METRICS_CF: &'static str = "scoring_metrics";
 
     /// Creates a new instance of RocksDB storage.
@@ -68,6 +71,7 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
+            (Self::FAULTY_BLOCKS, cf_options.clone()),
             (Self::SCORING_METRICS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
@@ -78,12 +82,21 @@ impl RocksDBStore {
         )
         .expect("Cannot open database");
 
-        let (blocks, digests_by_authorities, commits, commit_votes, commit_info, scoring_metrics) = reopen!(&rocksdb,
+        let (
+            blocks,
+            digests_by_authorities,
+            commits,
+            commit_votes,
+            commit_info,
+            faulty_blocks,
+            scoring_metrics,
+        ) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
+            Self::FAULTY_BLOCKS;<BlockRef, ()>,
             Self::SCORING_METRICS_CF;<AuthorityIndex, StoredScoringMetricsU64>
         );
 
@@ -93,6 +106,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            faulty_blocks,
             scoring_metrics,
         }
     }
@@ -147,6 +161,11 @@ impl Store for RocksDBStore {
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
+        for faulty_block in write_batch.faulty_blocks {
+            batch
+                .insert_batch(&self.faulty_blocks, [(faulty_block, ())])
+                .map_err(ConsensusError::RocksDBFailure)?;
+        }
         for (authority, metrics) in write_batch.scoring_metrics {
             batch
                 .insert_batch(&self.scoring_metrics, [(authority, metrics)])
@@ -198,6 +217,11 @@ impl Store for RocksDBStore {
             ))
             .next()
             .is_some();
+        Ok(found)
+    }
+
+    fn contains_faulty_block(&self, block_ref: &BlockRef) -> ConsensusResult<bool> {
+        let found = self.faulty_blocks.contains_key(block_ref)?;
         Ok(found)
     }
 

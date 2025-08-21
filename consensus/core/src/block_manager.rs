@@ -6,6 +6,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
     sync::Arc,
     time::Instant,
+    vec,
 };
 
 use consensus_config::AuthorityIndex;
@@ -16,7 +17,7 @@ use tracing::{debug, trace, warn};
 
 use crate::{
     Round,
-    block::{BlockAPI, BlockRef, GENESIS_ROUND, VerifiedBlock},
+    block::{BlockAPI, BlockRef, GENESIS_ROUND, MisbehaviorProof, VerifiedBlock},
     block_verifier::BlockVerifier,
     context::Context,
     dag_state::DagState,
@@ -384,17 +385,22 @@ impl BlockManager {
                 let mut proof_blocks: Vec<Vec<VerifiedBlock>> = vec![];
                 for report in b.misbehavior_reports() {
                     // get references and remove none values.
-                    let report_proof_blocks =
-                        (self.dag_state.read().get_blocks(&report.references()))
-                            .iter()
-                            .filter_map(|b| b.clone())
-                            .collect::<Vec<_>>();
-                    assert_eq!(
-                        report_proof_blocks.len(),
-                        report.references().len(),
-                        "Proof blocks length should match the references length"
-                    );
-                    proof_blocks.push(report_proof_blocks);
+                    match report.proof() {
+                        MisbehaviorProof::InvalidBlock(..) => {
+                            // we do not need to verify the invalid block proofs. The fact that the
+                            // block was solidified means that we have received and checked the
+                            // provably faulty block.
+                            proof_blocks.push(vec![]);
+                        }
+                        MisbehaviorProof::Equivocation { .. } => {
+                            let report_proof_blocks =
+                                (self.dag_state.read().get_blocks(&report.references()))
+                                    .iter()
+                                    .filter_map(|b| b.clone())
+                                    .collect::<Vec<_>>();
+                            proof_blocks.push(report_proof_blocks);
+                        }
+                    }
                 }
                 if let Err(e) = self
                     .block_verifier
@@ -487,13 +493,21 @@ impl BlockManager {
             block.ancestors().to_vec()
         };
 
-        // extend the ancestors to include the misbehavior reports of the block.
-        ancestors.extend(
-            block
-                .misbehavior_reports()
-                .iter()
-                .flat_map(|report| report.references()),
-        );
+        for report in block.misbehavior_reports() {
+            match report.proof() {
+                MisbehaviorProof::InvalidBlock(block_ref) => {
+                    // Check the dag state for the faulty block.
+                    if !dag_state.contains_faulty_block(block_ref) {
+                        missing_ancestors.insert(*block_ref);
+                    }
+                }
+                MisbehaviorProof::Equivocation { .. } => {
+                    // extend ancestors to include the equivocation references.
+                    // We will check the dag state for for these along with the regular ancestors.
+                    ancestors.extend(report.references());
+                }
+            }
+        }
 
         // make sure that we have all the required ancestors in store
         for (found, ancestor) in dag_state

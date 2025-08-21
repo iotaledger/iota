@@ -258,24 +258,10 @@ impl BlockVerifier for SignedBlockVerifier {
         {
             match misbehavior_report.proof() {
                 MisbehaviorProof::InvalidBlock(_block_ref) => {
-                    let _proof_block = proof_blocks
-                        .first()
-                        .expect("should have at least one proof block to verify the invalid block");
-
-                    // match self.verify(&proof_block) {
-                    //     Ok(_) => return
-                    // Err(ConsensusError::InvalidMisbehaviorReport(index)),
-                    //     Err(e) => match e {
-                    //         ConsensusError::WrongEpoch { .. }
-                    //         | ConsensusError::UnexpectedGenesisBlock
-                    //         | ConsensusError::InvalidAuthorityIndex { .. } =>
-                    // {             return
-                    // Err(ConsensusError::InvalidMisbehaviorReport(index));
-                    //         }
-                    //         // All other errors are expected for an invalid
-                    // block.         _ => continue,
-                    //     },
-                    // }
+                    // We do not need to verify the invalid block proofs. The fact that the
+                    // reference was already present in the dag state to solidify this block means
+                    // the block has been checked already.
+                    continue;
                 }
                 MisbehaviorProof::Equivocation { first, second } => {
                     // Check that the two referenced blocks are not the same.

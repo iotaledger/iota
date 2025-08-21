@@ -31,6 +31,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
+    faulty_blocks: BTreeSet<BlockRef>,
     scoring_metrics: BTreeMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
 
@@ -43,6 +44,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
+                faulty_blocks: BTreeSet::new(),
                 scoring_metrics: BTreeMap::new(),
             }),
         }
@@ -81,6 +83,10 @@ impl Store for MemStore {
             inner
                 .commit_info
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
+        }
+
+        for faulty_block in write_batch.faulty_blocks {
+            inner.faulty_blocks.insert(faulty_block);
         }
 
         for (authority, metrics) in write_batch.scoring_metrics {
@@ -152,6 +158,12 @@ impl Store for MemStore {
             ))
             .next()
             .is_some();
+        Ok(found)
+    }
+
+    fn contains_faulty_block(&self, block_ref: &BlockRef) -> ConsensusResult<bool> {
+        let inner = self.inner.read();
+        let found = inner.faulty_blocks.contains(block_ref);
         Ok(found)
     }
 

@@ -370,9 +370,20 @@ impl DagState {
         }
     }
 
-    /// Gets the recent provably faulty blocks.
+    /// Returns the cached recent provably faulty blocks.
     pub(crate) fn get_recent_provably_faulty_blocks(&self) -> Vec<BlockRef> {
         self.recent_provably_faulty_blocks.clone()
+    }
+
+    /// Checks if the dag state contains this provably faulty blocks, first in
+    /// cache then in storage.
+    pub(crate) fn contains_faulty_block(&self, block_ref: &BlockRef) -> bool {
+        if self.recent_provably_faulty_blocks.contains(block_ref) {
+            return true;
+        }
+        self.store
+            .contains_faulty_block(block_ref)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
     /// Updates internal metadata for a block.
@@ -1064,6 +1075,7 @@ impl DagState {
                 blocks,
                 commits,
                 commit_info_to_write,
+                self.recent_provably_faulty_blocks.clone(),
                 metrics_to_write,
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
@@ -1090,9 +1102,6 @@ impl DagState {
             self.evicted_rounds[authority_index] = eviction_round;
         }
 
-        // Faulty blocks do not need to be persisted, they are only needed when
-        // selecting ancestors and they can then be discarded, so we can safely remove
-        // them here.
         self.recent_provably_faulty_blocks.clear();
 
         let metrics = &self.context.metrics.node_metrics;
