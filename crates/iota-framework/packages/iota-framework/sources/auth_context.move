@@ -3,7 +3,7 @@
 
 module iota::auth_context;
 
-use iota::programmable_transaction::{CallArg, CommandArg};
+use iota::programmable_transaction::{CallArg, Command};
 
 // === Structs ===
 
@@ -11,9 +11,9 @@ public struct AuthContext has drop {
     /// The digest of the MoveAuthenticator
     auth_digest: vector<u8>,
     /// The transaction input objects or primitive values
-    tx_inputs: vector<CallArg>, //TODO: remove for 2nd iteration phase
+    tx_inputs: vector<CallArg>,
     /// The transaction commands to be executed sequentially.
-    tx_commands: vector<CommandArg>, //TODO: remove for 2nd iteration phase
+    tx_commands: vector<Command>,
 }
 
 // === Public functions ===
@@ -26,23 +26,9 @@ public fun tx_inputs(ctx: &AuthContext): &vector<CallArg> {
     &ctx.tx_inputs
 }
 
-public fun tx_commands(ctx: &AuthContext): &vector<CommandArg> {
+public fun tx_commands(ctx: &AuthContext): &vector<Command> {
     &ctx.tx_commands
 }
-
-//TODO: implement this for the 2nd iteration phase
-
-// public fun tx_inputs(_ctx: &AuthContext): vector<CallArg> {
-//     native_tx_inputs()
-// }
-
-// public fun tx_commands(_ctx: &AuthContext): vector<CommandArg> {
-//     native_tx_commands()
-// }
-
-// native fun native_tx_inputs(): vector<CallArg>;
-
-// native fun native_tx_commands(): vector<CommandArg>;
 
 // === Test-only functions ===
 
@@ -50,7 +36,7 @@ public fun tx_commands(ctx: &AuthContext): &vector<CommandArg> {
 public fun new_with_tx_inputs(
     auth_digest: vector<u8>,
     tx_inputs: vector<CallArg>,
-    tx_commands: vector<CommandArg>,
+    tx_commands: vector<Command>,
 ): AuthContext {
     AuthContext {
         auth_digest,

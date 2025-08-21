@@ -23,7 +23,7 @@ public struct ProgrammableMoveCall has copy, drop {
 
 public struct ProgrammableTransaction has copy, drop {
     inputs: vector<CallArg>,
-    commands: vector<CommandArg>,
+    commands: vector<Command>,
 }
 
 public struct ObjectRef has copy, drop {
@@ -39,7 +39,7 @@ public enum CallArg has copy, drop {
     ObjectData(ObjectArg),
 }
 
-public enum CommandArg has copy, drop {
+public enum Command has copy, drop {
     MoveCall(ProgrammableMoveCall),
     TransferObjects(vector<Argument>, Argument),
     SplitCoins(Argument, vector<Argument>),
@@ -104,7 +104,7 @@ public fun inputs(tx: &ProgrammableTransaction): &vector<CallArg> {
     &tx.inputs
 }
 
-public fun commands(tx: &ProgrammableTransaction): &vector<CommandArg> {
+public fun commands(tx: &ProgrammableTransaction): &vector<Command> {
     &tx.commands
 }
 
@@ -122,63 +122,63 @@ public fun object_data(arg: &CallArg): &ObjectArg {
     }
 }
 
-public fun command_variant_name(command: &CommandArg): u8 {
+public fun command_variant_name(command: &Command): u8 {
     match (command) {
-        CommandArg::MoveCall(_) => 0,
-        CommandArg::TransferObjects(_, _) => 1,
-        CommandArg::SplitCoins(_, _) => 2,
-        CommandArg::MergeCoins(_, _) => 3,
-        CommandArg::Publish(_, _) => 4,
-        CommandArg::MakeMoveVec(_, _) => 5,
-        CommandArg::Upgrade(_, _, _, _) => 6,
+        Command::MoveCall(_) => 0,
+        Command::TransferObjects(_, _) => 1,
+        Command::SplitCoins(_, _) => 2,
+        Command::MergeCoins(_, _) => 3,
+        Command::Publish(_, _) => 4,
+        Command::MakeMoveVec(_, _) => 5,
+        Command::Upgrade(_, _, _, _) => 6,
     }
 }
 
-public fun move_call_data(command: &CommandArg): &ProgrammableMoveCall {
+public fun move_call_data(command: &Command): &ProgrammableMoveCall {
     match (command) {
-        CommandArg::MoveCall(call) => call,
+        Command::MoveCall(call) => call,
         _ => abort EInvalidArgumentType,
     }
 }
 
-public fun transfer_objects_data(command: &CommandArg): (&vector<Argument>, &Argument) {
+public fun transfer_objects_data(command: &Command): (&vector<Argument>, &Argument) {
     match (command) {
-        CommandArg::TransferObjects(objects, recipient) => (objects, recipient),
+        Command::TransferObjects(objects, recipient) => (objects, recipient),
         _ => abort EInvalidArgumentType,
     }
 }
 
-public fun split_coins_data(command: &CommandArg): (&Argument, &vector<Argument>) {
+public fun split_coins_data(command: &Command): (&Argument, &vector<Argument>) {
     match (command) {
-        CommandArg::SplitCoins(coin, amounts) => (coin, amounts),
+        Command::SplitCoins(coin, amounts) => (coin, amounts),
         _ => abort EInvalidArgumentType,
     }
 }
 
-public fun merge_coins_data(command: &CommandArg): (&Argument, &vector<Argument>) {
+public fun merge_coins_data(command: &Command): (&Argument, &vector<Argument>) {
     match (command) {
-        CommandArg::MergeCoins(target_coin, source_coins) => (target_coin, source_coins),
+        Command::MergeCoins(target_coin, source_coins) => (target_coin, source_coins),
         _ => abort EInvalidArgumentType,
     }
 }
 
-public fun publish_data(command: &CommandArg): (&vector<vector<u8>>, &vector<ID>) {
+public fun publish_data(command: &Command): (&vector<vector<u8>>, &vector<ID>) {
     match (command) {
-        CommandArg::Publish(modules, dependencies) => (modules, dependencies),
+        Command::Publish(modules, dependencies) => (modules, dependencies),
         _ => abort EInvalidArgumentType,
     }
 }
 
-public fun make_move_vec_data(command: &CommandArg): (&Option<TypeName>, &vector<Argument>) {
+public fun make_move_vec_data(command: &Command): (&Option<TypeName>, &vector<Argument>) {
     match (command) {
-        CommandArg::MakeMoveVec(type_arg, args) => (type_arg, args),
+        Command::MakeMoveVec(type_arg, args) => (type_arg, args),
         _ => abort EInvalidArgumentType,
     }
 }
 
-public fun upgrade_data(command: &CommandArg): (&vector<vector<u8>>, &vector<ID>, &ID, &Argument) {
+public fun upgrade_data(command: &Command): (&vector<vector<u8>>, &vector<ID>, &ID, &Argument) {
     match (command) {
-        CommandArg::Upgrade(modules, dependencies, package_id, argument) => (
+        Command::Upgrade(modules, dependencies, package_id, argument) => (
             modules,
             dependencies,
             package_id,
@@ -284,34 +284,34 @@ public fun new_programmable_move_call(
 #[test_only]
 public fun new_programmable_transaction(
     inputs: vector<CallArg>,
-    commands: vector<CommandArg>,
+    commands: vector<Command>,
 ): ProgrammableTransaction {
     ProgrammableTransaction { inputs, commands }
 }
 
 #[test_only]
-public fun new_move_call(call: ProgrammableMoveCall): CommandArg {
-    CommandArg::MoveCall(call)
+public fun new_move_call(call: ProgrammableMoveCall): Command {
+    Command::MoveCall(call)
 }
 
 #[test_only]
-public fun new_transfer_objects(objects: vector<Argument>, recipient: Argument): CommandArg {
-    CommandArg::TransferObjects(objects, recipient)
+public fun new_transfer_objects(objects: vector<Argument>, recipient: Argument): Command {
+    Command::TransferObjects(objects, recipient)
 }
 
 #[test_only]
-public fun new_split_coins(coin: Argument, amounts: vector<Argument>): CommandArg {
-    CommandArg::SplitCoins(coin, amounts)
+public fun new_split_coins(coin: Argument, amounts: vector<Argument>): Command {
+    Command::SplitCoins(coin, amounts)
 }
 
 #[test_only]
-public fun new_merge_coins(target_coin: Argument, source_coins: vector<Argument>): CommandArg {
-    CommandArg::MergeCoins(target_coin, source_coins)
+public fun new_merge_coins(target_coin: Argument, source_coins: vector<Argument>): Command {
+    Command::MergeCoins(target_coin, source_coins)
 }
 
 #[test_only]
-public fun new_publish(modules: vector<vector<u8>>, dependencies: vector<ID>): CommandArg {
-    CommandArg::Publish(modules, dependencies)
+public fun new_publish(modules: vector<vector<u8>>, dependencies: vector<ID>): Command {
+    Command::Publish(modules, dependencies)
 }
 
 #[test_only]

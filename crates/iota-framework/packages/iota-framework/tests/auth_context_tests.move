@@ -8,7 +8,7 @@ use iota::auth_context::{new_with_tx_inputs, digest};
 use iota::programmable_transaction::{
     new_pure,
     CallArg,
-    CommandArg,
+    Command,
     new_input_argument,
     new_move_call,
     new_programmable_move_call
