@@ -140,7 +140,7 @@ async fn test_randomized_dag_and_decision_sequence() {
             // Evaluate the seen blocks so far
             let (suspended, missing) = evaluate_block_headers(&seen_so_far);
             let authority1_suspended = authority_1.block_manager.suspended_blocks_refs();
-            let authority1_missing = authority_1.block_manager.missing_block_refs();
+            let authority1_missing = authority_1.block_manager.blocks_to_fetch_refs();
             assert_eq!(suspended, authority1_suspended);
             assert_eq!(missing, authority1_missing);
         }
@@ -181,7 +181,7 @@ async fn test_randomized_dag_and_decision_sequence() {
             // Evaluate the seen blocks so far
             let (suspended, missing) = evaluate_block_headers(&seen_so_far);
             let authority2_suspended = authority_2.block_manager.suspended_blocks_refs();
-            let authority2_missing = authority_2.block_manager.missing_block_refs();
+            let authority2_missing = authority_2.block_manager.blocks_to_fetch_refs();
             assert_eq!(suspended, authority2_suspended);
             assert_eq!(missing, authority2_missing);
             i += chunk_size;

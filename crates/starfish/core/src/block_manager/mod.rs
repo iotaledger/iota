@@ -177,7 +177,7 @@ impl BlockManager {
             block_refs.iter().map(|b| b.to_string()).join(",")
         );
 
-        let mut missing_blocks = BTreeSet::new();
+        let mut blocks_to_fetch = BTreeSet::new();
 
         for (found, block_ref) in self
             .dag_state
@@ -190,16 +190,16 @@ impl BlockManager {
                 continue;
             }
             // Fetches the block if it is not in dag state or suspended.
-            missing_blocks.insert(*block_ref);
+            blocks_to_fetch.insert(*block_ref);
             if self
                 .block_suspender
-                .insert_missing_block(*block_ref, BTreeSet::from([block_ref.author]))
+                .insert_block_to_fetch(*block_ref, BTreeSet::from([block_ref.author]))
                 .is_none()
             {
                 // We want to report this as a missing ancestor even if there is no block that
                 // is actually references it right now.
                 self.block_suspender
-                    .set_unresolved_ancestors_with_no_children(*block_ref);
+                    .set_missing_ancestors_with_no_children(*block_ref);
 
                 self.context
                     .metrics
@@ -213,12 +213,12 @@ impl BlockManager {
         let metrics = &self.context.metrics.node_metrics;
         metrics
             .missing_blocks_total
-            .inc_by(missing_blocks.len() as u64);
+            .inc_by(blocks_to_fetch.len() as u64);
         metrics
             .block_manager_missing_blocks
-            .set(self.block_suspender.missing_blocks_len() as i64);
+            .set(self.block_suspender.blocks_to_fetch_len() as i64);
 
-        missing_blocks
+        blocks_to_fetch
     }
     /// Verifies a block w.r.t. ancestor blocks.
     /// This is called after a block has complete causal history locally,
@@ -284,8 +284,7 @@ impl BlockManager {
                     }
                     {
                         panic!(
-                            "Unsuspended block {:?} has a missing ancestor! Ancestor not found in DagState: {:?}",
-                            b, ancestor_ref
+                            "Unsuspended block {b:?} has a missing ancestor! Ancestor not found in DagState: {ancestor_ref:?}",
                         );
                     }
                 }
@@ -303,7 +302,7 @@ impl BlockManager {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_blocks
+                .invalid_block_headers
                 .with_label_values(&[
                     self.context.authority_hostname(block_ref.author),
                     "accept_block",
@@ -341,14 +340,14 @@ impl BlockManager {
     /// Returns all the blocks that are currently missing and needed in order to
     /// accept suspended blocks. For each block reference it returns the set of
     /// authorities who have this block.
-    pub(crate) fn missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
-        self.block_suspender.missing_blocks()
+    pub(crate) fn blocks_to_fetch(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        self.block_suspender.headers_to_fetch()
     }
 
     /// Returns all the block refs that are currently missing.
     #[cfg(test)]
-    pub(crate) fn missing_block_refs(&self) -> BTreeSet<BlockRef> {
-        self.block_suspender.missing_block_refs()
+    pub(crate) fn blocks_to_fetch_refs(&self) -> BTreeSet<BlockRef> {
+        self.block_suspender.blocks_to_fetch_refs()
     }
     /// Checks if block manager is empty.
     #[cfg(test)]
@@ -486,7 +485,7 @@ mod tests {
         // AND the missing blocks are the parents of the round 2 blocks. Since this is a
         // fully connected DAG taking the ancestors of the first element
         // suffices.
-        assert_eq!(block_manager.missing_block_refs(), missing_block_refs);
+        assert_eq!(block_manager.blocks_to_fetch_refs(), missing_block_refs);
 
         // AND suspended blocks should return the round_2_blocks
         assert_eq!(
@@ -499,7 +498,7 @@ mod tests {
 
         // AND each missing block should be known to all authorities
         let known_by_manager = block_manager
-            .missing_blocks()
+            .blocks_to_fetch()
             .iter()
             .next()
             .expect("We should expect at least two elements there")
@@ -647,8 +646,7 @@ mod tests {
 
             assert_eq!(
                 all_accepted_block_headers, all_block_headers,
-                "Failed acceptance sequence for seed {}",
-                seed
+                "Failed acceptance sequence for seed {seed}"
             );
             assert!(block_manager.is_empty());
         }
@@ -694,7 +692,7 @@ mod tests {
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
-        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        let missing_blocks_with_authorities = block_manager.blocks_to_fetch();
 
         let block_round_1_authority_0 = all_blocks
             .iter()
@@ -723,7 +721,7 @@ mod tests {
         // Add a new block from round 2 from authority 1, which updates the set of
         // authorities that are aware of the missing blocks
         block_manager.try_accept_block_headers(vec![blocks_round_2[1].clone()]);
-        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        let missing_blocks_with_authorities = block_manager.blocks_to_fetch();
         assert_eq!(
             missing_blocks_with_authorities[&block_round_1_authority_0],
             BTreeSet::from([
@@ -850,7 +848,7 @@ mod tests {
             missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
         assert_eq!(missing, missing_block_refs_from_accept);
         assert_eq!(
-            block_manager.missing_block_refs(),
+            block_manager.blocks_to_fetch_refs(),
             missing_block_refs_from_accept
         );
 
@@ -883,7 +881,7 @@ mod tests {
                 .all(|block_ref| block_ref.round == 3)
         );
         assert_eq!(
-            block_manager.missing_block_refs(),
+            block_manager.blocks_to_fetch_refs(),
             missing_block_refs_from_accept
                 .into_iter()
                 .chain(missing_block_refs_from_find.into_iter())

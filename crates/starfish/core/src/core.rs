@@ -878,7 +878,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::get_missing_blocks"])
             .start_timer();
-        self.block_manager.missing_block_headers()
+        self.block_manager.blocks_to_fetch()
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
