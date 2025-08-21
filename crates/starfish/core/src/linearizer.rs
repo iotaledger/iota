@@ -284,9 +284,9 @@ impl Linearizer {
                 .entry(block_ref)
                 .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
 
-            if !votes_collector.reached_threshold(&self.context.committee)
-                && votes_collector.add(authority, &self.context.committee)
-            {
+            let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
+
+            if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
                 acknowledged_data.push(block_ref);
             }
         }
@@ -630,8 +630,12 @@ mod tests {
             .flatten()
             .collect::<Vec<_>>();
 
-        let commits = linearizer.handle_commit(leaders.clone());
-        for (idx, subdag) in commits.into_iter().enumerate() {
+
+        for (idx, leader) in leaders.iter().enumerate() {
+            let subdags = linearizer.handle_commit(vec![leader.clone()]);
+            assert_eq!(subdags.len(), 1);
+            let subdag = &subdags[0];
+
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
             assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
@@ -658,6 +662,14 @@ mod tests {
                 //   missing
                 // * 3 blocks on round 2, committed without delay
                 assert_eq!(subdag.committed_transaction_refs.len(), 6);
+                // Check that transactions are acknowledged by all authorities except authority 3.
+                let ack_authors = linearizer.get_transaction_ack_authors(subdag.committed_transaction_refs.clone());
+                for (block_ref, authors) in ack_authors {
+                    assert_eq!(
+                        authors,
+                        (0..3).map(AuthorityIndex::new_for_test).collect(), "{block_ref}"
+                    );
+                }
             } else {
                 // we expect to see all blocks of round >= 1
                 assert_eq!(subdag.blocks.len(), 6);
@@ -669,6 +681,16 @@ mod tests {
                 // The following subdag commits all data from round 3 (leader block was missing,
                 // so only 3 block refs)
                 assert_eq!(subdag.committed_transaction_refs.len(), 3);
+
+                // Check that transactions are acknowledged by all authorities.
+                let ack_authors = linearizer.get_transaction_ack_authors(subdag.committed_transaction_refs.clone());
+                for (block_ref, authors) in ack_authors {
+                    tracing::info!("{block_ref:?}");
+                    assert_eq!(
+                        authors,
+                        (0..=3).map(AuthorityIndex::new_for_test).collect()
+                    );
+                }
             }
             for block in subdag.blocks.iter() {
                 assert!(block.round() <= leaders[idx].round());
@@ -679,5 +701,31 @@ mod tests {
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
+    }
+
+
+
+    #[tokio::test]
+    async fn test_eviction() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        // Populate fully connected test blocks for round 0 ~ 10, authorities 0 ~ 3.
+        let num_rounds: u32 = MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + 1;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=num_rounds)
+            .build()
+            .persist_layers(dag_state.clone());
     }
 }
