@@ -5280,8 +5280,8 @@ impl AuthorityState {
             .into()
         );
 
-        // `tx_digest_for_caching` paramenter is not used, but we need to be careful
-        // with caching becasue we call `read_objects_for_signing` several times with
+        // `tx_digest_for_caching` parameter is not used, but we need to be careful
+        // with caching because we call `read_objects_for_signing` several times with
         // different inputs but the same transaction digest.
         let (authenticator_input_objects, authenticator_receiving_objects) =
             self.input_loader.read_objects_for_signing(
@@ -5904,7 +5904,7 @@ impl NodeStateDump {
     }
 }
 
-// TODO: A temporaly created function. Needs to be replaced with a proper check.
+// TODO: A temporary created function. Needs to be replaced with a proper check.
 fn move_authenticator(signatures: &[GenericSignature]) -> Option<&MoveAuthenticator> {
     if signatures.len() == 1 && signatures[0].is_move_authenticator() {
         match &signatures[0] {
