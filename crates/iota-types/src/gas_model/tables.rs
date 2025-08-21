@@ -93,7 +93,7 @@ impl GasStatus {
         );
 
         let initial_budget = Self::to_internal_units(budget / gas_price);
-        let gas_left = Self::to_internal_units(budget - gas_spent / gas_price);
+        let gas_left = Self::to_internal_units((budget - gas_spent) / gas_price);
         let (stack_height_current_tier_mult, stack_height_next_tier_start) =
             cost_table.stack_height_tier(0);
         let (stack_size_current_tier_mult, stack_size_next_tier_start) =
