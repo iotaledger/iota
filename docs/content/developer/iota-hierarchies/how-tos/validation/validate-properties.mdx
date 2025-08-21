@@ -1,0 +1,157 @@
+---
+title: Validate Properties
+sidebar_label: Validate Properties
+description: Guide to validate properties against accreditations in a hierarchy.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+## Validate Properties
+
+This guide demonstrates how to validate Properties against accreditations in a hierarchy using the offchain API.
+
+### Prerequisites
+
+- An existing hierarchy on the IOTA network
+- A funded client with write access
+- Accreditations to validate against
+
+### Overview
+
+Property validation verifies that a receiver has the necessary accreditations within a Federation to make specific attestation.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the hierarchy:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L23
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/02_validate_properties.ts#L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new Federation to contain your Properties:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L25-L28
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/02_validate_properties.ts#L11-L14
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add Property to Federation
+
+Add a Property with allowed values to the Federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L32-L43
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/02_validate_properties.ts#L18-L24
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create Accreditation to Attest
+
+Issue accreditation for a receiver to attest to the property:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L46-L64
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/02_validate_properties.ts#L25-L32
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Validate Properties
+
+Validate that the receiver has the necessary accreditations for the properties:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs#L67-L73
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/02_validate_properties.ts#L34-L41
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Validation Process**: The validation checks if a receiver has the necessary accreditations to make specific properties
+- **Properties Matching**: The properties name and value must match exactly with the accreditation
+- **Error Handling**: Validation will fail if the receiver lacks the necessary accreditations
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/02_validate_properties.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/02_validate_properties.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

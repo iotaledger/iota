@@ -1,6 +1,6 @@
 [package]
 name = "references_deep"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 MoveStdlib = { local = "../../../../move-stdlib" }

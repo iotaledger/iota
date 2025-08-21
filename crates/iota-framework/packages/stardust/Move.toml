@@ -2,7 +2,7 @@
 name = "Stardust"
 version = "0.0.1"
 published-at = "0x107a"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 MoveStdlib = { local = "../move-stdlib" }

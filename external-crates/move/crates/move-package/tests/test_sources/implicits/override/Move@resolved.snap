@@ -33,7 +33,7 @@ ResolvedGraph {
             "A",
             "I2",
         },
-        manifest_digest: "68B35A0747A9DCE9298DA732B6E1E5E7C31D787C296F65C47BFD230B717438E9",
+        manifest_digest: "BD3A80B6FA65101AFC0B8A65073D6603E53B1A2E102A6B7CC69A18357FD5F8FC",
         deps_digest: "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082",
     },
     build_options: BuildConfig {
@@ -94,9 +94,7 @@ ResolvedGraph {
                     edition: Some(
                         Edition {
                             edition: "2024",
-                            release: Some(
-                                "beta",
-                            ),
+                            release: None,
                         },
                     ),
                     flavor: None,
@@ -133,9 +131,7 @@ ResolvedGraph {
                     edition: Some(
                         Edition {
                             edition: "2024",
-                            release: Some(
-                                "beta",
-                            ),
+                            release: None,
                         },
                     ),
                     flavor: None,

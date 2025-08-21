@@ -1,6 +1,6 @@
 [package]
 name = "Test"
-edition = "2024.beta"
+edition = "2024"
 
 [addresses]
 foo = "0x1"

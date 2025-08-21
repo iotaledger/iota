@@ -183,6 +183,8 @@ export interface DryRunTransactionBlockResponse {
     events: IotaEvent[];
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
+    /** If an input object is congested, suggest a gas price to use. */
+    suggestedGasPrice?: string | null;
 }
 export type DynamicFieldInfo =
     | {
@@ -585,6 +587,13 @@ export interface IotaMoveModuleId {
     address: string;
     name: string;
 }
+export interface IotaMoveNormalizedEnum {
+    abilities: IotaMoveAbilitySet;
+    typeParameters: IotaMoveStructTypeParameter[];
+    variants: {
+        [key: string]: IotaMoveNormalizedField[];
+    };
+}
 export interface IotaMoveNormalizedField {
     name: string;
     type: IotaMoveNormalizedType;
@@ -598,6 +607,9 @@ export interface IotaMoveNormalizedFunction {
 }
 export interface IotaMoveNormalizedModule {
     address: string;
+    enums?: {
+        [key: string]: IotaMoveNormalizedEnum;
+    };
     exposedFunctions: {
         [key: string]: IotaMoveNormalizedFunction;
     };

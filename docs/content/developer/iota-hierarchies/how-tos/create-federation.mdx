@@ -1,0 +1,112 @@
+---
+title: Create Federation
+sidebar_label: Create Federation
+description: Guide to create a new federation hierarchy on the IOTA network.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Create Federation
+
+This guide demonstrates how to create a new Federation and publish it on chain.
+
+### Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Hierarchies client SDK installed
+
+### Overview
+
+A Federation is the core structure in hierarchies that manages accreditations and attestations. Creating a federation is the first step in setting up a hierarchy system.
+
+### 1. Set Up Funded Client
+
+Initialize a funded client to interact with the IOTA network:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/01_create_federation.rs#L16-L18
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts#L9
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new Federation on the IOTA network:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/01_create_federation.rs#L20-L26
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts#L11-L13
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Verify Federation Creation
+
+After creation, verify the federation has been successfully created:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/01_create_federation.rs#L28
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts#L15-L19
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Federation ID**: Each federation receives a unique ID upon creation
+- **Root Authority**: The creator automatically becomes the first root authority
+- **On-chain**: The federation is published and stored on the IOTA blockchain
+- **Immutable Record**: Once created, the federation's existence is permanently recorded
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/01_create_federation.rs
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts
+```
+</TabItem>
+</Tabs>
+</div>

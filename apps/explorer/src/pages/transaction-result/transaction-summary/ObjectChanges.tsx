@@ -276,17 +276,17 @@ function ObjectChangeEntriesCardFooter({
             <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                 Owner
             </span>
-            <div className="flex flex-col gap-xxs">
+            <div className="flex flex-row items-center gap-xs">
                 {ownerType === 'AddressOwner' && (
                     <AddressLink address={ownerAddress} copyText={ownerAddress} />
                 )}
                 {ownerType === 'ObjectOwner' && (
                     <ObjectLink objectId={ownerAddress} copyText={ownerAddress} />
                 )}
+                {ownerType === 'Shared' && (
+                    <ObjectLink objectId={ownerAddress} label="Shared" showAddressAlias={false} />
+                )}
             </div>
-            {ownerType === 'Shared' && (
-                <ObjectLink objectId={ownerAddress} label="Shared" showAddressAlias={false} />
-            )}
         </div>
     );
 }

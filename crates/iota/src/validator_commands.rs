@@ -107,8 +107,6 @@ pub enum IotaValidatorCommand {
     DisplayMetadata {
         #[arg(name = "validator-address")]
         validator_address: Option<IotaAddress>,
-        #[arg(name = "json", long)]
-        json: Option<bool>,
     },
     /// Update the validator metadata.
     UpdateMetadata {
@@ -157,14 +155,14 @@ pub enum IotaValidatorCommand {
 #[serde(untagged)]
 pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
-    DisplayMetadata,
+    DisplayMetadata(String),
     BecomeCandidate(IotaTransactionBlockResponse),
     JoinValidators(IotaTransactionBlockResponse),
     LeaveValidators(IotaTransactionBlockResponse),
     UpdateMetadata(IotaTransactionBlockResponse),
     ReportValidator(IotaTransactionBlockResponse),
     SerializedPayload(String),
-    List,
+    List(String),
 }
 
 fn make_key_files(
@@ -200,6 +198,7 @@ impl IotaValidatorCommand {
     pub async fn execute(
         self,
         context: &mut WalletContext,
+        json: bool,
     ) -> Result<IotaValidatorCommandResponse, anyhow::Error> {
         let iota_address = context.active_address()?;
 
@@ -335,15 +334,12 @@ impl IotaValidatorCommand {
                 IotaValidatorCommandResponse::LeaveValidators(response)
             }
 
-            IotaValidatorCommand::DisplayMetadata {
-                validator_address,
-                json,
-            } => {
+            IotaValidatorCommand::DisplayMetadata { validator_address } => {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
                 let iota_client = context.get_client().await?;
-                display_metadata(&iota_client, validator_address, json.unwrap_or(true)).await?;
-                IotaValidatorCommandResponse::DisplayMetadata
+                let resp = display_metadata(&iota_client, validator_address, json).await?;
+                IotaValidatorCommandResponse::DisplayMetadata(resp)
             }
 
             IotaValidatorCommand::UpdateMetadata {
@@ -411,9 +407,12 @@ impl IotaValidatorCommand {
                     IotaSystemStateSummary::V2(v2) => {
                         (v2.active_validators, Some(v2.committee_members))
                     }
-                    _ => panic!("unsupported IotaSystemStateSummary"),
+                    _ => bail!(
+                        "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
+                    ),
                 };
 
+                let mut entries = Vec::new();
                 for (
                     index,
                     IotaValidatorSummary {
@@ -433,22 +432,32 @@ impl IotaValidatorCommand {
                         .unwrap_or(true);
                     builder.push_record([
                         iota_address.to_string(),
-                        name,
+                        name.clone(),
                         staking_pool_iota_balance.to_string(),
                         pending_stake.to_string(),
                         if committee_member { "✓" } else { "" }.to_string(),
                     ]);
+                    entries.push(serde_json::json!({
+                        "iota_address": iota_address.to_string(),
+                        "name": name,
+                        "staking_pool_balance": staking_pool_iota_balance.to_string(),
+                        "pending_stake": pending_stake.to_string(),
+                        "committee_member": committee_member,
+                    }));
                 }
 
-                let table = builder
-                    .build()
-                    .with(Style::rounded())
-                    .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
-                    .with(Modify::new(Column::from(4)).with(Alignment::center()))
-                    .to_string();
-                println!("{table}");
+                let resp = if json {
+                    serde_json::to_string_pretty(&entries)?
+                } else {
+                    builder
+                        .build()
+                        .with(Style::rounded())
+                        .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
+                        .with(Modify::new(Column::from(4)).with(Alignment::center()))
+                        .to_string()
+                };
 
-                IotaValidatorCommandResponse::List
+                IotaValidatorCommandResponse::List(resp)
             }
         });
         ret
@@ -496,7 +505,7 @@ async fn get_cap_object_ref(
         let owner = resp.owner().unwrap();
         let cap_obj_ref = resp
             .object_ref_if_exists()
-            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} shall exist."));
+            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} does not exist"));
         if owner != Owner::AddressOwner(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
@@ -631,31 +640,32 @@ async fn call_0x5(
         .map_err(|err| anyhow::anyhow!(err.to_string()))
 }
 
+impl PrintableResult for IotaValidatorCommandResponse {
+    // pretty is unused here, as this is handled for each command separately
+    fn print(&self, _pretty: bool) {
+        println!("{self}");
+    }
+}
+
 impl Display for IotaValidatorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
             IotaValidatorCommandResponse::MakeValidatorInfo => {}
-            IotaValidatorCommandResponse::DisplayMetadata => {}
-            IotaValidatorCommandResponse::BecomeCandidate(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
+            IotaValidatorCommandResponse::DisplayMetadata(resp)
+            | IotaValidatorCommandResponse::List(resp) => {
+                write!(writer, "{resp}")?;
             }
-            IotaValidatorCommandResponse::JoinValidators(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::LeaveValidators(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::UpdateMetadata(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::ReportValidator(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
+            IotaValidatorCommandResponse::BecomeCandidate(resp)
+            | IotaValidatorCommandResponse::JoinValidators(resp)
+            | IotaValidatorCommandResponse::LeaveValidators(resp)
+            | IotaValidatorCommandResponse::UpdateMetadata(resp)
+            | IotaValidatorCommandResponse::ReportValidator(resp) => {
+                write!(writer, "{}", write_transaction_response(resp)?)?;
             }
             IotaValidatorCommandResponse::SerializedPayload(response) => {
                 write!(writer, "Serialized payload: {response}")?;
             }
-            IotaValidatorCommandResponse::List => {}
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
@@ -691,12 +701,6 @@ impl Debug for IotaValidatorCommandResponse {
             Err(err) => format!("{err}").red().to_string(),
         };
         write!(f, "{s}")
-    }
-}
-
-impl PrintableResult for IotaValidatorCommandResponse {
-    fn should_print(&self) -> bool {
-        !matches!(self, Self::MakeValidatorInfo | Self::DisplayMetadata)
     }
 }
 
@@ -738,7 +742,9 @@ pub async fn get_validator_summary(
             v2.validator_candidates_id,
             v2.inactive_pools_id,
         ),
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => bail!(
+            "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
+        ),
     };
 
     let mut active_validators = active_validators
@@ -853,19 +859,30 @@ async fn display_metadata(
     client: &IotaClient,
     validator_address: IotaAddress,
     json: bool,
-) -> anyhow::Result<()> {
-    match get_validator_summary(client, validator_address).await? {
-        None => println!("{validator_address} is not a validator"),
-        Some((status, info)) => {
-            println!("{validator_address}'s validator status: {status:?}");
-            if json {
-                println!("{}", serde_json::to_string_pretty(&info)?);
-            } else {
-                println!("{info:#?}");
+) -> anyhow::Result<String> {
+    Ok(
+        match get_validator_summary(client, validator_address).await? {
+            None => format!("{validator_address} is not a validator"),
+            Some((status, metadata)) => {
+                if json {
+                    let obj = serde_json::json!({
+                        "status": format!("{status:?}"),
+                        "metadata": metadata
+                    });
+                    serde_json::to_string_pretty(&obj)?
+                } else {
+                    let mut result = format!("{validator_address}'s validator status: {status:?}");
+                    if let serde_json::Value::Object(map) = serde_json::to_value(&metadata).unwrap()
+                    {
+                        for (key, value) in map {
+                            write!(result, "\n{key}: {value}").unwrap();
+                        }
+                    }
+                    result
+                }
             }
-        }
-    }
-    Ok(())
+        },
+    )
 }
 
 async fn get_pending_candidate_summary(

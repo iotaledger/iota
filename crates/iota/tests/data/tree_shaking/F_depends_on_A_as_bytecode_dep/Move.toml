@@ -1,6 +1,6 @@
 [package]
 name = "F_depends_on_A_as_bytecode_dep"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 A = { local = "../A" }
