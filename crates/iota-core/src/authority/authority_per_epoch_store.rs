@@ -1847,9 +1847,8 @@ impl AuthorityPerEpochStore {
             txns.push((
                 *key,
                 transactions
-                    .clone()
-                    .into_iter()
-                    .map(|tx| DeferredTransaction::new(tx, None))
+                    .iter()
+                    .map(|tx| DeferredTransaction::new(tx.clone(), None))
                     .collect(),
             ));
         }
@@ -3381,9 +3380,8 @@ impl AuthorityPerEpochStore {
                     total_deferred_txns += txns.len();
                     deferred_transactions.insert(
                         key,
-                        txns.clone()
-                            .into_iter()
-                            .map(|tx| tx.transaction)
+                        txns.iter()
+                            .map(|tx| tx.transaction.clone())
                             .collect::<Vec<_>>(),
                     );
                     output.defer_transactions(key, txns);

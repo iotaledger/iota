@@ -425,9 +425,6 @@ impl ConsensusOutputCache {
             .safe_iter()
             .collect::<Result<Vec<_>, _>>()
             .expect("db error")
-            .into_iter()
-            .map(|(key, value)| (key, value.into_iter().collect::<Vec<_>>()))
-            .collect()
     }
 }
 
