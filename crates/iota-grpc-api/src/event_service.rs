@@ -138,7 +138,7 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
         }
         Some(Filter::Or(f)) => {
             let filters = parse_filter_list(&f.filters)?;
-            build_or_filter(filters)
+            Ok(EventFilter::Any(filters))
         }
         Some(Filter::All(_)) => Ok(EventFilter::All(vec![])),
         Some(Filter::Sender(f)) => {
