@@ -1205,8 +1205,7 @@ impl AuthorityState {
                 assert_eq!(
                     effects.digest(),
                     expected_effects_digest_inner,
-                    "Unexpected effects digest for transaction {:?}",
-                    tx_digest
+                    "Unexpected effects digest for transaction {tx_digest:?}"
                 );
             }
             tx_guard.release();
