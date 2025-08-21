@@ -4,14 +4,15 @@
 
 use std::{
     collections::BTreeMap,
-    fmt,
-    fmt::{Display, Formatter, Write},
+    fmt::{self, Display, Formatter, Write},
+    str::FromStr,
 };
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
+    error::{IotaError, UserInputError},
     iota_serde::IotaStructTag,
 };
 use itertools::Itertools;
@@ -26,11 +27,12 @@ use move_core_types::{
     annotated_value::{MoveStruct, MoveValue, MoveVariant},
     identifier::Identifier,
     language_storage::StructTag,
+    parsing::{address::ParsedAddress, types::ParsedFqName},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use serde_with::serde_as;
+use serde_with::{DisplayFromStr, serde_as};
 use tracing::warn;
 
 pub type IotaMoveTypeParameterIndex = u16;
@@ -127,6 +129,58 @@ pub struct IotaMoveNormalizedFunction {
 pub struct IotaMoveModuleId {
     address: String,
     name: String,
+}
+
+/// Identifies a Move function.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveFunctionName {
+    /// The package ID to which the function belongs.
+    pub package: ObjectID,
+    /// The module name to which the function belongs.
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub module: Identifier,
+    /// The function name.
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub function: Identifier,
+}
+
+impl FromStr for MoveFunctionName {
+    type Err = IotaError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parsed = ParsedFqName::parse(s).map_err(|e| UserInputError::InvalidIdentifier {
+            error: e.to_string(),
+        })?;
+        Ok(parsed.try_into()?)
+    }
+}
+
+impl TryFrom<ParsedFqName> for MoveFunctionName {
+    type Error = UserInputError;
+
+    fn try_from(parsed: ParsedFqName) -> Result<Self, Self::Error> {
+        let package = match parsed.module.address {
+            ParsedAddress::Numerical(addr) => ObjectID::from(addr.into_inner()),
+            _ => {
+                return Err(UserInputError::InvalidIdentifier {
+                    error: "invalid package address".into(),
+                });
+            }
+        };
+        // SAFETY: Validity of identifiers is ensured by `ParsedFqName`
+        let module = unsafe { Identifier::new_unchecked(parsed.module.name) };
+        let function = unsafe { Identifier::new_unchecked(parsed.name) };
+
+        Ok(Self {
+            package,
+            module,
+            function,
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
