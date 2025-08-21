@@ -720,12 +720,28 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        // Populate fully connected test blocks for round 0 ~ 10, authorities 0 ~ 3.
+        // Populate fully connected test blocks for round 0 ~ MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + 1, authorities 0 ~ 3.
         let num_rounds: u32 = MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + 1;
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder
             .layers(1..=num_rounds)
             .build()
             .persist_layers(dag_state.clone());
+
+        let references_round_1: Vec<_> = dag_builder
+            .block_headers(1..=1).into_iter().map(|bh| bh.reference()).collect();
+        let leaders = dag_builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        linearizer.handle_commit(leaders.clone());
+        //Check that acknowledgements for the first round are stored
+        let mut ack_authors = linearizer.get_transaction_ack_authors(references_round_1.clone());
+        assert_eq!(ack_authors.len(), 4);
+        linearizer.evict_old_acknowledgments(num_rounds);
+        //Check that acknowledgements for the first round are evicted
+        ack_authors = linearizer.get_transaction_ack_authors(references_round_1);
+        assert_eq!(ack_authors.len(), 0);
     }
 }
