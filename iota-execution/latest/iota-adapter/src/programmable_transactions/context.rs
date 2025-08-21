@@ -237,7 +237,7 @@ mod checked {
             })
         }
 
-         pub fn object_runtime(&self) -> Result<&ObjectRuntime, ExecutionError> {
+        pub fn object_runtime(&self) -> Result<&ObjectRuntime, ExecutionError> {
             self.native_extensions
                 .get::<ObjectRuntime>()
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))
@@ -704,13 +704,9 @@ mod checked {
                 refund_max_gas_budget(&mut additional_writes, gas_charger, gas_id)?;
             }
 
-            let object_runtime: ObjectRuntime = native_extensions.remove().map_err(|e| {
-                convert_vm_error(
-                    e.finish(Location::Undefined),
-                    vm,
-                    &linkage_view,
-                )
-            })?;
+            let object_runtime: ObjectRuntime = native_extensions
+                .remove()
+                .map_err(|e| convert_vm_error(e.finish(Location::Undefined), vm, &linkage_view))?;
 
             let RuntimeResults {
                 writes,
