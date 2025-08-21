@@ -156,7 +156,7 @@ pub fn verify_authenticate_func(
 ///       `T` -> this is not allowed by design, as an authenticate function has
 ///       no returns;
 ///    2. not use the `<T: drop>` constraint but the `<T: key>` constraint ->
-///       this is not allowed by this verify funciton;
+///       this is not allowed by this verify function;
 ///    3. use the `<T: drop>` constraint -> this means no object type can be
 ///       used as concrete type because an object with `drop` ability cannot
 ///       exist.
