@@ -226,6 +226,19 @@ impl AuthorityCapabilitiesV1 {
     }
 }
 
+impl SignedAuthorityCapabilitiesV1 {
+    pub fn cache_digest(&self, epoch: u64) -> AuthorityCapabilitiesDigest {
+        // Create a tuple that includes both the capabilities data and the epoch
+        let data_with_epoch = (self.data(), epoch);
+
+        // Ensure deterministic serialization for digest
+        let mut hasher = DefaultHash::new();
+        let serialized = bcs::to_bytes(&data_with_epoch).expect("BCS should not fail");
+        hasher.update(&serialized);
+        AuthorityCapabilitiesDigest::new(<[u8; 32]>::from(hasher.finalize()))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),

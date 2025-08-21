@@ -428,8 +428,9 @@ impl SignatureVerifier {
         &self,
         signed_authority_capabilities: &SignedAuthorityCapabilitiesV1,
     ) -> IotaResult {
+        let epoch = self.committee.epoch();
         self.authority_capability_cache.is_verified(
-            *signed_authority_capabilities.digest(),
+            *signed_authority_capabilities.cache_digest(epoch),
             || {
                 // Check if authority exists in non-committee validators
                 let authority_name = signed_authority_capabilities.data().authority;
@@ -447,8 +448,8 @@ impl SignatureVerifier {
                 let mut obligation = VerificationObligation::default();
                 let idx = obligation.add_message(
                     signed_authority_capabilities.data(),
-                    self.committee.epoch(), /* epoch is shared between the committee and
-                                             * non-committee validators */
+                    epoch, /* epoch is shared between the committee and
+                            * non-committee validators */
                     Intent::iota_app(signed_authority_capabilities.scope()),
                 );
 
