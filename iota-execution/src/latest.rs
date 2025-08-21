@@ -190,7 +190,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (u64, Result<(), ExecutionError>) {
+    ) -> Result<u64, ExecutionError> {
         validate_transaction(
             store,
             protocol_config,
