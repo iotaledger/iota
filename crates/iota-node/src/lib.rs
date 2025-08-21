@@ -140,7 +140,7 @@ use simulator::*;
 use tap::tap::TapFallible;
 use tokio::{
     runtime::Handle,
-    sync::{Mutex, broadcast, mpsc, watch},
+    sync::{Mutex, broadcast, mpsc, oneshot, watch},
     task::{JoinHandle, JoinSet},
 };
 use tokio_util::sync::CancellationToken;
@@ -897,7 +897,7 @@ impl IotaNode {
 
             // Start the gRPC server
             components.validator_server_spawn_handle =
-                components.validator_server_spawn_handle.start();
+                components.validator_server_spawn_handle.start().await;
 
             Some(components)
         } else {
@@ -1577,20 +1577,26 @@ impl IotaNode {
             IOTA_TLS_SERVER_NAME.to_string(),
         );
 
-        let server = server_builder
-            .bind(config.network_address(), Some(tls_config))
-            .await
-            .map_err(|err| anyhow!(err.to_string()))?;
+        let network_address = config.network_address().clone();
 
-        let local_addr = server.local_addr();
-        info!("Listening to traffic on {local_addr}");
-
-        // Clone the server handle for shutdown functionality
-        let server_handle = server.handle().clone();
+        let (ready_tx, ready_rx) = oneshot::channel();
 
         Ok((
-            SpawnOnce::new(server.serve().map_err(Into::into)),
-            server_handle,
+            SpawnOnce::new(ready_rx, async move {
+                let server = server_builder
+                    .bind(&network_address, Some(tls_config))
+                    .await
+                    .map_err(|err| anyhow!(err.to_string()))?;
+                let local_addr = server.local_addr();
+                info!("Listening to traffic on {local_addr}");
+                ready_tx.send(()).unwrap();
+                server
+                    .serve()
+                    .map_err(|err| anyhow!(err.to_string()))
+                    .await?;
+                Ok(())
+            }),
+            server.handle().clone(),
         ))
     }
 
@@ -2056,7 +2062,7 @@ impl IotaNode {
                     .await?;
 
                     components.validator_server_spawn_handle =
-                        components.validator_server_spawn_handle.start();
+                        components.validator_server_spawn_handle.start().await;
 
                     Some(components)
                 } else {
@@ -2325,21 +2331,25 @@ impl IotaNode {
 
 enum SpawnOnce {
     // Mutex is only needed to make SpawnOnce Send
-    Unstarted(Mutex<BoxFuture<'static, Result<()>>>),
+    Unstarted(oneshot::Receiver<()>, Mutex<BoxFuture<'static, Result<()>>>),
     #[allow(unused)]
     Started(JoinHandle<Result<()>>),
 }
 
 impl SpawnOnce {
-    pub fn new(future: impl Future<Output = Result<()>> + Send + 'static) -> Self {
-        Self::Unstarted(Mutex::new(Box::pin(future)))
+    pub fn new(
+        ready_rx: oneshot::Receiver<()>,
+        future: impl Future<Output = Result<()>> + Send + 'static,
+    ) -> Self {
+        Self::Unstarted(ready_rx, Mutex::new(Box::pin(future)))
     }
 
-    pub fn start(self) -> Self {
+    pub async fn start(self) -> Self {
         match self {
-            Self::Unstarted(future) => {
+            Self::Unstarted(ready_rx, future) => {
                 let future = future.into_inner();
                 let handle = tokio::spawn(future);
+                ready_rx.await.unwrap();
                 Self::Started(handle)
             }
             Self::Started(_) => self,
