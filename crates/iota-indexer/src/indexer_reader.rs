@@ -1012,7 +1012,7 @@ impl IndexerReader {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_wrapped_or_deleted_objects".into(),
-                    format!("object_id = '\\x{}'::bytea", object_id),
+                    format!("object_id = '\\x{object_id}'::bytea"),
                 )
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))

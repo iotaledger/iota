@@ -902,7 +902,7 @@ mod tests {
     };
     use more_asserts as ma;
     use prometheus::Registry;
-    use tracing::log::info;
+    use tracing::info;
     use typed_store::{
         Map,
         rocks::{DBMap, MetricConf, ReadWriteOptions, util::reference_count_merge_operator},
@@ -1224,7 +1224,7 @@ mod pprof_tests {
     };
     use pprof::Symbol;
     use prometheus::Registry;
-    use tracing::log::{error, info};
+    use tracing::{error, info};
     use typed_store::{Map, rocks::DBMap};
 
     use super::AuthorityStorePruner;

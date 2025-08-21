@@ -1,6 +1,6 @@
 [package]
 name = "G_unpublished"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 

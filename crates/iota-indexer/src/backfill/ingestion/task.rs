@@ -218,16 +218,14 @@ mod tests {
             for seq in 0..=4 {
                 assert!(
                     !ready_checkpoints.contains_key(&seq),
-                    "Checkpoint {} should have been consumed",
-                    seq
+                    "Checkpoint {seq} should have been consumed"
                 );
             }
             // Validate checkpoints 5..=19 are still present
             for seq in 5..=19 {
                 assert!(
                     ready_checkpoints.contains_key(&seq),
-                    "Checkpoint {} should still be present",
-                    seq
+                    "Checkpoint {seq} should still be present"
                 );
             }
 

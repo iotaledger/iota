@@ -9,6 +9,7 @@ import {
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     ExplorerLinkType,
+    useGetDefaultIotaName,
 } from '../../';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
@@ -25,7 +26,8 @@ import {
     TitleSize,
 } from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/apps-ui-icons';
-import { RenderExplorerLink } from '../../types';
+import { ObjectChange, RenderExplorerLink } from '../../types';
+import { NamedAddressTooltip } from '../NamedAddressTooltip';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
@@ -137,92 +139,112 @@ export function ObjectChangeEntry({
     type,
     renderExplorerLink: ExplorerLink,
 }: ObjectChangeEntryProps) {
-    const [open, setOpen] = useState(new Set());
     return (
         <>
             {Object.entries(changes).map(([owner, changes]) => {
-                const label = getObjectChangeLabel(type);
-                const isOpen = open.has(owner);
-
                 return (
-                    <Panel key={`${type}-${owner}`} hasBorder>
-                        <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
-                            <Collapsible
-                                hideBorder
-                                defaultOpen
-                                onOpenChange={(isOpen) => {
-                                    setOpen((set) => {
-                                        if (isOpen) {
-                                            set.add(owner);
-                                        } else {
-                                            set.delete(owner);
-                                        }
-                                        return new Set(set);
-                                    });
-                                }}
-                                render={() => (
-                                    <Title
-                                        size={TitleSize.Small}
-                                        title="Object Changes"
-                                        trailingElement={
-                                            <div className="ml-1 flex">
-                                                <Badge type={BadgeType.PrimarySoft} label={label} />
-                                            </div>
-                                        }
-                                    />
-                                )}
-                            >
-                                <>
-                                    {!!changes.changesWithDisplay.length && (
-                                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-                                            <ExpandableList
-                                                initialShowAll={isOpen}
-                                                defaultItemsToShow={5}
-                                                items={changes.changesWithDisplay.map((change) => (
-                                                    <ObjectChangeDisplay
-                                                        change={change}
-                                                        renderExplorerLink={ExplorerLink}
-                                                    />
-                                                ))}
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="flex w-full flex-col gap-2">
-                                        <ExpandableList
-                                            defaultItemsToShow={5}
-                                            initialShowAll={isOpen}
-                                            items={changes.changes.map((change) => (
-                                                <ObjectDetail
-                                                    renderExplorerLink={ExplorerLink}
-                                                    ownerKey={owner}
-                                                    change={change}
-                                                />
-                                            ))}
-                                        />
-                                    </div>
-                                </>
-                            </Collapsible>
-                            <div className="flex flex-col gap-y-sm px-md pb-md">
-                                <Divider />
-                                <KeyValueInfo
-                                    keyText="Owner"
-                                    value={
-                                        <ExplorerLink
-                                            type={ExplorerLinkType.Address}
-                                            address={owner}
-                                        >
-                                            {formatAddress(owner)}
-                                        </ExplorerLink>
-                                    }
-                                    fullwidth
-                                />
-                            </div>
-                        </div>
-                    </Panel>
+                    <ObjectChangeByOwnerPanel
+                        key={`${type}-${owner}`}
+                        renderExplorerLink={ExplorerLink}
+                        owner={owner}
+                        change={changes}
+                        type={type}
+                    />
                 );
             })}
         </>
+    );
+}
+
+interface ObjectChangesByOwnerPanelProps {
+    renderExplorerLink: RenderExplorerLink;
+    owner: string;
+    change: ObjectChange;
+    type: IotaObjectChangeTypes;
+}
+function ObjectChangeByOwnerPanel({
+    type,
+    owner,
+    change,
+    renderExplorerLink,
+}: ObjectChangesByOwnerPanelProps) {
+    const [open, setOpen] = useState(false);
+
+    const { data: iotaName } = useGetDefaultIotaName(owner);
+
+    const label = getObjectChangeLabel(type);
+
+    const ExplorerLink = renderExplorerLink;
+    return (
+        <Panel hasBorder>
+            <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
+                <Collapsible
+                    hideBorder
+                    defaultOpen
+                    onOpenChange={(isOpen) => {
+                        setOpen(isOpen);
+                    }}
+                    render={() => (
+                        <Title
+                            size={TitleSize.Small}
+                            title="Object Changes"
+                            trailingElement={
+                                <div className="ml-1 flex">
+                                    <Badge type={BadgeType.PrimarySoft} label={label} />
+                                </div>
+                            }
+                        />
+                    )}
+                >
+                    <>
+                        {!!change.changesWithDisplay.length && (
+                            <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+                                <ExpandableList
+                                    initialShowAll={open}
+                                    defaultItemsToShow={5}
+                                    items={change.changesWithDisplay.map((change) => (
+                                        <ObjectChangeDisplay
+                                            change={change}
+                                            renderExplorerLink={renderExplorerLink}
+                                        />
+                                    ))}
+                                />
+                            </div>
+                        )}
+
+                        <div className="flex w-full flex-col gap-2">
+                            <ExpandableList
+                                defaultItemsToShow={5}
+                                initialShowAll={open}
+                                items={change.changes.map((change) => (
+                                    <ObjectDetail
+                                        renderExplorerLink={renderExplorerLink}
+                                        ownerKey={owner}
+                                        change={change}
+                                    />
+                                ))}
+                            />
+                        </div>
+                    </>
+                </Collapsible>
+                {owner ? (
+                    <div className="flex flex-col gap-y-sm px-md pb-md">
+                        <Divider />
+                        <KeyValueInfo
+                            keyText="Owner"
+                            value={
+                                <NamedAddressTooltip name={iotaName} address={owner}>
+                                    <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                        {iotaName || formatAddress(owner)}
+                                    </ExplorerLink>
+                                </NamedAddressTooltip>
+                            }
+                            fullwidth
+                        />
+                    </div>
+                ) : null}
+            </div>
+        </Panel>
     );
 }
 
