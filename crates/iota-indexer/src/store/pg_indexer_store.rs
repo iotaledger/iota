@@ -33,8 +33,7 @@ use crate::{
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
-        event_indices::OptimisticEventIndices,
-        events::{OptimisticEvent, StoredEvent},
+        events::StoredEvent,
         obj_indices::StoredObjectVersion,
         objects::{
             StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot,
@@ -44,7 +43,7 @@ use crate::{
         transactions::{
             CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
         },
-        tx_indices::{OptimisticTxIndices, TxIndexV2Split},
+        tx_indices::TxIndexV2Split,
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection, read_only_blocking,
@@ -56,16 +55,10 @@ use crate::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
         event_struct_package, events, feature_flags, objects, objects_history, objects_snapshot,
-        objects_version, optimistic_event_emit_module, optimistic_event_emit_package,
-        optimistic_event_senders, optimistic_event_struct_instantiation,
-        optimistic_event_struct_module, optimistic_event_struct_name,
-        optimistic_event_struct_package, optimistic_events, optimistic_transactions,
-        optimistic_tx_calls_fun, optimistic_tx_calls_mod, optimistic_tx_calls_pkg,
-        optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
-        optimistic_tx_recipients, optimistic_tx_senders, optimistic_tx_wrapped_or_deleted_objects,
-        packages, protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
-        tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
-        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
+        objects_version, optimistic_transactions, packages, protocol_configs, pruner_cp_watermark,
+        transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests,
+        tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_wrapped_or_deleted_objects,
     },
     store::{IndexerStore, IndexerStoreExt},
     transactional_blocking_with_retry,
@@ -1986,20 +1979,6 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    fn persist_optimistic_events_in_existing_transaction(
-        &self,
-        conn: &mut PgConnection,
-        events: Vec<OptimisticEvent>,
-    ) -> Result<(), IndexerError> {
-        if events.is_empty() {
-            return Ok(());
-        }
-
-        persist_chunk_into_table_in_existing_connection!(optimistic_events::table, events, conn);
-
-        Ok(())
-    }
-
     async fn persist_displays(
         &self,
         display_updates: BTreeMap<String, StoredDisplay>,
@@ -2080,66 +2059,6 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    fn persist_optimistic_event_indices_in_existing_transaction(
-        &self,
-        conn: &mut PgConnection,
-        indices: OptimisticEventIndices,
-    ) -> Result<(), IndexerError> {
-        let OptimisticEventIndices {
-            optimistic_event_emit_packages,
-            optimistic_event_emit_modules,
-            optimistic_event_senders,
-            optimistic_event_struct_packages,
-            optimistic_event_struct_modules,
-            optimistic_event_struct_names,
-            optimistic_event_struct_instantiations,
-        } = indices;
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_emit_package::table,
-            optimistic_event_emit_packages,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_emit_module::table,
-            optimistic_event_emit_modules,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_senders::table,
-            optimistic_event_senders,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_struct_package::table,
-            optimistic_event_struct_packages,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_struct_module::table,
-            optimistic_event_struct_modules,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_struct_name::table,
-            optimistic_event_struct_names,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_event_struct_instantiation::table,
-            optimistic_event_struct_instantiations,
-            conn
-        );
-
-        Ok(())
-    }
-
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
         if indices.is_empty() {
             return Ok(());
@@ -2171,76 +2090,6 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} tx_indices chunks", len);
-        Ok(())
-    }
-
-    fn persist_optimistic_tx_indices_in_existing_transaction(
-        &self,
-        conn: &mut PgConnection,
-        indices: OptimisticTxIndices,
-    ) -> Result<(), IndexerError> {
-        let OptimisticTxIndices {
-            optimistic_tx_senders: senders,
-            optimistic_tx_recipients: recipients,
-            optimistic_tx_input_objects: input_objects,
-            optimistic_tx_changed_objects: changed_objects,
-            optimistic_tx_pkgs: pkgs,
-            optimistic_tx_mods: mods,
-            optimistic_tx_funs: funs,
-            optimistic_tx_kinds: kinds,
-            optimistic_tx_wrapped_or_deleted_objects: wrapped_or_deleted,
-        } = indices;
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_senders::table,
-            senders,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_recipients::table,
-            recipients,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_input_objects::table,
-            input_objects,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_changed_objects::table,
-            changed_objects,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_calls_pkg::table,
-            pkgs,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_calls_mod::table,
-            mods,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_calls_fun::table,
-            funs,
-            conn
-        );
-
-        persist_chunk_into_table_in_existing_connection!(optimistic_tx_kinds::table, kinds, conn);
-
-        persist_chunk_into_table_in_existing_connection!(
-            optimistic_tx_wrapped_or_deleted_objects::table,
-            wrapped_or_deleted,
-            conn
-        );
-
         Ok(())
     }
 

@@ -12,12 +12,9 @@ use crate::{
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     models::{
         display::StoredDisplay,
-        event_indices::OptimisticEventIndices,
-        events::OptimisticEvent,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
-        tx_indices::OptimisticTxIndices,
     },
     rolling::transform::CheckpointObjectChanges,
     types::{
@@ -89,29 +86,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
-    fn persist_optimistic_tx_indices_in_existing_transaction(
-        &self,
-        conn: &mut PgConnection,
-        indices: OptimisticTxIndices,
-    ) -> Result<(), IndexerError>;
-
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
-
-    fn persist_optimistic_events_in_existing_transaction(
-        &self,
-        conn: &mut PgConnection,
-        events: Vec<OptimisticEvent>,
-    ) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(
         &self,
         event_indices: Vec<EventIndex>,
-    ) -> Result<(), IndexerError>;
-
-    fn persist_optimistic_event_indices_in_existing_transaction(
-        &self,
-        conn: &mut PgConnection,
-        indices: OptimisticEventIndices,
     ) -> Result<(), IndexerError>;
 
     async fn persist_displays(

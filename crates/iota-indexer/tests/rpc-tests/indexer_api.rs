@@ -10,14 +10,7 @@ use diesel::RunQueryDsl;
 use downcast::Any;
 use iota_indexer::{
     errors::IndexerError,
-    schema::{
-        optimistic_event_emit_module, optimistic_event_emit_package, optimistic_event_senders,
-        optimistic_event_struct_instantiation, optimistic_event_struct_module,
-        optimistic_event_struct_name, optimistic_event_struct_package, optimistic_events,
-        optimistic_transactions, optimistic_tx_calls_fun, optimistic_tx_calls_mod,
-        optimistic_tx_calls_pkg, optimistic_tx_changed_objects, optimistic_tx_input_objects,
-        optimistic_tx_kinds, optimistic_tx_recipients, optimistic_tx_senders, tx_global_order,
-    },
+    schema::{optimistic_transactions, tx_global_order},
     store::PgIndexerStore,
     transactional_blocking_with_retry,
 };
@@ -54,9 +47,10 @@ use move_core_types::{
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, execute_tx_must_succeed, indexer_wait_for_checkpoint,
-        indexer_wait_for_latest_checkpoint, indexer_wait_for_object, indexer_wait_for_transaction,
-        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, execute_tx_and_wait_for_indexer, execute_tx_must_succeed,
+        indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
+        indexer_wait_for_transaction, rpc_call_error_msg_matches,
+        start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -182,14 +176,6 @@ fn query_events_by_sender() -> Result<(), IndexerError> {
             expected_event_ids.push(event_id);
         }
 
-        assert_paginated_filtered_events(
-            client,
-            expected_event_ids.as_slice(),
-            EventFilter::Sender(sender),
-            2,
-        )
-        .await?;
-
         // ensure all events are checkpointed
         indexer_wait_for_transaction(expected_event_ids.last().unwrap().tx_digest, store, client)
             .await;
@@ -249,6 +235,7 @@ fn query_events_by_tx_digest() -> Result<(), IndexerError> {
         )
         .await?;
         assert_eq!(res.status_ok(), Some(true));
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         let event_id = res
             .events
@@ -341,14 +328,6 @@ fn query_events_by_package() -> Result<(), IndexerError> {
                 .id;
             expected_event_ids.push(event_id);
         }
-
-        assert_paginated_filtered_events(
-            client,
-            expected_event_ids.as_slice(),
-            EventFilter::Package(package_id),
-            2,
-        )
-        .await?;
 
         // ensure all events are checkpointed
         indexer_wait_for_transaction(expected_event_ids.last().unwrap().tx_digest, store, client)
@@ -885,7 +864,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
         runtime,
         cluster,
         client,
-        ..
+        store,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -923,7 +902,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        execute_tx_and_wait_for_indexer(client, store, transfer_request, &keypair).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromAndToAddress {
@@ -948,7 +927,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
         runtime,
         cluster,
         client,
-        ..
+        store,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -999,7 +978,8 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
             )
             .await
             .unwrap();
-        let digest_3 = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        let digest_3 =
+            execute_tx_and_wait_for_indexer(client, store, transfer_request, &keypair).await;
 
         assert_paginated_filtered_transactions(
             client,
@@ -1025,7 +1005,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
         runtime,
         cluster,
         client,
-        ..
+        store,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -1063,7 +1043,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        execute_tx_and_wait_for_indexer(client, store, transfer_request, &keypair).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromOrToAddress { addr: address },
@@ -1085,79 +1065,6 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
         Ok(())
     })
-}
-#[tokio::test]
-async fn test_query_transaction_blocks_from_or_to_address_with_incomplete_global_order()
--> Result<(), anyhow::Error> {
-    // separate test environment needed because DB is wiped during test
-    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
-        Some("test_query_transaction_blocks_from_or_to_address_with_incomplete_global_order"),
-        None,
-        None,
-    )
-    .await;
-    indexer_wait_for_checkpoint(store, 1).await;
-
-    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-    let recipient_1 = IotaAddress::random_for_testing_only();
-
-    let gas = cluster
-        .fund_address_and_return_gas(
-            cluster.get_reference_gas_price().await,
-            Some(500_000_000),
-            address,
-        )
-        .await;
-    indexer_wait_for_object(client, gas.0, gas.1).await;
-
-    let filter = TransactionFilter::FromOrToAddress { addr: address };
-    let query = IotaTransactionBlockResponseQuery::new_with_filter(filter.clone());
-
-    let first_tx_page = client
-        .query_transaction_blocks(query.clone(), None, Some(3), None)
-        .await
-        .unwrap();
-    assert_eq!(1, first_tx_page.data.len());
-    let mut expected_tx_digests = vec![first_tx_page.data[0].digest];
-
-    // Collect digests from first batch of transactions (before wiping global order)
-    for _ in 0..5 {
-        let transfer_request = client
-            .transfer_iota(
-                address,
-                gas.0,
-                5_000_000.into(),
-                recipient_1,
-                Some(1_000_000.into()),
-            )
-            .await
-            .unwrap();
-        let digest = execute_tx_must_succeed(client, transfer_request, &keypair).await;
-        expected_tx_digests.push(digest);
-    }
-
-    indexer_wait_for_transaction(*expected_tx_digests.last().unwrap(), store, client).await;
-    wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
-
-    // Collect digests from second batch of transactions (after wiping global order)
-    for _ in 0..5 {
-        let transfer_request = client
-            .transfer_iota(
-                address,
-                gas.0,
-                5_000_000.into(),
-                recipient_1,
-                Some(1_000_000.into()),
-            )
-            .await
-            .unwrap();
-        let digest = execute_tx_must_succeed(client, transfer_request, &keypair).await;
-        expected_tx_digests.push(digest);
-    }
-
-    assert_paginated_filtered_transactions(client, &expected_tx_digests, filter, 3).await?;
-
-    Ok(())
 }
 
 async fn assert_paginated_filtered_transactions(
@@ -1403,119 +1310,7 @@ fn wipe_global_order_and_optimistic_tables(store: &PgIndexerStore) {
 
     transactional_blocking_with_retry!(
         &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_emit_module::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_emit_package::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_senders::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_struct_instantiation::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_struct_module::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_struct_name::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_event_struct_package::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_events::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
         |conn| { diesel::dsl::delete(optimistic_transactions::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_calls_fun::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_calls_mod::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_calls_pkg::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_changed_objects::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_input_objects::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_kinds::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_recipients::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_tx_senders::table).execute(conn) },
         Duration::from_secs(10)
     )
     .unwrap();

@@ -1131,5 +1131,5 @@ async fn transfer_all_coins(
         .await
         .unwrap();
 
-    execute_tx_and_wait_for_indexer(indexer_client, cluster, store, tx_bytes, keypair).await;
+    execute_tx_and_wait_for_indexer(indexer_client, store, tx_bytes, keypair).await;
 }
