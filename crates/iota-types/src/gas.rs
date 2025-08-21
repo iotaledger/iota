@@ -85,9 +85,12 @@ pub mod checked {
         ) -> IotaResult<Self> {
             Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
 
-            if gas_budget < gas_spent {
-                return Err(UserInputError::GasBudgetLessThenGasSpent {
-                    gas_budget,
+            let computation_budget =
+                crate::gas_model::gas_v1::computation_budget(gas_budget, gas_price, config);
+
+            if computation_budget < gas_spent {
+                return Err(UserInputError::ComputationBudgetLessThenGasSpent {
+                    computation_budget,
                     gas_spent,
                 }
                 .into());
