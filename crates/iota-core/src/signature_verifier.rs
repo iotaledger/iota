@@ -447,7 +447,8 @@ impl SignatureVerifier {
                 let mut obligation = VerificationObligation::default();
                 let idx = obligation.add_message(
                     signed_authority_capabilities.data(),
-                    self.committee.epoch(),
+                    self.committee.epoch(), /* epoch is shared between the committee and
+                                             * non-committee validators */
                     Intent::iota_app(signed_authority_capabilities.scope()),
                 );
 

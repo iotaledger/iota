@@ -1146,6 +1146,22 @@ impl ValidatorService {
             IotaError::FullNodeCantHandleAuthorityCapabilities.into()
         );
 
+        // Check if the capabilities notification has already been processed
+        let existing_capabilities = epoch_store.get_capabilities_v1()?;
+        let incoming_capability = request.message.data();
+
+        if let Some(existing) = existing_capabilities
+            .iter()
+            .find(|cap| cap.authority == incoming_capability.authority)
+        {
+            if incoming_capability.generation <= existing.generation {
+                // Return successfully if generation is lower or equal - already processed
+                return Ok((
+                    tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
+                    Weight::one(),
+                ));
+            }
+        }
         if let Err(error) = self.consensus_adapter.check_consensus_overload() {
             self.metrics
                 .num_rejected_capability_notifications_during_overload
@@ -1189,7 +1205,7 @@ impl ValidatorService {
 
         Ok((
             tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
-            Weight::zero(),
+            Weight::one(),
         ))
     }
 }
