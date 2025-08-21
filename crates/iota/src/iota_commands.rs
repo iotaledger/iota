@@ -783,7 +783,7 @@ async fn start(
                     info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
                     swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
                 } else {
-                    info!("gRPC API enabled but no grpc-api-config provided, using default");
+                    warn!("gRPC API enabled but no grpc-api-config provided, using default");
                     swarm_builder = swarm_builder
                         .with_fullnode_grpc_api_config(iota_grpc_api::Config::default());
                 }
