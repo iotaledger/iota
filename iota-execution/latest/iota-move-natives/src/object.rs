@@ -38,7 +38,7 @@ pub fn borrow_uid(
 
     let borrow_uid_cost_params = context
         .extensions_mut()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .borrow_uid_cost_params
         .clone();
 
@@ -71,7 +71,7 @@ pub fn delete_impl(
 
     let delete_impl_cost_params = context
         .extensions_mut()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .delete_impl_cost_params
         .clone();
 
@@ -84,7 +84,7 @@ pub fn delete_impl(
     // unwrap safe because the interface of native function guarantees it.
     let uid_bytes = pop_arg!(args, AccountAddress);
 
-    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
+    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.delete_id(uid_bytes.into())?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
@@ -109,7 +109,7 @@ pub fn record_new_uid(
 
     let record_new_id_cost_params = context
         .extensions_mut()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .record_new_id_cost_params
         .clone();
 
@@ -122,7 +122,7 @@ pub fn record_new_uid(
     // unwrap safe because the interface of native function guarantees it.
     let uid_bytes = pop_arg!(args, AccountAddress);
 
-    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
+    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.new_id(uid_bytes.into())?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
