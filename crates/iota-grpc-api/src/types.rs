@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{checkpoint::Checkpoint, common::BcsData};
 
@@ -61,6 +61,29 @@ impl GrpcCheckpointSummaryBroadcaster {
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
     }
+
+    /// Send with integrated tracing and error handling
+    pub fn send_traced(&self, summary: &CertifiedCheckpointSummary) {
+        match self.send(summary) {
+            Ok(()) => {
+                debug!(
+                    "Sent checkpoint summary #{} to {} gRPC subscriber(s)",
+                    *summary.data().sequence_number(),
+                    self.receiver_count()
+                );
+            }
+            Err(e) => {
+                if self.receiver_count() > 0 {
+                    warn!("Failed to send checkpoint summary: {e}");
+                } else {
+                    debug!(
+                        "No gRPC clients subscribed for checkpoint summary #{} with error: {e}",
+                        *summary.data().sequence_number()
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl CheckpointSummaryBroadcaster for GrpcCheckpointSummaryBroadcaster {
@@ -90,6 +113,29 @@ impl GrpcCheckpointDataBroadcaster {
     /// Get the number of active receivers
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
+    }
+
+    /// Send with integrated tracing and error handling
+    pub fn send_traced(&self, data: &CheckpointData) {
+        match self.send(data) {
+            Ok(()) => {
+                debug!(
+                    "Sent checkpoint data #{} to {} gRPC subscriber(s)",
+                    data.checkpoint_summary.data().sequence_number,
+                    self.receiver_count()
+                );
+            }
+            Err(e) => {
+                if self.receiver_count() > 0 {
+                    warn!("Failed to send checkpoint data: {e}");
+                } else {
+                    debug!(
+                        "No gRPC clients subscribed for checkpoint data #{} with error: {e}",
+                        data.checkpoint_summary.data().sequence_number
+                    );
+                }
+            }
+        }
     }
 }
 

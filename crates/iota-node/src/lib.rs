@@ -78,10 +78,7 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle,
-    start_grpc_server,
-};
+use iota_grpc_api::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
     indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
@@ -1753,25 +1750,7 @@ impl IotaNode {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_summary_broadcaster().clone();
                     Box::new(move |summary: &CertifiedCheckpointSummary| {
-                        if tx.receiver_count() > 0 {
-                            match tx.send(summary) {
-                                Ok(()) => {
-                                    debug!(
-                                        "Sent checkpoint summary #{} to {} gRPC subscriber(s)",
-                                        *summary.data().sequence_number(),
-                                        tx.receiver_count()
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!("Failed to send checkpoint summary: {e}");
-                                }
-                            }
-                        } else {
-                            debug!(
-                                "No gRPC clients subscribed for checkpoint summary #{}",
-                                *summary.data().sequence_number()
-                            );
-                        }
+                        tx.send_traced(summary);
                     }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
                 })
             } else {
@@ -1781,25 +1760,7 @@ impl IotaNode {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_data_broadcaster().clone();
                     Box::new(move |data: &CheckpointData| {
-                        if tx.receiver_count() > 0 {
-                            match tx.send(data) {
-                                Ok(()) => {
-                                    debug!(
-                                        "Sent checkpoint data #{} to {} gRPC subscriber(s)",
-                                        data.checkpoint_summary.data().sequence_number,
-                                        tx.receiver_count()
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!("Failed to send checkpoint data: {e}");
-                                }
-                            }
-                        } else {
-                            debug!(
-                                "No gRPC clients subscribed for checkpoint data #{}",
-                                data.checkpoint_summary.data().sequence_number
-                            );
-                        }
+                        tx.send_traced(data);
                     }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
                 })
             } else {
