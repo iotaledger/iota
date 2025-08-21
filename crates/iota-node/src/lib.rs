@@ -2343,11 +2343,8 @@ async fn build_grpc_server(
     // Create cancellation token for proper shutdown hierarchy
     let shutdown_token = CancellationToken::new();
 
-    // Create GrpcReader with the server-level shutdown token
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
-        rest_read_store,
-        shutdown_token.clone(),
-    ));
+    // Create GrpcReader
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
 
     // Get the subscription handler from the state for event streaming
     let event_subscriber =

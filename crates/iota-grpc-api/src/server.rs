@@ -85,6 +85,7 @@ pub async fn start_grpc_server(
         grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
+        shutdown_token.clone(),
     );
     let event_service = EventGrpcService::new(event_subscriber, shutdown_token.clone());
 

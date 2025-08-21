@@ -229,29 +229,18 @@ impl GrpcStateReader for RestStateReaderAdapter {
 #[derive(Clone)]
 pub struct GrpcReader {
     state_reader: Arc<dyn GrpcStateReader>,
-    cancellation_token: CancellationToken,
 }
 
 impl GrpcReader {
-    pub fn new(
-        state_reader: Arc<dyn GrpcStateReader>,
-        cancellation_token: CancellationToken,
-    ) -> Self {
-        Self {
-            state_reader,
-            cancellation_token,
-        }
+    pub fn new(state_reader: Arc<dyn GrpcStateReader>) -> Self {
+        Self { state_reader }
     }
 
-    pub fn from_rest_state_reader(
-        state_reader: Arc<dyn RestStateReader>,
-        cancellation_token: CancellationToken,
-    ) -> Self {
+    pub fn from_rest_state_reader(state_reader: Arc<dyn RestStateReader>) -> Self {
         Self {
             state_reader: Arc::new(RestStateReaderAdapter {
                 inner: state_reader,
             }),
-            cancellation_token,
         }
     }
 
@@ -260,10 +249,6 @@ impl GrpcReader {
         epoch: u64,
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
         self.state_reader.get_epoch_last_checkpoint(epoch)
-    }
-
-    pub fn cancellation_token(&self) -> &CancellationToken {
-        &self.cancellation_token
     }
 
     fn get_full_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
@@ -282,6 +267,7 @@ impl GrpcReader {
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         is_full: bool,
+        cancellation_token: CancellationToken,
         fetch_historical: impl Fn(&Self, u64) -> Option<Arc<T>> + Send,
         get_sequence_number: impl Fn(&Arc<T>) -> u64 + Send,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
@@ -332,7 +318,7 @@ impl GrpcReader {
                 let item_result = tokio::select! {
                     // note: tokio::select! cannot return results, so we put the match logic after the select
                     recv_result = rx.recv() => Some(recv_result),
-                    _ = reader.cancellation_token.cancelled() => {
+                    _ = cancellation_token.cancelled() => {
                         debug!("[profile][grpc] Checkpoint {data_type_name} stream cancelled");
                         None
                     }
@@ -384,12 +370,14 @@ impl GrpcReader {
         rx: Receiver<Arc<GrpcCheckpointData>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
+        cancellation_token: CancellationToken,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         self.create_checkpoint_stream(
             rx,
             start_sequence_number,
             end_sequence_number,
             true,
+            cancellation_token,
             |reader, seq| {
                 reader
                     .get_full_checkpoint_data(seq)
@@ -406,12 +394,14 @@ impl GrpcReader {
         rx: Receiver<Arc<GrpcCertifiedCheckpointSummary>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
+        cancellation_token: CancellationToken,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         self.create_checkpoint_stream(
             rx,
             start_sequence_number,
             end_sequence_number,
             false,
+            cancellation_token,
             |reader, seq| {
                 reader
                     .state_reader
