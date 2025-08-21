@@ -5167,7 +5167,7 @@
         },
         {
           "name": "arguments",
-          "description": "the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/developer/references/iota-api) format",
+          "description": "the arguments to be passed into the Move function, in [IotaJson](/developer/references/iota-api) format",
           "required": true,
           "schema": {
             "type": "array",
@@ -8197,6 +8197,34 @@
           }
         }
       },
+      "IotaMoveNormalizedEnum": {
+        "type": "object",
+        "required": [
+          "abilities",
+          "typeParameters",
+          "variants"
+        ],
+        "properties": {
+          "abilities": {
+            "$ref": "#/components/schemas/IotaMoveAbilitySet"
+          },
+          "typeParameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaMoveStructTypeParameter"
+            }
+          },
+          "variants": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/IotaMoveNormalizedField"
+              }
+            }
+          }
+        }
+      },
       "IotaMoveNormalizedField": {
         "type": "object",
         "required": [
@@ -8261,6 +8289,12 @@
         "properties": {
           "address": {
             "type": "string"
+          },
+          "enums": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/IotaMoveNormalizedEnum"
+            }
           },
           "exposedFunctions": {
             "type": "object",

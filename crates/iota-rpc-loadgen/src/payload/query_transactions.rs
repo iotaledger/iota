@@ -11,7 +11,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::IotaClient;
 use iota_types::base_types::TransactionDigest;
-use tracing::log::warn;
+use tracing::warn;
 
 use crate::payload::{
     AddressQueryType, ProcessPayload, QueryTransactionBlocks, RpcCommandProcessor, SignerInfo,
