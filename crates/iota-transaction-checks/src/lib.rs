@@ -65,9 +65,9 @@ mod checked {
                 protocol_config,
                 reference_gas_price,
                 gas,
-                // To be sure that we have enough gas to pay for the transaction execution + the
-                // Move authenticator cost.
-                transaction_gas_budget + authenticator_computation_cost,
+                // To be sure that we can cover the Move authenticator + transaction execution gas
+                // cost.
+                authenticator_computation_cost + transaction_gas_budget,
                 transaction_gas_budget,
                 authenticator_computation_cost,
                 transaction.gas_price(),
@@ -227,8 +227,8 @@ mod checked {
             protocol_config,
             reference_gas_price,
             gas,
-            // We should check if it is enough gas to pay for the authenticator and transaction
-            // execution.
+            // To be sure that we can cover the Move authenticator + transaction execution gas
+            // cost.
             authenticator_gas_budget + transaction_gas_budget,
             authenticator_gas_budget,
             0,
@@ -416,8 +416,7 @@ mod checked {
             protocol_config,
         )?;
 
-        // check balance and coins consistency
-        // load all gas coins
+        // Check the balance and coins consistency; Load all the gas coins.
         let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
         let mut gas_objects = vec![];
         for obj_ref in gas {

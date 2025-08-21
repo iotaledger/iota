@@ -5304,8 +5304,8 @@ impl AuthorityState {
 
         // Check the inputs.
 
-        // `max_auth_gas` is used here as a authenticator gas budget until it is not a
-        // part of the transaction data.
+        // `max_auth_gas` is used here as a Move authenticator gas budget until it is
+        // not a part of the transaction data.
         let authenticator_gas_budget = protocol_config.max_auth_gas();
 
         iota_transaction_checks::check_move_authenticator_input(
@@ -5330,8 +5330,8 @@ impl AuthorityState {
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // The `MoveAuthenticator` receiving objects are checked on the signing step.
 
-        // `max_auth_gas` is used here as a authenticator gas budget until it is not a
-        // part of the transaction data.
+        // `max_auth_gas` is used here as a Move authenticator gas budget until it is
+        // not a part of the transaction data.
         let authenticator_gas_budget = protocol_config.max_auth_gas();
 
         iota_transaction_checks::check_move_authenticator_input(
