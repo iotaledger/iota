@@ -937,7 +937,7 @@ impl AuthorityState {
             // Execute the Move authenticator.
             let (kind, signer, _) = tx_data.execution_parts();
 
-            let (_, validation_result) = epoch_store.executor().validate_transaction(
+            let validation_result = epoch_store.executor().validate_transaction(
                 self.get_backing_store().as_ref(),
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
@@ -1788,34 +1788,34 @@ impl AuthorityState {
                 )?;
 
             // Execute the Move authenticator.
-            let (authenticator_computation_cost, validation_result) =
-                epoch_store.executor().validate_transaction(
-                    backing_store,
-                    protocol_config,
-                    self.metrics.limits_metrics.clone(),
-                    &epoch_id,
-                    epoch_start_timestamp,
-                    authenticator_gas_status,
-                    move_authenticator.to_owned(),
-                    authenticator_info,
-                    authenticator_input_objects,
-                    kind.clone(),
-                    signer,
-                    tx_digest,
-                    &mut None,
-                );
+            let validation_result = epoch_store.executor().validate_transaction(
+                backing_store,
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                &epoch_id,
+                epoch_start_timestamp,
+                authenticator_gas_status,
+                move_authenticator.to_owned(),
+                authenticator_info,
+                authenticator_input_objects,
+                kind.clone(),
+                signer,
+                tx_digest,
+                &mut None,
+            );
 
-            // In case of an error during execution a store, effects and the
-            // execution error itself are returned. Since the validation function returns
-            // only the computation cost, the only option available here is to return an
-            // error.
-            if let Err(validation_error) = validation_result {
-                return Err(IotaError::MoveAuthenticatorExecutionFailure {
-                    error: validation_error.to_string(),
-                });
+            match validation_result {
+                Ok(authenticator_computation_cost) => authenticator_computation_cost,
+                Err(validation_error) => {
+                    // If an error occurs during execution, the storage, effects, and the execution
+                    // error itself are returned so that the gas can be charged.
+                    // I case of validation we do not support this, so the only available option
+                    // here is to return an error.
+                    return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                        error: validation_error.to_string(),
+                    });
+                }
             }
-
-            authenticator_computation_cost
         } else {
             0
         };
