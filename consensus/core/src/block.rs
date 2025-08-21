@@ -453,6 +453,15 @@ impl VerifiedBlock {
         }
     }
 
+    /// Creates a new reference for a faulty block.
+    pub(crate) fn new_faulty_block_ref(signed_block: SignedBlock, serialized: Bytes) -> BlockRef {
+        BlockRef {
+            round: signed_block.round(),
+            author: signed_block.author(),
+            digest: Self::compute_digest(&serialized),
+        }
+    }
+
     /// This method is public for testing in other crates.
     pub fn new_for_test(block: Block) -> Self {
         let signed_block = SignedBlock {

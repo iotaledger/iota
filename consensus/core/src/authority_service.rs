@@ -130,13 +130,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     info!("Invalid block from {}: {}", peer, e);
                     return Err(e);
                 }
-                // Add provably faulty blocks to the dag state so they can be used in misbehavior
-                // reports.
+
                 _ => {
-                    let provably_faulty_block =
-                        VerifiedBlock::new_verified(signed_block, serialized_block.block);
+                    // The block passes signature verification, but fails other checks.
+                    // Add a reference to this faulty block to the dag state.
                     self.core_dispatcher
-                        .add_faulty_blocks(vec![provably_faulty_block.reference()])
+                        .add_faulty_blocks(vec![VerifiedBlock::new_faulty_block_ref(
+                            signed_block,
+                            serialized_block.block,
+                        )])
                         .await
                         .map_err(|_| ConsensusError::Shutdown)?;
                     return Ok(());
