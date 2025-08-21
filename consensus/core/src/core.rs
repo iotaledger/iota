@@ -1396,7 +1396,7 @@ impl Core {
         for faulty_block_ref in self.dag_state.read().get_recent_provably_faulty_blocks() {
             misbehavior_reports.push(MisbehaviorReport::new(
                 faulty_block_ref.author,
-                MisbehaviorProof::InvalidBlock(faulty_block_ref.clone()),
+                MisbehaviorProof::InvalidBlock(faulty_block_ref),
             ))
         }
 
