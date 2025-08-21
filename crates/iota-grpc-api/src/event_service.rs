@@ -207,7 +207,6 @@ fn parse_filter_list(filters: &[crate::events::EventFilter]) -> Result<Vec<Event
     filters.iter().map(create_event_filter).collect()
 }
 
-
 // Convert IotaEvent to protobuf Event
 impl From<&IotaEvent> for Event {
     fn from(event: &IotaEvent) -> Self {

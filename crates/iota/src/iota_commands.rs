@@ -57,7 +57,7 @@ use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
 use tempfile::tempdir;
-use tracing::{self, info};
+use tracing::{self, info, warn};
 use url::Url;
 
 #[cfg(feature = "iota-names")]
