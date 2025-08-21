@@ -129,61 +129,42 @@ pub fn verify_authenticate_func(
     Ok(())
 }
 
-/// ************ FOR DEMONSTRATION PURPOSES ONLY ***********************
-
-// Below is the "implementation" of the checks that the above [verify_authenticate_func]
-// should perform.
-// This does not seem to be feasible at the moment, because the appropriate
-// type_args/[TypeTag](move-core-types::TypeTag) are not available to this scope.
-// The native function [create_auth_info_v1_impl] calling [verify_authenticate_func], does have
-// a set of type_args but those are for its context and not for the passed in `authenticate`
-// function.
-//
-// On the callsite:
-// ```
-// account::create_auth_info_v1(@0x0, ascii::string(b"m"), ascii::string(b"minimally_viable_auth_function"))
-// ```
-//
-// There is nothing we know about the exact types of the referred by the authenticate function.
-// Let us assume we can load the code containing this function for this verification step and
-// further assume that it is some templated type.
-//
-// ```
-// pub fn authenticate<T>(v: T, auth_ctx: &AuthContext, ctx: &TxContext)
-// ```
-/// The verifier can check the signature of this function as it appears in
-/// CompiledModule, by the templated type, in this case `T`, denoted as
-/// `TypeParameter`. It doesn't actually know what type is there, because this
-/// is not known during compilation, thus it isn't part of CompiledModule.
-/// Only during execution when the transaction's call-chain is initiated do we
-/// receive this additional context through
-/// the [TypeTag](move-core-types::TypeTag) arguments.
-///
-/// Another higher level example for potentially more clarity:
-/// Context one: Tx -> somewhere inside call create_auth_info_v1 and attach the
-/// function to the object, here verifier has only access to the CompiledModule
-/// for the referred function Context two: Tx -> call authenticate (as part of
-/// the process), here we have all the additional type information
-///
-/// For an example how all this comes together take a look at [resolve_call_arg](https://github.com/iotaledger/iota/blob/2f7e29c18b6b986cc795e068d135f4b46732f992/crates/iota-json/src/lib.rs#L698) which is called when a function is move function called.
-
-/// Returns `true` if [SignatureToken] is a primitive type
-#[warn(dead_code)]
-fn primitive(st: &SignatureToken) -> bool {
-    use SignatureToken::*;
-
-    matches!(st, U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address)
-}
-
 /// Evaluate that signature type is of [pure input](https://docs.iota.org/developer/iota-101/transactions/ptb/programmable-transaction-blocks#inputs)
 ///
-/// A `pure input` is seems to be any type that can't be used to modify ledger
-/// state in any way and can be constructed before calling the function itself.
-/// The ledger state can be modified:
-///     - through `&mut TxContext`
-///     - through `&mut T`
-///     - by publishing (publish_shared) of objects (thus object even as a
-///       value, cannot be used)
+/// ATTENTION!///
+/// This check implements a very loose definition of a pure type, because it is
+/// based on the assumption that the authenticate function is executed
+/// equivalently to a PTB with a single command.
+/// 1. This means that potentially, a parameter of type `T`, with `T` being a
+///    generic, would be accepted by the check of this verify function even if
+///    the instance of `T` is not pure by definition. An example is passing an
+///    instance of the `Simple` as concrete type of T; in this case, `Simple` is
+///    not considered pure. This verify function works as this because it is
+///    executed in a moment in which the concrete types of a generic are not
+///    known. However, since the authenticate function is executed equivalently
+///    to a PTB with a single command, this assures that onpy pure types and
+///    objects can actually be passed by design. So the case of having ´Simple´
+///    as concrete type of `T` cannot exist.
+/// 2. Moreover, this check assures that no object can be passed as concrete
+///    type of a generic `T` because in the constraints of every generic it
+///    checks that the `key` ability is not set. This is not enough because a
+///    case like this could happen `fn authenticate()<T>(...)` where the key
+///    constraint is not set. In this case the compiler helps us by forcing the
+///    `T` concrete type to have a `drop` ability. To calm the compiler down the
+///    function `authenticate` must either:
+///    1. not use the `<T: drop>` constraint and return the parameter with type
+///       `T` -> this is not allowed by design, as an authenticate function has
+///       no returns;
+///    2. not use the `<T: drop>` constraint but the `<T: key>` constraint ->
+///       this is not allowed by this verify funciton;
+///    3. use the `<T: drop>` constraint -> this means no object type can be
+///       used as concrete type because an object with `drop` ability cannot
+///       exist.
+/// ////////////
+///
+/// A parameter is considered `pure input` if that can't be used to modify
+/// ledger state in any way, i.e., not an object, and thatcan be constructed
+/// before calling the function itself.
 ///
 /// A general struct, with no unresolved template arguments:
 /// ```
@@ -192,13 +173,13 @@ fn primitive(st: &SignatureToken) -> bool {
 ///   some_vec: vector<ascii::String>
 /// }
 /// ```
-/// should be also acceptable, but isn't considered a pure_type either as it
-/// isn't a built-in type so it can't be constructed before the call itself. On
+/// is not considered a `pure input` either as it is not a built-in type so it
+/// can't be constructed before the (single) PTB move call itself. On
 /// the contrary std::ascii::String and std::string::String are okay.
 /// On a similar notion a simple `vector<T>` and an `Option<T>` are both also
 /// acceptable as they are built-in move types with rust side counterpart as
 /// long as `T` is recursively `pure` as well.
-fn verify_pure_type(
+fn verify_pure_input_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
     param: &SignatureToken,
@@ -207,7 +188,7 @@ fn verify_pure_type(
 
     match param {
         U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address => Ok(()),
-        Vector(inner) => verify_pure_type(module, function_type_args, inner),
+        Vector(inner) => verify_pure_input_type(module, function_type_args, inner),
         Datatype(handle_index) => {
             let resolved_struct = resolve_struct(module, *handle_index);
             if resolved_struct == RESOLVED_ASCII_STR
@@ -226,7 +207,7 @@ fn verify_pure_type(
             let (idx, type_args) = &**datatype_instance;
             let resolved_struct = resolve_struct(module, *idx);
             if resolved_struct == RESOLVED_STD_OPTION && type_args.len() == 1 {
-                verify_pure_type(module, function_type_args, &type_args[0])
+                verify_pure_input_type(module, function_type_args, &type_args[0])
             } else {
                 Err(format!(
                     "Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: {:?}",
@@ -259,6 +240,10 @@ fn verify_pure_type(
     }
 }
 
+/// Verify that the parameter type is a valid type for an `authenticate`
+/// function The parameter type can be:
+/// - an immutable reference
+/// - a pure input type (see [verify_pure_input_type])
 fn verify_authenticate_param_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -270,7 +255,7 @@ fn verify_authenticate_param_type(
         Reference(_) => Ok(()),
         // This mutable reference could be allowed to enable a smother authenticate() function
         // composition, but its usage must be checked before being enabled:
-        // MutableReference(inner) => verify_pure_type(module, function_type_args, inner),
-        _ => verify_pure_type(module, function_type_args, param),
+        // MutableReference(inner) => verify_pure_input_type(module, function_type_args, inner),
+        _ => verify_pure_input_type(module, function_type_args, param),
     }
 }
