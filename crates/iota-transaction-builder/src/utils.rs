@@ -117,9 +117,7 @@ impl TransactionBuilder {
     }
 
     /// Convert provided JSON arguments for a move function to their
-    /// [`Argument`] representation and check their validity. If `is_view` is
-    /// true, check that the passed function is compliant to the Move View
-    /// Function specification.
+    /// [`Argument`] representation and check their validity.
     pub async fn resolve_and_checks_json_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -128,17 +126,10 @@ impl TransactionBuilder {
         function_ident: &Identifier,
         type_args: &[TypeTag],
         json_args: Vec<IotaJsonValue>,
-        is_view: bool,
     ) -> Result<Vec<Argument>, anyhow::Error> {
         // Fetch the move package for the given package ID.
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
-
-        if is_view {
-            // Extract the expected function signature and check the return type.
-            // If the function is a view function, it MUST return at least a value.
-            check_function_has_a_return(&module, function_ident)?;
-        }
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
@@ -152,98 +143,107 @@ impl TransactionBuilder {
         // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
         for (arg, expected_type) in json_args_and_tokens {
-            args.push(if is_view {
-                self.build_arg_for_move_view_call(builder, &module, arg, expected_type)
-                    .await?
-            } else {
-                self.build_arg_for_move_call(builder, &module, arg, expected_type)
-                    .await?
-            });
+            args.push(match arg {
+                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                ResolvedCallArg::Object(id) => builder.input(CallArg::Object(
+                    self.get_object_arg(
+                        id,
+                        // Is mutable if passed by mutable reference or by value
+                        matches!(expected_type, SignatureToken::MutableReference(_))
+                            || !expected_type.is_reference(),
+                        &module,
+                        &expected_type,
+                    )
+                    .await?,
+                )),
+                ResolvedCallArg::ObjVec(v) => {
+                    let mut object_ids = vec![];
+                    for id in v {
+                        object_ids.push(
+                            self.get_object_arg(
+                                id,
+                                // is_mutable_ref
+                                false,
+                                &module,
+                                &expected_type,
+                            )
+                            .await?,
+                        )
+                    }
+                    builder.make_obj_vec(object_ids)
+                }
+            }?);
         }
 
         Ok(args)
     }
 
     /// Convert provided JSON arguments for a move function to their
-    /// [`Argument`] representation and check their validity.
-    pub async fn build_arg_for_move_call(
+    /// [`Argument`] representation and check their validity. Also, check that
+    /// the passed function is compliant to the Move View
+    /// Function specification.
+    pub async fn resolve_and_checks_json_view_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        module: &CompiledModule,
-        arg: ResolvedCallArg,
-        expected_type: SignatureToken,
-    ) -> Result<Argument, anyhow::Error> {
-        Ok(match arg {
-            ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
-            ResolvedCallArg::Object(id) => builder.input(CallArg::Object(
-                self.get_object_arg(
-                    id,
-                    // Is mutable if passed by mutable reference or by value
-                    matches!(expected_type, SignatureToken::MutableReference(_))
-                        || !expected_type.is_reference(),
-                    module,
-                    &expected_type,
-                )
-                .await?,
-            )),
-            ResolvedCallArg::ObjVec(v) => {
-                let mut object_ids = vec![];
-                for id in v {
-                    object_ids.push(
+        package_id: ObjectID,
+        module_ident: &Identifier,
+        function_ident: &Identifier,
+        type_args: &[TypeTag],
+        json_args: Vec<IotaJsonValue>,
+    ) -> Result<Vec<Argument>, anyhow::Error> {
+        // Fetch the move package for the given package ID.
+        let package = self.fetch_move_package(package_id).await?;
+        let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
+
+        // Extract the expected function signature and check the return type.
+        // If the function is a view function, it MUST return at least a value.
+        check_function_has_a_return(&module, function_ident)?;
+
+        // Then resolve the function parameters type.
+        let json_args_and_tokens = resolve_move_function_args(
+            &package,
+            module_ident.clone(),
+            function_ident.clone(),
+            type_args,
+            json_args,
+        )?;
+
+        // Finally construct the input arguments for the builder.
+        let mut args = Vec::new();
+        for (arg, expected_type) in json_args_and_tokens {
+            args.push(match arg {
+                // Move View Functions can accept pure arguments.
+                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                // Move View Functions can accept only immutable object references.
+                ResolvedCallArg::Object(id) => {
+                    fp_ensure!(
+                            matches!(expected_type, SignatureToken::Reference(_)),
+                            UserInputError::InvalidMoveViewFunction {
+                                error: format!("Found a function parameter which is not an immutable reference {expected_type:?}")
+                                    .to_owned(),
+                            }
+                            .into()
+                        );
+                    builder.input(CallArg::Object(
                         self.get_object_arg(
                             id,
-                            // is_mutable_ref
+                            // Setting false is safe because of fp_ensure! above
                             false,
-                            module,
+                            &module,
                             &expected_type,
                         )
                         .await?,
-                    )
+                    ))
                 }
-                builder.make_obj_vec(object_ids)
-            }
-        }?)
-    }
+                // Move View Functions can not accept vector of object by value (this case).
+                ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
+                    error: "Found a function parameter which is a vector of objects".to_owned(),
+                }
+                .into()),
+            }?);
+        }
 
-    /// Convert provided JSON arguments for a move function to their
-    /// [`Argument`] representation and check their validity.
-    pub async fn build_arg_for_move_view_call(
-        &self,
-        builder: &mut ProgrammableTransactionBuilder,
-        module: &CompiledModule,
-        arg: ResolvedCallArg,
-        expected_type: SignatureToken,
-    ) -> Result<Argument, anyhow::Error> {
-        Ok(match arg {
-            // Move View Functions can accept pure arguments.
-            ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
-            // Move View Functions can accept only immutable object references.
-            ResolvedCallArg::Object(id) => {
-                fp_ensure!(
-                        matches!(expected_type, SignatureToken::Reference(_)),
-                        UserInputError::InvalidMoveViewFunction {
-                            error: format!("Found a function parameter which is not an immutable reference {expected_type:?}")
-                                .to_owned(),
-                        }
-                        .into()
-                    );
-                builder.input(CallArg::Object(
-                    self.get_object_arg(
-                        id,
-                        // Setting false is safe because of fp_ensure! above
-                        false,
-                        module,
-                        &expected_type,
-                    )
-                    .await?,
-                ))
-            }
-            // Move View Functions can not accept vector of object by value (this case).
-            ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
-                error: "Found a function parameter which is a vector of objects".to_owned(),
-            }
-            .into()),
-        }?)
+        Ok(args)
     }
 
     /// Get the latest object ref for an object.
