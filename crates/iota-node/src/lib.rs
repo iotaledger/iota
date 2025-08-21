@@ -109,7 +109,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{KeypairTraits, RandomnessRound},
+    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits, RandomnessRound},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -122,13 +122,15 @@ use iota_types::{
     messages_checkpoint::CertifiedCheckpointSummary,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
-        check_total_jwk_size,
+        SignedAuthorityCapabilitiesV1, check_total_jwk_size,
     },
+    messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]
@@ -1827,6 +1829,11 @@ impl IotaNode {
                 components
                     .consensus_adapter
                     .submit(transaction, None, &cur_epoch_store)?;
+            } else {
+                // Send signed capabilities to committee validators if we are a non-committee
+                // validator
+                self.send_signed_capability_notification_to_committee(&cur_epoch_store)
+                    .await?;
             }
 
             let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
@@ -2176,6 +2183,57 @@ impl IotaNode {
 
     pub fn randomness_handle(&self) -> randomness::Handle {
         self.randomness_handle.clone()
+    }
+
+    /// Sends signed capability notification to committee validators for
+    /// non-committee validators
+    async fn send_signed_capability_notification_to_committee(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<()> {
+        let config = epoch_store.protocol_config();
+        let binary_config = to_binary_config(config);
+
+        // Create the capability notification
+        let capabilities = AuthorityCapabilitiesV1::new(
+            self.state.name,
+            epoch_store.get_chain_identifier().chain(),
+            self.config
+                .supported_protocol_versions
+                .expect("Supported versions should be populated")
+                .truncate_below(config.version),
+            self.state
+                .get_available_system_packages(&binary_config)
+                .await,
+        );
+
+        // Sign the capabilities using the authority key pair from config
+        let signature = AuthoritySignature::new_secure(
+            &IntentMessage::new(
+                Intent::iota_app(IntentScope::AuthorityCapabilities),
+                &capabilities,
+            ),
+            &epoch_store.epoch(),
+            self.config.authority_key_pair(),
+        );
+
+        let request = HandleCapabilityNotificationRequestV1 {
+            message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+        };
+
+        // Send capability notification to a quorum of committee validators using
+        // validity threshold
+        let auth_agg = self.auth_agg.load();
+        if let Err(err) = auth_agg
+            .send_capability_notification_to_quorum(request)
+            .await
+        {
+            warn!(
+                "Failed to send capability notification to committee: {:?}",
+                err
+            );
+        }
+        Ok(())
     }
 }
 
