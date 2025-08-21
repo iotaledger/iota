@@ -419,16 +419,14 @@ mod checked {
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (u64, Result<Mode::ExecutionResults, ExecutionError>) {
-        // At this point no charges have been applied yet.
         debug_assert!(
             gas_charger.no_charges(),
-            "No gas charges must be applied yet"
+            "At this point no gas charges must be applied yet"
         );
 
-        // We must charge object read here during transaction execution, because if this
-        // fails we must still ensure an effect is committed and all objects
-        // versions incremented.
+        // Charge gas for reading the Move authenticator input objects from the storage.
         let result = gas_charger.charge_input_objects(temporary_store);
+
         let result = result.and_then(|()| {
             run_inputs_checks(
                 protocol_config,
@@ -1560,8 +1558,10 @@ mod checked {
     ) -> ProgrammableTransaction {
         let mut builder = ProgrammableTransactionBuilder::new();
 
+        // Add `AuthContext` as the last argument; `TxContext` will be added later
+        // if required.
         let mut args = authenticator.call_args().clone();
-        args.push(CallArg::Pure(auth_ctx.to_vec()));
+        args.push(CallArg::Pure(auth_ctx.to_bcs_bytes()));
 
         // TODO: Result instead of expect?
         builder
@@ -1572,7 +1572,7 @@ mod checked {
                 authenticator.type_arguments().clone(),
                 args,
             )
-            .expect("Unable to generate account authenticator call transaction!");
+            .expect("Unable to generate an account authenticator call transaction!");
 
         builder.finish()
     }
