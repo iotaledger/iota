@@ -69,8 +69,8 @@ pub(crate) struct ChangeEpochTransactionV2 {
 }
 
 // System transaction for advancing the epoch.
-// This version includes the computation_charge_burned field for when
-// protocol_defined_base_fee is enabled in the protocol config.
+// This version includes list of eligible active validators indices that will be
+// taken into account when selecting the committee for the next epoch.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransactionV3 {
     pub native: NativeChangeEpochTransactionV3,
@@ -446,7 +446,16 @@ impl ChangeEpochTransactionV3 {
 
         Ok(connection)
     }
-    // TODO: optionally implement method for ChangeEpochV3
+
+    /// The list of active validators eligible for committee selection for the
+    /// next epoch.
+    async fn eligible_active_validators(&self) -> Vec<BigInt> {
+        self.native
+            .eligible_active_validators
+            .iter()
+            .map(|v| BigInt::from(*v))
+            .collect()
+    }
 }
 
 #[Object]

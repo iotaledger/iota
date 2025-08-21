@@ -537,6 +537,11 @@ impl EndOfEpochTransactionKind {
                         "protocol defined base fee not supported".to_string(),
                     ));
                 }
+                if config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV2(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -544,12 +549,16 @@ impl EndOfEpochTransactionKind {
                         "protocol defined base fee required".to_string(),
                     ));
                 }
+                if config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV3(_) => {
-                if !config.protocol_defined_base_fee() {
-                    // TODO
+                if !config.select_committee_from_eligible_validators() {
                     return Err(UserInputError::Unsupported(
-                        "protocol defined base fee required".to_string(),
+                        "selecting committee only among validators supporting the protocol version required".to_string(),
                     ));
                 }
             }

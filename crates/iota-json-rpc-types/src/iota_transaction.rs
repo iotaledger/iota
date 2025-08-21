@@ -635,16 +635,7 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
-                                // IotaEndOfEpochTransactionKind::ChangeEpochV3(e.into())
-                                // TODO: replace with ChangeEpochV3 when it is implemented
-                                IotaEndOfEpochTransactionKind::ChangeEpochV3(IotaChangeEpochV3 {
-                                    epoch: e.epoch,
-                                    storage_charge: e.storage_charge,
-                                    computation_charge: e.computation_charge,
-                                    computation_charge_burned: e.computation_charge_burned,
-                                    storage_rebate: e.storage_rebate,
-                                    epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
-                                })
+                                IotaEndOfEpochTransactionKind::ChangeEpochV3(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
@@ -771,10 +762,9 @@ pub struct IotaChangeEpochV3 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_start_timestamp_ms: u64,
-    // TODO: do we need it here?
-    // #[schemars(with = "BigInt<u64>")]
-    // #[serde_as(as = "BigInt<u64>")]
-    // pub eligible_active_validators: Vec<u64>,
+    #[schemars(with = "Vec<BigInt<u64>>")]
+    #[serde_as(as = "Vec<BigInt<u64>>")]
+    pub eligible_active_validators: Vec<u64>,
 }
 
 impl From<ChangeEpochV3> for IotaChangeEpochV3 {
@@ -786,6 +776,7 @@ impl From<ChangeEpochV3> for IotaChangeEpochV3 {
             computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: e.eligible_active_validators,
         }
     }
 }
