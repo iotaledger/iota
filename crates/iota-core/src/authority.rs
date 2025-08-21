@@ -1281,6 +1281,10 @@ impl AuthorityState {
 
         let tx_input_objects =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
+
+        // TODO: Since the authenticator input is loaded with a dedicated call, we
+        // can load the same object twice if it is presented in the transaction and
+        // authenticator inputs.
         let authenticator_input_objects = self.read_authenticator_objects_for_execution(
             tx_guard.as_lock_guard(),
             certificate,
@@ -1774,10 +1778,6 @@ impl AuthorityState {
             );
 
             // Check the `MoveAuthenticator` input objects.
-            //
-            // TODO: Since the authenticator input is loaded with a dedicated call, we
-            // can load the same object twice if it is presented in the transaction and
-            // authenticator inputs.
             let (authenticator_gas_status, authenticator_input_objects) =
                 Self::check_move_authenticator_inputs_for_executing(
                     protocol_config,
@@ -1805,8 +1805,10 @@ impl AuthorityState {
                     &mut None,
                 );
 
-            // TODO: In case of an error during execution we return a store, effects and the
-            // execution error itself. Probably we should do the same here later.
+            // In case of an error during execution a store, effects and the
+            // execution error itself are returned. Since the validation function returns
+            // only the computation cost, the only option available here is to return an
+            // error.
             if let Err(validation_error) = validation_result {
                 return Err(IotaError::MoveAuthenticatorExecutionFailure {
                     error: validation_error.to_string(),
@@ -5303,7 +5305,7 @@ impl AuthorityState {
         // Check the inputs.
 
         // `max_auth_gas` is used here as a authenticator gas budget until it is not a
-        // part of the transaction.
+        // part of the transaction data.
         let authenticator_gas_budget = protocol_config.max_auth_gas();
 
         iota_transaction_checks::check_move_authenticator_input(
@@ -5329,7 +5331,7 @@ impl AuthorityState {
         // The `MoveAuthenticator` receiving objects are checked on the signing step.
 
         // `max_auth_gas` is used here as a authenticator gas budget until it is not a
-        // part of the transaction.
+        // part of the transaction data.
         let authenticator_gas_budget = protocol_config.max_auth_gas();
 
         iota_transaction_checks::check_move_authenticator_input(

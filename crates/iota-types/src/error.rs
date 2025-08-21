@@ -360,7 +360,7 @@ pub enum UserInputError {
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Receiving objects {receiving_objects:?} is in the `MoveAuthenticator` input that is unsupported"
+        "Receiving objects {receiving_objects:?} are in the `MoveAuthenticator` input that is unsupported"
     )]
     ReceivingObjectsIsInMoveAuthenticatorInput { receiving_objects: Vec<ObjectRef> },
 }

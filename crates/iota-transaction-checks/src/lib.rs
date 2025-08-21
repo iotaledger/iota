@@ -663,7 +663,6 @@ mod checked {
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
-                // TODO: Is this check correct?
                 return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
             }
             InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
