@@ -244,8 +244,14 @@ mod checked {
 
     /// This function implements a smart account transaction validation.
     /// It prepares a `MoveAuthenticator` transaction for execution, then
-    /// executes it through an inner execution method and finally returns
-    /// the move authenticator computation gas cost without bucketing.
+    /// executes it through an inner execution method.
+    ///
+    /// Returns an error if it happens or the move authenticator computation gas
+    /// cost without bucketing. It is different from the
+    /// `execute_transaction_to_effects` return type, because, in this case, we
+    /// do not need to return the gas value used for execution when an error
+    /// happens since we cannot charge it separately in the current
+    /// implementation.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn validate_transaction(
         store: &dyn BackingStore,
@@ -269,7 +275,7 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> (u64, Result<(), ExecutionError>) {
+    ) -> Result<u64, ExecutionError> {
         // Check the preconditions.
         debug_assert!(
             authenticated_transaction_kind.is_programmable_transaction(),
@@ -332,7 +338,7 @@ mod checked {
         // Setup a move authenticator transaction; Push the authenticator context as the
         // last argument.
         let authenticator_move_call =
-            setup_authenticator_move_call(authenticator, authenticator_info, auth_ctx);
+            setup_authenticator_move_call(authenticator, authenticator_info, auth_ctx)?;
 
         // Execute the authenticator transaction.
         let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Normal>(
@@ -391,7 +397,7 @@ mod checked {
             status
         );
 
-        (computation_gas_cost, execution_result)
+        execution_result.map(|_| computation_gas_cost)
     }
 
     /// Executes an authentication move call by processing the specified
@@ -453,8 +459,6 @@ mod checked {
         let gas_status = gas_charger.into_gas_status();
 
         // Return the gas used for execution without bucketing.
-        //
-        // TODO: Check if this is the price we expect.
         (gas_status.gas_used() * gas_status.gas_price(), result)
     }
 
@@ -1555,7 +1559,7 @@ mod checked {
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
         auth_ctx: AuthContext,
-    ) -> ProgrammableTransaction {
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         // Add `AuthContext` as the last argument; `TxContext` will be added later
@@ -1563,17 +1567,19 @@ mod checked {
         let mut args = authenticator.call_args().clone();
         args.push(CallArg::Pure(auth_ctx.to_bcs_bytes()));
 
-        // TODO: Result instead of expect?
-        builder
-            .move_call(
-                authenticator_info.package,
-                Identifier::new(authenticator_info.module.clone()).unwrap(),
-                Identifier::new(authenticator_info.function.clone()).unwrap(),
-                authenticator.type_arguments().clone(),
-                args,
-            )
-            .expect("Unable to generate an account authenticator call transaction!");
+        let res = builder.move_call(
+            authenticator_info.package,
+            Identifier::new(authenticator_info.module.clone()).unwrap(),
+            Identifier::new(authenticator_info.function.clone()).unwrap(),
+            authenticator.type_arguments().clone(),
+            args,
+        );
 
-        builder.finish()
+        assert_invariant!(
+            res.is_ok(),
+            "Unable to generate an account authenticator call transaction!"
+        );
+
+        Ok(builder.finish())
     }
 }
