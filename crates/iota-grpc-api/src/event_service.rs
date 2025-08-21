@@ -207,38 +207,6 @@ fn parse_filter_list(filters: &[crate::events::EventFilter]) -> Result<Vec<Event
     filters.iter().map(create_event_filter).collect()
 }
 
-/// Generic function to build chained filters to ease of implementing other
-/// logics in the future
-fn build_chained_filter<F>(
-    mut filters: Vec<EventFilter>,
-    filter_type: &str,
-    constructor: F,
-) -> Result<EventFilter, Status>
-where
-    F: Fn(Box<EventFilter>, Box<EventFilter>) -> EventFilter,
-{
-    if filters.is_empty() {
-        return Err(Status::invalid_argument(format!(
-            "{filter_type} filter cannot be empty",
-        )));
-    }
-
-    let mut result = filters.pop().unwrap();
-    while let Some(filter) = filters.pop() {
-        result = constructor(Box::new(filter), Box::new(result));
-    }
-    Ok(result)
-}
-
-/// Build AND filter by chaining EventFilter::And
-fn build_and_filter(filters: Vec<EventFilter>) -> Result<EventFilter, Status> {
-    build_chained_filter(filters, "AND", EventFilter::And)
-}
-
-/// Build OR filter by chaining EventFilter::Or
-fn build_or_filter(filters: Vec<EventFilter>) -> Result<EventFilter, Status> {
-    build_chained_filter(filters, "OR", EventFilter::Or)
-}
 
 // Convert IotaEvent to protobuf Event
 impl From<&IotaEvent> for Event {
