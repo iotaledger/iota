@@ -138,7 +138,7 @@ test.describe('Send MAX amount from L2', () => {
         await connectButtonL2.click();
 
         const approveWalletL2ConnectDialog = browserL2.waitForEvent('page', { timeout: 20_000 });
-        await testPageL2.getByTestId(/metamask/).click();
+        await testPageL2.getByRole('button', { name: 'MetaMask', exact: true }).click();
         const walletL2Modal = await approveWalletL2ConnectDialog;
 
         await walletL2Modal.waitForLoadState();

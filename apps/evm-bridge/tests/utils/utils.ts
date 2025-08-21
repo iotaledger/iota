@@ -221,7 +221,6 @@ export async function addL1FundsThroughBridgeUI(page: Page, browser: BrowserCont
                 console.log(
                     `❌ Bridge funding transaction failed on attempt ${attempt}/${maxRetries}, retrying...`,
                 );
-                await page.pause();
                 // Wait a bit before retrying
                 await page.waitForTimeout(3000);
             } else {

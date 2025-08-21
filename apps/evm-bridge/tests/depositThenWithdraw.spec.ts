@@ -132,7 +132,7 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
 
         await connectButtonL2.click();
         const approveWalletL2ConnectDialog = browserL2.waitForEvent('page');
-        await pageWithL2Wallet.getByTestId(/metamask/).click();
+        await pageWithL2Wallet.getByRole('button', { name: 'MetaMask', exact: true }).click();
 
         const walletL2Modal = await approveWalletL2ConnectDialog;
         await walletL2Modal.waitForLoadState();
