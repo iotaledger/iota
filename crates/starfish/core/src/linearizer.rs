@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use itertools::Itertools;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
@@ -110,9 +109,13 @@ impl Linearizer {
                     block_header.acknowledgments().to_vec(),
                 )
             })
-            // Remove duplicate block references (although this should not happen)
-            .unique()
             .collect::<Vec<BlockRef>>();
+        // Check that there are no duplicates in the committed transactions
+        assert_eq!(
+            committed_transactions.len(),
+            committed_transactions.iter().collect::<HashSet<_>>().len(),
+            "Duplicate BlockRef found"
+        );
 
         // Create the Commit.
         let commit = Commit::new(
@@ -730,33 +733,50 @@ mod tests {
             LeaderSwapTable::default(),
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
-
+        let num_rounds_to_evict = 20;
         // Populate fully connected test blocks for round 0 ~ MAX_LINEARIZER_DEPTH +
-        // MAX_TRANSACTIONS_ACK_DEPTH + 1, authorities 0 ~ 3.
-        let num_rounds: u32 = MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + 1;
+        // MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict, authorities 0 ~ 3.
+        let num_rounds: u32 =
+            MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict;
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder
             .layers(1..=num_rounds)
             .build()
             .persist_layers(dag_state.clone());
 
-        let references_round_1: Vec<_> = dag_builder
-            .block_headers(1..=1)
-            .into_iter()
-            .map(|bh| bh.reference())
-            .collect();
         let leaders = dag_builder
             .leader_blocks(1..=num_rounds)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
         linearizer.handle_commit(leaders.clone());
-        // Check that acknowledgements for the first round are stored
-        let mut ack_authors = linearizer.get_transaction_ack_authors(references_round_1.clone());
-        assert_eq!(ack_authors.len(), 4);
+        // Check that before eviction acknowledgements for all rounds up to num_rounds-2
+        // are stored
+        for round in 1..=num_rounds - 2 {
+            let round_references: Vec<_> = dag_builder
+                .block_headers(round..=round)
+                .into_iter()
+                .map(|bh| bh.reference())
+                .collect();
+            let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            assert_eq!(ack_authors.len(), 4);
+        }
+
         linearizer.evict_old_acknowledgments(num_rounds);
-        // Check that acknowledgements for the first round are evicted
-        ack_authors = linearizer.get_transaction_ack_authors(references_round_1);
-        assert_eq!(ack_authors.len(), 0);
+        // Check that acknowledgements for the first num_rounds_to_evict rounds are
+        // evicted and the rest are still stored
+        for round in 1..=num_rounds - 2 {
+            let round_references: Vec<_> = dag_builder
+                .block_headers(round..=round)
+                .into_iter()
+                .map(|bh| bh.reference())
+                .collect();
+            let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            if round <= num_rounds_to_evict {
+                assert!(ack_authors.is_empty());
+            } else {
+                assert_eq!(ack_authors.len(), 4);
+            }
+        }
     }
 }
