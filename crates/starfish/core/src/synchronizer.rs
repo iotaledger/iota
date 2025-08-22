@@ -2742,13 +2742,14 @@ mod tests {
             )
             .await;
         let _ = handle.fetch_headers(headers_refs, peer).await.is_ok();
-        // Wait a little bit until those have been added in core
+        // Wait a little bit until synchronizer tries to add them into core
         sleep(Duration::from_millis(1_000)).await;
 
-        // THEN ensure those ended up in Core
-        let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_blocks.len(), 1);
-        assert_eq!(added_blocks[0], normal_block_header);
+        // THEN ensure that the normal block header was added and block header with
+        // future timestamp was ignored
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(added_block_headers.len(), 1);
+        assert_eq!(added_block_headers[0], normal_block_header);
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await {
