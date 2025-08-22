@@ -72,7 +72,7 @@ pub(crate) struct BlockManager {
     /// A block is considered missing if it appears in `missing_ancestors`
     /// and has not yet been accepted or fetched. Blocks already stored or
     /// present in `suspended_blocks` are excluded.
-    missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    missing_block_headers: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
     /// and resets during restarts.
@@ -88,7 +88,7 @@ impl BlockManager {
             suspended_block_headers: BTreeMap::new(),
             suspended_blocks: BTreeMap::new(),
             missing_ancestors: BTreeMap::new(),
-            missing_blocks: BTreeMap::new(),
+            missing_block_headers: BTreeMap::new(),
             received_block_rounds: vec![None; committee_size],
         }
     }
@@ -248,7 +248,7 @@ impl BlockManager {
             // Fetches the block if it is not in dag state or suspended.
             missing_blocks.insert(*block_ref);
             if self
-                .missing_blocks
+                .missing_block_headers
                 .insert(*block_ref, BTreeSet::from([block_ref.author]))
                 .is_none()
             {
@@ -271,7 +271,7 @@ impl BlockManager {
             .inc_by(missing_blocks.len() as u64);
         metrics
             .block_manager_missing_blocks
-            .set(self.missing_blocks.len() as i64);
+            .set(self.missing_block_headers.len() as i64);
 
         missing_blocks
     }
@@ -359,7 +359,7 @@ impl BlockManager {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_blocks
+                .invalid_block_headers
                 .with_label_values(&[
                     self.context.authority_hostname(block_ref.author),
                     "accept_block",
@@ -440,7 +440,7 @@ impl BlockManager {
                     // We also want to keep track of the authorities that have this block.
                     // This block could be already missing, so we just update the set  of
                     // authorities who have it.
-                    let entry = self.missing_blocks.entry(*ancestor);
+                    let entry = self.missing_block_headers.entry(*ancestor);
                     match entry {
                         Entry::Vacant(v) => {
                             v.insert(BTreeSet::from([ancestor.author, block_ref.author]));
@@ -464,7 +464,7 @@ impl BlockManager {
         // Remove the block ref from the `missing_blocks` - if exists - since we now
         // have received the block. The block might still get suspended, but we
         // won't report it as missing in order to not re-fetch.
-        self.missing_blocks.remove(&block_header.reference());
+        self.missing_block_headers.remove(&block_header.reference());
 
         if !missing_ancestors.is_empty() {
             self.context
@@ -560,17 +560,17 @@ impl BlockManager {
         None
     }
 
-    /// Returns all the blocks that are currently missing and needed in order to
-    /// accept suspended blocks. For each block reference it returns the set of
-    /// authorities who have this block.
-    pub(crate) fn missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
-        self.missing_blocks.clone()
+    /// Returns all the block headers that are currently missing and needed in
+    /// order to accept suspended block headers. For each block reference it
+    /// returns the set of authorities who have this block header.
+    pub(crate) fn missing_block_headers(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        self.missing_block_headers.clone()
     }
 
     /// Returns all the block refs that are currently missing.
     #[cfg(test)]
     pub(crate) fn missing_block_refs(&self) -> BTreeSet<BlockRef> {
-        self.missing_blocks.keys().cloned().collect()
+        self.missing_block_headers.keys().cloned().collect()
     }
 
     fn update_stats(&mut self, missing_blocks: u64) {
@@ -584,7 +584,7 @@ impl BlockManager {
             .set(self.missing_ancestors.len() as i64);
         metrics
             .block_manager_missing_blocks
-            .set(self.missing_blocks.len() as i64);
+            .set(self.missing_block_headers.len() as i64);
     }
 
     fn update_block_received_metrics(&mut self, block: &VerifiedBlockHeader) {
@@ -615,7 +615,7 @@ impl BlockManager {
     pub(crate) fn is_empty(&self) -> bool {
         self.suspended_block_headers.is_empty()
             && self.missing_ancestors.is_empty()
-            && self.missing_blocks.is_empty()
+            && self.missing_block_headers.is_empty()
     }
 
     /// Returns all the suspended blocks refs whose causal history we miss hence
@@ -714,7 +714,7 @@ mod tests {
 
         // AND each missing block should be known to all authorities
         let known_by_manager = block_manager
-            .missing_blocks()
+            .missing_block_headers()
             .iter()
             .next()
             .expect("We should expect at least two elements there")
@@ -909,7 +909,7 @@ mod tests {
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
-        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        let missing_blocks_with_authorities = block_manager.missing_block_headers();
 
         let block_round_1_authority_0 = all_blocks
             .iter()
@@ -938,7 +938,7 @@ mod tests {
         // Add a new block from round 2 from authority 1, which updates the set of
         // authorities that are aware of the missing blocks
         block_manager.try_accept_block_headers(vec![blocks_round_2[1].clone()]);
-        let missing_blocks_with_authorities = block_manager.missing_blocks();
+        let missing_blocks_with_authorities = block_manager.missing_block_headers();
         assert_eq!(
             missing_blocks_with_authorities[&block_round_1_authority_0],
             BTreeSet::from([

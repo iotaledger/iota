@@ -170,7 +170,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_blocks
+                .invalid_block_headers
                 .with_label_values(&[
                     peer_hostname.as_str(),
                     "handle_subscribed_block_bundle",
@@ -186,7 +186,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_blocks
+                .invalid_block_headers
                 .with_label_values(&[
                     peer_hostname.as_str(),
                     "handle_subscribed_block_bundle",
@@ -1070,7 +1070,7 @@ async fn make_recv_future<T: Clone>(
 #[cfg(test)]
 mod tests {
     use std::{
-        cmp::max,
+        cmp::{max, min},
         collections::{BTreeMap, BTreeSet},
         sync::Arc,
         time::Duration,
@@ -1086,7 +1086,9 @@ mod tests {
 
     use crate::{
         CommitConsumer, Round, Transaction, TransactionClient,
-        authority_service::{AuthorityService, BroadcastedBlockStream, SubscriptionCounter},
+        authority_service::{
+            AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
+        },
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
             VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
@@ -1899,7 +1901,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn get_missing_blocks(
+        async fn get_missing_block_headers(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             // do nothing
@@ -2056,7 +2058,7 @@ mod tests {
             }
             assert_eq!(
                 authority_service.received_block_headers.size(),
-                validators * round as usize - 1
+                min(validators * round as usize - 1, MAX_FILTER_SIZE as usize)
             )
         }
     }
