@@ -31,6 +31,9 @@ use crate::{
     transaction::CertifiedTransaction,
 };
 
+/// Non-decreasing timestamp produced by consensus in ms.
+pub type TimestampMs = u64;
+
 /// Uses an enum to allow for future expansion of the
 /// ConsensusDeterminedVersionAssignments.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]

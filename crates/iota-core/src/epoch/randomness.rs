@@ -697,12 +697,11 @@ impl RandomnessManager {
         output: &mut ConsensusCommitOutput,
     ) -> IotaResult<Option<RandomnessRound>> {
         let epoch_store = self.epoch_store()?;
-        let tables = epoch_store.tables()?;
 
-        let last_round_timestamp = tables
-            .randomness_last_round_timestamp
-            .get(&SINGLETON_KEY)
-            .expect("typed_store should not fail");
+        let last_round_timestamp = epoch_store
+            .get_randomness_last_round_timestamp()
+            .expect("read should not fail");
+
         if let Some(last_round_timestamp) = last_round_timestamp {
             if commit_timestamp - last_round_timestamp
                 < epoch_store
@@ -841,8 +840,11 @@ mod tests {
     use tokio::sync::mpsc;
 
     use crate::{
-        authority::test_authority_builder::TestAuthorityBuilder,
         checkpoints::CheckpointStore,
+        authority::{
+            authority_per_epoch_store::{ExecutionIndices, ExecutionIndicesWithStats},
+            test_authority_builder::TestAuthorityBuilder,
+        },
         consensus_adapter::{
             ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
             MockConsensusClient,
@@ -933,6 +935,13 @@ mod tests {
         }
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new();
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_managers[i]
                     .add_message(&epoch_stores[j].name, dkg_message)
@@ -963,6 +972,13 @@ mod tests {
         }
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new();
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
             for (j, dkg_confirmation) in dkg_confirmations.iter().cloned().enumerate() {
                 randomness_managers[i]
                     .add_confirmation(&mut output, &epoch_stores[j].name, dkg_confirmation)
@@ -1069,6 +1085,13 @@ mod tests {
         }
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new();
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_managers[i]
                     .add_message(&epoch_stores[j].name, dkg_message)

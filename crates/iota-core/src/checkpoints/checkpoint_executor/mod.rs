@@ -23,8 +23,9 @@
 
 use std::{sync::Arc, time::Instant};
 
-use futures::StreamExt;
+use futures::{StreamExt, FuturesOrdered};
 use iota_common::{debug_fatal, fatal};
+use either::Either;
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_types::{

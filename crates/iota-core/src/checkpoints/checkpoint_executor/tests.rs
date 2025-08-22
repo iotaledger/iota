@@ -258,6 +258,10 @@ pub async fn test_checkpoint_executor_cross_epoch() {
             // Since the expensive checks are disabled, per the line above, the value we pass here
             // won't be used.
             0,
+            checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap(),
         )
         .await
         .unwrap();

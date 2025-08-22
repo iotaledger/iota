@@ -4798,7 +4798,6 @@ async fn test_shared_object_transaction_ok() {
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&certificate.key())
         .expect("Reading shared version assignments should not fail")
-        .expect("Versions should be set")
         .into_iter()
         .find_map(|(object_id, version)| {
             if object_id == shared_object_id {
@@ -4909,7 +4908,6 @@ async fn test_consensus_commit_prologue_generation() {
             .epoch_store_for_testing()
             .get_assigned_shared_object_versions(txn_key)
             .unwrap()
-            .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
                 if id == &IOTA_CLOCK_OBJECT_ID {
@@ -5983,9 +5981,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // Checks that deferral keys are formed correctly.
     let epoch_store = authority.epoch_store_for_testing();
     let commit_round = epoch_store.get_highest_pending_checkpoint_height() / 2;
-    let deferred_txns = epoch_store
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+    let deferred_txns = epoch_store.get_all_deferred_transactions_for_test();
     assert_eq!(deferred_txns.len(), 1);
     assert_eq!(deferred_txns[0].1.len(), 3);
     let deferral_key = deferred_txns[0].0;
@@ -6044,8 +6040,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let deferred_txns = authority
         .epoch_store_for_testing()
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+        .get_all_deferred_transactions_for_test();
     assert_eq!(deferred_txns.len(), 1);
     assert_eq!(deferred_txns[0].1.len(), 1);
     let deferral_key = deferred_txns[0].0;
@@ -6072,7 +6067,6 @@ async fn test_consensus_handler_per_object_congestion_control(
         authority
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 }
@@ -6226,7 +6220,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         authority
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -6234,7 +6227,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&cancelled_txn.key())
-        .expect("Reading shared version assignments should not fail")
         .expect("Versions should be set")
         .into_iter()
         .collect::<HashMap<_, _>>();
