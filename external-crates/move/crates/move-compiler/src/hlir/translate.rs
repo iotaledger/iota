@@ -1598,9 +1598,11 @@ fn value(
         E::ErrorConstant {
             line_number_loc,
             error_constant,
+            error_code,
         } => make_exp(HE::ErrorConstant {
             line_number_loc,
             error_constant,
+            error_code,
         }),
         E::Move { from_user, var } => {
             let annotation = if from_user {

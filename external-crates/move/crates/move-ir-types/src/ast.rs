@@ -741,6 +741,7 @@ pub enum Bytecode_ {
     ErrorConstant {
         line_number: u16,
         constant: Option<ConstantName>,
+        error_code: Option<u8>,
     },
     PackVariant(DatatypeName, VariantName, Vec<Type>),
     UnpackVariant(DatatypeName, VariantName, Vec<Type>, UnpackType),
@@ -1814,10 +1815,12 @@ impl fmt::Display for Bytecode_ {
             Bytecode_::ErrorConstant {
                 line_number,
                 constant,
+                error_code,
             } => {
                 write!(
                     f,
-                    "ErrorConstant {}:{}",
+                    "ErrorConstant {}:{}:{}",
+                    error_code.unwrap_or(0),
                     line_number,
                     constant
                         .as_ref()
