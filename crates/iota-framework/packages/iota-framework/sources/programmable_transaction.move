@@ -13,6 +13,13 @@ const EInvalidArgumentType: u64 = 1;
 
 // === Structs ===
 
+// These structs are the move-side replication of iota-types's rust transaction
+// They are used in the MoveAuthenticator and the AuthContext
+// The main reason we need this is beacuse AuthContext requires a way to read PTBs on the move level
+
+// Replicates MoveCall(Box<ProgrammableMoveCall>), used in the Command enum
+// It represents a call to a Move function in a programmable transaction
+// CLI e.g: iota client ptb --move-call iota::tx_context::sender
 public struct ProgrammableMoveCall has copy, drop {
     package: ID,
     module_name: String,
@@ -21,11 +28,13 @@ public struct ProgrammableMoveCall has copy, drop {
     arguments: vector<Argument>,
 }
 
+// Replicates TransferObjects(Vec<Argument>, Argument)
 public struct ProgrammableTransaction has copy, drop {
     inputs: vector<CallArg>,
     commands: vector<Command>,
 }
 
+// Replicates ObjectRef
 public struct ObjectRef has copy, drop {
     object_id: ID,
     sequence_number: u64,
@@ -68,28 +77,28 @@ public enum ObjectArg has copy, drop {
 
 // === Public getters ===
 
-public fun package_id(call: &ProgrammableMoveCall): ID {
-    call.package
+public fun package_id(call: &ProgrammableMoveCall): &ID {
+    &call.package
 }
 
-public fun module_name(call: &ProgrammableMoveCall): String {
-    call.module_name
+public fun module_name(call: &ProgrammableMoveCall): &String {
+    &call.module_name
 }
 
-public fun function_name(call: &ProgrammableMoveCall): String {
-    call.function
+public fun function_name(call: &ProgrammableMoveCall): &String {
+    &call.function
 }
 
-public fun type_arguments(call: &ProgrammableMoveCall): vector<TypeName> {
-    call.type_arguments
+public fun type_arguments(call: &ProgrammableMoveCall): &vector<TypeName> {
+    &call.type_arguments
 }
 
-public fun arguments(call: &ProgrammableMoveCall): vector<Argument> {
-    call.arguments
+public fun arguments(call: &ProgrammableMoveCall): &vector<Argument> {
+    &call.arguments
 }
 
-public fun object_id(obj_ref: &ObjectRef): ID {
-    obj_ref.object_id
+public fun object_id(obj_ref: &ObjectRef): &ID {
+    &obj_ref.object_id
 }
 
 public fun sequence_number(obj_ref: &ObjectRef): u64 {
@@ -122,7 +131,8 @@ public fun object_data(arg: &CallArg): &ObjectArg {
     }
 }
 
-public fun command_variant_name(command: &Command): u8 {
+//Returns the integer representation of a command variant
+public fun command_to_int(command: &Command): u8 {
     match (command) {
         Command::MoveCall(_) => 0,
         Command::TransferObjects(_, _) => 1,

@@ -5,14 +5,7 @@
 module iota::auth_context_tests;
 
 use iota::auth_context::{new_with_tx_inputs, digest};
-use iota::programmable_transaction::{
-    new_pure,
-    CallArg,
-    Command,
-    new_input_argument,
-    new_move_call,
-    new_programmable_move_call
-};
+use iota::programmable_transaction::{new_input_argument, new_move_call, new_programmable_move_call};
 use std::type_name;
 
 #[test]
