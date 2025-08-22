@@ -1281,25 +1281,17 @@ impl IotaExecutionResult {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
-#[serde(rename = "IotaMoveViewCallResult", rename_all = "camelCase")]
-pub struct IotaMoveViewCallResults {
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub enum IotaMoveViewCallResults {
     /// Execution error from executing the move view call
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
+    #[serde(rename = "executionError")]
+    Error(String),
     /// The return values of the move view function
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub results: Vec<serde_json::Value>,
+    #[serde(rename = "viewFunctionReturnValues")]
+    Results(Vec<serde_json::Value>),
 }
 
 impl IotaMoveViewCallResults {
-    fn with_error(msg: impl Into<String>) -> Self {
-        Self {
-            error: Some(msg.into()),
-            ..Default::default()
-        }
-    }
-
     /// Process the dev-inspect results to produce the response
     /// of the move-view function call.
     pub async fn from_dev_inspect_results<S: PackageStore>(
@@ -1307,29 +1299,29 @@ impl IotaMoveViewCallResults {
         dev_inspect_results: DevInspectResults,
     ) -> anyhow::Result<Self> {
         if let Some(error) = dev_inspect_results.error {
-            return Ok(Self::with_error(error));
+            return Ok(Self::Error(error));
         }
         let Some(mut tx_execution_results) = dev_inspect_results.results else {
-            return Ok(Self::with_error("function call returned no values"));
+            return Ok(Self::Error("function call returned no values".into()));
         };
         let Some(execution_results) = tx_execution_results.pop() else {
-            return Ok(Self::with_error("no results from move view function call"));
+            return Ok(Self::Error(
+                "no results from move view function call".into(),
+            ));
         };
         if !tx_execution_results.is_empty() {
-            return Ok(Self::with_error("multiple transactions executed"));
+            return Ok(Self::Error("multiple transactions executed".into()));
         }
-        let mut move_call_results = Self::default();
+        let mut move_call_results = Vec::with_capacity(execution_results.return_values.len());
         let package_resolver = Resolver::new(package_store);
         let mut execution_results =
             execution_results.into_stream_return_value_layouts(&package_resolver);
         while let Some(result) = execution_results.next().await {
             let (bytes, move_type_layout) = result?;
             let move_value = BoundedVisitor::deserialize_value(&bytes, &move_type_layout)?;
-            move_call_results
-                .results
-                .push(IotaMoveValue::from(move_value).to_json_value());
+            move_call_results.push(IotaMoveValue::from(move_value).to_json_value());
         }
-        Ok(move_call_results)
+        Ok(Self::Results(move_call_results))
     }
 }
 

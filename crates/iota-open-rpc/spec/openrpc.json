@@ -3243,7 +3243,7 @@
         "name": "IotaMoveViewCallResults",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/IotaMoveViewCallResult"
+          "$ref": "#/components/schemas/IotaMoveViewCallResults"
         }
       }
     },
@@ -8513,22 +8513,36 @@
           }
         }
       },
-      "IotaMoveViewCallResult": {
-        "type": "object",
-        "properties": {
-          "error": {
+      "IotaMoveViewCallResults": {
+        "oneOf": [
+          {
             "description": "Execution error from executing the move view call",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "object",
+            "required": [
+              "executionError"
+            ],
+            "properties": {
+              "executionError": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
           },
-          "results": {
+          {
             "description": "The return values of the move view function",
-            "type": "array",
-            "items": true
+            "type": "object",
+            "required": [
+              "viewFunctionReturnValues"
+            ],
+            "properties": {
+              "viewFunctionReturnValues": {
+                "type": "array",
+                "items": true
+              }
+            },
+            "additionalProperties": false
           }
-        }
+        ]
       },
       "IotaMoveVisibility": {
         "type": "string",
