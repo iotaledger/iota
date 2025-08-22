@@ -9,6 +9,7 @@ use std::{
 use diesel::RunQueryDsl;
 use downcast::Any;
 use iota_indexer::{
+    errors::IndexerError,
     schema::{
         optimistic_event_emit_module, optimistic_event_emit_package, optimistic_event_senders,
         optimistic_event_struct_instantiation, optimistic_event_struct_module,
@@ -42,6 +43,7 @@ use iota_types::{
     transaction::{CallArg, Command, ObjectArg, TransactionData},
     utils::to_sender_signed_transaction,
 };
+use jsonrpsee::http_client::HttpClient;
 use move_core_types::{
     annotated_value::MoveValue,
     identifier::Identifier,
@@ -49,7 +51,7 @@ use move_core_types::{
 };
 
 use crate::common::{
-    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+    ApiTestSetup, execute_tx_must_succeed, indexer_wait_for_checkpoint,
     indexer_wait_for_latest_checkpoint, indexer_wait_for_object, indexer_wait_for_transaction,
     rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
 };
@@ -405,154 +407,89 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
     })
 }
 
-#[test]
-fn test_query_transaction_blocks_pagination_with_partial_global_order() -> Result<(), anyhow::Error>
-{
-    let ApiTestSetup {
-        runtime,
-        store,
-        cluster,
-        client,
-    } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn test_query_transaction_blocks_pagination_with_partial_global_order()
+-> Result<(), anyhow::Error> {
+    // separate test environment needed because DB is wiped during test
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_transaction_blocks_pagination_with_partial_global_order"),
+        None,
+        None,
+    )
+    .await;
+    indexer_wait_for_checkpoint(store, 1).await;
 
-    runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_ref = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000),
-                address,
+    let gas_ref = cluster
+        .fund_address_and_return_gas(
+            cluster.get_reference_gas_price().await,
+            Some(500_000_000),
+            address,
+        )
+        .await;
+    indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+    let coin_to_split = cluster
+        .fund_address_and_return_gas(
+            cluster.get_reference_gas_price().await,
+            Some(500_000_000),
+            address,
+        )
+        .await;
+    indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
+    let iota_client = cluster.wallet.get_client().await.unwrap();
+    let mut expected_tx_digests = vec![];
+
+    for _ in 0..5 {
+        let tx_data = iota_client
+            .transaction_builder()
+            .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
+            .await?;
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+        let res = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
             )
-            .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
-        let coin_to_split = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000),
-                address,
+            .await?;
+        indexer_wait_for_transaction(res.digest, store, client).await;
+        expected_tx_digests.push(res.digest);
+    }
+
+    wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
+
+    for _ in 0..5 {
+        let tx_data = iota_client
+            .transaction_builder()
+            .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
+            .await?;
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+        let res = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
             )
-            .await;
-        indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
-        let iota_client = cluster.wallet.get_client().await.unwrap();
+            .await?;
+        indexer_wait_for_transaction(res.digest, store, client).await;
+        expected_tx_digests.push(res.digest);
+    }
 
-        for _ in 0..5 {
-            let tx_data = iota_client
-                .transaction_builder()
-                .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
-                .await?;
-            let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
-            let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
-            let res = client
-                .execute_transaction_block(
-                    tx_bytes,
-                    signatures,
-                    Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                    Some(ExecuteTransactionRequestType::WaitForEffectsCert),
-                )
-                .await?;
-            indexer_wait_for_transaction(res.digest, store, client).await;
-        }
+    let filter = TransactionFilter::FromAddress(address);
 
-        wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
+    assert_paginated_filtered_transactions(client, &expected_tx_digests, filter.clone(), 2).await?;
 
-        for _ in 0..5 {
-            let tx_data = iota_client
-                .transaction_builder()
-                .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
-                .await?;
-            let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
-            let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
-            let res = client
-                .execute_transaction_block(
-                    tx_bytes,
-                    signatures,
-                    Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                    Some(ExecuteTransactionRequestType::WaitForEffectsCert),
-                )
-                .await?;
-            indexer_wait_for_transaction(res.digest, store, client).await;
-        }
+    // wait for data to be checkpointed
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let objects = client
-            .get_owned_objects(
-                address,
-                Some(IotaObjectResponseQuery::new_with_options(
-                    IotaObjectDataOptions::new(),
-                )),
-                None,
-                None,
-            )
-            .await?
-            .data;
-        // 2 gas coins + 5 coins without global order + 5 coins with global order
-        assert_eq!(12, objects.len());
+    assert_paginated_filtered_transactions(client, &expected_tx_digests, filter, 2).await?;
 
-        // filter transactions by address
-        let query = IotaTransactionBlockResponseQuery {
-            options: Some(IotaTransactionBlockResponseOptions {
-                show_input: true,
-                show_effects: true,
-                show_events: true,
-                ..Default::default()
-            }),
-            filter: Some(TransactionFilter::FromAddress(address)),
-        };
-
-        // Paging in ascending order
-        {
-            let first_page = client
-                .query_transaction_blocks(query.clone(), None, Some(3), Some(false))
-                .await
-                .unwrap();
-            assert_eq!(3, first_page.data.len());
-
-            let next_page = client
-                .query_transaction_blocks(
-                    query.clone(),
-                    first_page.next_cursor,
-                    Some(4),
-                    Some(false),
-                )
-                .await
-                .unwrap();
-            assert_eq!(4, next_page.data.len());
-
-            let last_page = client
-                .query_transaction_blocks(query.clone(), next_page.next_cursor, None, Some(false))
-                .await
-                .unwrap();
-            assert_eq!(3, last_page.data.len());
-        }
-
-        // Paging in descending order
-        {
-            let first_page = client
-                .query_transaction_blocks(query.clone(), None, Some(3), Some(true))
-                .await
-                .unwrap();
-            assert_eq!(3, first_page.data.len());
-
-            let next_page = client
-                .query_transaction_blocks(
-                    query.clone(),
-                    first_page.next_cursor,
-                    Some(4),
-                    Some(true),
-                )
-                .await
-                .unwrap();
-            assert_eq!(4, next_page.data.len());
-
-            let last_page = client
-                .query_transaction_blocks(query, next_page.next_cursor, None, Some(true))
-                .await
-                .unwrap();
-            assert_eq!(3, last_page.data.len());
-        }
-
-        Ok(())
-    })
+    Ok(())
 }
 
 #[test]
@@ -698,9 +635,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
 fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
         runtime,
-        store,
         cluster,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -727,7 +664,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, transfer_request, &keypair).await;
+        execute_tx_must_succeed(client, transfer_request, &keypair).await;
         let transfer_request = client
             .transfer_iota(
                 address,
@@ -738,7 +675,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, transfer_request, &keypair).await;
+        execute_tx_must_succeed(client, transfer_request, &keypair).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromAndToAddress {
@@ -758,12 +695,89 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
 }
 
 #[test]
+fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let recipient = IotaAddress::random_for_testing_only();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let filter = TransactionFilter::FromOrToAddress { addr: recipient };
+
+        let transfer_request = client
+            .transfer_iota(
+                address,
+                gas.0,
+                5_000_000.into(),
+                recipient,
+                Some(100_000_000.into()),
+            )
+            .await
+            .unwrap();
+        let digest_1 = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+
+        let transfer_request = client
+            .transfer_iota(
+                address,
+                gas.0,
+                5_000_000.into(),
+                recipient,
+                Some(150_000_000.into()),
+            )
+            .await
+            .unwrap();
+        let digest_2 = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+
+        let transfer_request = client
+            .transfer_iota(
+                address,
+                gas.0,
+                5_000_000.into(),
+                recipient,
+                Some(160_000_000.into()),
+            )
+            .await
+            .unwrap();
+        let digest_3 = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+
+        assert_paginated_filtered_transactions(
+            client,
+            &[digest_1, digest_2, digest_3],
+            filter.clone(),
+            2,
+        )
+        .await?;
+
+        // wait for data to be checkpointed
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        assert_paginated_filtered_transactions(client, &[digest_1, digest_2, digest_3], filter, 2)
+            .await?;
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
         runtime,
-        store,
         cluster,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -790,7 +804,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, transfer_request, &keypair).await;
+        execute_tx_must_succeed(client, transfer_request, &keypair).await;
         let transfer_request = client
             .transfer_iota(
                 address,
@@ -801,7 +815,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, transfer_request, &keypair).await;
+        execute_tx_must_succeed(client, transfer_request, &keypair).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromOrToAddress { addr: address },
@@ -824,120 +838,209 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
         Ok(())
     })
 }
-
-#[test]
-fn test_query_transaction_blocks_from_or_to_address_with_incomplete_global_order()
+#[tokio::test]
+async fn test_query_transaction_blocks_from_or_to_address_with_incomplete_global_order()
 -> Result<(), anyhow::Error> {
-    let ApiTestSetup {
-        runtime,
-        store,
-        cluster,
-        client,
-    } = ApiTestSetup::get_or_init();
+    // separate test environment needed because DB is wiped during test
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_transaction_blocks_from_or_to_address_with_incomplete_global_order"),
+        None,
+        None,
+    )
+    .await;
+    indexer_wait_for_checkpoint(store, 1).await;
 
-    runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random_for_testing_only();
+    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+    let recipient_1 = IotaAddress::random_for_testing_only();
 
-        let gas = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000),
+    let gas = cluster
+        .fund_address_and_return_gas(
+            cluster.get_reference_gas_price().await,
+            Some(500_000_000),
+            address,
+        )
+        .await;
+    indexer_wait_for_object(client, gas.0, gas.1).await;
+
+    let filter = TransactionFilter::FromOrToAddress { addr: address };
+    let query = IotaTransactionBlockResponseQuery::new_with_filter(filter.clone());
+
+    let first_tx_page = client
+        .query_transaction_blocks(query.clone(), None, Some(3), None)
+        .await
+        .unwrap();
+    assert_eq!(1, first_tx_page.data.len());
+    let mut expected_tx_digests = vec![first_tx_page.data[0].digest];
+
+    // Collect digests from first batch of transactions (before wiping global order)
+    for _ in 0..5 {
+        let transfer_request = client
+            .transfer_iota(
                 address,
+                gas.0,
+                5_000_000.into(),
+                recipient_1,
+                Some(1_000_000.into()),
             )
-            .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+            .await
+            .unwrap();
+        let digest = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        expected_tx_digests.push(digest);
+    }
 
-        for _ in 0..5 {
-            let transfer_request = client
-                .transfer_iota(
-                    address,
-                    gas.0,
-                    5_000_000.into(),
-                    recipient_1,
-                    Some(1_000_000.into()),
-                )
-                .await
-                .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, transfer_request, &keypair)
-                .await;
+    indexer_wait_for_transaction(*expected_tx_digests.last().unwrap(), store, client).await;
+    wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
+
+    // Collect digests from second batch of transactions (after wiping global order)
+    for _ in 0..5 {
+        let transfer_request = client
+            .transfer_iota(
+                address,
+                gas.0,
+                5_000_000.into(),
+                recipient_1,
+                Some(1_000_000.into()),
+            )
+            .await
+            .unwrap();
+        let digest = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        expected_tx_digests.push(digest);
+    }
+
+    assert_paginated_filtered_transactions(client, &expected_tx_digests, filter, 3).await?;
+
+    Ok(())
+}
+
+async fn assert_paginated_filtered_transactions(
+    client: &HttpClient,
+    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    filter: TransactionFilter,
+    page_size: usize,
+) -> Result<(), IndexerError> {
+    // Test querying all transactions (ascending order - default)
+    let all_transactions = client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::new_with_filter(filter.clone()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Verify transactions are returned in ascending order
+    let returned_transactions_digests: Vec<_> =
+        all_transactions.data.iter().map(|e| e.digest).collect();
+    assert_eq!(returned_transactions_digests, expected_transactions_digests);
+
+    assert_paginated_transactions_ascending(
+        client,
+        expected_transactions_digests,
+        &filter,
+        page_size,
+    )
+    .await?;
+    assert_paginated_transactions_descending(
+        client,
+        expected_transactions_digests,
+        &filter,
+        page_size,
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn assert_paginated_transactions_ascending(
+    client: &HttpClient,
+    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    filter: &TransactionFilter,
+    page_size: usize,
+) -> Result<(), IndexerError> {
+    let mut cursor = None;
+    let mut transactions_processed = 0;
+    let total_transactions = expected_transactions_digests.len();
+
+    loop {
+        let page = client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery::new_with_filter(filter.clone()),
+                cursor,
+                Some(page_size),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let transactions_remaining = total_transactions - transactions_processed;
+        let expected_page_size = std::cmp::min(page_size, transactions_remaining);
+        let is_last_page = transactions_processed + expected_page_size >= total_transactions;
+
+        let actual_transactions_ids: Vec<_> = page.data.iter().map(|e| e.digest).collect();
+        let expected_transactions_digests_slice = &expected_transactions_digests
+            [transactions_processed..transactions_processed + expected_page_size];
+
+        assert_eq!(actual_transactions_ids, expected_transactions_digests_slice);
+        assert_eq!(page.has_next_page, !is_last_page);
+
+        if is_last_page {
+            break;
         }
+        cursor = page.next_cursor;
+        transactions_processed += expected_page_size;
+    }
 
-        wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
+    Ok(())
+}
 
-        for _ in 0..5 {
-            let transfer_request = client
-                .transfer_iota(
-                    address,
-                    gas.0,
-                    5_000_000.into(),
-                    recipient_1,
-                    Some(1_000_000.into()),
-                )
-                .await
-                .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, transfer_request, &keypair)
-                .await;
+async fn assert_paginated_transactions_descending(
+    client: &HttpClient,
+    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    filter: &TransactionFilter,
+    page_size: usize,
+) -> Result<(), IndexerError> {
+    let mut cursor = None;
+    let mut transactions_processed = 0;
+    let total_transactions = expected_transactions_digests.len();
+
+    // In descending order, we expect transactions in reverse chronological order
+    let expected_desc_transactions: Vec<_> = expected_transactions_digests
+        .iter()
+        .rev()
+        .cloned()
+        .collect();
+
+    loop {
+        let page = client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery::new_with_filter(filter.clone()),
+                cursor,
+                Some(page_size),
+                Some(true),
+            )
+            .await
+            .unwrap();
+
+        let transactions_remaining = total_transactions - transactions_processed;
+        let expected_page_size = std::cmp::min(page_size, transactions_remaining);
+        let is_last_page = transactions_processed + expected_page_size >= total_transactions;
+
+        let actual_transactions_ids: Vec<_> = page.data.iter().map(|e| e.digest).collect();
+        let expected_transactions_digests_slice = &expected_desc_transactions
+            [transactions_processed..transactions_processed + expected_page_size];
+
+        assert_eq!(actual_transactions_ids, expected_transactions_digests_slice);
+        assert_eq!(page.has_next_page, !is_last_page);
+
+        if is_last_page {
+            break;
         }
+        cursor = page.next_cursor;
+        transactions_processed += expected_page_size;
+    }
 
-        let query = IotaTransactionBlockResponseQuery::new_with_filter(
-            TransactionFilter::FromOrToAddress { addr: address },
-        );
-
-        // Paging in ascending order
-        {
-            let first_page = client
-                .query_transaction_blocks(query.clone(), None, Some(3), Some(false))
-                .await
-                .unwrap();
-            assert_eq!(3, first_page.data.len());
-
-            let next_page = client
-                .query_transaction_blocks(
-                    query.clone(),
-                    first_page.next_cursor,
-                    Some(4),
-                    Some(false),
-                )
-                .await
-                .unwrap();
-            assert_eq!(4, next_page.data.len());
-
-            let last_page = client
-                .query_transaction_blocks(query.clone(), next_page.next_cursor, None, Some(false))
-                .await
-                .unwrap();
-            assert_eq!(4, last_page.data.len());
-        }
-
-        // Paging in descending order
-        {
-            let first_page = client
-                .query_transaction_blocks(query.clone(), None, Some(3), Some(true))
-                .await
-                .unwrap();
-            assert_eq!(3, first_page.data.len());
-
-            let next_page = client
-                .query_transaction_blocks(
-                    query.clone(),
-                    first_page.next_cursor,
-                    Some(4),
-                    Some(true),
-                )
-                .await
-                .unwrap();
-            assert_eq!(4, next_page.data.len());
-
-            let last_page = client
-                .query_transaction_blocks(query, next_page.next_cursor, None, Some(true))
-                .await
-                .unwrap();
-            assert_eq!(4, last_page.data.len());
-        }
-
-        Ok(())
-    })
+    Ok(())
 }
 
 #[test]

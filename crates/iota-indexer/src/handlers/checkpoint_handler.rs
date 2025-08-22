@@ -99,6 +99,14 @@ pub type IndexedTransactionComponents = (
     BTreeMap<String, StoredDisplay>,
 );
 
+pub(crate) type IndexedTransactionComponentsV2 = (
+    IndexedTransaction,
+    TxIndexV2,
+    Vec<IndexedEvent>,
+    Vec<EventIndex>,
+    BTreeMap<String, StoredDisplay>,
+);
+
 #[async_trait]
 impl Worker for CheckpointHandler {
     type Message = ();
@@ -529,19 +537,13 @@ impl CheckpointHandler {
         ))
     }
 
-    async fn index_transaction_v2(
+    pub(crate) async fn index_transaction_v2(
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
         checkpoint_seq: CheckpointSequenceNumber,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
-    ) -> IndexerResult<(
-        IndexedTransaction,
-        TxIndexV2,
-        Vec<IndexedEvent>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-    )> {
+    ) -> IndexerResult<IndexedTransactionComponentsV2> {
         let CheckpointTransaction {
             transaction: sender_signed_data,
             effects: fx,
