@@ -242,9 +242,13 @@ mod checked {
         )
     }
 
-    /// This function implements a smart account transaction validation.
-    /// It prepares a `MoveAuthenticator` transaction for execution, then
-    /// executes it through an inner execution method.
+    /// This function implements an abstracted IOTA account transaction
+    /// validation. This validation checks that the authentication method used
+    /// for the account is valid. It prepares a `MoveAuthenticator` PTB with
+    /// a single move call for execution, then executes it through an inner
+    /// execution method. The `MoveAuthenticator` provides the inputs to use for
+    /// the authentication function found in `AuthenticatorInfo`, that is
+    /// retrieved from the abstracted IOTA account.
     ///
     /// Returns an error if it happens or the move authenticator computation gas
     /// cost without bucketing. It is different from the
@@ -335,7 +339,7 @@ mod checked {
             AuthContext::new_from_components(authenticator.digest(), &ptb)
         };
 
-        // Setup a move authenticator transaction; Push the authenticator context as the
+        // Setup a move authenticator transaction; push the authenticator context as the
         // last argument.
         let authenticator_move_call =
             setup_authenticator_move_call(authenticator, authenticator_info, auth_ctx)?;
@@ -431,35 +435,38 @@ mod checked {
         );
 
         // Charge gas for reading the Move authenticator input objects from the storage.
-        let result = gas_charger.charge_input_objects(temporary_store);
+        let result = gas_charger
+            .charge_input_objects(temporary_store)
+            .and_then(|()| {
+                run_inputs_checks(
+                    protocol_config,
+                    deny_cert,
+                    contains_deleted_input,
+                    cancelled_objects,
+                )?;
+                programmable_transactions::execution::execute::<Mode>(
+                    protocol_config,
+                    metrics.clone(),
+                    move_vm,
+                    temporary_store,
+                    tx_ctx,
+                    &mut gas_charger,
+                    authenticator_move_call,
+                    trace_builder_opt,
+                )
+                .and_then(|ok_result| {
+                    temporary_store.check_move_authenticator_results_consistency()?;
+                    Ok(ok_result)
+                })
+            });
 
-        let result = result.and_then(|()| {
-            run_inputs_checks(
-                protocol_config,
-                deny_cert,
-                contains_deleted_input,
-                cancelled_objects,
-            )?;
-            programmable_transactions::execution::execute::<Mode>(
-                protocol_config,
-                metrics.clone(),
-                move_vm,
-                temporary_store,
-                tx_ctx,
-                &mut gas_charger,
-                authenticator_move_call,
-                trace_builder_opt,
-            )
-            .and_then(|ok_result| {
-                temporary_store.check_move_authenticator_results_consistency()?;
-                Ok(ok_result)
-            })
-        });
-
+        // Compute the gas used for the authentication execution without
+        // rounding/bucketing.
         let gas_status = gas_charger.into_gas_status();
 
-        // Return the gas used for execution without bucketing.
-        (gas_status.gas_used() * gas_status.gas_price(), result)
+        let authentication_computation_cost = gas_status.gas_used() * gas_status.gas_price();
+
+        (authentication_computation_cost, result)
     }
 
     /// Function dedicated to the execution of a GenesisTransaction.
@@ -1553,8 +1560,10 @@ mod checked {
         )
     }
 
-    /// The function constructs a transaction that invokes a smart account
-    /// authenticator.
+    /// Construct a PTB with a single move call. This calls the authenticator
+    /// function found in `AuthenticatorInfo`. The inputs for the function are
+    /// found in `MoveAuthenticator`. Then, the `AuthContext` is pushed as the
+    /// last input.
     fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfo,
