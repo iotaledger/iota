@@ -4,11 +4,12 @@
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
+use iota_json::IotaJsonValue;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{WriteApiClient, WriteApiServer, error_object_from_rpc};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -79,6 +80,15 @@ impl WriteApiServer for WriteApi {
             .dry_run_transaction_block(tx_bytes)
             .await
             .map_err(error_object_from_rpc)
+    }
+
+    async fn view_function_call(
+        &self,
+        function_name: String,
+        type_args: Vec<IotaTypeTag>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> RpcResult<IotaMoveViewCallResults> {
+        todo!()
     }
 }
 
