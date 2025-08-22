@@ -79,6 +79,8 @@ use crate::{
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
+pub const GLOBAL_SEQUENCE_NUMBER_STR: &str = "global_sequence_number";
+pub const OPTIMISTIC_SEQUENCE_NUMBER_STR: &str = "optimistic_sequence_number";
 pub const TX_DIGEST_STR: &str = "tx_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
@@ -100,7 +102,7 @@ impl Clone for IndexerReader {
 
 pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum CursorPosition {
     BeforeGlobalOrder(i64),
     InGlobalOrder(i64, i64),
@@ -109,6 +111,7 @@ enum CursorPosition {
 struct QueryTransactionBlocksSqlQueryBuilder<'a> {
     source_table_alias: &'a str,
     source_table_or_query: &'a str,
+    optimistic_source_table_or_query: &'a str,
     main_filter_condition: &'a str,
     cursor_position: Option<CursorPosition>,
     is_descending: bool,
@@ -121,6 +124,7 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
     fn new(
         source_table_alias: &'a str,
         source_table_or_query: &'a str,
+        optimistic_source_table_or_query: &'a str,
         main_filter_condition: &'a str,
         cursor_position: Option<CursorPosition>,
         is_descending: bool,
@@ -133,6 +137,7 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
             limit,
             source_table_alias,
             source_table_or_query,
+            optimistic_source_table_or_query,
             main_filter_condition,
             smallest_tx_seq_with_global_order,
             order_str: if is_descending {
@@ -202,7 +207,7 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         }
     }
 
-    fn get_query_before_global_order(&self, fields_to_select: &str) -> String {
+    fn get_query_before_global_order(&self, return_order_columns: bool) -> String {
         let source_table_alias = self.source_table_alias;
         let source_table_or_query = self.source_table_or_query;
         let main_filter_condition = self.main_filter_condition;
@@ -210,6 +215,11 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         let limit = self.limit;
         let before_global_order_cursor_clause = self.get_before_global_order_cursor_clause();
         let order_str = &self.order_str;
+        let fields_to_select = if return_order_columns {
+            format!("{TX_DIGEST_STR}, tx_digests.{TX_SEQUENCE_NUMBER_STR}")
+        } else {
+            TX_DIGEST_STR.into()
+        };
 
         format!(
             "SELECT {fields_to_select} \
@@ -223,28 +233,55 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         )
     }
 
-    fn get_query_with_global_order(&self, fields_to_select: &str) -> String {
+    fn get_query_with_global_order(&self, return_order_columns: bool) -> String {
         let source_table_alias = self.source_table_alias;
         let source_table_or_query = self.source_table_or_query;
+        let optimistic_source_table_or_query = self.optimistic_source_table_or_query;
         let main_filter_condition = self.main_filter_condition;
         let limit = self.limit;
         let global_order_cursor_clause = self.get_with_global_order_cursor_clause();
         let order_str = &self.order_str;
+        let fields_to_select = if return_order_columns {
+            format!(
+                "{TX_DIGEST_STR}, {GLOBAL_SEQUENCE_NUMBER_STR}, {OPTIMISTIC_SEQUENCE_NUMBER_STR}"
+            )
+        } else {
+            TX_DIGEST_STR.into()
+        };
 
-        format!(
-            "SELECT {fields_to_select} \
+        let checkpointed_data_qry = format!(
+            "SELECT {TX_DIGEST_STR}, tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR}, tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
             FROM {source_table_or_query} \
             JOIN tx_global_order ON tx_global_order.chk_tx_sequence_number = {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} \
             WHERE {main_filter_condition} {global_order_cursor_clause} \
-            ORDER BY tx_global_order.global_sequence_number {order_str}, tx_global_order.optimistic_sequence_number {order_str} \
+            ORDER BY tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR} {order_str}, tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} {order_str} \
             LIMIT {limit} \
             ",
-        )
+        );
+
+        let optimistic_data_qry = format!(
+            "SELECT {TX_DIGEST_STR}, tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR}, tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+            FROM {optimistic_source_table_or_query} \
+            JOIN tx_global_order \
+                ON tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR} = {source_table_alias}.{GLOBAL_SEQUENCE_NUMBER_STR} \
+                AND tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} = {source_table_alias}.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+            WHERE {main_filter_condition} {global_order_cursor_clause} \
+            ORDER BY tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR} {order_str}, tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} {order_str} \
+            LIMIT {limit} \
+            ",
+        );
+
+        format!(
+            "SELECT {fields_to_select} \
+            FROM (({checkpointed_data_qry}) UNION ({optimistic_data_qry})) AS combined \
+            ORDER BY {GLOBAL_SEQUENCE_NUMBER_STR} {order_str}, {OPTIMISTIC_SEQUENCE_NUMBER_STR} {order_str} \
+            LIMIT {limit}"
+        ) // we need UNION to remove duplicates, but we need to restore order after that
     }
 
-    fn get_combined_query(&self, fields_to_select: &str) -> String {
-        let query_before_global_order = self.get_query_before_global_order(fields_to_select);
-        let query_after_global_order = self.get_query_with_global_order(fields_to_select);
+    fn get_combined_query(&self) -> String {
+        let query_before_global_order = self.get_query_before_global_order(false);
+        let query_after_global_order = self.get_query_with_global_order(false);
 
         QueryTransactionBlocksSqlQueryBuilder::combine_queries(
             query_before_global_order,
@@ -1460,23 +1497,27 @@ impl IndexerReader {
                     // transactions (and other tables) are not
                     .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
                     .first::<i64>(conn)
+                    .optional()
             })?;
-            let cursor_position = if tx_seq >= smallest_tx_seq_with_global_order {
-                let pool = self.get_pool();
-                let (global_seq, optimistic_seq) = run_query_async!(&pool, move |conn| {
-                    tx_global_order::table
-                        .select((
-                            tx_global_order::global_sequence_number,
-                            tx_global_order::optimistic_sequence_number,
-                        ))
-                        .filter(tx_global_order::tx_digest.eq(cursor.into_inner().to_vec()))
-                        .first::<(i64, i64)>(conn)
-                })?;
-                CursorPosition::InGlobalOrder(global_seq, optimistic_seq)
-            } else {
-                CursorPosition::BeforeGlobalOrder(tx_seq)
+            let cursor_position = match tx_seq {
+                Some(seq) if seq < smallest_tx_seq_with_global_order => {
+                    CursorPosition::BeforeGlobalOrder(seq)
+                }
+                _ => {
+                    let pool = self.get_pool();
+                    let (global_seq, optimistic_seq) = run_query_async!(&pool, move |conn| {
+                        tx_global_order::table
+                            .select((
+                                tx_global_order::global_sequence_number,
+                                tx_global_order::optimistic_sequence_number,
+                            ))
+                            .filter(tx_global_order::tx_digest.eq(cursor.into_inner().to_vec()))
+                            .first::<(i64, i64)>(conn)
+                    })?;
+                    CursorPosition::InGlobalOrder(global_seq, optimistic_seq)
+                }
             };
-            (Some(tx_seq), Some(cursor_position))
+            (tx_seq, Some(cursor_position))
         } else {
             (None, None)
         };
@@ -1485,6 +1526,11 @@ impl IndexerReader {
             // Processed above
             Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
+                if old_order_tx_seq.is_none()
+                    && matches!(cursor_position, Some(CursorPosition::InGlobalOrder(_, _)))
+                {
+                    return Err(IndexerError::InvalidArgument("Checkpoint filter cannot be used with cursor that is outside of a checkpoint".into()));
+                }
                 return self
                     .query_transaction_blocks_by_checkpoint_impl(
                         seq,
@@ -1579,18 +1625,25 @@ impl IndexerReader {
                 let to_address = Hex::encode(to.to_vec());
 
                 let data_source_query = format!(
-                    "tx_senders \
-                    JOIN tx_recipients \
-                    ON tx_senders.{TX_SEQUENCE_NUMBER_STR} = tx_recipients.{TX_SEQUENCE_NUMBER_STR}"
+                    "tx_senders AS senders_table \
+                    JOIN tx_recipients AS recipients_table \
+                    ON senders_table.{TX_SEQUENCE_NUMBER_STR} = recipients_table.{TX_SEQUENCE_NUMBER_STR}"
+                );
+                let optimistic_data_source_query = format!(
+                    "optimistic_tx_senders AS senders_table \
+                    JOIN optimistic_tx_recipients AS recipients_table \
+                    ON senders_table.{GLOBAL_SEQUENCE_NUMBER_STR} = recipients_table.{GLOBAL_SEQUENCE_NUMBER_STR} \
+                    AND senders_table.{OPTIMISTIC_SEQUENCE_NUMBER_STR} = recipients_table.{OPTIMISTIC_SEQUENCE_NUMBER_STR}"
                 );
                 let filter_condition = format!(
-                    "tx_senders.sender = '\\x{from_address}'::BYTEA \
-                     AND tx_recipients.recipient = '\\x{to_address}'::BYTEA"
+                    "senders_table.sender = '\\x{from_address}'::BYTEA \
+                     AND recipients_table.recipient = '\\x{to_address}'::BYTEA"
                 );
 
                 let query_builder = QueryTransactionBlocksSqlQueryBuilder::new(
-                    "tx_senders",
+                    "senders_table",
                     &data_source_query,
+                    &optimistic_data_source_query,
                     &filter_condition,
                     cursor_position,
                     is_descending,
@@ -1598,7 +1651,7 @@ impl IndexerReader {
                     smallest_tx_seq_with_global_order,
                 );
 
-                FilteredDataSource::CustomQuery(query_builder.get_combined_query(TX_DIGEST_STR))
+                FilteredDataSource::CustomQuery(query_builder.get_combined_query())
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
@@ -1606,8 +1659,9 @@ impl IndexerReader {
                 let sender_address_filter = format!("sender = '\\x{address}'::BYTEA");
                 let recipient_address_filter = format!("recipient = '\\x{address}'::BYTEA");
                 let query_builder_senders = QueryTransactionBlocksSqlQueryBuilder::new(
-                    "tx_senders",
-                    "tx_senders",
+                    "senders_table",
+                    "tx_senders AS senders_table",
+                    "optimistic_tx_senders AS senders_table",
                     &sender_address_filter,
                     cursor_position,
                     is_descending,
@@ -1615,8 +1669,9 @@ impl IndexerReader {
                     smallest_tx_seq_with_global_order,
                 );
                 let query_builder_recipients = QueryTransactionBlocksSqlQueryBuilder::new(
-                    "tx_recipients",
-                    "tx_recipients",
+                    "recipients_table",
+                    "tx_recipients AS recipients_table",
+                    "optimistic_tx_recipients AS recipients_table",
                     &recipient_address_filter,
                     cursor_position,
                     is_descending,
@@ -1626,12 +1681,9 @@ impl IndexerReader {
                 let order_str = &query_builder_senders.order_str;
 
                 let inner_query_before_global_order = {
-                    let senders_before = query_builder_senders.get_query_before_global_order(
-                        &format!("{TX_DIGEST_STR}, tx_senders.{TX_SEQUENCE_NUMBER_STR}"),
-                    );
-                    let recipients_before = query_builder_recipients.get_query_before_global_order(
-                        &format!("{TX_DIGEST_STR}, tx_recipients.{TX_SEQUENCE_NUMBER_STR}"),
-                    );
+                    let senders_before = query_builder_senders.get_query_before_global_order(true);
+                    let recipients_before =
+                        query_builder_recipients.get_query_before_global_order(true);
 
                     format!(
                         "SELECT {TX_DIGEST_STR} \
@@ -1641,10 +1693,9 @@ impl IndexerReader {
                 };
 
                 let inner_query_with_global_order = {
-                    let senders_with = query_builder_senders
-                        .get_query_with_global_order(&format!("{TX_DIGEST_STR}, tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number"));
-                    let recipients_with = query_builder_recipients
-                        .get_query_with_global_order(&format!("{TX_DIGEST_STR}, tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number"));
+                    let senders_with = query_builder_senders.get_query_with_global_order(true);
+                    let recipients_with =
+                        query_builder_recipients.get_query_with_global_order(true);
 
                     format!(
                         "SELECT {TX_DIGEST_STR} \
@@ -1759,9 +1810,11 @@ impl IndexerReader {
                 table_name,
                 filter_condition,
             } => {
+                let optimistic_table = format!("optimistic_{table_name} AS {table_name}");
                 let query_builder = QueryTransactionBlocksSqlQueryBuilder::new(
                     &table_name,
                     &table_name,
+                    &optimistic_table,
                     &filter_condition,
                     cursor_position,
                     is_descending,
@@ -1769,7 +1822,7 @@ impl IndexerReader {
                     smallest_tx_seq_with_global_order,
                 );
 
-                query_builder.get_combined_query(TX_DIGEST_STR)
+                query_builder.get_combined_query()
             }
         };
 
@@ -1787,6 +1840,7 @@ impl IndexerReader {
                 .expect("Digest read from DB should be valid")
         })
         .collect::<Vec<TransactionDigest>>();
+
         self.multi_get_transaction_block_response_in_blocking_task_with_preserved_order(
             ordered_digests,
             options,

@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS optimistic_tx_calls_pkg;
 DROP TABLE IF EXISTS optimistic_tx_calls_mod;
 DROP TABLE IF EXISTS optimistic_tx_calls_fun;
 DROP TABLE IF EXISTS optimistic_tx_kinds;
+DROP TABLE IF EXISTS optimistic_tx_wrapped_or_deleted_objects;
 
 DROP TABLE IF EXISTS optimistic_event_emit_package;
 DROP TABLE IF EXISTS optimistic_event_emit_module;

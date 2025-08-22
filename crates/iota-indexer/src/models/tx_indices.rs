@@ -8,9 +8,9 @@ use crate::{
     schema::{
         optimistic_tx_calls_fun, optimistic_tx_calls_mod, optimistic_tx_calls_pkg,
         optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
-        optimistic_tx_recipients, optimistic_tx_senders, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
-        tx_changed_objects, tx_digests, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
-        tx_wrapped_or_deleted_objects,
+        optimistic_tx_recipients, optimistic_tx_senders, optimistic_tx_wrapped_or_deleted_objects,
+        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_input_objects,
+        tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
     },
     types::{TxIndex, TxIndexV2},
 };
@@ -349,6 +349,15 @@ pub struct OptimisticTxKind {
     pub global_sequence_number: i64,
 }
 
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_tx_wrapped_or_deleted_objects)]
+pub struct OptimisticTxWrappedOrDeletedObject {
+    pub optimistic_sequence_number: i64,
+    pub global_sequence_number: i64,
+    pub object_id: Vec<u8>,
+    pub sender: Vec<u8>,
+}
+
 optimistic_from_into_checkpoint!(OptimisticTxSenders, StoredTxSenders, { sender });
 optimistic_from_into_checkpoint!(OptimisticTxRecipients, StoredTxRecipients, { recipient, sender });
 optimistic_from_into_checkpoint!(OptimisticTxInputObject, StoredTxInputObject, { object_id, sender });
@@ -357,6 +366,9 @@ optimistic_from_into_checkpoint!(OptimisticTxPkg, StoredTxPkg, { package, sender
 optimistic_from_into_checkpoint!(OptimisticTxMod, StoredTxMod, { package, module, sender });
 optimistic_from_into_checkpoint!(OptimisticTxFun, StoredTxFun, { package, module, func, sender });
 optimistic_from_into_checkpoint!(OptimisticTxKind, StoredTxKind, { tx_kind });
+optimistic_from_into_checkpoint!(OptimisticTxWrappedOrDeletedObject, StoredTxWrappedOrDeletedObject, {
+    object_id, sender
+});
 
 #[derive(Clone)]
 pub struct OptimisticTxIndices {
@@ -368,4 +380,5 @@ pub struct OptimisticTxIndices {
     pub optimistic_tx_mods: Vec<OptimisticTxMod>,
     pub optimistic_tx_funs: Vec<OptimisticTxFun>,
     pub optimistic_tx_kinds: Vec<OptimisticTxKind>,
+    pub optimistic_tx_wrapped_or_deleted_objects: Vec<OptimisticTxWrappedOrDeletedObject>,
 }

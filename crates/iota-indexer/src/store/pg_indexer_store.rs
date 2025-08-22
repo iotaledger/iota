@@ -62,10 +62,10 @@ use crate::{
         optimistic_event_struct_package, optimistic_events, optimistic_transactions,
         optimistic_tx_calls_fun, optimistic_tx_calls_mod, optimistic_tx_calls_pkg,
         optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
-        optimistic_tx_recipients, optimistic_tx_senders, packages, protocol_configs,
-        pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
-        tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
-        tx_senders, tx_wrapped_or_deleted_objects,
+        optimistic_tx_recipients, optimistic_tx_senders, optimistic_tx_wrapped_or_deleted_objects,
+        packages, protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
+        tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
+        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
     },
     store::{IndexerStore, IndexerStoreExt},
     transactional_blocking_with_retry,
@@ -2188,6 +2188,7 @@ impl IndexerStore for PgIndexerStore {
             optimistic_tx_mods: mods,
             optimistic_tx_funs: funs,
             optimistic_tx_kinds: kinds,
+            optimistic_tx_wrapped_or_deleted_objects: wrapped_or_deleted,
         } = indices;
 
         persist_chunk_into_table_in_existing_connection!(
@@ -2233,6 +2234,12 @@ impl IndexerStore for PgIndexerStore {
         );
 
         persist_chunk_into_table_in_existing_connection!(optimistic_tx_kinds::table, kinds, conn);
+
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_wrapped_or_deleted_objects::table,
+            wrapped_or_deleted,
+            conn
+        );
 
         Ok(())
     }
