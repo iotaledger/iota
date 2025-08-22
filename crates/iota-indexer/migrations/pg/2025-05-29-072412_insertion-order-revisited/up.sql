@@ -187,6 +187,18 @@ CREATE TABLE optimistic_tx_kinds (
     ON DELETE CASCADE
 );
 
+CREATE TABLE optimistic_tx_wrapped_or_deleted_objects (
+    global_sequence_number BIGINT NOT NULL,
+    optimistic_sequence_number          BIGINT       NOT NULL,
+    object_id                   BYTEA        NOT NULL,
+    sender                      BYTEA        NOT NULL,
+    PRIMARY KEY(object_id, global_sequence_number, optimistic_sequence_number),
+    FOREIGN KEY (global_sequence_number, optimistic_sequence_number)
+    REFERENCES optimistic_transactions(global_sequence_number, optimistic_sequence_number)
+    ON DELETE CASCADE
+);
+CREATE INDEX optimistic_tx_wrapped_or_deleted_objects_sequence_number_index ON optimistic_tx_wrapped_or_deleted_objects (global_sequence_number, optimistic_sequence_number);
+CREATE INDEX optimistic_tx_wrapped_or_deleted_objects_sender ON optimistic_tx_wrapped_or_deleted_objects (sender, object_id, global_sequence_number, optimistic_sequence_number);
 
 
 -- EVENTS
