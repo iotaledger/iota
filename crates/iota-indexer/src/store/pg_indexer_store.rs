@@ -2271,8 +2271,7 @@ impl IndexerStoreExt for PgIndexerStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx_indices chunks: {:?}",
-                    e
+                    "Failed to persist all tx_indices chunks: {e:?}"
                 ))
             })?;
         let elapsed = guard.stop_and_record();

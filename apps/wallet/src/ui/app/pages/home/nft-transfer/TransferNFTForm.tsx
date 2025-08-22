@@ -129,7 +129,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
     });
 
     function handleSubmit(values: SendNftFormValues) {
-        const recipient = values.resolvedAddress ?? values.to;
+        const recipient = values.resolvedAddress || values.to;
         transferNFT.mutate(recipient);
     }
 
