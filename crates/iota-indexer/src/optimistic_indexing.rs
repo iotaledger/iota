@@ -288,8 +288,7 @@ impl OptimisticTransactionExecutor {
             // the transaction.
             Ok(_) | Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => Ok(()),
             Err(e) => Err(IndexerError::PostgresWrite(format!(
-                "Failed to persist optimistic tx: {:?}",
-                e
+                "Failed to persist optimistic tx: {e:?}",
             ))),
         }
     }
