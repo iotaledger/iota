@@ -871,7 +871,7 @@ impl Core {
 
     pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
-        self.block_manager.missing_blocks()
+        self.block_manager.missing_block_headers()
     }
     pub(crate) fn get_missing_transaction_data(
         &self,

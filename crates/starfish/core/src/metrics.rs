@@ -125,7 +125,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
-    pub(crate) fetch_blocks_scheduler_inflight: IntGauge,
+    pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
     pub(crate) fetch_blocks_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_blocks_by_peer: IntCounterVec,
     pub(crate) synchronizer_requested_blocks_by_peer: IntCounterVec,
@@ -135,7 +135,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_requested_blocks_by_authority: IntCounterVec,
     pub(crate) synchronizer_fetch_failures_by_peer: IntCounterVec,
     pub(crate) synchronizer_process_fetched_failures_by_peer: IntCounterVec,
-    pub(crate) invalid_blocks: IntCounterVec,
+    pub(crate) invalid_block_headers: IntCounterVec,
     pub(crate) invalid_transactions: IntCounterVec,
     pub(crate) invalid_headers_in_bundles: IntCounterVec,
     pub(crate) valid_headers_in_bundles: IntCounterVec,
@@ -368,7 +368,7 @@ impl NodeMetrics {
                 "Number of times DagState needs to write to store",
                 registry,
             ).unwrap(),
-            fetch_blocks_scheduler_inflight: register_int_gauge_with_registry!(
+            fetch_block_headers_scheduler_inflight: register_int_gauge_with_registry!(
                 "fetch_blocks_scheduler_inflight",
                 "Designates whether the synchronizer scheduler task to fetch blocks is currently running",
                 registry,
@@ -444,7 +444,7 @@ impl NodeMetrics {
                 registry,
             ).unwrap(),
             // TODO: add a short status label.
-            invalid_blocks: register_int_counter_vec_with_registry!(
+            invalid_block_headers: register_int_counter_vec_with_registry!(
                 "invalid_blocks",
                 "Number of invalid blocks per peer authority",
                 &["authority", "source", "error"],

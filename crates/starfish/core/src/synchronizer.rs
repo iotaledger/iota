@@ -268,7 +268,7 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     dag_state: Arc<RwLock<DagState>>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
-    fetch_blocks_scheduler_task: JoinSet<()>,
+    fetch_block_headers_scheduler_task: JoinSet<()>,
     fetch_own_last_header_task: JoinSet<()>,
     network_client: Arc<C>,
     block_verifier: Arc<V>,
@@ -304,7 +304,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 "consensus_synchronizer_fetches",
                 FETCH_BLOCK_HEADERS_CONCURRENCY,
             );
-            let fetch_blocks_from_authority_async = Self::fetch_headers_from_authority(
+            let fetch_blocks_from_authority_async = Self::fetch_headers_from_authority_live(
                 index,
                 network_client.clone(),
                 block_verifier.clone(),
@@ -336,7 +336,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 fetch_block_senders,
                 core_dispatcher,
                 commit_vote_monitor,
-                fetch_blocks_scheduler_task: JoinSet::new(),
+                fetch_block_headers_scheduler_task: JoinSet::new(),
                 fetch_own_last_header_task: JoinSet::new(),
                 transactions_synchronizer,
                 network_client,
@@ -405,13 +405,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         }
                         Command::FetchOwnLastBlockHeader => {
                             if self.fetch_own_last_header_task.is_empty() {
-                                self.start_fetch_own_last_block_task();
+                                self.start_fetch_own_last_block_header_task();
                             }
                         }
                         Command::KickOffScheduler => {
                             // just reset the scheduler timeout timer to run immediately if not already running.
                             // If the scheduler is already running then just reduce the remaining time to run.
-                            let timeout = if self.fetch_blocks_scheduler_task.is_empty() {
+                            let timeout = if self.fetch_block_headers_scheduler_task.is_empty() {
                                 Instant::now()
                             } else {
                                 Instant::now() + PERIODIC_SYNCHRONIZER_TIMEOUT.checked_div(2).unwrap()
@@ -437,7 +437,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         },
                     };
                 },
-                Some(result) = self.fetch_blocks_scheduler_task.join_next(), if !self.fetch_blocks_scheduler_task.is_empty() => {
+                Some(result) = self.fetch_block_headers_scheduler_task.join_next(), if !self.fetch_block_headers_scheduler_task.is_empty() => {
                     match result {
                         Ok(()) => {},
                         Err(e) => {
@@ -452,7 +452,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 },
                 () = &mut scheduler_timeout => {
                     // we want to start a new task only if the previous one has already finished.
-                    if self.fetch_blocks_scheduler_task.is_empty() {
+                    if self.fetch_block_headers_scheduler_task.is_empty() {
                         if let Err(err) = self.start_periodic_sync_task().await {
                             debug!("Core is shutting down, synchronizer is shutting down: {err:?}");
                             return;
@@ -467,7 +467,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         }
     }
 
-    async fn fetch_headers_from_authority(
+    async fn fetch_headers_from_authority_live(
         peer_index: AuthorityIndex,
         network_client: Arc<C>,
         block_verifier: Arc<V>,
@@ -707,7 +707,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 context
                     .metrics
                     .node_metrics
-                    .invalid_blocks
+                    .invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
@@ -788,8 +788,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         (resp, blocks_guard, retries, peer, highest_rounds)
     }
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
-    fn start_fetch_own_last_block_task(&mut self) {
-        const FETCH_OWN_BLOCK_RETRY_DELAY: Duration = Duration::from_millis(1_000);
+    fn start_fetch_own_last_block_header_task(&mut self) {
+        const FETCH_OWN_BLOCK_HEADER_RETRY_DELAY: Duration = Duration::from_millis(1_000);
         const MAX_RETRY_DELAY_STEP: Duration = Duration::from_millis(4_000);
 
         let context = self.context.clone();
@@ -800,38 +800,38 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         self.fetch_own_last_header_task
             .spawn(monitored_future!(async move {
-                let _scope = monitored_scope("FetchOwnLastBlockTask");
+                let _scope = monitored_scope("FetchOwnLastBlockHeaderTask");
 
-                let fetch_own_block = |authority_index: AuthorityIndex, fetch_own_block_delay: Duration| {
+                let fetch_own_block_header = |authority_index: AuthorityIndex, fetch_own_block_header_delay: Duration| {
                     let network_client_cloned = network_client.clone();
                     let own_index = context.own_index;
                     async move {
-                        sleep(fetch_own_block_delay).await;
+                        sleep(fetch_own_block_header_delay).await;
                         let r = network_client_cloned.fetch_latest_block_headers(authority_index, vec![own_index], FETCH_REQUEST_TIMEOUT).await;
                         (r, authority_index)
                     }
                 };
 
-                let process_blocks = |blocks: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlockHeader >> {
+                let process_block_headers = |block_headers: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlockHeader >> {
                                     let mut result = Vec::new();
-                                    for serialized_block in blocks {
-                                        let signed_block = bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedHeader)?;
-                                        block_verifier.verify(&signed_block).tap_err(|err|{
+                                    for serialized_block_header in block_headers {
+                                        let signed_block_header = bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+                                        block_verifier.verify(&signed_block_header).tap_err(|err|{
                                             let hostname = context.committee.authority(authority_index).hostname.clone();
                                             context
                                                 .metrics
                                                 .node_metrics
-                                                .invalid_blocks
-                                                .with_label_values(&[hostname.as_str(), "synchronizer_own_block", err.clone().name()])
+                                                .invalid_block_headers
+                                                .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
-                                            warn!("Invalid block received from {}: {}", authority_index, err);
+                                            warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;
 
-                                        let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized_block);
-                                        if verified_block.author() != context.own_index {
-                                            return Err(ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block.reference()});
+                                        let verified_block_header = VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+                                        if verified_block_header.author() != context.own_index {
+                                            return Err(ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block_header.reference()});
                                         }
-                                        result.push(verified_block);
+                                        result.push(verified_block_header);
                                     }
                                     Ok(result)
                 };
@@ -848,17 +848,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 'main:loop {
                     if context.committee.size() == 1 {
                         highest_round = dag_state.read().get_last_proposed_block_header().round();
-                        info!("Only one node in the network, will not try fetching own last block from peers.");
+                        info!("Only one node in the network, will not try fetching own last block header from peers.");
                         break 'main;
                     }
 
-                    // Ask all the other peers about our last block
+                    // Ask all the other peers about our last block header
                     let mut results = FuturesUnordered::new();
 
                     for (authority_index, _authority) in context.committee.authorities() {
                         // Skip our own index and the ones that have already responded
                         if !received_response[authority_index] {
-                            results.push(fetch_own_block(authority_index, Duration::from_millis(0)));
+                            results.push(fetch_own_block_header(authority_index, Duration::from_millis(0)));
                         }
                     }
 
@@ -874,27 +874,27 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 };
                                 match result {
                                     Ok(result) => {
-                                        match process_blocks(result, authority_index) {
-                                            Ok(blocks) => {
+                                        match process_block_headers(result, authority_index) {
+                                            Ok(block_headers) => {
                                                 received_response[authority_index] = true;
-                                                let max_round = blocks.into_iter().map(|b|b.round()).max().unwrap_or(0);
+                                                let max_round = block_headers.into_iter().map(|b|b.round()).max().unwrap_or(0);
                                                 highest_round = highest_round.max(max_round);
 
                                                 total_stake += context.committee.stake(authority_index);
                                             },
                                             Err(err) => {
-                                                warn!("Invalid result returned from {authority_index} while fetching last own block: {err}");
+                                                warn!("Invalid result returned from {authority_index} while fetching last own block header: {err}");
                                             }
                                         }
                                     },
                                     Err(err) => {
-                                        warn!("Error {err} while fetching our own block from peer {authority_index}. Will retry.");
-                                        results.push(fetch_own_block(authority_index, FETCH_OWN_BLOCK_RETRY_DELAY));
+                                        warn!("Error {err} while fetching our own block header from peer {authority_index}. Will retry.");
+                                        results.push(fetch_own_block_header(authority_index, FETCH_OWN_BLOCK_HEADER_RETRY_DELAY));
                                     }
                                 }
                             },
                             () = &mut timer => {
-                                info!("Timeout while trying to sync our own last block from peers");
+                                info!("Timeout while trying to sync our own last block header from peers");
                                 break 'inner;
                             }
                         }
@@ -902,15 +902,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
                     // Request at least a quorum of 2f+1 stake to have replied back.
                     if context.committee.reached_quorum(total_stake) {
-                        info!("A quorum, {} out of {} total stake, returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
+                        info!("A quorum, {} out of {} total stake, returned acceptable results for our own last block header with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                         break 'main;
                     } else {
-                        info!("Only {} out of {} total stake returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
+                        info!("Only {} out of {} total stake returned acceptable results for our own last block header with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                     }
 
                     retries += 1;
                     context.metrics.node_metrics.sync_last_known_own_block_retries.inc();
-                    warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
+                    warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block header with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
 
                     sleep(retry_delay_step).await;
 
@@ -927,18 +927,18 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }));
     }
 
-    /// Starts the periodic synchronization task to fetch missing blocks from
-    /// peers. This task runs periodically to ensure that the missing blocks are
-    /// synced.
+    /// Starts the periodic synchronization task to fetch missing block headers
+    /// from peers. This task runs periodically to ensure that the missing
+    /// block headers are synced.
     async fn start_periodic_sync_task(&mut self) -> ConsensusResult<()> {
-        let mut missing_blocks = self
+        let mut missing_blocks_refs = self
             .core_dispatcher
-            .get_missing_blocks()
+            .get_missing_block_headers()
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
 
         // No reason to kick off the scheduler if there are no missing blocks to fetch
-        if missing_blocks.is_empty() {
+        if missing_blocks_refs.is_empty() {
             return Ok(());
         }
 
@@ -947,7 +947,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let block_verifier = self.block_verifier.clone();
         let commit_vote_monitor = self.commit_vote_monitor.clone();
         let core_dispatcher = self.core_dispatcher.clone();
-        let blocks_to_fetch = self.inflight_block_headers_map.clone();
+        let inflight_block_headers_map = self.inflight_block_headers_map.clone();
         let commands_sender = self.commands_sender.clone();
         let dag_state = self.dag_state.clone();
         let transactions_synchronizer = self.transactions_synchronizer.clone();
@@ -957,22 +957,24 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             "Commit lagging: {commit_lagging}, last commit index: {last_commit_index}, quorum commit index: {quorum_commit_index}"
         );
         if commit_lagging {
-            // As node is commit lagging try to sync only the missing blocks that are within
-            // the acceptable round thresholds to sync. The rest we don't attempt to
-            // sync yet.
+            // As node is commit lagging try to sync only the missing block headers that are
+            // within the acceptable round thresholds to sync. The rest we don't
+            // attempt to sync yet.
             let highest_accepted_round = dag_state.read().highest_accepted_round();
-            missing_blocks = missing_blocks
+            missing_blocks_refs = missing_blocks_refs
                 .into_iter()
                 .take_while(|(block_ref, _)| {
-                    block_ref.round <= highest_accepted_round + self.missing_block_round_threshold()
+                    block_ref.round
+                        <= highest_accepted_round + self.missing_block_header_round_threshold()
                 })
                 .collect::<BTreeMap<_, _>>();
 
-            // If no missing blocks are within the acceptable thresholds to sync while we
-            // commit lag, then we disable the scheduler completely for this run.
-            if missing_blocks.is_empty() {
+            // If no missing block headers are within the acceptable thresholds to sync
+            // while we commit lag, then we disable the scheduler completely for
+            // this run.
+            if missing_blocks_refs.is_empty() {
                 trace!(
-                    "Scheduled synchronizer temporarily disabled as local commit is falling behind from quorum {last_commit_index} << {quorum_commit_index} and missing blocks are too far in the future."
+                    "Scheduled synchronizer temporarily disabled as local commit is falling behind from quorum {last_commit_index} << {quorum_commit_index} and missing block headers are too far in the future."
                 );
                 self.context
                     .metrics
@@ -984,45 +986,45 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }
         }
 
-        self.fetch_blocks_scheduler_task
+        self.fetch_block_headers_scheduler_task
             .spawn(monitored_future!(async move {
-                let _scope = monitored_scope("FetchMissingBlocksScheduler");
+                let _scope = monitored_scope("FetchMissingBlockHeadersScheduler");
 
                 context
                     .metrics
                     .node_metrics
-                    .fetch_blocks_scheduler_inflight
+                    .fetch_block_headers_scheduler_inflight
                     .inc();
-                let total_requested = missing_blocks.len();
+                let total_requested = missing_blocks_refs.len();
 
                 fail_point_async!("consensus-delay");
 
                 // Fetch blocks from peers
-                let results = Self::fetch_block_headers_from_authorities(
+                let results = Self::fetch_block_headers_from_authorities_periodic(
                     context.clone(),
-                    blocks_to_fetch.clone(),
+                    inflight_block_headers_map.clone(),
                     network_client,
-                    missing_blocks,
+                    missing_blocks_refs,
                     dag_state,
                 )
                 .await;
                 context
                     .metrics
                     .node_metrics
-                    .fetch_blocks_scheduler_inflight
+                    .fetch_block_headers_scheduler_inflight
                     .dec();
                 if results.is_empty() {
-                    warn!("No results returned while requesting missing blocks");
+                    warn!("No results returned while requesting missing block headers");
                     return;
                 }
 
                 // Now process the returned results
                 let mut total_fetched = 0;
-                for (blocks_guard, fetched_blocks, peer) in results {
-                    total_fetched += fetched_blocks.len();
+                for (blocks_guard, serialized_fetched_block_headers, peer) in results {
+                    total_fetched += serialized_fetched_block_headers.len();
 
                     if let Err(err) = Self::process_fetched_headers_from_authority(
-                        fetched_blocks,
+                        serialized_fetched_block_headers,
                         peer,
                         blocks_guard,
                         core_dispatcher.clone(),
@@ -1036,13 +1038,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .await
                     {
                         warn!(
-                            "Error occurred while processing fetched blocks from peer {peer}: {err}"
+                            "Error occurred while processing fetched block headers from peer {peer}: {err}"
                         );
                     }
                 }
 
                 debug!(
-                    "Total blocks requested to fetch: {}, total fetched: {}",
+                    "Total block headers requested to fetch: {}, total fetched: {}",
                     total_requested, total_fetched
                 );
             }));
@@ -1062,12 +1064,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     }
 
     /// The number of rounds above the highest accepted round to allow fetching
-    /// missing blocks via the periodic synchronization. Any missing blocks
-    /// of higher rounds are considered too far in the future to fetch. This
-    /// property is used only when it's detected that the node has fallen
-    /// behind on its commit compared to the rest of the network,
-    /// otherwise scheduler will attempt to fetch any missing block.
-    fn missing_block_round_threshold(&self) -> Round {
+    /// missing block headers via the periodic synchronization. Any missing
+    /// block headers of higher rounds are considered too far in the future
+    /// to fetch. This property is used only when it's detected that the
+    /// node has fallen behind on its commit compared to the rest of the
+    /// network, otherwise scheduler will attempt to fetch any missing block
+    /// header.
+    fn missing_block_header_round_threshold(&self) -> Round {
         self.context.parameters.commit_sync_batch_size
     }
 
@@ -1086,68 +1089,77 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     /// Each element of the vector is a tuple which contains the requested
     /// missing block refs, the returned blocks and the peer authority index.
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %context.own_index)))]
-    async fn fetch_block_headers_from_authorities(
+    async fn fetch_block_headers_from_authorities_periodic(
         context: Arc<Context>,
         inflight_block_headers: Arc<InflightBlockHeadersMap>,
         network_client: Arc<C>,
-        missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        missing_block_headers_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
-        // Step 1: Map authorities to missing blocks that they are aware of
-        let mut authority_to_blocks: HashMap<AuthorityIndex, Vec<BlockRef>> = HashMap::new();
-        for (missing_block_ref, authorities) in &missing_blocks {
+        // Step 1: Map authorities to missing block headers refs that they are aware of
+        let mut authority_to_block_headers_refs: HashMap<AuthorityIndex, Vec<BlockRef>> =
+            HashMap::new();
+        for (missing_block_header_ref, authorities) in &missing_block_headers_refs {
             for author in authorities {
                 if author == &context.own_index {
-                    // Skip our own index as we don't want to fetch blocks from ourselves
+                    // Skip our own index as we don't want to fetch block headers from ourselves
                     continue;
                 }
-                authority_to_blocks
+                authority_to_block_headers_refs
                     .entry(*author)
                     .or_default()
-                    .push(*missing_block_ref);
+                    .push(*missing_block_header_ref);
             }
         }
 
         // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
-        // aware of some missing blocks
+        // aware of some missing block headers
 
         #[cfg(not(test))]
         let mut rng = StdRng::from_entropy();
 
         // Randomly pick up MAX_PEERS - MAX_RANDOM_PEERS authorities that are aware of
-        // missing blocks
+        // missing block headers
         #[cfg(not(test))]
-        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
-            authority_to_blocks
-                .iter()
-                .choose_multiple(
-                    &mut rng,
-                    MAX_PERIODIC_SYNC_PEERS - MAX_PERIODIC_SYNC_RANDOM_PEERS,
-                )
-                .into_iter()
-                .map(|(&peer, blocks)| {
-                    let limited_blocks = blocks
-                        .iter()
-                        .copied()
-                        .take(context.parameters.max_headers_per_regular_sync_fetch)
-                        .collect();
-                    (peer, limited_blocks, "periodic_known")
-                })
-                .collect();
+        let mut chosen_peers_with_block_headers: Vec<(
+            AuthorityIndex,
+            Vec<BlockRef>,
+            &str,
+        )> = authority_to_block_headers_refs
+            .iter()
+            .choose_multiple(
+                &mut rng,
+                MAX_PERIODIC_SYNC_PEERS - MAX_PERIODIC_SYNC_RANDOM_PEERS,
+            )
+            .into_iter()
+            .map(|(&peer, block_refs)| {
+                let limited_block_refs = block_refs
+                    .iter()
+                    .copied()
+                    .take(context.parameters.max_headers_per_regular_sync_fetch)
+                    .collect();
+                (peer, limited_block_refs, "periodic_known")
+            })
+            .collect();
         #[cfg(test)]
         // Deterministically pick the smallest (MAX_PEERS - MAX_RANDOM_PEERS) authority indices
-        let mut chosen_peers_with_blocks: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> = {
-            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> = authority_to_blocks
-                .iter()
-                .map(|(&peer, blocks)| {
-                    let limited_blocks = blocks
-                        .iter()
-                        .copied()
-                        .take(context.parameters.max_headers_per_regular_sync_fetch)
-                        .collect();
-                    (peer, limited_blocks, "periodic_known")
-                })
-                .collect();
+        let mut chosen_peers_with_block_headers: Vec<(
+            AuthorityIndex,
+            Vec<BlockRef>,
+            &str,
+        )> = {
+            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
+                authority_to_block_headers_refs
+                    .iter()
+                    .map(|(&peer, block_refs)| {
+                        let limited_block_refs = block_refs
+                            .iter()
+                            .copied()
+                            .take(context.parameters.max_headers_per_regular_sync_fetch)
+                            .collect();
+                        (peer, limited_block_refs, "periodic_known")
+                    })
+                    .collect();
             // Sort by AuthorityIndex (natural order), then take the first MAX_PEERS -
             // MAX_RANDOM_PEERS
             items.sort_by_key(|(peer, _, _)| *peer);
@@ -1157,9 +1169,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .collect()
         };
 
-        // Step 3: Choose at most two random peers not known to be aware of the missing
-        // blocks
-        let already_chosen: HashSet<AuthorityIndex> = chosen_peers_with_blocks
+        // Step 3: Choose at most MAX_PERIODIC_SYNC_RANDOM_PEERS random peers not known
+        // to be aware of the missing block headers
+        let already_chosen: HashSet<AuthorityIndex> = chosen_peers_with_block_headers
             .iter()
             .map(|(peer, _, _)| *peer)
             .collect();
@@ -1183,16 +1195,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .choose_multiple(&mut rng, MAX_PERIODIC_SYNC_RANDOM_PEERS);
 
         #[cfg_attr(test, allow(unused_mut))]
-        let mut all_missing_blocks: Vec<BlockRef> = missing_blocks.keys().cloned().collect();
+        let mut all_missing_block_headers_refs: Vec<BlockRef> =
+            missing_block_headers_refs.keys().cloned().collect();
         #[cfg(not(test))]
-        all_missing_blocks.shuffle(&mut rng);
+        all_missing_block_headers_refs.shuffle(&mut rng);
 
-        let mut block_chunks =
-            all_missing_blocks.chunks(context.parameters.max_headers_per_regular_sync_fetch);
+        let mut block_headers_chunks = all_missing_block_headers_refs
+            .chunks(context.parameters.max_headers_per_regular_sync_fetch);
 
         for peer in random_peers {
-            if let Some(chunk) = block_chunks.next() {
-                chosen_peers_with_blocks.push((peer, chunk.to_vec(), "periodic_random"));
+            if let Some(chunk) = block_headers_chunks.next() {
+                chosen_peers_with_block_headers.push((peer, chunk.to_vec(), "periodic_random"));
             } else {
                 break;
             }
@@ -1203,11 +1216,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
 
         // Record the missing blocks per authority for metrics
-        let mut missing_blocks_per_authority = vec![0; context.committee.size()];
-        for block in &all_missing_blocks {
-            missing_blocks_per_authority[block.author] += 1;
+        let mut missing_block_headers_per_authority = vec![0; context.committee.size()];
+        for block_ref in &all_missing_block_headers_refs {
+            missing_block_headers_per_authority[block_ref.author] += 1;
         }
-        for (missing, (_, authority)) in missing_blocks_per_authority
+        for (missing, (_, authority)) in missing_block_headers_per_authority
             .into_iter()
             .zip(context.committee.authorities())
         {
@@ -1225,15 +1238,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .set(missing as i64);
         }
 
-        // Look at peers that were not chosen yet and try to fetch blocks from them if
-        // needed later
+        // Look at peers that were not chosen yet and try to fetch block headers from
+        // them if needed later
         #[cfg_attr(test, expect(unused_mut))]
         let mut remaining_peers: Vec<_> = context
             .committee
             .authorities()
             .filter_map(|(peer_index, _)| {
                 if peer_index != context.own_index
-                    && !chosen_peers_with_blocks
+                    && !chosen_peers_with_block_headers
                         .iter()
                         .any(|(chosen_peer, _, _)| *chosen_peer == peer_index)
                 {
@@ -1249,16 +1262,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let mut remaining_peers = remaining_peers.into_iter();
 
         // Send the initial requests
-        for (peer, blocks_to_request, label) in chosen_peers_with_blocks {
+        for (peer, block_headers_to_request, label) in chosen_peers_with_block_headers {
             let peer_hostname = &context.committee.authority(peer).hostname;
-            let block_refs = blocks_to_request.iter().cloned().collect::<BTreeSet<_>>();
+            let block_refs = block_headers_to_request
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
 
-            // Lock the blocks to be fetched. If no lock can be acquired for any of the
-            // blocks then don't bother.
+            // Lock the block headers to be fetched. If no lock can be acquired for any of
+            // the block headers then don't bother.
             if let Some(blocks_guard) = inflight_block_headers.lock_blocks(block_refs.clone(), peer)
             {
                 info!(
-                    "Periodic sync of {} missing blocks from peer {} {}: {}",
+                    "Periodic sync of {} missing block headers from peer {} {}: {}",
                     block_refs.len(),
                     peer,
                     peer_hostname,
@@ -1302,9 +1318,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() => {
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
-                        Ok(fetched_blocks) => {
-                            info!("Fetched {} blocks from peer {}", fetched_blocks.len(), peer_hostname);
-                            results.push((blocks_guard, fetched_blocks, peer_index));
+                        Ok(fetched_block_headers) => {
+                            info!("Fetched {} block headers from peer {}", fetched_block_headers.len(), peer_hostname);
+                            results.push((blocks_guard, fetched_block_headers, peer_index));
 
                             // no more pending requests are left, just break the loop
                             if request_futures.is_empty() {
@@ -1318,7 +1334,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 // do best effort to lock guards. If we can't lock then don't bother at this run.
                                 if let Some(blocks_guard) = inflight_block_headers.swap_locks(blocks_guard, next_peer) {
                                     info!(
-                                        "Retrying syncing {} missing blocks from peer {}: {}",
+                                        "Retrying syncing {} missing block headers from peer {}: {}",
                                         blocks_guard.block_refs.len(),
                                         peer_hostname,
                                         blocks_guard.block_refs
@@ -1351,16 +1367,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                         1,
                                     ));
                                 } else {
-                                    debug!("Couldn't acquire locks to fetch blocks from peer {next_peer}.")
+                                    debug!("Couldn't acquire locks to fetch block headers from peer {next_peer}.")
                                 }
                             } else {
-                                debug!("No more peers left to fetch blocks");
+                                debug!("No more peers left to fetch block headers");
                             }
                         }
                     }
                 },
                 _ = &mut fetcher_timeout => {
-                    debug!("Timed out while fetching missing blocks");
+                    debug!("Timed out while fetching missing block headers");
                     break;
                 }
             }
@@ -1409,27 +1425,24 @@ mod tests {
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
     type FetchRequestHeadersResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
-    type FetchRequestBlocksResponse = (Vec<VerifiedBlock>, Option<Duration>);
     type FetchLatestBlockKey = (AuthorityIndex, Vec<AuthorityIndex>);
     type FetchLatestHeaderResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
 
     #[derive(Default)]
     struct MockNetworkClient {
-        #[allow(dead_code)]
-        fetch_blocks_requests: Mutex<BTreeMap<FetchRequestKey, FetchRequestBlocksResponse>>,
-        fetch_block_headers_requests: Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
-        fetch_latest_block_headers_requests:
+        fetch_headers_response: Mutex<BTreeMap<FetchRequestKey, FetchRequestHeadersResponse>>,
+        fetch_latest_header_response:
             Mutex<BTreeMap<FetchLatestBlockKey, Vec<FetchLatestHeaderResponse>>>,
     }
 
     impl MockNetworkClient {
-        async fn stub_fetch_headers(
+        async fn stub_fetch_headers_response(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             latency: Option<Duration>,
         ) {
-            let mut lock = self.fetch_block_headers_requests.lock().await;
+            let mut lock = self.fetch_headers_response.lock().await;
             let block_refs = block_headers
                 .iter()
                 .map(|block| block.reference())
@@ -1437,21 +1450,21 @@ mod tests {
             lock.insert((block_refs, peer), (block_headers, latency));
         }
 
-        async fn stub_fetch_latest_block_headers(
+        async fn stub_fetch_latest_block_headers_response(
             &self,
-            blocks: Vec<VerifiedBlockHeader>,
+            block_headers: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             authorities: Vec<AuthorityIndex>,
             latency: Option<Duration>,
         ) {
-            let mut lock = self.fetch_latest_block_headers_requests.lock().await;
+            let mut lock = self.fetch_latest_header_response.lock().await;
             lock.entry((peer, authorities))
                 .or_default()
-                .push((blocks, latency));
+                .push((block_headers, latency));
         }
 
         async fn fetch_latest_block_headers_pending_calls(&self) -> usize {
-            let lock = self.fetch_latest_block_headers_requests.lock().await;
+            let lock = self.fetch_latest_header_response.lock().await;
             lock.len()
         }
     }
@@ -1483,10 +1496,11 @@ mod tests {
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            let mut lock = self.fetch_block_headers_requests.lock().await;
+            let mut lock = self.fetch_headers_response.lock().await;
+            // If the key is not found, just return an empty vector and no delay.
             let response = lock
                 .remove(&(block_refs, peer))
-                .expect("Unexpected fetch block headers request made");
+                .unwrap_or((Vec::new(), None));
 
             let mut block_headers = vec![];
             for block_header in response.0.into_iter() {
@@ -1517,7 +1531,7 @@ mod tests {
             authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            let mut lock = self.fetch_latest_block_headers_requests.lock().await;
+            let mut lock = self.fetch_latest_header_response.lock().await;
             let mut responses = lock
                 .remove(&(peer, authorities.clone()))
                 .expect("Unexpected fetch blocks request made");
@@ -1544,7 +1558,7 @@ mod tests {
     }
 
     #[test]
-    fn inflight_blocks_map() {
+    fn test_inflight_blocks_map() {
         // GIVEN
         let map = InflightBlockHeadersMap::new();
         let some_block_refs = [
@@ -1574,14 +1588,14 @@ mod tests {
                 assert!(guard.is_none());
             }
 
-            // Trying to acquire for authority 4 it will fail - as we have maxed out the
+            // Trying to acquire for authority 4, it will fail - as we have maxed out the
             // number of allowed peers
             let authority_4 = AuthorityIndex::new_for_test(4);
 
             let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
             assert!(guard.is_none());
 
-            // Explicitly drop the guard of authority 1 and try for authority 3 again - it
+            // Explicitly drop the guard of authority 1 and try for authority 4 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
@@ -1608,8 +1622,22 @@ mod tests {
             // Now swap the locks for authority 2
             let authority_2 = AuthorityIndex::new_for_test(2);
             let guard = map.swap_locks(guard, authority_2);
-
-            assert_eq!(guard.unwrap().block_refs, missing_block_refs);
+            let guard = guard.expect("Guard should be created");
+            assert_eq!(guard.block_refs, missing_block_refs);
+            let mut all_guards = Vec::new();
+            all_guards.push(guard);
+            // authority 1 should now be unlocked, so now we can lock the same refs
+            // authorities 3 & 4, but not for 5
+            for i in 3..=4 {
+                let authority = AuthorityIndex::new_for_test(i);
+                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard = guard.expect("Guard should be created");
+                assert_eq!(guard.block_refs.len(), 4);
+                all_guards.push(guard);
+            }
+            let authority = AuthorityIndex::new_for_test(5);
+            let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+            assert!(guard.is_none());
         }
     }
 
@@ -1644,34 +1672,46 @@ mod tests {
             false,
         );
 
-        // Create some test blocks
-        let expected_blocks = (0..10)
+        // Create some test block headers
+        let expected_block_headers = (0..10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let missing_blocks = expected_blocks
+        let missing_block_headers = expected_block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
 
-        // AND stub the fetch_blocks request from peer 1
+        // AND stub the fetch_block_headers request from peer 1
         let peer = AuthorityIndex::new_for_test(1);
         network_client
-            .stub_fetch_headers(expected_blocks.clone(), peer, None)
+            .stub_fetch_headers_response(expected_block_headers.clone(), peer, None)
             .await;
 
         // WHEN request missing blocks from peer 1
-        assert!(handle.fetch_headers(missing_blocks, peer).await.is_ok());
+        assert!(
+            handle
+                .fetch_headers(missing_block_headers, peer)
+                .await
+                .is_ok()
+        );
 
         // Wait a little bit until those have been added in core
         sleep(Duration::from_millis(1_000)).await;
 
         // THEN ensure those ended up in Core
         let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_blocks, expected_blocks);
+        assert_eq!(added_blocks, expected_block_headers);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 
     #[tokio::test]
-    async fn saturate_fetch_blocks_from_peer() {
+    async fn saturate_fetch_block_headers_from_peer() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
@@ -1701,8 +1741,11 @@ mod tests {
             false,
         );
 
-        // Create some test blocks
-        let expected_blocks = (0..=2 * FETCH_BLOCK_HEADERS_CONCURRENCY)
+        // Create some test block headers
+        // We need FETCH_BLOCK_HEADERS_CONCURRENCY to saturate vector of requests,
+        // FETCH_BLOCK_HEADERS_CONCURRENCY to saturate the channel, and the 2 *
+        // FETCH_BLOCK_HEADERS_CONCURRENCY + 1 headers will cause saturation error.
+        let expected_block_headers = (0..=2 * FETCH_BLOCK_HEADERS_CONCURRENCY)
             .map(|round| {
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round as Round, 0).build())
             })
@@ -1710,32 +1753,43 @@ mod tests {
 
         // Now start sending requests to fetch blocks by trying to saturate peer 1 task
         let peer = AuthorityIndex::new_for_test(1);
-        let mut iter = expected_blocks.iter().peekable();
-        while let Some(block) = iter.next() {
-            // stub the fetch_blocks request from peer 1 and give some high response latency
-            // so requests can start blocking the peer task.
+        let mut iter = expected_block_headers.iter().peekable();
+        while let Some(block_header) = iter.next() {
+            // stub the fetch_block_headers request from peer 1 and give some high response
+            // latency so requests can start blocking the peer task.
             network_client
-                .stub_fetch_headers(
-                    vec![block.clone()],
+                .stub_fetch_headers_response(
+                    vec![block_header.clone()],
                     peer,
                     Some(Duration::from_millis(5_000)),
                 )
                 .await;
 
-            let mut missing_blocks = BTreeSet::new();
-            missing_blocks.insert(block.reference());
+            let mut missing_blocks_refs = BTreeSet::new();
+            missing_blocks_refs.insert(block_header.reference());
 
-            // WHEN requesting to fetch the blocks, it should not succeed for the last
-            // request and get an error with "saturated" synchronizer
+            // WHEN requesting to fetch the block headers, it should not succeed for the
+            // last request and get an error with "saturated" synchronizer
             if iter.peek().is_none() {
-                match handle.fetch_headers(missing_blocks, peer).await {
+                match handle.fetch_headers(missing_blocks_refs, peer).await {
                     Err(ConsensusError::SynchronizerSaturated(index)) => {
                         assert_eq!(index, peer);
                     }
                     _ => panic!("A saturated synchronizer error was expected"),
                 }
             } else {
-                assert!(handle.fetch_headers(missing_blocks, peer).await.is_ok());
+                assert!(
+                    handle
+                        .fetch_headers(missing_blocks_refs, peer)
+                        .await
+                        .is_ok()
+                );
+            }
+        }
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
             }
         }
     }
@@ -1758,40 +1812,62 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        // Create some test blocks
-        let expected_blocks = (0..10)
-            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
+        // Create some test block headers
+        let expected_block_headers_1 = (0..10)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build()))
             .collect::<Vec<_>>();
-        let missing_blocks = expected_blocks
+        let expected_block_headers_2 = (10..20)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 2).build()))
+            .collect::<Vec<_>>();
+        let missing_blocks_refs_1 = expected_block_headers_1
+            .iter()
+            .map(|block| block.reference())
+            .collect::<BTreeSet<_>>();
+        let missing_blocks_refs_2 = expected_block_headers_2
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
 
-        // AND stub the missing blocks
+        // AND stub the missing blocks refs
         core_dispatcher
-            .stub_missing_blocks(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks_refs_1.clone())
+            .await;
+        core_dispatcher
+            .stub_missing_block_headers(missing_blocks_refs_2.clone())
             .await;
 
-        // AND stub the requests for authority 1 & 2
-        // Make the first authority timeout, so the second will be called. "We" are
-        // authority = 0, so we are skipped anyways.
+        // AND stub the request responses for authority 1 & 2. They will be picked as
+        // peers that know block_refs. Make the first authority timeout, so the
+        // second will be called. "We" are authority = 0, so we are skipped
+        // anyway.
         network_client
-            .stub_fetch_headers(
-                expected_blocks.clone(),
+            .stub_fetch_headers_response(
+                expected_block_headers_1.clone(),
                 AuthorityIndex::new_for_test(1),
-                Some(FETCH_REQUEST_TIMEOUT),
+                Some(FETCH_REQUEST_TIMEOUT * 2),
             )
             .await;
         network_client
-            .stub_fetch_headers(
-                expected_blocks.clone(),
+            .stub_fetch_headers_response(
+                expected_block_headers_2.clone(),
                 AuthorityIndex::new_for_test(2),
                 None,
             )
             .await;
+        // Stub all headers to the third peer that will be chosen (quasi)-randomly as an
+        // additional peer.
+        let mut all_expected_headers = expected_block_headers_1.clone();
+        all_expected_headers.extend(expected_block_headers_2.clone());
+        network_client
+            .stub_fetch_headers_response(
+                all_expected_headers.clone(),
+                AuthorityIndex::new_for_test(3),
+                Some(FETCH_REQUEST_TIMEOUT * 2),
+            )
+            .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
-        let _handle = Synchronizer::start(
+        let handle = Synchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
@@ -1804,18 +1880,29 @@ mod tests {
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
 
-        // THEN the missing blocks should now be fetched and added to core
-        let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_blocks, expected_blocks);
+        // THEN the missing block headers from peer 2 should now be fetched and added to
+        // core
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(added_block_headers, expected_block_headers_2);
 
-        // AND missing blocks should have been consumed by the stub
-        assert!(
+        // AND missing blocks should contain header from peer 1
+        assert_eq!(
             core_dispatcher
-                .get_missing_blocks()
+                .get_missing_block_headers()
                 .await
                 .unwrap()
-                .is_empty()
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            missing_blocks_refs_1
         );
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
@@ -1840,7 +1927,7 @@ mod tests {
         // AND stub some missing blocks. The highest accepted round is 0.
         // Create some blocks that are below and above the threshold sync.
         let sync_missing_block_round_threshold = context.parameters.commit_sync_batch_size;
-        let expected_blocks = (1..=sync_missing_block_round_threshold * 2)
+        let expected_block_headers = (1..=sync_missing_block_round_threshold * 2)
             .flat_map(|round| {
                 vec![
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build()),
@@ -1851,35 +1938,38 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let missing_blocks = expected_blocks
+        let missing_blocks_refs = expected_block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
-        core_dispatcher.stub_missing_blocks(missing_blocks).await;
+        core_dispatcher
+            .stub_missing_block_headers(missing_blocks_refs)
+            .await;
 
         // Stub the requests for authority 1 & 2 & 3
-        let stub_blocks = expected_blocks
+        let stub_block_headers = expected_block_headers
             .iter()
-            .map(|block| (block.reference(), block.clone()))
+            .map(|block_header| (block_header.reference(), block_header.clone()))
             .collect::<BTreeMap<_, _>>();
 
         // Authority 1 and 2 will be requested about their blocks
-        let stub_block_author_1 = stub_blocks
+        let stub_block_author_1 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(1))
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
-        let stub_block_author_2 = stub_blocks
+        let stub_block_author_2 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(2))
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
-        // Authority 3 will be requested about first blocks in the missing blocks
-        let stub_block_author_3 = stub_blocks
+        // Authority 3 will be requested about the first block headers in the missing
+        // blocks
+        let stub_block_author_3 = stub_block_headers
             .iter()
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .map(|(_, block)| block.clone())
@@ -1891,13 +1981,13 @@ mod tests {
         expected_blocks.extend(stub_block_author_3.clone());
 
         network_client
-            .stub_fetch_headers(stub_block_author_1, AuthorityIndex::new_for_test(1), None)
+            .stub_fetch_headers_response(stub_block_author_1, AuthorityIndex::new_for_test(1), None)
             .await;
         network_client
-            .stub_fetch_headers(stub_block_author_2, AuthorityIndex::new_for_test(2), None)
+            .stub_fetch_headers_response(stub_block_author_2, AuthorityIndex::new_for_test(2), None)
             .await;
         network_client
-            .stub_fetch_headers(stub_block_author_3, AuthorityIndex::new_for_test(3), None)
+            .stub_fetch_headers_response(stub_block_author_3, AuthorityIndex::new_for_test(3), None)
             .await;
 
         // Now create some blocks to simulate a commit lag
@@ -1922,7 +2012,7 @@ mod tests {
 
         // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
-        let _handle = Synchronizer::start(
+        let handle = Synchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1935,14 +2025,21 @@ mod tests {
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
 
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
+
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
-        let mut added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+        let mut added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
 
-        added_blocks.sort_by_key(|block| block.reference());
+        added_block_headers.sort_by_key(|block| block.reference());
         expected_blocks.sort_by_key(|block| block.reference());
 
-        assert_eq!(added_blocks, expected_blocks);
+        assert_eq!(added_block_headers, expected_blocks);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1971,31 +2068,31 @@ mod tests {
                 + context.parameters.max_headers_per_regular_sync_fetch as u32)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let missing_blocks = stub_headers
+        let missing_blocks_refs = stub_headers
             .iter()
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
         core_dispatcher
-            .stub_missing_blocks(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks_refs.clone())
             .await;
 
         // AND stub the requests for authority 1 & 2
         // Make the first authority timeout, so the second will be called. "We" are
-        // authority = 0, so we are skipped anyways.
+        // authority = 0, so we are skipped anyway.
         let mut expected_headers = stub_headers
             .iter()
             .take(context.parameters.max_headers_per_regular_sync_fetch)
             .cloned()
             .collect::<Vec<_>>();
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 expected_headers.clone(),
                 AuthorityIndex::new_for_test(1),
                 Some(FETCH_REQUEST_TIMEOUT),
             )
             .await;
         network_client
-            .stub_fetch_headers(
+            .stub_fetch_headers_response(
                 expected_headers.clone(),
                 AuthorityIndex::new_for_test(2),
                 None,
@@ -2024,7 +2121,7 @@ mod tests {
 
         // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
-        let _handle = Synchronizer::start(
+        let handle = Synchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -2067,7 +2164,7 @@ mod tests {
 
         // Now stub again the missing blocks to fetch the exact same ones.
         core_dispatcher
-            .stub_missing_blocks(missing_blocks.clone())
+            .stub_missing_block_headers(missing_blocks_refs.clone())
             .await;
 
         sleep(2 * FETCH_REQUEST_TIMEOUT).await;
@@ -2079,10 +2176,17 @@ mod tests {
         expected_headers.sort_by_key(|block| block.reference());
 
         assert_eq!(added_blocks, expected_headers);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn synchronizer_fetch_own_last_block() {
+    async fn synchronizer_fetch_own_last_block_header() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context.with_parameters(Parameters {
@@ -2103,63 +2207,63 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        // Create some test blocks
-        let mut expected_blocks = (8..=10)
+        // Create some test block headers
+        let mut expected_block_headers = (8..=10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
 
-        // Now set different latest blocks for the peers
-        // For peer 1 we give the block of round 10 (highest)
-        let block_1 = expected_blocks.pop().unwrap();
+        // Now set different latest block headers for the peers
+        // For peer 1 we give the block header of round 10 (highest)
+        let block_header_1 = expected_block_headers.pop().unwrap();
         network_client
-            .stub_fetch_latest_block_headers(
-                vec![block_1.clone()],
+            .stub_fetch_latest_block_headers_response(
+                vec![block_header_1.clone()],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
             )
             .await;
         network_client
-            .stub_fetch_latest_block_headers(
-                vec![block_1],
+            .stub_fetch_latest_block_headers_response(
+                vec![block_header_1],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
                 None,
             )
             .await;
 
-        // For peer 2 we give the block of round 9
-        let block_2 = expected_blocks.pop().unwrap();
+        // For peer 2 we give the block header of round 9
+        let block_header_2 = expected_block_headers.pop().unwrap();
         network_client
-            .stub_fetch_latest_block_headers(
-                vec![block_2.clone()],
+            .stub_fetch_latest_block_headers_response(
+                vec![block_header_2.clone()],
                 AuthorityIndex::new_for_test(2),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
             )
             .await;
         network_client
-            .stub_fetch_latest_block_headers(
-                vec![block_2],
+            .stub_fetch_latest_block_headers_response(
+                vec![block_header_2],
                 AuthorityIndex::new_for_test(2),
                 vec![our_index],
                 None,
             )
             .await;
 
-        // For peer 3 we give a block with lowest round
-        let block_3 = expected_blocks.pop().unwrap();
+        // For peer 3 we give a block header with the lowest round
+        let block_header_3 = expected_block_headers.pop().unwrap();
         network_client
-            .stub_fetch_latest_block_headers(
-                vec![block_3.clone()],
+            .stub_fetch_latest_block_headers_response(
+                vec![block_header_3.clone()],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
             )
             .await;
         network_client
-            .stub_fetch_latest_block_headers(
-                vec![block_3],
+            .stub_fetch_latest_block_headers_response(
+                vec![block_header_3],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
                 None,
@@ -2181,7 +2285,7 @@ mod tests {
         // Wait at least for the timeout time
         sleep(context.parameters.sync_last_known_own_block_timeout * 2).await;
 
-        // Assert that core has been called to set the min propose round
+        // Assert that core has been called to set the min proposed round
         assert_eq!(
             core_dispatcher.get_last_own_proposed_round().await,
             vec![10]
@@ -2205,7 +2309,17 @@ mod tests {
             1
         );
 
-        // Ensure that no panic occurred
+        // Check that we restored our last know block header correctly
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .last_known_own_block_round
+                .get(),
+            10
+        );
+
+        // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await {
             if err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
@@ -2214,7 +2328,7 @@ mod tests {
     }
     #[derive(Default)]
     struct SyncMockDispatcher {
-        missing_blocks: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        missing_block_headers: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         added_blocks: Mutex<Vec<VerifiedBlock>>,
     }
 
@@ -2286,10 +2400,10 @@ mod tests {
             Ok(BTreeMap::new())
         }
 
-        async fn get_missing_blocks(
+        async fn get_missing_block_headers(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(self.missing_blocks.lock().await.clone())
+            Ok(self.missing_block_headers.lock().await.clone())
         }
 
         fn set_quorum_subscribers_exists(&self, _exists: bool) -> Result<(), CoreError> {
@@ -2315,43 +2429,38 @@ mod tests {
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let inflight = InflightBlockHeadersMap::new();
 
-            // 2) One missing block
-            let missing_vb =
+            // 2) One missing block header
+            let missing_vbh =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(100, 3).build());
-            let missing_ref = missing_vb.reference();
+            let missing_ref = missing_vbh.reference();
             let missing_blocks = BTreeMap::from([(
                 missing_ref,
                 BTreeSet::from([
                     AuthorityIndex::new_for_test(2),
                     AuthorityIndex::new_for_test(3),
-                    AuthorityIndex::new_for_test(4),
+                    AuthorityIndex::new_for_test(5),
                 ]),
             )]);
 
             // 3) Prepare mocks and stubs
             let network_client = Arc::new(MockNetworkClient::default());
-            // Stub *all*  authorities so none panic:
+            // Stub *all* authorities so none panic:
             for i in 1..=9 {
                 let peer = AuthorityIndex::new_for_test(i);
-                if i == 1 || i == 4 {
-                    network_client
-                        .stub_fetch_headers(
-                            vec![missing_vb.clone()],
-                            peer,
-                            Some(2 * FETCH_REQUEST_TIMEOUT),
-                        )
-                        .await;
-                    continue;
-                }
+                let timeout = if i == 1 || i == 3 {
+                    Some(2 * FETCH_REQUEST_TIMEOUT)
+                } else {
+                    None
+                };
                 network_client
-                    .stub_fetch_headers(vec![missing_vb.clone()], peer, None)
+                    .stub_fetch_headers_response(vec![missing_vbh.clone()], peer, timeout)
                     .await;
             }
 
             // 4) Invoke knowledge-based fetch and random fallback selection
             //    deterministically
             let results = Synchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
-            ::fetch_block_headers_from_authorities(
+            ::fetch_block_headers_from_authorities_periodic(
                 context.clone(),
                 inflight.clone(),
                 network_client.clone(),
@@ -2360,18 +2469,33 @@ mod tests {
             )
                 .await;
 
-            // 5) Assert we got exactly two fetches - two from the first two who are aware
-            //    of the missing block (authority 2 and 3)
-            assert_eq!(results.len(), 2);
+            // 5) Knowledge-based fetches should go to 2 and 3, additional random requests
+            //    go to 1 (only one authority because in additional requests we ask
+            //    different authorities for different headers,
+            // and we have only one header).
+            // For authorities 1 and 3 we will have request timeout. After the request
+            // timeout they try to swap locks and request the header from remaining
+            // authorities, first two of them are authorities 4 and 5. Assert we
+            // got exactly three fetches - from 2 (knowledge-based), and from 4 and 5
+            // (request from remaining authorities after timeout)
+            assert_eq!(results.len(), 3);
 
-            // 6) The  knowledge-based‐fetch went to peer 2 and 3
-            let (_hot_guard, hot_bytes, hot_peer) = &results[0];
-            assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
-            let (_periodic_guard, _periodic_bytes, periodic_peer) = &results[1];
-            assert_eq!(*periodic_peer, AuthorityIndex::new_for_test(3));
+            // 6) The results should come in the following order: 2, 4, 5
+            let peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
+            assert_eq!(
+                peers,
+                vec![
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(4),
+                    AuthorityIndex::new_for_test(5)
+                ]
+            );
+
             // 7) Verify the returned bytes correspond to that block
-            let expected = missing_vb.serialized().clone();
-            assert_eq!(hot_bytes, &vec![expected]);
+            for (_, bytes, _) in &results {
+                let expected = missing_vbh.serialized().clone();
+                assert_eq!(bytes, &vec![expected]);
+            }
         }
     }
 
@@ -2399,7 +2523,7 @@ mod tests {
 
         // 2) Create 1000 missing blocks known by authorities 0, 2, and 3
         let mut missing_block_headers = BTreeMap::new();
-        let mut missing_verified_block_headers = Vec::new();
+        let mut all_verified_block_headers = Vec::new();
         let known_number_block_headers = 10;
         for i in 0..1000 {
             let verified_block_header = VerifiedBlockHeader::new_for_test(
@@ -2429,15 +2553,15 @@ mod tests {
                 missing_block_headers
                     .insert(block_ref, BTreeSet::from([AuthorityIndex::new_for_test(0)]));
             }
-            missing_verified_block_headers.push(verified_block_header);
+            all_verified_block_headers.push(verified_block_header);
         }
 
         // 3) Stub fetches for knowledge-based peers (2 and 3)
         let known_peers = [2, 3].map(AuthorityIndex::new_for_test);
-        let known_vbs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlockHeader>)> = known_peers
+        let known_vbhs_by_peer: Vec<(AuthorityIndex, Vec<VerifiedBlockHeader>)> = known_peers
             .iter()
             .map(|&peer| {
-                let verified_block_headers = missing_verified_block_headers
+                let verified_block_headers = all_verified_block_headers
                     .iter()
                     .filter(|verified_block_header| {
                         missing_block_headers
@@ -2452,18 +2576,18 @@ mod tests {
             })
             .collect();
 
-        for (peer, verified_block_headers) in known_vbs_by_peer {
+        for (peer, verified_block_headers) in known_vbhs_by_peer {
             if peer == AuthorityIndex::new_for_test(2) {
-                // Simulate timeout for peer 2, then fallback to peer 5
+                // Simulate timeout for peer 2, then fall back to peer 5
                 network_client
-                    .stub_fetch_headers(
+                    .stub_fetch_headers_response(
                         verified_block_headers.clone(),
                         peer,
                         Some(2 * FETCH_REQUEST_TIMEOUT),
                     )
                     .await;
                 network_client
-                    .stub_fetch_headers(
+                    .stub_fetch_headers_response(
                         verified_block_headers.clone(),
                         AuthorityIndex::new_for_test(5),
                         None,
@@ -2471,15 +2595,15 @@ mod tests {
                     .await;
             } else {
                 network_client
-                    .stub_fetch_headers(verified_block_headers.clone(), peer, None)
+                    .stub_fetch_headers_response(verified_block_headers.clone(), peer, None)
                     .await;
             }
         }
 
-        // 4) Stub fetches from periodic path peers (1 and 4)
+        // 4) Stub responses for fetches from additional random peers (1 and 4 in tests)
         network_client
-            .stub_fetch_headers(
-                missing_verified_block_headers
+            .stub_fetch_headers_response(
+                all_verified_block_headers
                     [0..context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(1),
@@ -2488,8 +2612,9 @@ mod tests {
             .await;
 
         network_client
-            .stub_fetch_headers(
-                missing_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch..2 * context.parameters.max_headers_per_regular_sync_fetch]
+            .stub_fetch_headers_response(
+                all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
+                    ..2 * context.parameters.max_headers_per_regular_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(4),
                 None,
@@ -2501,7 +2626,7 @@ mod tests {
             MockNetworkClient,
             NoopBlockVerifier,
             SyncMockDispatcher,
-        >::fetch_block_headers_from_authorities(
+        >::fetch_block_headers_from_authorities_periodic(
             context.clone(),
             inflight.clone(),
             network_client.clone(),
@@ -2510,35 +2635,35 @@ mod tests {
         )
             .await;
 
-        // 6) Assert we got 4 fetches: peer 2 (timed out), fallback to 5, then periodic
-        //    from 1 and 4
+        // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of
+        //    the remaining peers), peer 3, and from 'random' 1 and 4
         assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
         // 7) First fetch from peer 3 (knowledge-based)
         let (_guard3, bytes3, peer3) = &results[0];
         assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
-        let expected2 = missing_verified_block_headers
+        let expected2 = all_verified_block_headers
             [known_number_block_headers..2 * known_number_block_headers]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes3, &expected2);
 
-        // 8) Second fetch from peer 1 (periodic)
+        // 8) Second fetch from peer 1 (additional random)
         let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
-        let expected1 = missing_verified_block_headers
+        let expected1 = all_verified_block_headers
             [0..context.parameters.max_headers_per_regular_sync_fetch]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes1, &expected1);
 
-        // 9) Third fetch from peer 4 (periodic)
+        // 9) Third fetch from peer 4 (additional random)
         let (_guard4, bytes4, peer4) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
         let expected4 =
-            missing_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
+            all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
                 ..2 * context.parameters.max_headers_per_regular_sync_fetch]
                 .iter()
                 .map(|vb| vb.serialized().clone())
@@ -2548,10 +2673,89 @@ mod tests {
         // 10) Fourth fetch from peer 5 (fallback after peer 2 timeout)
         let (_guard5, bytes5, peer5) = &results[3];
         assert_eq!(*peer5, AuthorityIndex::new_for_test(5));
-        let expected5 = missing_verified_block_headers[0..known_number_block_headers]
+        let expected5 = all_verified_block_headers[0..known_number_block_headers]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes5, &expected5);
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_headers_with_future_timestamp() {
+        let validators = 4;
+        let (context, _) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+
+        let network_client = Arc::new(MockNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        );
+
+        let handle = Synchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        // Create two block headers - one with a normal timestamp, one with a future
+        // timestamp
+        let normal_block_header = TestBlockHeader::new(1, 0)
+            .set_timestamp_ms(context.clock.timestamp_utc_ms())
+            .build();
+        let future_block_header = TestBlockHeader::new(2, 1)
+            .set_timestamp_ms(
+                context.clock.timestamp_utc_ms() + Duration::from_secs(3600).as_millis() as u64,
+            )
+            .build();
+
+        let normal_block_header = VerifiedBlockHeader::new_for_test(normal_block_header);
+        let future_block_header = VerifiedBlockHeader::new_for_test(future_block_header);
+        let headers_refs = [
+            normal_block_header.reference(),
+            future_block_header.reference(),
+        ]
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+        let peer = AuthorityIndex::new_for_test(1);
+        network_client
+            .stub_fetch_headers_response(
+                [normal_block_header.clone(), future_block_header.clone()].to_vec(),
+                peer,
+                None,
+            )
+            .await;
+        let _ = handle.fetch_headers(headers_refs, peer).await.is_ok();
+        // Wait a little bit until synchronizer tries to add them into core
+        sleep(Duration::from_millis(1_000)).await;
+
+        // THEN ensure that the normal block header was added and block header with
+        // future timestamp was ignored
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(added_block_headers.len(), 1);
+        assert_eq!(added_block_headers[0], normal_block_header);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
     }
 }

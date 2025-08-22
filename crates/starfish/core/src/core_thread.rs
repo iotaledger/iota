@@ -137,7 +137,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         force: bool,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
-    async fn get_missing_blocks(
+    async fn get_missing_block_headers(
         &self,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
@@ -421,7 +421,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn get_missing_blocks(
+    async fn get_missing_block_headers(
         &self,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
@@ -473,7 +473,7 @@ pub(crate) mod tests {
     pub(crate) struct MockCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
-        missing_blocks: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        missing_block_headers: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
@@ -498,10 +498,10 @@ pub(crate) mod tests {
             self.block_headers.lock().clone()
         }
 
-        pub(crate) async fn stub_missing_blocks(&self, block_refs: BTreeSet<BlockRef>) {
-            let mut missing_blocks = self.missing_blocks.lock();
+        pub(crate) async fn stub_missing_block_headers(&self, block_refs: BTreeSet<BlockRef>) {
+            let mut missing_block_headers = self.missing_block_headers.lock();
             for block_ref in &block_refs {
-                missing_blocks.insert(*block_ref, BTreeSet::from([block_ref.author]));
+                missing_block_headers.insert(*block_ref, BTreeSet::from([block_ref.author]));
             }
         }
 
@@ -544,8 +544,15 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = block_headers.iter().map(|b| b.reference()).collect();
+            let block_refs = block_headers
+                .iter()
+                .map(|b| b.reference())
+                .collect::<BTreeSet<_>>();
             self.block_headers.lock().extend(block_headers);
+            let mut missing_block_headers = self.missing_block_headers.lock();
+            for block_ref in &block_refs {
+                missing_block_headers.remove(block_ref);
+            }
             Ok((block_refs, BTreeMap::new()))
         }
 
@@ -586,12 +593,11 @@ pub(crate) mod tests {
             Ok(BTreeMap::new())
         }
 
-        async fn get_missing_blocks(
+        async fn get_missing_block_headers(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            let mut missing_blocks = self.missing_blocks.lock();
+            let missing_blocks = self.missing_block_headers.lock();
             let result = missing_blocks.clone();
-            missing_blocks.clear();
             Ok(result)
         }
 
