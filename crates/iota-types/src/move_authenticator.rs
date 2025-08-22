@@ -130,20 +130,7 @@ impl MoveAuthenticator {
     pub fn shared_objects(&self) -> Vec<SharedInputObject> {
         self.call_args
             .iter()
-            .filter_map(|arg| match arg {
-                CallArg::Pure(_)
-                | CallArg::Object(ObjectArg::Receiving(_))
-                | CallArg::Object(ObjectArg::ImmOrOwnedObject(_)) => None,
-                CallArg::Object(ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                }) => Some(SharedInputObject {
-                    id: *id,
-                    initial_shared_version: *initial_shared_version,
-                    mutable: *mutable,
-                }),
-            })
+            .flat_map(|arg| arg.shared_objects())
             .collect()
     }
 }

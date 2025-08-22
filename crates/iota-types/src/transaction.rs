@@ -525,6 +525,24 @@ impl CallArg {
         }
     }
 
+    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+        match self {
+            CallArg::Pure(_) => vec![],
+            CallArg::Object(o) => match o {
+                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::Receiving(_) => vec![],
+                ObjectArg::SharedObject {
+                    id,
+                    initial_shared_version,
+                    mutable,
+                } => vec![SharedInputObject {
+                    id: *id,
+                    initial_shared_version: *initial_shared_version,
+                    mutable: *mutable,
+                }],
+            },
+        }
+    }
+
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
             CallArg::Pure(p) => {
