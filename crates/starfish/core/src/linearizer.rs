@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use itertools::Itertools;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
@@ -34,14 +33,14 @@ pub(crate) trait BlockStoreAPI {
 }
 
 impl BlockStoreAPI
-    for parking_lot::lock_api::RwLockWriteGuard<'_, parking_lot::RawRwLock, DagState>
+    for parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, DagState>
 {
     fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
         DagState::get_block_headers(self, refs)
     }
 }
 
-/// Expand a committed sequence of leader into a sequence of sub-dags.
+/// Expand a committed sequence of leaders into a sequence of sub-dags.
 pub(crate) struct Linearizer {
     /// In-memory block store representing the dag state
     context: Arc<Context>,
@@ -64,7 +63,7 @@ impl Linearizer {
         }
     }
 
-    /// Collect the sub-dag and the corresponding commit from a specific leader
+    /// Collect the sub-dag and the corresponding commit from a specific leader,
     /// excluding any duplicates or blocks that have already been committed
     /// (within previous sub-dags).
     fn collect_sub_dag_and_commit(
@@ -80,7 +79,7 @@ impl Linearizer {
             .with_label_values(&["Linearizer::collect_sub_dag_and_commit"])
             .start_timer();
         // Grab latest commit state from dag state
-        let mut dag_state_guard = self.dag_state.write();
+        let dag_state_guard = self.dag_state.read();
         let last_commit_index = dag_state_guard.last_commit_index();
         let last_commit_digest = dag_state_guard.last_commit_digest();
         let last_commit_timestamp_ms = dag_state_guard.last_commit_timestamp_ms();
@@ -91,7 +90,7 @@ impl Linearizer {
         let to_commit = Self::linearize_sub_dag(
             leader_block.clone(),
             last_committed_rounds,
-            &mut dag_state_guard,
+            &dag_state_guard,
         );
 
         drop(dag_state_guard);
@@ -103,16 +102,20 @@ impl Linearizer {
             // Add the acknowledgments to the tracker and collect the ones that reached quorum.
             // This will return a vector of block references that reached the quorum threshold, so
             // using flat_map here to avoid nested vectors.
-            .flat_map(|block| {
+            .flat_map(|block_header| {
                 self.add_committed_transaction_acks(
-                    block.round(),
-                    block.author(),
-                    block.acknowledgments().to_vec(),
+                    block_header.round(),
+                    block_header.author(),
+                    block_header.acknowledgments().to_vec(),
                 )
             })
-            // Remove duplicate block references
-            .unique()
             .collect::<Vec<BlockRef>>();
+        // Check that there are no duplicates in the committed transactions
+        assert_eq!(
+            committed_transactions.len(),
+            committed_transactions.iter().collect::<HashSet<_>>().len(),
+            "Duplicate BlockRef found"
+        );
 
         // Create the Commit.
         let commit = Commit::new(
@@ -147,7 +150,7 @@ impl Linearizer {
     pub(crate) fn linearize_sub_dag(
         leader_block: VerifiedBlockHeader,
         last_committed_rounds: Vec<u32>,
-        dag_state: &mut impl BlockStoreAPI,
+        dag_state: &impl BlockStoreAPI,
     ) -> Vec<VerifiedBlockHeader> {
         let leader_block_ref = leader_block.reference();
         let leader_round = leader_block.round();
@@ -198,6 +201,8 @@ impl Linearizer {
     // This function should be called whenever a new commit is observed. This will
     // iterate over the sequence of committed leaders and produce a list of
     // committed sub-dags.
+    // Leaders in `committed_leaders` are assumed to be ordered in increasing
+    // rounds.
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
@@ -283,9 +288,9 @@ impl Linearizer {
                 .entry(block_ref)
                 .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
 
-            if !votes_collector.reached_threshold(&self.context.committee)
-                && votes_collector.add(authority, &self.context.committee)
-            {
+            let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
+
+            if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
                 acknowledged_data.push(block_ref);
             }
         }
@@ -486,13 +491,15 @@ mod tests {
         // Now retrieve all the blocks up to round leader_round_wave_1 - 1
         // And then only the leader of round leader_round_wave_1
         // Also store those to DagState
-        let mut blocks = dag_builder.block_headers(0..=leader_round_wave_1 - 1);
-        blocks.push(
+        let mut block_headers_wave_1 = dag_builder.block_headers(0..=leader_round_wave_1 - 1);
+        block_headers_wave_1.push(
             dag_builder
                 .leader_block(leader_round_wave_1)
                 .expect("Leader block should have been found"),
         );
-        dag_state.write().accept_block_headers(blocks.clone());
+        dag_state
+            .write()
+            .accept_block_headers(block_headers_wave_1.clone());
 
         let first_leader = dag_builder
             .leader_block(leader_round_wave_1)
@@ -503,29 +510,38 @@ mod tests {
             CommitDigest::MIN,
             0,
             first_leader.reference(),
-            blocks.into_iter().map(|block| block.reference()).collect(),
+            block_headers_wave_1
+                .into_iter()
+                .map(|block| block.reference())
+                .collect(),
             vec![],
         );
         dag_state.write().add_commit(first_commit_data);
 
         // Now take all the blocks from round `leader_round_wave_1` up to round
         // `leader_round_wave_2-1`
-        let mut blocks = dag_builder.block_headers(leader_round_wave_1..=leader_round_wave_2 - 1);
+        let mut block_headers_wave_2 =
+            dag_builder.block_headers(leader_round_wave_1..=leader_round_wave_2 - 1);
         // Filter out leader block of round `leader_round_wave_1`
-        blocks.retain(|block| {
+        block_headers_wave_2.retain(|block| {
             !(block.round() == leader_round_wave_1
                 && block.author() == leader_schedule.elect_leader(leader_round_wave_1, 0))
         });
         // Add the leader block of round `leader_round_wave_2`
-        blocks.push(
+        block_headers_wave_2.push(
             dag_builder
                 .leader_block(leader_round_wave_2)
                 .expect("Leader block should have been found"),
         );
         // Write them in dag state
-        dag_state.write().accept_block_headers(blocks.clone());
+        dag_state
+            .write()
+            .accept_block_headers(block_headers_wave_2.clone());
 
-        let mut blocks: Vec<_> = blocks.into_iter().map(|block| block.reference()).collect();
+        let mut block_refs_wave_2: Vec<_> = block_headers_wave_2
+            .into_iter()
+            .map(|block| block.reference())
+            .collect();
 
         // Now get the latest leader which is the leader round of wave 2
         let leader = dag_builder
@@ -538,7 +554,7 @@ mod tests {
             CommitDigest::MIN,
             0,
             leader.reference(),
-            blocks.clone(),
+            block_refs_wave_2.clone(),
             vec![],
         );
 
@@ -552,7 +568,8 @@ mod tests {
         assert_eq!(subdag.commit_ref.index, expected_second_commit.index());
 
         // Using the same sorting as used in CommittedSubDag::sort
-        blocks.sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
+        block_refs_wave_2
+            .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
         assert_eq!(
             subdag
                 .blocks
@@ -560,7 +577,7 @@ mod tests {
                 .into_iter()
                 .map(|b| b.reference())
                 .collect::<Vec<_>>(),
-            blocks
+            block_refs_wave_2
         );
         for block in subdag.blocks.iter() {
             assert!(block.round() <= expected_second_commit.leader().round);
@@ -587,7 +604,7 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        // Authorities of index 0->2 will always creates blocks that see each other, but
+        // Authorities of index 0-2 will always create blocks that see each other, but
         // until round 5 they won't see the blocks of authority 3. For authority
         // 3 we create blocks that connect to all the other authorities.
         // On round 5 we finally make the other authorities see the blocks of authority
@@ -629,8 +646,11 @@ mod tests {
             .flatten()
             .collect::<Vec<_>>();
 
-        let commits = linearizer.handle_commit(leaders.clone());
-        for (idx, subdag) in commits.into_iter().enumerate() {
+        for (idx, leader) in leaders.iter().enumerate() {
+            let subdags = linearizer.handle_commit(vec![leader.clone()]);
+            assert_eq!(subdags.len(), 1);
+            let subdag = &subdags[0];
+
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
             assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
@@ -657,6 +677,17 @@ mod tests {
                 //   missing
                 // * 3 blocks on round 2, committed without delay
                 assert_eq!(subdag.committed_transaction_refs.len(), 6);
+                // Check that transactions are acknowledged by all authorities except authority
+                // 3.
+                let ack_authors = linearizer
+                    .get_transaction_ack_authors(subdag.committed_transaction_refs.clone());
+                for (block_ref, authors) in ack_authors {
+                    assert_eq!(
+                        authors,
+                        (0..3).map(AuthorityIndex::new_for_test).collect(),
+                        "{block_ref}"
+                    );
+                }
             } else {
                 // we expect to see all blocks of round >= 1
                 assert_eq!(subdag.blocks.len(), 6);
@@ -668,15 +699,84 @@ mod tests {
                 // The following subdag commits all data from round 3 (leader block was missing,
                 // so only 3 block refs)
                 assert_eq!(subdag.committed_transaction_refs.len(), 3);
+
+                // Check that transactions are acknowledged by all authorities.
+                let ack_authors = linearizer
+                    .get_transaction_ack_authors(subdag.committed_transaction_refs.clone());
+                for (block_ref, authors) in ack_authors {
+                    tracing::info!("{block_ref:?}");
+                    assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
+                }
             }
             for block in subdag.blocks.iter() {
                 assert!(block.round() <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round <= leaders[idx].round());
+                assert!(committed_transactions_ref.round < leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_eviction() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+        let num_rounds_to_evict = 20;
+        // Populate fully connected test blocks for round 0 ~ MAX_LINEARIZER_DEPTH +
+        // MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict, authorities 0 ~ 3.
+        let num_rounds: u32 =
+            MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=num_rounds)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let leaders = dag_builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        linearizer.handle_commit(leaders.clone());
+        // Check that before eviction acknowledgements for all rounds up to num_rounds-2
+        // are stored
+        for round in 1..=num_rounds - 2 {
+            let round_references: Vec<_> = dag_builder
+                .block_headers(round..=round)
+                .into_iter()
+                .map(|bh| bh.reference())
+                .collect();
+            let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            assert_eq!(ack_authors.len(), 4);
+        }
+
+        linearizer.evict_old_acknowledgments(num_rounds);
+        // Check that acknowledgements for the first num_rounds_to_evict rounds are
+        // evicted and the rest are still stored
+        for round in 1..=num_rounds - 2 {
+            let round_references: Vec<_> = dag_builder
+                .block_headers(round..=round)
+                .into_iter()
+                .map(|bh| bh.reference())
+                .collect();
+            let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            if round <= num_rounds_to_evict {
+                assert!(ack_authors.is_empty());
+            } else {
+                assert_eq!(ack_authors.len(), 4);
+            }
         }
     }
 }
