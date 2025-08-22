@@ -31,7 +31,7 @@ use smallvec::SmallVec;
 use tracing::error;
 
 use crate::{
-    close_frame, close_initial_frame, close_instruction,
+    close_frame, close_initial_native_frame, close_instruction,
     loader::{Function, Loader, Resolver},
     native_extensions::NativeContextExtensions,
     native_functions::NativeContext,
@@ -151,7 +151,7 @@ impl Interpreter {
                         .finish(Location::Module(function.module_id().clone()))
                 });
 
-            close_initial_frame!(tracer, &function, &return_values, gas_meter);
+            close_initial_native_frame!(tracer, &function, &return_values, gas_meter);
 
             Ok(return_values?.into_iter().collect())
         } else {
