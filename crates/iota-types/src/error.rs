@@ -319,8 +319,8 @@ pub enum UserInputError {
     // `MoveAuthenticator` related errors
     #[error("Account object {object_id:?} not found")]
     AccountObjectNotFound { object_id: ObjectID },
-    #[error("Account object {object_id:?} is not a shared object that is unsupported")]
-    AccountObjectNotSharedObject { object_id: ObjectID },
+    #[error("Account object {object_id:?} is not a shared or immutable object that is unsupported")]
+    AccountObjectNotSupported { object_id: ObjectID },
     #[error(
         "The fetched account object version {actual_version:?} does not match the expected version {expected_version:?}, object id: {object_id:?}"
     )]

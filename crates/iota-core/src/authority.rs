@@ -906,8 +906,7 @@ impl AuthorityState {
             );
 
             // Make sure the sender is a smart account.
-            let authenticator_info =
-                self.check_smart_account(move_authenticator.object_to_authenticate())?;
+            let authenticator_info = self.check_smart_account(move_authenticator)?;
 
             // Check the `MoveAuthenticator` input objects.
             //
@@ -1766,8 +1765,7 @@ impl AuthorityState {
                 IotaError::MoveAuthenticatorDisabled { digest: tx_digest }
             );
 
-            let authenticator_info =
-                self.check_smart_account(move_authenticator.object_to_authenticate())?;
+            let authenticator_info = self.check_smart_account(move_authenticator)?;
 
             let authenticator_input_objects = authenticator_input_objects.expect(
                 "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
@@ -5176,21 +5174,23 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
-    /// Checks if `account` is a valid smart account and returns the
+    /// Checks if `authenticator` unlocks a valid smart account and returns the
     /// account-related `AuthenticatorInfo` object.
-    fn check_smart_account(&self, account: &ObjectRef) -> IotaResult<AuthenticatorInfo> {
-        let account_object_id = account.0;
-        let account_object_seq_number = account.1;
-        let account_object_digest = account.2;
+    fn check_smart_account(
+        &self,
+        authenticator: &MoveAuthenticator,
+    ) -> IotaResult<AuthenticatorInfo> {
+        let (account_object_id, account_object_seq_number, account_object_digest) =
+            authenticator.object_to_authenticate_components()?;
 
         let account_object = self.get_object_read(&account_object_id)?;
 
         match account_object {
             ObjectRead::Exists(_, object, _) => {
                 fp_ensure!(
-                    object.is_shared(),
-                    UserInputError::AccountObjectNotSharedObject {
-                        object_id: account_object_id,
+                    object.is_shared() || object.is_immutable(),
+                    UserInputError::AccountObjectNotSupported {
+                        object_id: account_object_id
                     }
                     .into()
                 );
@@ -5205,16 +5205,18 @@ impl AuthorityState {
                     .into()
                 );
 
-                let expected_digest = object.digest();
-                fp_ensure!(
-                    expected_digest == account_object_digest,
-                    UserInputError::InvalidAccountObjectDigest {
-                        object_id: account_object_id,
-                        expected_digest,
-                        actual_digest: account_object_digest,
-                    }
-                    .into()
-                );
+                if let Some(account_object_digest) = account_object_digest {
+                    let expected_digest = object.digest();
+                    fp_ensure!(
+                        expected_digest == account_object_digest,
+                        UserInputError::InvalidAccountObjectDigest {
+                            object_id: account_object_id,
+                            expected_digest,
+                            actual_digest: account_object_digest,
+                        }
+                        .into()
+                    );
+                }
 
                 let authenticator_id = self.get_dynamic_field_object_id(
                     account_object_id,
