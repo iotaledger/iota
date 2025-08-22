@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, result::Result};
+use std::result::Result;
 
 use anyhow::{anyhow, bail};
 use futures::future::join_all;
@@ -14,6 +14,8 @@ use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRaw
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
+    error::UserInputError,
+    fp_ensure,
     gas_coin::GasCoin,
     move_package::MovePackage,
     object::{Object, Owner},
@@ -86,7 +88,6 @@ impl TransactionBuilder {
     async fn get_object_arg(
         &self,
         id: ObjectID,
-        objects: &mut BTreeMap<ObjectID, Object>,
         is_mutable_ref: bool,
         view: &CompiledModule,
         arg_type: &SignatureToken,
@@ -99,7 +100,6 @@ impl TransactionBuilder {
         let obj: Object = response.into_object()?.try_into()?;
         let obj_ref = obj.compute_object_reference();
         let owner = obj.owner;
-        objects.insert(id, obj);
         if is_receiving_argument(view, arg_type) {
             return Ok(ObjectArg::Receiving(obj_ref));
         }
@@ -123,32 +123,32 @@ impl TransactionBuilder {
         &self,
         builder: &mut ProgrammableTransactionBuilder,
         package_id: ObjectID,
-        module: &Identifier,
-        function: &Identifier,
+        module_ident: &Identifier,
+        function_ident: &Identifier,
         type_args: &[TypeTag],
         json_args: Vec<IotaJsonValue>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
-        let package = self.load_move_package(package_id).await?;
+        // Fetch the move package for the given package ID.
+        let package = self.fetch_move_package(package_id).await?;
+        let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
+        // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &package,
-            module.clone(),
-            function.clone(),
+            module_ident.clone(),
+            function_ident.clone(),
             type_args,
             json_args,
         )?;
 
+        // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
-        let mut objects = BTreeMap::new();
-        let module = package.deserialize_module(module, &BinaryConfig::standard())?;
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
-
                 ResolvedCallArg::Object(id) => builder.input(CallArg::Object(
                     self.get_object_arg(
                         id,
-                        &mut objects,
                         // Is mutable if passed by mutable reference or by value
                         matches!(expected_type, SignatureToken::MutableReference(_))
                             || !expected_type.is_reference(),
@@ -157,14 +157,12 @@ impl TransactionBuilder {
                     )
                     .await?,
                 )),
-
                 ResolvedCallArg::ObjVec(v) => {
                     let mut object_ids = vec![];
                     for id in v {
                         object_ids.push(
                             self.get_object_arg(
                                 id,
-                                &mut objects,
                                 // is_mutable_ref
                                 false,
                                 &module,
@@ -192,7 +190,7 @@ impl TransactionBuilder {
         type_args: &[TypeTag],
         call_args: Vec<PtbInput>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
-        let package = self.load_move_package(package_id).await?;
+        let package = self.fetch_move_package(package_id).await?;
 
         let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
         let function_str = function.as_ident_str();
@@ -224,7 +222,6 @@ impl TransactionBuilder {
         }
 
         let mut arguments = Vec::with_capacity(expected_len);
-        let mut objects = BTreeMap::new();
 
         for (idx, (arg, param)) in call_args
             .into_iter()
@@ -250,13 +247,7 @@ impl TransactionBuilder {
                                 _ => !param.is_reference(),
                             };
                             let object_arg = self
-                                .get_object_arg(
-                                    id,
-                                    &mut objects,
-                                    is_mutable,
-                                    &module_compiled,
-                                    param,
-                                )
+                                .get_object_arg(id, is_mutable, &module_compiled, param)
                                 .await?;
                             builder.input(CallArg::Object(object_arg))?
                         }
@@ -264,14 +255,8 @@ impl TransactionBuilder {
                             let mut object_args = Vec::with_capacity(vec_ids.len());
                             for id in vec_ids {
                                 object_args.push(
-                                    self.get_object_arg(
-                                        id,
-                                        &mut objects,
-                                        false,
-                                        &module_compiled,
-                                        param,
-                                    )
-                                    .await?,
+                                    self.get_object_arg(id, false, &module_compiled, param)
+                                        .await?,
                                 );
                             }
                             builder.make_obj_vec(object_args)?
@@ -292,6 +277,74 @@ impl TransactionBuilder {
         }
 
         Ok(arguments)
+    }
+
+    /// Convert provided JSON arguments for a move function to their
+    /// [`Argument`] representation and check their validity. Also, check that
+    /// the passed function is compliant to the Move View
+    /// Function specification.
+    pub async fn resolve_and_checks_json_view_args(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        package_id: ObjectID,
+        module_ident: &Identifier,
+        function_ident: &Identifier,
+        type_args: &[TypeTag],
+        json_args: Vec<IotaJsonValue>,
+    ) -> Result<Vec<Argument>, anyhow::Error> {
+        // Fetch the move package for the given package ID.
+        let package = self.fetch_move_package(package_id).await?;
+        let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
+
+        // Extract the expected function signature and check the return type.
+        // If the function is a view function, it MUST return at least a value.
+        check_function_has_a_return(&module, function_ident)?;
+
+        // Then resolve the function parameters type.
+        let json_args_and_tokens = resolve_move_function_args(
+            &package,
+            module_ident.clone(),
+            function_ident.clone(),
+            type_args,
+            json_args,
+        )?;
+
+        // Finally construct the input arguments for the builder.
+        let mut args = Vec::new();
+        for (arg, expected_type) in json_args_and_tokens {
+            args.push(match arg {
+                // Move View Functions can accept pure arguments.
+                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                // Move View Functions can accept only immutable object references.
+                ResolvedCallArg::Object(id) => {
+                    fp_ensure!(
+                            matches!(expected_type, SignatureToken::Reference(_)),
+                            UserInputError::InvalidMoveViewFunction {
+                                error: format!("Found a function parameter which is not an immutable reference {expected_type:?}")
+                                    .to_owned(),
+                            }
+                            .into()
+                        );
+                    builder.input(CallArg::Object(
+                        self.get_object_arg(
+                            id,
+                            // Setting false is safe because of fp_ensure! above
+                            false,
+                            &module,
+                            &expected_type,
+                        )
+                        .await?,
+                    ))
+                }
+                // Move View Functions can not accept vector of object by value (this case).
+                ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
+                    error: "Found a function parameter which is a vector of objects".to_owned(),
+                }
+                .into()),
+            }?);
+        }
+
+        Ok(args)
     }
 
     /// Get the latest object ref for an object.
@@ -317,8 +370,8 @@ impl TransactionBuilder {
         Ok((object.object_ref(), object.object_type()?))
     }
 
-    // Helper function to load a Move package from an object ID.
-    async fn load_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
+    /// Helper function to get a Move Package for a provided ObjectID.
+    async fn fetch_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
         let object = self
             .0
             .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
@@ -336,4 +389,30 @@ impl TransactionBuilder {
             package.linkage_table,
         )?)
     }
+}
+
+/// Helper function to check if the provided function within a module has at
+/// least a return type.
+fn check_function_has_a_return(
+    module: &CompiledModule,
+    function_ident: &Identifier,
+) -> Result<(), anyhow::Error> {
+    let (_, fdef) = module
+        .find_function_def_by_name(function_ident.as_str())
+        .ok_or_else(|| {
+            anyhow!(
+                "Could not resolve function {} in module {}",
+                function_ident,
+                module.self_id()
+            )
+        })?;
+    let function_signature = module.function_handle_at(fdef.function);
+    fp_ensure!(
+        !&module.signature_at(function_signature.return_).is_empty(),
+        UserInputError::InvalidMoveViewFunction {
+            error: "No return type for this function".to_owned(),
+        }
+        .into()
+    );
+    Ok(())
 }
