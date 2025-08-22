@@ -430,7 +430,7 @@ impl SignatureVerifier {
     ) -> IotaResult {
         let epoch = self.committee.epoch();
         self.authority_capability_cache.is_verified(
-            *signed_authority_capabilities.cache_digest(epoch),
+            signed_authority_capabilities.cache_digest(epoch),
             || {
                 // Check if authority exists in non-committee validators
                 let authority_name = signed_authority_capabilities.data().authority;

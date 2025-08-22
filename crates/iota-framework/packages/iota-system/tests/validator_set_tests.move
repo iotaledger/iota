@@ -1450,31 +1450,33 @@ fun test_eligible_committee_selection_with_validator_changes() {
     scenario_val.end();
 }
 
-// Test case 7: Empty eligible validators list
+// Test case 7: Empty eligible validators list - fallback to all prev validators
 #[test]
-#[expected_failure(abort_code = validator_set::EEligibleValidatorSetEmpty)]
-fun test_eligible_committee_selection_empty_eligible_list() {
+fun test_empty_eligible_validators_fallback_to_all_prev_validators() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
 
-    // Create validators with different stakes
-    let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA
-    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA
-    let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
+    // Create validators with different stakes to test comprehensive fallback scenarios
+    let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA - index 0
+    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA - index 1  
+    let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA - index 2
+    let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA - index 3
+    let v5 = create_validator(@0x5, 10, 1, true, ctx); // 1000 IOTA - index 4
 
     let committee_size = 3;
-    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3], committee_size, ctx);
+    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5], committee_size, ctx);
     scenario_val.end();
 
     let mut scenario_val = test_scenario::begin(@0x1);
     let scenario = &mut scenario_val;
 
-    // Check initial committee
-    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3]);
-    assert_eq(validator_set.committee_validator_addresses(), vector[@0x1, @0x2, @0x3]);
+    // Check initial committee (top 3 by stake)
+    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
+    assert_eq(validator_set.committee_validator_addresses(), vector[@0x5, @0x4, @0x3]); // Top 3 by stake
 
-    // Test with empty eligible validators list - should fail with EEligibleValidatorSetEmpty
+    // Test Case 1: Empty eligible validators with committee_size < active_validators  
+    // Should fall back to all prev validators and select top committee_size by stake
     let eligible_validators = vector[]; // Empty list
     advance_epoch_with_eligible_validators(
         &mut validator_set,
@@ -1483,11 +1485,70 @@ fun test_eligible_committee_selection_empty_eligible_list() {
         scenario,
     );
 
+    // Should select top 3 validators by stake from all prev validators (fallback behavior)
+    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
+    assert_eq(validator_set.committee_validator_addresses(), vector[@0x5, @0x4, @0x3]); // Top 3 by stake
+    assert_eq(validator_set.total_stake_inner(), (1000 + 800 + 600) * NANOS_PER_IOTA);
+
+    // Test Case 2: Empty eligible validators with committee_size > active_validators
+    // Should include all available validators
+    let eligible_validators = vector[]; // Empty list
+    advance_epoch_with_eligible_validators(
+        &mut validator_set,
+        7, // Committee size larger than validator count (5)
+        eligible_validators,
+        scenario,
+    );
+
+    // Should include all 5 validators since committee_size > validator count
+    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
+    assert_eq(validator_set.committee_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]); // All validators by stake
+    assert_eq(validator_set.total_stake_inner(), (1000 + 800 + 600 + 400 + 200) * NANOS_PER_IOTA);
+
     test_utils::destroy(validator_set);
     scenario_val.end();
 }
 
-// Test case 8: Invalid/out-of-bounds indices in eligible list
+// Test case 8: Empty eligible validators list with single validator
+#[test]
+fun test_empty_eligible_validators_single_validator_fallback() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let ctx = scenario.ctx();
+
+    // Create single validator to test edge case
+    let v1 = create_validator(@0x1, 5, 1, true, ctx); // 500 IOTA
+
+    let committee_size = 3;
+    let mut validator_set = validator_set::new_v2(vector[v1], committee_size, ctx);
+    scenario_val.end();
+
+    let mut scenario_val = test_scenario::begin(@0x1);
+    let scenario = &mut scenario_val;
+
+    // Check initial state
+    assert_eq(validator_set.active_validator_addresses(), vector[@0x1]);
+    assert_eq(validator_set.committee_validator_addresses(), vector[@0x1]);
+
+    // Test empty eligible validators with single validator
+    let eligible_validators = vector[]; // Empty list
+    advance_epoch_with_eligible_validators(
+        &mut validator_set,
+        committee_size,
+        eligible_validators,
+        scenario,
+    );
+
+    // Should fallback to the single available validator
+    assert_eq(validator_set.active_validator_addresses(), vector[@0x1]);
+    assert_eq(validator_set.committee_validator_addresses(), vector[@0x1]);
+    assert_eq(validator_set.total_stake_inner(), 500 * NANOS_PER_IOTA);
+
+    test_utils::destroy(validator_set);
+    scenario_val.end();
+}
+
+// Test case 9: Invalid/out-of-bounds indices in eligible list
 #[test]
 #[expected_failure(abort_code = validator_set::EInvalidEligibleValidatorIndex)]
 fun test_eligible_committee_selection_invalid_indices() {
@@ -1521,7 +1582,7 @@ fun test_eligible_committee_selection_invalid_indices() {
     scenario_val.end();
 }
 
-// Test case 9: Duplicate indices in eligible validators list
+// Test case 10: Duplicate indices in eligible validators list
 #[test]
 fun test_eligible_committee_selection_duplicate_indices() {
     let mut scenario_val = test_scenario::begin(@0x0);

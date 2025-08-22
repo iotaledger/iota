@@ -1119,7 +1119,7 @@ mod checked {
             max_committee_members_count: protocol_config.max_committee_members_count(),
             eligible_active_validators: change_epoch_v3.eligible_active_validators,
         };
-        let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
+        let advance_epoch_pt = construct_advance_epoch_pt_v3(builder, &params)?;
         advance_epoch_impl(
             advance_epoch_pt,
             params,

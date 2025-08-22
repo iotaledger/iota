@@ -160,8 +160,7 @@ const ENotAPendingValidator: u64 = 12;
 const EValidatorSetEmpty: u64 = 13;
 const ENotACommitteeValidator: u64 = 14;
 const EInvalidStakeAmount: u64 = 15;
-const EEligibleValidatorSetEmpty: u64 = 16;
-const EInvalidEligibleValidatorIndex: u64 = 17;
+const EInvalidEligibleValidatorIndex: u64 = 16;
 
 const EInvalidCap: u64 = 101;
 
@@ -1505,14 +1504,17 @@ public(package) fun process_new_committee(
     committee_size: u64,
     prev_committee_addresses: vector<address>,
     prev_active_validator_addresses: vector<address>,
-    eligible_active_validators: vector<u64>,
+    mut eligible_active_validators: vector<u64>,
     ctx: &TxContext,
 ) {
 
     // Convert eligible validator indices into current active_validators indices, independent of the changes in active_validators.
     let mut current_eligible_indices = vector[];
     
-    assert!(!eligible_active_validators.is_empty(), EEligibleValidatorSetEmpty);
+    // If eligible_active_validators is empty, use indices of all prev_active_validator_addresses as fallback
+    if (eligible_active_validators.is_empty()) {
+        eligible_active_validators = vector::tabulate!(prev_active_validator_addresses.length(), |i| i);
+    };
 
     eligible_active_validators.do_ref!(|idx| {
         // Validate that the index is within bounds of prev_active_validator_addresses

@@ -4750,6 +4750,32 @@ impl AuthorityState {
         eligible_validators
     }
 
+    /// Calculates the sum of weights for eligible validators that are part of
+    /// the committee. Takes the indices from
+    /// get_validators_supporting_protocol_version and maps them back
+    /// to committee members to get their weights.
+    fn calculate_eligible_validators_weight(
+        eligible_validator_indices: &[u64],
+        active_validators: &[AuthorityPublicKey],
+        committee: &Committee,
+    ) -> u64 {
+        let mut total_weight = 0u64;
+
+        for &index in eligible_validator_indices {
+            if let Some(authority_pubkey) = active_validators.get(index as usize) {
+                // Check if this validator is in the committee and get their weight
+                if let Some((_, weight)) = committee
+                    .members()
+                    .find(|(name, _)| *name == AuthorityName::from(authority_pubkey))
+                {
+                    total_weight += weight;
+                }
+            }
+        }
+
+        total_weight
+    }
+
     #[instrument(level = "debug", skip_all)]
     fn create_authenticator_state_tx(
         &self,
@@ -4864,13 +4890,41 @@ impl AuthorityState {
 
         if should_use_change_epoch_v3 {
             // Get the list of eligible validators that support the target protocol version
-            let eligible_active_validators = Self::get_validators_supporting_protocol_version(
+            let active_validators = epoch_store.epoch_start_state().get_active_validators();
+            let mut eligible_active_validators = Self::get_validators_supporting_protocol_version(
                 next_epoch_protocol_version,
-                epoch_store.epoch_start_state().get_active_validators(),
+                active_validators.clone(),
                 epoch_store
                     .get_capabilities_v1()
                     .expect("read capabilities from db cannot fail"),
             );
+
+            // Calculate the total weight of eligible validators in the committee
+            let eligible_validators_weight = Self::calculate_eligible_validators_weight(
+                &eligible_active_validators,
+                &active_validators,
+                epoch_store.committee(),
+            );
+
+            // Safety check: ensure eligible validators have enough stake
+            // Use the same effective threshold calculation that was used to decide the
+            // protocol version
+            let committee = epoch_store.committee();
+            let quorum_threshold = committee.quorum_threshold();
+            let f = committee.total_votes() - quorum_threshold;
+            let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
+            let effective_threshold = quorum_threshold + buffer_stake;
+
+            if eligible_validators_weight < effective_threshold {
+                error!(
+                    "Eligible validators weight {eligible_validators_weight} is less than effective threshold {effective_threshold} (quorum: {quorum_threshold}, buffer: {buffer_stake}). \
+                    This could indicate a bug in validator selection logic or inconsistency with protocol version decision.",
+                );
+                // Do not pass any eligible active validators to ChangeEpochV3. In this case the
+                // committee selection logic will fall back to using the entire
+                // active_validators set during committee selection.
+                eligible_active_validators = vec![];
+            }
 
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
                 next_epoch,
