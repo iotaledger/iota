@@ -331,13 +331,13 @@ impl Core {
         BTreeSet<BlockRef>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     )> {
-        let _scope = monitored_scope("Core::add_block_header");
+        let _scope = monitored_scope("Core::add_block_headers");
         let _s = self
             .context
             .metrics
             .node_metrics
             .scope_processing_time
-            .with_label_values(&["Core::add_block_header"])
+            .with_label_values(&["Core::add_block_headers"])
             .start_timer();
         self.context
             .metrics
@@ -388,6 +388,13 @@ impl Core {
         transactions: Vec<VerifiedTransactions>,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_transactions"])
+            .start_timer();
 
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
@@ -871,12 +878,26 @@ impl Core {
 
     pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::get_missing_blocks"])
+            .start_timer();
         self.block_manager.missing_block_headers()
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
     ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::get_missing_transaction_data"])
+            .start_timer();
 
         // Use CommitObserver to get missing transaction data with authority
         // acknowledgments
