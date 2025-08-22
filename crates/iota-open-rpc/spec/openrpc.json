@@ -5167,7 +5167,7 @@
         },
         {
           "name": "arguments",
-          "description": "the arguments to be passed into the Move function, in [IotaJson](/developer/references/iota-api) format",
+          "description": "the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/developer/references/iota-api) format",
           "required": true,
           "schema": {
             "type": "array",
