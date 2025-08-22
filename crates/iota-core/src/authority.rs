@@ -102,7 +102,6 @@ use iota_types::{
         MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
-    signature::GenericSignature,
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
@@ -877,14 +876,12 @@ impl AuthorityState {
         let tx_input_object_kinds = tx_data.input_objects()?;
         let tx_receiving_objects_refs = tx_data.receiving_objects();
 
-        let signatures = transaction.tx_signatures();
-
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
         iota_transaction_checks::deny::check_transaction_for_signing(
             tx_data,
-            signatures,
+            transaction.tx_signatures(),
             &tx_input_object_kinds,
             &tx_receiving_objects_refs,
             &self.config.transaction_deny_config,
@@ -898,22 +895,15 @@ impl AuthorityState {
             epoch,
         )?;
 
-        if let Some(move_authenticator) = move_authenticator(signatures) {
-            // TODO: Where is the best place to check this?
+        if let Some(move_authenticator) = transaction.move_authenticator() {
+            // TODO: Do we need this check here? `move_auth` is already checked in
+            // `SenderSignedData::validity_check`.
             fp_ensure!(
                 protocol_config.move_auth(),
                 IotaError::MoveAuthenticatorDisabled {
                     digest: tx_digest.to_owned()
                 }
             );
-
-            // TODO: Should this be a part of the function like
-            // `SenderSignedData::validity_check`?
-            //
-            // Make sure that the transaction is a PTB.
-            if !tx_data.kind().is_programmable_transaction() {
-                todo!()
-            }
 
             // Make sure the sender is a smart account.
             let authenticator_info =
@@ -1343,27 +1333,32 @@ impl AuthorityState {
         certificate: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<Option<InputObjects>> {
-        // TODO: Should we change the scope name?
-        let _scope = monitored_scope("Execution::load_input_objects");
+        let _scope = monitored_scope("Execution::load_move_authenticator_input_objects");
         let _metrics_guard = self
             .metrics
             .execution_load_input_objects_latency
             .start_timer();
 
-        // TODO: This happens before the certificate preparing. It would be good not to
-        // load the inputs if the feature is disabled.
         let authenticator_input_objects =
-            if let Some(move_authenticator) = move_authenticator(certificate.tx_signatures()) {
-                let input_object_kinds = move_authenticator.input_objects();
+            if let Some(move_authenticator) = certificate.move_authenticator() {
+                // TODO: Should we check this here if it has been already checked during
+                // signing?
+                if !epoch_store.protocol_config().move_auth() {
+                    None
+                } else {
+                    let input_object_kinds = move_authenticator.input_objects();
 
-                Some(self.input_loader.read_objects_for_execution(
-                    epoch_store,
-                    // TODO: Check if we can use this key.
-                    &certificate.key(),
-                    tx_lock,
-                    &input_object_kinds,
-                    epoch_store.epoch(),
-                )?)
+                    Some(self.input_loader.read_objects_for_execution(
+                        epoch_store,
+                        // This key is used for resolving transaction shared object versions.
+                        // It is supposed that the authenticator shared inputs are also can be
+                        // resolved using this key.
+                        &certificate.key(),
+                        tx_lock,
+                        &input_object_kinds,
+                        epoch_store.epoch(),
+                    )?)
+                }
             } else {
                 None
             };
@@ -1752,19 +1747,20 @@ impl AuthorityState {
 
         let backing_store = self.get_backing_store().as_ref();
 
-        // TODO: We need to move this to a more appropriate place to avoid redundant
-        // checks.
         let tx_digest = *certificate.digest();
 
+        // TODO: We need to move this to a more appropriate place to avoid redundant
+        // checks.
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
 
         let (kind, signer, gas) = tx_data.execution_parts();
 
         let authenticator_computation_cost = if let Some(move_authenticator) =
-            move_authenticator(certificate.tx_signatures())
+            certificate.move_authenticator()
         {
-            // TODO: Is it necessary to recheck this here?
+            // TODO: Should we check this here if it has been already checked during
+            // signing?
             fp_ensure!(
                 protocol_config.move_auth(),
                 IotaError::MoveAuthenticatorDisabled { digest: tx_digest }
@@ -5901,20 +5897,5 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
-    }
-}
-
-// TODO: A temporary created function. Needs to be replaced with a proper check.
-fn move_authenticator(signatures: &[GenericSignature]) -> Option<&MoveAuthenticator> {
-    if signatures.len() == 1 && signatures[0].is_move_authenticator() {
-        match &signatures[0] {
-            GenericSignature::MoveAuthenticator(move_authenticator) => Some(move_authenticator),
-            GenericSignature::MultiSig(_)
-            | GenericSignature::Signature(_)
-            | GenericSignature::ZkLoginAuthenticator(_)
-            | GenericSignature::PasskeyAuthenticator(_) => unreachable!(),
-        }
-    } else {
-        None
     }
 }

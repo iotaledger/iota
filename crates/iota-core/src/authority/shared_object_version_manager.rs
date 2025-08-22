@@ -153,8 +153,21 @@ impl SharedObjVerManager {
             };
         let txn_cancelled = cancellation_info.is_some();
 
+        // Add the Move authenticator shared objects if any.
+        //
+        // TODO: Make sure this is correct.
+        let authenticator_shared_objects =
+            if let Some(move_authenticator) = cert.move_authenticator() {
+                move_authenticator.shared_objects().into_iter()
+            } else {
+                Vec::new().into_iter()
+            };
+
         // Make an iterator to update the locks of the transaction's shared objects.
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
+        let shared_input_objects: Vec<_> = cert
+            .shared_input_objects()
+            .chain(authenticator_shared_objects)
+            .collect();
 
         let mut input_object_keys = transaction_non_shared_input_object_keys(cert)
             .expect("Transaction input should have been verified");

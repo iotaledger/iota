@@ -51,6 +51,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
+    move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -2313,6 +2314,16 @@ impl SenderSignedData {
             }
         );
 
+        // Check the `MoveAuthenticator` transactions limitations.
+        if self.move_authenticator().is_some() && !tx_data.kind().is_programmable_transaction() {
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(
+                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                        .to_string(),
+                ),
+            };
+        }
+
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
             TransactionExpiration::None => false,
@@ -2320,8 +2331,6 @@ impl SenderSignedData {
         } {
             return Err(IotaError::TransactionExpired);
         }
-
-        // TODO: Is there any validity check for `MoveAuthenticator`?
 
         // Enforce overall transaction size limit.
         let tx_size = self.serialized_size()?;
@@ -2343,6 +2352,23 @@ impl SenderSignedData {
             .map_err(Into::<IotaError>::into)?;
 
         Ok(tx_size)
+    }
+
+    // TODO: A temporary created function. Needs to be replaced with a proper check.
+    pub fn move_authenticator(&self) -> Option<&MoveAuthenticator> {
+        let signatures = self.tx_signatures();
+
+        if signatures.len() == 1 && signatures[0].is_move_authenticator() {
+            match &signatures[0] {
+                GenericSignature::MoveAuthenticator(move_authenticator) => Some(move_authenticator),
+                GenericSignature::MultiSig(_)
+                | GenericSignature::Signature(_)
+                | GenericSignature::ZkLoginAuthenticator(_)
+                | GenericSignature::PasskeyAuthenticator(_) => unreachable!(),
+            }
+        } else {
+            None
+        }
     }
 }
 

@@ -21,7 +21,7 @@ use crate::{
     error::IotaResult,
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{CallArg, InputObjectKind},
+    transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
 };
 
 /// MoveAuthenticator is a GenericSignature variant that enables a new
@@ -84,6 +84,26 @@ impl MoveAuthenticator {
         self.call_args
             .iter()
             .flat_map(|arg| arg.receiving_objects())
+            .collect()
+    }
+
+    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+        self.call_args
+            .iter()
+            .filter_map(|arg| match arg {
+                CallArg::Pure(_)
+                | CallArg::Object(ObjectArg::Receiving(_))
+                | CallArg::Object(ObjectArg::ImmOrOwnedObject(_)) => None,
+                CallArg::Object(ObjectArg::SharedObject {
+                    id,
+                    initial_shared_version,
+                    mutable,
+                }) => Some(SharedInputObject {
+                    id: *id,
+                    initial_shared_version: *initial_shared_version,
+                    mutable: *mutable,
+                }),
+            })
             .collect()
     }
 }
