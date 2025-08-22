@@ -277,10 +277,7 @@ impl TransactionBuilder {
             .await?
             .into_object()?;
         let Some(IotaRawData::Package(package)) = object.bcs else {
-            bail!(
-                "Bcs field in object [{}] is missing or not a package.",
-                package_id
-            );
+            bail!("Bcs field in object [{package_id}] is missing or not a package.");
         };
         Ok(MovePackage::new(
             package.id,

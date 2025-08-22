@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .await?
     .results;
-    println!("{:?}", public_call_results);
+    println!("{public_call_results:?}");
 
     // Move view function call to a private function: get the current timestamp in
     // milliseconds.
@@ -50,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .await?
     .results;
-    println!("{:?}", private_call_results);
+    println!("{private_call_results:?}");
 
     Ok(())
 }

@@ -493,8 +493,8 @@ impl TransactionBuilder {
     }
 
     /// Add a single move call to the provided
-    /// [`ProgrammableTransactionBuilder`]. If `is_view` is true, check that the
-    /// passed function is compliant to the Move View Function specification.
+    /// [`ProgrammableTransactionBuilder`]. Check that the passed function is
+    /// compliant to the Move View Function specification.
     pub async fn single_move_view_call(
         &self,
         builder: &mut ProgrammableTransactionBuilder,

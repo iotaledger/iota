@@ -203,7 +203,7 @@ pub enum UserInputError {
     BlockedMoveFunction,
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
-    #[error("Invalid Move View Function call: {error:?}.")]
+    #[error("Invalid Move View Function call: {error:?}")]
     InvalidMoveViewFunction { error: String },
 
     #[error(
