@@ -10,7 +10,6 @@ use iota_types::{
     digests::TransactionDigest,
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
-use serde_json;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
@@ -107,39 +106,6 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
     use crate::events::event_filter::Filter;
 
     match &proto_filter.filter {
-        Some(Filter::MoveEventType(f)) => {
-            let object_id = parse_object_id(&f.address, "Address")?;
-            let struct_tag = StructTag {
-                address: *object_id,
-                module: parse_identifier(&f.module, "module name")?,
-                name: parse_identifier(&f.name, "event name")?,
-                type_params: vec![],
-            };
-            Ok(EventFilter::MoveEventType(struct_tag))
-        }
-        Some(Filter::MoveEventField(f)) => Ok(EventFilter::MoveEventField {
-            path: f.path.clone(),
-            value: serde_json::Value::String(f.value.clone()),
-        }),
-        Some(Filter::Package(f)) => {
-            let package_id = parse_object_id(&f.package_id, "Package ID")?;
-            Ok(EventFilter::Package(package_id))
-        }
-        Some(Filter::MoveEventModule(f)) => {
-            let package_id = parse_object_id(&f.package_id, "Package ID")?;
-            Ok(EventFilter::MoveEventModule {
-                package: package_id,
-                module: parse_identifier(&f.module, "module name")?,
-            })
-        }
-        Some(Filter::And(f)) => {
-            let filters = parse_filter_list(&f.filters)?;
-            Ok(EventFilter::All(filters))
-        }
-        Some(Filter::Or(f)) => {
-            let filters = parse_filter_list(&f.filters)?;
-            Ok(EventFilter::Any(filters))
-        }
         Some(Filter::All(_)) => Ok(EventFilter::All(vec![])),
         Some(Filter::Sender(f)) => {
             let sender = parse_iota_address(&f.sender, "Sender address")?;
@@ -152,6 +118,23 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
         Some(Filter::MoveModule(f)) => {
             let package_id = parse_object_id(&f.package_id, "Package ID")?;
             Ok(EventFilter::MoveModule {
+                package: package_id,
+                module: parse_identifier(&f.module, "module name")?,
+            })
+        }
+        Some(Filter::MoveEventType(f)) => {
+            let object_id = parse_object_id(&f.address, "Address")?;
+            let struct_tag = StructTag {
+                address: *object_id,
+                module: parse_identifier(&f.module, "module name")?,
+                name: parse_identifier(&f.name, "event name")?,
+                type_params: vec![],
+            };
+            Ok(EventFilter::MoveEventType(struct_tag))
+        }
+        Some(Filter::MoveEventModule(f)) => {
+            let package_id = parse_object_id(&f.package_id, "Package ID")?;
+            Ok(EventFilter::MoveEventModule {
                 package: package_id,
                 module: parse_identifier(&f.module, "module name")?,
             })
@@ -201,10 +184,6 @@ fn parse_tx_digest(
         .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
     TransactionDigest::try_from(digest.digest.as_slice())
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
-}
-
-fn parse_filter_list(filters: &[crate::events::EventFilter]) -> Result<Vec<EventFilter>, Status> {
-    filters.iter().map(create_event_filter).collect()
 }
 
 // Convert IotaEvent to protobuf Event

@@ -8,10 +8,7 @@ use iota_config::local_ip_utils;
 use iota_grpc_api::{
     client::{EventClient, NodeClient},
     common::Address,
-    events::{
-        AllFilter, AndFilter, EventFilter, MoveEventTypeFilter, OrFilter, PackageFilter,
-        SenderFilter, event_filter::Filter,
-    },
+    events::{AllFilter, EventFilter, MoveEventTypeFilter, SenderFilter, event_filter::Filter},
 };
 use iota_types::{base_types::ObjectID, effects::TransactionEffectsAPI, transaction::CallArg};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -26,13 +23,11 @@ const CLOCK_ACCESS_FUNCTION: &str = "access";
 
 // Event type names
 const NFT_MINTED_EVENT: &str = "NFTMinted";
-const TIME_EVENT: &str = "TimeEvent";
 
 // JSON field names for event validation
 const OBJECT_ID_FIELD: &str = "object_id";
 const CREATOR_FIELD: &str = "creator";
 const NAME_FIELD: &str = "name";
-const TIMESTAMP_MS_FIELD: &str = "timestamp_ms";
 
 async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) {
     let localhost = local_ip_utils::localhost_for_testing();
@@ -115,50 +110,35 @@ async fn test_event_filtering_and_bcs_serialization() {
         .await
         .expect("Failed to create all events stream");
 
-    // Client 2: Complex nested filter - ((Package AND MoveEventType) OR Sender)
-    // This should demonstrate sophisticated boolean logic
-    let mut nested_client = event_client.clone();
-    let nested_filter = EventFilter {
-        filter: Some(Filter::Or(OrFilter {
-            filters: vec![
-                // Branch 1: Package AND MoveEventType (matches all NFT events)
-                EventFilter {
-                    filter: Some(Filter::And(AndFilter {
-                        filters: vec![
-                            EventFilter {
-                                filter: Some(Filter::Package(PackageFilter {
-                                    package_id: Some(Address {
-                                        address: nft_package_id.to_vec(),
-                                    }),
-                                })),
-                            },
-                            EventFilter {
-                                filter: Some(Filter::MoveEventType(MoveEventTypeFilter {
-                                    address: Some(Address {
-                                        address: nft_package_id.to_vec(),
-                                    }),
-                                    module: NFT_MODULE.to_string(),
-                                    name: NFT_MINTED_EVENT.to_string(),
-                                })),
-                            },
-                        ],
-                    })),
-                },
-                // Branch 2: Sender filter (matches events from sender_1)
-                EventFilter {
-                    filter: Some(Filter::Sender(SenderFilter {
-                        sender: Some(Address {
-                            address: sender_1.to_vec(),
-                        }),
-                    })),
-                },
-            ],
+    // Client 2: SenderFilter - should receive only events from sender_1
+    let mut sender_client = event_client.clone();
+    let sender_filter = EventFilter {
+        filter: Some(Filter::Sender(SenderFilter {
+            sender: Some(Address {
+                address: sender_1.to_vec(),
+            }),
         })),
     };
-    let mut nested_stream = nested_client
-        .stream_events(nested_filter)
+    let mut sender_stream = sender_client
+        .stream_events(sender_filter)
         .await
-        .expect("Failed to create nested events stream");
+        .expect("Failed to create sender events stream");
+
+    // Client 3: MoveEventTypeFilter - should receive only NFT events
+    let mut nft_client = event_client.clone();
+    let nft_filter = EventFilter {
+        filter: Some(Filter::MoveEventType(MoveEventTypeFilter {
+            address: Some(Address {
+                address: nft_package_id.to_vec(),
+            }),
+            module: NFT_MODULE.to_string(),
+            name: NFT_MINTED_EVENT.to_string(),
+        })),
+    };
+    let mut nft_stream = nft_client
+        .stream_events(nft_filter)
+        .await
+        .expect("Failed to create NFT events stream");
 
     // Generate events after subscription is established
     let cluster_clone = std::sync::Arc::new(cluster);
@@ -168,7 +148,7 @@ async fn test_event_filtering_and_bcs_serialization() {
             // Wait for the subscription to be established.
             tokio::time::sleep(Duration::from_millis(1000)).await;
 
-            // Generate 2 NFT events from sender_1 -> MATCH nested filter (both branches)
+            // Generate 2 NFT events from sender_1
             for _i in 0..2 {
                 let nft_tx = cluster
                     .test_transaction_builder_with_sender(sender_1)
@@ -180,8 +160,7 @@ async fn test_event_filtering_and_bcs_serialization() {
                 tokio::time::sleep(Duration::from_millis(300)).await;
             }
 
-            // Generate 1 NFT event from sender_2 -> MATCH nested filter (branch 1 only:
-            // Package AND EventType)
+            // Generate 1 NFT event from sender_2
             let nft_tx = cluster
                 .test_transaction_builder_with_sender(sender_2)
                 .await
@@ -211,7 +190,7 @@ async fn test_event_filtering_and_bcs_serialization() {
         })
     };
 
-    // Concurrently collect events from both clients
+    // Concurrently collect events from all three clients
     let all_events_task = tokio::spawn(async move {
         let mut all_events = Vec::new();
 
@@ -245,68 +224,101 @@ async fn test_event_filtering_and_bcs_serialization() {
         (all_events.len(), all_events)
     });
 
-    let nested_events_task = tokio::spawn(async move {
-        let mut nested_events = Vec::new();
+    let sender_events_task = tokio::spawn(async move {
+        let mut sender_events = Vec::new();
 
         let result = timeout(Duration::from_secs(15), async {
-            while let Some(event_result) = nested_stream.next().await {
+            while let Some(event_result) = sender_stream.next().await {
                 match event_result {
                     Ok(event) => {
-                        // Verify nested filter logic: ((Package AND MoveEventType) OR Sender)
-                        let is_nft_event = event.package_id == nft_package_id
-                            && event.type_.name.as_ident_str().as_str() == NFT_MINTED_EVENT;
-                        let is_sender1_event = event.sender == sender_1;
-
-                        assert!(
-                            is_nft_event || is_sender1_event,
-                            "Nested filter should match NFT events OR sender_1 events"
+                        // Verify sender filter logic: only events from sender_1
+                        assert_eq!(
+                            event.sender, sender_1,
+                            "SenderFilter should only match sender_1 events"
                         );
                         assert!(!event.bcs.bytes().is_empty(), "BCS data must be valid");
 
-                        // Verify JSON structure for BCS deserialization
-                        let parsed_json = &event.parsed_json;
-                        if event.type_.name.as_ident_str().as_str() == NFT_MINTED_EVENT {
-                            assert!(parsed_json.get(OBJECT_ID_FIELD).is_some());
-                            assert!(parsed_json.get(CREATOR_FIELD).is_some());
-                            assert!(parsed_json.get(NAME_FIELD).is_some());
-                        } else if event.type_.name.as_ident_str().as_str() == TIME_EVENT {
-                            assert!(parsed_json.get(TIMESTAMP_MS_FIELD).is_some());
-                        }
+                        sender_events.push(event);
 
-                        nested_events.push(event);
-
-                        if nested_events.len() >= 3 {
+                        if sender_events.len() >= 2 {
                             break;
                         }
                     }
-                    Err(e) => panic!("Nested OR(AND, Sender) filter client error: {e}"),
+                    Err(e) => panic!("SenderFilter client error: {e}"),
                 }
             }
         })
         .await;
 
-        assert!(result.is_ok(), "Nested filter should receive events");
-        (nested_events.len(), nested_events)
+        assert!(result.is_ok(), "SenderFilter should receive events");
+        (sender_events.len(), sender_events)
+    });
+
+    let nft_events_task = tokio::spawn(async move {
+        let mut nft_events = Vec::new();
+
+        let result = timeout(Duration::from_secs(15), async {
+            while let Some(event_result) = nft_stream.next().await {
+                match event_result {
+                    Ok(event) => {
+                        // Verify NFT filter logic: only NFT events
+                        assert_eq!(
+                            event.package_id, nft_package_id,
+                            "MoveEventTypeFilter should only match NFT package events"
+                        );
+                        assert_eq!(
+                            event.type_.name.as_ident_str().as_str(),
+                            NFT_MINTED_EVENT,
+                            "MoveEventTypeFilter should only match NFTMinted events"
+                        );
+                        assert!(!event.bcs.bytes().is_empty(), "BCS data must be valid");
+
+                        // Verify JSON structure for BCS deserialization
+                        let parsed_json = &event.parsed_json;
+                        assert!(parsed_json.get(OBJECT_ID_FIELD).is_some());
+                        assert!(parsed_json.get(CREATOR_FIELD).is_some());
+                        assert!(parsed_json.get(NAME_FIELD).is_some());
+
+                        nft_events.push(event);
+
+                        if nft_events.len() >= 3 {
+                            break;
+                        }
+                    }
+                    Err(e) => panic!("MoveEventTypeFilter client error: {e}"),
+                }
+            }
+        })
+        .await;
+
+        assert!(result.is_ok(), "MoveEventTypeFilter should receive events");
+        (nft_events.len(), nft_events)
     });
 
     // Wait for all tasks to finish
-    let (all_results, nested_results, _) =
-        tokio::join!(all_events_task, nested_events_task, generate_events_task);
+    let (all_results, sender_results, nft_results, _) = tokio::join!(
+        all_events_task,
+        sender_events_task,
+        nft_events_task,
+        generate_events_task
+    );
     let (all_count, _all_events) = all_results.expect("AllFilter task should complete");
-    let (nested_count, _nested_events) =
-        nested_results.expect("Nested filter task should complete");
+    let (sender_count, _sender_events) = sender_results.expect("SenderFilter task should complete");
+    let (nft_count, _nft_events) = nft_results.expect("MoveEventTypeFilter task should complete");
 
-    // Verify complex nested AND/OR filter works correctly
-    // Nested Filter: ((Package AND MoveEventType) OR Sender)
-    // Event filtering analysis:
-    // - Events 1-3: NFT from sender_1 -> MATCH (branch 2: Sender)
-    // - Event 4: NFT from sender_2 -> MATCH (branch 1: Package AND EventType)
-    // - Event 4: TimeEvent from sender_2 -> NO MATCH (neither branch matches
-    //   TimeEvent type)
-    // This demonstrates filtering precision: 3/4 events match the nested logic
+    // Verify individual filter behaviors:
+    // - AllFilter: receives all events (2 NFT from sender_1 + 1 NFT from sender_2 +
+    //   1 TimeEvent from sender_2 = 4)
+    // - SenderFilter: receives only events from sender_1 (2 NFT events)
+    // - MoveEventTypeFilter: receives only NFT events from both senders (3 NFT
+    //   events)
     assert_eq!(all_count, 4, "AllFilter should receive all 4 events");
     assert_eq!(
-        nested_count, 3,
-        "Complex nested OR(AND(Package,EventType), Sender) filter should receive 3/4 events, filtering out TimeEvent events"
+        sender_count, 2,
+        "SenderFilter should receive 2 events from sender_1"
+    );
+    assert_eq!(
+        nft_count, 3,
+        "MoveEventTypeFilter should receive 3 NFT events from both senders"
     );
 }

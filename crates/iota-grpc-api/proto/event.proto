@@ -31,55 +31,17 @@ message EventID {
   iota.grpc.common.TransactionDigest tx_digest = 2;
 }
 
-// Rich event filter that supports AND/OR logic like WebSocket/JSON-RPC
+// Rich event filter that supports gRPC event filtering
 message EventFilter {
   oneof filter {
-    MoveEventTypeFilter move_event_type = 1;
-    MoveEventFieldFilter move_event_field = 2;
-    PackageFilter package = 3;
-    MoveEventModuleFilter move_event_module = 4;
-    AndFilter and = 5;
-    OrFilter or = 6;
-    AllFilter all = 7;
-    SenderFilter sender = 8;
-    TransactionFilter transaction = 9;
-    MoveModuleFilter move_module = 10;
-    TimeRangeFilter time_range = 11;
+    AllFilter all = 1;
+    SenderFilter sender = 2;
+    TransactionFilter transaction = 3;
+    MoveModuleFilter move_module = 4;
+    MoveEventTypeFilter move_event_type = 5;
+    MoveEventModuleFilter move_event_module = 6;
+    TimeRangeFilter time_range = 7;
   }
-}
-
-// Filter by Move event type (package::module::event_name)
-message MoveEventTypeFilter {
-  iota.grpc.common.Address address = 1;      // Package ID
-  string module = 2;                         // Module name (e.g., "request")
-  string name = 3;                           // Event name (e.g., "RequestEvent")
-}
-
-// Filter by Move event field value
-message MoveEventFieldFilter {
-  string path = 1;         // Field path (e.g., "anchor")
-  string value = 2;        // Value to match (as JSON string)
-}
-
-// Filter by package ID
-message PackageFilter {
-  iota.grpc.common.Address package_id = 1;
-}
-
-// Filter by package and module
-message MoveEventModuleFilter {
-  iota.grpc.common.Address package_id = 1;   // Package ID
-  string module = 2;                         // Module name
-}
-
-// AND filter - all child filters must match
-message AndFilter {
-  repeated EventFilter filters = 1;
-}
-
-// OR filter - any child filter can match
-message OrFilter {
-  repeated EventFilter filters = 1;
 }
 
 // Match all events (catch-all filter)
@@ -101,6 +63,19 @@ message TransactionFilter {
 message MoveModuleFilter {
   iota.grpc.common.Address package_id = 1;       // Package ID
   string module = 2;                             // Module name
+}
+
+// Filter by Move event type (package::module::event_name)
+message MoveEventTypeFilter {
+  iota.grpc.common.Address address = 1;      // Package ID
+  string module = 2;                         // Module name (e.g., "request")
+  string name = 3;                           // Event name (e.g., "RequestEvent")
+}
+
+// Filter by package and module
+message MoveEventModuleFilter {
+  iota.grpc.common.Address package_id = 1;   // Package ID
+  string module = 2;                         // Module name
 }
 
 // Filter by timestamp range
