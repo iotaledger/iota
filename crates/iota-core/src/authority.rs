@@ -3156,7 +3156,7 @@ impl AuthorityState {
 
         let highest_locally_built_checkpoint_seq = self
             .checkpoint_store
-            .get_latest_locally_computed_checkpoint()
+            .get_latest_locally_computed_checkpoint()?
             .map(|c| *c.sequence_number())
             .unwrap_or(0);
 

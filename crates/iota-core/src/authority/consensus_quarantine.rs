@@ -560,8 +560,7 @@ impl ConsensusOutputQuarantine {
                         .remove(digest)
                         .unwrap_or_else(|| {
                             panic!(
-                                "transaction {:?} not found in builder_digest_to_checkpoint",
-                                digest
+                                "transaction {digest:?} not found in builder_digest_to_checkpoint"
                             )
                         }),
                     seq

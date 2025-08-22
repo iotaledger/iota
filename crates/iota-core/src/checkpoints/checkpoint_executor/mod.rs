@@ -23,9 +23,8 @@
 
 use std::{sync::Arc, time::Instant};
 
-use futures::{StreamExt, FuturesOrdered};
+use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
-use either::Either;
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_types::{
@@ -289,7 +288,7 @@ impl CheckpointExecutor {
                 );
 
                 self.epoch_store
-                    .handle_committed_transactions(&ckpt_state.data.tx_digests)
+                    .handle_finalized_checkpoint(&ckpt_state.data.checkpoint, &ckpt_state.data.tx_digests)
                     .expect("cannot fail");
 
                 // Once the checkpoint is finalized, we know that any randomness contained in this checkpoint has

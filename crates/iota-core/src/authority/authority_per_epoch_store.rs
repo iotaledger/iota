@@ -70,7 +70,7 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
-    DBMapUtils, Map, TypedStoreError,
+    DBMapUtils, Map,
     rocks::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
         read_size_from_env,
@@ -2470,8 +2470,7 @@ impl AuthorityPerEpochStore {
             // for the same tx digest
             assert!(
                 user_sigs.insert(digest, sigs).is_none(),
-                "duplicate user signatures for transaction digest: {:?}",
-                digest
+                "duplicate user signatures for transaction digest: {digest:?}"
             );
         }
     }
@@ -3974,11 +3973,11 @@ impl AuthorityPerEpochStore {
         {
             // Reading from the db table is only needed when upgrading to data quarantining
             // for the first time.
+            let tables = self.tables()?;
             let db_iter = tables
                 .pending_checkpoints
                 .safe_iter_with_bounds(last.map(|height| height + 1), None);
-            db_iter
-                .collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()?
+            db_iter.collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()?
         } else {
             vec![]
         };

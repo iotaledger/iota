@@ -840,11 +840,11 @@ mod tests {
     use tokio::sync::mpsc;
 
     use crate::{
-        checkpoints::CheckpointStore,
         authority::{
             authority_per_epoch_store::{ExecutionIndices, ExecutionIndicesWithStats},
             test_authority_builder::TestAuthorityBuilder,
         },
+        checkpoints::CheckpointStore,
         consensus_adapter::{
             ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
             MockConsensusClient,

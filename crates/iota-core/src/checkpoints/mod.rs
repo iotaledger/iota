@@ -1343,6 +1343,7 @@ impl CheckpointBuilder {
             );
 
             if let Some(previously_computed_summary) = self
+                .store
                 .tables
                 .locally_computed_checkpoints
                 .get(&summary.sequence_number)?
@@ -1384,7 +1385,7 @@ impl CheckpointBuilder {
         // Send all checkpoint sigs to consensus.
         for (summary, contents) in &new_checkpoints {
             self.output
-                .checkpoint_created(summary, contents, &self.epoch_store, &self.tables)
+                .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
                 .await?;
         }
 
@@ -1466,14 +1467,14 @@ impl CheckpointBuilder {
     /// checkpoint information.
     fn load_last_built_checkpoint_summary(
         epoch_store: &AuthorityPerEpochStore,
-        tables: &CheckpointStore,
+        store: &CheckpointStore,
     ) -> IotaResult<Option<(CheckpointSequenceNumber, CheckpointSummary)>> {
         let mut last_checkpoint = epoch_store.last_built_checkpoint_summary()?;
         if last_checkpoint.is_none() {
             let epoch = epoch_store.epoch();
             if epoch > 0 {
                 let previous_epoch = epoch - 1;
-                let last_verified = self.store.get_epoch_last_checkpoint(previous_epoch)?;
+                let last_verified = store.get_epoch_last_checkpoint(previous_epoch)?;
                 last_checkpoint = last_verified.map(VerifiedCheckpoint::into_summary_and_sequence);
                 if let Some((ref seq, _)) = last_checkpoint {
                     debug!(
@@ -1498,7 +1499,7 @@ impl CheckpointBuilder {
         let _scope = monitored_scope("CheckpointBuilder::create_checkpoints");
         let total = all_effects.len();
         let mut last_checkpoint =
-            Self::load_last_built_checkpoint_summary(&self.epoch_store, &self.tables)?;
+            Self::load_last_built_checkpoint_summary(&self.epoch_store, &self.store)?;
         let last_checkpoint_seq = last_checkpoint.as_ref().map(|(seq, _)| *seq);
         debug!(
             next_checkpoint_seq = last_checkpoint_seq.unwrap_or_default() + 1,
@@ -2449,6 +2450,7 @@ impl CheckpointService {
         // We may have built higher checkpoint numbers before restarting.
         let highest_previously_built_seq = checkpoint_store
             .get_latest_locally_computed_checkpoint()
+            .expect("failed to get latest locally computed checkpoint")
             .map(|s| s.sequence_number)
             .unwrap_or(0);
 
