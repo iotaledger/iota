@@ -203,6 +203,8 @@ pub enum UserInputError {
     BlockedMoveFunction,
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
+    #[error("Invalid Move View Function call: {error:?}")]
+    InvalidMoveViewFunction { error: String },
 
     #[error(
         "IOTA payment transactions use first input coin for gas payment, but found a different gas object"
