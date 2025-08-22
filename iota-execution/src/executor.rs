@@ -6,6 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    account::AuthenticatorInfo,
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -16,6 +17,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::LimitsMetrics,
+    move_authenticator::MoveAuthenticator,
     storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };
@@ -78,6 +80,29 @@ pub trait Executor {
         TransactionEffects,
         Result<Vec<ExecutionResult>, ExecutionError>,
     );
+
+    fn validate_transaction(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<u64, ExecutionError>;
 
     fn update_genesis_state(
         &self,

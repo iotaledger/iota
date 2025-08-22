@@ -513,7 +513,7 @@ impl CallArg {
         }
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match self {
             CallArg::Pure(_) => vec![],
             CallArg::Object(o) => match o {
@@ -1202,6 +1202,10 @@ impl TransactionKind {
 
     pub fn is_end_of_epoch_tx(&self) -> bool {
         matches!(self, TransactionKind::EndOfEpochTransaction(_))
+    }
+
+    pub fn is_programmable_transaction(&self) -> bool {
+        matches!(self, TransactionKind::ProgrammableTransaction(_))
     }
 
     /// If this is advance epoch transaction, returns (total gas charged, total

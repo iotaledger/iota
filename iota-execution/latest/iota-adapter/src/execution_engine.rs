@@ -15,7 +15,9 @@ mod checked {
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
+        account::AuthenticatorInfo,
+        auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -35,7 +37,7 @@ mod checked {
         execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
-        gas::{GasCostSummary, IotaGasStatus},
+        gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
@@ -43,6 +45,7 @@ mod checked {
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
+        move_authenticator::MoveAuthenticator,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
@@ -61,7 +64,7 @@ mod checked {
 
     use crate::{
         adapter::new_move_vm,
-        execution_mode::{self, ExecutionMode},
+        execution_mode::{self, ExecutionMode, Normal},
         gas_charger::GasCharger,
         programmable_transactions,
         temporary_store::TemporaryStore,
@@ -239,6 +242,233 @@ mod checked {
         )
     }
 
+    /// This function implements an abstracted IOTA account transaction
+    /// validation. This validation checks that the authentication method used
+    /// for the account is valid. It prepares a `MoveAuthenticator` PTB with
+    /// a single move call for execution, then executes it through an inner
+    /// execution method. The `MoveAuthenticator` provides the inputs to use for
+    /// the authentication function found in `AuthenticatorInfo`, that is
+    /// retrieved from the abstracted IOTA account.
+    ///
+    /// Returns an error if it happens or the move authenticator computation gas
+    /// cost without bucketing. It is different from the
+    /// `execute_transaction_to_effects` return type, because, in this case, we
+    /// do not need to return the gas value used for execution when an error
+    /// happens since we cannot charge it separately in the current
+    /// implementation.
+    #[instrument(name = "tx_validate", level = "debug", skip_all)]
+    pub fn validate_transaction(
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        // VM
+        move_vm: &Arc<MoveVM>,
+    ) -> Result<u64, ExecutionError> {
+        // Check the preconditions.
+        debug_assert!(
+            authenticated_transaction_kind.is_programmable_transaction(),
+            "Only programmable transactions are allowed"
+        );
+
+        // Prepare the move authenticator input objects.
+        let input_objects = authenticator_input_objects.into_inner();
+
+        let mutable_inputs = input_objects
+            .mutable_inputs()
+            .keys()
+            .copied()
+            .collect::<HashSet<_>>();
+        debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
+
+        let receiving_objects = authenticator.receiving_objects();
+        debug_assert!(
+            receiving_objects.is_empty(),
+            "No receiving inputs are allowed"
+        );
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let cancelled_objects = input_objects.get_cancelled_objects();
+
+        // Prepare an environment for the move authenticator transaction execution.
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            input_objects,
+            receiving_objects,
+            authenticated_transaction_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
+        let gas_charger = GasCharger::new(
+            authenticated_transaction_digest,
+            // Gas objects are not used when verifying smart account transactions.
+            Vec::new(),
+            gas_status,
+            protocol_config,
+        );
+
+        // Prepare the authenticated transaction context.
+        let mut tx_ctx = TxContext::new_from_components(
+            &authenticated_transaction_signer,
+            &authenticated_transaction_digest,
+            epoch_id,
+            epoch_timestamp_ms,
+        );
+
+        // Prepare the authenticator context.
+        let auth_ctx = {
+            let TransactionKind::ProgrammableTransaction(ptb) = authenticated_transaction_kind
+            else {
+                unreachable!("Only programmable transactions are allowed");
+            };
+            AuthContext::new_from_components(authenticator.digest(), &ptb)
+        };
+
+        // Setup a move authenticator transaction; push the authenticator context as the
+        // last argument.
+        let authenticator_move_call =
+            setup_authenticator_move_call(authenticator, authenticator_info, auth_ctx)?;
+
+        // Execute the authenticator transaction.
+        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Normal>(
+            &mut temporary_store,
+            authenticator_move_call,
+            gas_charger,
+            &mut tx_ctx,
+            move_vm,
+            protocol_config,
+            metrics,
+            false,
+            contains_deleted_input,
+            cancelled_objects,
+            trace_builder_opt,
+        );
+
+        // Check the execution result.
+        let status = if let Err(error) = &execution_result {
+            // Elaborate errors in logs if they are unexpected or their status is terse.
+            use ExecutionErrorKind as K;
+            match error.kind() {
+                K::InvariantViolation | K::VMInvariantViolation => {
+                    #[skip_checked_arithmetic]
+                    tracing::error!(
+                        kind = ?error.kind(),
+                        tx_digest = ?authenticated_transaction_digest,
+                        "INVARIANT VIOLATION in authenticator! Source: {:?}",
+                        error.source(),
+                    );
+                }
+
+                K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
+                    #[skip_checked_arithmetic]
+                    tracing::debug!(
+                        kind = ?error.kind(),
+                        tx_digest = ?authenticated_transaction_digest,
+                        "Authenticator Verification Error. Source: {:?}",
+                        error.source(),
+                    );
+                }
+
+                _ => (),
+            };
+
+            let (status, command) = error.to_execution_status();
+            ExecutionStatus::new_failure(status, command)
+        } else {
+            ExecutionStatus::Success
+        };
+
+        #[skip_checked_arithmetic]
+        trace!(
+            tx_digest = ?authenticated_transaction_digest,
+            computation_gas_cost,
+            "Finished authenticator execution of transaction with status {:?}",
+            status
+        );
+
+        execution_result.map(|_| computation_gas_cost)
+    }
+
+    /// Executes an authentication move call by processing the specified
+    /// `ProgrammableTransaction`, running the main execution logic.
+    /// Similarly to `execute_transaction`, this function handles certain error
+    /// conditions such as denied certificate, deleted input objects failed
+    /// consistency checks.
+    ///
+    /// Gas costs are managed through the `GasCharger` argument and charged only
+    /// for the authenticator move call execution.
+    ///
+    /// Returns the move authenticator computation gas cost without bucketing
+    /// and the execution result.
+    #[instrument(name = "auth_execute", level = "debug", skip_all)]
+    fn execute_authenticator_move_call<Mode: ExecutionMode>(
+        temporary_store: &mut TemporaryStore<'_>,
+        authenticator_move_call: ProgrammableTransaction,
+        mut gas_charger: GasCharger,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        deny_cert: bool,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (u64, Result<Mode::ExecutionResults, ExecutionError>) {
+        debug_assert!(
+            gas_charger.no_charges(),
+            "At this point no gas charges must be applied yet"
+        );
+
+        // Charge gas for reading the Move authenticator input objects from the storage.
+        let result = gas_charger
+            .charge_input_objects(temporary_store)
+            .and_then(|()| {
+                run_inputs_checks(
+                    protocol_config,
+                    deny_cert,
+                    contains_deleted_input,
+                    cancelled_objects,
+                )?;
+                programmable_transactions::execution::execute::<Mode>(
+                    protocol_config,
+                    metrics.clone(),
+                    move_vm,
+                    temporary_store,
+                    tx_ctx,
+                    &mut gas_charger,
+                    authenticator_move_call,
+                    trace_builder_opt,
+                )
+                .and_then(|ok_result| {
+                    temporary_store.check_move_authenticator_results_consistency()?;
+                    Ok(ok_result)
+                })
+            });
+
+        // Compute the gas used for the authentication execution without
+        // rounding/bucketing.
+        let gas_status = gas_charger.into_gas_status();
+
+        let authentication_computation_cost = gas_status.gas_used() * gas_status.gas_price();
+
+        (authentication_computation_cost, result)
+    }
+
     /// Function dedicated to the execution of a GenesisTransaction.
     /// The function creates an `InnerTemporaryStore`, processes the input
     /// objects, and executes the transaction in unmetered mode using the
@@ -322,54 +552,23 @@ mod checked {
         // versions incremented
         let result = gas_charger.charge_input_objects(temporary_store);
         let mut result = result.and_then(|()| {
-            let mut execution_result = if deny_cert {
-                Err(ExecutionError::new(
-                    ExecutionErrorKind::CertificateDenied,
-                    None,
-                ))
-            } else if contains_deleted_input {
-                Err(ExecutionError::new(
-                    ExecutionErrorKind::InputObjectDeleted,
-                    None,
-                ))
-            } else if let Some((cancelled_objects, reason)) = cancelled_objects {
-                match reason {
-                    version if version.is_congested() => Err(ExecutionError::new(
-                        if protocol_config.congestion_control_gas_price_feedback_mechanism() {
-                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                                congested_objects: CongestedObjects(cancelled_objects),
-                                suggested_gas_price: version
-                                    .get_congested_version_suggested_gas_price(),
-                            }
-                        } else {
-                            // WARN: do not remove this `else` branch even after
-                            // `congestion_control_gas_price_feedback_mechanism` is enabled
-                            // on the mainnet. It must be kept to be able to replay old
-                            // transaction data.
-                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                                congested_objects: CongestedObjects(cancelled_objects),
-                            }
-                        },
-                        None,
-                    )),
-                    SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
-                        ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
-                        None,
-                    )),
-                    _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
-                }
-            } else {
-                execution_loop::<Mode>(
-                    temporary_store,
-                    transaction_kind,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics.clone(),
-                    trace_builder_opt,
-                )
-            };
+            run_inputs_checks(
+                protocol_config,
+                deny_cert,
+                contains_deleted_input,
+                cancelled_objects,
+            )?;
+
+            let mut execution_result = execution_loop::<Mode>(
+                temporary_store,
+                transaction_kind,
+                tx_ctx,
+                move_vm,
+                gas_charger,
+                protocol_config,
+                metrics.clone(),
+                trace_builder_opt,
+            );
 
             let meter_check = check_meter_limit(
                 temporary_store,
@@ -508,6 +707,64 @@ mod checked {
         // does not satisfy IOTA conservation, or we're in the non-production
         // dev inspect mode which allows us to violate conservation
         result
+    }
+
+    /// Runs checks on the input objects of a transaction to ensure that they
+    /// meet the necessary conditions for execution.
+    ///
+    /// It checks for denied certificates, deleted input objects, and cancelled
+    /// objects due to congestion or randomness unavailability. If any of
+    /// these conditions are met, it returns an appropriate
+    /// `ExecutionError`.
+    ///
+    /// If all checks pass, it returns `Ok(())`, indicating that the transaction
+    /// can proceed with execution.
+    #[instrument(name = "run_inputs_checks", level = "debug", skip_all)]
+    fn run_inputs_checks(
+        protocol_config: &ProtocolConfig,
+        deny_cert: bool,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+    ) -> Result<(), ExecutionError> {
+        if deny_cert {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::CertificateDenied,
+                None,
+            ))
+        } else if contains_deleted_input {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::InputObjectDeleted,
+                None,
+            ))
+        } else if let Some((cancelled_objects, reason)) = cancelled_objects {
+            match reason {
+                version if version.is_congested() => Err(ExecutionError::new(
+                    if protocol_config.congestion_control_gas_price_feedback_mechanism() {
+                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                            congested_objects: CongestedObjects(cancelled_objects),
+                            suggested_gas_price: version
+                                .get_congested_version_suggested_gas_price(),
+                        }
+                    } else {
+                        // WARN: do not remove this `else` branch even after
+                        // `congestion_control_gas_price_feedback_mechanism` is enabled
+                        // on the mainnet. It must be kept to be able to replay old
+                        // transaction data.
+                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
+                            congested_objects: CongestedObjects(cancelled_objects),
+                        }
+                    },
+                    None,
+                )),
+                SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
+                    ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
+                    None,
+                )),
+                _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
+            }
+        } else {
+            Ok(())
+        }
     }
 
     /// Checks if the estimated size of transaction effects exceeds predefined
@@ -1301,5 +1558,37 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+    }
+
+    /// Construct a PTB with a single move call. This calls the authenticator
+    /// function found in `AuthenticatorInfo`. The inputs for the function are
+    /// found in `MoveAuthenticator`. Then, the `AuthContext` is pushed as the
+    /// last input.
+    fn setup_authenticator_move_call(
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfo,
+        auth_ctx: AuthContext,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        // Add `AuthContext` as the last argument; `TxContext` will be added later
+        // if required.
+        let mut args = authenticator.call_args().clone();
+        args.push(CallArg::Pure(auth_ctx.to_bcs_bytes()));
+
+        let res = builder.move_call(
+            authenticator_info.package,
+            Identifier::new(authenticator_info.module.clone()).unwrap(),
+            Identifier::new(authenticator_info.function.clone()).unwrap(),
+            authenticator.type_arguments().clone(),
+            args,
+        );
+
+        assert_invariant!(
+            res.is_ok(),
+            "Unable to generate an account authenticator call transaction!"
+        );
+
+        Ok(builder.finish())
     }
 }

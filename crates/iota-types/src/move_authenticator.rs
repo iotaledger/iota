@@ -7,6 +7,7 @@ use std::{
 };
 
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
+use move_core_types::language_storage::TypeTag;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -30,7 +31,10 @@ use crate::{
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     /// Input objects or primitive values
-    inputs: Vec<CallArg>,
+    call_args: Vec<CallArg>,
+    /// Type arguments for the Move authenticate function
+    #[schemars(with = "String")]
+    type_arguments: Vec<TypeTag>,
     /// The reference to the object that this authenticates. This object
     /// represents the account being the sender of the transaction.
     object_to_authenticate: ObjectRef,
@@ -52,8 +56,24 @@ impl MoveAuthenticator {
     pub fn address(&self) -> IotaAddress {
         self.object_to_authenticate.0.into()
     }
+
     pub fn digest(&self) -> MoveAuthenticatorDigest {
         MoveAuthenticatorDigest::new(default_hash(self))
+    }
+
+    pub fn call_args(&self) -> &Vec<CallArg> {
+        &self.call_args
+    }
+
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
+        &self.type_arguments
+    }
+
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+        self.call_args
+            .iter()
+            .flat_map(|arg| arg.receiving_objects())
+            .collect()
     }
 }
 
