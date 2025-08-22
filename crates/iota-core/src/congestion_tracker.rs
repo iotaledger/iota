@@ -24,8 +24,7 @@ const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
 const HOTNESS_CUTOFF: f64 = 1.0;
 
 /// Controls how quickly congestion tracker updates object hotness.
-/// Values should be > 0.0. If HOTNESS_CUTOFF = 0.0, then no pruning will
-/// happen.
+/// Values should be > 0.0. Higher values mean faster adjustments.
 const HOTNESS_ADJUSTMENT_FACTOR: f64 = 0.2;
 
 /// Controls how quickly hotness decays for objects not seen in congestion.
