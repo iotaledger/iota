@@ -67,9 +67,12 @@ pub mod checked {
         ) -> IotaResult<Self> {
             Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
 
+            // `IotaGasStatus` is created with zero gas spent value.
+            let gas_spent = 0;
+
             Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
-                0,
+                gas_spent,
                 gas_price,
                 reference_gas_price,
                 config,
