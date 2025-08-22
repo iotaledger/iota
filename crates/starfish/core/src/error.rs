@@ -78,9 +78,6 @@ pub(crate) enum ConsensusError {
     )]
     TooManyFetchedTransactionsReturned(AuthorityIndex),
 
-    #[error("Too many block headers have been requested from authority {0}")]
-    TooManyFetchHeadersRequested(AuthorityIndex),
-
     #[error("Too many block headers have been rteurned from authority {0}")]
     TooManyFetchedHeadersReturned(AuthorityIndex),
 
