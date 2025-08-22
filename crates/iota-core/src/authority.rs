@@ -896,14 +896,8 @@ impl AuthorityState {
         )?;
 
         if let Some(move_authenticator) = transaction.move_authenticator() {
-            // TODO: Do we need this check here? `move_auth` is already checked in
+            // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
-            fp_ensure!(
-                protocol_config.move_auth(),
-                IotaError::MoveAuthenticatorDisabled {
-                    digest: tx_digest.to_owned()
-                }
-            );
 
             // Make sure the sender is a smart account.
             let authenticator_info = self.check_smart_account(move_authenticator)?;
@@ -1340,24 +1334,21 @@ impl AuthorityState {
 
         let authenticator_input_objects =
             if let Some(move_authenticator) = certificate.move_authenticator() {
-                // TODO: Should we check this here if it has been already checked during
-                // signing?
-                if !epoch_store.protocol_config().move_auth() {
-                    None
-                } else {
-                    let input_object_kinds = move_authenticator.input_objects();
+                // It is supposed that `Move authentication` availability is checked in
+                // `SenderSignedData::validity_check`.
 
-                    Some(self.input_loader.read_objects_for_execution(
-                        epoch_store,
-                        // This key is used for resolving transaction shared object versions.
-                        // It is supposed that the authenticator shared inputs are also can be
-                        // resolved using this key.
-                        &certificate.key(),
-                        tx_lock,
-                        &input_object_kinds,
-                        epoch_store.epoch(),
-                    )?)
-                }
+                let input_object_kinds = move_authenticator.input_objects();
+
+                Some(self.input_loader.read_objects_for_execution(
+                    epoch_store,
+                    // This key is used for resolving transaction shared object versions.
+                    // It is supposed that the authenticator shared inputs are also can be
+                    // resolved using this key.
+                    &certificate.key(),
+                    tx_lock,
+                    &input_object_kinds,
+                    epoch_store.epoch(),
+                )?)
             } else {
                 None
             };
@@ -1758,12 +1749,8 @@ impl AuthorityState {
         let authenticator_computation_cost = if let Some(move_authenticator) =
             certificate.move_authenticator()
         {
-            // TODO: Should we check this here if it has been already checked during
-            // signing?
-            fp_ensure!(
-                protocol_config.move_auth(),
-                IotaError::MoveAuthenticatorDisabled { digest: tx_digest }
-            );
+            // It is supposed that `Move authentication` availability is checked in
+            // `SenderSignedData::validity_check`.
 
             let authenticator_info = self.check_smart_account(move_authenticator)?;
 

@@ -533,8 +533,6 @@ pub enum IotaError {
     #[error("Unexpected message.")]
     UnexpectedMessage,
 
-    #[error("Received transaction {digest:?} with `MoveAuthenticator` that is disabled.")]
-    MoveAuthenticatorDisabled { digest: TransactionDigest },
     #[error("Failed to execute the Move authenticator, reason: {error:?}.")]
     MoveAuthenticatorExecutionFailure { error: String },
 
