@@ -517,6 +517,12 @@ public(package) fun advance_epoch(
     // This is needed for proper eligible validator index mapping.
     let prev_active_validator_addresses = self.active_validator_addresses();
 
+    // Validate eligible validators have sufficient voting power before processing pending validators
+    let validated_eligible_validators = validate_eligible_validators_voting_power(
+        &self.active_validators,
+        eligible_active_validators,
+    );
+
     // Note that all their staged next epoch metadata will be effectuated below.
     process_pending_validators(self, new_epoch);
 
@@ -545,7 +551,7 @@ public(package) fun advance_epoch(
         committee_size,
         prev_committee_validator_addresses,
         prev_active_validator_addresses,
-        eligible_active_validators,
+        validated_eligible_validators,
         ctx,
     );
 
@@ -1225,6 +1231,37 @@ fun calculate_total_committee_stakes(
     voting_power::total_committee_stake(validators, committee_members)
 }
 
+/// Validates that eligible validators have sufficient voting power (at least quorum threshold).
+/// If they don't, returns indices of all validators as fallback.
+/// This ensures the committee selection process has enough voting power to meet consensus requirements.
+fun validate_eligible_validators_voting_power(
+    active_validators: &vector<ValidatorV1>,
+    eligible_active_validators: vector<u64>,
+): vector<u64> {
+    // If eligible_active_validators is empty, use all validators as fallback.
+    // This can happen only if the protocol does not support selecting committee only from eligible validators or there is a bug in the caller.
+    if (eligible_active_validators.is_empty()) {
+        return vector::tabulate!(active_validators.length(), |i| i)
+    };
+
+    // Calculate total voting power of eligible validators
+    let mut eligible_total_voting_power = 0;
+    eligible_active_validators.do_ref!(|idx| {
+        // Validate index bounds
+        assert!(*idx < active_validators.length(), EInvalidEligibleValidatorIndex);
+        eligible_total_voting_power = eligible_total_voting_power + active_validators[*idx].voting_power();
+    });
+
+    // If eligible validators don't have enough voting power, fallback to all validators.
+    // This should never happen under normal circumstances, but we include this
+    // safeguard to ensure the committee selection can always proceed in a safe manner.
+    if (eligible_total_voting_power < voting_power::quorum_threshold()) {
+        vector::tabulate!(active_validators.length(), |i| i)
+    } else {
+        eligible_active_validators
+    }
+}
+
 /// Process the pending stake changes for each validator.
 fun adjust_next_epoch_commission_rate(validators: &mut vector<ValidatorV1>) {
     let length = validators.length();
@@ -1504,17 +1541,12 @@ public(package) fun process_new_committee(
     committee_size: u64,
     prev_committee_addresses: vector<address>,
     prev_active_validator_addresses: vector<address>,
-    mut eligible_active_validators: vector<u64>,
+    eligible_active_validators: vector<u64>,
     ctx: &TxContext,
 ) {
 
     // Convert eligible validator indices into current active_validators indices, independent of the changes in active_validators.
     let mut current_eligible_indices = vector[];
-    
-    // If eligible_active_validators is empty, use indices of all prev_active_validator_addresses as fallback
-    if (eligible_active_validators.is_empty()) {
-        eligible_active_validators = vector::tabulate!(prev_active_validator_addresses.length(), |i| i);
-    };
 
     eligible_active_validators.do_ref!(|idx| {
         // Validate that the index is within bounds of prev_active_validator_addresses
