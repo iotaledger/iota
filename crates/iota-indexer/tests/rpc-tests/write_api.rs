@@ -621,9 +621,8 @@ fn test_parallel_shared_object_updates() {
                         .collect();
                     assert!(
                         relevant_deps.is_subset(&seen_digests),
-                        "Tx: {:?} should have bigger order than it's deps: {:?}",
-                        tx_digest,
-                        relevant_deps,
+                        "Tx: {tx_digest:?} should have bigger order than it's deps: {relevant_deps:?}",
+
                     );
                     seen_digests.insert(tx_digest);
                 }

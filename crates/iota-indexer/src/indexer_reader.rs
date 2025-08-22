@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -57,7 +56,7 @@ use crate::{
         checkpoints::{StoredChainIdentifier, StoredCheckpoint},
         display::StoredDisplay,
         epoch::StoredEpochInfo,
-        events::StoredEvent,
+        events::{OptimisticEvent, StoredEvent},
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
         obj_indices::StoredObjectVersion,
@@ -71,8 +70,9 @@ use crate::{
     },
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
-        packages, pruner_cp_watermark, transactions, tx_digests, tx_global_order,
+        objects, objects_history, objects_snapshot, objects_version, optimistic_events,
+        optimistic_transactions, packages, pruner_cp_watermark, transactions, tx_digests,
+        tx_global_order,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -179,34 +179,6 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         }
     }
 
-    fn combine_queries(
-        query_before_global_order: String,
-        query_in_global_order: String,
-        is_descending: bool,
-        cursor_position: &Option<CursorPosition>,
-        limit: usize,
-    ) -> String {
-        if is_descending {
-            if matches!(cursor_position, Some(CursorPosition::BeforeGlobalOrder(_))) {
-                // if cursor is placed before global order bagan, and we are descending, we
-                // can safely omit global ordered entries
-                query_before_global_order
-            } else {
-                format!(
-                    "({query_in_global_order}) UNION ALL ({query_before_global_order}) LIMIT {limit}"
-                )
-            }
-        } else if matches!(cursor_position, Some(CursorPosition::InGlobalOrder(_, _))) {
-            // if cursor is placed in globally ordered area and we are ascending, we can
-            // safely omit non-global-ordered entries
-            query_in_global_order
-        } else {
-            format!(
-                "({query_before_global_order}) UNION ALL ({query_in_global_order}) LIMIT {limit}"
-            )
-        }
-    }
-
     fn get_query_before_global_order(&self, return_order_columns: bool) -> String {
         let source_table_alias = self.source_table_alias;
         let source_table_or_query = self.source_table_or_query;
@@ -283,13 +255,190 @@ impl<'a> QueryTransactionBlocksSqlQueryBuilder<'a> {
         let query_before_global_order = self.get_query_before_global_order(false);
         let query_after_global_order = self.get_query_with_global_order(false);
 
-        QueryTransactionBlocksSqlQueryBuilder::combine_queries(
+        combine_nonglobal_and_global_order_queries(
             query_before_global_order,
             query_after_global_order,
             self.is_descending,
             &self.cursor_position,
             self.limit,
         )
+    }
+}
+
+struct QueryEventsSqlQueryBuilder<'a> {
+    source_table_alias: &'a str,
+    source_table_or_query: &'a str,
+    optimistic_source_table_or_query: &'a str,
+    main_filter_condition: &'a str,
+    cursor_position: (CursorPosition, i64),
+    is_descending: bool,
+    limit: usize,
+    smallest_tx_seq_with_global_order: i64,
+}
+
+impl<'a> QueryEventsSqlQueryBuilder<'a> {
+    const STORED_EVENT_SQL_FIELDS: &'static str = "tx_sequence_number, event_sequence_number, transaction_digest, senders, package, module, event_type, timestamp_ms, bcs";
+    const STORED_EVENT_SQL_FIELDS_FOR_OPTIMISTIC_TABLE: &'static str = "-1 as tx_sequence_number, event_sequence_number, transaction_digest, senders, package, module, event_type, -1 as timestamp_ms, bcs";
+
+    fn new(
+        source_table_alias: &'a str,
+        source_table_or_query: &'a str,
+        optimistic_source_table_or_query: &'a str,
+        main_filter_condition: &'a str,
+        cursor_position: (CursorPosition, i64),
+        is_descending: bool,
+        limit: usize,
+        smallest_tx_seq_with_global_order: i64,
+    ) -> Self {
+        Self {
+            cursor_position,
+            is_descending,
+            limit,
+            source_table_alias,
+            source_table_or_query,
+            optimistic_source_table_or_query,
+            main_filter_condition,
+            smallest_tx_seq_with_global_order,
+        }
+    }
+
+    fn get_before_global_order_cursor_clause(&self) -> String {
+        let source_table_alias = self.source_table_alias;
+        if let (CursorPosition::BeforeGlobalOrder(cursor_tx_seq), event_seq) = self.cursor_position
+        {
+            let comparator = if self.is_descending { "<" } else { ">" };
+            format!(
+                "(({source_table_alias}.{TX_SEQUENCE_NUMBER_STR}, e.{EVENT_SEQUENCE_NUMBER_STR}) {comparator} ({cursor_tx_seq}, {event_seq}))"
+            )
+        } else {
+            "1 = 1".to_string()
+        }
+    }
+
+    fn get_with_global_order_cursor_clause(&self) -> String {
+        let source_table_alias = self.source_table_alias;
+        if let (CursorPosition::InGlobalOrder(global_seq, optimistic_seq), event_seq) =
+            self.cursor_position
+        {
+            let comparator = if self.is_descending { "<" } else { ">" };
+            format!(
+                "(tx_global_order.global_sequence_number, tx_global_order.optimistic_sequence_number, {source_table_alias}.{EVENT_SEQUENCE_NUMBER_STR}) \
+                 {comparator} ({global_seq}, {optimistic_seq}, {event_seq})"
+            )
+        } else {
+            "1 = 1".to_string()
+        }
+    }
+
+    fn get_query_before_global_order(&self) -> String {
+        let source_table_alias = self.source_table_alias;
+        let source_table_or_query = self.source_table_or_query;
+        let main_filter_condition = self.main_filter_condition;
+        let smallest_tx_seq_with_global_order = self.smallest_tx_seq_with_global_order;
+        let limit = self.limit;
+        let before_global_order_cursor_clause = self.get_before_global_order_cursor_clause();
+        let fields_to_select = Self::STORED_EVENT_SQL_FIELDS;
+        let order_str = if self.is_descending { "DESC" } else { "ASC" };
+        let order_clause = format!(
+            "{source_table_alias}.{TX_SEQUENCE_NUMBER_STR} {order_str}, {source_table_alias}.{EVENT_SEQUENCE_NUMBER_STR} {order_str}"
+        );
+
+        format!(
+            "SELECT {source_table_alias}.{fields_to_select}
+             FROM {source_table_or_query}
+             WHERE {main_filter_condition} AND {before_global_order_cursor_clause} \
+             AND {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} < {smallest_tx_seq_with_global_order} \
+             ORDER BY {order_clause} \
+             LIMIT {limit}",
+        )
+    }
+
+    fn get_query_with_global_order(&self) -> String {
+        let source_table_alias = self.source_table_alias;
+        let source_table_or_query = self.source_table_or_query;
+        let optimistic_source_table_or_query = self.optimistic_source_table_or_query;
+        let main_filter_condition = self.main_filter_condition;
+        let limit = self.limit;
+        let global_order_cursor_clause = self.get_with_global_order_cursor_clause();
+        let fields_to_select = Self::STORED_EVENT_SQL_FIELDS;
+        let optimistic_fields_to_select = Self::STORED_EVENT_SQL_FIELDS_FOR_OPTIMISTIC_TABLE;
+        let order_str = if self.is_descending { "DESC" } else { "ASC" };
+        let order_clause = format!(
+            "tx_global_order.global_sequence_number {order_str}, tx_global_order.optimistic_sequence_number {order_str}, \
+             {source_table_alias}.{EVENT_SEQUENCE_NUMBER_STR} {order_str}"
+        );
+        let final_order_clause = format!(
+            "global_sequence_number {order_str}, optimistic_sequence_number {order_str}, {EVENT_SEQUENCE_NUMBER_STR} {order_str}"
+        );
+
+        let checkpointed_data_qry = format!(
+            "SELECT {source_table_alias}.{fields_to_select}, tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR}, tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+             FROM {source_table_or_query}
+             JOIN tx_global_order ON tx_global_order.chk_tx_sequence_number = {source_table_alias}.{TX_SEQUENCE_NUMBER_STR} \
+             WHERE {main_filter_condition} AND {global_order_cursor_clause} \
+             ORDER BY {order_clause} \
+             LIMIT {limit}"
+        );
+
+        let optimistic_data_qry = format!(
+            "SELECT {optimistic_fields_to_select}, tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR}, tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+             FROM {optimistic_source_table_or_query}
+             JOIN tx_global_order \
+                 ON tx_global_order.{GLOBAL_SEQUENCE_NUMBER_STR} = {source_table_alias}.{GLOBAL_SEQUENCE_NUMBER_STR} \
+                 AND tx_global_order.{OPTIMISTIC_SEQUENCE_NUMBER_STR} = {source_table_alias}.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+             WHERE {main_filter_condition} AND {global_order_cursor_clause}  \
+             ORDER BY {order_clause} \
+             LIMIT {limit}"
+        );
+
+        format!(
+            "SELECT {fields_to_select} FROM ( \
+                 SELECT DISTINCT ON (event_sequence_number, transaction_digest) {fields_to_select}, {GLOBAL_SEQUENCE_NUMBER_STR}, {OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+                 FROM (({checkpointed_data_qry}) UNION ALL ({optimistic_data_qry})) AS combined_raw \
+                 ORDER BY event_sequence_number, transaction_digest \
+             ) as combined_deduplicated \
+             ORDER BY {final_order_clause} \
+             LIMIT {limit}"
+        ) // Remove duplicates by event_sequence_number and transaction_digest, then restore order
+    }
+
+    fn get_combined_query(&self) -> String {
+        let query_before_global_order = self.get_query_before_global_order();
+        let query_after_global_order = self.get_query_with_global_order();
+
+        combine_nonglobal_and_global_order_queries(
+            query_before_global_order,
+            query_after_global_order,
+            self.is_descending,
+            &Some(self.cursor_position.0),
+            self.limit,
+        )
+    }
+}
+
+fn combine_nonglobal_and_global_order_queries(
+    query_before_global_order: String,
+    query_in_global_order: String,
+    is_descending: bool,
+    cursor_position: &Option<CursorPosition>,
+    limit: usize,
+) -> String {
+    if is_descending {
+        if matches!(cursor_position, Some(CursorPosition::BeforeGlobalOrder(_))) {
+            // if cursor is placed before global order bagan, and we are descending, we
+            // can safely omit global ordered entries
+            query_before_global_order
+        } else {
+            format!(
+                "({query_in_global_order}) UNION ALL ({query_before_global_order}) LIMIT {limit}"
+            )
+        }
+    } else if matches!(cursor_position, Some(CursorPosition::InGlobalOrder(_, _))) {
+        // if cursor is placed in globally ordered area and we are ascending, we can
+        // safely omit non-global-ordered entries
+        query_in_global_order
+    } else {
+        format!("({query_before_global_order}) UNION ALL ({query_in_global_order}) LIMIT {limit}")
     }
 }
 
@@ -1599,7 +1748,7 @@ impl IndexerReader {
                 let object_id = Hex::encode(object_id.to_vec());
                 FilteredDataSource::SingleTable {
                     table_name: "tx_wrapped_or_deleted_objects".into(),
-                    filter_condition: format!("object_id = '\\x{}'::bytea", object_id),
+                    filter_condition: format!("object_id = '\\x{object_id}'::bytea"),
                 }
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))
@@ -1704,7 +1853,7 @@ impl IndexerReader {
                     ) // we need UNION to remove duplicates, but we need to restore order after that
                 };
 
-                let inner_query = QueryTransactionBlocksSqlQueryBuilder::combine_queries(
+                let inner_query = combine_nonglobal_and_global_order_queries(
                     inner_query_before_global_order,
                     inner_query_with_global_order,
                     is_descending,
@@ -1981,13 +2130,85 @@ impl IndexerReader {
         })
     }
 
-    async fn query_events_by_tx_digest(
+    async fn query_events_by_tx_digest_including_optimistic_data(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<IotaEvent>> {
+        let ckpt_events = self
+            .query_events_by_tx_digest_checkpointed(tx_digest, cursor, limit, descending_order)
+            .await?;
+        let optimistic_events = self
+            .query_events_by_tx_digest_optimistic(tx_digest, cursor, limit, descending_order)
+            .await?;
+
+        let deduplicated_events = ckpt_events
+            .into_iter()
+            .chain(optimistic_events.into_iter())
+            .unique_by(|event| {
+                (
+                    event.event_sequence_number,
+                    event.transaction_digest.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let mut iota_event_futures = vec![];
+        for stored_event in deduplicated_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
+        }
+
+        let iota_events = futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+        Ok(iota_events)
+    }
+
+    async fn query_events_by_tx_digest_checkpointed_only(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        let ckpt_events = self
+            .query_events_by_tx_digest_checkpointed(tx_digest, cursor, limit, descending_order)
+            .await?;
+
+        let mut iota_event_futures = vec![];
+        for stored_event in ckpt_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
+        }
+
+        let iota_events = futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+        Ok(iota_events)
+    }
+
+    async fn query_events_by_tx_digest_checkpointed(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<StoredEvent>> {
         let mut query = events::table.into_boxed();
 
         if let Some(cursor) = cursor {
@@ -2023,9 +2244,177 @@ impl IndexerReader {
         );
 
         let pool = self.get_pool();
-        let stored_events = run_query_async!(&pool, move |conn| {
+        run_query_async!(&pool, move |conn| {
             query.limit(limit as i64).load::<StoredEvent>(conn)
+        })
+    }
+
+    async fn query_events_by_tx_digest_optimistic(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<StoredEvent>> {
+        let mut query = optimistic_events::table
+            .into_boxed()
+            .inner_join(
+                tx_global_order::table.on(optimistic_events::global_sequence_number
+                    .eq(tx_global_order::global_sequence_number)
+                    .and(
+                        optimistic_events::optimistic_sequence_number
+                            .eq(tx_global_order::optimistic_sequence_number),
+                    )),
+            )
+            .filter(tx_global_order::tx_digest.eq(tx_digest.into_inner().to_vec()));
+
+        if let Some(cursor) = cursor {
+            if cursor.tx_digest != tx_digest {
+                return Err(IndexerError::InvalidArgument(
+                    "Cursor tx_digest does not match the tx_digest in the query.".into(),
+                ));
+            }
+            if descending_order {
+                query = query
+                    .filter(optimistic_events::event_sequence_number.lt(cursor.event_seq as i64));
+            } else {
+                query = query
+                    .filter(optimistic_events::event_sequence_number.gt(cursor.event_seq as i64));
+            }
+        } else if descending_order {
+            query = query.filter(optimistic_events::event_sequence_number.le(i64::MAX));
+        } else {
+            query = query.filter(optimistic_events::event_sequence_number.ge(0));
+        };
+
+        if descending_order {
+            query = query.order(optimistic_events::event_sequence_number.desc());
+        } else {
+            query = query.order(optimistic_events::event_sequence_number.asc());
+        }
+
+        let pool = self.get_pool();
+        let optimistic_events = run_query_async!(&pool, move |conn| {
+            query.limit(limit as i64).load::<OptimisticEvent>(conn)
         })?;
+        Ok(optimistic_events
+            .into_iter()
+            .map(|event| event.into())
+            .collect())
+    }
+
+    pub async fn query_optimistic_and_checkpointed_events_in_blocking_task(
+        &self,
+        filter: EventFilter,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        let smallest_tx_seq_with_global_order =
+            self.get_smallest_tx_seq_with_global_order().await?;
+
+        let (tx_cursor_position, event_seq) = self
+            .resolve_query_events_cursor(
+                smallest_tx_seq_with_global_order,
+                cursor,
+                descending_order,
+            )
+            .await?;
+
+        let query = if let EventFilter::Sender(sender) = &filter {
+            let source_tables = format!(
+                "tx_senders s \
+                 JOIN events e \
+                     ON e.tx_sequence_number = s.tx_sequence_number \
+                     AND s.sender = '\\x{}'::bytea",
+                Hex::encode(sender.to_vec())
+            );
+            let optimistic_source_tables = format!(
+                "optimistic_tx_senders s \
+                 JOIN optimistic_events e \
+                     ON e.{GLOBAL_SEQUENCE_NUMBER_STR} = s.{GLOBAL_SEQUENCE_NUMBER_STR} \
+                     AND e.{OPTIMISTIC_SEQUENCE_NUMBER_STR} = s.{OPTIMISTIC_SEQUENCE_NUMBER_STR} \
+                     AND s.sender = '\\x{}'::bytea",
+                Hex::encode(sender.to_vec())
+            );
+
+            let query_builder = QueryEventsSqlQueryBuilder::new(
+                "e",
+                &source_tables,
+                &optimistic_source_tables,
+                "1 = 1",
+                (tx_cursor_position, event_seq),
+                descending_order,
+                limit,
+                smallest_tx_seq_with_global_order,
+            );
+            query_builder.get_combined_query()
+        } else if let EventFilter::Transaction(tx_digest) = filter {
+            return self
+                .query_events_by_tx_digest_including_optimistic_data(
+                    tx_digest,
+                    cursor,
+                    limit,
+                    descending_order,
+                )
+                .await;
+        } else {
+            let main_where_clause = match filter {
+                EventFilter::Package(package_id) => {
+                    format!("package = '\\x{}'::bytea", package_id.to_hex())
+                }
+                EventFilter::MoveModule { package, module } => {
+                    format!(
+                        "package = '\\x{}'::bytea AND module = '{}'",
+                        package.to_hex(),
+                        module,
+                    )
+                }
+                EventFilter::MoveEventType(struct_tag) => {
+                    let formatted_struct_tag = struct_tag.to_canonical_string(true);
+                    format!("event_type = '{formatted_struct_tag}'")
+                }
+                EventFilter::MoveEventModule { package, module } => {
+                    let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
+                    format!("event_type LIKE '{package_module_prefix}::%'")
+                }
+                EventFilter::Sender(_) => {
+                    // Processed above
+                    unreachable!()
+                }
+                EventFilter::Transaction(_) => {
+                    // Processed above
+                    unreachable!()
+                }
+                EventFilter::MoveEventField { .. }
+                | EventFilter::All(_)
+                | EventFilter::Any(_)
+                | EventFilter::And(_, _)
+                | EventFilter::Or(_, _)
+                | EventFilter::TimeRange { .. } => {
+                    return Err(IndexerError::NotSupported(
+                        "This type of EventFilter is not supported.".into(),
+                    ));
+                }
+            };
+
+            let query_builder = QueryEventsSqlQueryBuilder::new(
+                "e",
+                "events e",
+                "optimistic_events e",
+                &main_where_clause,
+                (tx_cursor_position, event_seq),
+                descending_order,
+                limit,
+                smallest_tx_seq_with_global_order,
+            );
+            query_builder.get_combined_query()
+        };
+
+        tracing::debug!("query events: {}", query);
+        let pool = self.get_pool();
+        let stored_events = run_query_async!(&pool, move |conn| diesel::sql_query(query)
+            .load::<StoredEvent>(conn))?;
 
         let mut iota_event_futures = vec![];
         for stored_event in stored_events {
@@ -2045,7 +2434,61 @@ impl IndexerReader {
         Ok(iota_events)
     }
 
-    pub async fn query_events_in_blocking_task(
+    async fn resolve_query_events_cursor(
+        &self,
+        smallest_tx_seq_with_global_order: i64,
+        cursor: Option<EventID>,
+        descending_order: bool,
+    ) -> IndexerResult<(CursorPosition, i64)> {
+        let pool = self.get_pool();
+        let result = if let Some(cursor) = cursor {
+            let EventID {
+                tx_digest,
+                event_seq,
+            } = cursor;
+            let tx_seq = run_query_async!(&pool, move |conn| {
+                tx_digests::table
+                    .select(tx_digests::tx_sequence_number)
+                    // we filter the tx_digests table because it is indexed by digest,
+                    // transactions (and other tables) are not
+                    .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                    .first::<i64>(conn)
+                    .optional()
+            })?;
+            let tx_cursor_position = match tx_seq {
+                Some(seq) if seq < smallest_tx_seq_with_global_order => {
+                    CursorPosition::BeforeGlobalOrder(seq)
+                }
+                _ => {
+                    let pool = self.get_pool();
+                    let (global_seq, optimistic_seq) = run_query_async!(&pool, move |conn| {
+                        tx_global_order::table
+                            .select((
+                                tx_global_order::global_sequence_number,
+                                tx_global_order::optimistic_sequence_number,
+                            ))
+                            .filter(tx_global_order::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                            .first::<(i64, i64)>(conn)
+                    })?;
+                    CursorPosition::InGlobalOrder(global_seq, optimistic_seq)
+                }
+            };
+            (tx_cursor_position, event_seq as i64)
+        } else if descending_order {
+            let max_tx_seq = CursorPosition::InGlobalOrder(i64::MAX, i64::MAX);
+            let max_event_seq = i64::MAX;
+            (max_tx_seq, max_event_seq)
+        } else {
+            let min_tx_seq = CursorPosition::BeforeGlobalOrder(-1);
+            let min_event_seq = 0;
+            (min_tx_seq, min_event_seq)
+        };
+
+        Ok(result)
+    }
+
+    #[expect(unused)]
+    async fn query_only_checkpointed_events_in_blocking_task(
         &self,
         filter: EventFilter,
         cursor: Option<EventID>,
@@ -2116,7 +2559,12 @@ impl IndexerReader {
             )
         } else if let EventFilter::Transaction(tx_digest) = filter {
             return self
-                .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
+                .query_events_by_tx_digest_checkpointed_only(
+                    tx_digest,
+                    cursor,
+                    limit,
+                    descending_order,
+                )
                 .await;
         } else {
             let main_where_clause = match filter {
@@ -2186,14 +2634,12 @@ impl IndexerReader {
         let pool = self.get_pool();
         let stored_events = run_query_async!(&pool, move |conn| diesel::sql_query(query)
             .load::<StoredEvent>(conn))?;
-
         let mut iota_event_futures = vec![];
         for stored_event in stored_events {
             iota_event_futures.push(tokio::task::spawn(
                 stored_event.try_into_iota_event(self.package_resolver.clone()),
             ));
         }
-
         let iota_events = futures::future::join_all(iota_event_futures)
             .await
             .into_iter()
