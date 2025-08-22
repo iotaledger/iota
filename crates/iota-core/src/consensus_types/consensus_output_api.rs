@@ -96,8 +96,7 @@ macro_rules! impl_consensus_output_api {
                                     Err(err) => {
                                         tracing::error!(
                                             "Failed to deserialize sequenced consensus transaction \
-                                             (this should not happen) {} from {author} at {round}",
-                                            err
+                                             (this should not happen) {err} from {author} at {round}"
                                         );
                                         None
                                     }
