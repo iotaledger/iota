@@ -2316,12 +2316,11 @@ impl SenderSignedData {
 
         // Check the `MoveAuthenticator` transactions limitations.
         if self.move_authenticator().is_some() && !tx_data.kind().is_programmable_transaction() {
-            IotaError::UserInput {
-                error: UserInputError::Unsupported(
-                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
-                        .to_string(),
-                ),
-            };
+            return Err(UserInputError::Unsupported(
+                "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                    .to_string(),
+            )
+            .into());
         }
 
         // Checks to see if the transaction has expired
