@@ -139,13 +139,9 @@ pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
     pub package: ObjectID,
     /// The module name to which the function belongs.
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    pub module: Identifier,
+    pub module: String,
     /// The function name.
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    pub function: Identifier,
+    pub function: String,
 }
 
 impl FromStr for MoveFunctionName {
@@ -171,14 +167,11 @@ impl TryFrom<ParsedFqName> for MoveFunctionName {
                 });
             }
         };
-        // SAFETY: Validity of identifiers is ensured by `ParsedFqName`
-        let module = unsafe { Identifier::new_unchecked(parsed.module.name) };
-        let function = unsafe { Identifier::new_unchecked(parsed.name) };
 
         Ok(Self {
             package,
-            module,
-            function,
+            module: parsed.module.name,
+            function: parsed.name,
         })
     }
 }
