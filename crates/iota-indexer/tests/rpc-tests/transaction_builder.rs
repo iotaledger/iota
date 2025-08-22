@@ -33,8 +33,8 @@ use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 
 use crate::common::{
-    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-    indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
+    ApiTestSetup, execute_tx_and_wait_for_indexer, execute_tx_must_succeed,
+    indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
     start_test_cluster_with_read_write_indexer,
 };
 const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
@@ -43,7 +43,7 @@ const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
 fn transfer_object() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -66,7 +66,7 @@ fn transfer_object() {
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let transferred_object = client
             .get_object(object_to_send, Some(IotaObjectDataOptions::full_content()))
@@ -84,7 +84,7 @@ fn transfer_object() {
 fn transfer_iota() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -107,7 +107,7 @@ fn transfer_iota() {
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let receiver_balances = get_address_balances(client, receiver).await;
 
@@ -119,7 +119,7 @@ fn transfer_iota() {
 fn pay() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -148,7 +148,7 @@ fn pay() {
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let receiver_1_balances = get_address_balances(client, receiver_1).await;
         let receiver_2_balances = get_address_balances(client, receiver_2).await;
@@ -162,7 +162,7 @@ fn pay() {
 fn pay_iota() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -191,7 +191,7 @@ fn pay_iota() {
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let receiver_1_balances = get_address_balances(client, receiver_1).await;
         let receiver_2_balances = get_address_balances(client, receiver_2).await;
@@ -205,7 +205,7 @@ fn pay_iota() {
 fn pay_all_iota() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -223,7 +223,7 @@ fn pay_all_iota() {
             .pay_all_iota(sender, sender_coins, receiver, gas_budget.into())
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let receiver_balances = get_address_balances(client, receiver).await;
         let expected_minimum_receiver_balance = FUNDED_BALANCE_PER_COIN * input_coins - gas_budget;
@@ -237,7 +237,7 @@ fn pay_all_iota() {
 fn move_call() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -263,7 +263,7 @@ fn move_call() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             let mut sender_balances = get_address_balances(client, sender).await;
             sender_balances.sort();
@@ -279,7 +279,7 @@ fn move_call() {
 fn split_coin() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -307,7 +307,7 @@ fn split_coin() {
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
@@ -323,7 +323,7 @@ fn split_coin() {
 fn split_coin_equal() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -338,7 +338,7 @@ fn split_coin_equal() {
             .split_coin_equal(sender, sender_coins[0], 3.into(), None, gas_budget.into())
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
@@ -354,7 +354,7 @@ fn split_coin_equal() {
 fn merge_coin() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -375,7 +375,7 @@ fn merge_coin() {
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
@@ -389,7 +389,7 @@ fn merge_coin() {
 fn batch_transaction() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -429,7 +429,7 @@ fn batch_transaction() {
                     None,
                 )
                 .await?;
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             let mut sender_balances = get_address_balances(client, sender).await;
             let receiver_balances = get_address_balances(client, receiver).await;
@@ -476,7 +476,7 @@ fn request_add_stake() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
 
@@ -504,7 +504,7 @@ fn request_add_stake() {
 fn request_withdraw_stake_from_pending() {
     let ApiTestSetup {
         runtime,
-        store,
+        store: _,
         client,
         cluster,
     } = ApiTestSetup::get_or_init();
@@ -531,7 +531,7 @@ fn request_withdraw_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
             let stake = &staked_iota[0].stakes[0];
@@ -546,7 +546,7 @@ fn request_withdraw_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());
@@ -588,7 +588,7 @@ fn request_withdraw_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             cluster.force_new_epoch().await;
             indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -605,7 +605,7 @@ fn request_withdraw_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());
@@ -642,7 +642,7 @@ fn request_add_timelocked_stake() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(&client, &cluster, &store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
 
@@ -692,7 +692,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(&client, &cluster, &store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             let stake = &staked_iota[0].stakes[0];
@@ -744,7 +744,7 @@ fn request_withdraw_timelocked_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(&client, &cluster, &store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
 
             cluster.force_new_epoch().await;
             indexer_wait_for_latest_checkpoint(&store, &cluster).await;
@@ -761,7 +761,7 @@ fn request_withdraw_timelocked_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(&client, &cluster, &store, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());
