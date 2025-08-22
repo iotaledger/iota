@@ -9,6 +9,7 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
+use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{PackageStore, Resolver};
@@ -29,7 +30,7 @@ use iota_types::{
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusDeterminedVersionAssignments,
-    object::Owner,
+    object::{Owner, bounded_visitor::BoundedVisitor},
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
@@ -57,7 +58,7 @@ use tabled::{
 };
 
 use crate::{
-    Filter, IotaEvent, IotaObjectRef, Page, balance_changes::BalanceChange,
+    Filter, IotaEvent, IotaMoveValue, IotaObjectRef, Page, balance_changes::BalanceChange,
     iota_transaction::GenericSignature::Signature, object_changes::ObjectChange,
 };
 
@@ -1262,6 +1263,74 @@ pub struct IotaExecutionResult {
     /// The return values from the transaction
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub return_values: Vec<(Vec<u8>, IotaTypeTag)>,
+}
+
+impl IotaExecutionResult {
+    fn into_stream_return_value_layouts<S: PackageStore>(
+        self,
+        package_resolver: &Resolver<S>,
+    ) -> impl Stream<Item = anyhow::Result<(Vec<u8>, MoveTypeLayout)>> + use<'_, S> {
+        self.return_values
+            .into_iter()
+            .map(|(bytes, iota_type_tag)| async {
+                let type_tag = TypeTag::try_from(iota_type_tag)?;
+                let move_type_layout = package_resolver.type_layout(type_tag).await?;
+                Ok((bytes, move_type_layout))
+            })
+            .collect::<FuturesOrdered<_>>()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename = "IotaMoveViewCallResult", rename_all = "camelCase")]
+pub struct IotaMoveViewCallResults {
+    /// Execution error from executing the move view call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// The return values of the move view function
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub results: Vec<serde_json::Value>,
+}
+
+impl IotaMoveViewCallResults {
+    fn with_error(msg: impl Into<String>) -> Self {
+        Self {
+            error: Some(msg.into()),
+            ..Default::default()
+        }
+    }
+
+    /// Process the dev-inspect results to produce the response
+    /// of the move-view function call.
+    pub async fn from_dev_inspect_results<S: PackageStore>(
+        package_store: S,
+        dev_inspect_results: DevInspectResults,
+    ) -> anyhow::Result<Self> {
+        if let Some(error) = dev_inspect_results.error {
+            return Ok(Self::with_error(error));
+        }
+        let Some(mut tx_execution_results) = dev_inspect_results.results else {
+            return Ok(Self::with_error("function call returned no values"));
+        };
+        let Some(execution_results) = tx_execution_results.pop() else {
+            return Ok(Self::with_error("no results from move view function call"));
+        };
+        if !tx_execution_results.is_empty() {
+            return Ok(Self::with_error("multiple transactions executed"));
+        }
+        let mut move_call_results = Self::default();
+        let package_resolver = Resolver::new(package_store);
+        let mut execution_results =
+            execution_results.into_stream_return_value_layouts(&package_resolver);
+        while let Some(result) = execution_results.next().await {
+            let (bytes, move_type_layout) = result?;
+            let move_value = BoundedVisitor::deserialize_value(&bytes, &move_type_layout)?;
+            move_call_results
+                .results
+                .push(IotaMoveValue::from(move_value).to_json_value());
+        }
+        Ok(move_call_results)
+    }
 }
 
 type ExecutionResult = (
