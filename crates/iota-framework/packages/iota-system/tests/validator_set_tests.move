@@ -1066,13 +1066,13 @@ fun test_eligible_committee_selection_ineligible_top_validators() {
 
     // Create validators with different stakes to test both ineligible top validators and sparse indices
     let v1 = create_validator(@0x1, 1, 1, true, ctx); // 100 IOTA
-    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 300 IOTA 
-    let v3 = create_validator(@0x3, 4, 1, true, ctx); // 600 IOTA
+    let v2 = create_validator(@0x2, 3, 1, true, ctx); // 300 IOTA 
+    let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
     let v4 = create_validator(@0x4, 7, 1, false, ctx); // 700 IOTA
     let v5 = create_validator(@0x5, 9, 1, false, ctx); // 900 IOTA
     let v6 = create_validator(@0x6, 4, 1, true, ctx); // 400 IOTA
 
-    let committee_size = 3;
+    let committee_size = 4;
     let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v6], committee_size, ctx);
     scenario_val.end();
 
@@ -1080,12 +1080,13 @@ fun test_eligible_committee_selection_ineligible_top_validators() {
     let scenario = &mut scenario_val;
 
     // Add the high-stake validators that won't be eligible
-    add_and_activate_validator(&mut validator_set, v4, scenario);
     add_and_activate_validator(&mut validator_set, v5, scenario);
+    add_and_activate_validator(&mut validator_set, v4, scenario);
 
-    // Advance epoch with only first 3 validators eligible (indices 0, 1, 2)
-    // Top validators v5 (900) and v4 (700) are not in eligible list
-    let eligible_validators = vector[0, 1, 2];
+    // Advance epoch with all initial validators eligible (indices 0, 1, 2, 3)
+    // This will form a 4-member committee: v3:600, v6:400, v2:300, v1:100
+    // Top validators v5 (900) and v4 (700) are not in eligible list yet
+    let eligible_validators = vector[0, 1, 2, 3];
     advance_epoch_with_eligible_validators(
         &mut validator_set,
         committee_size,
@@ -1094,22 +1095,21 @@ fun test_eligible_committee_selection_ineligible_top_validators() {
     );
 
     // After first epoch: v4 and v5 are active but can't join committee yet - need one more epoch
-    assert_same_elems(
+    assert_eq(
         validator_set.active_validator_addresses(),
         vector[@0x1, @0x2, @0x3, @0x6, @0x4, @0x5],
     );
-    assert_same_elems(
+    assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x3, @0x1, @0x2], // Original committee members
+        vector[@0x1, @0x2, @0x3, @0x6], // All 4 initial validators in committee
     );
 
-    // Second epoch advance with sparse eligible indices to ensure correct index mapping
-    // Active validators: [v1:100, v2:200, v3:600, v6:400, v4:700, v5:900]
-    // Eligible validators with sparse indices [0, 2, 3] (skipping v2 at index 1, v4 at index 4, v5 at index 5 ineligible)
-    // Top validators v5 (900) and v4 (700) are not in eligible list despite having highest stakes
-    // take_top_n! returns positions in eligible array for top committee_size validators
-    // These positions must be correctly mapped to actual validator indices 
-    let eligible_validators = vector[0, 2, 3]; // v1:100, v3:500, v6:400 are eligible (sparse indices)
+    // Second epoch: Test scenario where one committee member becomes ineligible
+    // Active validators: [v1:100, v2:300, v3:600, v6:400, v4:700, v5:900]
+    // Previous committee was [v1, v2, v3, v6] - make v2 ineligible but keep 3/4 eligible (≥2/3)
+    // Also add v4 to eligible list to have enough validators for committee of 4
+    // v5 remains ineligible despite highest stake to test top validator ineligibility
+    let eligible_validators = vector[0, 2, 3, 4]; // v1:100, v3:600, v6:400, v4:700 eligible (v2 and v5 ineligible)
     advance_epoch_with_eligible_validators(
         &mut validator_set,
         committee_size,
@@ -1117,18 +1117,19 @@ fun test_eligible_committee_selection_ineligible_top_validators() {
         scenario,
     );
 
-    // Committee should contain eligible validators with highest stakes: v3:600, v6:400, v1:100
-    // NOT the highest overall stakes v5:900, v4:700 (ineligible)
-    // NOT incorrect mapping like v1:100, v2:200, v3:600 which would happen with buggy index mapping
-    assert_same_elems(
+    // Committee should contain all 4 eligible validators: v4:700, v3:600, v6:400, v1:100
+    // 3 out of 4 original committee members (v1, v3, v6) stay eligible, satisfying ≥2/3 requirement
+    // v2 becomes ineligible, v4 joins the committee
+    // v5:900 is still not selected despite highest stake (ineligible)
+    assert_eq(
         validator_set.active_validator_addresses(),
         vector[@0x1, @0x2, @0x3, @0x6, @0x4, @0x5],
     );
     assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x1, @0x3, @0x6], // Top 3 eligible validators by stake (correct sparse index mapping)
+        vector[@0x1, @0x3, @0x6, @0x4], // All 4 eligible validators by stake
     );
-    assert_eq(validator_set.total_stake_inner(), (600 + 400 + 100) * NANOS_PER_IOTA);
+    assert_eq(validator_set.total_stake_inner(), (700 + 600 + 400 + 100) * NANOS_PER_IOTA);
 
     test_utils::destroy(validator_set);
     scenario_val.end();
@@ -1141,21 +1142,23 @@ fun test_eligible_committee_selection_eligible_removed_replaced() {
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
 
-    // Create validators: 400, 600, 700, 800 IOTA - all initially eligible
+    // Create validators: 400, 600, 700, 800, 900, 1000 IOTA - all initially eligible
     let v1 = create_validator(@0x1, 4, 1, true, ctx); // 400 IOTA - index 0
     let v2 = create_validator(@0x2, 6, 1, true, ctx); // 600 IOTA - index 1
     let v3 = create_validator(@0x3, 7, 1, true, ctx); // 700 IOTA - index 2
     let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA - index 3
+    let v5 = create_validator(@0x5, 9, 1, true, ctx); // 900 IOTA - index 4
+    let v6 = create_validator(@0x6, 10, 1, true, ctx); // 1000 IOTA - index 5
 
-    let committee_size = 3;
-    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4], committee_size, ctx);
+    let committee_size = 4;
+    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5, v6], committee_size, ctx);
     scenario_val.end();
 
     let mut scenario_val = test_scenario::begin(@0x1);
     let scenario = &mut scenario_val;
 
-    // Initially: all 4 validators are eligible, committee should be v4, v3, v2
-    let eligible_validators = vector[0, 1, 2, 3];
+    // Initially: all 6 validators are eligible, committee should be v6, v5, v4, v3 (top 4 by stake)
+    let eligible_validators = vector[0, 1, 2, 3, 4, 5];
     advance_epoch_with_eligible_validators(
         &mut validator_set,
         committee_size,
@@ -1165,12 +1168,15 @@ fun test_eligible_committee_selection_eligible_removed_replaced() {
 
     assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x4, @0x3, @0x2], // Top 3 by stake
+        vector[@0x6, @0x5, @0x4, @0x3], // Top 4 by stake
     );
-    assert_eq(validator_set.total_stake_inner(), (800 + 700 + 600) * NANOS_PER_IOTA);
+    assert_eq(validator_set.total_stake_inner(), (1000 + 900 + 800 + 700) * NANOS_PER_IOTA);
 
-    // Remove v4 (highest stake committee member) from eligible list, making only v1, v2, v3 eligible
-    let eligible_validators = vector[0, 1, 2]; // v4 (index 3) is no longer eligible
+    // Remove v6 (highest stake committee member) from eligible list
+    // Keep v3, v4, v5 eligible (3/4 = 75% ≥ 2/3 of original committee stay eligible)
+    // Add v1 and v2 to have enough validators for committee of 4
+    // Previous committee was [v3, v4, v5, v6] - now [v3, v4, v5] stay eligible
+    let eligible_validators = vector[0, 1, 2, 3, 4]; // v6 (index 5) is no longer eligible
     advance_epoch_with_eligible_validators(
         &mut validator_set,
         committee_size,
@@ -1178,12 +1184,13 @@ fun test_eligible_committee_selection_eligible_removed_replaced() {
         scenario,
     );
 
-    // Committee should now be v3, v2, v1 (all eligible validators)
+    // Committee should now be v5, v4, v3, v2 (top 4 eligible validators by stake)
+    // 3 out of 4 original committee members (v3, v4, v5) stay eligible, satisfying ≥2/3 requirement
     assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x1, @0x2, @0x3], // Top eligible validators
+        vector[@0x5, @0x4, @0x3, @0x2], // Top 4 eligible validators by stake
     );
-    assert_eq(validator_set.total_stake_inner(), (700 + 600 + 400) * NANOS_PER_IOTA);
+    assert_eq(validator_set.total_stake_inner(), (900 + 800 + 700 + 600) * NANOS_PER_IOTA);
 
     test_utils::destroy(validator_set);
     scenario_val.end();
@@ -1196,15 +1203,16 @@ fun test_eligible_committee_selection_complex_scenario() {
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
 
-    // Create validators: 100, 300, 600, 700, 400 IOTA
+    // Create validators: 100, 300, 600, 500, 700, 400 IOTA
     let v1 = create_validator(@0x1, 1, 1, true, ctx); // 100 IOTA - index 0
     let v2 = create_validator(@0x2, 3, 1, true, ctx); // 300 IOTA - index 1
     let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA - index 2
+    let v6 = create_validator(@0x6, 5, 1, true, ctx); // 500 IOTA - index 3 (new initial validator)
     let v4 = create_validator(@0x4, 7, 1, false, ctx); // 700 IOTA - will be added later
     let v5 = create_validator(@0x5, 4, 1, false, ctx); // 400 IOTA - will be added later
 
-    let committee_size = 3;
-    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3], committee_size, ctx);
+    let committee_size = 4;
+    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v6], committee_size, ctx);
     scenario_val.end();
 
     let mut scenario_val = test_scenario::begin(@0x1);
@@ -1215,11 +1223,11 @@ fun test_eligible_committee_selection_complex_scenario() {
     add_and_activate_validator(&mut validator_set, v4, scenario);
     add_and_activate_validator(&mut validator_set, v5, scenario);
 
-    // Before advance_epoch: active validators = [v1:100, v2:300, v3:600] at indices [0,1,2], pending = [v4:700, v5:400]
-    // After advance_epoch: active validators will be [v1:100, v2:300, v3:500, v4:700, v5:400] at indices [0,1,2,3,4]
-    // eligible_validators indices refer to PRE-advance_epoch positions, so only [0,1,2] are valid
-    // Make only v1 and v3 eligible from the original set
-    let eligible_validators = vector[0, 2]; // v1:100, v3:600 are eligible from original set
+    // Before advance_epoch: active validators = [v1:100, v2:300, v3:600, v6:500] at indices [0,1,2,3], pending = [v4:700, v5:400]
+    // After advance_epoch: active validators will be [v1:100, v2:300, v3:600, v6:500, v4:700, v5:400] at indices [0,1,2,3,4,5]
+    // eligible_validators indices refer to PRE-advance_epoch positions, so only [0,1,2,3] are valid
+    // Make 3 out of 4 original committee members eligible (≥2/3) - remove v2 but keep v1, v3, v6 eligible
+    let eligible_validators = vector[0, 2, 3]; // v1:100, v3:600, v6:500 are eligible from original set (3/4 = 75% ≥ 2/3)
     advance_epoch_with_eligible_validators(
         &mut validator_set,
         committee_size,
@@ -1228,17 +1236,18 @@ fun test_eligible_committee_selection_complex_scenario() {
     );
 
     // Despite v4 having the highest stake (700), it's not eligible because it wasn't in the original set
-    // Despite v2 having higher stake than v1, it's not eligible
-    // Committee should be the 2 eligible validators: v3:600, v1:100 (from original set)
+    // Despite v2 being in original committee, it's not eligible in this epoch
+    // Committee should be the 3 eligible validators: v3:600, v6:500, v1:100 (from original set)
+    // This maintains ≥2/3 of original committee members as eligible while testing ineligible top validator scenario
     assert_same_elems(
         validator_set.active_validator_addresses(),
-        vector[@0x1, @0x2, @0x3, @0x4, @0x5],
+        vector[@0x1, @0x2, @0x3, @0x6, @0x4, @0x5],
     );
     assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x1, @0x3], // Top eligible validators by stake
+        vector[@0x1, @0x3, @0x6], // Top 3 eligible validators by stake (only 3 instead of 4 due to insufficient eligible)
     );
-    assert_eq(validator_set.total_stake_inner(), (600 + 100) * NANOS_PER_IOTA); // Only eligible committee stake
+    assert_eq(validator_set.total_stake_inner(), (600 + 500 + 100) * NANOS_PER_IOTA); // Only eligible committee stake
 
     test_utils::destroy(validator_set);
     scenario_val.end();
@@ -1253,12 +1262,12 @@ fun test_eligible_committee_selection_insufficient_eligible_validators_and_index
 
     // Create validators to test both insufficient eligible validators and sparse index mapping
     let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA - index 0 (ineligible)
-    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA - index 1 (ineligible)
+    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA - index 1 (eligible)
     let v3 = create_validator(@0x3, 7, 1, true, ctx); // 700 IOTA - index 2 (eligible)
     let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA - index 3 (ineligible)
     let v5 = create_validator(@0x5, 12, 1, true, ctx); // 1200 IOTA - index 4 (eligible)
 
-    let committee_size = 4; // Want 4 committee members but only 2 eligible
+    let committee_size = 4; // Want 4 committee members but only 3 eligible
     let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5], committee_size, ctx);
     scenario_val.end();
 
@@ -1270,11 +1279,11 @@ fun test_eligible_committee_selection_insufficient_eligible_validators_and_index
     assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
 
     // Test when committee_size > eligible validators count with sparse indices
-    // Want 4 committee members but only make 2 validators eligible with sparse indices [2, 4]
-    // When n >= eligible.length(), take_top_n! returns [0, 1] (sequential positions in eligible array)
-    // These positions must be mapped to actual validator indices [eligible[0], eligible[1]] = [2, 4] = v3:600, v5:1000
-    // Without proper mapping, wrong validators active_validators[0], active_validators[1] = v1:200, v2:400 would be selected
-    let eligible_validators = vector[2, 4]; // Only v3:600 and v5:1000 are eligible (sparse indices)
+    // Want 4 committee members but only make 3 validators eligible with sparse indices [1, 2, 4]
+    // When n >= eligible.length(), take_top_n! returns [0, 1, 2] (sequential positions in eligible array)
+    // These positions must be mapped to actual validator indices [eligible[0], eligible[1], eligible[2]] = [1, 2, 4] = v2:400, v3:700, v5:1200
+    // Without proper mapping, wrong validators active_validators[0], active_validators[1], active_validators[2] = v1:200, v2:400, v3:700 would be selected
+    let eligible_validators = vector[1, 2, 4]; // Only v2:400, v3:700, and v5:1200 are eligible (sparse indices)
     advance_epoch_with_eligible_validators(
         &mut validator_set,
         committee_size,
@@ -1282,34 +1291,34 @@ fun test_eligible_committee_selection_insufficient_eligible_validators_and_index
         scenario,
     );
 
-    // Committee should include all eligible validators: v5:1200, v3:700 (only 2 instead of committee size of 4)
+    // Committee should include all 3 eligible validators: v5:1200, v3:700, v2:400 (only 3 instead of committee size of 4)
     // This tests both insufficient eligible validators scenario and correct sparse index mapping
     assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
     assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x3, @0x5], // All eligible validators by stake (correct sparse index mapping)
+        vector[@0x2, @0x3, @0x5], // All 3 eligible validators by stake (correct sparse index mapping)
     );
-    assert_eq(validator_set.total_stake_inner(), (1200 + 700) * NANOS_PER_IOTA);
+    assert_eq(validator_set.total_stake_inner(), (1200 + 700 + 400) * NANOS_PER_IOTA);
 
     test_utils::destroy(validator_set);
     scenario_val.end();
 }
 
-// Test case 5: Edge case - single eligible validator scenarios
+// Test case 5: Edge case - single eligible validator fallback to all active validators
 #[test]
 fun test_eligible_committee_selection_single_eligible_validator_scenarios() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
 
-    // Create validators to test single eligible validator at non-zero index with committee size > eligible count
-    let v1 = create_validator(@0x1, 1, 1, true, ctx);   // 100 IOTA - index 0 (ineligible)
-    let v2 = create_validator(@0x2, 2, 1, true, ctx);   // 200 IOTA - index 1 (ineligible)
-    let v3 = create_validator(@0x3, 15, 1, true, ctx);  // 1500 IOTA - index 2 (eligible)
-    let v4 = create_validator(@0x4, 4, 1, true, ctx);   // 400 IOTA - index 3 (ineligible)
-    let v5 = create_validator(@0x5, 5, 1, true, ctx);   // 500 IOTA - index 4 (ineligible)
+    // Create validators to test single eligible validator fallback scenario
+    let v1 = create_validator(@0x1, 1, 1, true, ctx);   // 100 IOTA - index 0
+    let v2 = create_validator(@0x2, 2, 1, true, ctx);   // 200 IOTA - index 1
+    let v3 = create_validator(@0x3, 15, 1, true, ctx);  // 1500 IOTA - index 2
+    let v4 = create_validator(@0x4, 4, 1, true, ctx);   // 400 IOTA - index 3
+    let v5 = create_validator(@0x5, 5, 1, true, ctx);   // 500 IOTA - index 4
     
-    let committee_size = 3; // Want 3 but only 1 eligible
+    let committee_size = 3;
     let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5], committee_size, ctx);
     scenario_val.end();
     
@@ -1320,22 +1329,22 @@ fun test_eligible_committee_selection_single_eligible_validator_scenarios() {
     assert_eq(validator_set.committee_validator_addresses(), vector[@0x3, @0x5, @0x4]);
     assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
 
-    // Test with single eligible validator not at index 0 where committee size exceeds eligible count
-    // eligible_validators=[2], take_top_n!(3, [2]) returns [0] (position 0 in eligible array)
-    // Position [0] must be mapped to eligible[0] = 2 = v3:1500
-    // Without proper mapping, wrong validator active_validators[0] = v1:100 would be selected
-    // This tests both single eligible validator scenario and correct index mapping
+    // Test with single eligible validator - system should fall back to all active validators
+    // When only one validator is eligible, the system cannot maintain committee diversity/security
+    // So it falls back to using all active validators for committee selection
+    // This ensures committee has sufficient validators for consensus and security
     let eligible_validators = vector[2]; // Only v3:1500 at index 2 is eligible
     advance_epoch_with_eligible_validators(&mut validator_set, committee_size, eligible_validators, scenario);
     
-    // Committee should only contain v3:1500 (single eligible validator despite committee_size=3)
-    // This verifies both: committee size adjustment to available eligible validators and correct index mapping
+    // With single eligible validator, system falls back to all active validators
+    // Committee should contain top 3 validators by stake from all active validators: v3:1500, v5:500, v4:400
+    // This fallback behavior ensures committee has enough validators for proper consensus
     assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
     assert_eq(
         validator_set.committee_validator_addresses(),
-        vector[@0x3], // Single eligible validator correctly mapped from sparse index
+        vector[@0x3, @0x5, @0x4], // Top 3 validators by stake (fallback to all active validators)
     );
-    assert_eq(validator_set.total_stake_inner(), 1500 * NANOS_PER_IOTA);
+    assert_eq(validator_set.total_stake_inner(), (1500 + 500 + 400) * NANOS_PER_IOTA);
     
     test_utils::destroy(validator_set);
     scenario_val.end();
@@ -1624,90 +1633,6 @@ fun test_eligible_committee_selection_duplicate_indices() {
         vector[@0x5, @0x4, @0x3], // Top 3 eligible validators by stake (v5:1000, v4:800, v3:600 but ordered differently)
     );
     assert_eq(validator_set.total_stake_inner(), (1000 + 800 + 600) * NANOS_PER_IOTA);
-
-    test_utils::destroy(validator_set);
-    scenario_val.end();
-}
-
-/// Tests the voting power validation for eligible validators.
-/// 
-/// This test verifies that when eligible validators don't have sufficient voting power
-/// (at least quorum_threshold), the system falls back to using all validators.
-/// This ensures the committee selection process has enough voting power to meet consensus requirements.
-#[test]
-fun test_eligible_validators_insufficient_voting_power_fallback() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let ctx = scenario.ctx();
-
-    // Create validators with different stakes to test voting power scenarios
-    // Quorum threshold is 6667 out of 10000 total voting power
-    let v1 = create_validator(@0x1, 1, 1, true, ctx); // 100 IOTA - very low voting power
-    let v2 = create_validator(@0x2, 2, 1, true, ctx); // 200 IOTA - low voting power  
-    let v3 = create_validator(@0x3, 30, 1, true, ctx); // 3000 IOTA - high voting power
-    let v4 = create_validator(@0x4, 40, 1, true, ctx); // 4000 IOTA - high voting power
-    let v5 = create_validator(@0x5, 50, 1, true, ctx); // 5000 IOTA - highest voting power
-
-    let committee_size = 3;
-    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5], committee_size, ctx);
-    scenario_val.end();
-
-    let mut scenario_val = test_scenario::begin(@0x1);
-    let scenario = &mut scenario_val;
-
-    // Check initial committee (top 3 by stake)
-    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
-    assert_eq(validator_set.committee_validator_addresses(), vector[@0x5, @0x4, @0x3]); // Top 3 by stake
-
-    // Test Case 1: Eligible validators with insufficient voting power
-    // Make only the lowest stake validators eligible (v1:100, v2:200 = 300 total)
-    // Combined voting power will be much less than quorum threshold (6667)
-    // System should fall back to all validators
-    let eligible_validators = vector[0, 1]; // v1:100, v2:200 - insufficient voting power
-    advance_epoch_with_eligible_validators(
-        &mut validator_set,
-        committee_size,
-        eligible_validators,
-        scenario,
-    );
-
-    // Should fall back to all validators and select top 3 by stake (not just the low-power eligible ones)
-    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
-    assert_eq(validator_set.committee_validator_addresses(), vector[@0x5, @0x4, @0x3]); // Top 3 by stake (fallback)
-    assert_eq(validator_set.total_stake_inner(), (5000 + 4000 + 3000) * NANOS_PER_IOTA);
-
-    // Test Case 2: Eligible validators with sufficient voting power
-    // Make high stake validators eligible (v3:3000, v4:4000, v5:5000 = 12000 total)
-    // Combined voting power should exceed quorum threshold
-    // System should use only the eligible validators
-    let eligible_validators = vector[2, 3, 4]; // v3:3000, v4:4000, v5:5000 - sufficient voting power
-    advance_epoch_with_eligible_validators(
-        &mut validator_set,
-        committee_size,
-        eligible_validators,
-        scenario,
-    );
-
-    // Should use eligible validators (they have sufficient voting power)
-    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
-    assert_eq(validator_set.committee_validator_addresses(), vector[@0x3, @0x4, @0x5]); // Top eligible validators
-    assert_eq(validator_set.total_stake_inner(), (5000 + 4000 + 3000) * NANOS_PER_IOTA);
-
-    // Test Case 3: Mixed scenario - some eligible have enough power, some don't
-    // Make validators with borderline voting power eligible
-    // Include v3:3000 + v4:4000 = 7000 total (just above quorum threshold of 6667)
-    let eligible_validators = vector[2, 3]; // v3:3000, v4:4000 - just sufficient voting power
-    advance_epoch_with_eligible_validators(
-        &mut validator_set,
-        committee_size,
-        eligible_validators,
-        scenario,
-    );
-
-    // Should use eligible validators since they meet voting power requirement
-    assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
-    assert_eq(validator_set.committee_validator_addresses(), vector[@0x3, @0x4]); // Only eligible validators (2 instead of 3)
-    assert_eq(validator_set.total_stake_inner(), (4000 + 3000) * NANOS_PER_IOTA);
 
     test_utils::destroy(validator_set);
     scenario_val.end();
