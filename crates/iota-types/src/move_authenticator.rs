@@ -76,7 +76,7 @@ impl MoveAuthenticator {
 
     pub fn object_to_authenticate_components(
         &self,
-    ) -> IotaResult<(ObjectID, SequenceNumber, Option<ObjectDigest>)> {
+    ) -> IotaResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
             CallArg::Pure(_) => {
                 return Err(UserInputError::Unsupported(
@@ -86,13 +86,9 @@ impl MoveAuthenticator {
             }
             CallArg::Object(object_arg) => match object_arg {
                 ObjectArg::ImmOrOwnedObject((id, sequence_number, digest)) => {
-                    (*id, *sequence_number, Some(*digest))
+                    (*id, Some(*sequence_number), Some(*digest))
                 }
-                ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                } => {
+                ObjectArg::SharedObject { id, mutable, .. } => {
                     if *mutable {
                         return Err(UserInputError::Unsupported(
                             "MoveAuthenticator cannot authenticate mutable shared objects"
@@ -101,7 +97,7 @@ impl MoveAuthenticator {
                         .into());
                     }
 
-                    (*id, *initial_shared_version, None)
+                    (*id, None, None)
                 }
                 ObjectArg::Receiving(_) => {
                     return Err(UserInputError::Unsupported(

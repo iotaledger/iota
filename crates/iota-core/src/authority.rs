@@ -5193,15 +5193,17 @@ impl AuthorityState {
                     .into()
                 );
 
-                fp_ensure!(
-                    object.version() == account_object_seq_number,
-                    UserInputError::AccountObjectVersionMismatch {
-                        object_id: account_object_id,
-                        expected_version: account_object_seq_number,
-                        actual_version: object.version(),
-                    }
-                    .into()
-                );
+                if let Some(account_object_seq_number) = account_object_seq_number {
+                    fp_ensure!(
+                        object.version() == account_object_seq_number,
+                        UserInputError::AccountObjectVersionMismatch {
+                            object_id: account_object_id,
+                            expected_version: account_object_seq_number,
+                            actual_version: object.version(),
+                        }
+                        .into()
+                    );
+                }
 
                 if let Some(account_object_digest) = account_object_digest {
                     let expected_digest = object.digest();
