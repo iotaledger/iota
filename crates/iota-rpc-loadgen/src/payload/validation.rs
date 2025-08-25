@@ -12,7 +12,7 @@ use iota_json_rpc_types::{
 use iota_sdk::IotaClient;
 use iota_types::base_types::{ObjectID, TransactionDigest};
 use itertools::Itertools;
-use tracing::{error, log::warn};
+use tracing::{error, warn};
 
 const LOADGEN_QUERY_MAX_RESULT_LIMIT: usize = 25;
 

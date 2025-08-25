@@ -1301,7 +1301,7 @@ async fn latest_object_cache_race_test() {
                     continue;
                 };
 
-                assert!(cur >= latest, "{} >= {}", cur, latest);
+                assert!(cur >= latest, "{cur} >= {latest}");
                 latest = cur;
             }
         })
@@ -1421,7 +1421,7 @@ async fn concurrent_latest_object_cache_race_test() {
             .get(&object_id)
             .and_then(|e| e.lock().version())
         {
-            assert!(cur >= checked_latest, "{} >= {}", cur, checked_latest);
+            assert!(cur >= checked_latest, "{cur} >= {checked_latest}");
             checked_latest = cur;
         }
     };
