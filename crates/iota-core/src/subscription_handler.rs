@@ -105,9 +105,9 @@ impl SubscriptionHandler {
         }
 
         // serially dispatch event processing to honor events' orders.
-        for event in events.data.clone().iter() {
+        for event in events.data.clone().into_iter() {
             // Send to unified event streamer (serves both JSON-RPC and gRPC subscribers)
-            if let Err(e) = self.event_streamer.try_send(event.clone()) {
+            if let Err(e) = self.event_streamer.try_send(event) {
                 error!(error =? e, "Failed to send event to dispatch");
             }
         }
