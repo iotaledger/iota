@@ -2375,13 +2375,11 @@ impl SenderSignedData {
     pub fn move_authenticator(&self) -> Option<&MoveAuthenticator> {
         let signatures = self.tx_signatures();
 
-        if signatures.len() == 1 && signatures[0].is_move_authenticator() {
-            match &signatures[0] {
-                GenericSignature::MoveAuthenticator(move_authenticator) => Some(move_authenticator),
-                GenericSignature::MultiSig(_)
-                | GenericSignature::Signature(_)
-                | GenericSignature::ZkLoginAuthenticator(_)
-                | GenericSignature::PasskeyAuthenticator(_) => unreachable!(),
+        if signatures.len() == 1 {
+            if let GenericSignature::MoveAuthenticator(move_authenticator) = &signatures[0] {
+                Some(move_authenticator)
+            } else {
+                None
             }
         } else {
             None
