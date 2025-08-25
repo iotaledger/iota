@@ -7,13 +7,14 @@ import type { ReactNode } from 'react';
 import { useCurrentAccount } from '../hooks/wallet/useCurrentAccount.js';
 import { AccountDropdownMenu } from './AccountDropdownMenu.js';
 import { ConnectModal } from './connect-modal/ConnectModal.js';
+import type { ControlledModalProps, UncontrolledModalProps } from './connect-modal/ConnectModal.js';
 import { StyleMarker } from './styling/StyleMarker.js';
 import { Button } from './ui/Button.js';
 
 type ConnectButtonProps = {
     connectText?: ReactNode;
     size?: React.ComponentProps<typeof Button>['size'];
-    connectModalProps?: React.ComponentProps<typeof ConnectModal>;
+    connectModalProps?: ControlledModalProps | UncontrolledModalProps;
 } & React.ComponentProps<typeof Button>;
 
 export function ConnectButton({

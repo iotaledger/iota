@@ -23,7 +23,7 @@ import { WalletList } from './wallet-list/WalletList.js';
 
 type ConnectModalView = 'getting-started' | 'what-is-a-wallet' | 'connection-status';
 
-type ControlledModalProps = {
+export type ControlledModalProps = {
     /** The controlled open state of the dialog. */
     open: boolean;
 
@@ -33,7 +33,7 @@ type ControlledModalProps = {
     defaultOpen?: never;
 };
 
-type UncontrolledModalProps = {
+export type UncontrolledModalProps = {
     open?: never;
 
     onOpenChange?: never;
