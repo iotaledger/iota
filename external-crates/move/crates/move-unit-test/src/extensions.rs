@@ -9,7 +9,7 @@
 
 use std::sync::Mutex;
 
-use move_vm_runtime::native_extensions::{NativeContextExtensions, NativeExtensionMarker};
+use move_vm_runtime::native_extensions::NativeContextExtensions;
 use once_cell::sync::Lazy;
 
 static EXTENSION_HOOK: Lazy<
@@ -48,7 +48,7 @@ pub(crate) fn new_extensions<'a>() -> NativeContextExtensions<'a> {
 #[cfg(test)]
 mod tests {
     use better_any::{Tid, TidAble};
-    use move_vm_runtime::native_extensions::NativeContextExtensions;
+    use move_vm_runtime::native_extensions::{NativeContextExtensions, NativeExtensionMarker};
 
     use crate::extensions::{new_extensions, set_extension_hook};
 

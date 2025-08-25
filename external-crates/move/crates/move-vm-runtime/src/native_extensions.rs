@@ -5,7 +5,7 @@
 
 use std::{any::TypeId, collections::HashMap};
 
-use better_any::{Tid, TidAble, TidExt};
+use better_any::{Tid, TidExt};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::vm_status::StatusCode;
 
