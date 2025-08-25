@@ -5,7 +5,7 @@
 
 use std::{any::TypeId, collections::HashMap};
 
-use better_any::{Tid, TidExt};
+use better_any::{Tid, TidAble, TidExt};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::vm_status::StatusCode;
 
@@ -103,10 +103,10 @@ mod tests {
         let e = Ext { a: &mut v };
         let mut exts = NativeContextExtensions::default();
         exts.add(e);
-        *exts.get_mut::<Ext>().a += 1;
-        assert_eq!(*exts.get_mut::<Ext>().a, 24);
-        *exts.get_mut::<Ext>().a += 1;
-        let e1 = exts.remove::<Ext>();
+        *exts.get_mut::<Ext>().unwrap().a += 1;
+        assert_eq!(*exts.get_mut::<Ext>().unwrap().a, 24);
+        *exts.get_mut::<Ext>().unwrap().a += 1;
+        let e1 = exts.remove::<Ext>().unwrap();
         assert_eq!(*e1.a, 25)
     }
 }

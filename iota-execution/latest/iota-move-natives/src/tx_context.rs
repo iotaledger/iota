@@ -36,7 +36,7 @@ pub fn derive_id(
 
     let tx_context_derive_id_cost_params = context
         .extensions_mut()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .tx_context_derive_id_cost_params
         .clone();
     native_charge_gas_early_exit!(
@@ -51,7 +51,7 @@ pub fn derive_id(
     // `TransactionDigest`
     let digest = TransactionDigest::try_from(tx_hash.as_slice()).unwrap();
     let address = AccountAddress::from(ObjectID::derive_id(digest, ids_created));
-    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
+    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.new_id(address.into())?;
 
     Ok(NativeResult::ok(

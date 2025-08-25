@@ -46,7 +46,7 @@ pub fn emit(
 
     let event_emit_cost_params = context
         .extensions_mut()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .event_emit_cost_params
         .clone();
 
@@ -82,7 +82,7 @@ pub fn emit(
             * u64::from(tag_size).into()
     );
 
-    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
+    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let max_event_emit_size = obj_runtime.protocol_config.max_event_emit_size();
     let ev_size = u64::from(tag_size + event_value_size);
     // Check if the event size is within the limit
@@ -120,7 +120,7 @@ pub fn emit(
         event_emit_cost_params.event_emit_output_cost_per_byte * ev_size.into()
     );
 
-    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
+    let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
 
     obj_runtime.emit_event(ty, *tag, event_value)?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
@@ -134,7 +134,7 @@ pub fn num_events(
 ) -> PartialVMResult<NativeResult> {
     assert!(ty_args.is_empty());
     assert!(args.is_empty());
-    let object_runtime_ref: &ObjectRuntime = context.extensions().get();
+    let object_runtime_ref: &ObjectRuntime = context.extensions().get()?;
     let num_events = object_runtime_ref.state.events().len();
     Ok(NativeResult::ok(
         legacy_test_cost(),
@@ -151,7 +151,7 @@ pub fn get_events_by_type(
     assert_eq!(ty_args.len(), 1);
     let specified_ty = ty_args.pop().unwrap();
     assert!(args.is_empty());
-    let object_runtime_ref: &ObjectRuntime = context.extensions().get();
+    let object_runtime_ref: &ObjectRuntime = context.extensions().get()?;
     let matched_events = object_runtime_ref
         .state
         .events()
