@@ -899,8 +899,10 @@ impl AuthorityState {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
+            let (kind, signer, _) = tx_data.execution_parts();
+
             // Make sure the sender is a smart account.
-            let authenticator_info = self.check_smart_account(move_authenticator)?;
+            let authenticator_info = self.check_smart_account(move_authenticator, &signer)?;
 
             // Check the `MoveAuthenticator` input objects.
             //
@@ -918,8 +920,6 @@ impl AuthorityState {
                 )?;
 
             // Execute the Move authenticator.
-            let (kind, signer, _) = tx_data.execution_parts();
-
             let validation_result = epoch_store.executor().validate_transaction(
                 self.get_backing_store().as_ref(),
                 protocol_config,
@@ -1752,7 +1752,7 @@ impl AuthorityState {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            let authenticator_info = self.check_smart_account(move_authenticator)?;
+            let authenticator_info = self.check_smart_account(move_authenticator, &signer)?;
 
             let authenticator_input_objects = authenticator_input_objects.expect(
                 "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
@@ -5166,9 +5166,20 @@ impl AuthorityState {
     fn check_smart_account(
         &self,
         authenticator: &MoveAuthenticator,
+        signer: &IotaAddress,
     ) -> IotaResult<AuthenticatorInfo> {
         let (account_object_id, account_object_seq_number, account_object_digest) =
             authenticator.object_to_authenticate_components()?;
+
+        let account_object_addr = IotaAddress::from(account_object_id);
+
+        fp_ensure!(
+            signer == &account_object_addr,
+            UserInputError::IncorrectUserSignature {
+                error: format!("Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}")
+            }
+            .into()
+        );
 
         let account_object = self.get_object_read(&account_object_id)?;
 
