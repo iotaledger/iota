@@ -52,7 +52,7 @@ pub fn check_zklogin_id_internal(
     // Load the cost parameters from the protocol config
     let check_zklogin_id_cost_params = &context
         .extensions()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .check_zklogin_id_cost_params
         .clone();
 
@@ -155,7 +155,7 @@ pub fn check_zklogin_issuer_internal(
     // Load the cost parameters from the protocol config
     let check_zklogin_issuer_cost_params = &context
         .extensions()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .check_zklogin_issuer_cost_params
         .clone();
 
