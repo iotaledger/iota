@@ -372,16 +372,7 @@ mod test {
 
     use super::QuorumRound;
     use crate::{
-        Round, TestBlock, VerifiedBlock,
-        block::BlockRef,
-        commit::{CertifiedCommits, CommitRange},
-        context::Context,
-        core_thread::{CoreError, CoreThreadDispatcher},
-        dag_state::DagState,
-        error::{ConsensusError, ConsensusResult},
-        network::{BlockStream, NetworkClient},
-        round_prober::{RoundProber, compute_quorum_round},
-        storage::mem_store::MemStore,
+        block::{BlockRef, ProvablyFaultyBlock}, commit::{CertifiedCommits, CommitRange}, context::Context, core_thread::{CoreError, CoreThreadDispatcher}, dag_state::DagState, error::{ConsensusError, ConsensusResult}, network::{BlockStream, NetworkClient}, round_prober::{compute_quorum_round, RoundProber}, storage::mem_store::MemStore, Round, TestBlock, VerifiedBlock
     };
 
     struct FakeThreadDispatcher {
@@ -447,7 +438,7 @@ mod test {
             unimplemented!()
         }
 
-        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+        async fn add_provably_faulty_block(&self, _block: ProvablyFaultyBlock) -> Result<(), CoreError> {
             unimplemented!()
         }
 

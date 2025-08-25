@@ -145,7 +145,7 @@ mod tests {
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        block::{BlockRef, Round, VerifiedBlock},
+        block::{BlockRef, ProvablyFaultyBlock, Round, VerifiedBlock},
         commit::CertifiedCommits,
         context::Context,
         core::CoreSignals,
@@ -203,7 +203,7 @@ mod tests {
             todo!()
         }
 
-        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+        async fn add_provably_faulty_block(&self, _block: ProvablyFaultyBlock) -> Result<(), CoreError> {
             todo!()
         }
 

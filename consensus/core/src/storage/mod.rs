@@ -13,7 +13,7 @@ use consensus_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block::{BlockRef, Round, VerifiedBlock},
+    block::{BlockRef, ProvablyFaultyBlock, Round, VerifiedBlock},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
     metrics::StoredScoringMetricsU64,
@@ -34,8 +34,14 @@ pub(crate) trait Store: Send + Sync {
     #[allow(dead_code)]
     fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool>;
 
-    /// Checks in faulty block exists in the store.
-    fn contains_faulty_block(&self, block_ref: &BlockRef) -> ConsensusResult<bool>;
+    // Reads provably faulty blocks for the given refs.
+    fn read_provably_faulty_blocks(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<ProvablyFaultyBlock>>>;
+
+    /// Checks if provably faulty blocks exist in the store.
+    fn contains_provably_faulty_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Reads blocks for an authority, from start_round.
     fn scan_blocks_by_author(
@@ -79,7 +85,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) faulty_blocks: Vec<BlockRef>,
+    pub(crate) provably_faulty_blocks: Vec<ProvablyFaultyBlock>,
     pub(crate) scoring_metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
 }
 
@@ -88,14 +94,14 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        faulty_blocks: Vec<BlockRef>,
+        provably_faulty_blocks: Vec<ProvablyFaultyBlock>,
         scoring_metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
     ) -> Self {
         WriteBatch {
             blocks,
             commits,
             commit_info,
-            faulty_blocks,
+            provably_faulty_blocks,
             scoring_metrics,
         }
     }

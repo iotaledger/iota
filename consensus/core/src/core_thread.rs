@@ -24,7 +24,7 @@ use tracing::warn;
 
 use crate::{
     BlockAPI as _,
-    block::{BlockRef, Round, VerifiedBlock},
+    block::{BlockRef, ProvablyFaultyBlock, Round, VerifiedBlock},
     commit::CertifiedCommits,
     context::Context,
     core::Core,
@@ -52,8 +52,8 @@ enum CoreThreadCommand {
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
-    /// Faulty blocks to be added to dag state.
-    AddFaultyBlocks(Vec<BlockRef>, oneshot::Sender<()>),
+    /// Provably faulty block to be added to dag state.
+    AddProvablyFaultyBlock(ProvablyFaultyBlock, oneshot::Sender<()>),
 }
 
 #[derive(Error, Debug)]
@@ -85,7 +85,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         &self,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
-    async fn add_faulty_blocks(&self, blocks: Vec<BlockRef>) -> Result<(), CoreError>;
+    async fn add_provably_faulty_block(&self, block: ProvablyFaultyBlock) -> Result<(), CoreError>;
 
     /// Informs the core whether consumer of produced blocks exists.
     /// This is only used by core to decide if it should propose new blocks.
@@ -167,9 +167,9 @@ impl CoreThread {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
                         }
-                        CoreThreadCommand::AddFaultyBlocks(block_refs, sender) => {
-                            let _scope = monitored_scope("CoreThread::loop::add_faulty_blocks");
-                            self.core.add_faulty_blocks(block_refs);
+                        CoreThreadCommand::AddProvablyFaultyBlock(block, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::add_provably_faulty_blocks");
+                            self.core.add_provably_faulty_block(block);
                             sender.send(()).ok();
                         }
                     }
@@ -374,10 +374,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn add_faulty_blocks(&self, blocks: Vec<BlockRef>) -> Result<(), CoreError> {
-        // For faulty blocks, we do not update the highest received rounds.
+    async fn add_provably_faulty_block(&self, block: ProvablyFaultyBlock) -> Result<(), CoreError> {
+        // For provably faulty blocks, we do not update the highest received rounds.
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddFaultyBlocks(blocks, sender))
+        self.send(CoreThreadCommand::AddProvablyFaultyBlock(block, sender))
             .await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
@@ -508,7 +508,10 @@ pub(crate) mod tests {
             Ok(result)
         }
 
-        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+        async fn add_provably_faulty_block(
+            &self,
+            _block: ProvablyFaultyBlock,
+        ) -> Result<(), CoreError> {
             Ok(())
         }
 

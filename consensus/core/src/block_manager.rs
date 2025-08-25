@@ -17,10 +17,12 @@ use tracing::{debug, trace, warn};
 
 use crate::{
     Round,
-    block::{BlockAPI, BlockRef, GENESIS_ROUND, MisbehaviorProof, VerifiedBlock},
+    block::{
+        BlockAPI, BlockRef, GENESIS_ROUND, MisbehaviorProof, ProvablyFaultyBlock, VerifiedBlock,
+    },
     block_verifier::BlockVerifier,
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, GetBlockResult},
 };
 
 #[derive(Clone)]
@@ -130,11 +132,11 @@ impl BlockManager {
         accepted_blocks
     }
 
-    /// Add faulty blocks to the block manager.
-    pub(crate) fn add_faulty_blocks(&mut self, block_refs: Vec<BlockRef>) {
-        let _s = monitored_scope("BlockManager::add_faulty_blocks");
+    /// Add a provably faulty block to the block manager.
+    pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
+        let _s = monitored_scope("BlockManager::add_provably_faulty_block");
         // Add the blocks to the dag state and update the metrics.
-        self.dag_state.write().add_faulty_blocks(block_refs);
+        self.dag_state.write().add_provably_faulty_block(block);
     }
 
     /// Attempts to accept the provided blocks. When `committed = true` then the
@@ -334,7 +336,7 @@ impl BlockManager {
                 'ancestor: for (ancestor_ref, found) in
                     b.ancestors().iter().zip(ancestors.into_iter())
                 {
-                    if let Some(found_block) = found {
+                    if let GetBlockResult::VerifiedBlock(found_block) = found {
                         // This invariant should be guaranteed by DagState.
                         assert_eq!(ancestor_ref, &found_block.reference());
                         ancestor_blocks.push(Some(found_block));
@@ -387,16 +389,15 @@ impl BlockManager {
                     // get references and remove none values.
                     match report.proof() {
                         MisbehaviorProof::InvalidBlock(..) => {
-                            // we do not need to verify the invalid block proofs. The fact that the
-                            // block was solidified means that we have received and checked the
-                            // provably faulty block.
+                            // We do not need to verify the invalid block proofs as we have already
+                            // received and checked the provably faulty block.
                             proof_blocks.push(vec![]);
                         }
                         MisbehaviorProof::Equivocation { .. } => {
                             let report_proof_blocks =
                                 (self.dag_state.read().get_blocks(&report.references()))
-                                    .iter()
-                                    .filter_map(|b| b.clone())
+                                    .into_iter()
+                                    .filter_map(|b| b.verified_block())
                                     .collect::<Vec<_>>();
                             proof_blocks.push(report_proof_blocks);
                         }
@@ -496,7 +497,7 @@ impl BlockManager {
         for report in block.misbehavior_reports() {
             match report.proof() {
                 MisbehaviorProof::InvalidBlock(block_ref) => {
-                    // Check the dag state for the faulty block.
+                    // Check the dag state for the provably faulty block.
                     if !dag_state.contains_faulty_block(block_ref) {
                         missing_ancestors.insert(*block_ref);
                     }

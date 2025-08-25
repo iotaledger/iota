@@ -1385,7 +1385,7 @@ mod tests {
     use crate::{
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
-        block::{BlockDigest, BlockRef, Round, TestBlock, VerifiedBlock},
+        block::{BlockDigest, BlockRef, ProvablyFaultyBlock, Round, TestBlock, VerifiedBlock},
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
@@ -2298,7 +2298,10 @@ mod tests {
             Ok(())
         }
 
-        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+        async fn add_provably_faulty_block(
+            &self,
+            _block: ProvablyFaultyBlock,
+        ) -> Result<(), CoreError> {
             Ok(())
         }
 

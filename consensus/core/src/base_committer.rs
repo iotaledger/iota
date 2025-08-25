@@ -12,7 +12,7 @@ use crate::{
     block::{BlockAPI, BlockRef, Round, Slot, VerifiedBlock},
     commit::{DEFAULT_WAVE_LENGTH, LeaderStatus, MINIMUM_WAVE_LENGTH, WaveNumber},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, GetBlockResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
@@ -208,6 +208,7 @@ impl BaseCommitter {
                 .dag_state
                 .read()
                 .get_block(ancestor)
+                .verified_block()
                 .unwrap_or_else(|| panic!("Block not found in storage: {ancestor:?}"));
             if let Some(support) = self.find_supported_block(leader_slot, &ancestor) {
                 return Some(support);
@@ -250,7 +251,7 @@ impl BaseCommitter {
                 let potential_vote = self.dag_state.read().get_block(reference);
 
                 let is_vote = if gc_enabled {
-                    if let Some(potential_vote) = potential_vote {
+                    if let GetBlockResult::VerifiedBlock(potential_vote) = potential_vote {
                         self.is_vote(&potential_vote, leader_block)
                     } else {
                         assert!(
@@ -261,6 +262,7 @@ impl BaseCommitter {
                     }
                 } else {
                     let potential_vote = potential_vote
+                        .verified_block()
                         .unwrap_or_else(|| panic!("Block not found in storage: {reference:?}"));
                     self.is_vote(&potential_vote, leader_block)
                 };

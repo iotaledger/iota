@@ -12,7 +12,9 @@ use parking_lot::RwLock;
 
 use super::{Store, WriteBatch};
 use crate::{
-    block::{BlockAPI as _, BlockDigest, BlockRef, Round, Slot, VerifiedBlock},
+    block::{
+        BlockAPI as _, BlockDigest, BlockRef, ProvablyFaultyBlock, Round, Slot, VerifiedBlock,
+    },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
@@ -31,7 +33,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    faulty_blocks: BTreeSet<BlockRef>,
+    faulty_blocks: BTreeMap<(Round, AuthorityIndex, BlockDigest), ProvablyFaultyBlock>,
     scoring_metrics: BTreeMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
 
@@ -44,7 +46,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
-                faulty_blocks: BTreeSet::new(),
+                faulty_blocks: BTreeMap::new(),
                 scoring_metrics: BTreeMap::new(),
             }),
         }
@@ -85,8 +87,15 @@ impl Store for MemStore {
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
         }
 
-        for faulty_block in write_batch.faulty_blocks {
-            inner.faulty_blocks.insert(faulty_block);
+        for faulty_block in write_batch.provably_faulty_blocks {
+            inner.faulty_blocks.insert(
+                (
+                    faulty_block.reference.round,
+                    faulty_block.reference.author,
+                    faulty_block.reference.digest,
+                ),
+                faulty_block,
+            );
         }
 
         for (authority, metrics) in write_batch.scoring_metrics {
@@ -161,10 +170,34 @@ impl Store for MemStore {
         Ok(found)
     }
 
-    fn contains_faulty_block(&self, block_ref: &BlockRef) -> ConsensusResult<bool> {
+    fn read_provably_faulty_blocks(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<ProvablyFaultyBlock>>> {
         let inner = self.inner.read();
-        let found = inner.faulty_blocks.contains(block_ref);
-        Ok(found)
+        let pf_blocks = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .faulty_blocks
+                    .get(&(r.round, r.author, r.digest))
+                    .cloned()
+            })
+            .collect();
+        Ok(pf_blocks)
+    }
+
+    fn contains_provably_faulty_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+        let inner = self.inner.read();
+        let exist = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .faulty_blocks
+                    .contains_key(&(r.round, r.author, r.digest))
+            })
+            .collect();
+        Ok(exist)
     }
 
     fn scan_last_blocks_by_author(

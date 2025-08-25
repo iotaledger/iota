@@ -16,7 +16,10 @@ use typed_store::{
 
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
-    block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
+    block::{
+        BlockAPI as _, BlockDigest, BlockRef, ProvablyFaultyBlock, Round, SignedBlock,
+        VerifiedBlock,
+    },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
     metrics::StoredScoringMetricsU64,
@@ -35,8 +38,8 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
-    /// Stores faulty blocks that were provably faulty.
-    faulty_blocks: DBMap<BlockRef, ()>,
+    /// Stores provably faulty blocks that were provably faulty.
+    provably_faulty_blocks: DBMap<(Round, AuthorityIndex, BlockDigest), Bytes>,
     /// Stores scoring metrics for each authority.
     scoring_metrics: DBMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
@@ -47,7 +50,7 @@ impl RocksDBStore {
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
-    const FAULTY_BLOCKS: &'static str = "faulty_blocks";
+    const PROVABLY_FAULTY_BLOCKS: &'static str = "provably_faulty_blocks";
     const SCORING_METRICS_CF: &'static str = "scoring_metrics";
 
     /// Creates a new instance of RocksDB storage.
@@ -71,7 +74,7 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
-            (Self::FAULTY_BLOCKS, cf_options.clone()),
+            (Self::PROVABLY_FAULTY_BLOCKS, cf_options.clone()),
             (Self::SCORING_METRICS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
@@ -88,7 +91,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
-            faulty_blocks,
+            provably_faulty_blocks,
             scoring_metrics,
         ) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
@@ -96,7 +99,7 @@ impl RocksDBStore {
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::FAULTY_BLOCKS;<BlockRef, ()>,
+            Self::PROVABLY_FAULTY_BLOCKS;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::SCORING_METRICS_CF;<AuthorityIndex, StoredScoringMetricsU64>
         );
 
@@ -106,7 +109,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
-            faulty_blocks,
+            provably_faulty_blocks,
             scoring_metrics,
         }
     }
@@ -161,9 +164,19 @@ impl Store for RocksDBStore {
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
-        for faulty_block in write_batch.faulty_blocks {
+        for faulty_block in write_batch.provably_faulty_blocks {
             batch
-                .insert_batch(&self.faulty_blocks, [(faulty_block, ())])
+                .insert_batch(
+                    &self.provably_faulty_blocks,
+                    [(
+                        (
+                            faulty_block.reference.round,
+                            faulty_block.reference.author,
+                            faulty_block.reference.digest,
+                        ),
+                        faulty_block.serialized,
+                    )],
+                )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
         for (authority, metrics) in write_batch.scoring_metrics {
@@ -220,9 +233,39 @@ impl Store for RocksDBStore {
         Ok(found)
     }
 
-    fn contains_faulty_block(&self, block_ref: &BlockRef) -> ConsensusResult<bool> {
-        let found = self.faulty_blocks.contains_key(block_ref)?;
-        Ok(found)
+    fn read_provably_faulty_blocks(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<crate::block::ProvablyFaultyBlock>>> {
+        let keys = refs
+            .iter()
+            .map(|r| (r.round, r.author, r.digest))
+            .collect::<Vec<_>>();
+        let serialized = self.blocks.multi_get(keys)?;
+        let mut blocks = vec![];
+        for (key, serialized) in refs.iter().zip(serialized) {
+            if let Some(serialized) = serialized {
+                let signed_block: SignedBlock =
+                    bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;
+                // Only accepted blocks should have been written to storage.
+                let block = ProvablyFaultyBlock::new(signed_block, serialized);
+                // Makes sure block data is not corrupted, by comparing digests.
+                assert_eq!(*key, block.reference);
+                blocks.push(Some(block));
+            } else {
+                blocks.push(None);
+            }
+        }
+        Ok(blocks)
+    }
+
+    fn contains_provably_faulty_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+        let refs = refs
+            .iter()
+            .map(|r| (r.round, r.author, r.digest))
+            .collect::<Vec<_>>();
+        let exist = self.provably_faulty_blocks.multi_contains_keys(refs)?;
+        Ok(exist)
     }
 
     fn scan_blocks_by_author(

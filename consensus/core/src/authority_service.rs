@@ -16,13 +16,16 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitIndex, Round,
-    block::{BlockAPI as _, BlockRef, ExtendedBlock, GENESIS_ROUND, SignedBlock, VerifiedBlock},
+    block::{
+        BlockAPI as _, BlockRef, ExtendedBlock, GENESIS_ROUND, ProvablyFaultyBlock, SignedBlock,
+        VerifiedBlock,
+    },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, GetBlockResult},
     error::{ConsensusError, ConsensusResult},
     network::{BlockStream, ExtendedSerializedBlock, NetworkService},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -133,12 +136,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
                 _ => {
                     // The block passes signature verification, but fails other checks.
-                    // Add a reference to this faulty block to the dag state.
+                    // Add a reference to this provably faulty block to the dag state.
                     self.core_dispatcher
-                        .add_faulty_blocks(vec![VerifiedBlock::new_faulty_block_ref(
+                        .add_provably_faulty_block(ProvablyFaultyBlock::new(
                             signed_block,
                             serialized_block.block,
-                        )])
+                        ))
                         .await
                         .map_err(|_| ConsensusError::Shutdown)?;
                     return Ok(());
@@ -418,8 +421,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             if !commit_sync_handle {
                 let all_ancestors = blocks
                     .iter()
+                    .filter_map(|b| {
+                        if let GetBlockResult::VerifiedBlock(b) = b {
+                            Some(b.ancestors().to_vec())
+                        } else {
+                            None
+                        }
+                    })
                     .flatten()
-                    .flat_map(|block| block.ancestors().to_vec())
                     .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
                     .take(MAX_ADDITIONAL_BLOCKS)
                     .collect::<Vec<_>>();
@@ -433,8 +442,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             let result = blocks
                 .into_iter()
                 .chain(ancestor_blocks)
-                .flatten()
-                .map(|block| block.serialized().clone())
+                .filter_map(|get_block_result| match get_block_result {
+                    GetBlockResult::VerifiedBlock(block) => Some(block.serialized().clone()),
+                    GetBlockResult::ProvablyFaultyBlock(block) => Some(block.serialized.clone()),
+                    GetBlockResult::NotFound => None,
+                })
                 .collect::<Vec<_>>();
 
             return Ok(result);
@@ -450,31 +462,43 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Get requested blocks from store.
-        let blocks = if commit_sync_handle {
+        let block_bytes = if commit_sync_handle {
             // For commit sync, we respond with all blocks from the store
             self.dag_state
                 .read()
                 .get_blocks(&block_refs)
                 .into_iter()
-                .flatten()
-                .collect()
+                .filter_map(|b| match b {
+                    GetBlockResult::VerifiedBlock(block) => Some(block.serialized().clone()),
+                    GetBlockResult::ProvablyFaultyBlock(block) => Some(block.serialized),
+                    GetBlockResult::NotFound => None,
+                })
+                .collect::<Vec<_>>()
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
             block_refs.sort();
             block_refs.dedup();
             let dag_state = self.dag_state.read();
-            let mut blocks = dag_state
-                .get_blocks(&block_refs)
+            let get_blocks_results = dag_state.get_blocks(&block_refs);
+            let mut bytes = get_blocks_results
+                .iter()
+                .filter_map(|b| match b {
+                    GetBlockResult::VerifiedBlock(block) => Some(block.serialized().clone()),
+                    GetBlockResult::ProvablyFaultyBlock(block) => Some(block.serialized.clone()),
+                    GetBlockResult::NotFound => None,
+                })
+                .collect::<Vec<_>>();
+            let verified_blocks = get_blocks_results
                 .into_iter()
-                .flatten()
+                .filter_map(|b| b.verified_block())
                 .collect::<Vec<_>>();
 
             // Get additional blocks for authorities with missing block, if they are
             // available in cache. Compute the lowest missing round per
             // requested authority.
             let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
-            for block_ref in blocks.iter().map(|b| b.reference()) {
+            for block_ref in verified_blocks.iter().map(|b| b.reference()) {
                 let entry = lowest_missing_rounds
                     .entry(block_ref.author)
                     .or_insert(block_ref.round);
@@ -496,31 +520,30 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     continue;
                 }
 
-                let missing_blocks = dag_state.get_cached_blocks_in_range(
-                    authority,
-                    highest_accepted_round + 1,
-                    lowest_missing_round,
-                    self.context
-                        .parameters
-                        .max_blocks_per_sync
-                        .saturating_sub(blocks.len()),
-                );
-                blocks.extend(missing_blocks);
-                if blocks.len() >= self.context.parameters.max_blocks_per_sync {
-                    blocks.truncate(self.context.parameters.max_blocks_per_sync);
+                let missing_blocks = dag_state
+                    .get_cached_blocks_in_range(
+                        authority,
+                        highest_accepted_round + 1,
+                        lowest_missing_round,
+                        self.context
+                            .parameters
+                            .max_blocks_per_sync
+                            .saturating_sub(verified_blocks.len()),
+                    )
+                    .iter()
+                    .map(|b| b.serialized().clone())
+                    .collect::<Vec<_>>();
+                bytes.extend(missing_blocks);
+                if bytes.len() >= self.context.parameters.max_blocks_per_sync {
+                    bytes.truncate(self.context.parameters.max_blocks_per_sync);
                     break;
                 }
             }
 
-            blocks
+            bytes
         };
 
-        // Return the serialized blocks
-        let bytes = blocks
-            .into_iter()
-            .map(|block| block.serialized().clone())
-            .collect::<Vec<_>>();
-        Ok(bytes)
+        Ok(block_bytes)
     }
 
     async fn handle_fetch_commits(
@@ -880,7 +903,7 @@ pub(crate) mod tests {
     use crate::{
         Round,
         authority_service::AuthorityService,
-        block::{BlockAPI, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
+        block::{BlockAPI, BlockRef, ProvablyFaultyBlock, SignedBlock, TestBlock, VerifiedBlock},
         commit::{CertifiedCommits, CommitRange},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
@@ -945,7 +968,10 @@ pub(crate) mod tests {
             Ok(Default::default())
         }
 
-        async fn add_faulty_blocks(&self, _blocks: Vec<BlockRef>) -> Result<(), CoreError> {
+        async fn add_provably_faulty_block(
+            &self,
+            _block: ProvablyFaultyBlock,
+        ) -> Result<(), CoreError> {
             Ok(())
         }
 

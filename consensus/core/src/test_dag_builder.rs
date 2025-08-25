@@ -20,7 +20,7 @@ use crate::{
     },
     commit::{CertifiedCommit, CommitDigest, DEFAULT_WAVE_LENGTH, TrustedCommit},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, GetBlockResult},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
 };
@@ -161,12 +161,17 @@ impl DagBuilder {
                                                                 * and whether it is committed */
         }
         impl BlockStoreAPI for BlockStorage {
-            fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
+            fn get_blocks(&self, refs: &[BlockRef]) -> Vec<GetBlockResult> {
                 refs.iter()
                     .map(|block_ref| {
                         self.blocks
                             .get(block_ref)
-                            .map(|(block, _committed)| block.clone())
+                            .map(|(block, _committed)|  block.clone())
+                    })
+                    .map(|b| if let Some(block) = b {
+                        GetBlockResult::VerifiedBlock(block)
+                    } else {
+                        GetBlockResult::NotFound
                     })
                     .collect()
             }

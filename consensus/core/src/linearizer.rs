@@ -13,7 +13,7 @@ use crate::{
     block::{BlockAPI, BlockRef, VerifiedBlock},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, GetBlockResult},
     leader_schedule::LeaderSchedule,
 };
 
@@ -21,7 +21,7 @@ use crate::{
 /// been mostly introduced for allowing to inject the test store in
 /// `DagBuilder`.
 pub(crate) trait BlockStoreAPI {
-    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>>;
+    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<GetBlockResult>;
 
     fn gc_round(&self) -> Round;
 
@@ -35,7 +35,7 @@ pub(crate) trait BlockStoreAPI {
 impl BlockStoreAPI
     for parking_lot::lock_api::RwLockWriteGuard<'_, parking_lot::RawRwLock, DagState>
 {
-    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
+    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<GetBlockResult> {
         DagState::get_blocks(self, refs)
     }
 
@@ -182,8 +182,10 @@ impl Linearizer {
                             .collect::<Vec<_>>(),
                     )
                     .into_iter()
-                    .map(|ancestor_opt| {
-                        ancestor_opt.expect("We should have all uncommitted blocks in dag state.")
+                    .map(|ancestor_gbr| {
+                        ancestor_gbr
+                            .verified_block()
+                            .expect("We should have all uncommitted blocks in dag state.")
                     })
                     .collect();
 
@@ -228,8 +230,8 @@ impl Linearizer {
                             .collect::<Vec<_>>(),
                     )
                     .into_iter()
-                    .map(|ancestor_opt| {
-                        ancestor_opt.expect("We should have all uncommitted blocks in dag state.")
+                    .map(|ancestor_gbr| {
+                        ancestor_gbr.verified_block().expect("We should have all uncommitted blocks in dag state.")
                     })
                     .collect();
 

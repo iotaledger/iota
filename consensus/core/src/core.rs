@@ -34,7 +34,8 @@ use crate::{
     ancestor::{AncestorState, AncestorStateManager},
     block::{
         Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND,
-        MisbehaviorProof, MisbehaviorReport, Round, SignedBlock, Slot, VerifiedBlock,
+        MisbehaviorProof, MisbehaviorReport, ProvablyFaultyBlock, Round, SignedBlock, Slot,
+        VerifiedBlock,
     },
     block_manager::BlockManager,
     commit::{
@@ -324,9 +325,9 @@ impl Core {
         Ok(missing_block_refs)
     }
 
-    /// Adds faulty blocks.
-    pub(crate) fn add_faulty_blocks(&mut self, block_refs: Vec<BlockRef>) {
-        self.block_manager.add_faulty_blocks(block_refs);
+    /// Adds provably faulty blocks.
+    pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
+        self.block_manager.add_provably_faulty_block(block);
     }
 
     /// Checks if provided block refs have been accepted. If not, missing block
@@ -1393,7 +1394,11 @@ impl Core {
         }
 
         // Add any provably faulty blocks to the misbehavior reports.
-        for faulty_block_ref in self.dag_state.read().get_recent_provably_faulty_blocks() {
+        for faulty_block_ref in self
+            .dag_state
+            .read()
+            .get_recent_provably_faulty_block_refs()
+        {
             misbehavior_reports.push(MisbehaviorReport::new(
                 faulty_block_ref.author,
                 MisbehaviorProof::InvalidBlock(faulty_block_ref),

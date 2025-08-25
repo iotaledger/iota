@@ -19,8 +19,8 @@ use tracing::{debug, error, info};
 use crate::{
     CommittedSubDag,
     block::{
-        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        VerifiedBlock, genesis_blocks,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, ProvablyFaultyBlock,
+        Round, Slot, VerifiedBlock, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -62,8 +62,8 @@ pub(crate) struct DagState {
     // Vec position corresponds to the authority index.
     recent_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
-    // Recent provably faulty blocks that have been received.
-    recent_provably_faulty_blocks: Vec<BlockRef>,
+    // Contains recent provably faulty blocks.
+    recent_provably_faulty_blocks: BTreeMap<BlockRef, ProvablyFaultyBlock>,
 
     // Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
@@ -182,7 +182,7 @@ impl DagState {
             genesis,
             recent_blocks: BTreeMap::new(),
             recent_refs_by_authority: vec![BTreeSet::new(); num_authorities],
-            recent_provably_faulty_blocks: vec![],
+            recent_provably_faulty_blocks: BTreeMap::new(),
             threshold_clock,
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
@@ -362,28 +362,28 @@ impl DagState {
     }
 
     /// Adds provably faulty blocks to the DagState.
-    pub(crate) fn add_faulty_blocks(&mut self, block_refs: Vec<BlockRef>) {
-        for block_ref in block_refs {
-            if !self.recent_provably_faulty_blocks.contains(&block_ref) {
-                self.recent_provably_faulty_blocks.push(block_ref);
-            }
-        }
+    pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
+        self.recent_provably_faulty_blocks
+            .entry(block.reference)
+            .or_insert(block);
     }
 
-    /// Returns the cached recent provably faulty blocks.
-    pub(crate) fn get_recent_provably_faulty_blocks(&self) -> Vec<BlockRef> {
-        self.recent_provably_faulty_blocks.clone()
+    /// Returns the BlockRefs of cached recent provably faulty blocks.
+    pub(crate) fn get_recent_provably_faulty_block_refs(&self) -> Vec<BlockRef> {
+        self.recent_provably_faulty_blocks.keys().cloned().collect()
     }
 
     /// Checks if the dag state contains this provably faulty blocks, first in
     /// cache then in storage.
     pub(crate) fn contains_faulty_block(&self, block_ref: &BlockRef) -> bool {
-        if self.recent_provably_faulty_blocks.contains(block_ref) {
+        if self.recent_provably_faulty_blocks.contains_key(block_ref) {
             return true;
         }
         self.store
-            .contains_faulty_block(block_ref)
+            .contains_provably_faulty_blocks(&[*block_ref])
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+            .first()
+            .is_some_and(|b| *b)
     }
 
     /// Updates internal metadata for a block.
@@ -424,9 +424,10 @@ impl DagState {
         }
     }
 
-    /// Gets a block by checking cached recent blocks then storage.
-    /// Returns None when the block is not found.
-    pub(crate) fn get_block(&self, reference: &BlockRef) -> Option<VerifiedBlock> {
+    /// Gets a block by first checking cached recent blocks, then recent
+    /// provably faulty blocks, then verified blocks in storage, then provably
+    /// faulty blocks in storage. Returns None when the block is not found.
+    pub(crate) fn get_block(&self, reference: &BlockRef) -> GetBlockResult {
         self.get_blocks(&[*reference])
             .pop()
             .expect("Exactly one element should be returned")
@@ -435,22 +436,30 @@ impl DagState {
     /// Gets blocks by checking genesis, cached recent blocks in memory, then
     /// storage. An element is None when the corresponding block is not
     /// found.
-    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
-        let mut blocks = vec![None; block_refs.len()];
+    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<GetBlockResult> {
+        let mut blocks = vec![GetBlockResult::NotFound; block_refs.len()];
         let mut missing = Vec::new();
 
         for (index, block_ref) in block_refs.iter().enumerate() {
             if block_ref.round == GENESIS_ROUND {
                 // Allow the caller to handle the invalid genesis ancestor error.
                 if let Some(block) = self.genesis.get(block_ref) {
-                    blocks[index] = Some(block.clone());
+                    blocks[index] = GetBlockResult::VerifiedBlock(block.clone());
                 }
                 continue;
             }
+            // check cached verified blocks.
             if let Some(block_info) = self.recent_blocks.get(block_ref) {
-                blocks[index] = Some(block_info.block.clone());
+                blocks[index] = GetBlockResult::VerifiedBlock(block_info.block.clone());
                 continue;
             }
+
+            // next, check cached provably faulty blocks.
+            if let Some(pf_block) = self.recent_provably_faulty_blocks.get(block_ref) {
+                blocks[index] = GetBlockResult::ProvablyFaultyBlock(pf_block.clone());
+                continue;
+            }
+
             missing.push((index, block_ref));
         }
 
@@ -458,6 +467,7 @@ impl DagState {
             return blocks;
         }
 
+        // next, check for verified blocks in storage.
         let missing_refs = missing
             .iter()
             .map(|(_, block_ref)| **block_ref)
@@ -473,8 +483,32 @@ impl DagState {
             .with_label_values(&["get_blocks"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
-            blocks[index] = result;
+        for (i, result) in store_results.into_iter().enumerate() {
+            if let Some(block) = result {
+                let index = missing.remove(i).0;
+                blocks[index] = GetBlockResult::VerifiedBlock(block);
+            }
+        }
+
+        if missing.is_empty() {
+            return blocks;
+        }
+
+        // Finally, check if any of the missing blocks are provably faulty in storage.
+        let missing_refs = missing
+            .iter()
+            .map(|(_, block_ref)| **block_ref)
+            .collect::<Vec<_>>();
+        let pf_results = self
+            .store
+            .read_provably_faulty_blocks(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        // TODO: track metrics for reading provably faulty
+
+        for ((index, _), result) in missing.into_iter().zip(pf_results.into_iter()) {
+            if let Some(pf_block) = result {
+                blocks[index] = GetBlockResult::ProvablyFaultyBlock(pf_block);
+            }
         }
 
         blocks
@@ -557,7 +591,7 @@ impl DagState {
                 break;
             }
             let block_ref = linked.pop_last().unwrap();
-            let Some(block) = self.get_block(&block_ref) else {
+            let GetBlockResult::VerifiedBlock(block) = self.get_block(&block_ref) else {
                 panic!("Block {block_ref:?} should exist in DAG!");
             };
             linked.extend(block.ancestors().iter().cloned());
@@ -573,6 +607,7 @@ impl DagState {
             ))
             .map(|r| {
                 self.get_block(r)
+                    .verified_block()
                     .unwrap_or_else(|| panic!("Block {r:?} should exist in DAG!"))
                     .clone()
             })
@@ -1075,7 +1110,10 @@ impl DagState {
                 blocks,
                 commits,
                 commit_info_to_write,
-                self.recent_provably_faulty_blocks.clone(),
+                self.recent_provably_faulty_blocks
+                    .values()
+                    .cloned()
+                    .collect(),
                 metrics_to_write,
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
@@ -1258,6 +1296,22 @@ impl BlockInfo {
     }
 }
 
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum GetBlockResult {
+    VerifiedBlock(VerifiedBlock),
+    ProvablyFaultyBlock(ProvablyFaultyBlock),
+    NotFound,
+}
+
+impl GetBlockResult {
+    pub(crate) fn verified_block(self) -> Option<VerifiedBlock> {
+        match self {
+            GetBlockResult::VerifiedBlock(b) => Some(b),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::vec;
@@ -1310,19 +1364,18 @@ mod test {
 
         // Check uncommitted blocks that exist.
         for (r, block) in &blocks {
-            assert_eq!(&dag_state.get_block(r).unwrap(), block);
+            assert_eq!(&dag_state.get_block(r).verified_block().unwrap(), block);
         }
 
         // Check uncommitted blocks that do not exist.
         let last_ref = blocks.keys().last().unwrap();
-        assert!(
-            dag_state
-                .get_block(&BlockRef::new(
-                    last_ref.round,
-                    last_ref.author,
-                    BlockDigest::MIN
-                ))
-                .is_none()
+        assert_eq!(
+            dag_state.get_block(&BlockRef::new(
+                last_ref.round,
+                last_ref.author,
+                BlockDigest::MIN
+            )),
+            GetBlockResult::NotFound,
         );
 
         // Check slots with uncommitted blocks.
@@ -1835,8 +1888,8 @@ mod test {
 
         let mut expected = blocks
             .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<VerifiedBlock>>>();
+            .map(GetBlockResult::VerifiedBlock)
+            .collect::<Vec<GetBlockResult>>();
 
         // Ensure everything is found
         assert_eq!(result, expected.clone());
@@ -1849,7 +1902,7 @@ mod test {
         let result = dag_state.get_blocks(&block_refs);
 
         // Then all should be found apart from the last one
-        expected.insert(3, None);
+        expected.insert(3, GetBlockResult::NotFound);
         assert_eq!(result, expected);
     }
 
@@ -1910,7 +1963,7 @@ mod test {
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .map(|b| b.unwrap())
+            .map(|b| b.verified_block().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, all_blocks);
 
@@ -1936,7 +1989,7 @@ mod test {
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .map(|b| b.unwrap())
+            .map(|b| b.verified_block().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, blocks);
 
@@ -1949,7 +2002,7 @@ mod test {
         let retrieved_blocks = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .flatten()
+            .filter_map(|b| b.verified_block())
             .collect::<Vec<_>>();
         assert!(retrieved_blocks.is_empty());
 
@@ -2011,7 +2064,7 @@ mod test {
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .map(|b| b.unwrap())
+            .map(|b| b.verified_block().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, all_blocks);
 
@@ -2037,7 +2090,7 @@ mod test {
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .map(|b| b.unwrap())
+            .map(|b| b.verified_block().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, blocks);
 
@@ -2050,7 +2103,7 @@ mod test {
         let retrieved_blocks = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .flatten()
+            .filter_map(|b| b.verified_block())
             .collect::<Vec<_>>();
         assert!(retrieved_blocks.is_empty());
 
@@ -2139,7 +2192,7 @@ mod test {
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .map(|b| b.unwrap())
+            .map(|b| b.verified_block().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, all_blocks);
 
@@ -2165,7 +2218,7 @@ mod test {
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .map(|b| b.unwrap())
+            .map(|b| b.verified_block().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, blocks);
 
@@ -2178,7 +2231,7 @@ mod test {
         let retrieved_blocks = dag_state
             .get_blocks(&block_refs)
             .into_iter()
-            .flatten()
+            .filter_map(|b| b.verified_block())
             .collect::<Vec<_>>();
         assert!(retrieved_blocks.is_empty());
 

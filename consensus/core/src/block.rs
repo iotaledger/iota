@@ -453,15 +453,6 @@ impl VerifiedBlock {
         }
     }
 
-    /// Creates a new reference for a faulty block.
-    pub(crate) fn new_faulty_block_ref(signed_block: SignedBlock, serialized: Bytes) -> BlockRef {
-        BlockRef {
-            round: signed_block.round(),
-            author: signed_block.author(),
-            digest: Self::compute_digest(&serialized),
-        }
-    }
-
     /// This method is public for testing in other crates.
     pub fn new_for_test(block: Block) -> Self {
         let signed_block = SignedBlock {
@@ -539,6 +530,50 @@ impl fmt::Debug for VerifiedBlock {
             self.transactions().len(),
             self.commit_votes().len(),
         )
+    }
+}
+
+#[derive(Clone)]
+pub struct ProvablyFaultyBlock {
+    pub reference: BlockRef,
+    pub serialized: Bytes,
+}
+
+impl ProvablyFaultyBlock {
+    pub fn new(signed_block: SignedBlock, serialized: Bytes) -> Self {
+        Self {
+            reference: BlockRef {
+                round: signed_block.round(),
+                author: signed_block.author(),
+                digest: Self::compute_digest(&serialized),
+            },
+            serialized,
+        }
+    }
+
+    /// Computes digest from the serialized block with signature.
+    pub(crate) fn compute_digest(serialized: &[u8]) -> BlockDigest {
+        let mut hasher = DefaultHashFunction::new();
+        hasher.update(serialized);
+        BlockDigest(hasher.finalize().into())
+    }
+}
+
+impl PartialEq for ProvablyFaultyBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.reference.digest == other.reference.digest
+    }
+}
+
+impl fmt::Display for ProvablyFaultyBlock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.reference)
+    }
+}
+
+impl fmt::Debug for ProvablyFaultyBlock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{:?}", self.reference,)
     }
 }
 
