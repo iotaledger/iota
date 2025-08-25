@@ -9,25 +9,6 @@ ALTER SEQUENCE tx_insertion_order_seq OWNED BY tx_insertion_order.insertion_orde
 SELECT setval('tx_insertion_order_seq', (SELECT MAX(tx_sequence_number) FROM tx_digests));
 CREATE UNIQUE INDEX tx_insertion_order_insertion_order ON tx_insertion_order (insertion_order);
 
-DROP TABLE IF EXISTS optimistic_tx_senders;
-DROP TABLE IF EXISTS optimistic_tx_recipients;
-DROP TABLE IF EXISTS optimistic_tx_input_objects;
-DROP TABLE IF EXISTS optimistic_tx_changed_objects;
-DROP TABLE IF EXISTS optimistic_tx_calls_pkg;
-DROP TABLE IF EXISTS optimistic_tx_calls_mod;
-DROP TABLE IF EXISTS optimistic_tx_calls_fun;
-DROP TABLE IF EXISTS optimistic_tx_kinds;
-DROP TABLE IF EXISTS optimistic_tx_wrapped_or_deleted_objects;
-
-DROP TABLE IF EXISTS optimistic_event_emit_package;
-DROP TABLE IF EXISTS optimistic_event_emit_module;
-DROP TABLE IF EXISTS optimistic_event_struct_package;
-DROP TABLE IF EXISTS optimistic_event_struct_module;
-DROP TABLE IF EXISTS optimistic_event_struct_name;
-DROP TABLE IF EXISTS optimistic_event_struct_instantiation;
-DROP TABLE IF EXISTS optimistic_event_senders;
-DROP TABLE IF EXISTS optimistic_events;
-
 DROP TABLE IF EXISTS optimistic_transactions;
 
 -- Main table storing data about optimistically indexed transactions

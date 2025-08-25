@@ -16,11 +16,7 @@ use iota_types::{
 };
 use move_core_types::identifier::Identifier;
 
-use crate::{
-    errors::IndexerError,
-    schema::{events, optimistic_events},
-    types::IndexedEvent,
-};
+use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
 #[derive(Queryable, QueryableByName, Selectable, Insertable, Debug, Clone)]
 #[diesel(table_name = events)]
@@ -53,37 +49,6 @@ pub struct StoredEvent {
     pub bcs: Vec<u8>,
 }
 
-#[derive(Queryable, QueryableByName, Selectable, Insertable, Debug, Clone)]
-#[diesel(table_name = optimistic_events)]
-pub struct OptimisticEvent {
-    #[diesel(sql_type = diesel::sql_types::BigInt)]
-    pub optimistic_sequence_number: i64,
-
-    #[diesel(sql_type = diesel::sql_types::BigInt)]
-    pub global_sequence_number: i64,
-
-    #[diesel(sql_type = diesel::sql_types::BigInt)]
-    pub event_sequence_number: i64,
-
-    #[diesel(sql_type = diesel::sql_types::Binary)]
-    pub transaction_digest: Vec<u8>,
-
-    #[diesel(sql_type = diesel::sql_types::Array<diesel::sql_types::Nullable<diesel::pg::sql_types::Bytea>>)]
-    pub senders: Vec<Option<Vec<u8>>>,
-
-    #[diesel(sql_type = diesel::sql_types::Binary)]
-    pub package: Vec<u8>,
-
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    pub module: String,
-
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    pub event_type: String,
-
-    #[diesel(sql_type = diesel::sql_types::Binary)]
-    pub bcs: Vec<u8>,
-}
-
 pub type SendersType = Vec<Option<Vec<u8>>>;
 
 impl From<IndexedEvent> for StoredEvent {
@@ -102,38 +67,6 @@ impl From<IndexedEvent> for StoredEvent {
             event_type: event.event_type.clone(),
             bcs: event.bcs.clone(),
             timestamp_ms: event.timestamp_ms as i64,
-        }
-    }
-}
-
-impl From<OptimisticEvent> for StoredEvent {
-    fn from(event: OptimisticEvent) -> Self {
-        Self {
-            tx_sequence_number: event.optimistic_sequence_number,
-            event_sequence_number: event.event_sequence_number,
-            transaction_digest: event.transaction_digest,
-            senders: event.senders,
-            package: event.package,
-            module: event.module,
-            event_type: event.event_type,
-            bcs: event.bcs,
-            timestamp_ms: -1,
-        }
-    }
-}
-
-impl OptimisticEvent {
-    pub fn from_stored(global_sequence_number: i64, event: StoredEvent) -> Self {
-        Self {
-            global_sequence_number,
-            optimistic_sequence_number: event.tx_sequence_number,
-            event_sequence_number: event.event_sequence_number,
-            transaction_digest: event.transaction_digest,
-            senders: event.senders,
-            package: event.package,
-            module: event.module,
-            event_type: event.event_type,
-            bcs: event.bcs,
         }
     }
 }

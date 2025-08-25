@@ -30,25 +30,12 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
-        event_indices::{
-            OptimisticEventEmitModule, OptimisticEventEmitPackage, OptimisticEventIndices,
-            OptimisticEventSenders, OptimisticEventStructInstantiation,
-            OptimisticEventStructModule, OptimisticEventStructName, OptimisticEventStructPackage,
-        },
-        events::{OptimisticEvent, StoredEvent},
         transactions::{OptimisticTransaction, TxGlobalOrder},
-        tx_indices::{
-            OptimisticTxChangedObject, OptimisticTxFun, OptimisticTxIndices,
-            OptimisticTxInputObject, OptimisticTxKind, OptimisticTxMod, OptimisticTxPkg,
-            OptimisticTxRecipients, OptimisticTxSenders, OptimisticTxWrappedOrDeletedObject,
-            TxIndexV2Split,
-        },
     },
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{
-        EventIndex, IndexedDeletedObject, IndexedObject, IndexerResult,
-        IotaTransactionBlockResponseWithOptions, TxIndexV2,
+        IndexedDeletedObject, IndexedObject, IndexerResult, IotaTransactionBlockResponseWithOptions,
     },
 };
 
@@ -56,9 +43,6 @@ const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
 
 type TransactionDataToCommit = (
     OptimisticTransaction,
-    OptimisticTxIndices,
-    Vec<OptimisticEvent>,
-    OptimisticEventIndices,
     BTreeMap<String, StoredDisplay>,
     TransactionObjectChangesToCommit,
 );
@@ -356,14 +340,7 @@ impl OptimisticTransactionExecutor {
         conn: &mut PgConnection,
         tx_data_to_commit: TransactionDataToCommit,
     ) -> Result<(), IndexerError> {
-        let (
-            optimistic_tx,
-            optimistic_tx_indices,
-            optimistic_events,
-            optimistic_event_indices,
-            indexed_displays,
-            object_changes,
-        ) = tx_data_to_commit;
+        let (optimistic_tx, indexed_displays, object_changes) = tx_data_to_commit;
 
         self.store
             .persist_objects_in_existing_transaction(conn, vec![object_changes.clone()])?;
@@ -373,19 +350,7 @@ impl OptimisticTransactionExecutor {
         )?;
 
         self.store
-            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx.clone())?;
-        self.store
-            .persist_optimistic_events_in_existing_transaction(conn, optimistic_events.clone())?;
-        self.store
-            .persist_optimistic_event_indices_in_existing_transaction(
-                conn,
-                optimistic_event_indices.clone(),
-            )?;
-        self.store
-            .persist_optimistic_tx_indices_in_existing_transaction(
-                conn,
-                optimistic_tx_indices.clone(),
-            )
+            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx.clone())
     }
 }
 
@@ -461,141 +426,12 @@ impl<'a> TransactionExtractor<'a> {
         global_sequence_number: i64,
     ) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = self.get_object_changes()?;
-        let (indexed_tx, tx_indices, indexed_events, events_indices, indexed_displays) =
+        let (indexed_tx, _, _, _, indexed_displays) =
             self.get_indexed_transactions_events_and_displays()?;
 
         let optimistic_tx =
             OptimisticTransaction::from_stored(global_sequence_number, (&indexed_tx).into());
-        let optimistic_tx_indices = Self::optimistic_tx_indices(tx_indices, global_sequence_number);
-        let optimistic_events = indexed_events
-            .into_iter()
-            .map(StoredEvent::from)
-            .map(|stored| OptimisticEvent::from_stored(global_sequence_number, stored))
-            .collect();
-        let optimistic_event_indices =
-            Self::optimistic_event_indices(events_indices, global_sequence_number);
 
-        Ok((
-            optimistic_tx,
-            optimistic_tx_indices,
-            optimistic_events,
-            optimistic_event_indices,
-            indexed_displays,
-            object_changes,
-        ))
-    }
-
-    fn optimistic_event_indices(
-        event_indices: Vec<EventIndex>,
-        global_sequence_number: i64,
-    ) -> OptimisticEventIndices {
-        let splits: Vec<_> = event_indices.into_iter().map(|i| i.split()).collect();
-
-        OptimisticEventIndices {
-            optimistic_event_emit_packages: splits
-                .iter()
-                .map(|t| {
-                    OptimisticEventEmitPackage::from_stored(global_sequence_number, t.0.clone())
-                })
-                .collect(),
-            optimistic_event_emit_modules: splits
-                .iter()
-                .map(|t| {
-                    OptimisticEventEmitModule::from_stored(global_sequence_number, t.1.clone())
-                })
-                .collect(),
-            optimistic_event_senders: splits
-                .iter()
-                .map(|t| OptimisticEventSenders::from_stored(global_sequence_number, t.2.clone()))
-                .collect(),
-            optimistic_event_struct_packages: splits
-                .iter()
-                .map(|t| {
-                    OptimisticEventStructPackage::from_stored(global_sequence_number, t.3.clone())
-                })
-                .collect(),
-            optimistic_event_struct_modules: splits
-                .iter()
-                .map(|t| {
-                    OptimisticEventStructModule::from_stored(global_sequence_number, t.4.clone())
-                })
-                .collect(),
-            optimistic_event_struct_names: splits
-                .iter()
-                .map(|t| {
-                    OptimisticEventStructName::from_stored(global_sequence_number, t.5.clone())
-                })
-                .collect(),
-            optimistic_event_struct_instantiations: splits
-                .iter()
-                .map(|t| {
-                    OptimisticEventStructInstantiation::from_stored(
-                        global_sequence_number,
-                        t.6.clone(),
-                    )
-                })
-                .collect(),
-        }
-    }
-
-    fn optimistic_tx_indices(
-        tx_index: TxIndexV2,
-        global_sequence_number: i64,
-    ) -> OptimisticTxIndices {
-        let TxIndexV2Split {
-            tx_senders,
-            tx_recipients,
-            tx_input_objects,
-            tx_changed_objects,
-            tx_pkgs,
-            tx_mods,
-            tx_funs,
-            tx_wrapped_or_deleted_objects,
-            tx_kinds,
-            ..
-        } = tx_index.split();
-
-        OptimisticTxIndices {
-            optimistic_tx_senders: tx_senders
-                .into_iter()
-                .map(|stored| OptimisticTxSenders::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_recipients: tx_recipients
-                .into_iter()
-                .map(|stored| OptimisticTxRecipients::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_input_objects: tx_input_objects
-                .into_iter()
-                .map(|stored| OptimisticTxInputObject::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_changed_objects: tx_changed_objects
-                .into_iter()
-                .map(|stored| {
-                    OptimisticTxChangedObject::from_stored(global_sequence_number, stored)
-                })
-                .collect(),
-            optimistic_tx_pkgs: tx_pkgs
-                .into_iter()
-                .map(|stored| OptimisticTxPkg::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_mods: tx_mods
-                .into_iter()
-                .map(|stored| OptimisticTxMod::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_funs: tx_funs
-                .into_iter()
-                .map(|stored| OptimisticTxFun::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_kinds: tx_kinds
-                .into_iter()
-                .map(|stored| OptimisticTxKind::from_stored(global_sequence_number, stored))
-                .collect(),
-            optimistic_tx_wrapped_or_deleted_objects: tx_wrapped_or_deleted_objects
-                .into_iter()
-                .map(|stored| {
-                    OptimisticTxWrappedOrDeletedObject::from_stored(global_sequence_number, stored)
-                })
-                .collect(),
-        }
+        Ok((optimistic_tx, indexed_displays, object_changes))
     }
 }

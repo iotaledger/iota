@@ -1782,7 +1782,7 @@ fn try_get_object_before_version() {
             )
             .await
             .expect("Transfer should succeed");
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_and_wait_for_indexer(client, store, tx_bytes, &keypair).await;
         wait_for_objects_history().await;
 
         let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
