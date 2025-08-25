@@ -10,6 +10,8 @@ export {
     trimOrFormatAddress,
 } from './format.js';
 
+export { parseIotaToNanos, safeParseIotaToNanos } from './parse.js';
+
 export { formatBalance, formatWithSubscript, CoinFormat, formatAmount } from './formatBalance.js';
 
 export {
