@@ -47,6 +47,7 @@ runs:
             - ".github/workflows/codecov.yml"
             - ".github/workflows/_rust.yml"
             - ".github/workflows/_rust_tests.yml"
+            - ".github/workflows/_starfish_tests.yml"
             - ".github/workflows/_rust_lints.yml"
             - ".github/workflows/_cargo_deny.yml"
             - ".github/workflows/_split_cluster.yml"
