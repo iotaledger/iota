@@ -4,7 +4,7 @@
 
 import BigNumber from 'bignumber.js';
 
-export function parseAmount(amount: string, coinDecimals: number) {
+export function parseIotaToNanos(amount: string, coinDecimals: number) {
     try {
         return BigInt(new BigNumber(amount).shiftedBy(coinDecimals).integerValue().toString());
     } catch (e) {
@@ -12,7 +12,7 @@ export function parseAmount(amount: string, coinDecimals: number) {
     }
 }
 
-export function safeParseAmount(amount: string, coinDecimals: number) {
+export function safeParseIotaToNanos(amount: string, coinDecimals: number) {
     try {
         return BigInt(new BigNumber(amount).shiftedBy(coinDecimals).integerValue().toString());
     } catch (e) {

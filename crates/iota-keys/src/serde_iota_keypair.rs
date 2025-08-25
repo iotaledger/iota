@@ -44,7 +44,7 @@ mod tests {
         // Serialize
         let serialized = serde_json::to_string(&test_struct).unwrap();
         // Compare to expected JSON
-        let expected_json = format!(r#"{{"keypair":"{}"}}"#, private_key_str);
+        let expected_json = format!(r#"{{"keypair":"{private_key_str}"}}"#);
         assert_eq!(serialized, expected_json);
 
         // Deserialize

@@ -1383,13 +1383,13 @@ impl IndexStore {
         if force_disable_cache {
             return Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
                 .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                    IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
                 });
         }
 
         self.caches.all_balances.get_with(owner, move || {
             Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(|e| {
-                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
             })
         })
     }

@@ -183,6 +183,10 @@ const config = {
             {
               from: '/about-iota/wallet-dashboard',
               to: '/users/iota-wallet-dashboard',
+            },
+            {
+              from: '/about-iota/iota-wallet/how-to/integrate-ledger',
+              to: '/users/iota-wallet/how-to/import/ledger'
             }
           ];
           let paths = [];

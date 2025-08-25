@@ -1,6 +1,6 @@
 [package]
 name = "D_depends_on_A_v1"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 A = { local = "../A_v1" }

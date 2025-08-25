@@ -18,14 +18,13 @@ import {
     ButtonType,
     Header,
 } from '@iota/apps-ui-kit';
-import { CoinFormat, formatAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress, parseIotaToNanos } from '@iota/iota-sdk/utils';
 import {
     CoinIcon,
     ImageIconSize,
     useFormatCoin,
     ExplorerLinkType,
     useCoinMetadata,
-    parseAmount,
     useGetIotaNameRecord,
     NamedAddressTooltip,
 } from '@iota/core';
@@ -58,7 +57,7 @@ export function ReviewValuesFormView({
 }: ReviewValuesFormProps): JSX.Element {
     const { data: nameRecord } = useGetIotaNameRecord(to);
     const { data: metadata } = useCoinMetadata(coinType);
-    const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
+    const amountWithoutDecimals = parseIotaToNanos(amount, metadata?.decimals ?? 0);
     const [roundedAmount, symbol] = useFormatCoin({
         balance: amountWithoutDecimals,
         coinType,
