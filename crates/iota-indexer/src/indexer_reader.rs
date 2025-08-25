@@ -18,6 +18,7 @@ use diesel::{
     sql_types::{BigInt, Bool},
 };
 use fastcrypto::encoding::{Encoding, Hex};
+use futures::stream::{FuturesUnordered, StreamExt};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
@@ -673,15 +674,11 @@ impl IndexerReader {
         .await
     }
 
-    fn multi_get_transactions(
+    fn get_checkpointed_transactions(
         &self,
-        digests: &[TransactionDigest],
+        digests: &[Vec<u8>],
     ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        let digests = digests
-            .iter()
-            .map(|digest| digest.inner().to_vec())
-            .collect::<HashSet<_>>();
-        let checkpointed_txs = run_query!(&self.pool, |conn| {
+        run_query!(&self.pool, |conn| {
             transactions::table
                 .inner_join(
                     tx_digests::table
@@ -689,18 +686,17 @@ impl IndexerReader {
                 )
                 // we filter the tx_digests table because it is indexed by digest,
                 // transactions table is not
-                .filter(tx_digests::tx_digest.eq_any(&digests))
+                .filter(tx_digests::tx_digest.eq_any(digests))
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
-        })?;
-        if checkpointed_txs.len() == digests.len() {
-            return Ok(checkpointed_txs);
-        }
-        let mut missing_digests = digests;
-        for tx in &checkpointed_txs {
-            missing_digests.remove(&tx.transaction_digest);
-        }
-        let optimistic_txs = run_query!(&self.pool, |conn| {
+        })
+    }
+
+    fn get_optimistic_transactions(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<OptimisticTransaction>, IndexerError> {
+        run_query!(&self.pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
                     tx_global_order::table.on(optimistic_transactions::global_sequence_number
@@ -712,10 +708,65 @@ impl IndexerReader {
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
-                .filter(tx_global_order::tx_digest.eq_any(missing_digests))
+                .filter(tx_global_order::tx_digest.eq_any(digests))
                 .select(OptimisticTransaction::as_select())
                 .load::<OptimisticTransaction>(conn)
-        })?;
+        })
+    }
+
+    async fn get_single_transaction(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<Option<StoredTransaction>> {
+        let digest_bytes = digest.inner().to_vec();
+        let checkpointed_tx_future = {
+            let this = self.clone();
+            let digest_bytes = digest_bytes.clone();
+            tokio::task::spawn_blocking(move || {
+                this.get_checkpointed_transactions(&[digest_bytes])
+                    .map(|mut txs| txs.pop())
+            })
+        };
+        let optimistic_tx_future = {
+            let this = self.clone();
+            tokio::task::spawn_blocking(move || {
+                this.get_optimistic_transactions(&[digest_bytes])
+                    .map(|mut txs| txs.pop().map(Into::into))
+            })
+        };
+
+        let mut tx_futures = FuturesUnordered::new();
+        tx_futures.push(checkpointed_tx_future);
+        tx_futures.push(optimistic_tx_future);
+
+        while let Some(result) = tx_futures.next().await {
+            if let Some(tx) = result?? {
+                return Ok(Some(tx));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn multi_get_transactions(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Result<Vec<StoredTransaction>, IndexerError> {
+        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let checkpointed_txs = self.get_checkpointed_transactions(&digests)?;
+
+        if checkpointed_txs.len() == digests.len() {
+            return Ok(checkpointed_txs);
+        }
+
+        let mut missing_digests: HashSet<Vec<u8>> = digests.iter().cloned().collect();
+        for tx in &checkpointed_txs {
+            missing_digests.remove(&tx.transaction_digest);
+        }
+        let missing_digests = missing_digests.into_iter().collect::<Vec<_>>();
+
+        let optimistic_txs = self.get_optimistic_transactions(&missing_digests)?;
+
         Ok(checkpointed_txs
             .into_iter()
             .chain(optimistic_txs.into_iter().map(Into::into))
@@ -1275,6 +1326,24 @@ impl IndexerReader {
             .await?;
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
+    }
+
+    pub(crate) async fn get_single_transaction_block_response(
+        &self,
+        digest: TransactionDigest,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Option<IotaTransactionBlockResponse>> {
+        let stored_tx = self.get_single_transaction(digest).await?;
+        if let Some(stored_tx) = stored_tx {
+            Ok(Some(
+                self.stored_transaction_to_transaction_block(vec![stored_tx], options)
+                    .await?
+                    .pop()
+                    .expect("There should be exactly one response"),
+            ))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
