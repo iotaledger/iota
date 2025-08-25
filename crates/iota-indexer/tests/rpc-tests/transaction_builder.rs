@@ -692,7 +692,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
+            execute_tx_and_wait_for_indexer(cluster.rpc_client(), &store, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             let stake = &staked_iota[0].stakes[0];
@@ -707,7 +707,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(&client, &cluster, &store, tx_bytes, &keypair).await;
+            execute_tx_and_wait_for_indexer(&client, &store, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());

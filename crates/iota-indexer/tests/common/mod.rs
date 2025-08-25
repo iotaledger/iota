@@ -262,14 +262,13 @@ pub async fn indexer_wait_for_transaction(
 
 pub async fn execute_tx_and_wait_for_indexer(
     indexer_client: &HttpClient,
-    cluster: &TestCluster,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
     keypair: &dyn Signer<Signature>,
-) {
-    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
-    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
+) -> TransactionDigest {
+    let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
+    indexer_wait_for_transaction(digest, store, indexer_client).await;
+    digest
 }
 
 pub async fn execute_tx_must_succeed(

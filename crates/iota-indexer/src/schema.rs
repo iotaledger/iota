@@ -285,95 +285,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    optimistic_event_emit_module (package, module, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_emit_package (package, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        package -> Bytea,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_senders (sender, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        sender -> Bytea,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_instantiation (package, module, type_instantiation, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        type_instantiation -> Text,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_module (package, module, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_name (package, module, type_name, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        type_name -> Text,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_package (package, global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        package -> Bytea,
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_events (global_sequence_number, optimistic_sequence_number, event_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        event_sequence_number -> Int8,
-        transaction_digest -> Bytea,
-        senders -> Array<Nullable<Bytea>>,
-        package -> Bytea,
-        module -> Text,
-        event_type -> Text,
-        bcs -> Bytea,
-    }
-}
-
-diesel::table! {
     optimistic_transactions (global_sequence_number, optimistic_sequence_number) {
         global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
@@ -385,88 +296,6 @@ diesel::table! {
         events -> Array<Nullable<Bytea>>,
         transaction_kind -> Int2,
         success_command_count -> Int2,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_calls_fun (package, module, func, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        package -> Bytea,
-        module -> Text,
-        func -> Text,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_calls_mod (package, module, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        package -> Bytea,
-        module -> Text,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_calls_pkg (package, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        package -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_changed_objects (object_id, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        object_id -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_input_objects (object_id, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        object_id -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_kinds (tx_kind, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        tx_kind -> Int2,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_recipients (recipient, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        recipient -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_senders (sender, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_wrapped_or_deleted_objects (object_id, global_sequence_number, optimistic_sequence_number) {
-        global_sequence_number -> Int8,
-        optimistic_sequence_number -> Int8,
-        object_id -> Bytea,
-        sender -> Bytea,
     }
 }
 
@@ -639,24 +468,7 @@ macro_rules! for_all_tables {
             objects_history,
             objects_snapshot,
             objects_version,
-            optimistic_event_emit_module,
-            optimistic_event_emit_package,
-            optimistic_event_senders,
-            optimistic_event_struct_instantiation,
-            optimistic_event_struct_module,
-            optimistic_event_struct_name,
-            optimistic_event_struct_package,
-            optimistic_events,
             optimistic_transactions,
-            optimistic_tx_calls_fun,
-            optimistic_tx_calls_mod,
-            optimistic_tx_calls_pkg,
-            optimistic_tx_changed_objects,
-            optimistic_tx_input_objects,
-            optimistic_tx_kinds,
-            optimistic_tx_recipients,
-            optimistic_tx_senders,
-            optimistic_tx_wrapped_or_deleted_objects,
             packages,
             protocol_configs,
             pruner_cp_watermark,

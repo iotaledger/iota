@@ -296,7 +296,7 @@ impl IndexerApiServer for IndexerApi {
         let descending_order = descending_order.unwrap_or(false);
         let mut results = self
             .inner
-            .query_optimistic_and_checkpointed_events_in_blocking_task(
+            .query_only_checkpointed_events_in_blocking_task(
                 query,
                 cursor,
                 limit + 1,
