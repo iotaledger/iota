@@ -13,11 +13,13 @@ import { Button } from './ui/Button.js';
 type ConnectButtonProps = {
     connectText?: ReactNode;
     size?: React.ComponentProps<typeof Button>['size'];
+    connectModalProps?: React.ComponentProps<typeof ConnectModal>;
 } & React.ComponentProps<typeof Button>;
 
 export function ConnectButton({
     connectText = 'Connect Wallet',
     size,
+    connectModalProps,
     ...buttonProps
 }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
@@ -25,6 +27,7 @@ export function ConnectButton({
         <AccountDropdownMenu currentAccount={currentAccount} size={size} />
     ) : (
         <ConnectModal
+            {...connectModalProps}
             trigger={
                 <StyleMarker>
                     <Button {...buttonProps} size={size}>
