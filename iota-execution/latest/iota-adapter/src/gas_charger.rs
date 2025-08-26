@@ -97,6 +97,15 @@ pub mod checked {
                 && self.gas_status.storage_gas_units() == 0
         }
 
+        pub fn no_charges_for_execution(&self) -> bool {
+            let gas_used_for_execution =
+                self.gas_status.gas_used() - self.gas_status.gas_used_for_authentication();
+
+            gas_used_for_execution == 0
+                && self.gas_status.storage_rebate() == 0
+                && self.gas_status.storage_gas_units() == 0
+        }
+
         pub fn is_unmetered(&self) -> bool {
             self.gas_status.is_unmetered()
         }

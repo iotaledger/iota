@@ -538,7 +538,7 @@ mod checked {
 
         // At this point no charges have been applied yet
         debug_assert!(
-            gas_charger.no_charges(),
+            gas_charger.no_charges_for_execution(),
             "No gas charges must be applied yet"
         );
 

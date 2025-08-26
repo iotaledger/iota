@@ -252,7 +252,7 @@ mod checked {
 
         pub(crate) fn new_with_budget(
             gas_budget: u64,
-            gas_spent: u64,
+            gas_spent_for_authentication: u64,
             gas_price: u64,
             reference_gas_price: u64,
             config: &ProtocolConfig,
@@ -265,7 +265,7 @@ mod checked {
                 GasStatus::new(
                     iota_cost_table.execution_cost_table.clone(),
                     computation_budget,
-                    gas_spent,
+                    gas_spent_for_authentication,
                     gas_price,
                     config.gas_model_version(),
                 ),
@@ -460,6 +460,10 @@ mod checked {
 
         fn gas_used(&self) -> u64 {
             self.gas_status.gas_used_pre_gas_price()
+        }
+
+        fn gas_used_for_authentication(&self) -> u64 {
+            self.gas_status.gas_spent_for_authentication_pre_gas_price()
         }
 
         fn reset_storage_cost_and_rebate(&mut self) {
