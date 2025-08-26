@@ -72,9 +72,9 @@ impl GrpcCheckpointSummaryBroadcaster {
                     self.receiver_count()
                 );
             }
-            Err(e) => {
+            Err(_) => {
                 debug!(
-                    "No gRPC clients subscribed for checkpoint summary #{} with error: {e}",
+                    "No gRPC clients subscribed for checkpoint summary #{}",
                     *summary.data().sequence_number()
                 );
             }
@@ -121,9 +121,9 @@ impl GrpcCheckpointDataBroadcaster {
                     self.receiver_count()
                 );
             }
-            Err(e) => {
+            Err(_) => {
                 debug!(
-                    "No gRPC clients subscribed for checkpoint data #{} with error: {e}",
+                    "No gRPC clients subscribed for checkpoint data #{}",
                     data.checkpoint_summary.data().sequence_number
                 );
             }
