@@ -65,6 +65,9 @@ impl Epoch {
     }
 
     /// Validator related properties, including the active validators.
+    ///
+    /// For epochs other than the current the data provided refer to the start
+    /// of the epoch.
     async fn validator_set(&self, ctx: &Context<'_>) -> Result<Option<ValidatorSet>> {
         let system_state = ctx
             .data_unchecked::<PgManager>()

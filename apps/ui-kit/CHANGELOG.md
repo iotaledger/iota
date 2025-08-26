@@ -1,5 +1,11 @@
 # @iota/apps-ui-kit
 
+## 0.7.2
+
+### Patch Changes
+
+-   f5b6b19: Allow using defaultValue to avoid react warning
+
 ## 0.7.1
 
 ### Patch Changes
