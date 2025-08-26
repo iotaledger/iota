@@ -15,6 +15,7 @@ use std::{
     },
 };
 
+use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
@@ -726,40 +727,31 @@ impl IndexStore {
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
         Ok(if reverse {
-            let iter = index
+            index
                 .reversed_safe_iter_with_bounds(
                     None,
                     Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX))),
                 )?
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .take_while(|result| {
-                    result
-                        .as_ref()
-                        .map(|((id, _), _)| *id == key)
-                        .unwrap_or(false)
-                })
-                .map(|result| result.map(|(_, digest)| digest));
-            if let Some(limit) = limit {
-                iter.take(limit).collect::<Result<Vec<_>, _>>()?
-            } else {
-                iter.collect::<Result<Vec<_>, _>>()?
-            }
+                .try_take_while_map_and_collect(
+                    limit,
+                    Some(|((id, _), _): &((KeyT, TxSequenceNumber), TransactionDigest)| *id == key),
+                    |(_, digest)| digest,
+                )?
         } else {
-            let iter = index
-                .iter_with_bounds(
+            index
+                .safe_iter_with_bounds(
                     Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN))),
                     None,
                 )
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, _), _)| *id == key)
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
+                .try_take_while_map_and_collect(
+                    limit,
+                    Some(|((id, _), _): &((KeyT, TxSequenceNumber), TransactionDigest)| *id == key),
+                    |(_, digest)| digest,
+                )?
         })
     }
 
@@ -866,46 +858,45 @@ impl IndexStore {
 
         let key = (package, module_val, function_val, cursor_val);
         Ok(if reverse {
-            let iter = self
-                .tables
+            self.tables
                 .transactions_by_move_function
                 .reversed_safe_iter_with_bounds(None, Some(key))?
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .take_while(|result| {
-                    result
-                        .as_ref()
-                        .map(|((id, m, f, _), _)| {
+                .try_take_while_map_and_collect(
+                    limit,
+                    Some(
+                        |((id, m, f, _), _): &(
+                            (ObjectID, String, String, TxSequenceNumber),
+                            TransactionDigest,
+                        )| {
                             *id == package
                                 && module.as_ref().map(|x| x == m).unwrap_or(true)
                                 && function.as_ref().map(|x| x == f).unwrap_or(true)
-                        })
-                        .unwrap_or(false)
-                })
-                .map(|result| result.map(|(_, digest)| digest));
-            if let Some(limit) = limit {
-                iter.take(limit).collect::<Result<Vec<_>, _>>()?
-            } else {
-                iter.collect::<Result<Vec<_>, _>>()?
-            }
+                        },
+                    ),
+                    |(_, digest)| digest,
+                )?
         } else {
-            let iter = self
-                .tables
+            self.tables
                 .transactions_by_move_function
-                .iter_with_bounds(Some(key), None)
+                .safe_iter_with_bounds(Some(key), None)
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, m, f, _), _)| {
-                    *id == package
-                        && module.as_ref().map(|x| x == m).unwrap_or(true)
-                        && function.as_ref().map(|x| x == f).unwrap_or(true)
-                })
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
+                .try_take_while_map_and_collect(
+                    limit,
+                    Some(
+                        |((id, m, f, _), _): &(
+                            (ObjectID, String, String, TxSequenceNumber),
+                            TransactionDigest,
+                        )| {
+                            *id == package
+                                && module.as_ref().map(|x| x == m).unwrap_or(true)
+                                && function.as_ref().map(|x| x == f).unwrap_or(true)
+                        },
+                    ),
+                    |(_, digest)| digest,
+                )?
         })
     }
 
@@ -977,29 +968,34 @@ impl IndexStore {
             self.tables
                 .event_order
                 .reversed_safe_iter_with_bounds(None, Some((min(tx_seq, seq), event_seq)))?
-                .take_while(|result| {
-                    result
-                        .as_ref()
-                        .map(|((tx, _), _)| tx == &seq)
-                        .unwrap_or(false)
-                })
-                .take(limit)
-                .map(|result| {
-                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
+                .try_take_while_map_and_collect(
+                    Some(limit),
+                    Some(
+                        |((tx, _), _): &(
+                            (TxSequenceNumber, usize),
+                            (TransactionEventsDigest, TransactionDigest, u64),
+                        )| tx == &seq,
+                    ),
+                    |((_, event_seq), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?
+                    },
+                )?
         } else {
             self.tables
                 .event_order
-                .iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None)
-                .take_while(|((tx, _), _)| tx == &seq)
-                .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+                .safe_iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None)
+                .try_take_while_map_and_collect(
+                    Some(limit),
+                    Some(
+                        |((tx, _), _): &(
+                            (TxSequenceNumber, usize),
+                            (TransactionEventsDigest, TransactionDigest, u64),
+                        )| tx == &seq,
+                    ),
+                    |((_, event_seq), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )?
         })
     }
 
@@ -1014,23 +1010,33 @@ impl IndexStore {
         Ok(if descending {
             index
                 .reversed_safe_iter_with_bounds(None, Some((key.clone(), (tx_seq, event_seq))))?
-                .take_while(|result| result.as_ref().map(|((m, _), _)| m == key).unwrap_or(false))
-                .take(limit)
-                .map(|result| {
-                    result.map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
+                .try_take_while_map_and_collect(
+                    Some(limit),
+                    Some(
+                        |((m, _), _): &(
+                            (KeyT, EventId),
+                            (TransactionEventsDigest, TransactionDigest, u64),
+                        )| m == key,
+                    ),
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?
+                    },
+                )?
         } else {
             index
-                .iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None)
-                .take_while(|((m, _), _)| m == key)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+                .safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None)
+                .try_take_while_map_and_collect(
+                    Some(limit),
+                    Some(
+                        |((m, _), _): &(
+                            (KeyT, EventId),
+                            (TransactionEventsDigest, TransactionDigest, u64),
+                        )| m == key,
+                    ),
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )?
         })
     }
 
@@ -1119,29 +1125,24 @@ impl IndexStore {
             self.tables
                 .event_by_time
                 .reversed_safe_iter_with_bounds(None, Some((end_time, (tx_seq, event_seq))))?
-                .take_while(|result| {
-                    result
-                        .as_ref()
-                        .map(|((m, _), _)| m >= &start_time)
-                        .unwrap_or(false)
-                })
-                .take(limit)
-                .map(|result| {
-                    result.map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
+                .try_take_while_map_and_collect(
+                    Some(limit),
+                    Some(|((m, _), _): &((u64, EventId), EventIndex)| m >= &start_time),
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?
+                    },
+                )?
         } else {
             self.tables
                 .event_by_time
-                .iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
-                .take_while(|((m, _), _)| m <= &end_time)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+                .safe_iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
+                .try_take_while_map_and_collect(
+                    Some(limit),
+                    Some(|((m, _), _): &((u64, EventId), EventIndex)| m <= &end_time),
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )?
         })
     }
 
