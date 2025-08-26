@@ -203,7 +203,10 @@ mod tests {
             todo!()
         }
 
-        async fn add_provably_faulty_block(&self, _block: ProvablyFaultyBlock) -> Result<(), CoreError> {
+        async fn add_provably_faulty_block(
+            &self,
+            _block: ProvablyFaultyBlock,
+        ) -> Result<(), CoreError> {
             todo!()
         }
 

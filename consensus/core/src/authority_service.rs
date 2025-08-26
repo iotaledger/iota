@@ -423,7 +423,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .iter()
                     .filter_map(|b| {
                         if let GetBlockResult::VerifiedBlock(b) = b {
-                            Some(b.ancestors().to_vec())
+                            let mut ancestors = b.ancestors().to_vec();
+                            ancestors.extend(
+                                b.misbehavior_reports().iter().flat_map(|r| r.references()),
+                            );
+                            Some(ancestors)
                         } else {
                             None
                         }

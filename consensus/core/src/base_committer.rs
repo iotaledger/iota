@@ -12,7 +12,7 @@ use crate::{
     block::{BlockAPI, BlockRef, Round, Slot, VerifiedBlock},
     commit::{DEFAULT_WAVE_LENGTH, LeaderStatus, MINIMUM_WAVE_LENGTH, WaveNumber},
     context::Context,
-    dag_state::{DagState, GetBlockResult},
+    dag_state::DagState,
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
@@ -251,7 +251,7 @@ impl BaseCommitter {
                 let potential_vote = self.dag_state.read().get_block(reference);
 
                 let is_vote = if gc_enabled {
-                    if let GetBlockResult::VerifiedBlock(potential_vote) = potential_vote {
+                    if let Some(potential_vote) = potential_vote.verified_block() {
                         self.is_vote(&potential_vote, leader_block)
                     } else {
                         assert!(

@@ -166,12 +166,14 @@ impl DagBuilder {
                     .map(|block_ref| {
                         self.blocks
                             .get(block_ref)
-                            .map(|(block, _committed)|  block.clone())
+                            .map(|(block, _committed)| block.clone())
                     })
-                    .map(|b| if let Some(block) = b {
-                        GetBlockResult::VerifiedBlock(block)
-                    } else {
-                        GetBlockResult::NotFound
+                    .map(|b| {
+                        if let Some(block) = b {
+                            GetBlockResult::VerifiedBlock(block)
+                        } else {
+                            GetBlockResult::NotFound
+                        }
                     })
                     .collect()
             }

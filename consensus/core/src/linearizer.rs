@@ -231,7 +231,9 @@ impl Linearizer {
                     )
                     .into_iter()
                     .map(|ancestor_gbr| {
-                        ancestor_gbr.verified_block().expect("We should have all uncommitted blocks in dag state.")
+                        ancestor_gbr
+                            .verified_block()
+                            .expect("We should have all uncommitted blocks in dag state.")
                     })
                     .collect();
 

@@ -426,7 +426,8 @@ impl DagState {
 
     /// Gets a block by first checking cached recent blocks, then recent
     /// provably faulty blocks, then verified blocks in storage, then provably
-    /// faulty blocks in storage. Returns None when the block is not found.
+    /// faulty blocks in storage. Returns GetBlockResult::NotFound when the
+    /// block is not found.
     pub(crate) fn get_block(&self, reference: &BlockRef) -> GetBlockResult {
         self.get_blocks(&[*reference])
             .pop()
@@ -434,8 +435,8 @@ impl DagState {
     }
 
     /// Gets blocks by checking genesis, cached recent blocks in memory, then
-    /// storage. An element is None when the corresponding block is not
-    /// found.
+    /// storage. An element is GetBlockResult::NotFound when the corresponding
+    /// block is not found.
     pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<GetBlockResult> {
         let mut blocks = vec![GetBlockResult::NotFound; block_refs.len()];
         let mut missing = Vec::new();

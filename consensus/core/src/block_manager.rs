@@ -319,7 +319,7 @@ impl BlockManager {
     // and persisted blocks.
     fn verify_referenced_blocks_and_accept(
         &mut self,
-        referenced_blocks: impl IntoIterator<Item = VerifiedBlock>,
+        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlock>,
     ) -> Vec<VerifiedBlock> {
         let (gc_enabled, gc_round) = {
             let dag_state = self.dag_state.read();
@@ -329,7 +329,7 @@ impl BlockManager {
         let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
         let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
         {
-            'block: for b in referenced_blocks {
+            'block: for b in unsuspended_blocks {
                 let ancestors = self.dag_state.read().get_blocks(b.ancestors());
                 assert_eq!(b.ancestors().len(), ancestors.len());
                 let mut ancestor_blocks = vec![];
@@ -384,6 +384,7 @@ impl BlockManager {
                     continue;
                 }
 
+                // Collect proof blocks required to verify misbehavior reports.
                 let mut proof_blocks: Vec<Vec<VerifiedBlock>> = vec![];
                 for report in b.misbehavior_reports() {
                     // get references and remove none values.
