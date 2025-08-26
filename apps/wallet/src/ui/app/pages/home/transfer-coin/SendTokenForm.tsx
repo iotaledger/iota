@@ -10,7 +10,6 @@ import {
     useFormatCoin,
     AddressInput,
     SendTokenFormInput,
-    safeParseAmount,
     sumCoinBalances,
     getGasBudgetErrorMessage,
     type SendCoinTransaction,
@@ -18,7 +17,7 @@ import {
     type SendTokenFormValues,
     RECEIVING_ADDRESS_FIELD_IDS,
 } from '@iota/core';
-import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, safeParseIotaToNanos } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import {
     InfoBox,
@@ -72,7 +71,10 @@ export function SendTokenForm({
 
     const hasAmount = values.amount.length > 0;
     const hasIotaBalance = iotaBalance > BigInt(0);
-    const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', coinDecimals);
+    const amount = safeParseIotaToNanos(
+        coinType === IOTA_TYPE_ARG ? values.amount : '0',
+        coinDecimals,
+    );
     const isPayAllIota = amount === coinBalance && coinType === IOTA_TYPE_ARG;
 
     const {
