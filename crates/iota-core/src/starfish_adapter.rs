@@ -1,4 +1,5 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
@@ -44,7 +45,9 @@ impl LazyStarfishClient {
         // Consensus client is initialized after validators or epoch starts, and cleared
         // after an epoch ends. But calls to get() can happen during validator
         // startup or epoch change, before consensus finished initializations.
-        // TODO: maybe listen to updates from consensus manager instead of polling.
+
+        // TODO: https://github.com/iotaledger/iota/issues/8359
+        // Consider listening to updates from consensus manager instead of polling.
         let mut count = 0;
         let start = Instant::now();
         const RETRY_INTERVAL: Duration = Duration::from_millis(100);
@@ -81,7 +84,7 @@ impl ConsensusClient for LazyStarfishClient {
         transactions: &[ConsensusTransaction],
         _epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<BlockStatusReceiver> {
-        // TODO(starfish): confirm comment is still true
+        // TODO: https://github.com/iotaledger/iota/issues/8354
         // The retrieved TransactionClient can be from the past epoch. Submit would fail
         // after Starfish shuts down, so there should be no correctness issue.
         let client = self.get().await;

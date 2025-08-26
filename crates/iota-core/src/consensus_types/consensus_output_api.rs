@@ -56,7 +56,6 @@ impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
     }
 
     fn commit_timestamp_ms(&self) -> u64 {
-        // TODO: Enforce ordered timestamp in Mysticeti.
         self.timestamp_ms
     }
 
