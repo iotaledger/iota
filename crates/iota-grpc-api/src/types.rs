@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::{checkpoint::Checkpoint, common::BcsData};
 
@@ -73,14 +73,10 @@ impl GrpcCheckpointSummaryBroadcaster {
                 );
             }
             Err(e) => {
-                if self.receiver_count() > 0 {
-                    warn!("Failed to send checkpoint summary: {e}");
-                } else {
-                    debug!(
-                        "No gRPC clients subscribed for checkpoint summary #{} with error: {e}",
-                        *summary.data().sequence_number()
-                    );
-                }
+                debug!(
+                    "No gRPC clients subscribed for checkpoint summary #{} with error: {e}",
+                    *summary.data().sequence_number()
+                );
             }
         }
     }
@@ -126,14 +122,10 @@ impl GrpcCheckpointDataBroadcaster {
                 );
             }
             Err(e) => {
-                if self.receiver_count() > 0 {
-                    warn!("Failed to send checkpoint data: {e}");
-                } else {
-                    debug!(
-                        "No gRPC clients subscribed for checkpoint data #{} with error: {e}",
-                        data.checkpoint_summary.data().sequence_number
-                    );
-                }
+                debug!(
+                    "No gRPC clients subscribed for checkpoint data #{} with error: {e}",
+                    data.checkpoint_summary.data().sequence_number
+                );
             }
         }
     }
