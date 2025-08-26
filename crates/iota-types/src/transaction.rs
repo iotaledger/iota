@@ -16,7 +16,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use move_core_types::{
     ident_str,
     identifier::{self, Identifier},
@@ -2412,12 +2412,24 @@ impl<S> Envelope<SenderSignedData, S> {
     }
 
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
+        // Add the Move authenticator shared objects if any.
+        //
+        // TODO: Make sure this is correct.
+        let authenticator_shared_objects =
+            if let Some(move_authenticator) = self.move_authenticator() {
+                move_authenticator.shared_objects().into_iter()
+            } else {
+                Vec::new().into_iter()
+            };
+
         self.data()
             .inner()
             .intent_message
             .value
             .shared_input_objects()
             .into_iter()
+            .chain(authenticator_shared_objects)
+            .unique()
     }
 
     // Returns the primary key for this transaction.
