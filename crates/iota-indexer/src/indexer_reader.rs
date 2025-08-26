@@ -735,9 +735,8 @@ impl IndexerReader {
             })
         };
 
-        let mut tx_futures = FuturesUnordered::new();
-        tx_futures.push(checkpointed_tx_future);
-        tx_futures.push(optimistic_tx_future);
+        let mut tx_futures =
+            FuturesUnordered::from_iter([checkpointed_tx_future, optimistic_tx_future]);
 
         while let Some(result) = tx_futures.next().await {
             if let Some(tx) = result?? {
@@ -759,11 +758,14 @@ impl IndexerReader {
             return Ok(checkpointed_txs);
         }
 
-        let mut missing_digests: HashSet<Vec<u8>> = digests.iter().cloned().collect();
-        for tx in &checkpointed_txs {
-            missing_digests.remove(&tx.transaction_digest);
-        }
-        let missing_digests = missing_digests.into_iter().collect::<Vec<_>>();
+        let checkpointed_tx_digests_set = checkpointed_txs
+            .iter()
+            .map(|tx| &tx.transaction_digest)
+            .collect::<HashSet<&Vec<u8>>>();
+        let missing_digests = digests
+            .into_iter()
+            .filter(|digest| !checkpointed_tx_digests_set.contains(digest))
+            .collect::<Vec<Vec<u8>>>();
 
         let optimistic_txs = self.get_optimistic_transactions(&missing_digests)?;
 
