@@ -2125,6 +2125,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "codespan-reporting",
+ "indexmap 2.10.0",
  "move-binary-format",
  "move-bytecode-source-map",
  "move-command-line-common",
