@@ -1,4 +1,5 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{path::PathBuf, sync::Arc};
@@ -36,7 +37,8 @@ pub struct StarfishManager {
     protocol_keypair: ProtocolKeyPair,
     network_keypair: NetworkKeyPair,
     storage_base_path: PathBuf,
-    // TODO: switch to parking_lot::Mutex.
+    // TODO: https://github.com/iotaledger/iota/issues/8351
+    // Consider switching to parking_lot::Mutex as it has less overhead.
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
@@ -45,7 +47,8 @@ pub struct StarfishManager {
     // Use a shared lazy starfish client so we can update the internal starfish
     // client that gets created for every new epoch.
     client: Arc<LazyStarfishClient>,
-    // TODO: switch to parking_lot::Mutex.
+    // TODO: https://github.com/iotaledger/iota/issues/8351
+    // Consider switching to parking_lot::Mutex as it has less overhead.
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
 }
@@ -111,8 +114,9 @@ impl ConsensusManagerTrait for StarfishManager {
             return;
         };
 
-        // TODO: fill in real values for the rest of the parameters before deploying on
-        //  a public network.
+        // TODO: https://github.com/iotaledger/iota/issues/8353
+        // We might need to get consensus parameters from the node config in the future
+        // and use them for creating parameters.
         let parameters = Parameters {
             db_path: self.get_store_path(epoch),
             ..Default::default()
