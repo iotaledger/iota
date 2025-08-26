@@ -3,6 +3,7 @@
 
 use std::{pin::Pin, sync::Arc};
 
+use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 
@@ -18,6 +19,7 @@ pub struct CheckpointGrpcService {
     pub reader: Arc<GrpcReader>,
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
+    pub cancellation_token: CancellationToken,
 }
 
 impl CheckpointGrpcService {
@@ -26,11 +28,13 @@ impl CheckpointGrpcService {
         reader: Arc<GrpcReader>,
         checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
+        cancellation_token: CancellationToken,
     ) -> Self {
         Self {
             reader,
             checkpoint_summary_broadcaster,
             checkpoint_data_broadcaster,
+            cancellation_token,
         }
     }
 }
@@ -42,8 +46,12 @@ impl CheckpointGrpcService {
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let rx = self.checkpoint_data_broadcaster.subscribe();
-        self.reader
-            .create_checkpoint_data_stream(rx, start_sequence_number, end_sequence_number)
+        self.reader.create_checkpoint_data_stream(
+            rx,
+            start_sequence_number,
+            end_sequence_number,
+            self.cancellation_token.clone(),
+        )
     }
 
     fn stream_checkpoint_summary(
@@ -52,8 +60,12 @@ impl CheckpointGrpcService {
         end_sequence_number: Option<u64>,
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let rx = self.checkpoint_summary_broadcaster.subscribe();
-        self.reader
-            .create_checkpoint_summary_stream(rx, start_sequence_number, end_sequence_number)
+        self.reader.create_checkpoint_summary_stream(
+            rx,
+            start_sequence_number,
+            end_sequence_number,
+            self.cancellation_token.clone(),
+        )
     }
 }
 

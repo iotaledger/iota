@@ -12,8 +12,10 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 
 use crate::{
-    CheckpointGrpcService, GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster,
-    GrpcReader, checkpoint::checkpoint_service_server::CheckpointServiceServer,
+    CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
+    GrpcCheckpointSummaryBroadcaster, GrpcReader,
+    checkpoint::checkpoint_service_server::CheckpointServiceServer,
+    events::event_service_server::EventServiceServer,
 };
 
 /// Handle to control a running gRPC server
@@ -56,14 +58,17 @@ impl GrpcServerHandle {
     }
 }
 
-/// Start a gRPC server with checkpoint services
+/// Start a gRPC server with checkpoint and event services
 ///
 /// This function creates and starts a gRPC server that hosts checkpoint-related
-/// services. Currently includes the checkpoint streaming service, but can be
-/// extended to host additional services in the future.
+/// and event streaming services. Currently includes the checkpoint streaming
+/// and event streaming services, but can be extended to host additional
+/// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
+    event_subscriber: Arc<dyn crate::EventSubscriber>,
     config: crate::Config,
+    shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
     let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
@@ -74,17 +79,20 @@ pub async fn start_grpc_server(
         GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
 
-    let shutdown_token = grpc_reader.cancellation_token().clone();
-
-    // Create the gRPC service using the provided grpc_reader
-    let service = CheckpointGrpcService::new(
+    // Create the gRPC services - both get the cancellation token directly from
+    // server level
+    let checkpoint_service = CheckpointGrpcService::new(
         grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
+        shutdown_token.clone(),
     );
+    let event_service = EventGrpcService::new(event_subscriber, shutdown_token.clone());
 
     // Create the server with proper address binding
-    let server_builder = Server::builder().add_service(CheckpointServiceServer::new(service));
+    let server_builder = Server::builder()
+        .add_service(CheckpointServiceServer::new(checkpoint_service))
+        .add_service(EventServiceServer::new(event_service));
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)
@@ -92,17 +100,18 @@ pub async fn start_grpc_server(
     let actual_addr = listener.local_addr().unwrap_or(config.address);
 
     tracing::info!(
-        "Starting gRPC checkpoint server on {} (bound to {})",
+        "Starting gRPC server on {} (bound to {})",
         config.address,
         actual_addr
     );
 
     // Spawn the server task with graceful shutdown
+    let shutdown_token_for_server = shutdown_token.clone();
     let server_handle = tokio::spawn(async move {
         let result = server_builder
             .serve_with_incoming_shutdown(
                 TcpListenerStream::new(listener),
-                grpc_reader.cancellation_token().cancelled(),
+                shutdown_token_for_server.cancelled(),
             )
             .await;
 

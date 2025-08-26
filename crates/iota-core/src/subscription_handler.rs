@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use iota_grpc_api::EventSubscriber;
 use iota_json_rpc_types::{
     EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
@@ -105,6 +106,7 @@ impl SubscriptionHandler {
 
         // serially dispatch event processing to honor events' orders.
         for event in events.data.clone() {
+            // Send to unified event streamer (serves both JSON-RPC and gRPC subscribers)
             if let Err(e) = self.event_streamer.try_send(event) {
                 error!(error =? e, "Failed to send event to dispatch");
             }
@@ -121,5 +123,15 @@ impl SubscriptionHandler {
         filter: TransactionFilter,
     ) -> impl Stream<Item = IotaTransactionBlockEffects> {
         self.transaction_streamer.subscribe(filter)
+    }
+}
+
+// Implement EventSubscriber trait for gRPC integration
+impl EventSubscriber for SubscriptionHandler {
+    fn subscribe_events(
+        &self,
+        filter: EventFilter,
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
+        Box::new(Box::pin(self.event_streamer.subscribe(filter)))
     }
 }

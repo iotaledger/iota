@@ -12,6 +12,10 @@ pub struct Config {
     /// Buffer size for broadcast channels used for checkpoint streaming
     #[serde(default = "default_checkpoint_broadcast_buffer_size")]
     pub checkpoint_broadcast_buffer_size: usize,
+
+    /// Buffer size for broadcast channels used for event streaming
+    #[serde(default = "default_event_broadcast_buffer_size")]
+    pub event_broadcast_buffer_size: usize,
 }
 
 impl Default for Config {
@@ -19,6 +23,7 @@ impl Default for Config {
         Self {
             address: default_grpc_api_address(),
             checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
+            event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
         }
     }
 }
@@ -30,4 +35,8 @@ fn default_grpc_api_address() -> std::net::SocketAddr {
 
 fn default_checkpoint_broadcast_buffer_size() -> usize {
     100
+}
+
+fn default_event_broadcast_buffer_size() -> usize {
+    1000
 }

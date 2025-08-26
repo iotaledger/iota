@@ -78,10 +78,7 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle,
-    start_grpc_server,
-};
+use iota_grpc_api::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
     indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
@@ -142,6 +139,7 @@ use tokio::{
     sync::{Mutex, broadcast, mpsc, watch},
     task::{JoinHandle, JoinSet},
 };
+use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tracing::{Instrument, debug, error, error_span, info, warn};
 use typed_store::{
@@ -1771,9 +1769,7 @@ impl IotaNode {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_summary_broadcaster().clone();
                     Box::new(move |summary: &CertifiedCheckpointSummary| {
-                        if let Err(e) = tx.send(summary) {
-                            warn!("Failed to send checkpoint summary: {e}");
-                        }
+                        tx.send_traced(summary);
                     }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
                 })
             } else {
@@ -1783,9 +1779,7 @@ impl IotaNode {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_data_broadcaster().clone();
                     Box::new(move |data: &CheckpointData| {
-                        if let Err(e) = tx.send(data) {
-                            warn!("Failed to send checkpoint data: {e}");
-                        }
+                        tx.send_traced(data);
                     }) as Box<dyn Fn(&CheckpointData) + Send + Sync>
                 })
             } else {
@@ -2324,9 +2318,27 @@ async fn build_grpc_server(
         return Err(anyhow!("gRPC API is enabled but no configuration provided"));
     };
 
-    let rest_read_store = Arc::new(RestReadStore::new(state, state_sync_store));
+    let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
+
+    // Create cancellation token for proper shutdown hierarchy
+    let shutdown_token = CancellationToken::new();
+
+    // Create GrpcReader
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
-    let handle = start_grpc_server(grpc_reader, grpc_config.clone()).await?;
+
+    // Get the subscription handler from the state for event streaming
+    let event_subscriber =
+        state.subscription_handler.clone() as Arc<dyn iota_grpc_api::EventSubscriber>;
+
+    // Pass the same token to both GrpcReader (already done above) and
+    // start_grpc_server
+    let handle = start_grpc_server(
+        grpc_reader,
+        event_subscriber,
+        grpc_config.clone(),
+        shutdown_token,
+    )
+    .await?;
 
     Ok(Some(handle))
 }

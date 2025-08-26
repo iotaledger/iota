@@ -3,7 +3,9 @@
 
 syntax = "proto3";
 
-package iota.grpc;
+package iota.grpc.checkpoints;
+
+import "common.proto";
 
 service CheckpointService {
   // Checkpoint operations
@@ -26,15 +28,10 @@ message CheckpointSequenceNumberResponse {
   uint64 sequence_number = 1;
 }
 
-// BCS-serialized data container
-message BcsData {
-  bytes data = 1;
-}
-
 message Checkpoint {
   uint64 sequence_number = 1;
   // Indicates whether bcs_data contains full CheckpointData (true) or just CertifiedCheckpointSummary (false)
   bool is_full = 2;
   // BCS-encoded CertifiedCheckpointSummary (default) or CheckpointData (if full=true)
-  BcsData bcs_data = 3;
+  iota.grpc.common.BcsData bcs_data = 3;
 } 

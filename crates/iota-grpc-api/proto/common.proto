@@ -1,0 +1,21 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.common;
+
+// BCS-serialized data container
+message BcsData {
+  bytes data = 1;
+}
+
+// 32-byte address type for IOTA addresses, object IDs, package IDs, etc.
+message Address {
+  bytes address = 1;
+}
+
+// 32-byte Transaction digest
+message TransactionDigest {
+  bytes digest = 1;
+}

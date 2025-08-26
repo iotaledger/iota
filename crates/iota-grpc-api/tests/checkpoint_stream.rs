@@ -9,7 +9,8 @@ use std::{
 
 use iota_config::local_ip_utils;
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, GrpcReader, GrpcServerHandle,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, EventSubscriber, GrpcReader,
+    GrpcServerHandle,
     client::{CheckpointClient, CheckpointContent, NodeClient},
     start_grpc_server,
 };
@@ -378,6 +379,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
 ) {
     let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
     let checkpoints = mock.checkpoints.clone();
+    let cancellation_token = tokio_util::sync::CancellationToken::new();
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(mock));
 
     let localhost = local_ip_utils::localhost_for_testing();
@@ -389,9 +391,17 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     };
     config_customizer(&mut config);
 
-    let server_handle = start_grpc_server(grpc_reader, config)
-        .await
-        .expect("Failed to start gRPC server");
+    // Use the no-op EventSubscriber implementation for unit type
+    let dummy_event_subscriber = Arc::new(()) as Arc<dyn EventSubscriber>;
+
+    let server_handle = start_grpc_server(
+        grpc_reader,
+        dummy_event_subscriber,
+        config,
+        cancellation_token,
+    )
+    .await
+    .expect("Failed to start gRPC server");
 
     let server_addr = server_handle.address();
     let client = NodeClient::connect(&format!("http://{server_addr}"))
