@@ -901,8 +901,8 @@ impl AuthorityState {
 
             let (kind, signer, _) = tx_data.execution_parts();
 
-            // Make sure the sender is a smart account.
-            let authenticator_info = self.check_smart_account(move_authenticator, &signer)?;
+            // Make sure the sender is a Move account.
+            let authenticator_info = self.check_move_account(move_authenticator, &signer)?;
 
             // Check the `MoveAuthenticator` input objects.
             //
@@ -1754,7 +1754,7 @@ impl AuthorityState {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            let authenticator_info = self.check_smart_account(move_authenticator, &signer)?;
+            let authenticator_info = self.check_move_account(move_authenticator, &signer)?;
 
             let authenticator_input_objects = authenticator_input_objects.expect(
                 "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
@@ -5166,9 +5166,9 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
-    /// Checks if `authenticator` unlocks a valid smart account and returns the
+    /// Checks if `authenticator` unlocks a valid Move account and returns the
     /// account-related `AuthenticatorInfo` object.
-    fn check_smart_account(
+    fn check_move_account(
         &self,
         authenticator: &MoveAuthenticator,
         signer: &IotaAddress,
