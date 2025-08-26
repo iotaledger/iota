@@ -123,7 +123,7 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
             })
         }
         Some(Filter::MoveEventType(f)) => {
-            let object_id = parse_object_id(&f.address, "Address")?;
+            let object_id = parse_object_id(&f.package_id, "Package ID")?;
             let struct_tag = StructTag {
                 address: *object_id,
                 module: parse_identifier(&f.module, "module name")?,

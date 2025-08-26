@@ -67,7 +67,7 @@ message MoveModuleFilter {
 
 // Filter by Move event type (package::module::event_name)
 message MoveEventTypeFilter {
-  iota.grpc.common.Address address = 1;      // Package ID
+  iota.grpc.common.Address package_id = 1;      // Package ID
   string module = 2;                         // Module name (e.g., "request")
   string name = 3;                           // Event name (e.g., "RequestEvent")
 }

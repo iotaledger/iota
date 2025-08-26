@@ -128,7 +128,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     let mut nft_client = event_client.clone();
     let nft_filter = EventFilter {
         filter: Some(Filter::MoveEventType(MoveEventTypeFilter {
-            address: Some(Address {
+            package_id: Some(Address {
                 address: nft_package_id.to_vec(),
             }),
             module: NFT_MODULE.to_string(),
