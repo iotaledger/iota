@@ -18,7 +18,10 @@ use move_core_types::{
     vm_status::StatusCode,
 };
 use move_stdlib_natives::{self as MSN, GasParameters};
-use move_vm_runtime::native_functions::{NativeContext, NativeFunction, NativeFunctionTable};
+use move_vm_runtime::{
+    native_extensions::NativeExtensionMarker,
+    native_functions::{NativeContext, NativeFunction, NativeFunctionTable},
+};
 use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
@@ -89,6 +92,8 @@ mod transfer;
 mod tx_context;
 mod types;
 mod validator;
+
+impl NativeExtensionMarker<'_> for NativesCostTable {}
 
 #[derive(Tid)]
 pub struct NativesCostTable {

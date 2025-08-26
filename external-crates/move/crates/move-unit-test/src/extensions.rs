@@ -48,7 +48,7 @@ pub(crate) fn new_extensions<'a>() -> NativeContextExtensions<'a> {
 #[cfg(test)]
 mod tests {
     use better_any::{Tid, TidAble};
-    use move_vm_runtime::native_extensions::NativeContextExtensions;
+    use move_vm_runtime::native_extensions::{NativeContextExtensions, NativeExtensionMarker};
 
     use crate::extensions::{new_extensions, set_extension_hook};
 
@@ -62,6 +62,7 @@ mod tests {
 
     #[derive(Tid)]
     struct TestExtension();
+    impl NativeExtensionMarker<'_> for TestExtension {}
 
     fn my_hook(ext: &mut NativeContextExtensions) {
         ext.add(TestExtension())
