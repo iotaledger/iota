@@ -946,6 +946,8 @@ impl AuthorityState {
             }
         }
 
+        // TODO: Gas coins should not be double-checked if `GenericSignature` is of type
+        // `MoveAuthenticator`.
         let (_gas_status, tx_checked_input_objects) =
             iota_transaction_checks::check_transaction_input(
                 protocol_config,
@@ -1803,6 +1805,9 @@ impl AuthorityState {
 
         // The cost of partially re-auditing a transaction before execution is
         // tolerated.
+        //
+        //  TODO: Gas coins should not be double-checked if `GenericSignature` is of
+        // type `MoveAuthenticator`.
         let (tx_gas_status, tx_input_objects) = iota_transaction_checks::check_certificate_input(
             certificate,
             tx_input_objects,
