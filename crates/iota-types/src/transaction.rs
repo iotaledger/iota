@@ -1177,7 +1177,7 @@ impl Display for ProgrammableTransaction {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct SharedInputObject {
     pub id: ObjectID,
     pub initial_shared_version: SequenceNumber,

@@ -16,6 +16,7 @@ use iota_types::{
     },
     transaction::{SenderSignedData, SharedInputObject, TransactionDataAPI, TransactionKey},
 };
+use itertools::Itertools;
 use tracing::{debug, trace};
 
 use crate::{
@@ -167,6 +168,7 @@ impl SharedObjVerManager {
         let shared_input_objects: Vec<_> = cert
             .shared_input_objects()
             .chain(authenticator_shared_objects)
+            .unique()
             .collect();
 
         let mut input_object_keys = transaction_non_shared_input_object_keys(cert)
