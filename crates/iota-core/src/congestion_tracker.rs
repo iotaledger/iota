@@ -6,6 +6,7 @@ use std::{
     collections::{HashMap, hash_map::Entry},
     fs::OpenOptions,
     io::Write,
+    path::PathBuf,
 };
 
 use iota_types::{
@@ -82,7 +83,8 @@ impl CongestionInfo {
     ) {
         // Update hotness per object based on the congestion events according to the
         // formula: hotness(i) -= SUM(tx)[hotness(i) - gas_price_feedback(tx)] *
-        // LEARNING_RATE / number_congested_transactions. Decrease is capped by DECAY_FACTOR.
+        // LEARNING_RATE / number_congested_transactions. Decrease is capped by
+        // DECAY_FACTOR.
         let old_hotness = self.hotness;
         self.hotness -= new.hotness * LEARNING_RATE / number_congested_transactions as f64;
         self.hotness = self.hotness.max(old_hotness / DECAY_FACTOR);
@@ -230,12 +232,12 @@ impl CongestionTracker {
             );
             for object in self.object_congestion_info.iter() {
                 self.dump_hotness_to_csv(
-                    "hotness.csv",
+                    "./hotness.csv",
                     checkpoint.sequence_number,
                     *object.0,
                     object.1.hotness,
                 )
-                .unwrap();    
+                .unwrap();
             }
         }
     }
@@ -288,35 +290,67 @@ impl CongestionTracker {
 impl CongestionTracker {
     fn dump_prediction_to_csv(
         &self,
-        path: &str,
-        sequence_number: u64,
+        file_name: &str,
+        checkpoint: u64,
         gas_price: u64,
         gas_price_feedback: u64,
         prediction_sui: u64,
         prediction_ogd: u64,
     ) -> std::io::Result<()> {
-        let mut file = OpenOptions::new().append(true).create(true).open(path)?;
+        // Save file in crate root
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("src");
+        path.push("results");
+        path.push(file_name);
+
+        // Make sure the directory exists
+        std::fs::create_dir_all(path.parent().unwrap())?;
+        let file_exists = path.exists();
+
+        let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
+
+        // Write header if file did not exist before
+        if !file_exists {
+            writeln!(file, "checkpoint,gasprice,feedback,sui,ogd")?;
+        }
+
+        // Write row
         writeln!(
             file,
             "{},{},{},{},{}",
-            sequence_number, gas_price, gas_price_feedback, prediction_sui, prediction_ogd
+            checkpoint, gas_price, gas_price_feedback, prediction_sui, prediction_ogd
         )?;
 
         Ok(())
     }
+
     fn dump_hotness_to_csv(
         &self,
-        path: &str,
-        sequence_number: u64,
+        file_name: &str,
+        checkpoint: u64,
         object_id: ObjectID,
         hotness: f64,
     ) -> std::io::Result<()> {
-        let mut file = OpenOptions::new().append(true).create(true).open(path)?;
-        writeln!(
-            file,
-            "{},{},{}",
-            sequence_number, object_id, hotness
-        )?;
+        // Store inside src/results/
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("src");
+        path.push("results");
+        path.push(file_name);
+
+        // Ensure directory exists
+        std::fs::create_dir_all(path.parent().unwrap())?;
+
+        let file_exists = path.exists();
+
+        let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
+
+        // Write header if file is new
+        if !file_exists {
+            writeln!(file, "checkpoint,object,hotness")?;
+        }
+
+        // Write row
+        writeln!(file, "{},{},{}", checkpoint, object_id, hotness)?;
 
         Ok(())
     }

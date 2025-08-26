@@ -89,6 +89,7 @@ services:
       - ./data/fullnode-1:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./results:/iota/crates/iota-core/src/results
     expose:
       - "9000"
     ports:
