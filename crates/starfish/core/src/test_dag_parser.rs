@@ -249,7 +249,7 @@ impl std::error::Error for ParseDagError {}
 
 impl<E: std::fmt::Debug> From<nom::Err<E>> for ParseDagError {
     fn from(err: nom::Err<E>) -> Self {
-        ParseDagError(format!("{:?}", err))
+        ParseDagError(format!("{err:?}"))
     }
 }
 /// DagParser

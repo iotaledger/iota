@@ -161,11 +161,11 @@ impl DagState {
 
         let last_commit = store
             .read_last_commit()
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
         let commit_info = store
             .read_last_commit_info()
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         let (mut last_committed_rounds, commit_recovery_start_index) =
             if let Some((commit_ref, commit_info)) = commit_info {
                 tracing::info!("Recovering committed state from {commit_ref} {commit_info:?}");
@@ -181,7 +181,7 @@ impl DagState {
         if let Some(last_commit) = last_commit.as_ref() {
             store
                 .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-                .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e))
+                .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
                 .iter()
                 .for_each(|commit| {
                     for block_ref in commit.blocks() {
@@ -522,7 +522,7 @@ impl DagState {
         let store_results = self
             .store
             .read_transactions(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
@@ -580,7 +580,7 @@ impl DagState {
         let store_results = self
             .store
             .read_block_headers(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         // TODO:similar metric for header reads count
         // self.context
         // .metrics
@@ -652,7 +652,7 @@ impl DagState {
     /// checked.
     pub(crate) fn get_uncommitted_blocks_at_round(&self, round: Round) -> Vec<VerifiedBlockHeader> {
         if round <= self.last_commit_round() {
-            panic!("Round {} have committed blocks!", round);
+            panic!("Round {round} have committed blocks!");
         }
 
         let mut blocks = vec![];
@@ -689,7 +689,7 @@ impl DagState {
             }
             let block_ref = linked.pop_last().unwrap();
             let Some(block) = self.get_block_header(&block_ref) else {
-                panic!("Block Header {:?} should exist in DAG!", block_ref);
+                panic!("Block Header {block_ref:?} should exist in DAG!");
             };
             linked.extend(block.ancestors().iter().cloned());
         }
@@ -704,7 +704,7 @@ impl DagState {
             ))
             .map(|r| {
                 self.get_block_header(r)
-                    .unwrap_or_else(|| panic!("Block {:?} should exist in DAG!", r))
+                    .unwrap_or_else(|| panic!("Block {r:?} should exist in DAG!"))
                     .clone()
             })
             .collect()
@@ -1024,7 +1024,7 @@ impl DagState {
         let store_results = self
             .store
             .contains_block_headers(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
@@ -1077,7 +1077,7 @@ impl DagState {
         let store_results = self
             .store
             .contains_transactions(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
@@ -1129,8 +1129,7 @@ impl DagState {
 
             if commit.timestamp_ms() < last_commit.timestamp_ms() {
                 panic!(
-                    "Commit timestamps do not monotonically increment, prev commit {:?}, new commit {:?}",
-                    last_commit, commit
+                    "Commit timestamps do not monotonically increment, prev commit {last_commit:?}, new commit {commit:?}"
                 );
             }
         } else {
@@ -1238,16 +1237,6 @@ impl DagState {
             block_refs.push(block_ref);
             let opt_block_knowledge = self.recent_dag_cordial_knowledge[block_ref.author.value()]
                 .get_mut(&(block_ref.round, block_ref.digest));
-            if opt_block_knowledge.is_none() {
-                println!(
-                    "WARNING: Block knowledge for {:?} not found in recent dag cordial knowledge",
-                    block_ref
-                );
-                println!(
-                    "Current block headers not known by authority: {:?}",
-                    self.block_headers_not_known_by_authority
-                );
-            }
             let (_, who_knows_given_block) = opt_block_knowledge
                 .expect("We expect block ref to be in recent dag cordial knowledge");
             who_knows_given_block.insert(authority_index);
@@ -1451,7 +1440,7 @@ impl DagState {
                 commits,
                 commit_info,
             ))
-            .unwrap_or_else(|e| panic!("Failed to write to storage: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
 
         self.context
             .metrics
@@ -1506,7 +1495,7 @@ impl DagState {
     pub(crate) fn recover_last_commit_info(&self) -> Option<(CommitRef, CommitInfo)> {
         self.store
             .read_last_commit_info()
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e))
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
     pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<SubDagBase>) {
@@ -1888,8 +1877,7 @@ mod test {
         // & 2) might not be in right lexicographical order.
         assert_eq!(
             ancestors_refs, expected_refs,
-            "Expected round 11 ancestors: {:?}. Got: {:?}",
-            expected_refs, ancestors_refs
+            "Expected round 11 ancestors: {expected_refs:?}. Got: {ancestors_refs:?}",
         );
     }
 
@@ -2005,7 +1993,7 @@ mod test {
         for block_ref in block_refs.clone() {
             let slot = block_ref.into();
             let found = dag_state.contains_cached_block_header_at_slot(slot);
-            assert!(found, "A block should be found at slot {}", slot);
+            assert!(found, "A block should be found at slot {slot}");
         }
 
         // Now try to ask also for one block ref that is not in cache

@@ -71,8 +71,7 @@ impl ConsensusAuthority {
     ) -> Self {
         assert!(
             committee.is_valid_index(own_index),
-            "Invalid own index {}",
-            own_index
+            "Invalid own index {own_index}"
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
@@ -443,8 +442,7 @@ mod tests {
             loop {
                 if start.elapsed() > total_timeout {
                     panic!(
-                        "Test failed: Not all transactions were committed after {:?}. Missing: {:?}",
-                        total_timeout, expected_transactions
+                        "Test failed: Not all transactions were committed after {total_timeout:?}. Missing: {expected_transactions:?}"
                     );
                 }
                 let committed_subdag =
@@ -573,16 +571,13 @@ mod tests {
         let max_commit_index = last_committed_index.iter().max().unwrap();
         assert!(
             max_commit_index - min_commit_index < 5,
-            "Commit indices are not close enough: min = {}, max = {}",
-            min_commit_index,
-            max_commit_index
+            "Commit indices are not close enough: min = {min_commit_index}, max = {max_commit_index}",
         );
 
         // Expect that all transactions were submitted and processed.
         assert!(
             expected_transactions.is_empty(),
-            "Not all transactions were submitted or processed: {:?}",
-            expected_transactions
+            "Not all transactions were submitted or processed: {expected_transactions:?}",
         );
 
         // Expect that all authorities have committed blocks in rounds that are close
@@ -591,9 +586,7 @@ mod tests {
         let max_round = last_round_committed_blocks.iter().max().unwrap();
         assert!(
             max_round - min_round < 5,
-            "Committed block rounds are not close enough: min = {}, max = {}",
-            min_round,
-            max_round
+            "Committed block rounds are not close enough: min = {min_round}, max = {max_round}",
         );
     }
 
@@ -648,8 +641,7 @@ mod tests {
             loop {
                 if start.elapsed() > total_timeout {
                     panic!(
-                        "Test failed: Not all transactions were committed after {:?}. Missing: {:?}",
-                        total_timeout, expected_transactions
+                        "Test failed: Not all transactions were committed after {total_timeout:?}. Missing: {expected_transactions:?}",
                     );
                 }
                 let committed_subdag =
@@ -797,7 +789,7 @@ mod tests {
             timeout(Duration::from_secs(10), output_receivers[index_1].recv()).await;
         match received_from_authority_1 {
             Ok(Some(result)) => {
-                panic!("Expected no result, but received: {:?}", result);
+                panic!("Expected no result, but received: {result:?}");
             }
             Ok(None) | Err(_) => {
                 // Timeout or channel closed as expected, test passes

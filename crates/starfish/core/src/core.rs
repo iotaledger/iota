@@ -1933,7 +1933,7 @@ mod test {
                             core_fixture.core.try_propose(true).unwrap();
                         assert!(missing_committed_txns.is_empty());
                         new_block_opt.unwrap_or_else(|| {
-                            panic!("Block should have been proposed for round {}", round)
+                            panic!("Block should have been proposed for round {round}")
                         });
                     }
                 }

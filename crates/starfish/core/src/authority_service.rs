@@ -387,8 +387,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Err(ConsensusError::BlockRejected {
                 block_ref,
                 reason: format!(
-                    "Last commit index is lagging quorum commit index too much ({} < {})",
-                    last_commit_index, quorum_commit_index,
+                    "Last commit index is lagging quorum commit index too much ({last_commit_index} < {quorum_commit_index})",
                 ),
             });
         }
@@ -1240,7 +1239,7 @@ mod tests {
             Err(ConsensusError::BlockRejected { reason, .. }) => {
                 assert!(reason.contains("timestamp is too far in the future"));
             }
-            _ => panic!("Expected BlockRejected error, got {:?}", result),
+            _ => panic!("Expected BlockRejected error, got {result:?}"),
         }
 
         // After this sleep time drift is within the limit, so we would not reject the
@@ -1329,7 +1328,7 @@ mod tests {
         if let Err(ConsensusError::UnexpectedAuthority { .. }) = result {
             // everything is fine
         } else {
-            panic!("Expected UnexpectedAuthority error, got {:?}", result);
+            panic!("Expected UnexpectedAuthority error, got {result:?}");
         }
 
         // Now send from correct peer
@@ -1422,10 +1421,7 @@ mod tests {
         if let Err(ConsensusError::TransactionCommitmentFailure { .. }) = result {
             // everything is fine
         } else {
-            panic!(
-                "Expected TransactionCommitmentFailure error, got {:?}",
-                result
-            );
+            panic!("Expected TransactionCommitmentFailure error, got {result:?}",);
         }
     }
 
@@ -1514,7 +1510,7 @@ mod tests {
         if let Err(ConsensusError::TooManyHeadersInABundle { .. }) = result {
             // everything is fine
         } else {
-            panic!("Expected TooManyHeadersInABundle error, got {:?}", result);
+            panic!("Expected TooManyHeadersInABundle error, got {result:?}");
         }
 
         headers.pop();
@@ -1545,10 +1541,7 @@ mod tests {
         if let Err(ConsensusError::TooBigHeaderRoundInABundle { .. }) = result {
             // everything is fine
         } else {
-            panic!(
-                "Expected TooBigHeaderRoundInABundle error, got {:?}",
-                result
-            );
+            panic!("Expected TooBigHeaderRoundInABundle error, got {result:?}",);
         }
 
         // Create a block with a big round
@@ -2356,8 +2349,7 @@ mod tests {
         assert_eq!(
             received_bundles.len() as u32,
             expected_blocks,
-            "Should receive {} missed blocks",
-            expected_blocks
+            "Should receive {expected_blocks} missed blocks",
         );
 
         // Check the correctness of the received blocks

@@ -4,7 +4,7 @@
 
 use std::fmt::Display;
 
-use consensus_core::{BlockAPI, CommitDigest};
+use consensus_core::BlockAPI;
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 
 use crate::consensus_types::AuthorityIndex;
@@ -32,138 +32,115 @@ pub(crate) trait ConsensusOutputAPI: Display {
     /// Returns the digest of consensus output.
     fn consensus_digest(&self) -> ConsensusCommitDigest;
 }
+macro_rules! impl_consensus_output_api {
+    (
+        // Type to implement for
+        type = $ty:path,
+        // Fully qualified commit digest type used in the size assertion
+        commit_digest = $commit_digest:path,
+        // How to iterate items that carry (round/author/txs)
+        iterate = |$self_ident:ident, $item_ident:ident| $iter:expr,
+        // How to read the round from an item (u64 or cast yourself later)
+        round = |$round_item:ident| $round_expr:expr,
+        // How to read the author index value (u32/usize; we cast to AuthorityIndex)
+        author = |$auth_item:ident| $author_expr:expr,
+        // How to get the `&[u8]` txs iterator source (something with `.iter()` over tx buffers)
+        txs = |$txs_item:ident| $txs_expr:expr
+    ) => {
+        impl ConsensusOutputAPI for $ty {
+            fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
+                if !self.reputation_scores_desc.is_empty() {
+                    Some(
+                        self.reputation_scores_desc
+                            .iter()
+                            .map(|(id, score)| (id.value() as AuthorityIndex, *score))
+                            .collect(),
+                    )
+                } else {
+                    None
+                }
+            }
 
-impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
-    fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
-        if !self.reputation_scores_desc.is_empty() {
-            Some(
-                self.reputation_scores_desc
-                    .iter()
-                    .map(|(id, score)| (id.value() as AuthorityIndex, *score))
-                    .collect(),
-            )
-        } else {
-            None
-        }
-    }
+            fn leader_round(&self) -> u64 {
+                self.leader.round as u64
+            }
 
-    fn leader_round(&self) -> u64 {
-        self.leader.round as u64
-    }
+            fn leader_author_index(&self) -> AuthorityIndex {
+                self.leader.author.value() as AuthorityIndex
+            }
 
-    fn leader_author_index(&self) -> AuthorityIndex {
-        self.leader.author.value() as AuthorityIndex
-    }
+            fn commit_timestamp_ms(&self) -> u64 {
+                self.timestamp_ms
+            }
 
-    fn commit_timestamp_ms(&self) -> u64 {
-        self.timestamp_ms
-    }
+            fn commit_sub_dag_index(&self) -> u64 {
+                self.commit_ref.index.into()
+            }
 
-    fn commit_sub_dag_index(&self) -> u64 {
-        self.commit_ref.index.into()
-    }
+            fn transactions(&self) -> ConsensusOutputTransactions {
+                let $self_ident = self;
+                ($iter)
+                    .map(|$item_ident| {
+                        let round = { $round_expr } as u64;
+                        let author = { $author_expr } as AuthorityIndex;
 
-    fn transactions(&self) -> ConsensusOutputTransactions {
-        self.blocks
-            .iter()
-            .map(|block| {
-                let round = block.round();
-                let author = block.author().value() as AuthorityIndex;
-                let transactions: Vec<_> = block
-                    .transactions()
-                    .iter()
-                    .flat_map(|tx| {
-                        let transaction = bcs::from_bytes::<ConsensusTransaction>(tx.data());
-                        match transaction {
-                            Ok(transaction) => Some((
-                                transaction,
-                                tx.data().len(),
-                            )),
-                            Err(err) => {
-                                tracing::error!("Failed to deserialize sequenced consensus transaction(this should not happen) {} from {author} at {round}", err);
-                                None
-                            },
-                        }
+                        let transactions: Vec<_> = ({
+                                let $txs_item = $item_ident;
+                                $txs_expr
+                            })
+                            .iter()
+                            .flat_map(|tx| {
+                                let transaction = bcs::from_bytes::<ConsensusTransaction>(tx.data());
+                                match transaction {
+                                    Ok(transaction) => Some((transaction, tx.data().len())),
+                                    Err(err) => {
+                                        tracing::error!(
+                                            "Failed to deserialize sequenced consensus transaction \
+                                             (this should not happen) {err} from {author} at {round}"
+                                        );
+                                        None
+                                    }
+                                }
+                            })
+                            .collect();
+
+                        (author, transactions)
                     })
-                    .collect();
-                (author, transactions)
-            })
-            .collect()
-    }
+                    .collect()
+            }
 
-    fn consensus_digest(&self) -> ConsensusCommitDigest {
-        // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
-        // iota-core space object. We assume they always have the same
-        // format.
-        static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
-        ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
-    }
+            fn consensus_digest(&self) -> ConsensusCommitDigest {
+                // Ensure wire layout matches.
+                static_assertions::assert_eq_size!(ConsensusCommitDigest, $commit_digest);
+                ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
+            }
+        }
+    };
 }
 
-impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
-    fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
-        if !self.reputation_scores_desc.is_empty() {
-            Some(
-                self.reputation_scores_desc
-                    .iter()
-                    .map(|(id, score)| (id.value() as AuthorityIndex, *score))
-                    .collect(),
-            )
-        } else {
-            None
-        }
-    }
+// ===== Use the macro for the two concrete types =====
 
-    fn leader_round(&self) -> u64 {
-        self.leader.round as u64
-    }
+// consensus_core::CommittedSubDag:
+// - iterate over `self.blocks`
+// - per-item accessors: round()/author().value()/transactions()
+impl_consensus_output_api! {
+    type = consensus_core::CommittedSubDag,
+    commit_digest = consensus_core::CommitDigest,
+    iterate = |self_, block| self_.blocks.iter(),
+    round   = |block| block.round(),
+    author  = |block| block.author().value(),
+    txs     = |block| block.transactions()
+}
 
-    fn leader_author_index(&self) -> AuthorityIndex {
-        self.leader.author.value() as AuthorityIndex
-    }
-
-    fn commit_timestamp_ms(&self) -> u64 {
-        // TODO: Enforce ordered timestamp in Mysticeti.
-        self.timestamp_ms
-    }
-
-    fn commit_sub_dag_index(&self) -> u64 {
-        self.commit_ref.index.into()
-    }
-
-    fn transactions(&self) -> ConsensusOutputTransactions {
-        self.transactions
-            .iter()
-            .map(|verified_transactions| {
-                let round = verified_transactions.block_ref().round;
-                let author = verified_transactions.block_ref().author.value() as AuthorityIndex;
-                let transactions: Vec<_> = verified_transactions
-                    .transactions()
-                    .iter()
-                    .flat_map(|tx| {
-                        let transaction = bcs::from_bytes::<ConsensusTransaction>(tx.data());
-                        match transaction {
-                            Ok(transaction) => Some((
-                                transaction,
-                                tx.data().len(),
-                            )),
-                            Err(err) => {
-                                tracing::error!("Failed to deserialize sequenced consensus transaction(this should not happen) {} from {author} at {round}", err);
-                                None
-                            },
-                        }
-                    })
-                    .collect();
-                (author, transactions)
-            })
-            .collect()
-    }
-
-    fn consensus_digest(&self) -> ConsensusCommitDigest {
-        // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
-        // iota-core space object. We assume they always have the same
-        // format.
-        static_assertions::assert_eq_size!(ConsensusCommitDigest, starfish_core::CommitDigest);
-        ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
-    }
+// starfish_core::CommittedSubDag:
+// - iterate over `self.transactions` (VerifiedTransactions)
+// - per-item accessors via block_ref(): .round / .author.value()
+// - txs via vt.transactions()
+impl_consensus_output_api! {
+    type = starfish_core::CommittedSubDag,
+    commit_digest = starfish_core::CommitDigest,
+    iterate = |self_, vt| self_.transactions.iter(),
+    round   = |vt| vt.block_ref().round,
+    author  = |vt| vt.block_ref().author.value(),
+    txs     = |vt| vt.transactions()
 }

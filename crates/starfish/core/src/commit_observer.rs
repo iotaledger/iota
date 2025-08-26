@@ -266,8 +266,7 @@ impl CommitObserver {
                     );
                     self.sender.send(solid_sub_dag).unwrap_or_else(|e| {
                         panic!(
-                            "Failed to send commit during recovery, probably due to shutdown: {:?}",
-                            e
+                            "Failed to send commit during recovery, probably due to shutdown: {e:?}"
                         )
                     });
 

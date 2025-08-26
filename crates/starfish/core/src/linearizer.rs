@@ -131,7 +131,7 @@ impl Linearizer {
         );
         let serialized = commit
             .serialize()
-            .unwrap_or_else(|e| panic!("Failed to serialize commit: {}", e));
+            .unwrap_or_else(|e| panic!("Failed to serialize commit: {e}"));
         let commit = TrustedCommit::new_trusted(commit, serialized);
 
         // Create the corresponding committed sub dag

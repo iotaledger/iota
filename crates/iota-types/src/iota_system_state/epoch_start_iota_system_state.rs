@@ -124,6 +124,58 @@ impl EpochStartSystemStateV1 {
         }
     }
 }
+// Helper macro to implement get_committee functions for different committee
+// types.
+macro_rules! impl_get_committee {
+    (
+        // function signature
+        fn $fn_name:ident -> $committee_ty:path,
+        // Committee authority type
+        authority = $authority_ty:ident,
+        // Config module where the committee authority public key types are defined
+        cfg = $cfg:ident,
+        // Label for logging purposes
+        label = $label:expr
+    ) => {
+        fn $fn_name(&self) -> $committee_ty {
+            let mut authorities: Vec<$authority_ty> =
+                Vec::with_capacity(self.committee_validators.len());
+
+            for validator in self.committee_validators.iter() {
+                authorities.push($authority_ty {
+                    stake: validator.voting_power as $cfg::Stake,
+                    address: validator.primary_address.clone(),
+                    hostname: validator.hostname.clone(),
+                    authority_key: <$cfg::AuthorityPublicKey>::new(
+                        validator.authority_pubkey.clone(),
+                    ),
+                    protocol_key: <$cfg::ProtocolPublicKey>::new(validator.protocol_pubkey.clone()),
+                    network_key: <$cfg::NetworkPublicKey>::new(validator.network_pubkey.clone()),
+                });
+            }
+
+            // Sort the authorities by their authority (public) key in ascending order, same
+            // as the order in the IOTA committee returned from get_iota_committee().
+            authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
+
+            for ((i, authority), iota_authority_name) in authorities
+                .iter()
+                .enumerate()
+                .zip(self.get_iota_committee().names())
+            {
+                if iota_authority_name.0 != authority.authority_key.to_bytes() {
+                    error!(
+                        "Mismatched authority order between IOTA and {}! \
+                        Index {}, {} authority {:?}\nIota authority name {}",
+                        $label, i, $label, authority, iota_authority_name
+                    );
+                }
+            }
+
+            <$committee_ty>::new(self.epoch as $cfg::Epoch, authorities)
+        }
+    };
+}
 
 impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     fn epoch(&self) -> EpochId {
@@ -188,83 +240,19 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         Committee::new(self.epoch, voting_rights)
     }
 
-    fn get_consensus_committee(&self) -> ConsensusCommittee {
-        let mut authorities = vec![];
-        for validator in self.committee_validators.iter() {
-            authorities.push(Authority {
-                stake: validator.voting_power as consensus_config::Stake,
-                address: validator.primary_address.clone(),
-                hostname: validator.hostname.clone(),
-                authority_key: consensus_config::AuthorityPublicKey::new(
-                    validator.authority_pubkey.clone(),
-                ),
-                protocol_key: consensus_config::ProtocolPublicKey::new(
-                    validator.protocol_pubkey.clone(),
-                ),
-                network_key: consensus_config::NetworkPublicKey::new(
-                    validator.network_pubkey.clone(),
-                ),
-            });
-        }
+    impl_get_committee!(
+        fn get_consensus_committee -> ConsensusCommittee,
+        authority = Authority,
+        cfg = consensus_config,
+        label = "Mysticeti"
+    );
 
-        // Sort the authorities by their authority (public) key in ascending order, same
-        // as the order in the IOTA committee returned from get_iota_committee().
-        authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
-
-        for ((i, mysticeti_authority), iota_authority_name) in authorities
-            .iter()
-            .enumerate()
-            .zip(self.get_iota_committee().names())
-        {
-            if iota_authority_name.0 != mysticeti_authority.authority_key.to_bytes() {
-                error!(
-                    "Mismatched authority order between IOTA and Mysticeti! Index {}, Mysticeti authority {:?}\nIota authority name {}",
-                    i, mysticeti_authority, iota_authority_name
-                );
-            }
-        }
-
-        ConsensusCommittee::new(self.epoch as consensus_config::Epoch, authorities)
-    }
-
-    fn get_starfish_committee(&self) -> StarfishCommittee {
-        let mut authorities = vec![];
-        for validator in self.committee_validators.iter() {
-            authorities.push(StarfishAuthority {
-                stake: validator.voting_power as consensus_config::Stake,
-                address: validator.primary_address.clone(),
-                hostname: validator.hostname.clone(),
-                authority_key: starfish_config::AuthorityPublicKey::new(
-                    validator.authority_pubkey.clone(),
-                ),
-                protocol_key: starfish_config::ProtocolPublicKey::new(
-                    validator.protocol_pubkey.clone(),
-                ),
-                network_key: starfish_config::NetworkPublicKey::new(
-                    validator.network_pubkey.clone(),
-                ),
-            });
-        }
-
-        // Sort the authorities by their authority (public) key in ascending order, same
-        // as the order in the IOTA committee returned from get_iota_committee().
-        authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
-
-        for ((i, mysticeti_authority), iota_authority_name) in authorities
-            .iter()
-            .enumerate()
-            .zip(self.get_iota_committee().names())
-        {
-            if iota_authority_name.0 != mysticeti_authority.authority_key.to_bytes() {
-                error!(
-                    "Mismatched authority order between IOTA and Starfish! Index {}, Starfish authority {:?}\nIota authority name {}",
-                    i, mysticeti_authority, iota_authority_name
-                );
-            }
-        }
-
-        StarfishCommittee::new(self.epoch as starfish_config::Epoch, authorities)
-    }
+    impl_get_committee!(
+        fn get_starfish_committee -> StarfishCommittee,
+        authority = StarfishAuthority,
+        cfg = starfish_config,
+        label = "Starfish"
+    );
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
         self.committee_validators

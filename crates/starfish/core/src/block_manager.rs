@@ -340,8 +340,7 @@ impl BlockManager {
 
                     {
                         panic!(
-                            "Unsuspended block {:?} has a missing ancestor! Ancestor not found in DagState: {:?}",
-                            b, ancestor_ref
+                            "Unsuspended block {b:?} has a missing ancestor! Ancestor not found in DagState: {ancestor_ref:?}"
                         );
                     }
                 }
@@ -862,8 +861,7 @@ mod tests {
 
             assert_eq!(
                 all_accepted_block_headers, all_block_headers,
-                "Failed acceptance sequence for seed {}",
-                seed
+                "Failed acceptance sequence for seed {seed}",
             );
             assert!(block_manager.is_empty());
         }

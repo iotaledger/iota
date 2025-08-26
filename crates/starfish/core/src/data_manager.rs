@@ -162,7 +162,7 @@ impl DataManager {
                         if !missing.insert(block_ref) {
                             // Transactions should only be committed by a single subdag, so
                             // duplicates should never happen.
-                            panic!("Duplicate missing blockref detected: {:?}", block_ref);
+                            panic!("Duplicate missing blockref detected: {block_ref:?}");
                         }
                     }
                 }

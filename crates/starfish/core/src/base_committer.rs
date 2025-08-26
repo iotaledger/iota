@@ -198,7 +198,7 @@ impl BaseCommitter {
                 .dag_state
                 .read()
                 .get_block_header(ancestor)
-                .unwrap_or_else(|| panic!("Block not found in storage: {:?}", ancestor));
+                .unwrap_or_else(|| panic!("Block not found in storage: {ancestor:?}"));
             if let Some(support) = self.find_supported_block(leader_slot, &ancestor) {
                 return Some(support);
             }
@@ -240,7 +240,7 @@ impl BaseCommitter {
 
                 let is_vote = {
                     let potential_vote = potential_vote
-                        .unwrap_or_else(|| panic!("Block not found in storage: {:?}", reference));
+                        .unwrap_or_else(|| panic!("Block not found in storage: {reference:?}"));
                     self.is_vote(&potential_vote, leader_block)
                 };
 
