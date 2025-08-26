@@ -873,7 +873,7 @@ impl IotaNode {
         let grpc_server_handle =
             build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
 
-        let validator_components = if state.is_validator(&epoch_store) {
+        let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
                 Self::construct_validator_components(
                     config.clone(),
@@ -1981,7 +1981,7 @@ impl IotaNode {
 
                 consensus_store_pruner.prune(next_epoch).await;
 
-                if self.state.is_validator(&new_epoch_store) {
+                if self.state.is_committee_validator(&new_epoch_store) {
                     // Only restart consensus if this node is still a validator in the new epoch.
                     Some(
                         Self::start_epoch_specific_validator_components(
@@ -2031,7 +2031,7 @@ impl IotaNode {
                 let weak_accumulator = Arc::downgrade(&new_accumulator);
                 *accumulator_guard = Some(new_accumulator);
 
-                if self.state.is_validator(&new_epoch_store) {
+                if self.state.is_committee_validator(&new_epoch_store) {
                     info!("Promoting the node from fullnode to validator, starting grpc server");
 
                     let mut components = Self::construct_validator_components(

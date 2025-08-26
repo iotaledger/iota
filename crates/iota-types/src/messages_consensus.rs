@@ -153,7 +153,7 @@ impl Debug for AuthorityCapabilitiesDigest {
 #[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct AuthorityCapabilitiesV1 {
     /// Originating authority - must match transaction source authority from
-    /// consensus.
+    /// consensus or the signature of a non-committee active validator.
     pub authority: AuthorityName,
     /// Generation number set by sending authority. Used to determine which of
     /// multiple AuthorityCapabilities messages from the same authority is

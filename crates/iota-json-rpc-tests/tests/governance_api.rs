@@ -206,7 +206,7 @@ async fn get_stakes_with_new_validator() {
     new_validator_handle.with(|node| {
         assert!(
             node.state()
-                .is_validator(&node.state().epoch_store_for_testing())
+                .is_committee_validator(&node.state().epoch_store_for_testing())
         );
     });
 

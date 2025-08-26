@@ -2743,8 +2743,9 @@ fn create_capability_notification_mock_clients_with_errors(
 
         if i < config.success_count {
             // Configure successful response
-            client
-                .set_handle_capability_notification(Ok(HandleCapabilityNotificationResponseV1 {}));
+            client.set_handle_capability_notification(Ok(HandleCapabilityNotificationResponseV1 {
+                _unused: false,
+            }));
         } else if i < config.success_count + config.non_retryable_errors.len() as u64 {
             // Configure non-retryable error response
             let error_index = (i - config.success_count) as usize;

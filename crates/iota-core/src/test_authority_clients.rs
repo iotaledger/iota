@@ -158,7 +158,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         // For test clients, directly record capabilities since we don't have consensus
         epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
-        Ok(HandleCapabilityNotificationResponseV1 {})
+        Ok(HandleCapabilityNotificationResponseV1 { _unused: false })
     }
 }
 
@@ -361,7 +361,7 @@ impl AuthorityAPI for MockAuthorityApi {
 
         match &self.handle_capability_notification_result {
             Some(result) => result.clone(),
-            None => Ok(HandleCapabilityNotificationResponseV1 {}),
+            None => Ok(HandleCapabilityNotificationResponseV1 { _unused: false }),
         }
     }
 }

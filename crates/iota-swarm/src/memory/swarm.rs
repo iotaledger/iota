@@ -579,7 +579,7 @@ impl Swarm {
         self.validator_nodes().filter(|node| {
             node.get_node_handle().is_some_and(|handle| {
                 let state = handle.state();
-                state.is_validator(&state.epoch_store_for_testing())
+                state.is_committee_validator(&state.epoch_store_for_testing())
             })
         })
     }
