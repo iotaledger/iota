@@ -771,6 +771,109 @@ mod tests {
         }
     }
 
+    fn get_uncached_missing_proposals(context: &Arc<Context>) -> Vec<u64> {
+        let mut metrics = Vec::new();
+        for authority in context.committee.authorities() {
+            let hostname = authority.1.hostname.as_str();
+            metrics.push(
+                context
+                    .metrics
+                    .node_metrics
+                    .uncached_missing_proposals_by_authority
+                    .get_metric_with_label_values(&[hostname])
+                    .unwrap()
+                    .get(),
+            )
+        }
+        metrics
+    }
+
+    fn get_missing_proposals_in_cache(context: &Arc<Context>) -> Vec<u64> {
+        let mut metrics = Vec::new();
+        for authority in context.committee.authorities() {
+            let hostname = authority.1.hostname.as_str();
+            metrics.push(
+                context
+                    .metrics
+                    .node_metrics
+                    .missing_proposals_in_cache_by_authority
+                    .get_metric_with_label_values(&[hostname])
+                    .unwrap()
+                    .get()
+                    .unsigned_abs(),
+            )
+        }
+        metrics
+    }
+
+    fn get_uncached_equivocations(context: &Arc<Context>) -> Vec<u64> {
+        let mut metrics = Vec::new();
+        for authority in context.committee.authorities() {
+            let hostname = authority.1.hostname.as_str();
+            metrics.push(
+                context
+                    .metrics
+                    .node_metrics
+                    .uncached_equivocations_by_authority
+                    .get_metric_with_label_values(&[hostname])
+                    .unwrap()
+                    .get(),
+            )
+        }
+        metrics
+    }
+
+    fn get_equivocations_in_cache(context: &Arc<Context>) -> Vec<u64> {
+        let mut metrics = Vec::new();
+        for authority in context.committee.authorities() {
+            let hostname = authority.1.hostname.as_str();
+            metrics.push(
+                context
+                    .metrics
+                    .node_metrics
+                    .equivocations_in_cache_by_authority
+                    .get_metric_with_label_values(&[hostname])
+                    .unwrap()
+                    .get()
+                    .unsigned_abs(),
+            )
+        }
+        metrics
+    }
+
+    fn get_faulty_blocks_provable(context: &Arc<Context>, source: &str, error: &str) -> Vec<u64> {
+        let mut metrics = Vec::new();
+        for authority in context.committee.authorities() {
+            let hostname = authority.1.hostname.as_str();
+            metrics.push(
+                context
+                    .metrics
+                    .node_metrics
+                    .faulty_blocks_provable_by_authority
+                    .get_metric_with_label_values(&[hostname, source, error])
+                    .unwrap()
+                    .get(),
+            )
+        }
+        metrics
+    }
+    fn get_faulty_blocks_unprovable(context: &Arc<Context>, source: &str, error: &str) -> Vec<u64> {
+        let mut metrics = Vec::new();
+        for authority in context.committee.authorities() {
+            let hostname = authority.1.hostname.as_str();
+            metrics.push(
+                context
+                    .metrics
+                    .node_metrics
+                    .faulty_blocks_unprovable_by_authority
+                    .get_metric_with_label_values(&[hostname, source, error])
+                    .unwrap()
+                    .get(),
+            )
+        }
+        metrics
+    }
+
     #[test]
     fn test_update_score_edge_cases() {
         let context = Context::new_for_test(4);
@@ -965,8 +1068,13 @@ mod tests {
             .set_consensus_linearize_subdag_v2_for_testing(true);
 
         let context = Arc::new(context);
+        let hostnames: Vec<&str> = context
+            .committee
+            .authorities()
+            .map(|a| a.1.hostname.as_str())
+            .collect();
         let scoring_metrics = &context.scorer.scoring_metrics;
-
+        let node_metrics = &context.metrics.node_metrics;
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
@@ -1025,9 +1133,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1058,9 +1174,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![1, 0, 0, 0],
+                vec![0; committee_size],
+                vec![2, 0, 0, 0],
                 vec![0; committee_size],
                 vec![1, 0, 0, 0],
                 vec![0; committee_size],
@@ -1075,14 +1199,30 @@ mod tests {
         scoring_metrics.cached[0]
             .missing_proposals
             .store(0, Ordering::Relaxed);
+        node_metrics
+            .uncached_missing_proposals_by_authority
+            .with_label_values(&[hostnames[0]])
+            .reset();
+        node_metrics
+            .missing_proposals_in_cache_by_authority
+            .with_label_values(&[hostnames[0]])
+            .set(0);
         assert_eq!(
             [
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1100,13 +1240,21 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
                 vec![0; committee_size],
                 vec![1, 0, 0, 0],
                 vec![0; committee_size],
                 vec![2, 0, 0, 0],
+                vec![0; committee_size],
+                vec![1, 0, 0, 0],
+                vec![0; committee_size],
+                vec![2, 0, 0, 0]
             ]
         );
 
@@ -1140,9 +1288,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![3, 0, 0, 0],
+                vec![0, 1, 0, 0],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![3, 0, 0, 0],
                 vec![0, 1, 0, 0],
@@ -1163,15 +1319,31 @@ mod tests {
         scoring_metrics.cached[1]
             .equivocations
             .store(0, Ordering::Relaxed);
+        node_metrics
+            .uncached_missing_proposals_by_authority
+            .with_label_values(&[hostnames[0]])
+            .reset();
+        node_metrics
+            .equivocations_in_cache_by_authority
+            .with_label_values(&[hostnames[1]])
+            .set(0);
 
         assert_eq!(
             [
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1191,9 +1363,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![3, 0, 0, 0],
+                vec![0, 1, 0, 0],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![3, 0, 0, 0],
                 vec![0, 1, 0, 0],
@@ -1214,9 +1394,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context),
             ],
             [
+                vec![0, 1, 2, 0],
+                vec![3, 0, 0, 0],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0, 1, 2, 0],
                 vec![3, 0, 0, 0],
                 vec![0; committee_size],
@@ -1244,7 +1432,14 @@ mod tests {
             .set_consensus_linearize_subdag_v2_for_testing(false);
 
         let context = Arc::new(context);
+        let hostnames: Vec<&str> = context
+            .committee
+            .authorities()
+            .map(|a| a.1.hostname.as_str())
+            .collect();
         let scoring_metrics = &context.scorer.scoring_metrics;
+        let node_metrics = &context.metrics.node_metrics;
+
         let store = Arc::new(MemStore::new());
         // `cached_rounds` is initialized here as 5.
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -1304,9 +1499,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1337,9 +1540,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![3, 0, 0, 0],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1354,14 +1565,30 @@ mod tests {
         scoring_metrics.cached[0]
             .missing_proposals
             .store(0, Ordering::Relaxed);
+        node_metrics
+            .uncached_missing_proposals_by_authority
+            .with_label_values(&[hostnames[0]])
+            .reset();
+        node_metrics
+            .missing_proposals_in_cache_by_authority
+            .with_label_values(&[hostnames[0]])
+            .set(0);
         assert_eq!(
             [
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1425,9 +1652,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![2, 0, 0, 0],
+                vec![0, 1, 0, 0],
+                vec![1, 0, 0, 0],
                 vec![0; committee_size],
                 vec![2, 0, 0, 0],
                 vec![0, 1, 0, 0],
@@ -1451,15 +1686,35 @@ mod tests {
         scoring_metrics.cached[0]
             .missing_proposals
             .store(0, Ordering::Relaxed);
+        node_metrics
+            .uncached_missing_proposals_by_authority
+            .with_label_values(&[hostnames[0]])
+            .reset();
+        node_metrics
+            .missing_proposals_in_cache_by_authority
+            .with_label_values(&[hostnames[0]])
+            .set(0);
+        node_metrics
+            .equivocations_in_cache_by_authority
+            .with_label_values(&[hostnames[1]])
+            .set(0);
 
         assert_eq!(
             [
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
                 vec![0; committee_size],
@@ -1479,9 +1734,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0; committee_size],
+                vec![2, 0, 0, 0],
+                vec![0, 1, 0, 0],
+                vec![1, 0, 0, 0],
                 vec![0; committee_size],
                 vec![2, 0, 0, 0],
                 vec![0, 1, 0, 0],
@@ -1502,9 +1765,17 @@ mod tests {
                 scoring_metrics.uncached_equivocations_by_authority(),
                 scoring_metrics.uncached_missing_proposals_by_authority(),
                 scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                get_uncached_equivocations(&context),
+                get_uncached_missing_proposals(&context),
+                get_equivocations_in_cache(&context),
+                get_missing_proposals_in_cache(&context)
             ],
             [
+                vec![0, 1, 2, 0],
+                vec![3, 0, 0, 0],
+                vec![0; committee_size],
+                vec![0; committee_size],
                 vec![0, 1, 2, 0],
                 vec![3, 0, 0, 0],
                 vec![0; committee_size],
@@ -1520,7 +1791,6 @@ mod tests {
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
         let scoring_metrics = &context.scorer.scoring_metrics;
         let source = "handle_send_block";
-        let hostname = "hostname";
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
@@ -1529,16 +1799,12 @@ mod tests {
             reason: "string".to_string(),
         };
 
-        let authorities = (0..committee_size as u32)
-            .map(AuthorityIndex::new_for_test)
-            .collect::<Vec<_>>();
-
         // Update metrics for each authority with an error that should be ignored.
         // Metrics should not be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 ignored_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1547,17 +1813,32 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![0, 0, 0, 0]]
+            [
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0]
+            ]
         );
 
         // Update metrics for each authority with a parsing error.
         // Only unprovable metrics should be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 parsing_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1566,17 +1847,32 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![1, 1, 1, 1]]
+            [
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0]
+            ]
         );
 
         // Update metrics for each authority with a signed block verification error.
         // Only provable metrics should be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 block_verification_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1585,9 +1881,24 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![1, 1, 1, 1], vec![1, 1, 1, 1]]
+            [
+                vec![1, 1, 1, 1],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0]
+            ]
         );
     }
 
@@ -1598,22 +1909,17 @@ mod tests {
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
         let scoring_metrics = &context.scorer.scoring_metrics;
         let source = "fetch_once";
-        let hostname = "hostname";
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
         let block_verification_error = ConsensusError::TooManyAncestors(2, 2);
 
-        let authorities = (0..committee_size as u32)
-            .map(AuthorityIndex::new_for_test)
-            .collect::<Vec<_>>();
-
         // Update metrics for each authority with an error that should be ignored.
         // Metrics should not be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 ignored_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1622,17 +1928,32 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![0, 0, 0, 0]]
+            [
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0]
+            ]
         );
 
         // Update metrics for each authority with a parsing error.
         // Only unprovable metrics should be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 parsing_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1641,19 +1962,34 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![1, 1, 1, 1]]
+            [
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0]
+            ]
         );
 
         // Update metrics for each authority with a signed block verification error.
         // Since for error comes from the commit syncer, blocks received are not
         // necessarily from the peer. Thus, it is not provable that the peer actually
         // sent this block. Only unprovable metrics should be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 block_verification_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1662,9 +1998,24 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![2, 2, 2, 2]]
+            [
+                vec![0, 0, 0, 0],
+                vec![2, 2, 2, 2],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![1, 1, 1, 1],
+            ]
         );
     }
 
@@ -1675,22 +2026,17 @@ mod tests {
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
         let scoring_metrics = &context.scorer.scoring_metrics;
         let source = "process_fetched_blocks";
-        let hostname = "hostname";
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
         let block_verification_error = ConsensusError::TooManyAncestors(2, 2);
 
-        let authorities = (0..committee_size as u32)
-            .map(AuthorityIndex::new_for_test)
-            .collect::<Vec<_>>();
-
         // Update metrics for each authority with an error that should be ignored.
         // Metrics should not be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 ignored_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1699,17 +2045,32 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![0, 0, 0, 0]]
+            [
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0]
+            ]
         );
 
         // Update metrics for each authority with a parsing error.
         // Only unprovable metrics should be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 parsing_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1718,19 +2079,34 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![1, 1, 1, 1]]
+            [
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0]
+            ]
         );
 
         // Update metrics for each authority with a signed block verification error.
         // Since for error comes from the synchronizer, blocks received are not
         // necessarily from the peer. Thus, it is not provable that the peer actually
         // sent this block. Only unprovable metrics should be updated for this error.
-        for authority in authorities.iter() {
+        for authority in context.committee.authorities() {
             context.scorer.update_scoring_metrics_on_block_receival(
-                *authority,
-                hostname,
+                authority.0,
+                authority.1.hostname.as_str(),
                 block_verification_error.clone(),
                 source,
                 &context.metrics.node_metrics,
@@ -1739,9 +2115,24 @@ mod tests {
         assert_eq!(
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority()
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
             ],
-            [vec![0, 0, 0, 0], vec![2, 2, 2, 2]]
+            [
+                vec![0, 0, 0, 0],
+                vec![2, 2, 2, 2],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![1, 1, 1, 1],
+            ]
         );
     }
 }
