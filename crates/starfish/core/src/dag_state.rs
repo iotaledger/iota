@@ -1529,7 +1529,7 @@ impl DagState {
             .end()
     }
 
-    /// The last round that should get evicted after a cache clean up operation.
+    /// The last round that should get evicted after a cache-clean-up operation.
     /// After this round we are guaranteed to have all the produced blocks
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
@@ -1560,7 +1560,7 @@ impl DagState {
             use crate::stake_aggregator::{QuorumThreshold, StakeAggregator};
             let mut quorum = StakeAggregator::<QuorumThreshold>::new();
 
-            // Since the minimum wave length is 3 we expect to find a quorum in the
+            // Since the wave length is 3 we expect to find a quorum in the
             // uncommitted rounds.
             let blocks = self.get_uncommitted_blocks_at_round(round);
             for block in &blocks {
