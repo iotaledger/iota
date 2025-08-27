@@ -1765,7 +1765,7 @@ name = "move-bytecode-utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "indexmap 2.10.0",
+ "indexmap 2.11.0",
  "move-binary-format",
  "move-core-types",
  "petgraph",
@@ -1948,7 +1948,7 @@ dependencies = [
  "clap 4.5.41",
  "codespan",
  "colored",
- "indexmap 2.10.0",
+ "indexmap 2.11.0",
  "move-abstract-interpreter",
  "move-binary-format",
  "move-bytecode-source-map",
@@ -2125,6 +2125,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "codespan-reporting",
+ "indexmap 2.11.0",
  "move-binary-format",
  "move-bytecode-source-map",
  "move-command-line-common",
@@ -3288,7 +3289,7 @@ dependencies = [
  "chrono",
  "hex",
  "indexmap 1.9.3",
- "indexmap 2.10.0",
+ "indexmap 2.11.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -3761,7 +3762,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
- "indexmap 2.10.0",
+ "indexmap 2.11.0",
  "toml_datetime",
  "winnow",
 ]

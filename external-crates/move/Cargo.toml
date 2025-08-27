@@ -49,7 +49,7 @@ hex = "0.4.3"
 hex-literal = "0.3.4"
 hkdf = "0.10.0"
 im = "15.1.0"
-indexmap = "2.1.0"
+indexmap = "2.11.0"
 inline_colorization = "0.1.6"
 insta = "1.42.0"
 internment = { version = "0.5.0", features = ["arc"] }
