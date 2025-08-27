@@ -16,6 +16,7 @@ build/
 !crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build/
 storage/
 !consensus/core/src/storage/
+!crates/starfish/core/src/storage/
 !crates/iota-types/src/storage/
 
 # Move-related files
