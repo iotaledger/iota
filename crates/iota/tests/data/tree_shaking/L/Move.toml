@@ -1,9 +1,10 @@
 [package]
-name = "C"
+name = "L"
 edition = "2024"
 
 [dependencies]
-B = { local = "../B_A1" }
+K = { local = "../K" }
 
 [addresses]
-c = "0x0"
+l = "0x0"
+
