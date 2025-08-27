@@ -4,7 +4,7 @@ edition = "2024"
 
 [dependencies]
 A = { local = "../A_v2", override = true }
-D_A = { local = "../D_A"}
+D_A = { local = "../D_A" }
 
 [addresses]
 i = "0x0"
