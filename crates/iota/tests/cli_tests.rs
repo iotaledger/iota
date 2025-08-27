@@ -5858,9 +5858,7 @@ async fn test_tree_shaking_package_with_unpublished_deps() -> Result<(), anyhow:
 
     // try publish package H but `with_unpublished_dependencies` is false. Should
     // error
-    let resp = test
-        .publish_package("H_depends_on_G_unpublished", false)
-        .await;
+    let resp = test.publish_package("H", false).await;
     assert!(resp.is_err());
 
     Ok(())
@@ -5991,7 +5989,7 @@ async fn test_tree_shaking_package_with_transitive_dependencies1() -> Result<(),
 #[sim_test]
 async fn test_tree_shaking_package_with_transitive_dependencies_and_no_code_references()
 -> Result<(), anyhow::Error> {
-    // Publish package C_depends_on_B_but_no_code_references_B and check the linkage
+    // Publish package C_B with no code references_B and check the linkage
     // table we use here the package B published in TEST 3
     let mut test = TreeShakingTest::new().await?;
 
@@ -6013,7 +6011,7 @@ async fn test_tree_shaking_package_with_transitive_dependencies_and_no_code_refe
 
 #[sim_test]
 async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::Error> {
-    // Publish package C_depends_on_B_but_no_code_references_B and check the linkage
+    // Publish package C_B with no code references_B and check the linkage
     // table
     let mut test = TreeShakingTest::new().await?;
 
