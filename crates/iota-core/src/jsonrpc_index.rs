@@ -734,9 +734,9 @@ impl IndexStore {
                 )?
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     limit,
-                    Some(|((id, _), _): &((KeyT, TxSequenceNumber), TransactionDigest)| *id == key),
+                    |((id, _), _)| *id == key,
                     |(_, digest)| digest,
                 )
                 .map_err(Into::into)
@@ -748,9 +748,9 @@ impl IndexStore {
                 )
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     limit,
-                    Some(|((id, _), _): &((KeyT, TxSequenceNumber), TransactionDigest)| *id == key),
+                    |((id, _), _)| *id == key,
                     |(_, digest)| digest,
                 )
                 .map_err(Into::into)
@@ -865,18 +865,13 @@ impl IndexStore {
                 .reversed_safe_iter_with_bounds(None, Some(key))?
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     limit,
-                    Some(
-                        |((id, m, f, _), _): &(
-                            (ObjectID, String, String, TxSequenceNumber),
-                            TransactionDigest,
-                        )| {
-                            *id == package
-                                && module.as_ref().map(|x| x == m).unwrap_or(true)
-                                && function.as_ref().map(|x| x == f).unwrap_or(true)
-                        },
-                    ),
+                    |((id, m, f, _), _)| {
+                        *id == package
+                            && module.as_ref().map(|x| x == m).unwrap_or(true)
+                            && function.as_ref().map(|x| x == f).unwrap_or(true)
+                    },
                     |(_, digest)| digest,
                 )
                 .map_err(Into::into)
@@ -886,18 +881,13 @@ impl IndexStore {
                 .safe_iter_with_bounds(Some(key), None)
                 // skip one more if exclusive cursor is Some
                 .skip(usize::from(cursor.is_some()))
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     limit,
-                    Some(
-                        |((id, m, f, _), _): &(
-                            (ObjectID, String, String, TxSequenceNumber),
-                            TransactionDigest,
-                        )| {
-                            *id == package
-                                && module.as_ref().map(|x| x == m).unwrap_or(true)
-                                && function.as_ref().map(|x| x == f).unwrap_or(true)
-                        },
-                    ),
+                    |((id, m, f, _), _)| {
+                        *id == package
+                            && module.as_ref().map(|x| x == m).unwrap_or(true)
+                            && function.as_ref().map(|x| x == f).unwrap_or(true)
+                    },
                     |(_, digest)| digest,
                 )
                 .map_err(Into::into)
@@ -972,14 +962,9 @@ impl IndexStore {
             self.tables
                 .event_order
                 .reversed_safe_iter_with_bounds(None, Some((min(tx_seq, seq), event_seq)))?
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     Some(limit),
-                    Some(
-                        |((tx, _), _): &(
-                            (TxSequenceNumber, usize),
-                            (TransactionEventsDigest, TransactionDigest, u64),
-                        )| tx == &seq,
-                    ),
+                    |((tx, _), _)| tx == &seq,
                     |((_, event_seq), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     },
@@ -989,14 +974,9 @@ impl IndexStore {
             self.tables
                 .event_order
                 .safe_iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None)
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     Some(limit),
-                    Some(
-                        |((tx, _), _): &(
-                            (TxSequenceNumber, usize),
-                            (TransactionEventsDigest, TransactionDigest, u64),
-                        )| tx == &seq,
-                    ),
+                    |((tx, _), _)| tx == &seq,
                     |((_, event_seq), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     },
@@ -1016,14 +996,9 @@ impl IndexStore {
         if descending {
             index
                 .reversed_safe_iter_with_bounds(None, Some((key.clone(), (tx_seq, event_seq))))?
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     Some(limit),
-                    Some(
-                        |((m, _), _): &(
-                            (KeyT, EventId),
-                            (TransactionEventsDigest, TransactionDigest, u64),
-                        )| m == key,
-                    ),
+                    |((m, _), _)| m == key,
                     |((_, (_, event_seq)), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     },
@@ -1032,14 +1007,9 @@ impl IndexStore {
         } else {
             index
                 .safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None)
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     Some(limit),
-                    Some(
-                        |((m, _), _): &(
-                            (KeyT, EventId),
-                            (TransactionEventsDigest, TransactionDigest, u64),
-                        )| m == key,
-                    ),
+                    |((m, _), _)| m == key,
                     |((_, (_, event_seq)), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     },
@@ -1133,9 +1103,9 @@ impl IndexStore {
             self.tables
                 .event_by_time
                 .reversed_safe_iter_with_bounds(None, Some((end_time, (tx_seq, event_seq))))?
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     Some(limit),
-                    Some(|((m, _), _): &((u64, EventId), EventIndex)| m >= &start_time),
+                    |((m, _), _)| m >= &start_time,
                     |((_, (_, event_seq)), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     },
@@ -1145,9 +1115,9 @@ impl IndexStore {
             self.tables
                 .event_by_time
                 .safe_iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
-                .try_skip_filter_map_and_collect::<_, _, _, Result<_, TypedStoreError>>(
+                .try_take_while_map_and_collect(
                     Some(limit),
-                    Some(|((m, _), _): &((u64, EventId), EventIndex)| m <= &end_time),
+                    |((m, _), _)| m <= &end_time,
                     |((_, (_, event_seq)), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     },
