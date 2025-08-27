@@ -484,7 +484,7 @@ impl DagState {
             .with_label_values(&["get_blocks"])
             .inc();
 
-        for (i, result) in store_results.into_iter().enumerate() {
+        for (i, result) in store_results.into_iter().enumerate().rev() {
             if let Some(block) = result {
                 let index = missing.remove(i).0;
                 blocks[index] = GetBlockResult::VerifiedBlock(block);
