@@ -6,10 +6,11 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     future::Future,
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU64},
+    sync::Arc,
 };
 
 use arc_swap::ArcSwapOption;
+use consensus_core::scorer::{PartialScores, Scorer};
 use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
@@ -36,9 +37,7 @@ use iota_types::{
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
-    crypto::{
-        AuthorityPublicKeyBytes, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound,
-    },
+    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
@@ -420,7 +419,7 @@ pub struct AuthorityPerEpochStore {
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
 
-    protocol_config: ProtocolConfig,
+    pub protocol_config: ProtocolConfig,
 
     // needed for re-opening epoch db.
     parent_path: PathBuf,
@@ -462,7 +461,7 @@ pub struct AuthorityPerEpochStore {
     epoch_alive: tokio::sync::RwLock<bool>,
     end_of_publish: Mutex<StakeAggregator<(), true>>,
     partial_scores_received: Mutex<StakeAggregator<Vec<u32>, true>>,
-    aggregated_partial_scores: Option<Vec<u32>>,
+    _aggregated_partial_scores: Option<Vec<u32>>,
     /// Pending certificates that are waiting to be sequenced by the consensus.
     /// This is an in-memory 'index' of a
     /// AuthorityPerEpochTables::pending_consensus_transactions. We need to
@@ -505,8 +504,8 @@ pub struct AuthorityPerEpochStore {
     randomness_reporter: OnceCell<RandomnessReporter>,
 
     /// Local view of the validator about the other authorities' partial scores.
-    pub(crate) partial_scores: Arc<Vec<AtomicU64>>,
-    partial_scores_sent: Option<Vec<u64>>,
+    _partial_scores_sent: Option<PartialScores>,
+    pub scorer: Arc<Scorer>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -963,7 +962,7 @@ impl AuthorityPerEpochStore {
         let s = Arc::new(Self {
             name,
             committee: committee.clone(),
-            protocol_config,
+            protocol_config: protocol_config.clone(),
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
@@ -984,7 +983,7 @@ impl AuthorityPerEpochStore {
             executed_digests_notify_read: NotifyRead::new(),
             end_of_publish: Mutex::new(end_of_publish),
             partial_scores_received: Mutex::new(partial_scores_received),
-            aggregated_partial_scores: None,
+            _aggregated_partial_scores: None,
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             version_assignment_mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -997,12 +996,8 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            partial_scores: Arc::new(
-                (0..committee.num_members())
-                    .map(|_| AtomicU64::new(u64::MAX))
-                    .collect(),
-            ),
-            partial_scores_sent: None,
+            _partial_scores_sent: None,
+            scorer: Arc::new(Scorer::new(committee.num_members(), &protocol_config)),
         });
 
         s.update_buffer_stake_metric();

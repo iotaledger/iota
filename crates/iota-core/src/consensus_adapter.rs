@@ -870,9 +870,10 @@ impl ConsensusAdapter {
             // sending message outside of any locks scope
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             let partial_scores = epoch_store
-                .partial_scores
+                .scorer
+                .get_unprovable_partial_scores()
                 .iter()
-                .map(|a| a.load(Ordering::Relaxed) as u32)
+                .map(|a| a.0.load(Ordering::Relaxed) as u32)
                 .collect();
             if let Err(err) = self.submit(
                 ConsensusTransaction::new_end_of_publish(self.authority, partial_scores),
@@ -1114,9 +1115,10 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
         if send_end_of_publish {
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             let partial_scores = epoch_store
-                .partial_scores
+                .scorer
+                .get_unprovable_partial_scores()
                 .iter()
-                .map(|a| a.load(Ordering::Relaxed) as u32)
+                .map(|a| a.0.load(Ordering::Relaxed) as u32)
                 .collect();
             if let Err(err) = self.submit(
                 ConsensusTransaction::new_end_of_publish(self.authority, partial_scores),

@@ -7011,6 +7011,7 @@ dependencies = [
  "bcs",
  "bin-version",
  "clap",
+ "consensus-core",
  "fastcrypto",
  "fastcrypto-zkp",
  "futures",

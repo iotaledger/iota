@@ -16,7 +16,6 @@ use crate::{
     block::{BlockRef, Round, VerifiedBlock},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
-    metrics::StoredScoringMetricsU64,
 };
 
 /// A common interface for consensus storage.
@@ -43,7 +42,7 @@ pub(crate) trait Store: Send + Sync {
 
     // The method reads and returns all metrics stored. Used for restoring the
     // scoring metrics in case of DagState initialization from storage
-    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoringMetricsU64)>>;
+    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
@@ -76,7 +75,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) scoring_metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
+    pub(crate) scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
 }
 
 impl WriteBatch {
@@ -84,7 +83,7 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        scoring_metrics: Vec<(AuthorityIndex, StoredScoringMetricsU64)>,
+        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
     ) -> Self {
         WriteBatch {
             blocks,
@@ -113,4 +112,14 @@ impl WriteBatch {
         self.commit_info = commit_info;
         self
     }
+}
+
+// This struct is used in storage. It holds the same data as
+// `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct StorageScoringMetrics {
+    pub(crate) faulty_blocks_provable: u64,
+    pub(crate) faulty_blocks_unprovable: u64,
+    pub(crate) equivocations: u64,
+    pub(crate) missing_proposals: u64,
 }

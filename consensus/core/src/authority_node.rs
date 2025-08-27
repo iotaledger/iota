@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    sync::{Arc, atomic::AtomicU64},
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
@@ -32,6 +29,7 @@ use crate::{
     metrics::initialise_metrics,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
+    scorer::Scorer,
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -59,7 +57,7 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
-        partial_scores: Arc<Vec<AtomicU64>>,
+        scorer: Arc<Scorer>,
         // A counter that keeps track of how many times the authority node has been booted while
         // the binary or the component that is calling the `ConsensusAuthority` has been
         // running. It's mostly useful to make decisions on whether amnesia recovery should
@@ -79,7 +77,7 @@ impl ConsensusAuthority {
                     transaction_verifier,
                     commit_consumer,
                     registry,
-                    partial_scores,
+                    scorer,
                     boot_counter,
                 )
                 .await;
@@ -163,7 +161,7 @@ where
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
-        partial_scores: Arc<Vec<AtomicU64>>,
+        scorer: Arc<Scorer>,
         boot_counter: u64,
     ) -> Self {
         assert!(
@@ -184,13 +182,13 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
-        let committee_size = committee.size();
         let context = Arc::new(Context::new(
             own_index,
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry, committee_size, partial_scores),
+            initialise_metrics(registry),
+            scorer,
             Arc::new(Clock::new()),
         ));
         let start_time = Instant::now();
@@ -440,6 +438,7 @@ mod tests {
     use crate::{
         CommittedSubDag,
         block::{BlockAPI as _, GENESIS_ROUND},
+        scorer,
         transaction::NoopTransactionVerifier,
     };
 
@@ -464,6 +463,7 @@ mod tests {
 
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
+        let scorer = Arc::new(Scorer::new_dummy_for_tests(committee.size()));
 
         let authority = ConsensusAuthority::start(
             network_type,
@@ -476,7 +476,7 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
-            Arc::new(vec![]),
+            scorer,
             0,
         )
         .await;
@@ -859,11 +859,8 @@ mod tests {
 
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
-        let partial_scores = Arc::new(
-            (0..committee.size())
-                .map(|_| AtomicU64::new(u64::MAX))
-                .collect(),
-        );
+        let scorer = Arc::new(scorer::Scorer::new_dummy_for_tests(committee.size()));
+
         let authority = ConsensusAuthority::start(
             network_type,
             index,
@@ -875,7 +872,7 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
-            partial_scores,
+            scorer,
             boot_counter,
         )
         .await;

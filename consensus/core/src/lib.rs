@@ -47,13 +47,13 @@ mod universal_committer;
 mod randomized_tests;
 
 mod round_prober;
+pub mod scorer;
 #[cfg(test)]
 mod test_dag;
 #[cfg(test)]
 mod test_dag_builder;
 #[cfg(test)]
 mod test_dag_parser;
-
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
 pub use block::{BlockAPI, BlockRef, Round};

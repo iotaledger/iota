@@ -54,6 +54,6 @@ iota-types.workspace = true
 move-vm-profiler.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
-
+consensus-core.workspace = true
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

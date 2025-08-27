@@ -1269,6 +1269,7 @@ impl IotaNode {
             client.clone(),
             checkpoint_store.clone(),
         ));
+
         let consensus_manager = ConsensusManager::new(
             &config,
             consensus_config,
