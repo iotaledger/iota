@@ -525,7 +525,7 @@ impl CheckpointExecutor {
         }
 
         if let Some(ref checkpoint_data) = checkpoint_data {
-            self.commit_index_updates_and_enqueue_to_subscription_service(checkpoint_data.clone())
+            self.commit_index_updates_and_enqueue_to_subscription_service(checkpoint_data)
                 .await;
         }
 
@@ -547,7 +547,7 @@ impl CheckpointExecutor {
     /// service
     async fn commit_index_updates_and_enqueue_to_subscription_service(
         &self,
-        checkpoint: CheckpointData,
+        checkpoint: &CheckpointData,
     ) {
         if let Some(rest_index) = &self.state.rest_index {
             rest_index
@@ -811,7 +811,7 @@ impl CheckpointExecutor {
 
                     if let Some(ref checkpoint_data) = checkpoint_data {
                         self.commit_index_updates_and_enqueue_to_subscription_service(
-                            checkpoint_data.clone(),
+                            checkpoint_data,
                         )
                         .await;
                     }
