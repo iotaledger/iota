@@ -1383,7 +1383,7 @@ impl DagState {
         self.last_committed_rounds.clone()
     }
 
-    /// After each flush, DagState becomes persisted in storage and it expected
+    /// After each flush, DagState becomes persisted in storage and is expected
     /// to recover all internal states from storage after restarts.
     pub(crate) fn flush(&mut self) {
         let _s = self
@@ -1452,14 +1452,19 @@ impl DagState {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
             let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
 
-            // Remove old entries from cached maps
-            while let Some(block_ref) = recent_refs.first() {
-                if block_ref.round <= eviction_round {
-                    self.recent_block_headers.remove(block_ref);
-                    recent_refs.pop_first();
-                } else {
-                    break;
-                }
+            // Evict everything below split_key
+            let split_key = BlockRef::new(
+                eviction_round + 1,
+                authority_index,
+                BlockHeaderDigest::MIN,
+            );
+
+            let to_keep = recent_refs.split_off(&split_key);
+            let evicted = std::mem::replace(recent_refs, to_keep);
+
+            // Remove evicted headers from recent_block_headers
+            for block_ref in &evicted {
+                self.recent_block_headers.remove(block_ref);
             }
 
             self.evicted_rounds[authority_index] = eviction_round;
