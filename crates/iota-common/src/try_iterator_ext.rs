@@ -6,78 +6,87 @@ pub trait TryIteratorExt<T, E>: Iterator<Item = Result<T, E>> + Sized {
     /// with an optional limit and optional take_while filter_fn.
     /// This avoids creating an intermediate Vec when we just need to propagate
     /// errors.
-    fn try_take_while_map_and_collect<U, F, P>(
-        self,
-        limit: Option<usize>,
-        filter_fn: Option<P>,
-        map_fn: F,
-    ) -> Result<Vec<U>, E>
+    fn try_map_while_and_collect<U, F, P, B>(self, mut predicate: P, map_fn: F) -> B
     where
-        F: FnMut(T) -> U,
-        P: FnMut(&T) -> bool;
-}
-
-impl<I, T, E> TryIteratorExt<T, E> for I
-where
-    I: Iterator<Item = Result<T, E>>,
-{
-    fn try_take_while_map_and_collect<U, F, P>(
-        self,
-        limit: Option<usize>,
-        mut filter_fn: Option<P>,
-        mut map_fn: F,
-    ) -> Result<Vec<U>, E>
-    where
-        F: FnMut(T) -> U,
+        F: Fn(T) -> U,
         P: FnMut(&T) -> bool,
+        B: FromIterator<Result<U, E>>,
     {
-        let mut result = Vec::new();
-
-        for (count, item_result) in self.enumerate() {
-            // Check limit first
-            if let Some(max_count) = limit {
-                if count >= max_count {
-                    break;
+        FromIterator::from_iter(self.map_while(|result| -> Option<Result<U, E>> {
+            match result {
+                Ok(v) => {
+                    if predicate(&v) {
+                        Some(Ok(map_fn(v)))
+                    } else {
+                        None
+                    }
                 }
+                Err(e) => Some(Err(e)),
             }
+        }))
+    }
 
-            // Try to get the item, propagating error immediately
-            let item = item_result?;
+    fn try_skip_filter_map_and_collect<U, F, P, B>(
+        self,
+        mut limit: Option<usize>,
+        mut predicate: Option<P>,
+        map_fn: F,
+    ) -> B
+    where
+        F: Fn(T) -> U,
+        P: FnMut(&T) -> bool,
+        B: FromIterator<Result<U, E>>,
+    {
+        self.try_map_while_and_collect(
+            |v| {
+                let within_limit = if let Some(ref mut limited) = limit {
+                    if *limited == 0 {
+                        false
+                    } else {
+                        *limited -= 1;
+                        true
+                    }
+                } else {
+                    true
+                };
 
-            // Check condition if provided
-            if let Some(ref mut filter) = filter_fn {
-                if !filter(&item) {
-                    break;
-                }
-            }
-
-            // Map and add to result
-            result.push(map_fn(item));
-        }
-
-        Ok(result)
+                let pass_filter = if let Some(ref mut filter) = predicate {
+                    filter(v)
+                } else {
+                    true
+                };
+                within_limit && pass_filter
+            },
+            map_fn,
+        )
     }
 }
+
+impl<I, T, E> TryIteratorExt<T, E> for I where I: Iterator<Item = Result<T, E>> {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_try_take_while_map_and_collect() {
+    fn test_try_skip_filter_map_and_collect() {
         let data: Vec<Result<i32, &str>> = vec![Ok(1), Ok(2), Ok(3), Ok(8), Ok(4)];
-        let result =
-            data.into_iter()
-                .try_take_while_map_and_collect(Some(4), Some(|&x: &i32| x < 8), |x| x * 2);
-        assert_eq!(result, Ok(vec![2, 4, 6])); // stops at 8, so only gets 1,2,3 doubled
+        let result: Vec<_> = data.into_iter().try_skip_filter_map_and_collect(
+            Some(4),
+            Some(|&x: &i32| x < 8),
+            |x| x * 2,
+        );
+        assert_eq!(result, vec![Ok(2), Ok(4), Ok(6)]); // stops at 8, so only gets 1,2,3 doubled
     }
 
     #[test]
-    fn test_try_take_while_map_and_collect_with_error() {
+    fn test_try_skip_filter_map_and_collect_with_error() {
         let data: Vec<Result<i32, &str>> = vec![Ok(1), Ok(2), Err("error"), Ok(8), Ok(4)];
-        let result =
-            data.into_iter()
-                .try_take_while_map_and_collect(Some(4), Some(|&x: &i32| x < 8), |x| x * 2);
+        let result: Result<Vec<i32>, &str> = data.into_iter().try_skip_filter_map_and_collect(
+            Some(4),
+            Some(|&x: &i32| x < 8),
+            |x| x * 2,
+        );
         assert_eq!(result, Err("error"));
     }
 }
