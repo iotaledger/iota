@@ -107,7 +107,7 @@ pub(crate) struct DagState {
     pending_commit_votes: VecDeque<CommitVote>,
 
     /// Acknowledgments pending to be included in new blocks. These represent
-    /// votes indicating availability of transaction data from the
+    /// votes indicating the availability of transaction data from the
     /// corresponding blocks
     pending_acknowledgments: BTreeSet<BlockRef>,
 
@@ -234,7 +234,6 @@ impl DagState {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
             let (block_headers, transactions_by_author, eviction_round) = {
                 let eviction_round = Self::eviction_round(round, cached_rounds);
-                // TODO: scan for blocks?
                 let block_headers = state
                     .store
                     .scan_block_headers_by_author(authority_index, eviction_round + 1)
@@ -250,7 +249,7 @@ impl DagState {
 
             // Update the block metadata for the authority.
             for block_header in &block_headers {
-                state.update_block_metadata(block_header);
+                state.update_block_header_metadata(block_header);
             }
             for transactions in &transactions_by_author {
                 state.update_transaction_metadata(transactions);
@@ -272,8 +271,8 @@ impl DagState {
     pub(crate) fn accept_block_header(&mut self, block_header: VerifiedBlockHeader) {
         assert_ne!(
             block_header.round(),
-            0,
-            "Genesis block should not be accepted into DAG."
+            GENESIS_ROUND,
+            "Genesis header should not be accepted into DAG."
         );
 
         let block_ref = block_header.reference();
@@ -284,7 +283,7 @@ impl DagState {
         let now = self.context.clock.timestamp_utc_ms();
         if block_header.timestamp_ms() > now {
             panic!(
-                "Block {:?} cannot be accepted! Block timestamp {} is greater than local timestamp {}.",
+                "Block header {:?} cannot be accepted! Block header timestamp {} is greater than local timestamp {}.",
                 block_header,
                 block_header.timestamp_ms(),
                 now,
@@ -297,11 +296,11 @@ impl DagState {
             let existing_blocks = self.get_uncommitted_blocks_at_slot(block_ref.into());
             assert!(
                 existing_blocks.is_empty(),
-                "Block Rejected! Attempted to add block header {block_header:#?} to own slot where \
-                block(s) {existing_blocks:#?} already exists."
+                "Block header Rejected! Attempted to add block header {block_header:#?} to own slot where \
+                block header(s) {existing_blocks:#?} already exists."
             );
         }
-        self.update_block_metadata(&block_header);
+        self.update_block_header_metadata(&block_header);
         debug!(
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
@@ -312,11 +311,11 @@ impl DagState {
         } else {
             "others"
         };
-        // TODO: rename to accepted block headers?
+
         self.context
             .metrics
             .node_metrics
-            .accepted_blocks
+            .accepted_block_headers
             .with_label_values(&[source])
             .inc();
     }
@@ -359,8 +358,8 @@ impl DagState {
             .set(gap as i64);
     }
 
-    /// Updates internal metadata for a block.
-    fn update_block_metadata(&mut self, block_header: &VerifiedBlockHeader) {
+    /// Updates internal metadata for accepted block header.
+    fn update_block_header_metadata(&mut self, block_header: &VerifiedBlockHeader) {
         let block_ref = block_header.reference();
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
@@ -393,9 +392,10 @@ impl DagState {
             .insert(transaction.block_ref(), transaction.clone());
     }
 
-    // Function updates who knows which BlockHeaders what after receiving a new
-    // block header, which is accepted. In particular, it traverses the DAG from
-    // the block header and updates the knowledge of the given authority.
+    /// Updates the cordial knowledge about which authorities know which block
+    /// headers after accepting a new block header. In particular, it
+    /// traverses the DAG from the given block header and updates the
+    /// knowledge for the corresponding authority.
     fn update_cordial_knowledge(&mut self, block_header: &VerifiedBlockHeader) {
         let block_reference = block_header.reference();
         let block_author = block_reference.author;
@@ -410,7 +410,7 @@ impl DagState {
             .collect::<Vec<_>>();
 
         // If the block header is in the recent_dag_cordial_knowledge, then
-        // don't update if it is already there
+        // don't update it
         if self.recent_dag_cordial_knowledge[block_author.value()].contains_key(&round_digest) {
             return;
         }
@@ -471,14 +471,17 @@ impl DagState {
         }
     }
 
-    /// Accepts a block header into DagState and keeps it in memory.
-    pub(crate) fn accept_block_headers(&mut self, blocks: Vec<VerifiedBlockHeader>) {
+    /// Accepts block headers into DagState and keeps it in memory.
+    pub(crate) fn accept_block_headers(&mut self, block_headers: Vec<VerifiedBlockHeader>) {
         debug!(
             "Accepting block headers: {}",
-            blocks.iter().map(|b| b.reference().to_string()).join(",")
+            block_headers
+                .iter()
+                .map(|b| b.reference().to_string())
+                .join(",")
         );
-        for block in blocks {
-            self.accept_block_header(block);
+        for block_header in block_headers {
+            self.accept_block_header(block_header);
         }
     }
 
@@ -581,13 +584,13 @@ impl DagState {
             .store
             .read_block_headers(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-        // TODO:similar metric for header reads count
-        // self.context
-        // .metrics
-        // .node_metrics
-        // .dag_state_store_read_count
-        // .with_label_values(&["get_blocks"])
-        // .inc();
+
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["get_block_headers"])
+            .inc();
 
         for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
             block_headers[index] = result;
@@ -691,22 +694,18 @@ impl DagState {
             let Some(block) = self.get_block_header(&block_ref) else {
                 panic!("Block Header {block_ref:?} should exist in DAG!");
             };
-            linked.extend(block.ancestors().iter().cloned());
+            linked.extend(
+                block
+                    .ancestors()
+                    .iter()
+                    .filter(|ancestor| ancestor.round >= earlier_round)
+                    .cloned(),
+            );
         }
-        linked
-            .range((
-                Included(BlockRef::new(
-                    earlier_round,
-                    AuthorityIndex::ZERO,
-                    BlockHeaderDigest::MIN,
-                )),
-                Unbounded,
-            ))
-            .map(|r| {
-                self.get_block_header(r)
-                    .unwrap_or_else(|| panic!("Block {r:?} should exist in DAG!"))
-                    .clone()
-            })
+        let block_headers = self.get_block_headers(&linked.iter().cloned().collect::<Vec<_>>());
+        block_headers
+            .into_iter()
+            .map(|opt| opt.unwrap_or_else(|| panic!("Block should exist in DAG!")))
             .collect()
     }
 
