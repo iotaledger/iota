@@ -5,6 +5,6 @@
 module m::m {
     public fun m() {
         let k = 1;
-        l_depends_on_k::l_depends_on_k::l();
+        l::l::l();
     }
 }
