@@ -5989,7 +5989,7 @@ async fn test_tree_shaking_package_with_transitive_dependencies1() -> Result<(),
 #[sim_test]
 async fn test_tree_shaking_package_with_transitive_dependencies_and_no_code_references()
 -> Result<(), anyhow::Error> {
-    // Publish package C_B with no code references_B and check the linkage
+    // Publish package C_B and check the linkage
     // table we use here the package B published in TEST 3
     let mut test = TreeShakingTest::new().await?;
 
