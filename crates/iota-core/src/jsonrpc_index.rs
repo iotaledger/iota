@@ -741,7 +741,7 @@ impl IndexStore {
         iter
             // skip one more if exclusive cursor is Some
             .skip(usize::from(cursor.is_some()))
-            .try_take_while_map_and_collect(limit, |((id, _), _)| *id == key, |(_, digest)| digest)
+            .try_take_map_while_and_collect(limit, |((id, _), _)| *id == key, |(_, digest)| digest)
             .map_err(Into::into)
     }
 
@@ -863,7 +863,7 @@ impl IndexStore {
         iter
             // skip one more if exclusive cursor is Some
             .skip(usize::from(cursor.is_some()))
-            .try_take_while_map_and_collect(
+            .try_take_map_while_and_collect(
                 limit,
                 |((id, m, f, _), _)| {
                     *id == package
@@ -952,7 +952,7 @@ impl IndexStore {
                     .safe_iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None),
             )
         };
-        iter.try_take_while_map_and_collect(
+        iter.try_take_map_while_and_collect(
             Some(limit),
             |((tx, _), _)| tx == &seq,
             |((_, event_seq), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
@@ -979,7 +979,7 @@ impl IndexStore {
                     index.safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None),
                 )
             };
-        iter.try_take_while_map_and_collect(
+        iter.try_take_map_while_and_collect(
             Some(limit),
             |((m, _), _)| m == key,
             |((_, (_, event_seq)), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
@@ -1072,7 +1072,7 @@ impl IndexStore {
             self.tables
                 .event_by_time
                 .reversed_safe_iter_with_bounds(None, Some((end_time, (tx_seq, event_seq))))?
-                .try_take_while_map_and_collect(
+                .try_take_map_while_and_collect(
                     Some(limit),
                     |((m, _), _)| m >= &start_time,
                     |((_, (_, event_seq)), (digest, tx_digest, time))| {
@@ -1084,7 +1084,7 @@ impl IndexStore {
             self.tables
                 .event_by_time
                 .safe_iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
-                .try_take_while_map_and_collect(
+                .try_take_map_while_and_collect(
                     Some(limit),
                     |((m, _), _)| m <= &end_time,
                     |((_, (_, event_seq)), (digest, tx_digest, time))| {

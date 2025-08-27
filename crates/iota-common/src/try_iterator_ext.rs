@@ -14,7 +14,7 @@ pub trait TryIteratorExt<T, E>: Iterator<Item = Result<T, E>> + Sized {
 
     /// Try taking at most limit items while predicate holds collecting mapped
     /// values and breaking early on errors.
-    fn try_take_while_map_and_collect<U, F, P, B>(
+    fn try_take_map_while_and_collect<U, F, P, B>(
         self,
         limit: Option<usize>,
         mut predicate: P,
