@@ -2,4 +2,4 @@
 '@iota/iota-sdk': patch
 ---
 
-Rename parseAmount util
+Rename `parseIotaToNanos` util back to `parseAmount`
