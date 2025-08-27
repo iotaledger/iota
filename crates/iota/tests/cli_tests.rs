@@ -6071,7 +6071,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::E
 async fn test_tree_shaking_package_deps_on_pkg_upgrade_1() -> Result<(), anyhow::Error> {
     let mut test = TreeShakingTest::new().await?;
 
-    // Publish package A and D_A_v1_but_no_code_references_A
+    // Publish package A and D_A
     let (package_a_id, cap) = test.publish_package("A", false).await?;
     let package_path = test.package_path("A");
     add_ids_to_manifest(&package_path, &package_a_id, None)?;
