@@ -749,7 +749,7 @@ impl DagState {
             return self
                 .recent_block_headers
                 .get(last)
-                .expect("Block should be found in recent blocks")
+                .expect("Block header should be found in recent block headers")
                 .clone();
         }
 
@@ -762,29 +762,26 @@ impl DagState {
         genesis_block.verified_block_header.clone()
     }
 
-    /// Returns cached recent blocks from the specified authority.
+    /// Returns own cached recent blocks.
     /// Blocks returned are limited to round >= `start`, and cached.
     /// NOTE: caller should not assume returned blocks are always chained.
-    /// "Disconnected" blocks can be returned when there are byzantine blocks,
-    /// or when received blocks are not deduped.
-    pub(crate) fn get_cached_blocks(
-        &self,
-        authority: AuthorityIndex,
-        start: Round,
-    ) -> Vec<VerifiedBlock> {
+    pub(crate) fn get_own_cached_blocks(&self, start: Round) -> Vec<VerifiedBlock> {
+        let authority = self.context.own_index;
         let mut blocks = vec![];
         for block_ref in self.recent_headers_refs_by_authority[authority].range((
             Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
             Unbounded,
         )) {
-            // TODO: panic if header is missing and return vector of tuples with header and
-            //  option<transactions> as not all transactions must exist. Although this is
-            //  only used to load own blocks to stream, this should not be problematic.
-            if let Some(header) = self.recent_block_headers.get(block_ref) {
-                if let Some(transactions) = self.recent_transactions.get(block_ref) {
-                    blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
-                }
-            }
+            // Panic if header or transactions are missing for the block_ref.
+            let header = self
+                .recent_block_headers
+                .get(block_ref)
+                .unwrap_or_else(|| panic!("Missing block header for {:?}", block_ref));
+            let transactions = self
+                .recent_transactions
+                .get(block_ref)
+                .unwrap_or_else(|| panic!("Missing transactions for {:?}", block_ref));
+            blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
         }
         blocks
     }
