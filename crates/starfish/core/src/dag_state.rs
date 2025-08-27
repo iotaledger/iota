@@ -1453,11 +1453,8 @@ impl DagState {
             let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
 
             // Evict everything below split_key
-            let split_key = BlockRef::new(
-                eviction_round + 1,
-                authority_index,
-                BlockHeaderDigest::MIN,
-            );
+            let split_key =
+                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
 
             let to_keep = recent_refs.split_off(&split_key);
             let evicted = std::mem::replace(recent_refs, to_keep);
