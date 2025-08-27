@@ -16,6 +16,7 @@ use crate::{
         },
         sql::sql_backfill::SqlBackfill,
     },
+    config::IngestionConfig,
     db::ConnectionPool,
     errors::IndexerError,
 };
@@ -57,15 +58,15 @@ pub enum BackfillKind {
     /// Run a backfill driven by the ingestion engine.
     ///
     /// - `kind`: defines the specific ingestion backfill implementation to use.
-    /// - `remote_store_url`: the endpoint or path of the remote checkpoint
-    ///   store to ingest from.
+    /// - `config`: configuration options for the data ingestion worker.
     ///
     /// The runner will spawn the data ingestion workflow, continuously buffer
     /// processed checkpoint data, and then slice the requested checkpoint
     /// range into chunks for database backfill.
     Ingestion {
         kind: IngestionBackfillKind,
-        remote_store_url: String,
+        #[command(flatten)]
+        config: IngestionConfig,
     },
 }
 
@@ -85,13 +86,10 @@ pub(crate) async fn get_backfill(
 ) -> Result<Arc<dyn Backfill>, IndexerError> {
     match kind {
         BackfillKind::Sql { sql, key_column } => Ok(Arc::new(SqlBackfill::new(sql, key_column))),
-        BackfillKind::Ingestion {
-            kind,
-            remote_store_url,
-        } => match kind {
+        BackfillKind::Ingestion { kind, config } => match kind {
             IngestionBackfillKind::TxWrappedOrDeletedObjects => Ok(Arc::new(
                 IngestionBackfillTask::<TxWrappedOrDeletedObjectsBackfill>::new(
-                    remote_store_url,
+                    config,
                     range_start as CheckpointSequenceNumber,
                 )
                 .await?,

@@ -14,7 +14,6 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use consensus_core::BlockStatus;
 use dashmap::{DashMap, try_result::TryResult};
 use futures::{
     FutureExt, StreamExt,
@@ -197,7 +196,35 @@ impl ConsensusAdapterMetrics {
     }
 }
 
-pub type BlockStatusReceiver = oneshot::Receiver<BlockStatus>;
+/// Block status for internal use in the consensus adapter that serves for both
+/// Mysticeti and Starfish.
+pub enum BlockStatusInternal {
+    Sequenced,
+    GarbageCollected,
+}
+
+impl From<consensus_core::BlockStatus> for BlockStatusInternal {
+    fn from(status: consensus_core::BlockStatus) -> Self {
+        match status {
+            consensus_core::BlockStatus::Sequenced(_) => BlockStatusInternal::Sequenced,
+            consensus_core::BlockStatus::GarbageCollected(_) => {
+                BlockStatusInternal::GarbageCollected
+            }
+        }
+    }
+}
+impl From<starfish_core::BlockStatus> for BlockStatusInternal {
+    fn from(status: starfish_core::BlockStatus) -> Self {
+        match status {
+            starfish_core::BlockStatus::Sequenced(_) => BlockStatusInternal::Sequenced,
+            starfish_core::BlockStatus::GarbageCollected(_) => {
+                BlockStatusInternal::GarbageCollected
+            }
+        }
+    }
+}
+
+pub type BlockStatusReceiver = oneshot::Receiver<BlockStatusInternal>;
 
 #[mockall::automock]
 pub trait SubmitToConsensus: Sync + Send + 'static {
@@ -751,7 +778,7 @@ impl ConsensusAdapter {
                         .await;
 
                     match status_waiter.await {
-                        Ok(BlockStatus::Sequenced(_)) => {
+                        Ok(BlockStatusInternal::Sequenced) => {
                             self.metrics
                                 .sequencing_certificate_status
                                 .with_label_values(&[tx_type, "sequenced"])
@@ -763,7 +790,7 @@ impl ConsensusAdapter {
                             );
                             break;
                         }
-                        Ok(BlockStatus::GarbageCollected(_)) => {
+                        Ok(BlockStatusInternal::GarbageCollected) => {
                             self.metrics
                                 .sequencing_certificate_status
                                 .with_label_values(&[tx_type, "garbage_collected"])

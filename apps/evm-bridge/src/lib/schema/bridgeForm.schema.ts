@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { BridgeFormInputName } from '../enums';
-import { parseAmount } from '@iota/core';
 import { isAddress } from 'viem';
-import { IOTA_TYPE_ARG, isValidIotaAddress } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, isValidIotaAddress, parseIotaToNanos } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { MINIMUM_SEND_AMOUNT } from '../constants';
 import { CoinBalance, CoinMetadata } from '@iota/iota-sdk/client';
@@ -57,7 +56,7 @@ export function createBridgeFormSchema(
 
             if (value) {
                 const coinDecimals = coinMetadata.decimals;
-                const amount = parseAmount(value, coinDecimals);
+                const amount = parseIotaToNanos(value, coinDecimals);
 
                 if (!amount || amount > BigInt(availableBalance)) {
                     ctx.addIssue({

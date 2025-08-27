@@ -11,9 +11,8 @@ import {
     toast,
     getGasBudgetErrorMessage,
     useCoinMetadata,
-    parseAmount,
 } from '@iota/core';
-import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA, parseIotaToNanos } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
@@ -54,7 +53,7 @@ export function EnterTimelockedAmountView({
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
-    const amountWithoutDecimals = parseAmount(values.amount, decimals);
+    const amountWithoutDecimals = parseIotaToNanos(values.amount, decimals);
 
     const { data: clockTimestampMs } = useGetClockTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {

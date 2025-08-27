@@ -5,7 +5,6 @@
 import {
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
-    parseAmount,
     StakeTransactionInfo,
     useBalance,
     useCoinMetadata,
@@ -42,7 +41,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseIotaToNanos } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -70,7 +69,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const coinSymbol = metadata?.symbol ?? '';
 
     // set minimum stake amount to 1 IOTA
-    const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
+    const minimumStake = parseIotaToNanos(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
 
     const { data: minAmountTransactionData } = useNewStakeTransaction(
         validatorAddress,
@@ -157,7 +156,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     });
     const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
     const { amount } = values;
-    const amountWithoutDecimals = parseAmount(amount, decimals);
+    const amountWithoutDecimals = parseIotaToNanos(amount, decimals);
 
     const {
         data: newStakeData,
