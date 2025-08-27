@@ -6011,8 +6011,6 @@ async fn test_tree_shaking_package_with_transitive_dependencies_and_no_code_refe
 
 #[sim_test]
 async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::Error> {
-    // Publish package C_B with no code references_B and check the linkage
-    // table
     let mut test = TreeShakingTest::new().await?;
 
     // Publish package A and B
@@ -6096,11 +6094,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade_1() -> Result<(), anyhow:
 
     // published package D with the old stuff that isn't aware of automated address
     // mgmt, so need to update the published-at field in the manifest
-    add_ids_to_manifest(
-        &test.package_path("D_depends_on_A_v1_but_no_code_references_A"),
-        &package_d_id,
-        None,
-    )?;
+    add_ids_to_manifest(&test.package_path("D_A"), &package_d_id, None)?;
 
     // Upgrade package A (named A_v2)
     std::fs::copy(
@@ -6240,7 +6234,7 @@ async fn test_tree_shaking_package_system_deps() -> Result<(), anyhow::Error> {
 
     // iota move build --dump-bytecode-as-base64 should also yield a json with no
     // dependencies
-    let package_path = test.package_path("J_system_deps");
+    let package_path = test.package_path("J");
     let binary_path = env!("CARGO_BIN_EXE_iota");
     let cmd = std::process::Command::new(binary_path)
         .arg("move")
