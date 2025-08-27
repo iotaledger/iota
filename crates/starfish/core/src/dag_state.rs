@@ -789,9 +789,7 @@ impl DagState {
     /// Returns cached recent block headers from the specified authority.
     /// Block headers returned are limited to round >= `start`, and cached.
     /// NOTE: caller should not assume returned block headers are always
-    /// chained. "Disconnected" block headers can be returned when there are
-    /// byzantine block headers, or when received block headers are not
-    /// deduped.
+    /// chained.
     #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn get_cached_block_headers_since_round(
         &self,
@@ -800,6 +798,11 @@ impl DagState {
     ) -> Vec<VerifiedBlockHeader> {
         self.get_cached_block_headers_in_range(authority, start, Round::MAX, usize::MAX)
     }
+
+    /// Returns cached block headers from the specified authority within a given
+    /// round range. Block headers returned are limited to `start_round` <=
+    /// round < `end_round`, up to `limit` entries. NOTE: Only cached block
+    /// headers are returned; storage is not checked.
     pub(crate) fn get_cached_block_headers_in_range(
         &self,
         authority: AuthorityIndex,
@@ -827,7 +830,7 @@ impl DagState {
             let block_header = self
                 .recent_block_headers
                 .get(block_ref)
-                .expect("Block should exist in recent blocks");
+                .expect("Block header should exist in recent block headers");
             block_headers.push(block_header.clone());
             if block_headers.len() >= limit {
                 break;
@@ -874,8 +877,8 @@ impl DagState {
     /// each authority (evicted round + 1), otherwise the method will panic.
     /// It's the caller's responsibility to ensure that is not requesting for
     /// earlier rounds. In case of equivocation for an authority's last
-    /// slot, one block will be returned (the last in order) and the other
-    /// equivocating blocks will be returned.
+    /// slot, one block will be returned (the last in order) and for other
+    /// equivocating blocks block references will be returned.
     pub(crate) fn get_last_cached_block_header_per_authority(
         &self,
         end_round: Round,
@@ -936,7 +939,7 @@ impl DagState {
                     let block_header = self
                         .recent_block_headers
                         .get(block_ref)
-                        .expect("Block should exist in recent blocks");
+                        .expect("Block header should exist in recent block headers");
                     block_headers[authority_index] = block_header.clone();
                     continue;
                 }
@@ -984,10 +987,9 @@ impl DagState {
         result.next().is_some()
     }
 
-    // TODO: implement for blocks as well
-    /// Checks whether the required block headers are in cache, if exist, or
-    /// otherwise will check in store. The method is not caching back the
-    /// results, so its expensive if keep asking for cache missing block
+    /// Checks whether the required block headers are in cache; if not, then
+    /// check in store. The method is not caching back the
+    /// results, so it's expensive to keep asking for cache missing block
     /// headers.
     pub(crate) fn contains_block_headers(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
         let mut exist = vec![false; block_refs.len()];
@@ -1040,16 +1042,16 @@ impl DagState {
         blocks.first().cloned().unwrap()
     }
 
-    /// Checks whether the required transactions are in cache, if exist, or
-    /// otherwise will check in store. The method is not caching back the
-    /// results, so its expensive if keep asking for cache missing transactions.
+    /// Checks whether the required transactions are in cache; if not, then
+    /// check in store. The method is not caching back the
+    /// results, so it's expensive to keep asking for cache missing
+    /// transactions.
     pub(crate) fn contains_transactions(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
         let mut exist = vec![false; block_refs.len()];
         let mut missing = Vec::new();
 
         for (index, block_ref) in block_refs.into_iter().enumerate() {
             if block_ref.round == GENESIS_ROUND {
-                // Allow the caller to handle the invalid genesis ancestor error.
                 if self.genesis.contains_key(&block_ref) {
                     exist[index] = true;
                 }
