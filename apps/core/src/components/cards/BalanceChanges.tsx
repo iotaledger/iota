@@ -6,12 +6,13 @@ import { useMemo } from 'react';
 import { Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import type { BalanceChangeSummary, RenderExplorerLink } from '../../types';
 import { ExplorerLinkType } from '../../enums';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
-import { CoinFormat } from '../../hooks';
+import { useGetDefaultIotaName } from '../../hooks';
+import { NamedAddressTooltip } from '../NamedAddressTooltip';
 
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
@@ -25,30 +26,53 @@ export function BalanceChanges({ changes, renderExplorerLink: ExplorerLink }: Ba
         <>
             {Object.entries(changes).map(([owner, changes]) => {
                 return (
-                    <Panel key={owner} hasBorder>
-                        <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
-                            <Header title="Balance Changes" />
-                            <BalanceChangeEntries changes={changes} />
-                            <div className="flex flex-col gap-y-sm px-md pb-md">
-                                <Divider />
-                                <KeyValueInfo
-                                    keyText="Owner"
-                                    value={
-                                        <ExplorerLink
-                                            type={ExplorerLinkType.Address}
-                                            address={owner}
-                                        >
-                                            {formatAddress(owner)}
-                                        </ExplorerLink>
-                                    }
-                                    fullwidth
-                                />
-                            </div>
-                        </div>
-                    </Panel>
+                    <BalanceChangePanel
+                        key={owner}
+                        owner={owner}
+                        changes={changes}
+                        renderExplorerLink={ExplorerLink}
+                    />
                 );
             })}
         </>
+    );
+}
+
+interface BalanceChangePanelProps {
+    renderExplorerLink: RenderExplorerLink;
+    owner: string;
+    changes: BalanceChange[];
+}
+function BalanceChangePanel({
+    owner,
+    changes,
+    renderExplorerLink: ExplorerLink,
+}: BalanceChangePanelProps) {
+    const { data: name } = useGetDefaultIotaName(owner);
+
+    if (!changes) return null;
+
+    return (
+        <Panel hasBorder>
+            <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
+                <Header title="Balance Changes" />
+                <BalanceChangeEntries changes={changes} />
+                <div className="flex flex-col gap-y-sm px-md pb-md">
+                    <Divider />
+                    <KeyValueInfo
+                        keyText="Owner"
+                        value={
+                            <NamedAddressTooltip name={name} address={owner}>
+                                <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                    {name || formatAddress(owner)}
+                                </ExplorerLink>
+                            </NamedAddressTooltip>
+                        }
+                        fullwidth
+                    />
+                </div>
+            </div>
+        </Panel>
     );
 }
 
@@ -63,7 +87,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
                     <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />
                 )
             }
-            format={CoinFormat.FULL}
+            format={CoinFormat.Full}
         />
     );
 }

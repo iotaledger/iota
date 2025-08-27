@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.4.1"
+    "version": "1.5.0"
   },
   "methods": [
     {
@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "10",
+              "maxSupportedProtocolVersion": "11",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -6676,6 +6676,17 @@
             "items": {
               "$ref": "#/components/schemas/ObjectChange"
             }
+          },
+          "suggestedGasPrice": {
+            "description": "If an input object is congested, suggest a gas price to use.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

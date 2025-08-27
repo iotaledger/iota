@@ -1,5 +1,38 @@
 # @iota/iota-sdk
 
+## 1.5.0
+
+### Minor Changes
+
+-   61b0944: Added support for WrappedOrDeletedObject in TransactionBlockFilter
+-   f008db3: Updated hex, base64, and base58 utility names for better consistency
+
+    All existing methods will continue to work, but the following methods have been deprecated and
+    replaced with methods with improved names:
+
+    -   `toHEX` -> `toHEX`
+    -   `fromHEX` -> `fromHex`
+    -   `toB64` -> `toBase64`
+    -   `fromB64` -> `fromBase64`
+    -   `toB58` -> `toBase58`
+    -   `fromB58` -> `fromBase58`
+
+-   5bbafa8: add deriveDynamicFieldID util
+-   28ce666: Add new errors to ExecutionFailureStatus enum
+-   f008db3: support Bech32 secrets in the Keypair.fromSecretKey methods
+-   464c15a: Sync the APIs with the "Domain" -> "Name" rename of IotaNames
+
+### Patch Changes
+
+-   40576ed: Add balance formatting utils
+-   966f83c: Add data to result of executeTransaction methods on Transaction executor classes
+-   733df30: Add tx.object.option for creatnig object options in transaction builder
+-   13ca264: Allow 0 amounts with `coinWithBalance` intent when the wallet has no coin objects of
+    the required type.
+-   c855f8c: Require name to register global transaction plugins
+-   Updated dependencies [f008db3]
+    -   @iota/bcs@1.2.0
+
 ## 1.4.0
 
 ### Minor Changes

@@ -27,11 +27,12 @@
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
-- [How `run_test` Compares a Move File With the Corresponding `.exp` File](#how-run_test-compares-a-move-file-with-the-corresponding-exp-file)
-  - [Execution Process in `handle_actual_output`](#execution-process-in-handle_actual_output)
-  - [Verification Process in `handle_expected_output`](#verification-process-in-handle_expected_output)
+- [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
+  - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
+  - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
+  - [Verification Process in `insta_assert!`](#verification-process-in-insta_assert!)
   - [Structure of the `.move` File](#structure-of-the-move-file)
-  - [Structure of a `.exp` File](#structure-of-a-exp-file)
+  - [Structure of a `.snap` File](#structure-of-a-snap-file)
   - [Extending `handle_subcommand` and Creating New Subcommands](#extending-handle_subcommand-and-creating-new-subcommands)
 
 Transactional tests simulate network operations through the framework exposed in [iota-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/crates/iota-transactional-test-runner). The framework is actually built on top of the more generic [move-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/external-crates/move/crates/move-transactional-test-runner).
@@ -198,7 +199,7 @@ Why specify versions?
 //> MergeCoins(Gas, [Input(0)])
 ```
 
-`.exp` file example:
+`.snap` file example:
 
 ```
 processed 5 tasks
@@ -276,13 +277,13 @@ You should use the command:
 - Map numerical address to the named representation in order to use named alias.
 - Runs in simulator mode for controlled testing.
 
-`.exp` output:
+`.snap` output:
 
 ```
-+processed 1 task
-+
-+init:
-+acc1: object(0,0), acc2: object(0,1)
+processed 1 task
+
+init:
+acc1: object(0,0), acc2: object(0,1)
 ```
 
 #### Options
@@ -441,7 +442,7 @@ module test::transfer {
 - The module is marked as upgradeable.
 - Gas price is set to 1000.
 
-`.exp` output:
+`.snap` output:
 
 ```
 +task 1 'publish'. lines 3-17:
@@ -521,7 +522,7 @@ module test::transfer {
 - `50` is an amount of tokens to mint.
 - The gas price is set to 500.
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 4 tasks
@@ -569,7 +570,7 @@ The `view-object` subcommand (`ViewObject` in Rust) retrieves and displays the d
 //# view-object 0,0
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 2 tasks
@@ -609,7 +610,7 @@ The `transfer-object` subcommand (`TransferObject` in Rust) is used to transfer 
 //# transfer-object 2,0 --sender acc1 --recipient acc2
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 task 3 'transfer-object'. lines 20-20:
@@ -643,7 +644,7 @@ Consensus commit prologue is available only in simulator mode.
 //# consensus-commit-prologue --timestamp-ms 4500
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -701,7 +702,7 @@ module test::test_coin {
 
 Here, we're minting the `TestCoin` obj in fly and passing it to the `TransferObjects` PTB command via Result(0).
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -797,7 +798,7 @@ module test2::test_coin {
 }
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -847,7 +848,7 @@ module test::test_coin {
 }
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 2 tasks
@@ -929,7 +930,7 @@ module r::all {
 }
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 11 tasks
@@ -992,7 +993,7 @@ Creates a single checkpoint at the current state:
 //# view-checkpoint
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -1018,7 +1019,7 @@ Forces the creation of 5 checkpoints:
 //# view-checkpoint
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -1083,7 +1084,7 @@ Full example:
 //# view-checkpoint
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 4 tasks
@@ -1132,7 +1133,7 @@ The `advance-clock` subcommand (`AdvanceClock` in Rust) manually advances the sy
 //# create-checkpoint
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 23 tasks
@@ -1191,7 +1192,7 @@ The `set-random-state` subcommand (`SetRandomState` in Rust) sets the blockchain
 }
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 5 tasks
@@ -1245,7 +1246,7 @@ The `view-checkpoint` subcommand (`ViewCheckpoint` in Rust) retrieves and displa
 //# view-checkpoint
 ```
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -1295,7 +1296,10 @@ It supports the following placeholders:
    - **Syntax**: `//# run-graphql --cursors string1 string2 ...`
      - Depending on the query, the raw strings passed to `--cursors` might be required in JSON, BCS or any other format that the query expects.
      - Each string passed is automatically Base64-encoded (as all cursor values are expected to be Base64-encoded) and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
-     - To generate cursor values from objects at runtime, the strings passed must correspond to the format `@{obj_x_y}` or `@{obj_x_y, checkpoint}` and are translated to Base64-encoded object cursors.
+     - To generate cursor values from objects at runtime, the strings passed must correspond to the format `bcs_obj(@{obj_x_y})` or `bcs(@{obj_x_y, checkpoint})` and are translated to Base64-encoded object cursors.
+     - The `bcs(@{obj_x_y}, @{highest_checkpoint})` syntax is a special form used to encode complex cursor values derived from runtime variables. This expression interpolates placeholders using runtime variables (e.g., `@{obj_x_y}` and `@{highest_checkpoint}`), where:
+       - `@{obj_x_y}` is substituted with a real ObjectID in hex form, resolved via object_enumeration.
+       - `@{highest_checkpoint}` is replaced by the most recent checkpoint sequence number obtained via `executor.try_get_latest_checkpoint_sequence_number()`.
 
 All of the above rules (object placeholders, named address placeholders, cursor strings) can be used in a single query.
 Any placeholder or cursor that cannot be mapped to a known variable, object, or address will cause an error.
@@ -1398,7 +1402,7 @@ module test::test_coin {
 This benchmarks test_coin_mint, executed by acc1.
 Passes amount of coints to mint: 10000000.
 
-`.exp` output:
+`.snap` output:
 
 ```
 processed 3 tasks
@@ -1412,9 +1416,9 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
-## How `run_test` Compares a Move File With the Corresponding `.exp` File
+## How `run_test` Compares a Move File With the Corresponding `.snap` File
 
-The `test_runner` compares `.move` files by executing them and comparing the output with an expected `.exp` files. This ensures that the Move program behaves as expected.
+The `test_runner` compares `.move` files by executing them and comparing the output with an expected `.snap` files. This ensures that the Move program behaves as expected.
 
 The main entry function for this process is `run_test_impl`.
 
@@ -1431,19 +1435,15 @@ where
     Adapter::ExtraRunArgs: Debug,
     Adapter::Subcommand: Debug,
 {
-    // Executes the .move file and captures output
-    let output = handle_actual_output::<Adapter>(path, fully_compiled_program_opt).await?;
-
-    // Compares actual output with expected .exp file
-    handle_expected_output(path, output.0)?;
-
+    let (output, adapter) = create_adapter::<Adapter>(path, fully_compiled_program_opt).await?;
+    run_tasks_with_adapter(path, adapter, output).await?;
     Ok(())
 }
 ```
 
-### Execution Process in `handle_actual_output`
+### Adapter Creation in `create_adapter`
 
-The `handle_actual_output` function is responsible for executing Move code and collecting the output by following these steps:
+Creates an adapter for the given tasks, using the first task command to initialize the adapter if it is a `TaskCommand::Init`. Returns the adapter and the output string.
 
 1. Initializing the Execution Environment.
    - The test adapter is initialized to set up the execution environment.
@@ -1453,7 +1453,11 @@ The `handle_actual_output` function is responsible for executing Move code and c
    ```
    - This prepares the necessary environment, including syntax options, precompiled programs, and initial state.
 
-2. Parsing and Executing Commands from the `.move` File.
+### Execution Process in `run_tasks_with_adapter`
+
+The `run_tasks_with_adapter` function is responsible for running the tasks from path
+
+1. Parsing and Executing Commands from the `.move` File.
    - Reads the `.move` file.
    ```rust
    let mut tasks = taskify::<
@@ -1472,7 +1476,7 @@ The `handle_actual_output` function is responsible for executing Move code and c
    - Converts recognized commands (e.g., `init`, `programmable`, `publish`) into structured execution tasks.
    - Ensures that the file contains at least one valid command.
 
-3. Executing Each Task and Capturing the Output.
+2. Executing Each Task and Capturing the Output.
    - `handle_known_task` is responsible for executing parsed tasks from `.move` files based on its type (e.g., `init`, `programmable`, `publish`).
 
    ```rust
@@ -1485,6 +1489,7 @@ The `handle_actual_output` function is responsible for executing Move code and c
 
    - Init: initializes the test environment.
    - Run: calls a Move function.
+   - Publish: publish Move compiled modules binary.
    - PrintBytecode: compiled Move binary and prints its bytecode instructions.
    - Subcommand: handles other subcommands like `transfer-object`, `create-checkpoint`, etc.
 
@@ -1502,27 +1507,36 @@ The `handle_actual_output` function is responsible for executing Move code and c
    }
    ```
 
-### Verification Process in `handle_expected_output`
+### Verification Process in `insta_assert!`
 
-1. Reading the expected output from the Corresponding `.exp` File
-   - The `.exp` file contains expected execution results for comparison.
+The `insta_assert!` a macro wrapper around `insta::assert_snapshort` to promote uniformity in the Move codebase, intended to be used with datatest-stable and as a replacement for the hand-rolled baseline tests.
+The snapshot file will be saved in the same directory as the input file with the name specified.
 
-2. Comparing Actual and Expected Output
+#### Arguments
 
-   - The function checks if the produced output matches the expected results.
-   - If the output does not match, it computes the difference between expected and actual outputs and provides a mechanism for updating baselines if necessary.
+The macro has three required arguments:
 
-   ```rust
-   if output != expected_output {
-           let msg = format!(
-               "Expected errors differ from actual errors:\n{}",
-               format_diff(expected_output, output),
-           );
-           anyhow::bail!(add_update_baseline_fix(msg))
-       } else {
-           Ok(())
-       }
-   ```
+- `input_path`: The path to the input file. This is used to determine the snapshot path.
+- `contents`: The contents to snapshot.
+
+The macro also accepts an optional arguments to that are used with `InstaOptions` to customize
+the snapshot. If needed the `InstaOptions` struct can be used directly by specifying the
+`options` argument. Options include:
+
+- `name`: The name of the test. This will be used to name the snapshot file. By default, the
+  file stem (the name without the extension) of the input path is used.
+- `info`: Additional information to include in the header of the snapshot file. This can be
+  useful for debugging tests. The value can be any type that implements
+  `serde::Serialize`.
+- `suffix`: A suffix to append to the snapshot file name. This changes the snapshot path to
+  `{input_path}/{name}@{suffix}.snap`.
+
+#### Updating snapshots
+
+After running the test, the `.snap` files can be updated in two ways:
+
+1. By using `cargo insta review`, which will open an interactive UI to review the changes.
+2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
 
 ### Structure of the `.move` File.
 
@@ -1556,9 +1570,9 @@ Example of `.move` file structure:
 }
 ```
 
-### Structure of a `.exp` File
+### Structure of a `.snap` File
 
-A `.exp` file contains the expected output for the `.move` test. It includes:
+A `.snap` file contains the expected output for the `.move` test. It includes:
 
 - A summary of processed tasks
 - Execution results for each task
@@ -1567,7 +1581,7 @@ A `.exp` file contains the expected output for the `.move` test. It includes:
 - The first line states the number of processed tasks.
 - Each task output starts with task index, name, and line range.
 
-Example of `.exp` file structure:
+Example of `.snap` file structure:
 
 ```exp
 processed 4 tasks
@@ -1678,4 +1692,4 @@ async fn handle_subcommand(
 
 #### 4. Add Tests Cases
 
-Create `.move` and `.exp` files to test different scenarios.
+Create `.move` and `.snap` files to test different scenarios.

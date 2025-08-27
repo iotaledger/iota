@@ -126,7 +126,6 @@ impl SingleValidator {
         let effects = self
             .get_validator()
             .try_execute_immediately(&executable, None, &self.epoch_store)
-            .await
             .unwrap()
             .0;
         assert!(effects.status().is_ok());
@@ -140,7 +139,6 @@ impl SingleValidator {
                 transaction.data().intent_message().value.clone(),
                 *transaction.digest(),
             )
-            .await
             .unwrap()
             .2;
         assert!(effects.status().is_ok());
@@ -159,7 +157,6 @@ impl SingleValidator {
                 );
                 self.get_validator()
                     .try_execute_immediately(&cert, None, &self.epoch_store)
-                    .await
                     .unwrap()
                     .0
             }
@@ -322,7 +319,6 @@ impl SingleValidator {
                 self.get_validator().get_object_cache_reader().as_ref(),
                 &transactions,
             )
-            .await
             .unwrap();
     }
 }

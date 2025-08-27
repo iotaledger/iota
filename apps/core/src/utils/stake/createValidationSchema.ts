@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatBalance, MIN_NUMBER_IOTA_TO_STAKE } from '../../';
+import { MIN_NUMBER_IOTA_TO_STAKE } from '../../';
+import { CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { mixed, object } from 'yup';
 
@@ -56,7 +57,7 @@ export function createValidationSchema(
                     message: `\${path} must be less than ${formatBalance(
                         availableBalance,
                         decimals,
-                        CoinFormat.FULL,
+                        CoinFormat.Full,
                     )} ${coinSymbol}`,
                 });
             })
