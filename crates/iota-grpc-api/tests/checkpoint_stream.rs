@@ -404,7 +404,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     .expect("Failed to start gRPC server");
 
     let server_addr = server_handle.address();
-    let client = NodeClient::connect(&format!("http://{}", server_addr))
+    let client = NodeClient::connect(&format!("http://{server_addr}"))
         .await
         .expect("Failed to connect to gRPC server")
         .checkpoint_client()

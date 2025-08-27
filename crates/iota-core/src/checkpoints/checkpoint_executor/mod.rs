@@ -524,6 +524,11 @@ impl CheckpointExecutor {
             }
         }
 
+        if let Some(ref checkpoint_data) = checkpoint_data {
+            self.commit_index_updates_and_enqueue_to_subscription_service(checkpoint_data.clone())
+                .await;
+        }
+
         if !checkpoint.is_last_checkpoint_of_epoch() {
             self.accumulator
                 .accumulate_running_root(epoch_store, checkpoint.sequence_number, checkpoint_acc)
@@ -534,13 +539,6 @@ impl CheckpointExecutor {
             // `broadcast_checkpoint` for the last checkpoint of an epoch
             // is handled specially in `check_epoch_last_checkpoint`
             self.broadcast_checkpoint(checkpoint, all_tx_digests, checkpoint_data.as_ref());
-        }
-
-        // Commit the index updates here to avoid cloning the checkpoint_data because we
-        // need to broadcast_checkpoint
-        if let Some(checkpoint_data) = checkpoint_data {
-            self.commit_index_updates_and_enqueue_to_subscription_service(checkpoint_data)
-                .await;
         }
     }
 
@@ -811,6 +809,13 @@ impl CheckpointExecutor {
                     .await
                     .expect("Finalizing checkpoint cannot fail");
 
+                    if let Some(ref checkpoint_data) = checkpoint_data {
+                        self.commit_index_updates_and_enqueue_to_subscription_service(
+                            checkpoint_data.clone(),
+                        )
+                        .await;
+                    }
+
                     self.checkpoint_store
                         .insert_epoch_last_checkpoint(cur_epoch, checkpoint)
                         .expect("Failed to insert epoch last checkpoint");
@@ -830,15 +835,6 @@ impl CheckpointExecutor {
                         &all_tx_digests,
                         checkpoint_data.as_ref(),
                     );
-
-                    // Commit the index updates here to avoid cloning the checkpoint_data because we
-                    // need to broadcast_checkpoint
-                    if let Some(checkpoint_data) = checkpoint_data {
-                        self.commit_index_updates_and_enqueue_to_subscription_service(
-                            checkpoint_data,
-                        )
-                        .await;
-                    }
 
                     return true;
                 }

@@ -6412,7 +6412,7 @@ dependencies = [
 
 [[package]]
 name = "iota-grpc-types"
-version = "1.5.0-alpha"
+version = "1.6.0-alpha"
 dependencies = [
  "iota-types",
  "serde",

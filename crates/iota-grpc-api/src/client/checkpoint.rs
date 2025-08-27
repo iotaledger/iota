@@ -56,7 +56,7 @@ impl CheckpointClient {
         Ok(stream.map(|result| {
             result.and_then(|checkpoint| {
                 Self::deserialize_checkpoint(&checkpoint).map_err(|e| {
-                    tonic::Status::internal(format!("Failed to deserialize checkpoint: {}", e))
+                    tonic::Status::internal(format!("Failed to deserialize checkpoint: {e}"))
                 })
             })
         }))

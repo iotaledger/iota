@@ -388,7 +388,7 @@ impl GrpcReader {
                     }
                     Some(Err(RecvError::Closed)) => {
                         // report internal error to the stream and break
-                        Err(Status::internal(format!("Checkpoint {} channel closed.", data_type_name)))?;
+                        Err(Status::internal(format!("Checkpoint {data_type_name} channel closed.")))?;
                         break;
                     }
                     None => {
