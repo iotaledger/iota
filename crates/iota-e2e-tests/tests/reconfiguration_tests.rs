@@ -10,7 +10,10 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
-use iota_core::consensus_adapter::position_submit_certificate;
+use iota_core::{
+    authority_aggregator::AggregatorSendCapabilityNotificationError,
+    consensus_adapter::position_submit_certificate,
+};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
@@ -18,8 +21,8 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress},
-    crypto::{AuthoritySignature, IotaAuthoritySignature},
+    base_types::{AuthorityName, EpochId, IotaAddress},
+    crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
     execution_config_utils::to_binary_config,
@@ -35,7 +38,10 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
 };
-use rand::rngs::OsRng;
+use rand::{
+    SeedableRng,
+    rngs::{OsRng, StdRng},
+};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
@@ -682,7 +688,7 @@ async fn test_reconfig_with_committee_change_basic() {
                 .authority_exists(&new_authority_name)
         );
     });
-    test_cluster.wait_for_epoch_all_nodes(2).await;
+    test_cluster.wait_for_epoch_all_nodes(1).await;
 
     new_validator_handle.with(|node| {
         assert!(
@@ -943,12 +949,38 @@ async fn do_test_reconfig_with_committee_change_stress() {
             .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
         cur_epoch = committee.epoch();
-        assert_eq!(committee.num_members(), 7);
-        assert!(committee.authority_exists(&handle1.state().name));
-        assert!(committee.authority_exists(&handle2.state().name));
+        // check that the newly added active validators are not yet in the committee
+        // and the removed validators are no longer in the committee
+        assert_eq!(committee.num_members(), 5);
+        assert!(!committee.authority_exists(&handle1.state().name));
+        assert!(!committee.authority_exists(&handle2.state().name));
         removed_validators
             .iter()
             .all(|v| !committee.authority_exists(v));
+
+        tokio::join!(
+            test_cluster.wait_for_epoch_on_node(
+                &handle1,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            ),
+            test_cluster.wait_for_epoch_on_node(
+                &handle2,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            )
+        );
+        // wait for next epoch to ensure that new validators have joined the committee
+        test_cluster.force_new_epoch().await;
+        let committee = test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.state().epoch_store_for_testing().committee().clone());
+        cur_epoch = committee.epoch();
+
+        assert_eq!(committee.num_members(), 7);
+        assert!(committee.authority_exists(&handle1.state().name));
+        assert!(committee.authority_exists(&handle2.state().name));
     }
 }
 
@@ -1092,15 +1124,18 @@ async fn safe_mode_reconfig_test() {
     assert_eq!(system_state.system_state_version(), 2);
 }
 
-/// Sends SignedAuthorityCapabilitiesV1 to committee validators for a given
-/// validator. This is a helper function that can be reused across multiple
-/// tests.
-#[expect(unused)]
-async fn send_authority_capabilities_to_committee(
-    test_cluster: &TestCluster,
-    validator: &ValidatorGenesisConfig,
-    authority_name: AuthorityName,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+#[sim_test]
+async fn test_authority_capabilities_invalid_signature_rejection() {
+    // Test that AuthorityCapabilities signed by a random node (not a validator)
+    // is rejected with a non-retryable error
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    // Create a random authority key pair that's not a validator
+    let mut rng = StdRng::from_seed([0; 32]);
+
+    let random_authority_key_pair = AuthorityKeyPair::generate(&mut rng);
+    let random_authority_name: AuthorityName = random_authority_key_pair.public().into();
+
     // Get the current epoch store
     let epoch_store = test_cluster
         .fullnode_handle
@@ -1112,7 +1147,7 @@ async fn send_authority_capabilities_to_committee(
 
     // Create the capability notification
     let capabilities = AuthorityCapabilitiesV1::new(
-        authority_name,
+        random_authority_name,
         epoch_store.get_chain_identifier().chain(),
         SupportedProtocolVersions::SYSTEM_DEFAULT.truncate_below(config.version),
         test_cluster.fullnode_handle.iota_node.with(|node| {
@@ -1120,34 +1155,108 @@ async fn send_authority_capabilities_to_committee(
         }),
     );
 
-    // Sign the capabilities using the validator's authority key pair
+    // Sign with the random key pair (not a validator)
     let signature = AuthoritySignature::new_secure(
         &IntentMessage::new(
             Intent::iota_app(IntentScope::AuthorityCapabilities),
             &capabilities,
         ),
         &epoch_store.epoch(),
-        &validator.authority_key_pair,
+        &random_authority_key_pair,
     );
 
     let signed_capabilities =
         SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature);
 
-    // Create request and send to committee validators
     let request = HandleCapabilityNotificationRequestV1 {
         message: signed_capabilities,
     };
 
-    // Send the capability notification to the committee
+    // Try to send the capability notification
     let auth_agg = test_cluster
         .fullnode_handle
         .iota_node
         .with(|node| node.clone_authority_aggregator().unwrap());
 
-    auth_agg
-        .send_capability_notification_to_quorum(request.clone())
-        .await
-        .expect("Failed to send capability notification to committee");
+    let result = auth_agg
+        .send_capability_notification_to_quorum(request)
+        .await;
+
+    // Should fail with non-retryable error
+    assert!(matches!(
+        result,
+        Err(AggregatorSendCapabilityNotificationError::NonRetryableNotification { .. })
+    ));
+}
+
+#[sim_test]
+async fn test_authority_capabilities_incorrect_epoch_rejection() {
+    // Test that SignedAuthorityCapabilities signed with an incorrect epoch
+    // is rejected by the committee
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_authority_name = new_validator.authority_key_pair.public().into();
+    let address = (&new_validator.account_key_pair.public()).into();
+    let test_cluster = TestClusterBuilder::new()
+        .with_validator_candidates([address])
+        .build()
+        .await;
+
+    execute_add_validator_transactions(&test_cluster, &new_validator).await;
+    test_cluster.force_new_epoch().await;
+
+    // Get the current epoch store
+    let epoch_store = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing());
+
+    let config = epoch_store.protocol_config();
+    let binary_config = to_binary_config(config);
+
+    // Create the capability notification
+    let capabilities = AuthorityCapabilitiesV1::new(
+        new_authority_name,
+        epoch_store.get_chain_identifier().chain(),
+        SupportedProtocolVersions::SYSTEM_DEFAULT.truncate_below(config.version),
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            futures::executor::block_on(node.state().get_available_system_packages(&binary_config))
+        }),
+    );
+
+    // Sign with INCORRECT epoch (use epoch 0 when we're in epoch 1)
+    let wrong_epoch: EpochId = 0;
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(IntentScope::AuthorityCapabilities),
+            &capabilities,
+        ),
+        &wrong_epoch, // Wrong epoch!
+        &new_validator.authority_key_pair,
+    );
+
+    let signed_capabilities =
+        SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature);
+
+    let request = HandleCapabilityNotificationRequestV1 {
+        message: signed_capabilities,
+    };
+
+    // Try to send the capability notification
+    let auth_agg = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.clone_authority_aggregator().unwrap());
+
+    let result = auth_agg
+        .send_capability_notification_to_quorum(request)
+        .await;
+
+    // Should fail with signature error due to an incorrect epoch
+    assert!(matches!(
+        result,
+        Err(err) if matches!(&err, AggregatorSendCapabilityNotificationError::NonRetryableNotification { errors }
+            if errors.iter().any(|(e, _, _)| matches!(e, IotaError::InvalidSignature { .. })))
+    ));
 }
 
 async fn add_validator_candidate(
