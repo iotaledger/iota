@@ -213,8 +213,8 @@ services:
       - --port=5003
       - --host-ip=0.0.0.0
       - --write-ahead-log=/wal/faucet.wal
-      - --num-coins=1
-      - --amount=10000000000
+      - --num-coins=5
+      - --amount=200000000000
     ports:
       - "127.0.0.1:5003:5003/tcp"
       - "127.0.0.1:9188:9184/tcp"

@@ -297,29 +297,40 @@ impl CongestionTracker {
         prediction_sui: u64,
         prediction_ogd: u64,
     ) -> std::io::Result<()> {
-        // Save file in crate root
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("src");
         path.push("results");
         path.push(file_name);
 
-        // Make sure the directory exists
+        // Ensure directory exists
         std::fs::create_dir_all(path.parent().unwrap())?;
         let file_exists = path.exists();
 
+        // Open file for appending
         let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
 
-        // Write header if file did not exist before
+        // Write header if the file is new
         if !file_exists {
             writeln!(file, "checkpoint,gasprice,feedback,sui,ogd")?;
         }
 
-        // Write row
-        writeln!(
-            file,
+        // Build row
+        let row = format!(
             "{},{},{},{},{}",
             checkpoint, gas_price, gas_price_feedback, prediction_sui, prediction_ogd
-        )?;
+        );
+
+        // Column-count check
+        if row.split(',').count() != 5 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Malformed row: {}", row),
+            ));
+        }
+
+        // Write row and flush immediately
+        writeln!(file, "{}", row)?;
+        file.flush()?;
 
         Ok(())
     }
@@ -331,27 +342,33 @@ impl CongestionTracker {
         object_id: ObjectID,
         hotness: f64,
     ) -> std::io::Result<()> {
-        // Store inside src/results/
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("src");
         path.push("results");
         path.push(file_name);
 
-        // Ensure directory exists
         std::fs::create_dir_all(path.parent().unwrap())?;
-
         let file_exists = path.exists();
 
         let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
 
-        // Write header if file is new
         if !file_exists {
             writeln!(file, "checkpoint,object,hotness")?;
         }
 
-        // Write row
-        writeln!(file, "{},{},{}", checkpoint, object_id, hotness)?;
+        // Build row
+        let row = format!("{},{},{}", checkpoint, object_id, hotness);
 
+        // Ensure exactly 3 columns
+        if row.split(',').count() != 3 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Malformed row: {}", row),
+            ));
+        }
+
+        writeln!(file, "{}", row)?;
+        file.flush()?; // ensure it hits disk immediately
         Ok(())
     }
 
