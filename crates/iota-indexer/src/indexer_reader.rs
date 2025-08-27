@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{
     collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
     sync::{Arc, Mutex},
 };
 
@@ -18,7 +20,7 @@ use diesel::{
     sql_types::{BigInt, Bool},
 };
 use fastcrypto::encoding::{Encoding, Hex};
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::stream::{FuturesOrdered, StreamExt};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
@@ -719,27 +721,26 @@ impl IndexerReader {
         digest: TransactionDigest,
     ) -> IndexerResult<Option<StoredTransaction>> {
         let digest_bytes = digest.inner().to_vec();
-        let checkpointed_tx_future = {
-            let this = self.clone();
+        let checkpointed_tx_future: Pin<Box<dyn Future<Output = _> + Send>> = {
             let digest_bytes = digest_bytes.clone();
-            tokio::task::spawn_blocking(move || {
+            Box::pin(self.spawn_blocking(move |this| {
                 this.get_checkpointed_transactions(&[digest_bytes])
                     .map(|mut txs| txs.pop())
-            })
+            }))
         };
-        let optimistic_tx_future = {
-            let this = self.clone();
-            tokio::task::spawn_blocking(move || {
+        let optimistic_tx_future: Pin<Box<dyn Future<Output = _> + Send>> = {
+            let digest_bytes = digest_bytes.clone();
+            Box::pin(self.spawn_blocking(move |this| {
                 this.get_optimistic_transactions(&[digest_bytes])
                     .map(|mut txs| txs.pop().map(Into::into))
-            })
+            }))
         };
 
         let mut tx_futures =
-            FuturesUnordered::from_iter([checkpointed_tx_future, optimistic_tx_future]);
+            FuturesOrdered::from_iter([checkpointed_tx_future, optimistic_tx_future]);
 
         while let Some(result) = tx_futures.next().await {
-            if let Some(tx) = result?? {
+            if let Some(tx) = result? {
                 return Ok(Some(tx));
             }
         }

@@ -203,6 +203,10 @@ fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptio
         // match
         assert_eq!(fullnode_tx, tx);
 
+        // Those fields should be present for checkpoint indexed transactions
+        assert!(tx.checkpoint.is_some());
+        assert!(tx.timestamp_ms.is_some());
+
         assert!(
             match_transaction_block_resp_options(&options, &[fullnode_tx]),
             "fullnode transaction block assertion failed"
