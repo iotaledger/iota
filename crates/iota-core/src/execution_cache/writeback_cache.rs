@@ -95,7 +95,7 @@ use crate::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
-    fallback_fetch::do_fallback_lookup_fallible,
+    fallback_fetch::try_do_fallback_lookup,
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
 };
@@ -1391,7 +1391,7 @@ impl ObjectCacheRead for WritebackCache {
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             object_keys,
             |key| {
                 Ok(match self.get_object_by_key_cache_only(&key.0, key.1) {
@@ -1422,7 +1422,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             object_keys,
             |key| {
                 Ok(match self.get_object_by_key_cache_only(&key.0, key.1) {
@@ -1740,7 +1740,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
                 CacheResult::Hit((version, obj)) => {
@@ -1784,7 +1784,7 @@ impl TransactionCacheRead for WritebackCache {
             .iter()
             .map(|d| (*d, self.cached.transactions.get_ticket_for_read(d)))
             .collect();
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -1848,7 +1848,7 @@ impl TransactionCacheRead for WritebackCache {
                 )
             })
             .collect();
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -1908,7 +1908,7 @@ impl TransactionCacheRead for WritebackCache {
             .iter()
             .map(|d| (*d, self.cached.transaction_effects.get_ticket_for_read(d)))
             .collect();
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -1988,7 +1988,7 @@ impl TransactionCacheRead for WritebackCache {
             .iter()
             .map(|d| (*d, self.cached.transaction_events.get_ticket_for_read(d)))
             .collect();
-        do_fallback_lookup_fallible(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics

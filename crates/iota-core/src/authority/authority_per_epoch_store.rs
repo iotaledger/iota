@@ -414,7 +414,7 @@ pub struct AuthorityPerEpochStore {
     /// memory until they are proven not to have forked by a certified
     /// checkpoint.
     consensus_quarantine: RwLock<ConsensusOutputQuarantine>,
-    /// Holds variouis data from consensus_quarantine in a more easily
+    /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
 
@@ -1775,17 +1775,15 @@ impl AuthorityPerEpochStore {
         max: DeferralKey,
     ) -> IotaResult<Vec<(DeferralKey, Vec<DeferredTransaction>)>> {
         debug!("Query epoch store to load deferred txn {:?} {:?}", min, max);
-        let mut keys = Vec::new();
-        let mut txns = Vec::new();
 
-        if self
+        let (keys, txns) = if self
             .protocol_config
             .congestion_control_gas_price_feedback_mechanism()
         {
-            self.load_from_deferred_transactions_v2(&mut keys, &mut txns, min, max);
+            self.load_deferred_transactions_v2(min, max)
         } else {
-            self.load_from_deferred_transactions_v1(&mut keys, &mut txns, min, max);
-        }
+            self.load_deferred_transactions_v1(min, max)
+        };
 
         // verify that there are no duplicates - should be impossible due to
         // is_consensus_message_processed
@@ -1804,13 +1802,16 @@ impl AuthorityPerEpochStore {
         Ok(txns)
     }
 
-    fn load_from_deferred_transactions_v2(
+    fn load_deferred_transactions_v2(
         &self,
-        keys: &mut Vec<DeferralKey>,
-        txns: &mut Vec<(DeferralKey, Vec<DeferredTransaction>)>,
         min: DeferralKey,
         max: DeferralKey,
+    ) -> (
+        Vec<DeferralKey>,
+        Vec<(DeferralKey, Vec<DeferredTransaction>)>,
     ) {
+        let mut keys = Vec::new();
+        let mut txns = Vec::new();
         let mut deferred_transactions = self.consensus_output_cache.deferred_transactions_v2.lock();
 
         for (key, transactions) in deferred_transactions.range(min..max) {
@@ -1823,18 +1824,23 @@ impl AuthorityPerEpochStore {
             txns.push((*key, transactions.clone()));
         }
 
-        for key in keys {
+        for key in &keys {
             deferred_transactions.remove(key);
         }
+
+        (keys, txns)
     }
 
-    fn load_from_deferred_transactions_v1(
+    fn load_deferred_transactions_v1(
         &self,
-        keys: &mut Vec<DeferralKey>,
-        txns: &mut Vec<(DeferralKey, Vec<DeferredTransaction>)>,
         min: DeferralKey,
         max: DeferralKey,
+    ) -> (
+        Vec<DeferralKey>,
+        Vec<(DeferralKey, Vec<DeferredTransaction>)>,
     ) {
+        let mut keys = Vec::new();
+        let mut txns = Vec::new();
         let mut deferred_transactions = self.consensus_output_cache.deferred_transactions.lock();
 
         for (key, transactions) in deferred_transactions.range(min..max) {
@@ -1853,9 +1859,11 @@ impl AuthorityPerEpochStore {
             ));
         }
 
-        for key in keys {
+        for key in &keys {
             deferred_transactions.remove(key);
         }
+
+        (keys, txns)
     }
 
     pub fn get_all_deferred_transactions_for_test(

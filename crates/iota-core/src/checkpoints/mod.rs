@@ -1351,10 +1351,8 @@ impl CheckpointBuilder {
                 if previously_computed_summary != *summary {
                     // Panic so that we don't send out an equivocating checkpoint sig.
                     fatal!(
-                        "Checkpoint {} was previously built with a different result: {:?} vs {:?}",
+                        "Checkpoint {} was previously built with a different result: {previously_computed_summary:?} vs {summary:?}",
                         summary.sequence_number,
-                        previously_computed_summary,
-                        summary
                     );
                 }
             }
@@ -2551,7 +2549,8 @@ impl CheckpointService {
         let mut rx = self.highest_currently_built_seq_tx.subscribe();
         let mut highest_currently_built_seq = *rx.borrow_and_update();
         info!(
-            "Waiting for checkpoints to be rebuilt, previously built seq: {highest_previously_built_seq}, currently built seq: {highest_currently_built_seq}"
+            "Waiting for checkpoints to be rebuilt, previously built seq: \
+            {highest_previously_built_seq}, currently built seq: {highest_currently_built_seq}"
         );
         loop {
             if highest_currently_built_seq >= highest_previously_built_seq {

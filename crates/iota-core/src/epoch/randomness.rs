@@ -716,7 +716,7 @@ impl RandomnessManager {
         self.next_randomness_round = self
             .next_randomness_round
             .checked_add(1)
-            .expect("RandomnessRound should not overflow");
+            .ok_or_else(|| IotaError::Unknown("RandomnessRound overflow".to_string()))?;
 
         output.reserve_next_randomness_round(self.next_randomness_round, commit_timestamp);
 

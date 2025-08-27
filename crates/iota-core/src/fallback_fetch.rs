@@ -7,28 +7,31 @@ use iota_types::error::IotaResult;
 
 use crate::execution_cache::cache_types::CacheResult;
 
-/// do_fallback_lookup is a helper function for multi-get operations.
+/// `do_fallback_lookup` is the non-fallible version of
+/// `try_do_fallback_lookup`.
+pub fn do_fallback_lookup<K: Clone, V: Default + Clone>(
+    keys: &[K],
+    get_cached_key: impl Fn(&K) -> CacheResult<V>,
+    multiget_fallback: impl Fn(&[K]) -> Vec<V>,
+) -> Vec<V> {
+    try_do_fallback_lookup(
+        keys,
+        |key| Ok(get_cached_key(key)),
+        |keys| Ok(multiget_fallback(keys)),
+    )
+    .expect("try_do_fallback_lookup should not fail")
+}
+
+/// `try_do_fallback_lookup` is a helper function for multi-get operations.
 /// It takes a list of keys and first attempts to look up each key in the cache.
 /// The cache can return a hit, a miss, or a negative hit (if the object is
 /// known to not exist). Any keys that result in a miss are then looked up in
 /// the store.
 ///
 /// The "get from cache" and "get from store" behavior are implemented by the
-/// caller and provided via the get_cached_key and multiget_fallback functions.
-pub fn do_fallback_lookup<K: Clone, V: Default + Clone>(
-    keys: &[K],
-    get_cached_key: impl Fn(&K) -> CacheResult<V>,
-    multiget_fallback: impl Fn(&[K]) -> Vec<V>,
-) -> Vec<V> {
-    do_fallback_lookup_fallible(
-        keys,
-        |key| Ok(get_cached_key(key)),
-        |keys| Ok(multiget_fallback(keys)),
-    )
-    .expect("cannot fail")
-}
-
-pub fn do_fallback_lookup_fallible<K: Clone, V: Default + Clone>(
+/// caller and provided via the `get_cached_key` and `multiget_fallback`
+/// functions.
+pub fn try_do_fallback_lookup<K: Clone, V: Default + Clone>(
     keys: &[K],
     get_cached_key: impl Fn(&K) -> IotaResult<CacheResult<V>>,
     multiget_fallback: impl Fn(&[K]) -> IotaResult<Vec<V>>,
@@ -60,5 +63,6 @@ pub fn do_fallback_lookup_fallible<K: Clone, V: Default + Clone>(
     {
         results[i] = result;
     }
+
     Ok(results)
 }

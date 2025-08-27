@@ -3162,7 +3162,7 @@ impl AuthorityState {
 
         assert!(
             epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
-            "{epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
+            "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
         );
         if highest_locally_built_checkpoint_seq == epoch_last_checkpoint {
             // if we built the last checkpoint locally (as opposed to receiving it from a
@@ -3174,7 +3174,8 @@ impl AuthorityState {
             if num_shared_version_assignments > 1 {
                 // If this happens in prod, we have a memory leak, but not a correctness issue.
                 debug_fatal!(
-                    "all shared_version_assignments should have been removed (num_shared_version_assignments: {num_shared_version_assignments})"
+                    "all shared_version_assignments should have been removed \
+                    (num_shared_version_assignments: {num_shared_version_assignments})"
                 );
             }
         }

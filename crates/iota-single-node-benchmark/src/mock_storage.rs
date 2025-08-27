@@ -71,7 +71,7 @@ impl InMemoryObjectStore {
                         .get_or_init(|| {
                             epoch_store
                                 .get_assigned_shared_object_versions(tx_key)
-                                .map(|versions| versions.into_iter().collect::<HashMap<_, _>>())
+                                .map(|versions| versions.into_iter().collect())
                         })
                         .as_ref()
                         .ok_or_else(|| IotaError::GenericAuthority {

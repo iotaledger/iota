@@ -22,9 +22,7 @@ use crate::{
         AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
     digests::ConsensusCommitDigest,
-    messages_checkpoint::{
-        CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointTimestamp,
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -52,7 +50,7 @@ pub struct ConsensusCommitPrologueV1 {
     /// if there are multiple consensus commits per round.
     pub sub_dag_index: Option<u64>,
     /// Unix timestamp from consensus
-    pub commit_timestamp_ms: CheckpointTimestamp,
+    pub commit_timestamp_ms: TimestampMs,
     /// Digest of consensus output
     pub consensus_commit_digest: ConsensusCommitDigest,
     /// Stores consensus handler determined shared object version assignments.

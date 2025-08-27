@@ -289,11 +289,11 @@ impl ConsensusCommitOutput {
     }
 }
 
-/// ConsensusOutputCache holds outputs of consensus processing that do not need
-/// to be committed to disk. Data quarantining guarantees that all of this data
-/// will be used (e.g. for building checkpoints) before the consensus commit
-/// from which it originated is marked as processed. Therefore we can rely
-/// on replay of consensus commits to recover this data.
+/// `ConsensusOutputCache` holds outputs of consensus processing that do not
+/// need to be committed to disk. Data quarantining guarantees that all of this
+/// data will be used (e.g. for building checkpoints) before the consensus
+/// commit from which it originated is marked as processed. Therefore we can
+/// rely on replay of consensus commits to recover this data.
 pub(crate) struct ConsensusOutputCache {
     // shared version assignments is a DashMap because it is read from execution so we don't
     // want contention.
@@ -428,7 +428,7 @@ impl ConsensusOutputCache {
     }
 }
 
-/// ConsensusOutputQuarantine holds outputs of consensus processing in memory
+/// `ConsensusOutputQuarantine` holds outputs of consensus processing in memory
 /// until the checkpoints for the commit have been certified.
 pub(crate) struct ConsensusOutputQuarantine {
     // Output from consensus handler
@@ -671,6 +671,7 @@ impl ConsensusOutputQuarantine {
 
     // Read methods - all methods in this block return data from the quarantine
     // which would otherwise be found in the database.
+
     pub(super) fn last_built_summary(&self) -> Option<&BuilderCheckpointSummary> {
         self.builder_checkpoint_summary
             .values()
@@ -818,14 +819,14 @@ impl ConsensusOutputQuarantine {
     }
 }
 
-// A wrapper around HashMap that uses refcounts to keep entries alive until
-// they are no longer needed.
-//
-// If there are N inserts for the same key, the key will not be removed until
-// there are N removes.
-//
-// It is intended to track the *latest* value for a given key, so duplicate
-// inserts are intended to overwrite any prior value.
+/// A wrapper around `HashMap` that uses ref counts to keep entries alive until
+/// they are no longer needed.
+///
+/// If there are `N` inserts for the same key, the key will not be removed until
+/// there are `N` removes.
+///
+/// It is intended to track the *latest* value for a given key, so duplicate
+/// inserts are intended to overwrite any prior value.
 #[derive(Debug, Default)]
 struct RefCountedHashMap<K, V> {
     map: HashMap<K, (usize, V)>,
