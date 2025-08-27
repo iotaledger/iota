@@ -3,19 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import BigNumber from 'bignumber.js';
-import { IOTA_DECIMALS } from './constants.js';
 
-export function parseIotaToNanos(amount: string) {
+export function parseAmount(amount: string, coinDecimals: number) {
     try {
-        return BigInt(new BigNumber(amount).shiftedBy(IOTA_DECIMALS).integerValue().toString());
+        return BigInt(new BigNumber(amount).shiftedBy(coinDecimals).integerValue().toString());
     } catch (e) {
         return BigInt(0);
     }
 }
 
-export function safeParseIotaToNanos(amount: string) {
+export function safeParseAmount(amount: string, coinDecimals: number) {
     try {
-        return BigInt(new BigNumber(amount).shiftedBy(IOTA_DECIMALS).integerValue().toString());
+        return BigInt(new BigNumber(amount).shiftedBy(coinDecimals).integerValue().toString());
     } catch (e) {
         return null;
     }
