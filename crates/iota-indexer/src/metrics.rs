@@ -178,6 +178,7 @@ pub struct IndexerMetrics {
     pub last_pruned_checkpoint: IntGauge,
     pub last_pruned_transaction: IntGauge,
     pub epoch_pruning_latency: Histogram, // not used
+    pub last_pruned_optimistic_global_seq_num: IntGauge,
 }
 
 impl IndexerMetrics {
@@ -801,6 +802,11 @@ impl IndexerMetrics {
             last_pruned_transaction: register_int_gauge_with_registry!(
                 "last_pruned_transaction",
                 "Last pruned transaction sequence number",
+                registry,
+            ).unwrap(),
+            last_pruned_optimistic_global_seq_num: register_int_gauge_with_registry!(
+                "last_pruned_optimistic_global_seq_num",
+                "Last pruned optimistic global sequence number",
                 registry,
             ).unwrap(),
             epoch_pruning_latency: register_histogram_with_registry!(

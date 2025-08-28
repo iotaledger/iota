@@ -7,7 +7,8 @@ use std::{any::Any as StdAny, collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl,
+    RunQueryDsl,
     dsl::{max, min},
     sql_types::{Array, BigInt, Bytea, Nullable, SmallInt, Text},
     upsert::excluded,
@@ -47,9 +48,12 @@ use crate::{
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection, read_only_blocking,
-    rolling::transform::{
-        CheckpointObjectChanges, LiveObject, RemovedObject,
-        retain_latest_objects_from_checkpoint_batch,
+    rolling::{
+        error::IndexerResult,
+        transform::{
+            CheckpointObjectChanges, LiveObject, RemovedObject,
+            retain_latest_objects_from_checkpoint_batch,
+        },
     },
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
@@ -153,6 +157,13 @@ impl PgIndexerStore {
 
     pub fn blocking_cp(&self) -> ConnectionPool {
         self.blocking_cp.clone()
+    }
+
+    pub(crate) async fn get_latest_epoch_id_in_blocking_worker(
+        &self,
+    ) -> Result<Option<u64>, IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.get_latest_epoch_id())
+            .await
     }
 
     pub fn get_latest_epoch_id(&self) -> Result<Option<u64>, IndexerError> {
@@ -262,7 +273,9 @@ impl PgIndexerStore {
                 .first::<(i64, Option<i64>)>(conn)
                 .map(|(min, max)| (min as u64, max.map(|v| v as u64)))
         })
-        .context("Failed reading checkpoint range from PostgresDB")
+        .context(
+            format!("Failed reading checkpoint range from PostgresDB for epoch {epoch}").as_str(),
+        )
     }
 
     fn get_transaction_range_for_checkpoint(
@@ -279,7 +292,100 @@ impl PgIndexerStore {
                 .first::<(i64, i64)>(conn)
                 .map(|(min, max)| (min as u64, max as u64))
         })
-        .context("Failed reading transaction range from PostgresDB")
+        .context(
+            format!("Failed reading transaction range from PostgresDB for checkpoint {checkpoint}")
+                .as_str(),
+        )
+    }
+
+    pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
+        &self,
+        tx_seq: i64,
+    ) -> Result<(i64, i64), IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.get_global_order_for_tx_seq(tx_seq))
+            .await
+    }
+
+    fn get_global_order_for_tx_seq(&self, tx_seq: i64) -> Result<(i64, i64), IndexerError> {
+        read_only_blocking!(&self.blocking_cp, |conn| {
+            tx_global_order::dsl::tx_global_order
+                .select((
+                    tx_global_order::global_sequence_number,
+                    tx_global_order::optimistic_sequence_number,
+                ))
+                .filter(tx_global_order::chk_tx_sequence_number.eq(tx_seq))
+                .first::<(i64, i64)>(conn)
+        })
+        .context(
+            format!("Failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
+                .as_str(),
+        )
+    }
+
+    pub(crate) async fn get_nth_smallest_optimistic_tx_global_order_in_blocking_worker(
+        &self,
+        n: u64,
+    ) -> Result<Option<(i64, i64)>, IndexerError> {
+        self.execute_in_blocking_worker(move |this| {
+            this.get_nth_smallest_optimistic_tx_global_order(n)
+        })
+        .await
+    }
+
+    fn get_nth_smallest_optimistic_tx_global_order(
+        &self,
+        n: u64,
+    ) -> Result<Option<(i64, i64)>, IndexerError> {
+        read_only_blocking!(&self.blocking_cp, |conn| {
+            optimistic_transactions::dsl::optimistic_transactions
+                .select((
+                    optimistic_transactions::global_sequence_number,
+                    optimistic_transactions::optimistic_sequence_number,
+                ))
+                .order((
+                    optimistic_transactions::global_sequence_number.asc(),
+                    optimistic_transactions::optimistic_sequence_number.asc(),
+                ))
+                .offset(n as i64)
+                .first::<(i64, i64)>(conn)
+                .optional()
+        })
+        .context(format!("Failed reading Nth smallest optimistic tx global sequence number from PostgresDB for N: {n}").as_str())
+    }
+
+    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
+        &self,
+        to: (i64, i64),
+    ) -> IndexerResult<usize> {
+        self.execute_in_blocking_worker(move |this| this.prune_optimistic_transactions_up_to(to))
+            .await
+    }
+
+    fn prune_optimistic_transactions_up_to(&self, to: (i64, i64)) -> IndexerResult<usize> {
+        let (to_global_sequence_num, to_optimistic_sequence_num) = to;
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::delete(
+                    optimistic_transactions::dsl::optimistic_transactions.filter(
+                        optimistic_transactions::global_sequence_number
+                            .lt(to_global_sequence_num)
+                            .or(optimistic_transactions::global_sequence_number
+                                .eq(to_global_sequence_num)
+                                .and(
+                                    optimistic_transactions::optimistic_sequence_number
+                                        .le(to_optimistic_sequence_num),
+                                )),
+                    ),
+                )
+                .execute(conn)
+                .map_err(IndexerError::from)
+                .context(
+                    format!("Failed to prune optimistic_transactions table to {to:?}").as_str(),
+                )
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
     }
 
     fn get_latest_object_snapshot_checkpoint_sequence_number(
@@ -1581,7 +1687,7 @@ impl PgIndexerStore {
                 .select(epochs::network_total_transactions)
                 .get_result::<Option<i64>>(conn)
         })
-        .context("Failed to get network total transactions in epoch")
+        .context(format!("Failed to get network total transactions in epoch {epoch}").as_str())
         .map(|option| option.map(|v| v as u64))
     }
 

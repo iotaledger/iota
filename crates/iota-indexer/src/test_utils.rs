@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-
+use crate::config::PruningOptions;
 use diesel::{QueryableByName, connection::SimpleConnection, sql_types::BigInt};
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
+use std::path::PathBuf;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -64,6 +64,7 @@ pub enum IndexerTypeConfig {
     Writer {
         snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
+        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -77,12 +78,17 @@ impl IndexerTypeConfig {
 
     pub fn writer_mode(
         snapshot_config: Option<SnapshotLagConfig>,
-        epochs_to_keep: Option<u64>,
+        pruning_options: Option<PruningOptions>,
     ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
-            retention_config: epochs_to_keep
-                .map(RetentionConfig::new_with_default_retention_only_for_testing),
+            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
+                pruning_options
+                    .epochs_to_keep
+                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
+            }),
+            optimistic_pruner_batch_size: pruning_options
+                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -154,6 +160,7 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::Writer {
             snapshot_config,
             retention_config,
+            optimistic_pruner_batch_size,
         } => {
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
@@ -170,6 +177,7 @@ pub async fn start_test_indexer_impl(
                     indexer_metrics,
                     snapshot_config,
                     retention_config,
+                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await
