@@ -2157,8 +2157,9 @@ mod test {
             commits.push(commit);
         }
 
-        // Add the blocks from first 5 rounds and first 5 commits to the dag state
-        let temp_commits = commits.split_off(5);
+        // Add the block headers from the first 5 rounds and the first 5 commits to the
+        // dag state
+        let later_commits = commits.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for commit in commits.clone() {
             dag_state.add_commit(commit);
@@ -2167,17 +2168,17 @@ mod test {
         // Flush the dag state
         dag_state.flush();
 
-        // Add the rest of the blocks and commits to the dag state
+        // Add the rest of the block headers and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
-        for commit in temp_commits.clone() {
+        for commit in later_commits.clone() {
             dag_state.add_commit(commit);
         }
 
-        // All blocks should be found in DagState.
-        let all_block_headers = dag_builder.block_headers(6..=num_rounds);
+        // All block headers should be found in DagState.
+        let all_block_headers = dag_builder.block_headers(1..=num_rounds);
         let block_refs = all_block_headers
             .iter()
-            .map(|block| block.reference())
+            .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
         let result = dag_state
             .get_block_headers(&block_refs)
@@ -2186,7 +2187,7 @@ mod test {
             .collect::<Vec<_>>();
         assert_eq!(result, all_block_headers);
 
-        // Last commit index should be 10.
+        // The last commit index should be 10.
         assert_eq!(dag_state.last_commit_index(), 10);
         assert_eq!(
             dag_state.last_committed_rounds(),
@@ -2199,7 +2200,7 @@ mod test {
         // Recover the state from the store
         let dag_state = DagState::new(context.clone(), store.clone());
 
-        // Blocks of first 5 rounds should be found in DagState.
+        // Block headers from the first 5 rounds should be found in DagState.
         let block_headers = dag_builder.block_headers(1..=5);
         let block_refs = block_headers
             .iter()
@@ -2212,20 +2213,21 @@ mod test {
             .collect::<Vec<_>>();
         assert_eq!(result, block_headers);
 
-        // Blocks above round 5 should not be in DagState, because they are not flushed.
-        let missing_blocks = dag_builder.block_headers(6..=num_rounds);
-        let block_refs = missing_blocks
+        // Block headers above round 5 should not be in DagState, because they are not
+        // flushed.
+        let missing_block_headers = dag_builder.block_headers(6..=num_rounds);
+        let block_refs = missing_block_headers
             .iter()
-            .map(|block| block.reference())
+            .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
-        let retrieved_blocks = dag_state
+        let retrieved_block_headers = dag_state
             .get_block_headers(&block_refs)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        assert!(retrieved_blocks.is_empty());
+        assert!(retrieved_block_headers.is_empty());
 
-        // Last commit index should be 5.
+        // The last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
 
         // This is the last_commit_rounds of the first 5 commits that were flushed
