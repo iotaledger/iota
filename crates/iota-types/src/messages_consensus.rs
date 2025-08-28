@@ -192,7 +192,8 @@ impl AuthorityCapabilitiesV1 {
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
     CheckpointSignature(Box<CheckpointSignatureMessage>),
-    EndOfPublish(AuthorityName, Vec<u32>),
+    EndOfPublishV1(AuthorityName),
+    EndOfPublishV2(AuthorityName, Vec<u32>),
 
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
 
@@ -319,13 +320,23 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_end_of_publish(authority: AuthorityName, partial_scores: Vec<u32>) -> Self {
+    pub fn new_end_of_publish_v1(authority: AuthorityName) -> Self {
         let mut hasher = DefaultHasher::new();
         authority.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::EndOfPublish(authority, partial_scores),
+            kind: ConsensusTransactionKind::EndOfPublishV1(authority),
+        }
+    }
+
+    pub fn new_end_of_publish_v2(authority: AuthorityName, partial_scores: Vec<u32>) -> Self {
+        let mut hasher = DefaultHasher::new();
+        authority.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::EndOfPublishV2(authority, partial_scores),
         }
     }
 
@@ -412,7 +423,8 @@ impl ConsensusTransaction {
                     data.summary.sequence_number,
                 )
             }
-            ConsensusTransactionKind::EndOfPublish(authority, _) => {
+            ConsensusTransactionKind::EndOfPublishV2(authority, _)
+            | ConsensusTransactionKind::EndOfPublishV1(authority) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
@@ -437,9 +449,14 @@ impl ConsensusTransaction {
     pub fn is_user_certificate(&self) -> bool {
         matches!(self.kind, ConsensusTransactionKind::CertifiedTransaction(_))
     }
-
-    pub fn is_end_of_publish(&self) -> bool {
-        matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_, _))
+    pub fn is_end_of_publish_v1(&self) -> bool {
+        matches!(self.kind, ConsensusTransactionKind::EndOfPublishV1(_))
+    }
+    pub fn is_end_of_publish_v2(&self) -> bool {
+        matches!(self.kind, ConsensusTransactionKind::EndOfPublishV2(_, _))
+    }
+    pub fn is_end_of_publish_any_version(&self) -> bool {
+        self.is_end_of_publish_v1() || self.is_end_of_publish_v2()
     }
 }
 

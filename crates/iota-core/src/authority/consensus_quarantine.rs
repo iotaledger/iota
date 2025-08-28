@@ -78,10 +78,14 @@ impl ConsensusCommitOutput {
         self.next_randomness_round.as_ref().map(|(_, ts)| *ts)
     }
 
-    pub fn insert_end_of_publish(&mut self, authority: AuthorityName, partial_scores: Vec<u32>) {
+    pub fn insert_end_of_publish_v1(&mut self, authority: AuthorityName, partial_scores: Vec<u32>) {
         self.end_of_publish.insert(authority);
     }
-
+    pub fn insert_end_of_publish_v2(&mut self, authority: AuthorityName, partial_scores: Vec<u32>) {
+        self.end_of_publish.insert(authority);
+        self.partial_scores_received
+            .insert((authority, partial_scores));
+    }
     fn get_highest_pending_checkpoint_height(&self) -> Option<CheckpointHeight> {
         self.pending_checkpoints.last().map(|cp| cp.height())
     }

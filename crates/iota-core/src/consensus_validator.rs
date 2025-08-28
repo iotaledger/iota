@@ -75,9 +75,24 @@ impl IotaTxValidator {
                         return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
+                ConsensusTransactionKind::EndOfPublishV2(_, _) => {
+                    if self.epoch_store.protocol_config.scorer_version() == None {
+                        warn!("batch verification error: wrong version of EndOfPublish");
+                        return Err(IotaError::WrongMessageVersion {
+                            error: ("Unexpected EndOfPublishV2".to_string()),
+                        });
+                    }
+                }
+                ConsensusTransactionKind::EndOfPublishV1(_) => {
+                    if self.epoch_store.protocol_config.scorer_version() == Some(0) {
+                        warn!("batch verification error: wrong version of EndOfPublish");
+                        return Err(IotaError::WrongMessageVersion {
+                            error: ("Unexpected EndOfPublishV1".to_string()),
+                        });
+                    }
+                }
 
-                ConsensusTransactionKind::EndOfPublish(_, _)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
+                ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
         }

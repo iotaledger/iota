@@ -581,7 +581,8 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             }
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
-        ConsensusTransactionKind::EndOfPublish(_, _) => "end_of_publish",
+        ConsensusTransactionKind::EndOfPublishV1(_) => "end_of_publish_v1",
+        ConsensusTransactionKind::EndOfPublishV2(_, _) => "end_of_publish_v2",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -701,10 +702,14 @@ impl SequencedConsensusTransactionKind {
         }
     }
 
-    pub fn is_end_of_publish(&self) -> bool {
+    pub fn is_end_of_publish_any_version(&self) -> bool {
         match self {
             SequencedConsensusTransactionKind::External(ext) => {
-                matches!(ext.kind, ConsensusTransactionKind::EndOfPublish(..))
+                matches!(
+                    ext.kind,
+                    ConsensusTransactionKind::EndOfPublishV1(..)
+                        | ConsensusTransactionKind::EndOfPublishV2(..)
+                )
             }
             SequencedConsensusTransactionKind::System(_) => false,
         }
@@ -720,9 +725,13 @@ impl SequencedConsensusTransaction {
         self.transaction.key()
     }
 
-    pub fn is_end_of_publish(&self) -> bool {
+    pub fn is_end_of_publish_any_version(&self) -> bool {
         if let SequencedConsensusTransactionKind::External(ref transaction) = self.transaction {
-            matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..))
+            matches!(
+                transaction.kind,
+                ConsensusTransactionKind::EndOfPublishV1(..)
+                    | ConsensusTransactionKind::EndOfPublishV2(..)
+            )
         } else {
             false
         }
@@ -1047,10 +1056,10 @@ mod tests {
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
             cap_txn(10, chain),
-            eop_txn(12),
-            eop_txn(10),
+            eopv1_txn(12),
+            eopv1_txn(10),
             cap_txn(1, chain),
-            eop_txn(11),
+            eopv1_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
         assert_eq!(
@@ -1072,7 +1081,8 @@ mod tests {
     fn extract_one(t: VerifiedSequencedConsensusTransaction) -> String {
         match t.0.transaction {
             SequencedConsensusTransactionKind::External(ext) => match ext.kind {
-                ConsensusTransactionKind::EndOfPublish(authority, _) => {
+                ConsensusTransactionKind::EndOfPublishV2(authority, _)
+                | ConsensusTransactionKind::EndOfPublishV1(authority) => {
                     format!("eop({})", authority.0[0])
                 }
                 ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
@@ -1087,10 +1097,19 @@ mod tests {
         }
     }
 
-    fn eop_txn(a: u8) -> VerifiedSequencedConsensusTransaction {
+    fn eopv1_txn(a: u8) -> VerifiedSequencedConsensusTransaction {
         let mut authority = AuthorityName::default();
         authority.0[0] = a;
-        txn(ConsensusTransactionKind::EndOfPublish(authority, vec![]))
+        txn(ConsensusTransactionKind::EndOfPublishV1(authority))
+    }
+
+    fn eopv2_txn(a: u8, partial_scores: Vec<u32>) -> VerifiedSequencedConsensusTransaction {
+        let mut authority = AuthorityName::default();
+        authority.0[0] = a;
+        txn(ConsensusTransactionKind::EndOfPublishV2(
+            authority,
+            partial_scores,
+        ))
     }
 
     fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {

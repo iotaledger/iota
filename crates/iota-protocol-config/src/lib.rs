@@ -317,6 +317,10 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // TO DO: move this to the correct place
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scorer_version: Option<u64>,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1155,6 +1159,11 @@ impl ProtocolConfig {
 
     pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta
+    }
+
+    pub fn scorer_version(&self) -> Option<u64> {
+        // self.feature_flags.scorer_version
+        Some(0)
     }
 
     pub fn hardened_otw_check(&self) -> bool {

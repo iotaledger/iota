@@ -10,7 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwapOption;
-use consensus_core::scorer::{PartialScores, Scorer};
+use consensus_core::scorer::Scorer;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
@@ -504,7 +504,6 @@ pub struct AuthorityPerEpochStore {
     randomness_reporter: OnceCell<RandomnessReporter>,
 
     /// Local view of the validator about the other authorities' partial scores.
-    _partial_scores_sent: Option<PartialScores>,
     pub scorer: Arc<Scorer>,
 }
 
@@ -996,7 +995,6 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            _partial_scores_sent: None,
             scorer: Arc::new(Scorer::new(committee.num_members(), &protocol_config)),
         });
 
@@ -2622,7 +2620,11 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority, _),
+                kind: ConsensusTransactionKind::EndOfPublishV2(authority, _),
+                ..
+            })
+            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV1(authority),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -2737,7 +2739,7 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         for tx in verified_transactions {
-            if tx.0.is_end_of_publish() {
+            if tx.0.is_end_of_publish_any_version() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
@@ -3499,12 +3501,12 @@ impl AuthorityPerEpochStore {
             }) = transaction;
 
             if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority, partial_scores),
+                kind: ConsensusTransactionKind::EndOfPublishV1(authority),
                 ..
             }) = transaction
             {
                 debug!(
-                    "Received EndOfPublish for epoch {} from {:?}",
+                    "Received EndOfPublishV1 for epoch {} from {:?}",
                     self.committee.epoch,
                     authority.concise()
                 );
@@ -3517,7 +3519,64 @@ impl AuthorityPerEpochStore {
                         .get_reconfig_state_read_lock_guard()
                         .should_accept_consensus_certs()
                 {
-                    output.insert_end_of_publish(*authority, partial_scores.clone());
+                    output.insert_end_of_publish_v1(*authority);
+                    self.end_of_publish.try_lock()
+                        .expect("No contention on Authority::end_of_publish as it is only accessed from consensus handler")
+                        .insert_generic(*authority, ()).is_quorum_reached()
+
+                    // end_of_publish lock is released here.
+                } else {
+                    // If we past the stage where we are accepting consensus certificates we also
+                    // don't record end of publish messages
+                    debug!(
+                        "Ignoring end of publish message from validator {:?} as we already collected enough end of publish messages",
+                        authority.concise()
+                    );
+                    false
+                };
+
+                if collected_end_of_publish {
+                    assert!(lock.is_none());
+                    debug!(
+                        "Collected enough end_of_publish messages for epoch {} with last message from validator {:?}",
+                        self.committee.epoch,
+                        authority.concise(),
+                    );
+
+                    let mut l = self.get_reconfig_state_write_lock_guard();
+                    l.close_all_certs();
+                    output.store_reconfig_state(l.clone());
+                    // Holding this lock until end of
+                    // process_consensus_transactions_and_commit_boundary() where we write batch to
+                    // DB
+                    lock = Some(l);
+                };
+                // Important: we actually rely here on fact that ConsensusHandler panics if its
+                // operation returns error. If some day we won't panic in ConsensusHandler on
+                // error we need to figure out here how to revert in-memory
+                // state of .end_of_publish and .reconfig_state when write
+                // fails.
+                output.record_consensus_message_processed(transaction.key());
+            } else if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV2(authority, partial_scores),
+                ..
+            }) = transaction
+            {
+                debug!(
+                    "Received EndOfPublishV2 for epoch {} from {:?}",
+                    self.committee.epoch,
+                    authority.concise()
+                );
+
+                // It is ok to just release lock here as this function is the only place that
+                // transition into RejectAllCerts state And this function itself
+                // is always executed from consensus task
+                let collected_end_of_publish = if lock.is_none()
+                    && self
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
+                    output.insert_end_of_publish_v2(*authority, partial_scores.clone());
                     self.partial_scores_received
                         .try_lock()
                         .expect("No contention on partial_scores_received as it is only accessed from consensus handler")
@@ -3835,7 +3894,11 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(_, _),
+                kind: ConsensusTransactionKind::EndOfPublishV2(_, _),
+                ..
+            })
+            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV1(_),
                 ..
             }) => {
                 // these are partitioned earlier

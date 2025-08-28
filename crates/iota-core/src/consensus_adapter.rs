@@ -350,7 +350,7 @@ impl ConsensusAdapter {
         {
             let recovered_end_of_publish = recovered
                 .iter()
-                .find(|transaction| transaction.is_end_of_publish());
+                .find(|transaction| transaction.is_end_of_publish_any_version());
             if let Some(end_of_publish) = recovered_end_of_publish {
                 // There are two cases when this is needed
                 // (1) We send EndOfPublish message after removing pending certificates in
@@ -368,7 +368,7 @@ impl ConsensusAdapter {
             recovered.len()
         );
         for transaction in recovered {
-            if transaction.is_end_of_publish() {
+            if transaction.is_end_of_publish_any_version() {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
             }
             self.submit_unchecked(&[transaction], epoch_store);
@@ -674,7 +674,11 @@ impl ConsensusAdapter {
         let mut transaction_keys = Vec::new();
 
         for transaction in &transactions {
-            if matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..)) {
+            if matches!(
+                transaction.kind,
+                ConsensusTransactionKind::EndOfPublishV1(..)
+                    | ConsensusTransactionKind::EndOfPublishV2(..)
+            ) {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
                 epoch_store.record_epoch_pending_certs_process_time_metric();
             }
@@ -720,7 +724,8 @@ impl ConsensusAdapter {
         let _monitor = if !is_soft_bundle
             && matches!(
                 transactions[0].kind,
-                ConsensusTransactionKind::EndOfPublish(_, _)
+                ConsensusTransactionKind::EndOfPublishV2(_, _)
+                    | ConsensusTransactionKind::EndOfPublishV1(_)
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
@@ -866,9 +871,9 @@ impl ConsensusAdapter {
         } else {
             false
         };
-        if send_end_of_publish {
+        if send_end_of_publish && epoch_store.protocol_config.scorer_version() == Some(0) {
             // sending message outside of any locks scope
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
+            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV2 message to consensus");
             let partial_scores = epoch_store
                 .scorer
                 .get_unprovable_partial_scores()
@@ -876,7 +881,17 @@ impl ConsensusAdapter {
                 .map(|a| a.0.load(Ordering::Relaxed) as u32)
                 .collect();
             if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority, partial_scores),
+                ConsensusTransaction::new_end_of_publish_v2(self.authority, partial_scores),
+                None,
+                epoch_store,
+            ) {
+                warn!("Error when sending end of publish message: {:?}", err);
+            }
+        } else if send_end_of_publish && epoch_store.protocol_config.scorer_version() == None {
+            // sending message outside of any locks scope
+            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV1 message to consensus");
+            if let Err(err) = self.submit(
+                ConsensusTransaction::new_end_of_publish_v1(self.authority),
                 None,
                 epoch_store,
             ) {
@@ -1112,8 +1127,8 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             send_end_of_publish
             // reconfig_guard lock is dropped here.
         };
-        if send_end_of_publish {
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
+        if send_end_of_publish && epoch_store.protocol_config.scorer_version() == Some(0) {
+            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV2 message to consensus");
             let partial_scores = epoch_store
                 .scorer
                 .get_unprovable_partial_scores()
@@ -1121,7 +1136,16 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 .map(|a| a.0.load(Ordering::Relaxed) as u32)
                 .collect();
             if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority, partial_scores),
+                ConsensusTransaction::new_end_of_publish_v2(self.authority, partial_scores),
+                None,
+                epoch_store,
+            ) {
+                warn!("Error when sending end of publish message: {:?}", err);
+            }
+        } else if send_end_of_publish && epoch_store.protocol_config.scorer_version() == None {
+            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV1 message to consensus");
+            if let Err(err) = self.submit(
+                ConsensusTransaction::new_end_of_publish_v1(self.authority),
                 None,
                 epoch_store,
             ) {

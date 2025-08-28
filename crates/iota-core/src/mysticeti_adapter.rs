@@ -120,7 +120,8 @@ impl ConsensusClient for LazyMysticetiClient {
         if !is_soft_bundle
             && matches!(
                 transactions[0].kind,
-                ConsensusTransactionKind::EndOfPublish(_, _)
+                ConsensusTransactionKind::EndOfPublishV2(_, _)
+                    | ConsensusTransactionKind::EndOfPublishV1(_)
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
