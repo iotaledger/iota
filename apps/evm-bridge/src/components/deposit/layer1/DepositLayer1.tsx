@@ -10,7 +10,7 @@ import { useBuildDepositTransactionL1 } from '../../../hooks/useBuildDepositTran
 import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
 import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
-import { CoinFormat, formatBalance, IOTA_DECIMALS, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 import { useCoinMetadata, useGetAllCoins } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 import { useAccount } from 'wagmi';
@@ -32,8 +32,7 @@ export function DepositLayer1() {
 
     const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
 
-    const amount =
-        parseIotaToNanos(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
 
     const { data: transactionData, isPending: isBuildingTransaction } =
         useBuildDepositTransactionL1({

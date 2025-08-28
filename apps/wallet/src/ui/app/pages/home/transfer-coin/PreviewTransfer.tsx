@@ -11,7 +11,7 @@ import {
     useGetIotaNameRecord,
 } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { CoinFormat, formatAddress, IOTA_TYPE_ARG, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -31,7 +31,7 @@ export function PreviewTransfer({
     const { data: nameRecord } = useGetIotaNameRecord(to);
     const accountAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
-    const amountWithoutDecimals = parseIotaToNanos(amount, metadata?.decimals ?? 0);
+    const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
 
     const approximation =
         amountWithoutDecimals === BigInt(coinBalance) && coinType === IOTA_TYPE_ARG;

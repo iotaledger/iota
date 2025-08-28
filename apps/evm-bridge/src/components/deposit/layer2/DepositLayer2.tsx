@@ -14,7 +14,7 @@ import { L2Chain } from '../../../config';
 import { getBalanceQueryKey } from 'wagmi/query';
 import { useGasEstimateL2 } from '../../../hooks/useGasEstimateL2';
 import { formatEther } from 'viem';
-import { IOTA_DECIMALS, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 
@@ -32,8 +32,7 @@ export function DepositLayer2() {
 
     const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
 
-    const amount =
-        parseIotaToNanos(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
 
     const { data: hash, writeContractAsync, isSuccess, isError, error } = useWriteContract({});
 

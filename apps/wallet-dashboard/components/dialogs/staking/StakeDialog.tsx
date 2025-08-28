@@ -13,7 +13,7 @@ import {
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView } from './views';
 import { TransactionDialogView } from '../TransactionDialog';
@@ -58,7 +58,7 @@ export function StakeDialog({
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = metadata?.decimals ?? 0;
     const coinSymbol = metadata?.symbol ?? '';
-    const minimumStake = parseIotaToNanos(MIN_NUMBER_IOTA_TO_STAKE.toString(), coinDecimals);
+    const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), coinDecimals);
 
     const { data: minAmountTransactionData } = useNewStakeTransaction(
         selectedValidator,
