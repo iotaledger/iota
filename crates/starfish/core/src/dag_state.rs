@@ -1972,20 +1972,20 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create test blocks for round 1 ~ 10
+        // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
-        let mut blocks = Vec::new();
+        let mut block_headers = Vec::new();
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block =
+                let block_header =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                blocks.push(block.clone());
-                dag_state.accept_block_header(block);
+                block_headers.push(block_header.clone());
+                dag_state.accept_block_header(block_header);
             }
         }
 
-        // Query for genesis round 0, genesis blocks should be returned
+        // Query for genesis round 0, genesis block headers should be returned
         for (author, _) in context.committee.authorities() {
             assert!(
                 dag_state.contains_cached_block_header_at_slot(Slot::new(GENESIS_ROUND, author)),
@@ -1993,12 +1993,11 @@ mod test {
             );
         }
 
-        // Now when trying to query whether we have all the blocks, we should
-        // successfully retrieve a positive answer where the blocks of first 4
-        // round should be found in DagState and the rest in store.
-        let mut block_refs = blocks
+        // Now when trying to query whether we have all the block headers, we should
+        // receive a positive answer for all headers
+        let mut block_refs = block_headers
             .iter()
-            .map(|block| block.reference())
+            .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
 
         for block_ref in block_refs.clone() {
@@ -2007,7 +2006,7 @@ mod test {
             assert!(found, "A block should be found at slot {slot}");
         }
 
-        // Now try to ask also for one block ref that is not in cache
+        // Now try to ask also for one block ref that is not in the cache
         // Then all should be found apart from the last one
         block_refs.insert(
             3,
