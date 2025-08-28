@@ -7,6 +7,9 @@ import {
     Collapsible,
     useNFTBasicData,
     NFTMediaDisplayCard,
+    useGetDefaultIotaName,
+    formatIotaName,
+    NamedAddressTooltip,
 } from '@iota/core';
 import { Button, ButtonType, Header, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -40,6 +43,7 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
         kioskItem,
         objectData,
     } = useNftDetails(objectId, senderAddress);
+    const { data: iotaName } = useGetDefaultIotaName(ownerAddress);
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     function handleMoreAboutKiosk() {
@@ -76,11 +80,11 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
                     </ExplorerLink>
                     <div className="flex w-full flex-col gap-md">
                         <div className="flex flex-col gap-xxxs">
-                            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
+                            <span className="break-words text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                                 {nftDisplayData?.name}
                             </span>
                             {nftDisplayData?.description ? (
-                                <span className="text-body-md text-iota-neutral-60">
+                                <span className="break-words text-body-md text-iota-neutral-60">
                                     {nftDisplayData?.description}
                                 </span>
                             ) : null}
@@ -111,12 +115,18 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
                                     <KeyValueInfo
                                         keyText="Owner"
                                         value={
-                                            <ExplorerLink
-                                                type={ExplorerLinkType.Address}
+                                            <NamedAddressTooltip
+                                                name={iotaName}
                                                 address={ownerAddress}
                                             >
-                                                {formatAddress(ownerAddress)}
-                                            </ExplorerLink>
+                                                <ExplorerLink
+                                                    type={ExplorerLinkType.Address}
+                                                    address={ownerAddress}
+                                                >
+                                                    {formatIotaName(iotaName) ||
+                                                        formatAddress(ownerAddress)}
+                                                </ExplorerLink>
+                                            </NamedAddressTooltip>
                                         }
                                         fullwidth
                                     />
