@@ -15,6 +15,8 @@ use std::{
     },
 };
 
+use either::Either;
+use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
@@ -725,39 +727,22 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        Ok(if reverse {
-            let iter = index
-                .reversed_safe_iter_with_bounds(
-                    None,
-                    Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX))),
-                )?
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .take_while(|((id, _), _)| *id == key)
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
+        let iter = if reverse {
+            Either::Left(index.reversed_safe_iter_with_bounds(
+                None,
+                Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX))),
+            )?)
         } else {
-            let iter = index
-                .iter_with_bounds(
-                    Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN))),
-                    None,
-                )
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, _), _)| *id == key)
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
-        })
+            Either::Right(index.safe_iter_with_bounds(
+                Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN))),
+                None,
+            ))
+        };
+        iter
+            // skip one more if exclusive cursor is Some
+            .skip(usize::from(cursor.is_some()))
+            .try_take_map_while_and_collect(limit, |((id, _), _)| *id == key, |(_, digest)| digest)
+            .map_err(Into::into)
     }
 
     pub fn get_transactions_by_input_object(
@@ -862,45 +847,32 @@ impl IndexStore {
                 .unwrap_or(if reverse { max_string } else { "".to_string() });
 
         let key = (package, module_val, function_val, cursor_val);
-        Ok(if reverse {
-            let iter = self
-                .tables
-                .transactions_by_move_function
-                .reversed_safe_iter_with_bounds(None, Some(key))?
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .take_while(|((id, m, f, _), _)| {
-                    *id == package
-                        && module.as_ref().map(|x| x == m).unwrap_or(true)
-                        && function.as_ref().map(|x| x == f).unwrap_or(true)
-                })
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
+        let iter = if reverse {
+            Either::Left(
+                self.tables
+                    .transactions_by_move_function
+                    .reversed_safe_iter_with_bounds(None, Some(key))?,
+            )
         } else {
-            let iter = self
-                .tables
-                .transactions_by_move_function
-                .iter_with_bounds(Some(key), None)
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, m, f, _), _)| {
+            Either::Right(
+                self.tables
+                    .transactions_by_move_function
+                    .safe_iter_with_bounds(Some(key), None),
+            )
+        };
+        iter
+            // skip one more if exclusive cursor is Some
+            .skip(usize::from(cursor.is_some()))
+            .try_take_map_while_and_collect(
+                limit,
+                |((id, m, f, _), _)| {
                     *id == package
                         && module.as_ref().map(|x| x == m).unwrap_or(true)
                         && function.as_ref().map(|x| x == f).unwrap_or(true)
-                })
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
-        })
+                },
+                |(_, digest)| digest,
+            )
+            .map_err(Into::into)
     }
 
     pub fn get_transactions_to_addr(
@@ -967,29 +939,25 @@ impl IndexStore {
         let seq = self
             .get_transaction_seq(digest)?
             .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
-        Ok(if descending {
-            self.tables
-                .event_order
-                .reversed_safe_iter_with_bounds(None, Some((min(tx_seq, seq), event_seq)))?
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .take_while(|((tx, _), _)| tx == &seq)
-                .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+        let iter = if descending {
+            Either::Left(
+                self.tables
+                    .event_order
+                    .reversed_safe_iter_with_bounds(None, Some((min(tx_seq, seq), event_seq)))?,
+            )
         } else {
-            self.tables
-                .event_order
-                .iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None)
-                .take_while(|((tx, _), _)| tx == &seq)
-                .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        })
+            Either::Right(
+                self.tables
+                    .event_order
+                    .safe_iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None),
+            )
+        };
+        iter.try_take_map_while_and_collect(
+            Some(limit),
+            |((tx, _), _)| tx == &seq,
+            |((_, event_seq), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
+        )
+        .map_err(Into::into)
     }
 
     fn get_event_from_index<KeyT: Clone + PartialEq + Serialize + DeserializeOwned>(
@@ -1000,27 +968,23 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Ok(if descending {
-            index
-                .reversed_safe_iter_with_bounds(None, Some((key.clone(), (tx_seq, event_seq))))?
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .take_while(|((m, _), _)| m == key)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        } else {
-            index
-                .iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None)
-                .take_while(|((m, _), _)| m == key)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        })
+        let iter =
+            if descending {
+                Either::Left(index.reversed_safe_iter_with_bounds(
+                    None,
+                    Some((key.clone(), (tx_seq, event_seq))),
+                )?)
+            } else {
+                Either::Right(
+                    index.safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None),
+                )
+            };
+        iter.try_take_map_while_and_collect(
+            Some(limit),
+            |((m, _), _)| m == key,
+            |((_, (_, event_seq)), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
+        )
+        .map_err(Into::into)
     }
 
     pub fn events_by_module_id(
@@ -1104,29 +1068,31 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Ok(if descending {
+        if descending {
             self.tables
                 .event_by_time
                 .reversed_safe_iter_with_bounds(None, Some((end_time, (tx_seq, event_seq))))?
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .take_while(|((m, _), _)| m >= &start_time)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+                .try_take_map_while_and_collect(
+                    Some(limit),
+                    |((m, _), _)| m >= &start_time,
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )
+                .map_err(Into::into)
         } else {
             self.tables
                 .event_by_time
-                .iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
-                .take_while(|((m, _), _)| m <= &end_time)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        })
+                .safe_iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
+                .try_take_map_while_and_collect(
+                    Some(limit),
+                    |((m, _), _)| m <= &end_time,
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )
+                .map_err(Into::into)
+        }
     }
 
     pub fn get_dynamic_fields_iterator(

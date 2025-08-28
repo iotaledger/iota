@@ -70,7 +70,7 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
-    DBMapUtils, Map, TypedStoreError,
+    DBMapUtils, Map,
     rocks::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
         read_size_from_env,
