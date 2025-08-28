@@ -776,11 +776,11 @@ impl DagState {
             let header = self
                 .recent_block_headers
                 .get(block_ref)
-                .unwrap_or_else(|| panic!("Missing block header for {:?}", block_ref));
+                .unwrap_or_else(|| panic!("Missing block header for {block_ref:?}"));
             let transactions = self
                 .recent_transactions
                 .get(block_ref)
-                .unwrap_or_else(|| panic!("Missing transactions for {:?}", block_ref));
+                .unwrap_or_else(|| panic!("Missing transactions for {block_ref:?}"));
             blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
         }
         blocks
@@ -1134,11 +1134,12 @@ impl DagState {
             assert_eq!(commit.index(), 1);
         }
 
-        let commit_round_advanced = if let Some(previous_commit) = &self.last_commit {
-            previous_commit.round() < commit.round()
-        } else {
-            true
-        };
+        // Ensure that commit rounds are strictly increasing
+        assert!(
+            self.last_commit
+                .as_ref()
+                .is_none_or(|prev| prev.round() < commit.round())
+        );
 
         self.last_commit = Some(commit.clone());
 
@@ -1151,17 +1152,15 @@ impl DagState {
                 .set(gap as i64);
         }
 
-        if commit_round_advanced {
-            let now = std::time::Instant::now();
-            if let Some(previous_time) = self.last_commit_round_advancement_time {
-                self.context
-                    .metrics
-                    .node_metrics
-                    .commit_round_advancement_interval
-                    .observe(now.duration_since(previous_time).as_secs_f64())
-            }
-            self.last_commit_round_advancement_time = Some(now);
+        let now = std::time::Instant::now();
+        if let Some(previous_time) = self.last_commit_round_advancement_time {
+            self.context
+                .metrics
+                .node_metrics
+                .commit_round_advancement_interval
+                .observe(now.duration_since(previous_time).as_secs_f64())
         }
+        self.last_commit_round_advancement_time = Some(now);
 
         for block_ref in commit.blocks().iter() {
             self.last_committed_rounds[block_ref.author] = max(
@@ -1265,7 +1264,7 @@ impl DagState {
             // Construct a dummy BlockRef with the minimum round to split on.
             // All entries < dummy will be removed.
             let lower_bound =
-                BlockRef::new(min_round + 1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
+                BlockRef::new(min_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
 
             // Remove entries with round < min_round
             self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
