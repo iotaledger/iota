@@ -293,7 +293,7 @@ impl DagState {
         // TODO: Move this check to core
         // Ensure we don't write multiple blocks per slot for our own index
         if block_ref.author == self.context.own_index {
-            let existing_blocks = self.get_uncommitted_blocks_at_slot(block_ref.into());
+            let existing_blocks = self.get_uncommitted_block_headers_at_slot(block_ref.into());
             assert!(
                 existing_blocks.is_empty(),
                 "Block header Rejected! Attempted to add block header {block_header:#?} to own slot where \
@@ -624,16 +624,16 @@ impl DagState {
         block_headers
     }
 
-    /// Gets all uncommitted blocks in a slot.
-    /// Uncommitted blocks must exist in memory, so only in-memory blocks are
+    /// Gets all uncommitted block headers in a slot.
+    /// Uncommitted block headers must exist in memory, so only in-memory block headers are
     /// checked.
-    pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
+    pub(crate) fn get_uncommitted_block_headers_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         // TODO: either panic below when the slot is at or below the last committed
         // round, or support reading from storage while limiting storage reads
         // to edge cases.
 
-        let mut blocks = vec![];
-        for (_block_ref, block) in self.recent_block_headers.range((
+        let mut block_headers = vec![];
+        for (_block_ref, block_header) in self.recent_block_headers.range((
             Included(BlockRef::new(
                 slot.round,
                 slot.authority,
@@ -645,21 +645,21 @@ impl DagState {
                 BlockHeaderDigest::MAX,
             )),
         )) {
-            blocks.push(block.clone())
+            block_headers.push(block_header.clone())
         }
-        blocks
+        block_headers
     }
 
-    /// Gets all uncommitted blocks in a round.
-    /// Uncommitted blocks must exist in memory, so only in-memory blocks are
+    /// Gets all uncommitted block headers in a round.
+    /// Uncommitted block headers must exist in memory, so only in-memory block headers are
     /// checked.
-    pub(crate) fn get_uncommitted_blocks_at_round(&self, round: Round) -> Vec<VerifiedBlockHeader> {
+    pub(crate) fn get_uncommitted_block_headers_at_round(&self, round: Round) -> Vec<VerifiedBlockHeader> {
         if round <= self.last_commit_round() {
-            panic!("Round {round} have committed blocks!");
+            panic!("Round {round} have committed block headers!");
         }
 
-        let mut blocks = vec![];
-        for (_block_ref, block) in self.recent_block_headers.range((
+        let mut block_headers = vec![];
+        for (_block_ref, block_header) in self.recent_block_headers.range((
             Included(BlockRef::new(
                 round,
                 AuthorityIndex::ZERO,
@@ -671,9 +671,9 @@ impl DagState {
                 BlockHeaderDigest::MIN,
             )),
         )) {
-            blocks.push(block.clone())
+            block_headers.push(block_header.clone())
         }
-        blocks
+        block_headers
     }
 
     /// Gets all ancestors in the history of a block at a certain round.
@@ -1559,7 +1559,7 @@ impl DagState {
 
             // Since the wave length is 3 we expect to find a quorum in the
             // uncommitted rounds.
-            let blocks = self.get_uncommitted_blocks_at_round(round);
+            let blocks = self.get_uncommitted_block_headers_at_round(round);
             for block in &blocks {
                 if quorum.add(block.author(), &self.context.committee) {
                     return blocks;
@@ -1611,7 +1611,6 @@ mod test {
         test_dag_parser::parse_dag,
     };
 
-    // TODO: create similar test for get_block
     #[tokio::test]
     async fn test_get_block_header() {
         let (context, _) = Context::new_for_test(4);
@@ -1625,21 +1624,21 @@ mod test {
         let non_existent_round: u32 = 100;
         let num_authorities: u8 = 3;
         let num_blocks_per_slot: usize = 3;
-        let mut blocks = BTreeMap::new();
+        let mut block_headers = BTreeMap::new();
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                // Create 3 blocks per slot, with different timestamps and digests.
+                // Create 3 block headers per slot, with different timestamps and digests.
                 let base_ts = round as BlockTimestampMs * 1000;
                 for timestamp in base_ts..base_ts + num_blocks_per_slot as u64 {
-                    let block = VerifiedBlockHeader::new_for_test(
+                    let block_header = VerifiedBlockHeader::new_for_test(
                         TestBlockHeader::new(round, author)
                             .set_timestamp_ms(timestamp)
                             .build(),
                     );
-                    dag_state.accept_block_header(block.clone());
-                    blocks.insert(block.reference(), block);
+                    dag_state.accept_block_header(block_header.clone());
+                    block_headers.insert(block_header.reference(), block_header);
 
-                    // Only write one block per slot for own index
+                    // Only write one block header per slot for own index
                     if AuthorityIndex::new_for_test(author) == own_index {
                         break;
                     }
@@ -1647,13 +1646,13 @@ mod test {
             }
         }
 
-        // Check uncommitted blocks that exist.
-        for (r, block) in &blocks {
-            assert_eq!(&dag_state.get_block_header(r).unwrap(), block);
+        // Check uncommitted block headers that exist.
+        for (block_ref, block_header) in &block_headers {
+            assert_eq!(&dag_state.get_block_header(block_ref).unwrap(), block_header);
         }
 
-        // Check uncommitted blocks that do not exist.
-        let last_ref = blocks.keys().last().unwrap();
+        // Check uncommitted block headers that do not exist.
+        let last_ref = block_headers.keys().last().unwrap();
         assert!(
             dag_state
                 .get_block_header(&BlockRef::new(
@@ -1664,7 +1663,7 @@ mod test {
                 .is_none()
         );
 
-        // Check slots with uncommitted blocks.
+        // Check slots with uncommitted block headers.
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
                 let slot = Slot::new(
@@ -1674,19 +1673,19 @@ mod test {
                         .to_authority_index(author as usize)
                         .unwrap(),
                 );
-                let blocks = dag_state.get_uncommitted_blocks_at_slot(slot);
+                let block_headers = dag_state.get_uncommitted_block_headers_at_slot(slot);
 
                 // We only write one block per slot for own index
                 if AuthorityIndex::new_for_test(author) == own_index {
-                    assert_eq!(blocks.len(), 1);
+                    assert_eq!(block_headers.len(), 1);
                 } else {
-                    assert_eq!(blocks.len(), num_blocks_per_slot);
+                    assert_eq!(block_headers.len(), num_blocks_per_slot);
                 }
 
-                for b in blocks {
-                    assert_eq!(b.round(), round);
+                for bh in block_headers {
+                    assert_eq!(bh.round(), round);
                     assert_eq!(
-                        b.author(),
+                        bh.author(),
                         context
                             .committee
                             .to_authority_index(author as usize)
@@ -1696,28 +1695,28 @@ mod test {
             }
         }
 
-        // Check slots without uncommitted blocks.
+        // Check slots without uncommitted block headers.
         let slot = Slot::new(non_existent_round, AuthorityIndex::ZERO);
-        assert!(dag_state.get_uncommitted_blocks_at_slot(slot).is_empty());
+        assert!(dag_state.get_uncommitted_block_headers_at_slot(slot).is_empty());
 
         // Check rounds with uncommitted blocks.
         for round in 1..=num_rounds {
-            let blocks = dag_state.get_uncommitted_blocks_at_round(round);
+            let block_headers = dag_state.get_uncommitted_block_headers_at_round(round);
             // Expect 3 blocks per authority except for own authority which should
             // have 1 block.
             assert_eq!(
-                blocks.len(),
+                block_headers.len(),
                 (num_authorities - 1) as usize * num_blocks_per_slot + 1
             );
-            for b in blocks {
-                assert_eq!(b.round(), round);
+            for bh in block_headers {
+                assert_eq!(bh.round(), round);
             }
         }
 
-        // Check rounds without uncommitted blocks.
+        // Check rounds without uncommitted block headers.
         assert!(
             dag_state
-                .get_uncommitted_blocks_at_round(non_existent_round)
+                .get_uncommitted_block_headers_at_round(non_existent_round)
                 .is_empty()
         );
     }
@@ -2606,7 +2605,7 @@ mod test {
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
             dag_state.write().accept_block_header(block_header);
 
-            let round_4_block_headers = dag_state.read().get_uncommitted_blocks_at_round(4);
+            let round_4_block_headers = dag_state.read().get_uncommitted_block_headers_at_round(4);
 
             let last_quorum = dag_state.read().last_quorum();
 
