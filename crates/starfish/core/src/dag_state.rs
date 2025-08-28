@@ -2250,18 +2250,17 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create no blocks for authority 0
-        // Create one block (round 10) for authority 1
-        // Create two blocks (rounds 10,11) for authority 2
-        // Create three blocks (rounds 10,11,12) for authority 3
-        let mut all_blocks = Vec::new();
+        // Create no block headers for authority 0
+        // Create one block header (round 10) for authority 1
+        // Create two block headers (rounds 10,11) for authority 2
+        // Create three block headers (rounds 10,11,12) for authority 3
+        let mut all_block_headers = Vec::new();
         for author in 1..=3 {
             for round in 10..(10 + author) {
-                let block = VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(round, author as u8).build(),
-                );
-                all_blocks.push(block.clone());
-                dag_state.accept_block_header(block);
+                let block_header =
+                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author as u8).build());
+                all_block_headers.push(block_header.clone());
+                dag_state.accept_block_header(block_header);
             }
         }
 
