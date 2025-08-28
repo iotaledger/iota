@@ -2043,32 +2043,33 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create test blocks for round 1 ~ 10 for authority 0
-        let mut blocks = Vec::new();
+        // Create test block headers for round 1 ~ 10 for authority 0
+        let mut block_headers = Vec::new();
         for round in 1..=10 {
-            let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
-            blocks.push(block.clone());
-            dag_state.accept_block_header(block);
+            let block_header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
+            block_headers.push(block_header.clone());
+            dag_state.accept_block_header(block_header);
         }
 
-        // Now add a commit to trigger an eviction
+        // Now add a commit and flush to trigger an eviction
         dag_state.add_commit(TrustedCommit::new_for_test(
             1 as CommitIndex,
             CommitDigest::MIN,
             0,
-            blocks.last().unwrap().reference(),
-            blocks
+            block_headers.last().unwrap().reference(),
+            block_headers
                 .into_iter()
-                .map(|block| block.reference())
+                .map(|block_header| block_header.reference())
                 .collect::<Vec<_>>(),
             vec![],
         ));
 
         dag_state.flush();
 
-        // When trying to request for authority 0 at block slot 8 it should panic, as
-        // anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should
-        // be evicted
+        // When trying to request a header from authority 0 at round 8, it should panic,
+        // as anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should be
+        // evicted.
         let _ = dag_state
             .contains_cached_block_header_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
