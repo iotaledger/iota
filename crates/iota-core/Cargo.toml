@@ -85,6 +85,8 @@ move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 shared-crypto.workspace = true
+starfish-config.workspace = true
+starfish-core.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

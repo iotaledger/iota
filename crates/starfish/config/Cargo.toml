@@ -1,0 +1,23 @@
+[package]
+name = "starfish-config"
+version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+fastcrypto.workspace = true
+rand.workspace = true
+serde.workspace = true
+
+# internal dependencies
+iota-network-stack.workspace = true
+shared-crypto.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

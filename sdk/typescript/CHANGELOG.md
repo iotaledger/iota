@@ -1,5 +1,16 @@
 # @iota/iota-sdk
 
+## 1.6.0
+
+### Minor Changes
+
+-   bd17ba9: Add support for `IotaMoveNormalizedEnum` type
+
+### Patch Changes
+
+-   c5543f0: Add suggestedGasPrice optional field to dryRunTransaction response
+-   0accdb0: Add util to parse iota amount
+
 ## 1.5.0
 
 ### Minor Changes
@@ -10,7 +21,7 @@
     All existing methods will continue to work, but the following methods have been deprecated and
     replaced with methods with improved names:
 
-    -   `toHEX` -> `toHEX`
+    -   `toHEX` -> `toHex`
     -   `fromHEX` -> `fromHex`
     -   `toB64` -> `toBase64`
     -   `fromB64` -> `fromBase64`
