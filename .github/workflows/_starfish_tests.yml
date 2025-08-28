@@ -24,6 +24,9 @@ on:
       changedExternalCrates:
         type: string
         required: false
+  # Triggers the workflow every day at 05:00 UTC.
+  schedule:
+    - cron: "0 5 * * *"
 
 concurrency:
   group: starfish-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
