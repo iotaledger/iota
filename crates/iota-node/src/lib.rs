@@ -1831,7 +1831,7 @@ impl IotaNode {
                 components
                     .consensus_adapter
                     .submit(transaction, None, &cur_epoch_store)?;
-            } else if self.state.is_active_validator() {
+            } else if self.state.is_active_validator(&cur_epoch_store) {
                 // Send signed capabilities to committee validators if we are a non-committee
                 // validator in a separate task to not block the caller
                 let epoch_store = cur_epoch_store.clone();

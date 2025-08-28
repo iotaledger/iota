@@ -1146,13 +1146,19 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
     let binary_config = to_binary_config(config);
 
     // Create the capability notification
+    let available_system_packages = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            let state = node.state();
+            async move { state.get_available_system_packages(&binary_config).await }
+        })
+        .await;
     let capabilities = AuthorityCapabilitiesV1::new(
         random_authority_name,
         epoch_store.get_chain_identifier().chain(),
         SupportedProtocolVersions::SYSTEM_DEFAULT.truncate_below(config.version),
-        test_cluster.fullnode_handle.iota_node.with(|node| {
-            futures::executor::block_on(node.state().get_available_system_packages(&binary_config))
-        }),
+        available_system_packages,
     );
 
     // Sign with the random key pair (not a validator)
@@ -1212,15 +1218,20 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
 
     let config = epoch_store.protocol_config();
     let binary_config = to_binary_config(config);
-
+    let available_system_packages = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            let state = node.state();
+            async move { state.get_available_system_packages(&binary_config).await }
+        })
+        .await;
     // Create the capability notification
     let capabilities = AuthorityCapabilitiesV1::new(
         new_authority_name,
         epoch_store.get_chain_identifier().chain(),
         SupportedProtocolVersions::SYSTEM_DEFAULT.truncate_below(config.version),
-        test_cluster.fullnode_handle.iota_node.with(|node| {
-            futures::executor::block_on(node.state().get_available_system_packages(&binary_config))
-        }),
+        available_system_packages,
     );
 
     // Sign with INCORRECT epoch (use epoch 0 when we're in epoch 1)

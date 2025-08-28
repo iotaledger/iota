@@ -2686,7 +2686,7 @@ impl CapabilityNotificationErrorType {
     }
 
     fn create_retryable_errors(count: usize) -> Vec<Self> {
-        let base_errors = vec![Self::Retryable(
+        let base_errors = [Self::Retryable(
             IotaError::TooManyTransactionsPendingConsensus,
         )];
         (0..count)
@@ -2830,7 +2830,7 @@ async fn test_send_capability_notification_to_quorum_timeout() {
             // Expected when all validators timeout
         }
 
-        other => panic!("Expected RetryableNotification, got: {:?}", other),
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
     }
 
     // Verify metrics - success should not increment on failure
@@ -2937,7 +2937,7 @@ async fn test_send_capability_notification_3_success_6_non_retryable_1_retryable
             // Expected retryable error type when there are retryable errors
             // present
         }
-        other => panic!("Expected RetryableNotification, got: {:?}", other),
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
     }
 
     // Verify metrics
@@ -2979,7 +2979,7 @@ async fn test_send_capability_notification_2_success_7_non_retryable_1_retryable
             // Expected retryable error type when there are retryable errors
             // present
         }
-        other => panic!("Expected RetryableNotification, got: {:?}", other),
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
     }
 
     // Verify metrics
@@ -3019,7 +3019,7 @@ async fn test_send_capability_notification_5_retryable_5_non_retryable_errors() 
             // Expected retryable error type when there are retryable errors
             // present
         }
-        other => panic!("Expected RetryableNotification, got: {:?}", other),
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
     }
 
     // Verify metrics
