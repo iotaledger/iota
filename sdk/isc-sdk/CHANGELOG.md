@@ -1,5 +1,13 @@
 # @iota/isc-sdk
 
+## 0.1.4
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+    -   @iota/dapp-kit@0.5.3
+
 ## 0.1.3
 
 ### Patch Changes

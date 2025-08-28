@@ -1,5 +1,12 @@
 # @iota/graphql-transport
 
+## 0.9.2
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+
 ## 0.9.1
 
 ### Patch Changes
