@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, ops::Bound};
+use std::{collections::BTreeMap, ops::Bound, path::PathBuf};
 
 use anyhow::{Result, format_err};
 use move_binary_format::{
@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 pub type SourceName = (String, Loc);
 
 /// The current version of the trace format.
-const CURRENT_VERSION: u64 = 1;
+const CURRENT_VERSION: u64 = 2;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StructSourceMap {
@@ -104,6 +104,9 @@ pub struct FunctionSourceMap {
 pub struct SourceMap {
     /// Version of the source map format
     pub version: u64,
+
+    /// A path to source file used to generate this source map.
+    pub from_file_path: Option<PathBuf>,
 
     /// The source location for the definition of the module or script that this source map is for.
     pub definition_location: Loc,
@@ -364,6 +367,7 @@ impl SourceMap {
             (module_name.address, ident)
         };
         Self {
+            from_file_path: None,
             version: CURRENT_VERSION,
             definition_location,
             module_name,
@@ -794,5 +798,9 @@ impl SourceMap {
                 *loc = Loc::new(file_hash, loc.start(), loc.end());
             }
         }
+    }
+
+    pub fn set_from_file_path(&mut self, from_file_path: PathBuf) {
+        self.from_file_path = Some(from_file_path);
     }
 }
