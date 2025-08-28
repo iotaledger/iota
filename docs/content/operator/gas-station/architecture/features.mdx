@@ -37,17 +37,17 @@ For example, consider the following **Allow All** policy configuration with thre
 
 ```yaml
 # Rule 1
-- sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
-  transaction-gas-budget: <=500000
+- sender-address: "0x0202020202020202020202020202020202020202020202020202020202020202"
+  transaction-gas-budget: "<=500000"
   action: allow
 
 # Rule 2
-- sender-address: 0x0101010101010101010101010101010101010101010101010101010101010101
-  transaction-gas-budget: <=10000000
+- sender-address: "0x0101010101010101010101010101010101010101010101010101010101010101"
+  transaction-gas-budget: "<=10000000"
   action: allow
 
 # Rule 3
-- sender-address: *
+- sender-address: "*"
   action: deny
 ```
 
@@ -130,22 +130,22 @@ Suppose you want to ensure that no individual sender can consume more than 1,000
 
 ```yaml
 access-controller:
-  policy: deny-all
+  access-policy: deny-all
   rules:
     - sender-address: "*"
       gas-usage:
-        value: <1000000
-        window: 1 day
-        count-by: sender-address
+        value: "<1000000"
+        window: 1day
+        count-by: [ sender-address ]
       action: allow
 ```
 
 Here's what happens:
 
-* The policy is set to `deny-all`, meaning only explicitly allowed transactions are processed.
+* The access policy is set to `deny-all`, meaning only explicitly allowed transactions are processed.
 * The rule matches any sender address.
 * The `gas-usage` condition specifies a 1-day rolling window and limits usage to below 1,000,000 gas units per address.
-* The `count-by: sender-address` clause ensures that each sender's gas usage is tracked and limited separately.
+* The `count-by: [ sender-address ]` clause ensures that each sender's gas usage is tracked and limited separately.
 
 ##### Why `count-by` is Important
 
@@ -160,18 +160,18 @@ You can define multiple rules with independent gas usage counters. Each rule is 
 
 ```yaml
 rules:
-  - sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
-    move-call-package-address: 0x0101010101010101010101010101010101010101010101010101010101010101
+  - sender-address: "0x0202020202020202020202020202020202020202020202020202020202020202"
+    move-call-package-address: "0x0101010101010101010101010101010101010101010101010101010101010101"
     gas-usage:
-      value: <1500000
-      window: 1 day
+      value: "<1500000"
+      window: 1day
     action: allow
 
   - sender-address: "*"
     gas-usage:
-      value: <1000000
-      window: 1 day
-      count-by: sender-address
+      value: "<1000000"
+      window: 1day
+      count-by: [ sender-address ]
     action: allow
 ```
 
@@ -195,8 +195,8 @@ flowchart TD
 
 Now, imagine the same account initiates another transaction, this time requiring 1,000,000 gas units. The **first rule** does not apply because the `gas-limit` matcher would be above the 1,500,000. The transaction then proceeds to the **second rule**, which:
 
-* Matches any sender address (`*`).
-* Tracks gas usage individually using `count-by: sender-address`.
+* Matches any sender address (`"*"`).
+* Tracks gas usage individually using `count-by: [ sender-address ]`.
 * Confirms the daily usage is still under 1,000,000 for this sender.
 
 The second rule is applied in this case, and the transaction is accepted.
@@ -262,15 +262,15 @@ rego expressions are compiled at the start of the Gas Station Server. Therefore 
 
 ```yaml
 rules:
-  - sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
+  - sender-address: "0x0202020202020202020202020202020202020202020202020202020202020202"
     rego-expression:
       location-type: redis
-      url: redis://localhost:6379
-      redis-key: id:matcher
+      url: "redis://localhost:6379"
+      redis-key: "id:matcher"
       rego-rule-path: data.matchers.move_call_matches
     gas-usage:
-      value: <1500000
-      window: 1 day
+      value: "<1500000"
+      window: 1day
     action: allow
 ```
 
@@ -295,15 +295,15 @@ The hook is another type of `action` in the rule definition. It is executed when
 
 ```yaml
 rules:
-  - move-call-package-address: 0x0101010101010101010101010101010101010101010101010101010101010101
-    ptb-command-count: <=1
-    action: https://hook.addr
+  - move-call-package-address: "0x0101010101010101010101010101010101010101010101010101010101010101"
+    ptb-command-count: "<=1"
+    action: "https://hook.addr"
 
   - sender-address: "*"
     gas-usage:
-      value: <1000000
-      window: 1 day
-      count-by: sender-address
+      value: "<1000000"
+      window: 1day
+      count-by: [ sender-address ]
     action: allow
 ```
 
