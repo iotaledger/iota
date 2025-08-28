@@ -20,7 +20,7 @@ use diesel::{
     sql_types::{BigInt, Bool},
 };
 use fastcrypto::encoding::{Encoding, Hex};
-use futures::stream::{FuturesOrdered, StreamExt};
+use futures::stream::{FuturesUnordered, StreamExt};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
@@ -716,6 +716,31 @@ impl IndexerReader {
         })
     }
 
+    fn get_optimistic_transactions_with_cp_info(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<(OptimisticTransaction, Option<i64>)>, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
+                )
+                // we filter the `tx_global_order` table because it is indexed by digest,
+                // optimistic_transactions table is not
+                .filter(tx_global_order::tx_digest.eq_any(digests))
+                .select((
+                    OptimisticTransaction::as_select(),
+                    tx_global_order::chk_tx_sequence_number,
+                ))
+                .load::<(OptimisticTransaction, Option<i64>)>(conn)
+        })
+    }
+
     async fn get_single_transaction(
         &self,
         digest: TransactionDigest,
@@ -725,27 +750,40 @@ impl IndexerReader {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
                 this.get_checkpointed_transactions(&[digest_bytes])
-                    .map(|mut txs| txs.pop())
+                    .map(|mut txs| txs.pop().map(|tx| (tx, false)))
             }))
         };
         let optimistic_tx_future: Pin<Box<dyn Future<Output = _> + Send>> = {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
-                this.get_optimistic_transactions(&[digest_bytes])
-                    .map(|mut txs| txs.pop().map(Into::into))
+                this.get_optimistic_transactions_with_cp_info(&[digest_bytes])
+                    .map(|mut txs| {
+                        // Mark the result as fallback if cp info is set meaning that we can
+                        // potentially get more data on this tx from
+                        // standard checkpointed tables and shouldn't return
+                        // incomplete optimistic result right away
+                        txs.pop()
+                            .map(|(tx, cp_info)| (tx.into(), cp_info.is_some()))
+                    })
             }))
         };
 
         let mut tx_futures =
-            FuturesOrdered::from_iter([checkpointed_tx_future, optimistic_tx_future]);
+            FuturesUnordered::from_iter([checkpointed_tx_future, optimistic_tx_future]);
+
+        let mut fallback_result = None;
 
         while let Some(result) = tx_futures.next().await {
-            if let Some(tx) = result? {
-                return Ok(Some(tx));
+            if let Some((tx, is_fallback_result)) = result? {
+                if is_fallback_result {
+                    fallback_result = Some(tx);
+                } else {
+                    return Ok(Some(tx));
+                }
             }
         }
 
-        Ok(None)
+        Ok(fallback_result)
     }
 
     fn multi_get_transactions(
