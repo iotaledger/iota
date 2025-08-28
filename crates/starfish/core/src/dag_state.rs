@@ -1893,7 +1893,6 @@ mod test {
         );
     }
 
-    // TODO: make similar test for blocks
     #[tokio::test]
     async fn test_contains_block_headers_in_cache_or_store() {
         /// Only keep elements up to 2 rounds before the last committed round
@@ -1906,7 +1905,7 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create test blocks for round 1 ~ 10
+        // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
         let num_authorities: u8 = 4;
         let mut block_headers = Vec::new();
@@ -1931,12 +1930,12 @@ mod test {
             }
         });
 
-        // Now when trying to query whether we have all the blocks, we should
-        // successfully retrieve a positive answer where the blocks of first 4
-        // round should be found in DagState and the rest in store.
+        // Now when trying to query whether we have all the block headers, we should
+        // receive a positive answer for all headers. Headers from the first 4 rounds
+        // should be found in store and the rest in DagState.
         let mut block_refs = block_headers
             .iter()
-            .map(|block| block.reference())
+            .map(|header| header.reference())
             .collect::<Vec<_>>();
         let result = dag_state.contains_block_headers(block_refs.clone());
 
