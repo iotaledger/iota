@@ -625,9 +625,12 @@ impl DagState {
     }
 
     /// Gets all uncommitted block headers in a slot.
-    /// Uncommitted block headers must exist in memory, so only in-memory block headers are
-    /// checked.
-    pub(crate) fn get_uncommitted_block_headers_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
+    /// Uncommitted block headers must exist in memory, so only in-memory block
+    /// headers are checked.
+    pub(crate) fn get_uncommitted_block_headers_at_slot(
+        &self,
+        slot: Slot,
+    ) -> Vec<VerifiedBlockHeader> {
         // TODO: either panic below when the slot is at or below the last committed
         // round, or support reading from storage while limiting storage reads
         // to edge cases.
@@ -651,9 +654,12 @@ impl DagState {
     }
 
     /// Gets all uncommitted block headers in a round.
-    /// Uncommitted block headers must exist in memory, so only in-memory block headers are
-    /// checked.
-    pub(crate) fn get_uncommitted_block_headers_at_round(&self, round: Round) -> Vec<VerifiedBlockHeader> {
+    /// Uncommitted block headers must exist in memory, so only in-memory block
+    /// headers are checked.
+    pub(crate) fn get_uncommitted_block_headers_at_round(
+        &self,
+        round: Round,
+    ) -> Vec<VerifiedBlockHeader> {
         if round <= self.last_commit_round() {
             panic!("Round {round} have committed block headers!");
         }
@@ -1648,7 +1654,10 @@ mod test {
 
         // Check uncommitted block headers that exist.
         for (block_ref, block_header) in &block_headers {
-            assert_eq!(&dag_state.get_block_header(block_ref).unwrap(), block_header);
+            assert_eq!(
+                &dag_state.get_block_header(block_ref).unwrap(),
+                block_header
+            );
         }
 
         // Check uncommitted block headers that do not exist.
@@ -1697,7 +1706,11 @@ mod test {
 
         // Check slots without uncommitted block headers.
         let slot = Slot::new(non_existent_round, AuthorityIndex::ZERO);
-        assert!(dag_state.get_uncommitted_block_headers_at_slot(slot).is_empty());
+        assert!(
+            dag_state
+                .get_uncommitted_block_headers_at_slot(slot)
+                .is_empty()
+        );
 
         // Check rounds with uncommitted blocks.
         for round in 1..=num_rounds {
@@ -1731,7 +1744,7 @@ mod test {
 
         // Populate DagState.
 
-        // Round 10 refs will not have their blocks in DagState.
+        // Round 10 refs will not have their block headers in DagState.
         let round_10_refs: Vec<_> = (0..4)
             .map(|a| {
                 VerifiedBlockHeader::new_for_test(
@@ -1741,8 +1754,8 @@ mod test {
             })
             .collect();
 
-        // Round 11 blocks.
-        let round_11 = vec![
+        // Round 11 block headers.
+        let round_11_headers = vec![
             // This will connect to round 12.
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(11, 0)
@@ -1750,7 +1763,7 @@ mod test {
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
-            // Slot(11, 1) has 3 blocks.
+            // Slot(11, 1) has 3 block headers.
             // This will connect to round 12.
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(11, 1)
@@ -1788,13 +1801,13 @@ mod test {
             ),
         ];
 
-        // Round 12 blocks.
+        // Round 12 block headers.
         let ancestors_for_round_12 = vec![
-            round_11[0].reference(),
-            round_11[1].reference(),
-            round_11[5].reference(),
+            round_11_headers[0].reference(),
+            round_11_headers[1].reference(),
+            round_11_headers[5].reference(),
         ];
-        let round_12 = vec![
+        let round_12_headers = vec![
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 0)
                     .set_timestamp_ms(1200)
@@ -1815,14 +1828,14 @@ mod test {
             ),
         ];
 
-        // Round 13 blocks.
+        // Round 13 block headers.
         let ancestors_for_round_13 = vec![
-            round_12[0].reference(),
-            round_12[1].reference(),
-            round_12[2].reference(),
-            round_11[2].reference(),
+            round_12_headers[0].reference(),
+            round_12_headers[1].reference(),
+            round_12_headers[2].reference(),
+            round_11_headers[2].reference(),
         ];
-        let round_13 = vec![
+        let round_13_headers = vec![
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 1)
                     .set_timestamp_ms(1300)
@@ -1843,8 +1856,8 @@ mod test {
             ),
         ];
 
-        // Round 14 anchor block.
-        let ancestors_for_round_14 = round_13.iter().map(|b| b.reference()).collect();
+        // Round 14 anchor block header.
+        let ancestors_for_round_14 = round_13_headers.iter().map(|b| b.reference()).collect();
         let anchor = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(14, 1)
                 .set_timestamp_ms(1410)
@@ -1852,14 +1865,14 @@ mod test {
                 .build(),
         );
 
-        // Add all blocks (at and above round 11) to DagState.
-        for b in round_11
+        // Add all block headers (at and above round 11) to DagState.
+        for bh in round_11_headers
             .iter()
-            .chain(round_12.iter())
-            .chain(round_13.iter())
+            .chain(round_12_headers.iter())
+            .chain(round_13_headers.iter())
             .chain([anchor.clone()].iter())
         {
-            dag_state.accept_block_header(b.clone());
+            dag_state.accept_block_header(bh.clone());
         }
 
         // Check ancestors connected to anchor.
@@ -1867,12 +1880,12 @@ mod test {
         let mut ancestors_refs: Vec<BlockRef> = ancestors.iter().map(|b| b.reference()).collect();
         ancestors_refs.sort();
         let mut expected_refs = vec![
-            round_11[0].reference(),
-            round_11[1].reference(),
-            round_11[2].reference(),
-            round_11[5].reference(),
+            round_11_headers[0].reference(),
+            round_11_headers[1].reference(),
+            round_11_headers[2].reference(),
+            round_11_headers[5].reference(),
         ];
-        expected_refs.sort(); // we need to sort as blocks with same author and round of round 11 (position 1
+        expected_refs.sort(); // we need to sort as block headers with same author and round of round 11 (position 1
         // & 2) might not be in right lexicographical order.
         assert_eq!(
             ancestors_refs, expected_refs,

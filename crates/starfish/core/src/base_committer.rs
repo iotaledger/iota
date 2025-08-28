@@ -85,7 +85,10 @@ impl BaseCommitter {
         // one leader block (created by Byzantine leaders).
         let wave = self.wave_number(leader.round);
         let certifying_round = self.certifying_round(wave);
-        let leader_blocks = self.dag_state.read().get_uncommitted_block_headers_at_slot(leader);
+        let leader_blocks = self
+            .dag_state
+            .read()
+            .get_uncommitted_block_headers_at_slot(leader);
         let mut leaders_with_enough_support: Vec<_> = leader_blocks
             .into_iter()
             .filter(|l| self.enough_leader_support(certifying_round, l))
