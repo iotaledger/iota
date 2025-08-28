@@ -107,7 +107,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                             )}
                         />
                     </div>
-                    <div className="flex flex-row items-center gap-xxs truncate pr-xxs">
+                    <div className="flex flex-row items-center gap-xxs overflow-hidden truncate pr-xxs">
                         {headerContent}
                     </div>
                 </div>
