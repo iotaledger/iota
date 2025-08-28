@@ -26,11 +26,9 @@ use tokio::{
 use tracing::{debug, info, trace, warn};
 
 #[cfg(test)]
-use crate::{CommitConsumer, TransactionClient, storage::mem_store::MemStore};
-// TODO: remove this once CommittedSubDag is properly used again
-#[allow(unused_imports)]
+use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
-    CommittedSubDag, Transaction,
+    Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
@@ -58,7 +56,8 @@ const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
 // reasonably larger than the number of validators because not all validators
 // create their blocks at the same pace. For now we set it as a
 // constant to not make the block header size too large.
-// TODO: after testing decide how to compress acknowledgments and move to a
+// TODO: https://github.com/iotaledger/iota/issues/8378
+// After testing decide how to compress acknowledgments and move to a
 // protocol config
 const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
 
@@ -627,9 +626,6 @@ impl Core {
         // this would acknowledge the inclusion of transactions. Just let this
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
-        // TODO: remove this info debug when transaction consumption is ensured to be
-        // aligned with expectation
-        debug!("{} transaction are consumed by a block", transactions.len());
         // Serialize the transaction
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
@@ -702,7 +698,6 @@ impl Core {
         }
 
         // Construct verified transactions to be used for storing and broadcasting
-        // TODO: consume this transactions in the data manager and for broadcasting
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
@@ -788,8 +783,6 @@ impl Core {
             // Always try to process the synced commits first. If there are certified
             // commits to process then the decided leaders and the commits will be returned.
 
-            // TODO: limit commits by commits_until_update, which may be needed when leader
-            // schedule length is reduced.
             let mut decided_leaders = self.committer.try_decide(self.last_decided_leader);
 
             // Truncate the decided leaders to fit the commit schedule limit.

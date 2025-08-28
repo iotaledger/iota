@@ -142,7 +142,7 @@ pub(crate) enum ConsensusError {
     InsufficientParentStakes { parent_stakes: Stake, quorum: Stake },
 
     #[error("Invalid transaction: {0}")]
-    InvalidTransaction(String), // TODO: To be used for transaction validation errors in tests
+    InvalidTransaction(String),
 
     #[error("Ancestors max timestamp {max_timestamp_ms} > block timestamp {block_timestamp_ms}")]
     InvalidBlockTimestamp {

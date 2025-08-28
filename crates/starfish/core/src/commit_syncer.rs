@@ -368,7 +368,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             "Fetched blocks have missing committed transactions: {:?} for commit range {:?}",
                             missing_committed_txns, fetched_commit_range
                         );
-                        // TODO: decide whether to rely on periodic transactions
+                        // TODO: https://github.com/iotaledger/iota/issues/8376
+                        // Decide whether to rely on periodic transactions
                         // synchronizer or make use of live one
                         if let Err(err) = self
                             .inner

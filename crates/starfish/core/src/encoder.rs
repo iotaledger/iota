@@ -71,12 +71,8 @@ impl ShardEncoder for ReedSolomonEncoder {
         let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
 
         // Ensure shard_bytes meets alignment requirements.
-        // TODO:
-        // - New version of the crate only requires shard_bytes to be even.
-        // - Create tests to check alignment.
-        // - Change 64 to 2 when the crate is updated.
-        if shard_bytes % 64 != 0 {
-            shard_bytes += 64 - shard_bytes % 64;
+        if shard_bytes % 2 != 0 {
+            shard_bytes += 1;
         }
 
         let length_with_padding = shard_bytes * info_length;
