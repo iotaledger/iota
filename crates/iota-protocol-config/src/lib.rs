@@ -72,6 +72,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Enable the gas price feedback mechanism in all networks.
+//             Introduce logic to allow the committee to be selected from a set
+//             of eligible active validators.
+//             Enable processing and tracking AuthorityCapabilitiesV1 from
+//             non-committee validators in the devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -318,10 +322,17 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
 
-    // If true, select committee among active validators supporting a protocol version in the
-    // upcoming epoch.
+    // If true, use ChangeEpochV3 for epoch change to pass an additional eligible_active_validators
+    // parameter to IotaSystem's advance_epoch call. This should only be enabled when on-chain
+    // IotaSystem objects are updated as well.
     #[serde(skip_serializing_if = "is_false")]
-    select_committee_supporting_protocol_version: bool,
+    select_committee_from_eligible_validators: bool,
+
+    // If true, use ChangeEpochV3 for epoch change to pass an additional eligible_active_validators
+    // parameter to IotaSystem's advance_epoch call. This should only be enabled when on-chain
+    // IotaSystem objects are updated as well.
+    #[serde(skip_serializing_if = "is_false")]
+    track_non_committee_eligible_validators: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1329,8 +1340,11 @@ impl ProtocolConfig {
     }
 
     pub fn select_committee_supporting_protocol_version(&self) -> bool {
-        self.feature_flags
-            .select_committee_supporting_protocol_version
+        self.feature_flags.select_committee_from_eligible_validators
+    }
+
+    pub fn track_non_committee_eligible_validators(&self) -> bool {
+        self.feature_flags.track_non_committee_eligible_validators
     }
 }
 
@@ -2144,8 +2158,10 @@ impl ProtocolConfig {
                         .congestion_control_gas_price_feedback_mechanism = true;
                     // Enable select committee supporting protocol version in devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        cfg.feature_flags
-                            .select_committee_supporting_protocol_version = true;
+                        // Enable selecting committee based on eligible active validators in devnet.
+                        cfg.feature_flags.select_committee_from_eligible_validators = true;
+                        // Enable tracking non-committee eligible active validators in devnet.
+                        cfg.feature_flags.track_non_committee_eligible_validators = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2308,9 +2324,12 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
     }
-    pub fn set_select_committee_supporting_protocol_version_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .select_committee_supporting_protocol_version = val;
+    pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.select_committee_from_eligible_validators = val;
+    }
+
+    pub fn set_track_non_committee_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.track_non_committee_eligible_validators = val;
     }
 }
 

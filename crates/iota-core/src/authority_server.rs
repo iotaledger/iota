@@ -1132,7 +1132,7 @@ impl ValidatorService {
         fp_ensure!(
             epoch_store
                 .protocol_config()
-                .select_committee_supporting_protocol_version(),
+                .track_non_committee_eligible_validators(),
             IotaError::UnsupportedFeature {
                 error: "capability notification endpoint is not supported in this Protocol Version"
                     .to_string()

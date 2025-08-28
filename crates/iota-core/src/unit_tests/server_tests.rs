@@ -70,7 +70,8 @@ async fn test_authority_reject_authority_capabilities() {
     let (_sender, sender_key): (_, AuthorityKeyPair) = get_authority_key_pair();
 
     let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    protocol_config.set_select_committee_supporting_protocol_version_for_testing(true);
+    protocol_config.set_select_committee_from_eligible_validators_for_testing(true);
+    protocol_config.set_track_non_committee_eligible_validators_for_testing(true);
 
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
@@ -175,7 +176,8 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
     let (_sender, sender_key): (_, AuthorityKeyPair) = get_authority_key_pair();
 
     let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    protocol_config.set_select_committee_supporting_protocol_version_for_testing(false);
+    protocol_config.set_select_committee_from_eligible_validators_for_testing(false);
+    protocol_config.set_track_non_committee_eligible_validators_for_testing(false);
 
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
