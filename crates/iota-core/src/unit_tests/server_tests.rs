@@ -227,7 +227,6 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
     let err_kind = IotaError::from(result.unwrap_err());
     assert!(
         matches!(err_kind, IotaError::UnsupportedFeature { .. }),
-        "Expected UnsupportedFeature error, but got {:?}",
-        err_kind
+        "Expected UnsupportedFeature error, but got {err_kind:?}",
     );
 }

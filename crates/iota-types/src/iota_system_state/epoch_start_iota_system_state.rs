@@ -751,8 +751,7 @@ mod test {
             let (found_name, found_pubkey) = &active_validators[i];
             assert_eq!(
                 *found_name, expected_name,
-                "Order not preserved: expected {} at index {}",
-                expected_name, i
+                "Order not preserved: expected {expected_name} at index {i}",
             );
             assert_eq!(
                 found_pubkey.as_bytes(),
