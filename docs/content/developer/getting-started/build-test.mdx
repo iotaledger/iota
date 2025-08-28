@@ -65,8 +65,7 @@ Test result: OK. Total tests: 0; passed: 0; failed: 0
 
 You can add your first unit test by copying the following public test function and adding it to the `first_package` file.
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L109-L127
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L109-L127
 ```
 
 The unit test function `test_sword()` will:
@@ -113,8 +112,7 @@ Move has many features to ensure your code is safe. In this case, the `Sword` st
 
 Instead, you can fix the compilation error by adequately disposing of the `sword`. Add the following after the function's `!assert` call to transfer the `sword` to a freshly created dummy address:
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L124-L126
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L124-L126
 ```
 
 Run the test command again. Now the output shows a single successful test has run:
@@ -181,31 +179,25 @@ The `Scenario` instance will emulate the IOTA object storage with an object pool
 You should update the `first_package.move` file to include entry functions callable from IOTA that implement `sword` creation and transfer. You can add these after the accessor functions.
 
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L68-L85
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L68-L85
 ```
 
 With this code, you have enabled creating and transferring a `sword`. Since these functions use IOTA's `TxContext` and `Transfer`, you should use the `test_scenario`'s multi-transaction capability to test these properly. You should add the following test to the `first_package.move` file:
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L95-L199
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L95-L199
 ```
-
-
 
 ### Configuration Object Creation
 
 The `create_config` function allows creating reusable configuration objects that can be shared across transactions:
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L87-L93
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L87-L93
 ```
 
 ### For The Complete tests coverage
 The `first_package::my_module` includes a complete set of tests covering all major functionality. For complete testing coverage, refer to these test cases in the module:
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L95-L363
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L95-L363
 ```
 
 This test function is more complex than the previous example, so let's break it down by steps so you understand how the `test_scenario` helpers work in a realistic multi-transaction flow.:
@@ -214,8 +206,7 @@ This test function is more complex than the previous example, so let's break it 
 
 First, define three test addresses to represent different users in your scenario: an admin : ADMIN, an initial sword owner : ALICE, and a final sword owner : BOB.
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L95-L107
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L95-L107
 ```
 
 ### 2. Start the Scenario
@@ -223,8 +214,7 @@ https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c
 Create a Scenario by calling `test_scenario::begin()`. Pass the `admin` address as the sender of the first transaction.
 You can then call the `init` function to simulate module initialization logic during the first transaction.
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L131C5-L137C7
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L131-L137
 ```
    
 ### 3. Admin Creates a Sword and Transfers It
@@ -234,8 +224,7 @@ Use `test_scenario::next_tx` to advance to the next transaction in the scenario 
 
 In this example, the `admin` uses the `new_sword` function to create a sword using a `Forge` object and then transfers it to the `initial_owner`.
 
-    ```move reference 
-   https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L167-L175
+    ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L167-L175
     ```
 
 ### 4. Initial Owner Transfers the Sword
@@ -244,8 +233,7 @@ Next, the `initial_owner` retrieves the sword using `take_from_sender`.
 They then transfer the sword to the `final_owner`.
 This works because `test_scenario` keeps track of objects created and transferred in earlier transactions.
 
-    ```move reference
-    https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L177-L184
+    ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L177-L184
     ```
 
 > **Note:**  
@@ -269,8 +257,7 @@ This works because `test_scenario` keeps track of objects created and transferre
 In the final transaction, the `final_owner` retrieves the sword to verify its properties.
 When finished, return the sword to the object pool or destroy it to keep the test state clean.
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L186-L197
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L186-L197
 ```
 
 ### Using `iota::test_utils`
@@ -290,8 +277,7 @@ Checks that two vectors contain the same elements, regardless of order.
 Destroys an object when you no longer need it.
 
 #### Example:
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L200-L218
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L200-L218
 ```
    
 ### Example: Complete Multi-Transaction Move Contract And Test coverage
@@ -301,8 +287,7 @@ function looks like this:
 
 Includes test_scenario and test_utils modules:-
 
-```move reference
-https://github.com/iotaledger/iota/blob/e8d767b6b6d6825a97427c46d9fd819886ecef3c/examples/move/first_package/sources/first_package.move#L1-L364
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L1-L364
 ```
 
 ### Run All Tests
