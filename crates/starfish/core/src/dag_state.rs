@@ -2075,27 +2075,27 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_get_blocks_in_cache_or_store() {
+    async fn test_get_block_headers_in_cache_or_store() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create test blocks for round 1 ~ 10
+        // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
         let num_authorities: u8 = 4;
         let mut block_headers = Vec::new();
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block =
+                let block_header =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                block_headers.push(block);
+                block_headers.push(block_header);
             }
         }
 
-        // Now write in store the blocks from first 4 rounds and the rest to the dag
-        // state
+        // Now write the block headers from the first 4 rounds to the store, and the
+        // rest to the dag state
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
@@ -2106,12 +2106,12 @@ mod test {
             }
         });
 
-        // Now when trying to query whether we have all the blocks, we should
-        // successfully retrieve a positive answer where the blocks of first 4
-        // round should be found in DagState and the rest in store.
+        // Now when trying to query whether we have all the block headers, we should
+        // receive all headers. Headers from the first 4 rounds
+        // should be found in store and the rest in DagState.
         let mut block_refs = block_headers
             .iter()
-            .map(|block| block.reference())
+            .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
         let result = dag_state.get_block_headers(&block_refs);
 
