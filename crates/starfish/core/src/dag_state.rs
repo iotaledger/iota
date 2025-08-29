@@ -2626,14 +2626,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_last_block_for_authority() {
+    async fn test_last_block_header_for_authority() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        // WHEN no blocks exist then genesis should be returned
+        // WHEN no block headers exist, then genesis should be returned
         {
             let genesis = genesis_block_headers(context.clone());
             let my_genesis = genesis
@@ -2647,34 +2647,30 @@ mod test {
             );
         }
 
-        // WHEN adding some blocks for authorities, only the last ones should be
+        // WHEN adding some block headers for authorities, only the last ones should be
         // returned
         {
-            // add blocks up to round 4
+            // add block headers up to round 4
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
                 .layers(1..=4)
                 .build()
                 .persist_layers(dag_state.clone());
 
-            // add block 5 for authority 0
-            let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
-            dag_state.write().accept_block_header(block);
-
-            let block = dag_state
-                .read()
-                .get_last_block_header_for_authority(AuthorityIndex::new_for_test(0));
-            assert_eq!(block.round(), 5);
+            // add block header 5 for authority 0
+            let block_header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
+            dag_state.write().accept_block_header(block_header);
 
             for (authority_index, _) in context.committee.authorities() {
-                let block = dag_state
+                let block_header = dag_state
                     .read()
                     .get_last_block_header_for_authority(authority_index);
 
                 if authority_index.value() == 0 {
-                    assert_eq!(block.round(), 5);
+                    assert_eq!(block_header.round(), 5);
                 } else {
-                    assert_eq!(block.round(), 4);
+                    assert_eq!(block_header.round(), 4);
                 }
             }
         }
