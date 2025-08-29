@@ -231,6 +231,7 @@ This works because `test_scenario` keeps track of objects created and transferre
 ```
 
 ::: info Transaction Effects
+
 In `test_scenario`, transaction effects (such as creating or transferring an object) are only available to retrieve in the **next** transaction.  
 
 For example, if the second transaction in a scenario created a `sword` and transferred it to the administrator's address, it would only become available for retrieval from the administrator's address (via `test_scenario`, `take_from_sender`, or `take_from_address`) in the third transaction.  
