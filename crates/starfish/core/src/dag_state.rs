@@ -2524,7 +2524,7 @@ mod test {
     #[should_panic(
         expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
     )]
-    async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range() {
+    async fn test_get_cached_last_block_header_per_authority_requesting_out_of_round_range() {
         // GIVEN
         const CACHED_ROUNDS: Round = 1;
         let (mut context, _) = Context::new_for_test(4);
@@ -2534,18 +2534,17 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create no blocks for authority 0
-        // Create one block (round 1) for authority 1
-        // Create two blocks (rounds 1,2) for authority 2
-        // Create three blocks (rounds 1,2,3) for authority 3
-        let mut all_blocks = Vec::new();
+        // Create no block headers for authority 0
+        // Create one block header (round 1) for authority 1
+        // Create two block headers (rounds 1,2) for authority 2
+        // Create three block headers (rounds 1,2,3) for authority 3
+        let mut all_blocks_headers = Vec::new();
         for author in 1..=3 {
             for round in 1..=author {
-                let block = VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(round, author as u8).build(),
-                );
-                all_blocks.push(block.clone());
-                dag_state.accept_block_header(block);
+                let block_header =
+                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+                all_blocks_headers.push(block_header.clone());
+                dag_state.accept_block_header(block_header);
             }
         }
 
@@ -2553,15 +2552,15 @@ mod test {
             1 as CommitIndex,
             CommitDigest::MIN,
             0,
-            all_blocks.last().unwrap().reference(),
-            all_blocks
+            all_blocks_headers.last().unwrap().reference(),
+            all_blocks_headers
                 .into_iter()
                 .map(|block| block.reference())
                 .collect::<Vec<_>>(),
             vec![],
         ));
 
-        // Flush the store so we keep in memory only the last 1 round from the last
+        // Flush to the store so we keep in memory only the last 1 round from the last
         // commit for each authority.
         dag_state.flush();
 
