@@ -158,9 +158,7 @@ impl RocksDB {
             db_path,
         }
     }
-}
 
-impl RocksDB {
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Result<Option<Vec<u8>>, rocksdb::Error> {
         self.underlying.get(key)
     }
@@ -284,7 +282,7 @@ impl RocksDB {
             .write_opt(batch, writeopts)
             .map_err(typed_store_err_from_rocks_err)?;
         fail_point!("batch-write-after");
-        #[expect(clippy::let_and_return)]
+
         Ok(())
     }
 
