@@ -290,7 +290,32 @@
     ]
   },
   "11": {
-    "git_revision": "f36b41de66e9745fa1c73cfcf925a916760b121b",
+    "git_revision": "2544af4f4193cf0d67012a8fd20e7a401e8a8e2f",
+    "packages": [
+      {
+        "name": "MoveStdlib",
+        "path": "crates/iota-framework/packages/move-stdlib",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      {
+        "name": "Iota",
+        "path": "crates/iota-framework/packages/iota-framework",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000002"
+      },
+      {
+        "name": "IotaSystem",
+        "path": "crates/iota-framework/packages/iota-system",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000003"
+      },
+      {
+        "name": "Stardust",
+        "path": "crates/iota-framework/packages/stardust",
+        "id": "0x000000000000000000000000000000000000000000000000000000000000107a"
+      }
+    ]
+  },
+  "12": {
+    "git_revision": "f24d8b79395171f072197829a7c4f5a004f33ac9-dirty",
     "packages": [
       {
         "name": "MoveStdlib",
