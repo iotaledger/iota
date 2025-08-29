@@ -1083,7 +1083,7 @@ export const RPC_METHODS: {
         return await getDynamicFieldObject!(transport, inputs);
     },
     /**
-     * @deprecated The V1 of this method is depreacted, use `getDynamicFieldObjectV2` instead.
+     * @deprecated The V1 of this method is deprecated, use `getDynamicFieldObjectV2` instead.
      */
     async getDynamicFieldObject(transport, [parentId, name]) {
         return await getDynamicFieldObject!(transport, [
