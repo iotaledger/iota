@@ -25,7 +25,7 @@ import {
     LoadingIndicator,
     Header,
 } from '@iota/apps-ui-kit';
-import { CoinFormat, IOTA_TYPE_ARG, safeParseIotaToNanos } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, safeParseAmount } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
 import { FormDataValues } from '../interfaces';
@@ -94,7 +94,7 @@ export function EnterValuesFormView({
     const gasBudgetEst = sendCoinTransactionQuery.data?.gasSummary?.totalGas;
 
     const hasAmount = formik.values.amount.length > 0;
-    const amount = safeParseIotaToNanos(
+    const amount = safeParseAmount(
         coinType === IOTA_TYPE_ARG ? formik.values.amount : '0',
         coinDecimals,
     );
