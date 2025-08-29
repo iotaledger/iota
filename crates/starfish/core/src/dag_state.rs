@@ -1918,8 +1918,8 @@ mod test {
             }
         }
 
-        // Now write in store the block headers from first 4 rounds and the rest to the
-        // dag state
+        // Now write in store the block headers from the first 4 rounds and the rest to
+        // the dag state
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
@@ -2678,12 +2678,7 @@ mod test {
 
     #[tokio::test]
     async fn test_contains_transactions() {
-        /// Only keep elements up to 2 rounds before the last committed round
-        const CACHED_ROUNDS: Round = 2;
-
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -2701,8 +2696,8 @@ mod test {
             }
         }
 
-        // Now write in store the transactions from first 4 rounds and the rest to the
-        // dag state
+        // Now write the transactions from the first 4 rounds to the store and the rest
+        // to the dag state
         blocks.clone().into_iter().for_each(|block| {
             if block.round() <= 4 {
                 store
@@ -2717,8 +2712,8 @@ mod test {
         });
 
         // Now when trying to query whether we have all the transactions, we should
-        // successfully retrieve a positive answer where the transactions of first 4
-        // round should be found in store and the rest in DagState.
+        // receive all transactions. The first 4 retrieved from the store and the rest
+        // is from DagState.
         let mut block_refs = blocks
             .iter()
             .map(|block| block.reference())
@@ -2742,6 +2737,24 @@ mod test {
 
         // Ensure everything is found except the one we just added
         expected.insert(3, false);
+        assert_eq!(result, expected);
+
+        // Destroy the dag state.
+        drop(dag_state);
+
+        // Recover the state from the store
+        let dag_state = DagState::new(context.clone(), store.clone());
+
+        let block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state.contains_transactions(block_refs.clone());
+
+        // Only transactions flushed to the store should be found
+        let expected = (1..=num_rounds)
+            .flat_map(|round| vec![round <= 4; num_authorities as usize])
+            .collect::<Vec<_>>();
         assert_eq!(result, expected);
     }
 }
