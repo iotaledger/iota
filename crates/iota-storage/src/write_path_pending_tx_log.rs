@@ -24,7 +24,10 @@ use typed_store::{
     traits::{Map, TableSummary, TypedStoreDebug},
 };
 
+use crate::mutex_table::MutexTable;
+
 pub type IsFirstRecord = bool;
+const NUM_SHARDS: usize = 4096;
 
 #[derive(DBMapUtils)]
 struct WritePathPendingTransactionTable {
@@ -33,11 +36,12 @@ struct WritePathPendingTransactionTable {
 
 pub struct WritePathPendingTransactionLog {
     pending_transactions: WritePathPendingTransactionTable,
+    mutex_table: MutexTable<TransactionDigest>,
 }
 
 impl WritePathPendingTransactionLog {
     pub fn new(path: PathBuf) -> Self {
-        let pending_transactions = WritePathPendingTransactionTable::open_tables_transactional(
+        let pending_transactions = WritePathPendingTransactionTable::open_tables_read_write(
             path,
             MetricConf::new("pending_tx_log"),
             None,
@@ -45,6 +49,7 @@ impl WritePathPendingTransactionLog {
         );
         Self {
             pending_transactions,
+            mutex_table: MutexTable::new(NUM_SHARDS),
         }
     }
 
@@ -58,19 +63,15 @@ impl WritePathPendingTransactionLog {
         tx: &VerifiedTransaction,
     ) -> IotaResult<IsFirstRecord> {
         let tx_digest = tx.digest();
-        let mut transaction = self.pending_transactions.logs.transaction()?;
-        if transaction
-            .get(&self.pending_transactions.logs, tx_digest)?
-            .is_some()
-        {
-            return Ok(false);
+        let _guard = self.mutex_table.acquire_lock(*tx_digest);
+        if self.pending_transactions.logs.contains_key(tx_digest)? {
+            Ok(false)
+        } else {
+            self.pending_transactions
+                .logs
+                .insert(tx_digest, tx.serializable_ref())?;
+            Ok(true)
         }
-        transaction.insert_batch(
-            &self.pending_transactions.logs,
-            [(tx_digest, tx.serializable_ref())],
-        )?;
-        let result = transaction.commit();
-        Ok(result.is_ok())
     }
 
     // This function does not need to be behind a lock because:
