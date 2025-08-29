@@ -2382,7 +2382,7 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_get_last_cached_block() {
+    async fn test_get_last_cached_block_header() {
         // GIVEN
         const CACHED_ROUNDS: Round = 2;
         let (mut context, _) = Context::new_for_test(4);
@@ -2392,10 +2392,10 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create no blocks for authority 0
-        // Create one block (round 1) for authority 1
-        // Create two blocks (rounds 1,2) for authority 2
-        // Create three blocks (rounds 1,2,3) for authority 3
+        // Create no block headers for authority 0
+        // Create one block header (round 1) for authority 1
+        // Create two block headers (rounds 1,2) for authority 2
+        // Create three block headers (rounds 1,2,3) for authority 3
         let dag_str = "DAG {
             Round 0 : { 4 },
             Round 1 : {
@@ -2415,13 +2415,13 @@ mod test {
         let dag_builder = parse_dag(dag_str).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
-        let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
+        let block_header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
 
-        // Accept all blocks
+        // Accept all block headers
         for block_header in dag_builder
             .all_block_headers()
             .into_iter()
-            .chain(std::iter::once(block))
+            .chain(std::iter::once(block_header))
         {
             dag_state.accept_block_header(block_header);
         }
@@ -2435,7 +2435,7 @@ mod test {
             vec![],
         ));
 
-        // WHEN search for the latest blocks
+        // WHEN search for the latest block headers
         let end_round = 4;
         let expected_rounds = vec![0, 1, 2, 3];
         let expected_excluded_and_equivocating_blocks = vec![0, 0, 1, 0];
@@ -2488,7 +2488,7 @@ mod test {
 
         // WHEN we flush the DagState - after adding a
         // commit with all the blocks, we expect this to trigger a clean up in
-        // the internal cache. That will keep the all the blocks with rounds >=
+        // the internal cache. That will keep all the block headers with rounds >=
         // authority_commit_round - CACHED_ROUND.
         dag_state.flush();
 
