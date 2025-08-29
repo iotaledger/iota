@@ -2626,7 +2626,7 @@ fn test_retryable_overload_info() {
     );
 }
 
-// Helper function to create test capability notification request
+// Helper function to create a test capability notification request
 fn create_test_capability_notification_request() -> HandleCapabilityNotificationRequestV1 {
     let (_, keypair): (_, AuthorityKeyPair) = get_key_pair();
     let authority_name: AuthorityName = keypair.public().into();
