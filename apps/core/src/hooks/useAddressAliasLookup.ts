@@ -1,44 +1,49 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureValue } from '@growthbook/growthbook-react';
 import { Feature } from '../enums';
-import { trimOrFormatAddress } from '@iota/iota-sdk/utils';
-import { useCallback } from 'react';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { useFeatureValue } from '@growthbook/growthbook-react';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
-export interface GetAddressAliasParams {
-    address: string;
-    formatUnknownAddress?: boolean;
-}
+const ADDRESSES_ALIAS_FALLBACK: KnownAddressAliasesFeature = {
+    enabled: false,
+    addresses: {},
+};
+
+type AddressAliases = Record<string, string>;
+
+type KnownAddressAliasesFeature = {
+    enabled: boolean;
+    addresses: AddressAliases;
+};
 
 export function useAddressAliasLookup() {
-    const knownAddressesFeature = useFeatureValue<{
-        enabled: boolean;
-        addresses: Record<string, string>;
-    }>(Feature.KnownAddressAlias as string, {
-        enabled: false,
-        addresses: {},
-    });
-
-    return useCallback(
-        ({ address, formatUnknownAddress: formatUnknownAddress }: GetAddressAliasParams) => {
-            const formattedAddress = trimOrFormatAddress(address);
-
-            if (!knownAddressesFeature.enabled) {
-                return {
-                    address: formatUnknownAddress ? trimOrFormatAddress(address) : address,
-                    alias: undefined,
-                };
-            }
-
-            const addressAlias = knownAddressesFeature.addresses[formattedAddress];
-            const isKnownAddress = !!addressAlias;
-
-            return {
-                address: isKnownAddress || formatUnknownAddress ? formattedAddress : address,
-                alias: addressAlias,
-            };
-        },
-        [knownAddressesFeature],
+    const knownAddresses = useFeatureValue<KnownAddressAliasesFeature>(
+        Feature.KnownAddressAlias,
+        ADDRESSES_ALIAS_FALLBACK,
     );
+
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+
+    const validatorsAddresses = Object.fromEntries(
+        systemState?.activeValidators.map((validator) => [validator.iotaAddress, validator.name]) ??
+            [],
+    );
+
+    const addressAliasMap = {
+        ...validatorsAddresses,
+        ...knownAddresses.addresses,
+    };
+
+    return (address: string): string | null => {
+        if (!knownAddresses || !knownAddresses.enabled) {
+            return null;
+        }
+
+        const normalized = normalizeIotaAddress(address);
+        const addressAlias = addressAliasMap[normalized];
+
+        return addressAlias;
+    };
 }

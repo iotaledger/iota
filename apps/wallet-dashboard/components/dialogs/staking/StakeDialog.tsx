@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react';
 import { EnterAmountView, EnterTimelockedAmountView, SelectValidatorView } from './views';
 import {
     ExtendedDelegatedStake,
-    parseAmount,
     useCoinMetadata,
     useBalance,
     createValidationSchema,
@@ -14,7 +13,7 @@ import {
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView } from './views';
 import { TransactionDialogView } from '../TransactionDialog';
@@ -80,7 +79,7 @@ export function StakeDialog({
         [maxStakableTimelockedAmount, availableBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
-    const formik = useFormik({
+    const formik = useFormik<typeof INITIAL_VALUES>({
         initialValues: INITIAL_VALUES,
         validationSchema: validationSchema,
         onSubmit: () => undefined,

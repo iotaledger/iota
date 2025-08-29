@@ -5,7 +5,7 @@ import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract 
 import { useEffect } from 'react';
 import { DepositForm } from '../DepositForm';
 import toast from 'react-hot-toast';
-import { buildDepositL2Parameters, parseAmount } from '../../../lib/utils';
+import { buildDepositL2Parameters } from '../../../lib/utils';
 import { iscAbi, L2_USER_REJECTED_TX_ERROR_TEXT } from '../../../lib/constants';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFormContext } from 'react-hook-form';
@@ -14,7 +14,7 @@ import { L2Chain } from '../../../config';
 import { getBalanceQueryKey } from 'wagmi/query';
 import { useGasEstimateL2 } from '../../../hooks/useGasEstimateL2';
 import { formatEther } from 'viem';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 

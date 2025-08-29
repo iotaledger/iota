@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::fatal;
-use iota_config::ExecutionCacheConfig;
+use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
@@ -30,6 +30,7 @@ use crate::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
+        backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     state_accumulator::AccumulatorStore,
@@ -103,29 +104,12 @@ impl ExecutionCacheTraitPointers {
     }
 }
 
-static DISABLE_WRITEBACK_CACHE_ENV_VAR: &str = "DISABLE_WRITEBACK_CACHE";
-
-#[derive(Debug)]
-pub enum ExecutionCacheConfigType {
-    WritebackCache,
-    PassthroughCache,
-}
-
-pub fn choose_execution_cache(config: &ExecutionCacheConfig) -> ExecutionCacheConfigType {
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok()
-        || matches!(config, ExecutionCacheConfig::PassthroughCache)
-    {
-        ExecutionCacheConfigType::PassthroughCache
-    } else {
-        ExecutionCacheConfigType::WritebackCache
-    }
-}
-
 pub fn build_execution_cache(
     cache_config: &ExecutionCacheConfig,
     epoch_start_config: &EpochStartConfiguration,
     prometheus_registry: &Registry,
     store: &Arc<AuthorityStore>,
+    backpressure_manager: Arc<BackpressureManager>,
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
@@ -135,6 +119,7 @@ pub fn build_execution_cache(
             epoch_start_config,
             store.clone(),
             execution_cache_metrics,
+            backpressure_manager,
         )
         .into(),
     )
@@ -149,19 +134,22 @@ pub fn build_execution_cache_from_env(
 ) -> ExecutionCacheTraitPointers {
     let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(prometheus_registry));
 
-    if std::env::var(DISABLE_WRITEBACK_CACHE_ENV_VAR).is_ok() {
-        ExecutionCacheTraitPointers::new(
+    // Load cache type from env
+    let cache_type = ExecutionCacheType::default().cache_type();
+    let config = ExecutionCacheConfig::default();
+    match cache_type {
+        ExecutionCacheType::PassthroughCache => ExecutionCacheTraitPointers::new(
             PassthroughCache::new(store.clone(), execution_cache_metrics).into(),
-        )
-    } else {
-        ExecutionCacheTraitPointers::new(
+        ),
+        ExecutionCacheType::WritebackCache => ExecutionCacheTraitPointers::new(
             WritebackCache::new(
-                &ExecutionCacheConfig::default_writeback_cache(),
+                &config.writeback_cache,
                 store.clone(),
                 execution_cache_metrics,
+                BackpressureManager::new_for_tests(),
             )
             .into(),
-        )
+        ),
     }
 }
 
@@ -212,6 +200,19 @@ pub trait ExecutionCacheCommit: Send + Sync {
                 .expect("storage access failed")
         })
     }
+
+    /// Persist transactions and their effects to the database, but no other
+    /// outputs. Additionally this stores the content-addressed effects in
+    /// the database but does not add an executed_effects. This is required
+    /// for recovery from a crash when upgrading to data-quarantining.
+    /// TODO: remove this once all nodes have upgraded to data-quarantining.
+    fn persist_transactions_and_effects(
+        &self,
+        digests: &[(TransactionDigest, TransactionEffectsDigest)],
+    );
+
+    // Number of pending uncommitted transactions
+    fn approximate_pending_transaction_count(&self) -> u64;
 }
 
 pub trait ObjectCacheRead: Send + Sync {
@@ -967,41 +968,31 @@ pub trait ExecutionCacheWrite: Send + Sync {
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult>;
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_write_transaction_outputs`.
-    fn write_transaction_outputs(
-        &self,
-        epoch_id: EpochId,
-        tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, ()> {
-        Box::pin(async move {
-            self.try_write_transaction_outputs(epoch_id, tx_outputs)
-                .await
-                .expect("storage access failed")
-        })
+    fn write_transaction_outputs(&self, epoch_id: EpochId, tx_outputs: Arc<TransactionOutputs>) {
+        self.try_write_transaction_outputs(epoch_id, tx_outputs)
+            .expect("storage access failed")
     }
 
     /// Attempt to acquire object locks for all of the owned input locks.
-    fn try_acquire_transaction_locks<'a>(
-        &'a self,
-        epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+    fn try_acquire_transaction_locks(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult>;
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_acquire_transaction_locks`.
-    fn acquire_transaction_locks<'a>(
-        &'a self,
-        epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+    fn acquire_transaction_locks(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
-                .await
-                .expect("storage access failed")
-        })
+    ) {
+        self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
+            .expect("storage access failed")
     }
 }
 
@@ -1346,27 +1337,6 @@ macro_rules! implement_passthrough_traits {
                 // set), this can be called at reconfiguration time. It is a no-op.
                 // TODO: remove this once we completely remove ProxyCache.
                 std::future::ready(()).boxed()
-            }
-        }
-
-        impl StateSyncAPI for $implementor {
-            fn try_insert_transaction_and_effects(
-                &self,
-                transaction: &VerifiedTransaction,
-                transaction_effects: &TransactionEffects,
-            ) -> IotaResult {
-                self.store
-                    .insert_transaction_and_effects(transaction, transaction_effects)
-                    .map_err(IotaError::from)
-            }
-
-            fn try_multi_insert_transaction_and_effects(
-                &self,
-                transactions_and_effects: &[VerifiedExecutionData],
-            ) -> IotaResult {
-                self.store
-                    .multi_insert_transaction_and_effects(transactions_and_effects.iter())
-                    .map_err(IotaError::from)
             }
         }
 

@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use super::*;
 use crate::{
-    reopen, retry_transaction, retry_transaction_forever,
+    reopen, retry_transaction,
     rocks::{
         iter::{Iter, RevIter},
         safe_iter::{SafeIter, SafeRevIter},
@@ -18,7 +18,7 @@ use crate::{
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
         .expect("Failed to open temporary directory")
-        .into_path()
+        .keep()
 }
 
 // A wrapper that holds different type of iterators for testing purpose. We use
@@ -1267,26 +1267,6 @@ async fn test_retry_transaction() {
         tx1.commit()
     })
     // fails after hitting maximum number of retries
-    .unwrap_err();
-
-    // obviously we cannot verify that this never times out, this is more just a
-    // test to make sure the macro compiles as expected.
-    tokio::time::timeout(Duration::from_secs(1), async move {
-        retry_transaction_forever!({
-            let mut tx1 = db
-                .transaction_without_snapshot()
-                .expect("failed to initiate transaction");
-            tx1.insert_batch(&db, vec![(key.to_string(), "2".to_string())])
-                .unwrap();
-            db.insert(&key, &"1".to_string()).unwrap();
-            tx1.commit()
-        })
-        // fails after hitting maximum number of retries
-        .unwrap_err();
-        panic!("should never finish");
-    })
-    .await
-    // must timeout
     .unwrap_err();
 }
 

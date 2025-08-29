@@ -6,8 +6,20 @@ use std::{ops::RangeInclusive, sync::Arc};
 
 use async_trait::async_trait;
 use clap::{Subcommand, ValueEnum};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
-use crate::{backfill::sql::sql_backfill::SqlBackfill, db::ConnectionPool, errors::IndexerError};
+use crate::{
+    backfill::{
+        ingestion::{
+            jobs::tx_wrapped_or_deleted_objects::TxWrappedOrDeletedObjectsBackfill,
+            task::IngestionBackfillTask,
+        },
+        sql::sql_backfill::SqlBackfill,
+    },
+    config::IngestionConfig,
+    db::ConnectionPool,
+    errors::IndexerError,
+};
 
 pub(crate) mod ingestion;
 pub mod runner;
@@ -46,15 +58,15 @@ pub enum BackfillKind {
     /// Run a backfill driven by the ingestion engine.
     ///
     /// - `kind`: defines the specific ingestion backfill implementation to use.
-    /// - `remote_store_url`: the endpoint or path of the remote checkpoint
-    ///   store to ingest from.
+    /// - `config`: configuration options for the data ingestion worker.
     ///
     /// The runner will spawn the data ingestion workflow, continuously buffer
     /// processed checkpoint data, and then slice the requested checkpoint
     /// range into chunks for database backfill.
     Ingestion {
         kind: IngestionBackfillKind,
-        remote_store_url: String,
+        #[command(flatten)]
+        config: IngestionConfig,
     },
 }
 
@@ -63,13 +75,25 @@ pub enum BackfillKind {
 /// implements the `IngestionBackfill` trait.
 #[derive(ValueEnum, Clone, Debug)]
 #[non_exhaustive]
-pub enum IngestionBackfillKind {}
+pub enum IngestionBackfillKind {
+    /// Backfills the `tx_wrapped_or_deleted_objects` table.
+    TxWrappedOrDeletedObjects,
+}
 
-pub(crate) async fn get_backfill(kind: BackfillKind, _range_start: usize) -> Arc<dyn Backfill> {
+pub(crate) async fn get_backfill(
+    kind: BackfillKind,
+    range_start: usize,
+) -> Result<Arc<dyn Backfill>, IndexerError> {
     match kind {
-        BackfillKind::Sql { sql, key_column } => Arc::new(SqlBackfill::new(sql, key_column)),
-        BackfillKind::Ingestion { .. } => {
-            unimplemented!("No ingestion backfill tasks implemented yet.")
-        }
+        BackfillKind::Sql { sql, key_column } => Ok(Arc::new(SqlBackfill::new(sql, key_column))),
+        BackfillKind::Ingestion { kind, config } => match kind {
+            IngestionBackfillKind::TxWrappedOrDeletedObjects => Ok(Arc::new(
+                IngestionBackfillTask::<TxWrappedOrDeletedObjectsBackfill>::new(
+                    config,
+                    range_start as CheckpointSequenceNumber,
+                )
+                .await?,
+            )),
+        },
     }
 }

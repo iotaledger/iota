@@ -33,17 +33,21 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
-        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-        committer::start_tx_checkpoint_commit_task,
+        CheckpointDataToCommitV2, EpochToCommit, TransactionObjectChangesToCommit,
+        committer::start_tx_checkpoint_commit_task_v2,
         tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
-    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
+    models::{
+        display::StoredDisplay,
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
+        obj_indices::StoredObjectVersion,
+    },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
-        IotaSystemStateSummaryView, TxIndex,
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexExt,
+        TxIndexV2,
     },
 };
 
@@ -68,26 +72,20 @@ pub async fn new_handlers(
                 .with_label_values(&["checkpoint_indexing"]),
         );
 
-    let state_clone = state.clone();
     let metrics_clone = metrics.clone();
-    spawn_monitored_task!(start_tx_checkpoint_commit_task(
-        state_clone,
+    spawn_monitored_task!(start_tx_checkpoint_commit_task_v2(
+        state,
         metrics_clone,
         indexed_checkpoint_receiver,
         next_checkpoint_sequence_number,
         cancel.clone()
     ));
-    Ok(CheckpointHandler::new(
-        state,
-        metrics,
-        indexed_checkpoint_sender,
-    ))
+    Ok(CheckpointHandler::new(metrics, indexed_checkpoint_sender))
 }
 
 pub struct CheckpointHandler {
-    state: PgIndexerStore,
     metrics: IndexerMetrics,
-    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
 }
 
 #[async_trait]
@@ -123,7 +121,6 @@ impl Worker for CheckpointHandler {
         );
 
         let checkpoint_data = Self::index_checkpoint(
-            self.state.clone().into(),
             &checkpoint,
             Arc::new(self.metrics.clone()),
             Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
@@ -143,21 +140,16 @@ impl Worker for CheckpointHandler {
 
 impl CheckpointHandler {
     fn new(
-        state: PgIndexerStore,
         metrics: IndexerMetrics,
-        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
     ) -> Self {
         Self {
-            state,
             metrics,
             indexed_checkpoint_sender,
         }
     }
 
-    async fn index_epoch(
-        state: Arc<PgIndexerStore>,
-        data: &CheckpointData,
-    ) -> Result<Option<EpochToCommit>, IndexerError> {
+    async fn index_epoch(data: &CheckpointData) -> Result<Option<EpochToCommit>, IndexerError> {
         let checkpoint_object_store = EpochEndIndexingObjectStore::new(data);
 
         let CheckpointData {
@@ -173,12 +165,12 @@ impl CheckpointHandler {
                 get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
-                new_epoch: IndexedEpochInfo::from_new_system_state_summary(
+                new_epoch: StartOfEpochUpdate::new(
                     &system_state,
                     0, // first_checkpoint_id
+                    0, // first_tx_sequence_number
                     None,
                 ),
-                network_total_transactions: 0,
             }));
         }
 
@@ -216,39 +208,17 @@ impl CheckpointHandler {
                 )
             });
 
-        // Now we just entered epoch X, we want to calculate the diff between
-        // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).
-        // Note that on the indexer's chain-reading side, this is not guaranteed
-        // to have the latest data. Rather than impose a wait on the reading
-        // side, however, we overwrite this on the persisting side, where we can
-        // guarantee that the previous epoch's checkpoints have been written to
-        // db.
-
-        let epoch = system_state.epoch();
-        let network_tx_count_prev_epoch = match epoch {
-            // If first epoch change, this number is 0
-            1 => Ok(0),
-            _ => {
-                let last_epoch = epoch - 2;
-                state
-                    .get_network_total_transactions_by_end_of_epoch(last_epoch)
-                    .await
-            }
-        }?;
-
+        let event = IndexedEpochInfoEvent::from(&event);
+        let new_epoch_first_checkpoint_id = checkpoint_summary.sequence_number + 1;
+        let new_epoch_first_tx_sequence_number = checkpoint_summary.network_total_transactions;
         Ok(Some(EpochToCommit {
-            last_epoch: Some(IndexedEpochInfo::from_end_of_epoch_data(
+            last_epoch: Some(EndOfEpochUpdate::new(checkpoint_summary, &event)),
+            new_epoch: StartOfEpochUpdate::new(
                 &system_state,
-                checkpoint_summary,
-                &event,
-                network_tx_count_prev_epoch,
-            )),
-            new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                &system_state,
-                checkpoint_summary.sequence_number + 1, // first_checkpoint_id
+                new_epoch_first_checkpoint_id,
+                new_epoch_first_tx_sequence_number,
                 Some(&event),
             ),
-            network_total_transactions: checkpoint_summary.network_total_transactions,
         }))
     }
 
@@ -266,16 +236,15 @@ impl CheckpointHandler {
     }
 
     async fn index_checkpoint(
-        state: Arc<PgIndexerStore>,
         data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
-    ) -> Result<CheckpointDataToCommit, IndexerError> {
+    ) -> Result<CheckpointDataToCommitV2, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
         // Index epoch
-        let epoch = Self::index_epoch(state, data).await?;
+        let epoch = Self::index_epoch(data).await?;
 
         // Index Objects
         let object_changes: TransactionObjectChangesToCommit =
@@ -329,7 +298,7 @@ impl CheckpointHandler {
             checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
         );
 
-        Ok(CheckpointDataToCommit {
+        Ok(CheckpointDataToCommitV2 {
             checkpoint,
             transactions: db_transactions,
             events: db_events,
@@ -352,7 +321,7 @@ impl CheckpointHandler {
     ) -> IndexerResult<(
         Vec<IndexedTransaction>,
         Vec<IndexedEvent>,
-        Vec<TxIndex>,
+        Vec<TxIndexV2>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
     )> {
@@ -388,7 +357,7 @@ impl CheckpointHandler {
             }
 
             let (indexed_tx, tx_indices, indexed_events, events_indices, stored_displays) =
-                Self::index_transaction(
+                Self::index_transaction_v2(
                     tx,
                     tx_sequence_number,
                     *checkpoint_seq,
@@ -545,6 +514,164 @@ impl CheckpointHandler {
             recipients,
             move_calls,
             tx_kind: transaction_kind,
+        };
+
+        Ok((
+            db_txn,
+            db_tx_indices,
+            db_events,
+            db_event_indices,
+            db_displays,
+        ))
+    }
+
+    async fn index_transaction_v2(
+        tx: &CheckpointTransaction,
+        tx_sequence_number: u64,
+        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_timestamp_ms: u64,
+        metrics: &IndexerMetrics,
+    ) -> IndexerResult<(
+        IndexedTransaction,
+        TxIndexV2,
+        Vec<IndexedEvent>,
+        Vec<EventIndex>,
+        BTreeMap<String, StoredDisplay>,
+    )> {
+        let CheckpointTransaction {
+            transaction: sender_signed_data,
+            effects: fx,
+            events,
+            input_objects,
+            output_objects,
+        } = tx;
+
+        let tx_digest = sender_signed_data.digest();
+        let tx = sender_signed_data.transaction_data();
+        let events = events
+            .as_ref()
+            .map(|events| events.data.clone())
+            .unwrap_or_default();
+
+        let transaction_kind = IotaTransactionKind::from(tx.kind());
+
+        let db_events = events
+            .iter()
+            .enumerate()
+            .map(|(idx, event)| {
+                IndexedEvent::from_event(
+                    tx_sequence_number,
+                    idx as u64,
+                    checkpoint_seq,
+                    *tx_digest,
+                    event,
+                    checkpoint_timestamp_ms,
+                )
+            })
+            .collect();
+
+        let db_event_indices = events
+            .iter()
+            .enumerate()
+            .map(|(idx, event)| EventIndex::from_event(tx_sequence_number, idx as u64, event))
+            .collect();
+
+        let db_displays = events
+            .iter()
+            .flat_map(StoredDisplay::try_from_event)
+            .map(|display| (display.object_type.clone(), display))
+            .collect();
+
+        let objects = input_objects
+            .iter()
+            .chain(output_objects.iter())
+            .collect::<Vec<_>>();
+
+        let (balance_change, object_changes) = TxChangesProcessor::new(&objects, metrics.clone())
+            .get_changes(tx, fx, tx_digest)
+            .await?;
+
+        let db_txn = IndexedTransaction {
+            tx_sequence_number,
+            tx_digest: *tx_digest,
+            checkpoint_sequence_number: checkpoint_seq,
+            timestamp_ms: checkpoint_timestamp_ms,
+            sender_signed_data: sender_signed_data.data().clone(),
+            effects: fx.clone(),
+            object_changes,
+            balance_change,
+            events,
+            transaction_kind,
+            successful_tx_num: if fx.status().is_ok() {
+                tx.kind().tx_count() as u64
+            } else {
+                0
+            },
+        };
+
+        // Input Objects
+        let input_objects = tx
+            .input_objects()
+            .expect("committed txns have been validated")
+            .into_iter()
+            .map(|obj_kind| obj_kind.object_id())
+            .collect::<Vec<_>>();
+
+        // Changed Objects
+        let changed_objects = fx
+            .all_changed_objects()
+            .into_iter()
+            .map(|(object_ref, _owner, _write_kind)| object_ref.0)
+            .collect::<Vec<_>>();
+
+        // Wrapped or deleted objects
+        let wrapped_or_deleted_objects = fx
+            .all_tombstones()
+            .into_iter()
+            .chain(fx.created_then_wrapped_objects())
+            .map(|(object_id, _)| object_id)
+            .collect::<Vec<_>>();
+
+        // Payers
+        let payers = vec![tx.gas_owner()];
+
+        // Sender
+        let sender = tx.sender();
+
+        // Recipients
+        let recipients = fx
+            .all_changed_objects()
+            .into_iter()
+            .filter_map(|(_object_ref, owner, _write_kind)| match owner {
+                Owner::AddressOwner(address) => Some(address),
+                _ => None,
+            })
+            .unique()
+            .collect::<Vec<_>>();
+
+        // Move Calls
+        let move_calls = tx
+            .move_calls()
+            .iter()
+            .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
+            .collect();
+
+        let db_tx_indices = TxIndexV2 {
+            base: TxIndex {
+                tx_sequence_number,
+                transaction_digest: *tx_digest,
+                checkpoint_sequence_number: checkpoint_seq,
+                input_objects,
+                changed_objects,
+                sender,
+                payers,
+                recipients,
+                move_calls,
+                tx_kind: transaction_kind,
+            },
+            ext: TxIndexExt {
+                wrapped_or_deleted_objects,
+            },
         };
 
         Ok((

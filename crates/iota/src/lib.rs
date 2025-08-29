@@ -18,6 +18,7 @@ pub mod key_identity;
 pub mod keytool;
 #[cfg(feature = "iota-names")]
 pub mod name_commands;
+mod signing;
 pub mod upgrade_compatibility;
 pub mod validator_commands;
 mod verifier_meter;
@@ -28,9 +29,6 @@ use colored::Colorize;
 
 pub trait PrintableResult: std::fmt::Display + std::fmt::Debug {
     fn print(&self, pretty: bool) {
-        if !self.should_print() {
-            return;
-        }
         let line = if pretty {
             format!("{self}")
         } else {
@@ -43,10 +41,6 @@ pub trait PrintableResult: std::fmt::Display + std::fmt::Debug {
             println!("{line}");
             tracing::info!("{line}")
         }
-    }
-
-    fn should_print(&self) -> bool {
-        true
     }
 }
 

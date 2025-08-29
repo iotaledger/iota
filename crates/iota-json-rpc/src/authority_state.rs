@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
@@ -107,7 +106,7 @@ pub trait StateRead: Send + Sync {
 
     // transaction_execution_api
     #[allow(clippy::type_complexity)]
-    async fn dry_exec_transaction(
+    fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
@@ -317,7 +316,7 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    async fn dry_exec_transaction(
+    fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
@@ -327,9 +326,7 @@ impl StateRead for AuthorityState {
         TransactionEffects,
         Option<ObjectID>,
     )> {
-        Ok(self
-            .dry_exec_transaction(transaction, transaction_digest)
-            .await?)
+        Ok(self.dry_exec_transaction(transaction, transaction_digest)?)
     }
 
     async fn dev_inspect_transaction_block(
@@ -459,24 +456,30 @@ impl StateRead for AuthorityState {
         owner: IotaAddress,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        Ok(self
-            .indexes
-            .as_ref()
-            .ok_or(IotaError::IndexStoreNotAvailable)?
-            .get_balance(owner, coin_type)
-            .await?)
+        let indexes = self.indexes.clone();
+        Ok(tokio::task::spawn_blocking(move || {
+            indexes
+                .as_ref()
+                .ok_or(IotaError::IndexStoreNotAvailable)?
+                .get_balance(owner, coin_type)
+        })
+        .await
+        .map_err(|e: JoinError| IotaError::Execution(e.to_string()))??)
     }
 
     async fn get_all_balance(
         &self,
         owner: IotaAddress,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        Ok(self
-            .indexes
-            .as_ref()
-            .ok_or(IotaError::IndexStoreNotAvailable)?
-            .get_all_balance(owner)
-            .await?)
+        let indexes = self.indexes.clone();
+        Ok(tokio::task::spawn_blocking(move || {
+            indexes
+                .as_ref()
+                .ok_or(IotaError::IndexStoreNotAvailable)?
+                .get_all_balance(owner)
+        })
+        .await
+        .map_err(|e: JoinError| IotaError::Execution(e.to_string()))??)
     }
 
     fn get_verified_checkpoint_by_sequence_number(
@@ -541,9 +544,7 @@ impl StateRead for AuthorityState {
     }
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier> {
-        Ok(self
-            .get_chain_identifier()
-            .ok_or(anyhow!("Chain identifier not found"))?)
+        Ok(self.get_chain_identifier())
     }
 }
 

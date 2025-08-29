@@ -3,12 +3,15 @@
 
 import {
     AddressInput,
-    CoinFormat,
     NFTMediaDisplayCard,
+    RECEIVING_ADDRESS_FIELD_IDS,
+    SendNftFormValues,
     useAssetGasBudgetEstimation,
     useFormatCoin,
     useNftDetails,
+    useGetIotaNameRecord,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Button, ButtonHtmlType, Divider, Header, KeyValueInfo, Title } from '@iota/apps-ui-kit';
@@ -23,16 +26,19 @@ interface SendViewProps {
 }
 
 export function SendView({ objectId, senderAddress, objectType, onClose, onBack }: SendViewProps) {
-    const { isValid, dirty, isSubmitting, submitForm, values } = useFormikContext();
+    const { isValid, dirty, isSubmitting, submitForm, values } =
+        useFormikContext<SendNftFormValues>();
+    const { data: nameRecord } = useGetIotaNameRecord(values.to);
+
     const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
         objectId,
         activeAddress: senderAddress,
-        to: (values as { to: string }).to,
+        to: nameRecord?.targetAddress ?? values.to,
         objectType,
     });
     const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const { nftName, nftImageUrl } = useNftDetails(objectId, senderAddress);
 
@@ -52,7 +58,10 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
                         <div className="flex flex-col items-center gap-xxxs">
                             <Title title={nftName} />
                         </div>
-                        <AddressInput name="to" placeholder="Enter Address" />
+                        <AddressInput
+                            {...RECEIVING_ADDRESS_FIELD_IDS}
+                            placeholder="Enter Address"
+                        />
                         <Divider />
                         <KeyValueInfo
                             keyText={'Est. Gas Fees'}

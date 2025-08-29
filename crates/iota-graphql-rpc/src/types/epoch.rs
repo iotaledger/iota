@@ -65,6 +65,9 @@ impl Epoch {
     }
 
     /// Validator related properties, including the active validators.
+    ///
+    /// For epochs other than the current the data provided refer to the start
+    /// of the epoch.
     async fn validator_set(&self, ctx: &Context<'_>) -> Result<Option<ValidatorSet>> {
         let system_state = ctx
             .data_unchecked::<PgManager>()
@@ -112,7 +115,7 @@ impl Epoch {
         // TODO: this currently returns None for the current epoch. Fix this.
         Ok(self
             .stored
-            .epoch_total_transactions
+            .epoch_total_transactions()
             .map(|v| UInt53::from(v as u64)))
     }
 

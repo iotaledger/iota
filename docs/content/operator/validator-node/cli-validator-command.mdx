@@ -145,7 +145,7 @@ To report validator peers, run:
 $IOTA_BINARY validator report-validator <reportee-address>
 ```
 
-Add `--undo-report false` if it intends to undo an existing report.
+Add `--undo-report true` if it intends to undo an existing report.
 
 Similarly, if the account is a delegatee, add the `--operation-cap-id <operation-cap-id>` option to the command.
 
@@ -174,7 +174,7 @@ At this point, you are a validator candidate and can start to accept self-stakin
 
 **If you haven't already, start a fullnode now to catch up with the network. When you officially join the committee but are not fully up-to-date, you cannot make meaningful contributions to the network and may be subject to peer reporting, hence face the risk of reduced staking rewards for you and your delegators.**
 
-Add stake to a validator's staking pool: https://docs.iota.org/references/framework/iota_system/iota_system#function-request_add_stake
+Add stake to a validator's staking pool: https://docs.iota.org/developer/references/framework/iota_system/iota_system#function-request_add_stake
 
 Once you collect enough staking amount, run:
 

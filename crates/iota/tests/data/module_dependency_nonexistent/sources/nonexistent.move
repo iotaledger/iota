@@ -4,4 +4,6 @@
 
 module nonexistent::nonexistent {
     public entry fun main() {}
+
+    public fun nonexistent() {}
 }

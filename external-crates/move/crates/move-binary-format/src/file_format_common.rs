@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Constants for the binary format.
@@ -70,7 +70,7 @@ impl BinaryFlavor {
     }
 
     const fn shift_and_flavor(unflavored: u32) -> u32 {
-        (Self::IOTA_FLAVOR as u32) << Self::SHIFT_AMOUNT | unflavored
+        ((Self::IOTA_FLAVOR as u32) << Self::SHIFT_AMOUNT) | unflavored
     }
 }
 

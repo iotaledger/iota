@@ -78,7 +78,6 @@ export function ProtectAccountForm({
             acceptedTos: !!hideToS,
             autoLock: parseAutoLock(autoLock.data || null),
         },
-        shouldUnregister: true,
     });
     const {
         watch,
@@ -110,7 +109,7 @@ export function ProtectAccountForm({
                     label="Create Password"
                     placeholder="Password"
                     errorMessage={form.formState.errors.password?.input?.message}
-                    {...register('password.input')}
+                    {...register('password.input', { shouldUnregister: true })}
                     name="password.input"
                     data-testid="password.input"
                 />
@@ -120,7 +119,7 @@ export function ProtectAccountForm({
                     label="Confirm Password"
                     placeholder="Password"
                     errorMessage={form.formState.errors.password?.confirmation?.message}
-                    {...register('password.confirmation')}
+                    {...register('password.confirmation', { shouldUnregister: true })}
                     name="password.confirmation"
                     data-testid="password.confirmation"
                 />

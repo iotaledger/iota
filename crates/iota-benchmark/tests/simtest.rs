@@ -29,7 +29,10 @@ mod test {
             workload_configuration::{WorkloadConfig, WorkloadConfiguration, WorkloadWeights},
         },
     };
-    use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME, node::AuthorityOverloadConfig};
+    use iota_config::{
+        AUTHORITIES_DB_NAME, ExecutionCacheConfig, ExecutionCacheType, IOTA_KEYSTORE_FILENAME,
+        node::AuthorityOverloadConfig,
+    };
     use iota_core::{
         authority::{
             AuthorityState, authority_store_tables::AuthorityPerpetualTables, framework_injection,
@@ -38,8 +41,8 @@ mod test {
     };
     use iota_framework::BuiltInFramework;
     use iota_macros::{
-        clear_fail_point, nondeterministic, register_fail_point_arg, register_fail_point_async,
-        register_fail_point_if, register_fail_points, sim_test,
+        clear_fail_point, nondeterministic, register_fail_point, register_fail_point_arg,
+        register_fail_point_async, register_fail_point_if, register_fail_points, sim_test,
     };
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
     use iota_simulator::{SimConfig, configs::*, tempfile::TempDir};
@@ -375,18 +378,13 @@ mod test {
         let dead_validator = dead_validator_orig.clone();
         let keep_alive_nodes_clone = keep_alive_nodes.clone();
         let grace_period_clone = grace_period.clone();
-        register_fail_point_async("crash", move || {
-            let dead_validator = dead_validator.clone();
-            let keep_alive_nodes_clone = keep_alive_nodes_clone.clone();
-            let grace_period_clone = grace_period_clone.clone();
-            async move {
-                handle_failpoint(
-                    dead_validator.clone(),
-                    keep_alive_nodes_clone.clone(),
-                    grace_period_clone.clone(),
-                    0.01,
-                );
-            }
+        register_fail_point("crash", move || {
+            handle_failpoint(
+                dead_validator.clone(),
+                keep_alive_nodes_clone.clone(),
+                grace_period_clone.clone(),
+                0.01,
+            );
         });
 
         // Consensus fail points.
@@ -427,7 +425,6 @@ mod test {
             }
         });
         register_fail_point_async("consensus-delay", || delay_failpoint(10..20, 0.001));
-        register_fail_point_async("write_object_entry", || delay_failpoint(10..20, 0.001));
 
         register_fail_point_async("writeback-cache-commit", || delay_failpoint(10..20, 0.001));
 
@@ -545,10 +542,13 @@ mod test {
             // Use shared_counter_max_tip to make transactions to have different gas prices.
             simulated_load_config.use_shared_counter_max_tip = rng.gen_bool(0.25);
             simulated_load_config.shared_counter_max_tip = rng.gen_range(1..=1000);
+
+            // Always enable the randomized tx workload in this test.
+            simulated_load_config.randomized_transaction_weight = 1;
             info!("Simulated load config: {:?}", simulated_load_config);
         }
 
-        test_simulated_load_with_test_config(test_cluster, 50, simulated_load_config, None, None)
+        test_simulated_load_with_test_config(test_cluster, 180, simulated_load_config, None, None)
             .await;
     }
 
@@ -622,9 +622,9 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_data_ingestion_pipeline() {
-        let path = nondeterministic!(TempDir::new().unwrap()).into_path();
+        let path = nondeterministic!(TempDir::new().unwrap()).keep();
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 1000)
+            init_test_cluster_builder(4, 5000)
                 .with_data_ingestion_dir(path.clone())
                 .build()
                 .await,
@@ -670,7 +670,10 @@ mod test {
             let num_objs = thread_rng().gen_range(1..15);
             let mut assigned_object_versions = Vec::new();
             for _ in 0..num_objs {
-                assigned_object_versions.push((ObjectID::random(), SequenceNumber::CONGESTED));
+                assigned_object_versions.push((
+                    ObjectID::random(),
+                    SequenceNumber::new_congested_with_suggested_gas_price(1_000),
+                ));
             }
             additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
         }
@@ -856,6 +859,43 @@ mod test {
         test_simulated_load(test_cluster, 60).await
     }
 
+    #[sim_test(config = "test_config()")]
+    async fn test_backpressure() {
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
+
+        let mut cache_config: ExecutionCacheConfig = Default::default();
+        // make sure we don't halt even with absurdly low backpressure threshold
+        // To validate this, change
+        // backpressure::Watermarks::is_backpressure_suppressed() to
+        // always return false and verify the test fails.
+        cache_config.writeback_cache.backpressure_threshold = Some(1);
+
+        // for the tests to pass we still need to be able to submit transactions
+        // during backpressure.
+        cache_config.writeback_cache.backpressure_threshold_for_rpc = Some(10000);
+
+        let test_cluster = init_test_cluster_builder(4, 10000)
+            .with_authority_overload_config(AuthorityOverloadConfig {
+                // Disable system overload checks for the test - during tests with crashes,
+                // it is possible for overload protection to trigger due to validators
+                // having queued certs which are missing dependencies.
+                check_system_overload_at_execution: false,
+                check_system_overload_at_signing: false,
+                max_txn_age_in_queue: Duration::from_secs(10000),
+                max_transaction_manager_queue_length: 10000,
+                max_transaction_manager_per_object_queue_length: 10000,
+                ..Default::default()
+            })
+            .with_execution_cache_type(ExecutionCacheType::WritebackCache)
+            .with_execution_cache_config(cache_config)
+            .with_submit_delay_step_override_millis(3000)
+            .build()
+            .await
+            .into();
+
+        test_simulated_load(test_cluster, 60).await;
+    }
+
     fn handle_bool_failpoint(
         eligible_nodes: &HashSet<iota_simulator::task::NodeId>, /* only given eligible nodes may
                                                                  * fail */
@@ -918,6 +958,7 @@ mod test {
         shared_deletion_weight: u32,
         shared_counter_hotness_factor: u32,
         randomness_weight: u32,
+        randomized_transaction_weight: u32,
         num_shared_counters: Option<u64>,
         use_shared_counter_max_tip: bool,
         shared_counter_max_tip: u64,
@@ -936,6 +977,7 @@ mod test {
                 shared_deletion_weight: 1,
                 shared_counter_hotness_factor: 50,
                 randomness_weight: 1,
+                randomized_transaction_weight: 0,
                 num_shared_counters: Some(1),
                 use_shared_counter_max_tip: false,
                 shared_counter_max_tip: 0,
@@ -996,7 +1038,7 @@ mod test {
 
         // The default test parameters are somewhat conservative in order to keep the
         // running time of the test reasonable in CI.
-        let target_qps = target_qps.unwrap_or(get_var("SIM_STRESS_TEST_QPS", 10));
+        let target_qps = target_qps.unwrap_or(get_var("SIM_STRESS_TEST_QPS", 20));
         let num_workers = num_workers.unwrap_or(get_var("SIM_STRESS_TEST_WORKERS", 10));
         let in_flight_ratio = get_var("SIM_STRESS_TEST_IFR", 2);
         let batch_payment_size = get_var("SIM_BATCH_PAYMENT_SIZE", 15);
@@ -1026,6 +1068,7 @@ mod test {
             randomness: config.randomness_weight,
             adversarial: adversarial_weight,
             expected_failure: config.expected_failure_weight,
+            randomized_transaction: config.randomized_transaction_weight,
         };
 
         let workload_config = WorkloadConfig {

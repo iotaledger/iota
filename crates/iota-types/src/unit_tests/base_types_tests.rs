@@ -39,8 +39,8 @@ fn test_bcs_enum() {
     let address_ser = bcs::to_bytes(&address).unwrap();
     let shared_ser = bcs::to_bytes(&shared).unwrap();
 
-    println!("{:?}", address_ser);
-    println!("{:?}", shared_ser);
+    println!("{address_ser:?}");
+    println!("{shared_ser:?}");
     assert!(shared_ser.len() < address_ser.len());
 }
 
@@ -99,7 +99,7 @@ fn test_signatures_serde() {
 
 #[test]
 fn test_max_sequence_number() {
-    let max = SequenceNumber::MAX;
+    let max = SequenceNumber::MAX_VALID_EXCL;
     assert_eq!(max.0 * 2 + 1, u64::MAX);
 }
 
@@ -370,8 +370,7 @@ fn test_move_package_size_for_gas_metering() {
     let package = Object::new_package(
         &[module],
         TransactionDigest::genesis_marker(),
-        config.max_move_package_size(),
-        config.move_binary_format_version(),
+        &config,
         &[], // empty dependencies for empty package (no modules)
     )
     .unwrap();

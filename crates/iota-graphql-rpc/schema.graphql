@@ -1155,6 +1155,9 @@ type Epoch {
 	referenceGasPrice: BigInt
 	"""
 	Validator related properties, including the active validators.
+	
+	For epochs other than the current the data provided refer to the start
+	of the epoch.
 	"""
 	validatorSet: ValidatorSet
 	"""
@@ -2606,10 +2609,12 @@ type MoveType {
 	signature: MoveTypeSignature!
 	"""
 	Structured representation of the "shape" of values that match this type.
+	May return MoveTypeLayout::InvalidType for malformed types.
 	"""
 	layout: MoveTypeLayout!
 	"""
-	The abilities this concrete type has.
+	The abilities this concrete type has. Returns no abilities if the type
+	is invalid.
 	"""
 	abilities: [MoveAbility!]!
 }
@@ -4481,6 +4486,7 @@ input TransactionBlockFilter {
 	recvAddress: IotaAddress
 	inputObject: IotaAddress
 	changedObject: IotaAddress
+	wrappedOrDeletedObject: IotaAddress
 	transactionIds: [String!]
 }
 
@@ -4751,17 +4757,18 @@ type Validator {
 	"""
 	poolTokenBalance: BigInt
 	"""
-	Pending stake amount for this epoch.
+	Pending stake amount for the current epoch, emptied at epoch boundaries.
+	Zero for past epochs.
 	"""
 	pendingStake: BigInt
 	"""
 	Pending stake withdrawn during the current epoch, emptied at epoch
-	boundaries.
+	boundaries. Zero for past epochs.
 	"""
 	pendingTotalIotaWithdraw: BigInt
 	"""
 	Pending pool token withdrawn during the current epoch, emptied at epoch
-	boundaries.
+	boundaries. Zero for past epochs.
 	"""
 	pendingPoolTokenWithdraw: BigInt
 	"""

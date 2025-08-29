@@ -39,9 +39,8 @@ use crate::{
         HandleTransactionTestAuthorityClient, LocalAuthorityClient,
         LocalAuthorityClientFaultConfig, MockAuthorityApi,
     },
-    test_utils::{
-        init_local_authorities, make_transfer_iota_transaction, make_transfer_object_transaction,
-    },
+    test_utils::{make_transfer_iota_transaction, make_transfer_object_transaction},
+    unit_test_utils::init_local_authorities,
 };
 
 macro_rules! assert_matches {

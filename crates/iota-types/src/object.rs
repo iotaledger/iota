@@ -116,18 +116,13 @@ impl MoveObject {
         }
     }
 
-    pub fn new_coin(
-        coin_type: MoveObjectType,
-        version: SequenceNumber,
-        id: ObjectID,
-        value: u64,
-    ) -> Self {
+    pub fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                coin_type,
+                MoveObjectType::coin(coin_type),
                 version,
-                GasCoin::new(id, value).to_bcs_bytes(),
+                Coin::new(id, value).to_bcs_bytes(),
                 256,
             )
             .unwrap()
@@ -630,15 +625,13 @@ impl Object {
     pub fn new_package<'p>(
         modules: &[CompiledModule],
         previous_transaction: TransactionDigest,
-        max_move_package_size: u64,
-        move_binary_format_version: u32,
+        protocol_config: &ProtocolConfig,
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
             Data::Package(MovePackage::new_initial(
                 modules,
-                max_move_package_size,
-                move_binary_format_version,
+                protocol_config,
                 dependencies,
             )?),
             previous_transaction,
@@ -671,13 +664,7 @@ impl Object {
     ) -> Result<Self, ExecutionError> {
         let dependencies: Vec<_> = dependencies.into_iter().collect();
         let config = ProtocolConfig::get_for_max_version_UNSAFE();
-        Self::new_package(
-            modules,
-            previous_transaction,
-            config.max_move_package_size(),
-            config.move_binary_format_version(),
-            &dependencies,
-        )
+        Self::new_package(modules, previous_transaction, &config, &dependencies)
     }
 
     /// Create a system package which is not subject to size limits. Panics if
@@ -1007,7 +994,7 @@ impl Object {
     pub fn with_id_owner_version_for_testing(
         id: ObjectID,
         version: SequenceNumber,
-        owner: IotaAddress,
+        owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
@@ -1015,7 +1002,7 @@ impl Object {
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner,
             data,
             previous_transaction: TransactionDigest::genesis_marker(),
             storage_rebate: 0,

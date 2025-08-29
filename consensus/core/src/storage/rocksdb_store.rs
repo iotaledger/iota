@@ -19,6 +19,7 @@ use crate::{
     block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
+    metrics::StoredScoringMetricsU64,
 };
 
 /// Persistent storage with RocksDB.
@@ -34,6 +35,8 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
+    /// Stores scoring metrics for each authority.
+    scoring_metrics: DBMap<AuthorityIndex, StoredScoringMetricsU64>,
 }
 
 impl RocksDBStore {
@@ -42,6 +45,7 @@ impl RocksDBStore {
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
+    const SCORING_METRICS_CF: &'static str = "scoring_metrics";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str) -> Self {
@@ -64,6 +68,7 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
+            (Self::SCORING_METRICS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -73,12 +78,13 @@ impl RocksDBStore {
         )
         .expect("Cannot open database");
 
-        let (blocks, digests_by_authorities, commits, commit_votes, commit_info) = reopen!(&rocksdb,
+        let (blocks, digests_by_authorities, commits, commit_votes, commit_info, scoring_metrics) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
-            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>
+            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
+            Self::SCORING_METRICS_CF;<AuthorityIndex, StoredScoringMetricsU64>
         );
 
         Self {
@@ -87,6 +93,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            scoring_metrics,
         }
     }
 }
@@ -140,7 +147,11 @@ impl Store for RocksDBStore {
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
-
+        for (authority, metrics) in write_batch.scoring_metrics {
+            batch
+                .insert_batch(&self.scoring_metrics, [(authority, metrics)])
+                .map_err(ConsensusError::RocksDBFailure)?;
+        }
         batch.write()?;
         fail_point!("consensus-store-after-write");
         Ok(())
@@ -211,6 +222,14 @@ impl Store for RocksDBStore {
             );
         }
         Ok(blocks)
+    }
+
+    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoringMetricsU64)>> {
+        let mut metrics_by_author = vec![];
+        for kv in self.scoring_metrics.safe_iter() {
+            metrics_by_author.push(kv?);
+        }
+        Ok(metrics_by_author)
     }
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round

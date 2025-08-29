@@ -194,7 +194,7 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
 
-    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}")]
+    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}.")]
     ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
@@ -208,6 +208,21 @@ pub enum ExecutionFailureStatus {
 
     #[error("Certificate is cancelled because randomness could not be generated this epoch")]
     ExecutionCancelledDueToRandomnessUnavailable,
+
+    // Certificate is cancelled due to congestion on shared objects;
+    // suggested gas price can be used to give this certificate more priority.
+    #[error(
+        "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
+            To give this certificate more priority to be executed, its gas price can be increased \
+            to at least {suggested_gas_price}."
+    )]
+    ExecutionCancelledDueToSharedObjectCongestionV2 {
+        congested_objects: CongestedObjects,
+        suggested_gas_price: u64,
+    },
+
+    #[error("A valid linkage was unable to be determined for the transaction")]
+    InvalidLinkage,
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.
 }
@@ -367,6 +382,67 @@ impl ExecutionStatus {
             }
             ExecutionStatus::Failure { error, command } => (error, command),
         }
+    }
+
+    /// Returns congested objects if the transaction was cancelled due to
+    /// shared object congestion, else returns `None`.
+    pub fn get_congested_objects(&self) -> Option<&CongestedObjects> {
+        match self {
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                        congested_objects,
+                    }
+                    | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                        congested_objects,
+                        ..
+                    },
+                ..
+            } => Some(congested_objects),
+            _ => None,
+        }
+    }
+
+    /// Returns a suggested gas price if the transaction was cancelled due to
+    /// shared object congestion (subject to the gas price feedback mechanism
+    /// is enabled), otherwise returns `None`.
+    pub fn get_feedback_suggested_gas_price(&self) -> Option<u64> {
+        if let ExecutionStatus::Failure {
+            error:
+                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                    suggested_gas_price,
+                    ..
+                },
+            ..
+        } = self
+        {
+            Some(*suggested_gas_price)
+        } else {
+            None
+        }
+    }
+
+    /// Check is the transaction was cancelled due to shared object congestion.
+    pub fn is_cancelled_due_to_congestion(&self) -> bool {
+        matches!(
+            self,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion { .. }
+                    | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 { .. },
+                ..
+            }
+        )
+    }
+
+    /// Check is the transaction was cancelled due to randomness unavailable.
+    pub fn is_cancelled_due_to_randomness(&self) -> bool {
+        matches!(
+            self,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable,
+                ..
+            }
+        )
     }
 }
 

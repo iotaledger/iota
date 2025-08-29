@@ -5,7 +5,13 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
+import {
+    useSigner,
+    useActiveAccount,
+    useUnlockedGuard,
+    usePinnedCoinTypes,
+    useAppSelector,
+} from '_hooks';
 import {
     CoinSelector,
     useSortedCoinsByCategories,
@@ -16,6 +22,9 @@ import {
     sumCoinBalances,
     useCoinMetadata,
     createValidationSchemaSendTokenForm,
+    type SendTokenFormValues,
+    useFeatureEnabledByNetwork,
+    Feature,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,13 +35,13 @@ import { SendTokenForm } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
 import { FormikProvider, useFormik } from 'formik';
+import { shouldResolveInputAsName } from '@iota/core/src/utils/validation/names';
 
-const INITIAL_VALUES = {
+const INITIAL_VALUES: SendTokenFormValues = {
     to: '',
     amount: '',
+    resolvedAddress: '',
 };
-
-export type FormValues = typeof INITIAL_VALUES;
 
 export function TransferCoinPage() {
     const [searchParams] = useSearchParams();
@@ -56,20 +65,23 @@ export function TransferCoinPage() {
     const coinMetadata = useCoinMetadata(selectedCoinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
 
+    const network = useAppSelector((state) => state.app.network);
+    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
+
     const validationSchemaStepOne = useMemo(
         () =>
             createValidationSchemaSendTokenForm(
+                isNameResolutionEnabled,
                 coinBalance,
                 coinMetadata.data?.symbol ?? '',
                 coinDecimals,
             ),
-        [coinBalance, coinMetadata.data, coinDecimals],
+        [isNameResolutionEnabled, coinBalance, coinMetadata.data, coinDecimals],
     );
 
-    const formik = useFormik<FormValues>({
+    const formik = useFormik<SendTokenFormValues>({
         initialValues: INITIAL_VALUES,
         validationSchema: validationSchemaStepOne,
-        enableReinitialize: true,
         validateOnChange: false,
         validateOnBlur: false,
         onSubmit: () => {},
@@ -85,11 +97,13 @@ export function TransferCoinPage() {
     const totalCoinBalance =
         coinsBalance?.find((coin) => coin.coinType === selectedCoinType)?.totalBalance || '0';
 
+    const isNameInput = shouldResolveInputAsName(formik.values.to);
+
     const sendCoinTransactionQuery = useSendCoinTransaction({
         coins: selectedCoins,
         coinType: selectedCoinType,
         senderAddress: address,
-        recipientAddress: formik.values.to,
+        recipientAddress: isNameInput ? (formik.values.resolvedAddress ?? '') : formik.values.to,
         amount: formik.values.amount,
     });
     const { data: transactionData, isPending } = sendCoinTransactionQuery;

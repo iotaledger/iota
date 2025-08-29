@@ -10,6 +10,7 @@ pub mod authority_aggregator;
 pub mod authority_client;
 pub mod authority_server;
 pub mod checkpoints;
+pub mod congestion_tracker;
 pub mod connection_monitor;
 pub mod consensus_adapter;
 pub mod consensus_handler;
@@ -33,6 +34,7 @@ pub mod rest_index;
 pub mod safe_client;
 mod scoring_decision;
 mod stake_aggregator;
+pub mod starfish_adapter;
 pub mod state_accumulator;
 pub mod storage;
 pub mod streamer;
@@ -49,6 +51,9 @@ pub mod verify_indexes;
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]
 mod congestion_control_tests;
+#[cfg(test)]
+#[path = "unit_tests/gas_price_feedback_tests.rs"]
+mod gas_price_feedback_tests;
 #[cfg(test)]
 #[path = "unit_tests/move_package_management_tests.rs"]
 mod move_package_management_tests;
@@ -74,6 +79,9 @@ mod transfer_to_object_tests;
 #[cfg(test)]
 #[path = "unit_tests/type_param_tests.rs"]
 mod type_param_tests;
+#[cfg(test)]
+#[path = "unit_tests/unit_test_utils.rs"]
+mod unit_test_utils;
 
 pub mod signature_verifier;
 

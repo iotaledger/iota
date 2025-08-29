@@ -362,6 +362,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 continue;
                             }
 
+                            let peer_hostname = self.context.committee.authority(peer_index).hostname.clone();
+
                             // Keep only the max allowed blocks to request. It is ok to reduce here as the scheduler
                             // task will take care syncing whatever is leftover.
                             let missing_block_refs = missing_block_refs
@@ -384,7 +386,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 .try_send(blocks_guard)
                                 .map_err(|err| {
                                     match err {
-                                        TrySendError::Full(_) => ConsensusError::SynchronizerSaturated(peer_index),
+                                        TrySendError::Full(_) => ConsensusError::SynchronizerSaturated(peer_index,peer_hostname),
                                         TrySendError::Closed(_) => ConsensusError::Shutdown
                                     }
                                 });
@@ -518,6 +520,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
+                                context.metrics.update_scoring_metrics_on_block_receival(
+                                    peer_index,
+                                    peer_hostname,
+                                    err.clone(),
+                                    "process_fetched_blocks",
+                                );
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             }
@@ -1787,7 +1795,7 @@ mod tests {
             // request and get an error with "saturated" synchronizer
             if iter.peek().is_none() {
                 match handle.fetch_blocks(missing_blocks, peer).await {
-                    Err(ConsensusError::SynchronizerSaturated(index)) => {
+                    Err(ConsensusError::SynchronizerSaturated(index, _)) => {
                         assert_eq!(index, peer);
                     }
                     _ => panic!("A saturated synchronizer error was expected"),

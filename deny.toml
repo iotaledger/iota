@@ -55,10 +55,6 @@ ignore = [
   "RUSTSEC-2024-0436",
   # backoff is unmaintained
   "RUSTSEC-2025-0012",
-  # ring 0.16 is unmaintained
-  "RUSTSEC-2025-0010",
-  # ethers uses ring 0.16
-  "RUSTSEC-2025-0009",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -92,6 +88,7 @@ allow = [
   "Unicode-DFS-2016",
   "OpenSSL",
   "Unicode-3.0",
+  "CDLA-Permissive-2.0",
   # "Apache-2.0 WITH LLVM-exception",
 ]
 # The confidence threshold for detecting a license from license text.
@@ -221,6 +218,7 @@ allow-git = [
   "https://github.com/iotaledger/iota-rust-sdk.git",
   "https://github.com/bmwill/openapiv3.git",
   "https://github.com/bmwill/axum-server.git",
+  "https://github.com/iotaledger/iota-bigtable.git",
 ]
 
 [sources.allow-org]

@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -48,7 +48,7 @@ impl New {
         ensure!(
             Identifier::is_valid(&self.name),
             "Invalid package name. Package name must start with a letter or underscore \
-            and consist only of letters, numbers, and underscores."
+                     and consist only of letters, numbers, and underscores."
         );
 
         let path = path.unwrap_or_else(|| Path::new(&self.name));
@@ -96,7 +96,7 @@ impl New {
             w,
             r#"[package]
 name = "{name}"
-edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+edition = "2024" # edition = "legacy" to use legacy (pre-2024) Move
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 

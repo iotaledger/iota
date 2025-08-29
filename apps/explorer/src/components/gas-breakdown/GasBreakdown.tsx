@@ -3,9 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
-import { CoinFormat, type TransactionSummaryType, useFormatCoin } from '@iota/core';
+import {
+    type TransactionSummaryType,
+    useFormatCoin,
+    useGetIotaNameRecord,
+    NamedAddressTooltip,
+} from '@iota/core';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { Fragment } from 'react';
+import { normalizeIotaName } from '@iota/iota-names-sdk';
 
 interface GasProps {
     amount?: bigint | number | string;
@@ -13,10 +20,10 @@ interface GasProps {
 }
 
 function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
-    const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.FULL });
+    const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.Full });
     const [formattedBurnedAmount, burnedSymbol] = useFormatCoin({
         balance: burnedAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     if (!amount) {
@@ -86,6 +93,7 @@ interface GasData {
 
 export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
     const gasData = summary?.gas;
+    const { data: nameRecord } = useGetIotaNameRecord(gasData?.owner);
 
     if (!gasData) {
         return null;
@@ -157,7 +165,17 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                         Paid by
                                     </span>
 
-                                    <AddressLink address={owner} copyText={owner} />
+                                    <NamedAddressTooltip address={owner} name={nameRecord?.name}>
+                                        <AddressLink
+                                            label={
+                                                nameRecord
+                                                    ? normalizeIotaName(nameRecord.name)
+                                                    : undefined
+                                            }
+                                            address={owner}
+                                            copyText={owner}
+                                        />
+                                    </NamedAddressTooltip>
                                 </div>
                             )}
 
