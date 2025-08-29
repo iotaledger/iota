@@ -146,7 +146,8 @@ impl CommitAPI for CommitV1 {
         &self.blocks
     }
 
-    // TODO: does this need to be a vector? block refs are a slice == less cloning?
+    // TODO: https://github.com/iotaledger/iota/issues/8375
+    // Does this need to be a vector? block refs are a slice == less cloning?
     fn committed_transactions(&self) -> Vec<BlockRef> {
         self.committed_transactions.clone()
     }

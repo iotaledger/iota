@@ -1,5 +1,12 @@
 # @iota/wallet-standard
 
+## 0.2.15
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+
 ## 0.2.14
 
 ### Patch Changes
