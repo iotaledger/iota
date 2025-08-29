@@ -65,19 +65,30 @@ To bring up 4 validators, three full nodes (one with the backup feature enabled)
 ./run.sh faucet backup indexer
 ```
 
-To bring up 19 validators and faucet:
+To bring up 10 validators and faucet:
 
 ```bash
-./run.sh -n 19 faucet
+./run.sh -n 10 faucet
 ```
 
-> **Note:** Out of the box, only **4** or **19** validators are fully supported by the provided `genesis-template-4.yaml` and `genesis-template-19.yaml` templates.\
-> If you wish to run a different number, <N>, of validators, you must manually update the corresponding YAML files:
+> **Note:** Out of the box, the validator network for any number between 4 and 19 is supported by the provided code.\
+> If you wish to run a large number, <N>, of validators, you must manually update the corresponding YAML files:
 >
 > - `configs/genesis-<N>-template.yaml` for the genesis template
 > - `docker-compose.yaml` (validator services and network IPs)
 > - `prometheus/prometheus.yaml` (scrape targets)
 > - **(Optional)** Adjust the stake distribution in the chosen `genesis-template-<N>.yaml` if you want different validator stakes.
+
+### Optional: Selecting a Consensus Protocol
+
+You can run the network with an optional consensus protocol flag. There are two options `starfish` and `mysticeti`.
+If the flag is not provided, the default protocol is Mysticeti.
+
+For example, to start a **Starfish** consensus protocol with 10 validators:
+
+```bash
+./run.sh -n 10 -p starfish
+```
 
 ### Ports
 
