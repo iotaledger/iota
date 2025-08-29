@@ -1080,81 +1080,28 @@ export const RPC_METHODS: {
         };
     },
     async getDynamicFieldObjectV2(transport, inputs) {
-        return await RPC_METHODS.getDynamicFieldObject!(transport, inputs);
+        return await getDynamicFieldObject!(transport, inputs);
     },
-    async getDynamicFieldObject(transport, [parentId, name, options]) {
-        const nameLayout = await transport.graphqlQuery(
+    /**
+     * @deprecated The V1 of this method is depreacted, use `getDynamicFieldObjectV2` instead.
+     */
+    async getDynamicFieldObject(transport, [parentId, name]) {
+        return await getDynamicFieldObject!(transport, [
+            parentId,
+            name,
             {
-                query: GetTypeLayoutDocument,
-                variables: {
-                    type: name.type,
-                },
+                // These are the same defaults as in the JSON RPC.
+                showBcs: true,
+                showContent: true,
+                showDisplay: true,
+                showOwner: true,
+                showPreviousTransaction: true,
+                showStorageRebate: true,
+                showType: true,
             },
-            (data) => data.type.layout,
-        );
-
-        const bcsName = mapJsonToBcs(name.value, nameLayout);
-
-        const parent = await transport.graphqlQuery(
-            {
-                query: GetDynamicFieldObjectDocument,
-                variables: {
-                    parentId: parentId,
-                    name: {
-                        type: name.type,
-                        bcs: bcsName,
-                    },
-                    showBcs: options?.showBcs,
-                    showContent: options?.showContent,
-                    showDisplay: options?.showDisplay,
-                    showOwner: options?.showOwner,
-                    showPreviousTransaction: options?.showPreviousTransaction,
-                    showStorageRebate: options?.showStorageRebate,
-                    showType: options?.showType,
-                },
-            },
-            (data) => {
-                return data.owner?.dynamicObjectField?.value?.__typename === 'MoveObject'
-                    ? data.owner.dynamicObjectField.value.owner?.__typename === 'Parent'
-                        ? data.owner.dynamicObjectField.value.owner.parent
-                        : undefined
-                    : undefined;
-            },
-        );
-
-        return {
-            data: {
-                content: parent.asMoveObject
-                    ? {
-                          dataType: 'moveObject' as const,
-                          ...(moveDataToRpcContent(
-                              parent.asMoveObject?.contents?.data!,
-                              parent.asMoveObject?.contents?.type.layout!,
-                          ) as {
-                              fields: {
-                                  [key: string]: MoveValue;
-                              };
-                              type: string;
-                          }),
-                      }
-                    : undefined,
-                digest: parent?.digest!,
-                objectId: parent?.address,
-                type: parent?.asMoveObject
-                    ? toShortTypeString(parent.asMoveObject.contents?.type.repr)
-                    : undefined,
-                version: parent?.version.toString()!,
-                storageRebate: parent.storageRebate,
-                previousTransaction: parent.previousTransactionBlock?.digest,
-                owner:
-                    parent.owner?.__typename === 'Parent'
-                        ? {
-                              ObjectOwner: parent.owner.parent?.address,
-                          }
-                        : undefined,
-            },
-        };
+        ]);
     },
+
     async executeTransactionBlock(transport, [txBytes, signatures, options]) {
         const { effects, errors } = await transport.graphqlQuery(
             {
@@ -1620,4 +1567,81 @@ async function paginateCheckpointLists(
             after = page.pageInfo?.endCursor;
         }
     }
+}
+
+async function getDynamicFieldObject(
+    transport: IotaClientGraphQLTransport,
+    [parentId, name, options]: any[],
+) {
+    const nameLayout = await transport.graphqlQuery(
+        {
+            query: GetTypeLayoutDocument,
+            variables: {
+                type: name.type,
+            },
+        },
+        (data) => data.type.layout,
+    );
+
+    const bcsName = mapJsonToBcs(name.value, nameLayout);
+
+    const parent = await transport.graphqlQuery(
+        {
+            query: GetDynamicFieldObjectDocument,
+            variables: {
+                parentId: parentId,
+                name: {
+                    type: name.type,
+                    bcs: bcsName,
+                },
+                showBcs: options?.showBcs,
+                showContent: options?.showContent,
+                showDisplay: options?.showDisplay,
+                showOwner: options?.showOwner,
+                showPreviousTransaction: options?.showPreviousTransaction,
+                showStorageRebate: options?.showStorageRebate,
+                showType: options?.showType,
+            },
+        },
+        (data) => {
+            return data.owner?.dynamicObjectField?.value?.__typename === 'MoveObject'
+                ? data.owner.dynamicObjectField.value.owner?.__typename === 'Parent'
+                    ? data.owner.dynamicObjectField.value.owner.parent
+                    : undefined
+                : undefined;
+        },
+    );
+
+    return {
+        data: {
+            content: parent.asMoveObject
+                ? {
+                      dataType: 'moveObject' as const,
+                      ...(moveDataToRpcContent(
+                          parent.asMoveObject?.contents?.data!,
+                          parent.asMoveObject?.contents?.type.layout!,
+                      ) as {
+                          fields: {
+                              [key: string]: MoveValue;
+                          };
+                          type: string;
+                      }),
+                  }
+                : undefined,
+            digest: parent?.digest!,
+            objectId: parent?.address,
+            type: parent?.asMoveObject
+                ? toShortTypeString(parent.asMoveObject.contents?.type.repr)
+                : undefined,
+            version: parent?.version.toString()!,
+            storageRebate: parent.storageRebate,
+            previousTransaction: parent.previousTransactionBlock?.digest,
+            owner:
+                parent.owner?.__typename === 'Parent'
+                    ? {
+                          ObjectOwner: parent.owner.parent?.address,
+                      }
+                    : undefined,
+        },
+    };
 }
