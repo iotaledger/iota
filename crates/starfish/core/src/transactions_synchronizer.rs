@@ -451,7 +451,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         loop {
             // Wait for a permit asynchronously
-            let permit = semaphore.clone().acquire_owned().await.expect("We expect semaphore to be valid");
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("We expect semaphore to be valid");
 
             match receiver.recv().await {
                 Some(missing_transactions_block_refs) => {
@@ -475,7 +479,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             dag_state,
                             SyncMethod::Live,
                         )
-                            .await;
+                        .await;
 
                         // Release the permit when done
                         drop(permit);
