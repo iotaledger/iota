@@ -194,17 +194,11 @@ The `create_config` function allows creating reusable configuration objects that
 ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L87-L93
 ```
 
-### For The Complete tests coverage
-The `first_package::my_module` includes a complete set of tests covering all major functionality. For complete testing coverage, refer to these test cases in the module:
-
-```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L95-L363
-```
-
-This test function is more complex than the previous example, so let's break it down by steps so you understand how the `test_scenario` helpers work in a realistic multi-transaction flow.:
+Let's break it down by steps so you understand how the `test_scenario` helpers work in a realistic multi-transaction flow:
 
 ### 1. Create User Addresses
 
-First, define three test addresses to represent different users in your scenario: an admin : ADMIN, an initial sword owner : ALICE, and a final sword owner : BOB.
+First, define three test addresses to represent different users in your scenario: an admin: ADMIN, an initial sword owner: ALICE, and a final sword owner: BOB.
 
 ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L95-L107
 ```
@@ -224,8 +218,8 @@ Use `test_scenario::next_tx` to advance to the next transaction in the scenario 
 
 In this example, the `admin` uses the `new_sword` function to create a sword using a `Forge` object and then transfers it to the `initial_owner`.
 
-    ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L167-L175
-    ```
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L167-L175
+```
 
 ### 4. Initial Owner Transfers the Sword
 
@@ -233,24 +227,21 @@ Next, the `initial_owner` retrieves the sword using `take_from_sender`.
 They then transfer the sword to the `final_owner`.
 This works because `test_scenario` keeps track of objects created and transferred in earlier transactions.
 
-    ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L177-L184
-    ```
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L177-L184
+```
 
-> **Note:**  
-> In `test_scenario`, transaction effects (such as creating or transferring an object) are only available to retrieve in the **next** transaction.  
->  
-> If needed, you can also use `take_from_address` to fetch an object from a specific address instead of the current sender:
->
->```move
-> let sword = test_scenario::take_from_address<Sword>(scenario, initial_owner);
->```
+::: info Transaction Effects
+In `test_scenario`, transaction effects (such as creating or transferring an object) are only available to retrieve in the **next** transaction.  
 
-    
-    :::tip
-    
-    Transaction effects, such as object creation and transfer, become visible only after a given transaction completes. For example, if the second transaction in the running example created a `sword` and transferred it to the administrator's address, it would only become available for retrieval from the administrator's address (via `test_scenario`, `take_from_sender`, or `take_from_address` functions) in the third transaction.
-    
-    :::
+For example, if the second transaction in a scenario created a `sword` and transferred it to the administrator's address, it would only become available for retrieval from the administrator's address (via `test_scenario`, `take_from_sender`, or `take_from_address`) in the third transaction.  
+
+If needed, you can also use `take_from_address` to fetch an object from a specific address instead of the current sender:
+
+```move
+let sword = test_scenario::take_from_address<Sword>(scenario, initial_owner);
+```
+
+:::
 
 ### 5. Final Owner Verifies and Cleans Up
 
@@ -324,10 +315,6 @@ Test result: OK. Total tests: 8; passed: 8; failed: 0
 
 - [`test_scenario` source](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move)
 - [`test_utils` source](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move)
-
-
-## Summary
-> These modules help you write realistic, robust multi-transaction tests for your IOTA smart contracts. Use them together to cover advanced scenarios and keep your tests clear and maintainable.
 
 
 <Quiz questions={questions} />
