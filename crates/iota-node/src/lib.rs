@@ -1838,7 +1838,7 @@ impl IotaNode {
             {
                 // Send signed capabilities to committee validators if we are a non-committee
                 // validator in a separate task to not block the caller. Sending is done only if
-                // the feature flag suporting it is enabled.
+                // the feature flag supporting it is enabled.
                 let epoch_store = cur_epoch_store.clone();
                 let node_clone = self.clone();
                 spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
