@@ -1,5 +1,11 @@
 # @iota/iota-sdk
 
+## 1.6.1
+
+### Patch Changes
+
+-   3244c29: Rename `parseIotaToNanos` util back to `parseAmount`
+
 ## 1.6.0
 
 ### Minor Changes

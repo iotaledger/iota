@@ -2,7 +2,7 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 import { useBuildDepositTransactionL1 } from './useBuildDepositTransactionL1';
 import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
-import { IOTA_DECIMALS, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 import { useBalance } from '@iota/core';
 
 const GENERIC_EVM_ADDRESS = '0x1111111111111111111111111111111111111111';
@@ -21,7 +21,7 @@ export function useAvailableIotaBalanceL1(): {
         : 0n;
 
     // Estimate gas costs for Layer 1 transactions
-    const minAmount = parseIotaToNanos(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS) || 0n;
+    const minAmount = parseAmount(MINIMUM_SEND_AMOUNT.toString(), IOTA_DECIMALS) || 0n;
     const { data: minAmountDataL1, isLoading: isLoadingL1Transaction } =
         useBuildDepositTransactionL1({
             receivingAddress: GENERIC_EVM_ADDRESS,

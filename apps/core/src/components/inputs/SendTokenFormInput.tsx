@@ -6,7 +6,7 @@ import { CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_COIN_METADATA, useFormatCoin } from '../../hooks';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
-import { CoinFormat, IOTA_TYPE_ARG, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
@@ -51,8 +51,7 @@ export function SendTokenFormInput({
     }, BigInt(0));
 
     const approximation =
-        parseIotaToNanos(values.amount, coinDecimals) === totalBalance &&
-        coinType === IOTA_TYPE_ARG;
+        parseAmount(values.amount, coinDecimals) === totalBalance && coinType === IOTA_TYPE_ARG;
 
     return (
         <Input
