@@ -10,8 +10,8 @@ import { useBuildDepositTransactionL1 } from '../../../hooks/useBuildDepositTran
 import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
 import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
-import { CoinFormat, formatBalance, IOTA_DECIMALS } from '@iota/iota-sdk/utils';
-import { useCoinMetadata, useGetAllCoins, parseAmount } from '@iota/core';
+import { CoinFormat, formatBalance, IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
+import { useCoinMetadata, useGetAllCoins } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 import { useAccount } from 'wagmi';
 

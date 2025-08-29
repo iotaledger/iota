@@ -5874,6 +5874,8 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "shared-crypto",
+ "starfish-config",
+ "starfish-core",
  "static_assertions",
  "tap",
  "telemetry-subscribers",
@@ -7993,6 +7995,7 @@ dependencies = [
  "serde_yaml",
  "shared-crypto",
  "signature 1.6.4",
+ "starfish-config",
  "static_assertions",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -11796,6 +11799,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "readme-rustdocifier"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ad765b21a08b1a8e5cdce052719188a23772bcbefb3c439f0baaf62c56ceac"
+
+[[package]]
 name = "readonly"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11850,6 +11859,16 @@ dependencies = [
  "getrandom 0.2.15",
  "libredox",
  "thiserror 1.0.64",
+]
+
+[[package]]
+name = "reed-solomon-simd"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab6badd4f4b9c93832eb3707431e8e7bea282fae96801312f0990d48b030f8c5"
+dependencies = [
+ "fixedbitset 0.4.2",
+ "readme-rustdocifier",
 ]
 
 [[package]]
@@ -13475,6 +13494,98 @@ dependencies = [
  "libc",
  "psm",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "starfish-config"
+version = "0.1.0"
+dependencies = [
+ "fastcrypto",
+ "insta",
+ "iota-network-stack",
+ "rand 0.8.5",
+ "serde",
+ "shared-crypto",
+]
+
+[[package]]
+name = "starfish-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "async-trait",
+ "base64 0.21.7",
+ "bcs",
+ "bytes",
+ "cfg-if",
+ "dashmap",
+ "enum_dispatch",
+ "fastcrypto",
+ "futures",
+ "http 1.3.1",
+ "iota-common",
+ "iota-http",
+ "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-protocol-config",
+ "iota-tls",
+ "itertools 0.13.0",
+ "nom",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "prost",
+ "quinn-proto",
+ "rand 0.8.5",
+ "reed-solomon-simd",
+ "rstest",
+ "rustls 0.23.28",
+ "serde",
+ "shared-crypto",
+ "starfish-config",
+ "strum_macros 0.26.4",
+ "tap",
+ "telemetry-subscribers",
+ "tempfile",
+ "thiserror 1.0.64",
+ "tokio",
+ "tokio-rustls 0.26.2",
+ "tokio-stream",
+ "tokio-util 0.7.12",
+ "tonic 0.13.1",
+ "tonic-build",
+ "tonic-rustls",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "typed-store",
+]
+
+[[package]]
+name = "starfish-simtests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "iota-config",
+ "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-protocol-config",
+ "iota-simulator",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "rand 0.8.5",
+ "starfish-config",
+ "starfish-core",
+ "telemetry-subscribers",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.12",
+ "tracing",
+ "typed-store",
 ]
 
 [[package]]

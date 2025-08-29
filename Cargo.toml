@@ -153,6 +153,9 @@ members = [
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
   "crates/simulacrum",
+  "crates/starfish/config",
+  "crates/starfish/core",
+  "crates/starfish/simtests",
   "crates/telemetry-subscribers",
   "crates/test-cluster",
   "crates/transaction-fuzzer",
@@ -479,6 +482,9 @@ move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/",
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
+starfish-config = { path = "crates/starfish/config" }
+starfish-core = { path = "crates/starfish/core" }
+starfish-simtests = { path = "crates/starfish/simtests" }
 telemetry-subscribers = { path = "crates/telemetry-subscribers" }
 test-cluster = { path = "crates/test-cluster" }
 transaction-fuzzer = { path = "crates/transaction-fuzzer" }
