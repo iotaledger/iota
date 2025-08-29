@@ -45,7 +45,6 @@ error, or fallback to the JSON RPC API if a `fallbackFullNodeUrl` is provided:
 - `executeTransactionBlock`
 - `getParticipationMetrics`
 - `getCirculatingSupply`
-- `getDynamicFieldObjectV2`
 
 ### Unsupported parameters
 
