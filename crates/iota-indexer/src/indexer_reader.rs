@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{
     collections::{HashMap, HashSet},
-    future::Future,
-    pin::Pin,
     sync::{Arc, Mutex},
 };
 
@@ -20,7 +18,7 @@ use diesel::{
     sql_types::{BigInt, Bool},
 };
 use fastcrypto::encoding::{Encoding, Hex};
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::future::Either;
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
@@ -746,44 +744,43 @@ impl IndexerReader {
         digest: TransactionDigest,
     ) -> IndexerResult<Option<StoredTransaction>> {
         let digest_bytes = digest.inner().to_vec();
-        let checkpointed_tx_future: Pin<Box<dyn Future<Output = _> + Send>> = {
+        let checkpointed_tx_future = {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
                 this.get_checkpointed_transactions(&[digest_bytes])
-                    .map(|mut txs| txs.pop().map(|tx| (tx, false)))
+                    .map(|mut txs| txs.pop())
             }))
         };
-        let optimistic_tx_future: Pin<Box<dyn Future<Output = _> + Send>> = {
+        let optimistic_tx_future = {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
                 this.get_optimistic_transactions_with_cp_info(&[digest_bytes])
-                    .map(|mut txs| {
-                        // Mark the result as fallback if cp info is set meaning that we can
-                        // potentially get more data on this tx from
-                        // standard checkpointed tables and shouldn't return
-                        // incomplete optimistic result right away
-                        txs.pop()
-                            .map(|(tx, cp_info)| (tx.into(), cp_info.is_some()))
-                    })
+                    .map(|mut txs| txs.pop())
             }))
         };
 
-        let mut tx_futures =
-            FuturesUnordered::from_iter([checkpointed_tx_future, optimistic_tx_future]);
-
-        let mut fallback_result = None;
-
-        while let Some(result) = tx_futures.next().await {
-            if let Some((tx, is_fallback_result)) = result? {
-                if is_fallback_result {
-                    fallback_result = Some(tx);
-                } else {
-                    return Ok(Some(tx));
+        let result =
+            match futures::future::select(checkpointed_tx_future, optimistic_tx_future).await {
+                Either::Left((checkpointed_tx, optimistic_tx_future)) => match checkpointed_tx? {
+                    Some(checkpointed_tx) => Some(checkpointed_tx),
+                    None => optimistic_tx_future
+                        .await?
+                        .map(|(optimistic_tx, _)| optimistic_tx.into()),
+                },
+                Either::Right((optimistic_tx_with_cp_info, checkpointed_tx_future)) => {
+                    match optimistic_tx_with_cp_info? {
+                        Some((optimistic_tx, Some(_cp_info))) => Some(
+                            checkpointed_tx_future
+                                .await?
+                                .unwrap_or_else(|| optimistic_tx.into()),
+                        ),
+                        Some((optimistic_tx, None)) => Some(optimistic_tx.into()),
+                        None => checkpointed_tx_future.await?,
+                    }
                 }
-            }
-        }
+            };
 
-        Ok(fallback_result)
+        Ok(result)
     }
 
     fn multi_get_transactions(
