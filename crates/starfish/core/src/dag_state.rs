@@ -2578,15 +2578,15 @@ mod test {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        // WHEN no blocks exist then genesis should be returned
+        // WHEN no block headers exist, then genesis should be returned
         {
             let genesis = genesis_block_headers(context.clone());
 
             assert_eq!(dag_state.read().last_quorum(), genesis);
         }
 
-        // WHEN a fully connected DAG up to round 4 is created, then round 4 blocks
-        // should be returned as quorum
+        // WHEN a fully connected DAG up to round 4 is created, then round 4 block
+        // headers should be returned as quorum
         {
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
@@ -2610,8 +2610,8 @@ mod test {
             );
         }
 
-        // WHEN adding one more block at round 5, still round 4 should be returned as
-        // quorum
+        // WHEN adding one more block header at round 5, still round 4 should be
+        // returned as quorum
         {
             let block_header =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
