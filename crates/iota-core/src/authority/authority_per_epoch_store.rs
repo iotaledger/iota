@@ -2663,6 +2663,14 @@ impl AuthorityPerEpochStore {
                 // verification in IotaTxValidator. We don't need to check the
                 // sender_authority as it's correct that it's different from the
                 // authority in the notification.
+                // Here we only check if tracking non-committee authority capabilities is
+                // enabled.
+                if !self
+                    .protocol_config()
+                    .track_non_committee_eligible_validators()
+                {
+                    return None;
+                }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),

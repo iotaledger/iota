@@ -4884,46 +4884,60 @@ impl AuthorityState {
 
         // Use ChangeEpochV3 when the feature flag is enabled and ChangeEpochV2
         // requirements are met
-        let should_use_change_epoch_v3 = config.select_committee_from_eligible_validators()
-            && config.protocol_defined_base_fee()
-            && config.max_committee_members_count_as_option().is_some();
 
-        if should_use_change_epoch_v3 {
+        if config.select_committee_from_eligible_validators() {
             // Get the list of eligible validators that support the target protocol version
             let active_validators = epoch_store.epoch_start_state().get_active_validators();
-            let mut eligible_active_validators = Self::get_validators_supporting_protocol_version(
-                next_epoch_protocol_version,
-                active_validators.clone(),
-                epoch_store
-                    .get_capabilities_v1()
-                    .expect("read capabilities from db cannot fail"),
-            );
 
-            // Calculate the total weight of eligible validators in the committee
-            let eligible_validators_weight = Self::calculate_eligible_validators_weight(
-                &eligible_active_validators,
-                &active_validators,
-                epoch_store.committee(),
-            );
+            //
+            let mut eligible_active_validators = active_validators
+                .iter()
+                .enumerate()
+                .map(|(i, _)| i as u64)
+                .collect();
 
-            // Safety check: ensure eligible validators have enough stake
-            // Use the same effective threshold calculation that was used to decide the
-            // protocol version
-            let committee = epoch_store.committee();
-            let quorum_threshold = committee.quorum_threshold();
-            let f = committee.total_votes() - quorum_threshold;
-            let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
-            let effective_threshold = quorum_threshold + buffer_stake;
-
-            if eligible_validators_weight < effective_threshold {
-                error!(
-                    "Eligible validators weight {eligible_validators_weight} is less than effective threshold {effective_threshold} (quorum: {quorum_threshold}, buffer: {buffer_stake}). \
-                    This could indicate a bug in validator selection logic or inconsistency with protocol version decision.",
+            // Use validators supporting the target protocol version as eligible validators
+            // in the next version if track_non_committee_eligible_validators feature flag
+            // is set to true.
+            if config.track_non_committee_eligible_validators() {
+                eligible_active_validators = Self::get_validators_supporting_protocol_version(
+                    next_epoch_protocol_version,
+                    active_validators.clone(),
+                    epoch_store
+                        .get_capabilities_v1()
+                        .expect("read capabilities from db cannot fail"),
                 );
-                // Do not pass any eligible active validators to ChangeEpochV3. In this case the
-                // committee selection logic will fall back to using the entire
-                // active_validators set during committee selection.
-                eligible_active_validators = vec![];
+
+                // Calculate the total weight of eligible validators in the committee
+                let eligible_validators_weight = Self::calculate_eligible_validators_weight(
+                    &eligible_active_validators,
+                    &active_validators,
+                    epoch_store.committee(),
+                );
+
+                // Safety check: ensure eligible validators have enough stake
+                // Use the same effective threshold calculation that was used to decide the
+                // protocol version
+                let committee = epoch_store.committee();
+                let quorum_threshold = committee.quorum_threshold();
+                let f = committee.total_votes() - quorum_threshold;
+                let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
+                let effective_threshold = quorum_threshold + buffer_stake;
+
+                if eligible_validators_weight < effective_threshold {
+                    error!(
+                        "Eligible validators weight {eligible_validators_weight} is less than effective threshold {effective_threshold} (quorum: {quorum_threshold}, buffer: {buffer_stake}). \
+                        This could indicate a bug in validator selection logic or inconsistency with protocol version decision.",
+                    );
+                    // Pass all active validator indices as eligible validators
+                    // to perform selection among all of
+                    // them.
+                    eligible_active_validators = active_validators
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| i as u64)
+                        .collect();
+                }
             }
 
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
