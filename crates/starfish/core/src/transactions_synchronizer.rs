@@ -65,7 +65,7 @@ const FETCH_AND_PROCESS_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(700
 /// given block ref.
 const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
 
-#[derive(Debug,Clone,Copy,Ord,Eq,PartialOrd,PartialEq)]
+#[derive(Debug, Clone, Copy, Ord, Eq, PartialOrd, PartialEq)]
 enum SyncMethod {
     Live,
     Periodic,
@@ -662,11 +662,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 authority,
                 context.parameters.max_transactions_per_fetch,
             ) {
-                let active_request_guard = ActiveRequestGuard::new(
-                    authority,
-                    sync_method,
-                    active_requests.clone(),
-                );
+                let active_request_guard =
+                    ActiveRequestGuard::new(authority, sync_method, active_requests.clone());
 
                 request_futures.push(Self::fetch_and_process_transactions_from_authority(
                     authority,
@@ -814,7 +811,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .metrics
                     .node_metrics
                     .transactions_synchronizer_failure_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string(), err.name()])
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        &sync_method.get_string(),
+                        err.name(),
+                    ])
                     .inc();
                 Err(err) // network error
             }
@@ -824,7 +825,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .metrics
                     .node_metrics
                     .transactions_synchronizer_failure_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string(), "timeout"])
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        &sync_method.get_string(),
+                        "timeout",
+                    ])
                     .inc();
                 // timeout
                 Err(ConsensusError::NetworkRequestTimeout(err.to_string()))
