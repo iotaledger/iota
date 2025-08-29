@@ -230,8 +230,7 @@ This works because `test_scenario` keeps track of objects created and transferre
 ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L177-L184
 ```
 
-::: info Transaction Effects
-
+::: info
 In `test_scenario`, transaction effects (such as creating or transferring an object) are only available to retrieve in the **next** transaction.  
 
 For example, if the second transaction in a scenario created a `sword` and transferred it to the administrator's address, it would only become available for retrieval from the administrator's address (via `test_scenario`, `take_from_sender`, or `take_from_address`) in the third transaction.  
@@ -241,7 +240,6 @@ If needed, you can also use `take_from_address` to fetch an object from a specif
 ```move
 let sword = test_scenario::take_from_address<Sword>(scenario, initial_owner);
 ```
-
 :::
 
 ### 5. Final Owner Verifies and Cleans Up
