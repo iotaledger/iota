@@ -25,7 +25,7 @@ use rand::{
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
-    sync::{mpsc::error::TrySendError, oneshot},
+    sync::{Semaphore, mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
 };
@@ -447,26 +447,42 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         block_verifier: Arc<V>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
     ) {
-        let mut requests = FuturesUnordered::new();
+        let semaphore = Arc::new(Semaphore::new(LIVE_FETCH_TRANSACTIONS_CONCURRENCY));
 
         loop {
-            tokio::select! {
-                Some(missing_transactions_block_refs) = receiver.recv(), if requests.len() < LIVE_FETCH_TRANSACTIONS_CONCURRENCY => {
-                    requests.push(Self::fetch_and_process_transactions_from_authorities(
-                        context.clone(),
-                        active_requests.clone(),
-                        inflight_transactions_map.clone(),
-                        network_client.clone(),
-                        missing_transactions_block_refs,
-                        core_dispatcher.clone(),
-                        block_verifier.clone(),
-                        dag_state.clone(),
-                        SyncMethod::Live,
-                    ));
-                },
-                Some(_) = requests.next() => {
-                },
-                else => {
+            // Wait for a permit asynchronously
+            let permit = semaphore.clone().acquire_owned().await.expect("We expect semaphore to be valid");
+
+            match receiver.recv().await {
+                Some(missing_transactions_block_refs) => {
+                    let context = context.clone();
+                    let active_requests = active_requests.clone();
+                    let inflight_transactions_map = inflight_transactions_map.clone();
+                    let network_client = network_client.clone();
+                    let core_dispatcher = core_dispatcher.clone();
+                    let block_verifier = block_verifier.clone();
+                    let dag_state = dag_state.clone();
+
+                    tokio::spawn(async move {
+                        Self::fetch_and_process_transactions_from_authorities(
+                            context,
+                            active_requests,
+                            inflight_transactions_map,
+                            network_client,
+                            missing_transactions_block_refs,
+                            core_dispatcher,
+                            block_verifier,
+                            dag_state,
+                            SyncMethod::Live,
+                        )
+                            .await;
+
+                        // Release the permit when done
+                        drop(permit);
+                    });
+                }
+                None => {
+                    // Channel closed → shutdown
                     info!("Live fetcher task will now abort.");
                     break;
                 }
