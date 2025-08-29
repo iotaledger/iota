@@ -209,7 +209,7 @@ async function extractNativeTokensFromObject(
 
     for (const nativeToken of nativeTokens) {
         const nativeTokenParentId = fields.native_tokens.fields.id.id;
-        const objectDynamic = await client.getDynamicFieldObjectV2({
+        const objectDynamic = await client.getDynamicFieldObject({
             parentObjectId: nativeTokenParentId,
             name: nativeToken.name,
             options: {

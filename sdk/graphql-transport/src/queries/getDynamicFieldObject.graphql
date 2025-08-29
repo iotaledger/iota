@@ -8,7 +8,17 @@ query getTypeLayout($type: String!) {
     }
 }
 
-query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
+query getDynamicFieldObject(
+    $parentId: IotaAddress!
+    $name: DynamicFieldName!
+    $showBcs: Boolean = false
+    $showContent: Boolean = false
+    $showDisplay: Boolean = false
+    $showType: Boolean = false
+    $showOwner: Boolean = false
+    $showPreviousTransaction: Boolean = false
+    $showStorageRebate: Boolean = false
+) {
     owner(address: $parentId) {
         dynamicObjectField(name: $name) {
             value {
@@ -21,8 +31,16 @@ query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
                                 address
                                 digest
                                 version
-                                storageRebate
-                                owner {
+
+                                display @include(if: $showDisplay) {
+                                    key
+                                    value
+                                    error
+                                }
+
+                                storageRebate @include(if: $showStorageRebate)
+
+                                owner @include(if: $showOwner) {
                                     __typename
                                     ... on Parent {
                                         parent {
@@ -30,10 +48,31 @@ query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
                                         }
                                     }
                                 }
-                                previousTransactionBlock {
+
+                                previousTransactionBlock @include(if: $showPreviousTransaction) {
                                     digest
                                 }
-                                asMoveObject {
+
+                                asMoveObject @include(if: $showType) {
+                                    contents {
+                                        type {
+                                            repr
+                                        }
+                                    }
+                                }
+
+                                asMoveObject @include(if: $showContent) {
+                                    contents {
+                                        data
+                                        type {
+                                            repr
+                                            layout
+                                            signature
+                                        }
+                                    }
+                                }
+
+                                asMoveObject @include(if: $showBcs) {
                                     contents {
                                         data
                                         type {

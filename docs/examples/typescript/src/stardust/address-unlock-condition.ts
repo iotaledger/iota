@@ -55,7 +55,7 @@ async function main() {
         value: "alias"
     };
 
-    const aliasObject = await iotaClient.getDynamicFieldObject({ parentId: aliasOutputObjectId, name: dfName});
+    const aliasObject = await iotaClient.getDynamicFieldObject({ parentObjectId: aliasOutputObjectId, name: dfName});
     if (!aliasObject) {
         throw new Error("Alias object not found");
     }

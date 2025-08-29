@@ -48,7 +48,7 @@ export function LockedObject({
   const iotaObjectId = useIotaClientQuery(
     "getDynamicFieldObject",
     {
-      parentId: object.objectId,
+      parentObjectId: object.objectId,
       name: {
         type: CONSTANTS.escrowContract.lockedObjectDFKey,
         value: {

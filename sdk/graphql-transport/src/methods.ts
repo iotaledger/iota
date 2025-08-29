@@ -1082,7 +1082,7 @@ export const RPC_METHODS: {
     async getDynamicFieldObjectV2(transport, inputs) {
         return await RPC_METHODS.getDynamicFieldObject!(transport, inputs);
     },
-    async getDynamicFieldObject(transport, [parentId, name]) {
+    async getDynamicFieldObject(transport, [parentId, name, options]) {
         const nameLayout = await transport.graphqlQuery(
             {
                 query: GetTypeLayoutDocument,
@@ -1104,6 +1104,13 @@ export const RPC_METHODS: {
                         type: name.type,
                         bcs: bcsName,
                     },
+                    showBcs: options?.showBcs,
+                    showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
+                    showOwner: options?.showOwner,
+                    showPreviousTransaction: options?.showPreviousTransaction,
+                    showStorageRebate: options?.showStorageRebate,
+                    showType: options?.showType,
                 },
             },
             (data) => {
@@ -1117,21 +1124,25 @@ export const RPC_METHODS: {
 
         return {
             data: {
-                content: {
-                    dataType: 'moveObject' as const,
-                    ...(moveDataToRpcContent(
-                        parent?.asMoveObject?.contents?.data!,
-                        parent?.asMoveObject?.contents?.type.layout!,
-                    ) as {
-                        fields: {
-                            [key: string]: MoveValue;
-                        };
-                        type: string;
-                    }),
-                },
+                content: parent.asMoveObject
+                    ? {
+                          dataType: 'moveObject' as const,
+                          ...(moveDataToRpcContent(
+                              parent.asMoveObject?.contents?.data!,
+                              parent.asMoveObject?.contents?.type.layout!,
+                          ) as {
+                              fields: {
+                                  [key: string]: MoveValue;
+                              };
+                              type: string;
+                          }),
+                      }
+                    : undefined,
                 digest: parent?.digest!,
                 objectId: parent?.address,
-                type: toShortTypeString(parent?.asMoveObject?.contents?.type.repr),
+                type: parent?.asMoveObject
+                    ? toShortTypeString(parent.asMoveObject.contents?.type.repr)
+                    : undefined,
                 version: parent?.version.toString()!,
                 storageRebate: parent.storageRebate,
                 previousTransaction: parent.previousTransactionBlock?.digest,
