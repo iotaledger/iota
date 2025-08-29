@@ -14,8 +14,6 @@ const VERSIONS: [u8; 2] = [VERSION_0, VERSION_1];
 #[derive(PackedStruct, Debug, Clone, Copy, PartialEq, Eq)]
 #[packed_struct(bit_numbering = "msb0", endian = "msb", size_bytes = "8")]
 pub struct ErrorBitset {
-    // Bit layout (from MSB to LSB):
-    // | tag (1-bit) | reserved (7-bits) | code (8-bits) | line_number (16-bits) | identifier_index (16-bits) | constant_index (16-bits) |
     #[packed_field(bits = "0..=3")]
     version: Integer<u8, packed_bits::Bits<4>>,
     #[packed_field(bits = "4..=7")]
