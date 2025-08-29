@@ -65,21 +65,36 @@ const FETCH_AND_PROCESS_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(700
 /// given block ref.
 const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
 
+#[derive(Debug,Clone,Copy,Ord,Eq,PartialOrd,PartialEq)]
+enum SyncMethod {
+    Live,
+    Periodic,
+}
+impl SyncMethod {
+    fn get_string(&self) -> String {
+        match self {
+            SyncMethod::Live => "live",
+            SyncMethod::Periodic => "periodic",
+        }
+        .to_string()
+    }
+}
+
 struct ActiveRequestGuard {
     authority: AuthorityIndex,
-    sync_method: String,
-    active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, String), usize>>>,
+    sync_method: SyncMethod,
+    active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
 }
 
 impl ActiveRequestGuard {
     fn new(
         authority: AuthorityIndex,
-        sync_method: String,
-        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, String), usize>>>,
+        sync_method: SyncMethod,
+        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
     ) -> Self {
         {
             let mut map = active_requests.lock();
-            *map.entry((authority, sync_method.clone())).or_insert(0) += 1;
+            *map.entry((authority, sync_method)).or_insert(0) += 1;
         }
         Self {
             authority,
@@ -92,7 +107,7 @@ impl ActiveRequestGuard {
 impl Drop for ActiveRequestGuard {
     fn drop(&mut self) {
         let mut map = self.active_requests.lock();
-        if let Some(val) = map.get_mut(&(self.authority, self.sync_method.clone())) {
+        if let Some(val) = map.get_mut(&(self.authority, self.sync_method)) {
             *val = val.saturating_sub(1);
         }
     }
@@ -278,7 +293,7 @@ pub(crate) struct TransactionsSynchronizer<
     live_fetch_requests: Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
     core_dispatcher: Arc<D>,
     dag_state: Arc<RwLock<DagState>>,
-    active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, String), usize>>>,
+    active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
     fetch_transactions_scheduler_task: JoinSet<()>,
     network_client: Arc<C>,
     block_verifier: Arc<V>,
@@ -423,7 +438,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
     // The live fetcher task that processes fetch requests from the queue
     async fn live_fetcher(
-        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, String), usize>>>,
+        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
         network_client: Arc<C>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
@@ -446,7 +461,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                         core_dispatcher.clone(),
                         block_verifier.clone(),
                         dag_state.clone(),
-                        "live",
+                        SyncMethod::Live,
                     ));
                 },
                 Some(_) = requests.next() => {
@@ -544,7 +559,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     core_dispatcher,
                     block_verifier,
                     dag_state,
-                    "periodic",
+                    SyncMethod::Periodic,
                 )
                 .await;
                 context
@@ -563,14 +578,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     /// Fetches missing transactions from authorities.
     async fn fetch_and_process_transactions_from_authorities(
         context: Arc<Context>,
-        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, String), usize>>>,
+        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
         network_client: Arc<C>,
         missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         core_dispatcher: Arc<D>,
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
-        sync_method: &str,
+        sync_method: SyncMethod,
     ) {
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
         let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<BlockRef>> = BTreeMap::new();
@@ -624,7 +639,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             {
                 let count = active_requests
                     .lock()
-                    .get(&(authority, sync_method.to_string()))
+                    .get(&(authority, sync_method))
                     .copied()
                     .unwrap_or(0);
 
@@ -649,7 +664,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             ) {
                 let active_request_guard = ActiveRequestGuard::new(
                     authority,
-                    sync_method.to_string(),
+                    sync_method,
                     active_requests.clone(),
                 );
 
@@ -681,11 +696,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             tokio::select! {
                     Some(res) = request_futures.next() => {
                         if let Err(err) = res {
-                            warn!("[{sync_method}] Error when fetching and processing transactions from authority: {err}");
+                            warn!("[{}] Error when fetching and processing transactions from authority: {err}", sync_method.get_string());
                         }
             },
                     _ = &mut timeout => {
-                        warn!("[{sync_method}] Timed out while fetching and processing missing transactions");
+                        warn!("[{}] Timed out while fetching and processing missing transactions", sync_method.get_string());
                          // Drop all pending requests immediately — frees all transaction guards
                         drop(request_futures);
                         break;
@@ -703,15 +718,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         core_dispatcher: Arc<D>,
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
-        sync_method: &str,
+        sync_method: SyncMethod,
         _active_guard: ActiveRequestGuard,
     ) -> ConsensusResult<()> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let total_requested = transactions_guard.block_refs.len();
 
         debug!(
-            "[{sync_method}] Syncing {} missing committed transactions from authority {} {}",
-            total_requested, peer, peer_hostname,
+            "[{}] Syncing {total_requested} missing committed transactions from authority {peer} {peer_hostname}",
+            sync_method.get_string(),
         );
 
         let (fetched_serialized_transactions, transactions_guard, _peer_index) =
@@ -754,7 +769,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         transactions_guard: TransactionsGuard,
         request_timeout: Duration,
         context: Arc<Context>,
-        sync_method: &str,
+        sync_method: SyncMethod,
     ) -> ConsensusResult<(Vec<Bytes>, TransactionsGuard, AuthorityIndex)> {
         // Track concurrent inflight requests
         let inflight_metric = &context
@@ -789,7 +804,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             .metrics
             .node_metrics
             .transactions_synchronizer_fetch_latency
-            .with_label_values(&[peer_hostname.as_str(), sync_method])
+            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
             .observe(fetch_duration.as_secs_f64());
 
         let resp = match result {
@@ -799,7 +814,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .metrics
                     .node_metrics
                     .transactions_synchronizer_failure_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), sync_method, err.name()])
+                    .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string(), err.name()])
                     .inc();
                 Err(err) // network error
             }
@@ -809,7 +824,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .metrics
                     .node_metrics
                     .transactions_synchronizer_failure_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), sync_method, "timeout"])
+                    .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string(), "timeout"])
                     .inc();
                 // timeout
                 Err(ConsensusError::NetworkRequestTimeout(err.to_string()))
@@ -820,7 +835,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .metrics
                     .node_metrics
                     .transactions_synchronizer_success_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), sync_method])
+                    .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
                     .inc();
 
                 result
@@ -840,7 +855,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         context: Arc<Context>,
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
-        sync_method: &str,
+        sync_method: SyncMethod,
     ) -> ConsensusResult<()> {
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
@@ -901,7 +916,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         metrics
             .transactions_synchronizer_fetched_transactions_by_peer
-            .with_label_values(&[peer_hostname.as_str(), sync_method])
+            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
             .inc_by(transactions.len() as u64);
         for transactions in &transactions {
             let block_hostname = &context
@@ -910,12 +925,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 .hostname;
             metrics
                 .transactions_synchronizer_fetched_transactions_by_authority
-                .with_label_values(&[block_hostname.as_str(), sync_method])
+                .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
                 .inc();
         }
 
         info!(
-            "[{sync_method}] Synced and processed {} missing transactions from peer {peer_index} {peer_hostname}: {}",
+            "[{}] Synced and processed {} missing transactions from peer {peer_index} {peer_hostname}: {}",
+            sync_method.get_string(),
             transactions.len(),
             transactions
                 .iter()
