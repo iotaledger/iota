@@ -2157,19 +2157,30 @@ mod test {
             commits.push(commit);
         }
 
-        // Add the block headers from the first 5 rounds and the first 5 commits to the
-        // dag state
+        // Add the block headers and transactions from the first 5 rounds and the first
+        // 5 commits to the dag state; also add commit info after the second
+        // commit.
         let later_commits = commits.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
+        for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
+            dag_state.add_transactions(verified_transactions);
+        }
+
         for commit in commits.clone() {
-            dag_state.add_commit(commit);
+            dag_state.add_commit(commit.clone());
+            if commit.index() == 2 {
+                dag_state.add_commit_info(ReputationScores::default());
+            }
         }
 
         // Flush the dag state
         dag_state.flush();
 
-        // Add the rest of the block headers and commits to the dag state
+        // Add the rest of the block headers, transaction, and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
+        for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
+            dag_state.add_transactions(verified_transactions);
+        }
         for commit in later_commits.clone() {
             dag_state.add_commit(commit);
         }
@@ -2186,6 +2197,15 @@ mod test {
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, all_block_headers);
+
+        // All transactions should be found in DagState.
+        let vec_transactions = dag_builder.transactions(1..=num_rounds);
+        let result = dag_state
+            .get_transactions(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, vec_transactions);
 
         // The last commit index should be 10.
         assert_eq!(dag_state.last_commit_index(), 10);
@@ -2212,9 +2232,17 @@ mod test {
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, block_headers);
+        // Transactions from the first 5 rounds should be found in DagState.
+        let vec_transactions = dag_builder.transactions(1..=5);
+        let result = dag_state
+            .get_transactions(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, vec_transactions);
 
-        // Block headers above round 5 should not be in DagState, because they are not
-        // flushed.
+        // Block headers and transactions above round 5 should not be in DagState,
+        // because they are not flushed.
         let missing_block_headers = dag_builder.block_headers(6..=num_rounds);
         let block_refs = missing_block_headers
             .iter()
@@ -2226,6 +2254,12 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
+        let retrieved_transactions = dag_state
+            .get_transactions(&block_refs)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert!(retrieved_transactions.is_empty());
 
         // The last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
@@ -2236,9 +2270,9 @@ mod test {
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
-        // Unscored subdags will be recovered based on the flushed commits and no commit
-        // info
-        assert_eq!(dag_state.scoring_subdags_count(), 5);
+        // Unscored subdags will be recovered based on the flushed commits and commit
+        // info for 2 commits
+        assert_eq!(dag_state.scoring_subdags_count(), 3);
     }
 
     #[tokio::test]
