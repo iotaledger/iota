@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 11;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -71,6 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 11;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: normalize_ptb_arguments flag has been introduced.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
