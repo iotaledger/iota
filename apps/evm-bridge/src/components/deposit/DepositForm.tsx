@@ -162,7 +162,6 @@ export function DepositForm({
                         name="senderAddress"
                         value={fromAddress}
                         key={fromAddress}
-                        data-testid="sender-address"
                         readOnly
                     />
                 ) : (

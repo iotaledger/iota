@@ -58,10 +58,6 @@ export function getRandomL2MnemonicAndAddress(): { mnemonic: string; address: st
     };
 }
 
-/**
- * Generate L1 and L2 wallet details for a test
- * @returns TestWalletData object with mnemonics and addresses for L1 and L2
- */
 export function generateTestWallets(): TestWalletData {
     const mnemonicL1 = generate24WordMnemonic();
     const { address: addressL1 } = deriveAddressFromMnemonic(mnemonicL1);

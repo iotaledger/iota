@@ -1,4 +1,3 @@
-// helpers/shared-state.ts
 import fs from 'fs';
 import { STATE_FILE } from './paths';
 import { TestWalletData } from '../utils/utils';
@@ -17,6 +16,7 @@ export type WalletState = {
         depositThenWithdrawNativeToken: TestWalletData;
     };
 };
+
 export function getSharedState(): WalletState {
     try {
         if (!fs.existsSync(STATE_FILE)) {
@@ -30,9 +30,6 @@ export function getSharedState(): WalletState {
     }
 }
 
-/**
- * Get test data for a specific test with type safety
- */
 export function getTestData<T extends keyof WalletState['tests']>(
     testId: T,
 ): WalletState['tests'][T] {

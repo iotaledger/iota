@@ -1,5 +1,3 @@
-// Create a new file: helpers/test-funding.ts
-
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import {
     sendIotaToAddress,
@@ -63,13 +61,6 @@ export function getTotalFundingUsage(): { totalIota: number; totalTool: number }
     return { totalIota, totalTool };
 }
 
-/**
- * Fund wallets for the sendMaxIota test suite
- * @param globalAddress Global funding address
- * @param globalKeypair Global funding keypair
- * @param addressL1 Wallet address l1 for the test
- * @param addressL2 Wallet address l2 for the test
- */
 export async function fundSendMaxIotaTestWallets(
     globalAddress: string,
     globalKeypair: Ed25519Keypair,
@@ -88,15 +79,6 @@ export async function fundSendMaxIotaTestWallets(
     console.log('✅ sendMaxIota test wallets funded successfully');
 }
 
-/**
- * Fund wallets for the sendMaxNativeToken test suite
- * @param globalAddress Global funding address
- * @param globalKeypair Global funding keypair
- * @param toolCoinAddress Tool coin source address
- * @param toolCoinKeypair Tool coin keypair
- * @param addressL1 Wallet address l1 for the test
- * @param addressL2 Wallet address l2 for the test
- */
 export async function fundSendMaxNativeTokenTestWallets(
     globalAddress: string,
     globalKeypair: Ed25519Keypair,
@@ -129,15 +111,6 @@ export async function fundSendMaxNativeTokenTestWallets(
     console.log('✅ sendMaxNativeToken test wallets funded successfully');
 }
 
-/**
- * Fund wallets for the depositThenWithdrawIota test suite
- * @param globalAddress Global funding address
- * @param globalKeypair Global funding keypair
- * @param toolCoinAddress Tool coin source address
- * @param toolCoinKeypair Tool coin keypair
- * @param addressL1 Wallet address l1 for the test
- * @param addressL2 Wallet address l2 for the test
- */
 export async function fundDepostiThenWithdrawIotaTestWallets(
     globalAddress: string,
     globalKeypair: Ed25519Keypair,
@@ -150,15 +123,6 @@ export async function fundDepostiThenWithdrawIotaTestWallets(
     console.log('✅ depositThenWithdrawIota test wallets funded successfully');
 }
 
-/**
- * Fund wallets for the depositThenWithdrawNativeToken test suite
- * @param globalAddress Global funding address
- * @param globalKeypair Global funding keypair
- * @param toolCoinAddress Tool coin source address
- * @param toolCoinKeypair Tool coin keypair
- * @param addressL1 Wallet address l1 for the test
- * @param addressL2 Wallet address l2 for the test
- */
 export async function fundDepostiThenWithdrawNativeTokenTestWallets(
     globalAddress: string,
     globalKeypair: Ed25519Keypair,

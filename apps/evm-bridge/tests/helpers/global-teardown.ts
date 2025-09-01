@@ -1,4 +1,3 @@
-// tests/helpers/global-teardown.ts
 import fs from 'fs';
 import { existsSync } from 'fs';
 import { STATE_FILE } from '../helpers/paths';

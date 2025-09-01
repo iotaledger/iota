@@ -90,7 +90,7 @@ export const baseTest = base.extend<{
                 args: [...COMMON_ARGS, ...extensionArgs],
             });
 
-            // If not persistent, register a finalizer to close the context when test is don
+            // If not persistent, register a finalizer to close the context when test is done
             if (!persistent) {
                 nonPersistentContexts.add(context);
             }
@@ -110,7 +110,6 @@ export const baseTest = base.extend<{
     },
 });
 
-// Create a generic setup fixture
 export const test = baseTest.extend<{
     browserWithBothExtensionsSetup: (
         testId: keyof WalletState['tests'],
@@ -144,10 +143,9 @@ export const test = baseTest.extend<{
                 mnemonicL2,
             );
 
-            // Create page for evm bridge tests
             const page = await createPage(context);
             await page.bringToFront();
-            // Set up wallet connections
+
             await page.waitForTimeout(500); // Wait for the app to load
             await connectL1Wallet(page, context);
 
@@ -189,12 +187,17 @@ export const test = baseTest.extend<{
 
             await setupL1Wallet(context, extensionUrl, mnemonicL1);
 
-            // Create page for evm bridge tests
             const page = await createPage(context);
             await page.bringToFront();
-            // Set up wallet connection
+
             await connectL1Wallet(page, context);
             await page.waitForTimeout(500);
+            // Wait for L1 wallet to be connected before proceeding
+            const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
+            if (!l1Connected) {
+                throw new Error('L1 wallet failed to connect within timeout');
+            }
+
             await setReceiverAddress(page, addressL2);
 
             return {
@@ -227,10 +230,9 @@ export const test = baseTest.extend<{
 
             await setupL2Wallet(context, extensionUrl, mnemonicL2);
 
-            // Create page for evm bridge tests
             const page = await createPage(context);
             await page.bringToFront();
-            // Set up wallet connection for L2
+
             await connectL2Wallet(page, context);
             await page.waitForTimeout(500);
             await toggleBridgeDirection(page);

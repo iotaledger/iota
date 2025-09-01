@@ -1,8 +1,7 @@
 import { IotaClient, CoinStruct } from '@iota/iota-sdk/client';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { IOTA_TYPE_ARG, IOTA_DECIMALS } from '@iota/iota-sdk/utils';
-import { parseAmount } from '@iota/core/src/utils/parseAmount';
+import { IOTA_TYPE_ARG, IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 import { createDepositTransactionL1 } from '../../src/lib/utils/transaction/createDepositTransactionL1';
 import { CONFIG } from '../config/config';
 import { TOOL_COIN_OBJECT_ID, TOOL_COIN_TYPE } from '../utils/constants';
@@ -186,14 +185,6 @@ export async function addL1FundsThroughBridgeUI(page: Page) {
     }
 }
 
-/**
- * Send IOTA tokens from one address to another
- * @param senderAddress The sender's L1 address
- * @param senderKeypair The sender's keypair for signing
- * @param receiverAddress The recipient's L1 address
- * @param amount Amount of IOTA to send
- * @returns Promise resolving to whether the transaction was successful
- */
 export async function sendIotaToAddress(
     senderAddress: string,
     senderKeypair: Ed25519Keypair,
@@ -207,24 +198,19 @@ export async function sendIotaToAddress(
     try {
         const { L1 } = CONFIG;
 
-        // Create client connection for L1
         const client = new IotaClient({
             url: L1.rpcUrl,
         });
 
-        // Convert amount to bigint
         const amountToSend = parseAmount(amount.toString(), IOTA_DECIMALS) as bigint;
 
-        // Create a basic transfer transaction
         const transaction = new Transaction();
         const coin = transaction.splitCoins(transaction.gas, [amountToSend]);
         transaction.transferObjects([coin], transaction.pure.address(receiverAddress));
 
-        // Set sender and build transaction
         transaction.setSender(senderAddress);
         await transaction.build({ client });
 
-        // Sign and execute the transaction
         const { digest } = await client.signAndExecuteTransaction({
             signer: senderKeypair,
             transaction,
