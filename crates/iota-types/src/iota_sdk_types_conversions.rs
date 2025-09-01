@@ -1130,6 +1130,8 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                         InternalCmdArgErr::SharedObjectOperationNotAllowed => {
                             CommandArgumentError::SharedObjectOperationNotAllowed
                         }
+                        // TODO: replace it with real type from iota-rust-sdk.
+                        InternalCmdArgErr::InvalidArgumentArity => todo!(),
                     },
                 }
             }

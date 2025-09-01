@@ -316,6 +316,11 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true, enables the normalization of PTB arguments but does not yet enable splatting
+    // `Result`s of length not equal to 1
+    #[serde(skip_serializing_if = "is_false")]
+    normalize_ptb_arguments: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1315,6 +1320,10 @@ impl ProtocolConfig {
     pub fn additional_multisig_checks(&self) -> bool {
         self.feature_flags.additional_multisig_checks
     }
+
+    pub fn normalize_ptb_arguments(&self) -> bool {
+        self.feature_flags.normalize_ptb_arguments
+    }
 }
 
 #[cfg(not(msim))]
@@ -2119,6 +2128,12 @@ impl ProtocolConfig {
                 11 => {
                     // version 11 is a new framework version but with no config
                     // changes
+                }
+                12 => {
+                    // TODO: determine network
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.normalize_ptb_arguments = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
