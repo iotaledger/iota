@@ -2112,23 +2112,42 @@ mod test {
             .iter()
             .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
+        // Collect genesis block headers
+        let genesis_headers = dag_state.genesis_block_headers();
+
+        // Prepend genesis block references to block_refs
+        let mut genesis_refs = genesis_headers
+            .iter()
+            .map(|h| h.reference())
+            .collect::<Vec<_>>();
+        genesis_refs.extend(block_refs);
+        block_refs = genesis_refs;
+
         let result = dag_state.get_block_headers(&block_refs);
 
-        let mut expected = block_headers
+        let mut expected_headers = block_headers
             .clone()
             .into_iter()
             .map(Some)
             .collect::<Vec<Option<VerifiedBlockHeader>>>();
+        // Prepend genesis headers to expected
+        let mut genesis_expected = genesis_headers.into_iter().map(Some).collect::<Vec<_>>();
+        genesis_expected.extend(expected_headers);
+        expected_headers = genesis_expected;
 
         // Ensure everything is found
-        assert_eq!(result, expected.clone());
+        assert_eq!(result, expected_headers.clone());
 
         // Now try to find only cached headers
         let result_cached = dag_state.get_cached_block_headers(&block_refs);
         // Ensure everything is found in the cache for rounds > 4
-        let expected_cached = block_headers
+        let expected_cached = expected_headers
             .iter()
-            .map(|h| if h.round() > 4 { Some(h.clone()) } else { None })
+            .map(|oh| {
+                oh.as_ref()
+                    .filter(|h| h.round() > 4 || h.round() == 0)
+                    .cloned()
+            })
             .collect::<Vec<_>>();
         assert_eq!(result_cached, expected_cached);
 
@@ -2144,8 +2163,8 @@ mod test {
         let result = dag_state.get_block_headers(&block_refs);
 
         // Then all should be found apart from the last one
-        expected.insert(3, None);
-        assert_eq!(result, expected);
+        expected_headers.insert(3, None);
+        assert_eq!(result, expected_headers);
     }
 
     #[tokio::test]
