@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.5.0-alpha"
+    "version": "1.6.0-alpha"
   },
   "methods": [
     {
@@ -8197,6 +8197,34 @@
           }
         }
       },
+      "IotaMoveNormalizedEnum": {
+        "type": "object",
+        "required": [
+          "abilities",
+          "typeParameters",
+          "variants"
+        ],
+        "properties": {
+          "abilities": {
+            "$ref": "#/components/schemas/IotaMoveAbilitySet"
+          },
+          "typeParameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaMoveStructTypeParameter"
+            }
+          },
+          "variants": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/IotaMoveNormalizedField"
+              }
+            }
+          }
+        }
+      },
       "IotaMoveNormalizedField": {
         "type": "object",
         "required": [
@@ -8261,6 +8289,12 @@
         "properties": {
           "address": {
             "type": "string"
+          },
+          "enums": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/IotaMoveNormalizedEnum"
+            }
           },
           "exposedFunctions": {
             "type": "object",

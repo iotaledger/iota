@@ -18,14 +18,13 @@ import {
     ButtonType,
     Header,
 } from '@iota/apps-ui-kit';
-import { CoinFormat, formatAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress, parseAmount } from '@iota/iota-sdk/utils';
 import {
     CoinIcon,
     ImageIconSize,
     useFormatCoin,
     ExplorerLinkType,
     useCoinMetadata,
-    parseAmount,
     useGetIotaNameRecord,
     NamedAddressTooltip,
 } from '@iota/core';

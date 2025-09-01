@@ -63,7 +63,7 @@ use url::Url;
 use crate::name_commands;
 use crate::{
     PrintableResult,
-    client_commands::{IotaClientCommands, pkg_tree_shake},
+    client_commands::{IotaClientCommands, implicit_deps_for_protocol_version, pkg_tree_shake},
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
@@ -354,6 +354,8 @@ pub enum IotaCommand {
     },
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
+    /// By using this service, you agree to the Terms & Conditions:
+    /// testnet.iotanames.com/?modal=terms_conditions."
     Name {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
@@ -495,7 +497,7 @@ impl IotaCommand {
                 prompt_if_no_config(&config_path, accept_defaults, true, true)?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 if let Some(cmd) = cmd {
-                    cmd.execute(&mut context).await?.print(!json);
+                    cmd.execute(&mut context, json).await?.print(!json);
                 } else {
                     // Print help
                     let mut app: Command = IotaCommand::command();
@@ -544,8 +546,11 @@ impl IotaCommand {
                         };
 
                         let rerooted_path = move_cli::base::reroot_path(package_path.as_deref())?;
-                        let build_config =
+                        let mut build_config =
                             resolve_lock_file_path(build_config, Some(&rerooted_path))?;
+                        let protocol_config = read_api.get_protocol_config(None).await?;
+                        build_config.implicit_dependencies =
+                            implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
                         let mut pkg = IotaBuildConfig {
                             config: build_config,
                             run_bytecode_verifier: true,
@@ -579,6 +584,12 @@ impl IotaCommand {
             }
             #[cfg(feature = "iota-names")]
             IotaCommand::Name { config, json, cmd } => {
+                eprintln!(
+                    "{}",
+                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/?modal=terms_conditions."
+                        .bold()
+                        .yellow()
+                );
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
                 let mut context = WalletContext::new(&config_path, None, None)?;

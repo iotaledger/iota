@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { BridgeFormInputName } from '../enums';
-import { parseAmount } from '@iota/core';
 import { isAddress } from 'viem';
-import { IOTA_TYPE_ARG, isValidIotaAddress } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, isValidIotaAddress, parseAmount } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { MINIMUM_SEND_AMOUNT } from '../constants';
 import { CoinBalance, CoinMetadata } from '@iota/iota-sdk/client';

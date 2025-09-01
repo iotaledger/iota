@@ -298,13 +298,14 @@ impl Validator {
         Some(BigInt::from(self.validator_summary.pool_token_balance))
     }
 
-    /// Pending stake amount for this epoch.
+    /// Pending stake amount for the current epoch, emptied at epoch boundaries.
+    /// Zero for past epochs.
     async fn pending_stake(&self) -> Option<BigInt> {
         Some(BigInt::from(self.validator_summary.pending_stake))
     }
 
     /// Pending stake withdrawn during the current epoch, emptied at epoch
-    /// boundaries.
+    /// boundaries. Zero for past epochs.
     async fn pending_total_iota_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_total_iota_withdraw,
@@ -312,7 +313,7 @@ impl Validator {
     }
 
     /// Pending pool token withdrawn during the current epoch, emptied at epoch
-    /// boundaries.
+    /// boundaries. Zero for past epochs.
     async fn pending_pool_token_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_pool_token_withdraw,
