@@ -144,7 +144,6 @@ impl<'a, K: Serialize, V> TestDBIter<'a, K, V> {
     pub fn skip_to_last(mut self) -> Self {
         self.with_mut(|fields| {
             // `last` instead of `next_back` because we actually want to consume `iter`
-            #[expect(clippy::double_ended_iterator_last)]
             fields.iter.last();
         });
         self

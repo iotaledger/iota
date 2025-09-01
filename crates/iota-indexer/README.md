@@ -110,7 +110,10 @@ Options:
 It supports following backfill options:
 
 - `sql`: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
-- `ingestion`: Fetches and buffers checkpoint data from a remote store, then slices the buffered checkpoint data into chunks to backfill the database.
+- `ingestion`: Fetches and buffers checkpoint data from a provided ingestion source, then slices the buffered checkpoint data into chunks to backfill the database. Supported ingestion sources:
+  - `--data-ingestion-path <DIR>`: Path to a directory containing checkpoint (`.chk`) files.
+  - `--remote-store-url <REMOTE_STORE_URL>`: Remote store URL to fetch checkpoint data from, e.g., `http://0.0.0.0:9000/api/v1`.
+  - `--rpc-client-url <RPC_CLIENT_URL>`: RPC client URL to fetch checkpoint data from, e.g., `http://0.0.0.0:9000`.
 
 #### Backfill job: `tx-wrapped-or-deleted-objects`
 
@@ -118,7 +121,7 @@ This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes tran
 Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
 
 ```sh
-cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects <REMOTE_STORE_URL>
+cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects --remote-store-url <REMOTE_STORE_URL>
 ```
 
 #### Error Handling
