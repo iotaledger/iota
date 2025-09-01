@@ -146,9 +146,8 @@ export const test = baseTest.extend<{
             const page = await createPage(context);
             await page.bringToFront();
 
-            await page.waitForTimeout(500); // Wait for the app to load
             await connectL1Wallet(page, context);
-
+            await page.waitForTimeout(500);
             // Wait for L1 wallet to be connected before proceeding
             const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
             if (!l1Connected) {
