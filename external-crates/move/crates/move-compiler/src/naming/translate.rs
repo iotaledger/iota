@@ -2781,6 +2781,7 @@ fn exp(context: &mut Context, e: Box<E::Exp>) -> Box<N::Exp> {
                     return_label,
                     use_fun_color: 0, // used in macro expansion
                     body,
+                    extra_annotations: vec![], // used in macro expansion
                 }),
             }
         }
@@ -4341,6 +4342,7 @@ fn remove_unused_bindings_exp(
             return_type: _,
             use_fun_color: _,
             body,
+            extra_annotations: _,
         }) => {
             for (lvs, _) in parameters {
                 remove_unused_bindings_lvalues(context, used, lvs)
