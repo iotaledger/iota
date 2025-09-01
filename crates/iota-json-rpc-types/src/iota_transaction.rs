@@ -1158,6 +1158,7 @@ pub struct DryRunTransactionBlockResponse {
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price: Option<u64>,
+    pub execution_error_source: Option<String>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
