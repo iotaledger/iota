@@ -6762,6 +6762,12 @@
               "$ref": "#/components/schemas/Event"
             }
           },
+          "executionErrorSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "input": {
             "$ref": "#/components/schemas/TransactionBlockData"
           },
