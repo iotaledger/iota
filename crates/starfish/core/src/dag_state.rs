@@ -1576,7 +1576,7 @@ impl DagState {
         panic!("Fatal error, no quorum has been detected in our DAG on the last two rounds.");
     }
 
-    #[expect(dead_code)]
+    #[cfg(test)]
     pub(crate) fn genesis_blocks(&self) -> Vec<VerifiedBlock> {
         self.genesis.values().cloned().collect()
     }
@@ -2214,26 +2214,39 @@ mod test {
         }
 
         // All block headers should be found in DagState.
-        let all_block_headers = dag_builder.block_headers(1..=num_rounds);
+        let mut all_block_headers = dag_state.genesis_block_headers();
+        all_block_headers.extend(dag_builder.block_headers(1..=num_rounds));
+
         let block_refs = all_block_headers
             .iter()
             .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
+
         let result = dag_state
             .get_block_headers(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
+
         assert_eq!(result, all_block_headers);
 
+        // Collect genesis transactions
+        let mut all_transactions = dag_state
+            .genesis_blocks()
+            .into_iter()
+            .map(|b| b.verified_transactions)
+            .collect::<Vec<_>>();
+
+        // Extend with the rest of the transactions
+        all_transactions.extend(dag_builder.transactions(1..=num_rounds));
+
         // All transactions should be found in DagState.
-        let vec_transactions = dag_builder.transactions(1..=num_rounds);
         let result = dag_state
             .get_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(result, vec_transactions);
+        assert_eq!(result, all_transactions);
 
         // The last commit index should be 10.
         assert_eq!(dag_state.last_commit_index(), 10);
