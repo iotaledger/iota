@@ -7,6 +7,7 @@ import { ButtonUnstyled } from '@iota/apps-ui-kit';
 import { NamedAddressTooltip, AddressAlias, useGetDefaultIotaName } from '@iota/core';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
+import clsx from 'clsx';
 import React, { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/components/ui';
@@ -36,6 +37,7 @@ function createInternalLink<T extends string>(
         onCopyError,
         renderAddressAlias,
         showAddressAlias = ['address', 'object', 'validator'].includes(base),
+        className,
         ...props
     }: BaseInternalLinkProps & Record<T, string>) => {
         const truncatedAddress = noTruncate ? id : formatter(id);
@@ -73,7 +75,10 @@ function createInternalLink<T extends string>(
                     renderAddress={(address) => (
                         <NamedAddressTooltip name={iotaName} address={address}>
                             <Link
-                                className="text-iota-primary-30 dark:text-iota-primary-80"
+                                className={clsx(
+                                    'text-iota-primary-30 dark:text-iota-primary-80',
+                                    className,
+                                )}
                                 variant="mono"
                                 to={to}
                                 {...props}
@@ -90,7 +95,7 @@ function createInternalLink<T extends string>(
         return (
             <div className="flex flex-row items-center gap-x-xxs">
                 <Link
-                    className="text-iota-primary-30 dark:text-iota-primary-80"
+                    className={clsx('text-iota-primary-30 dark:text-iota-primary-80', className)}
                     variant="mono"
                     to={to}
                     {...props}
