@@ -12,16 +12,7 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
-    config,
-    digests::{ObjectDigest, TransactionDigest},
-    dynamic_field::DynamicFieldInfo,
-    execution::DynamicallyLoadedObjectMetadata,
-    id::UID,
-    in_memory_storage::InMemoryStorage,
-    object::{MoveObject, Object, Owner},
-    storage::ChildObjectResolver,
+    base_types::{IotaAddress, ObjectID, SequenceNumber}, config, digests::{ObjectDigest, TransactionDigest}, dynamic_field::DynamicFieldInfo, execution::DynamicallyLoadedObjectMetadata, id::UID, in_memory_storage::InMemoryStorage, object::{MoveObject, Object, Owner}, storage::{BackingPackageStore, ChildObjectResolver}, TypeTag
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -86,6 +77,16 @@ impl ChildObjectResolver for InMemoryTestStore {
                 epoch_id,
             )
         })
+    }
+}
+
+impl BackingPackageStore for InMemoryTestStore {
+    fn get_package_object(
+        &self,
+        package_id: &ObjectID,
+    ) -> iota_types::error::IotaResult<Option<iota_types::storage::PackageObject>> {
+        self.0
+            .with_borrow(|store| store.get_package_object(package_id))
     }
 }
 

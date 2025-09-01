@@ -1,6 +1,6 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::format};
 
-use iota_types::Identifier;
+use iota_types::{Identifier, base_types::ObjectID};
 use iota_verifier::account_auth_verifier;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -15,7 +15,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::NativesCostTable;
+use crate::{NativesCostTable, raw_module_loader::RawModuleLoader};
 
 #[derive(Copy, Clone, Debug)]
 pub struct CreateAuthInfoV1ImplCostParams {
@@ -53,8 +53,24 @@ pub fn create_auth_info_v1_impl(
     let module_identifier = Identifier::new(module_name.clone()).unwrap();
 
     let package = pop_arg!(args, AccountAddress);
+    let _package_id = ObjectID::from(package);
 
-    // loading module for context
+    // Loading module for context verifying the referenced `authenticate` function.
+    // There are two base cases when looking for an `authenticate` function. The
+    // `authenticate` function is either in the current module (which is not handled by
+    // this function as the user cannot write such a requirement down at the moment) or
+    // it must be loaded. Either because it is in a completely different package or its for
+    // this package, but a different version.
+    // ** What we would like to have:
+    // let raw_module_loader = &context.extensions().get::<RawModuleLoader>();
+    // let Some(compiled_module) = raw_module_loader.get_module(&package_id, &module_identifier) else {
+    //     return Err(
+    //         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+    //             .with_message(format!("Referenced module: {package}::{module_name} unavailable")),
+    //     );
+    // };
+    // ** What we have:
+    // Until we can properly test it, the hack stays in place.
     let compiled_module = context.load_module(module_identifier)?;
 
     if let Err(execution_error) =
@@ -71,7 +87,7 @@ pub fn create_auth_info_v1_impl(
         Value::vector_u8(module_name.as_bytes().iter().copied()),
         Value::vector_u8(function_name.as_bytes().iter().copied()),
     ]));
-    
+
     Ok(NativeResult::ok(
         context.gas_used(),
         smallvec![authenticator_info_v1],

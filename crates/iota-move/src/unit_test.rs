@@ -8,7 +8,8 @@ use anyhow::bail;
 use clap::Parser;
 use iota_move_build::{decorate_warnings, implicit_deps};
 use iota_move_natives::{
-    NativesCostTable, object_runtime::ObjectRuntime, test_scenario::InMemoryTestStore,
+    NativesCostTable, object_runtime::ObjectRuntime, raw_module_loader::RawModuleLoader,
+    test_scenario::InMemoryTestStore,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
@@ -125,6 +126,9 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let store = Lazy::force(&TEST_STORE);
 
+    // If you this list needs to be updated you likely need to update
+    // iota-execution/latest/iota-adapter/src/adapter.rs where it is constructed for
+    // regular execution as well.
     ext.add(ObjectRuntime::new(
         store,
         BTreeMap::new(),
@@ -136,6 +140,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     ext.add(NativesCostTable::from_protocol_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
     ));
+    ext.add(RawModuleLoader::new(store));
 
     ext.add(store);
 }

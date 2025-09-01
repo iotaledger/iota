@@ -8,8 +8,11 @@ use std::{any::TypeId, collections::HashMap};
 use better_any::{Tid, TidAble, TidExt};
 
 /// A data type to represent a heterogeneous collection of extensions which are
-/// available to native functions. A value to this is passed into the session
-/// function execution.
+/// available to native functions
+/// 
+/// It is intended to provide a point for extensions for native functions
+/// which are executed outside of the Move VM. For this it erases type information
+/// about the provided types.
 ///
 /// The implementation uses the crate `better_any` which implements a version of
 /// the `Any` type, called `Tid<`a>`, which allows for up to one lifetime

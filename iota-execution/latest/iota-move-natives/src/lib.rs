@@ -85,6 +85,7 @@ mod event;
 mod object;
 pub mod object_runtime;
 mod random;
+pub mod raw_module_loader;
 pub mod test_scenario;
 mod test_utils;
 mod transfer;
