@@ -2791,4 +2791,23 @@ mod test {
             .collect::<Vec<_>>();
         assert_eq!(result, expected);
     }
+
+    #[tokio::test]
+    #[should_panic(expected = "cannot be accepted! Block header timestamp")]
+    async fn test_panic_on_future_timestamp() {
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let future_timestamp = context.clock.timestamp_utc_ms() + 100_000;
+        let block_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 1)
+                .set_timestamp_ms(future_timestamp)
+                .build(),
+        );
+        dag_state.accept_block_header(block_header);
+    }
 }
