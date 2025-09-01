@@ -9,13 +9,7 @@ use iota_config::p2p::AccessType;
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde::{Deserialize, Serialize};
 
-use super::{Discovery, MAX_PEERS_TO_SEND, NodeInfo, SignedNodeInfo, State};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GetKnownPeersResponse {
-    pub own_info: NodeInfo,
-    pub known_peers: Vec<NodeInfo>,
-}
+use super::{Discovery, MAX_PEERS_TO_SEND, SignedNodeInfo, State};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GetKnownPeersResponseV2 {
@@ -29,21 +23,6 @@ pub(super) struct Server {
 
 #[anemo::async_trait]
 impl Discovery for Server {
-    async fn get_known_peers(
-        &self,
-        request: Request<()>,
-    ) -> Result<Response<GetKnownPeersResponse>, anemo::rpc::Status> {
-        let resp = self.get_known_peers_v2(request).await?;
-        Ok(resp.map(|body| GetKnownPeersResponse {
-            own_info: body.own_info.into_data(),
-            known_peers: body
-                .known_peers
-                .into_iter()
-                .map(|e| e.into_data())
-                .collect(),
-        }))
-    }
-
     async fn get_known_peers_v2(
         &self,
         _request: Request<()>,

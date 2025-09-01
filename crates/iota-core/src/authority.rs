@@ -25,7 +25,7 @@ use fastcrypto::{
     hash::MultisetHash,
 };
 use iota_archival::reader::ArchiveReaderBalancer;
-use iota_common::debug_fatal;
+use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
@@ -131,7 +131,7 @@ use self::{
     authority_store::ExecutionLockWriteGuard, authority_store_pruner::AuthorityStorePruningMetrics,
 };
 #[cfg(msim)]
-pub use crate::checkpoints::checkpoint_executor::{
+pub use crate::checkpoints::checkpoint_executor::utils::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
 };
 use crate::{
@@ -786,7 +786,7 @@ pub struct AuthorityState {
     pub rest_index: Option<Arc<RestIndexStore>>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
-    checkpoint_store: Arc<CheckpointStore>,
+    pub checkpoint_store: Arc<CheckpointStore>,
 
     committee_store: Arc<CommitteeStore>,
 
@@ -1091,13 +1091,11 @@ impl AuthorityState {
         );
 
         if transaction.contains_shared_object() {
-            epoch_store
-                .acquire_shared_version_assignments_from_effects(
-                    transaction,
-                    effects.data(),
-                    self.get_object_cache_reader().as_ref(),
-                )
-                .await?;
+            epoch_store.acquire_shared_version_assignments_from_effects(
+                transaction,
+                effects.data(),
+                self.get_object_cache_reader().as_ref(),
+            )?;
         }
 
         let expected_effects_digest = effects.digest();
@@ -2799,7 +2797,7 @@ impl AuthorityState {
                 Some(seq) => self
                     .checkpoint_store
                     .get_checkpoint_by_sequence_number(seq)?,
-                None => self.checkpoint_store.get_latest_certified_checkpoint(),
+                None => self.checkpoint_store.get_latest_certified_checkpoint()?,
             }
             .map(|v| v.into_inner());
             summary.map(CheckpointSummaryResponse::Certified)
@@ -2808,7 +2806,7 @@ impl AuthorityState {
                 Some(seq) => self.checkpoint_store.get_locally_computed_checkpoint(seq)?,
                 None => self
                     .checkpoint_store
-                    .get_latest_locally_computed_checkpoint(),
+                    .get_latest_locally_computed_checkpoint()?,
             };
             summary.map(CheckpointSummaryResponse::Pending)
         };
@@ -2862,7 +2860,6 @@ impl AuthorityState {
         genesis_objects: &[Object],
         db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
-        indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
@@ -2891,12 +2888,10 @@ impl AuthorityState {
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             rest_index.clone(),
-            store.objects_lock_table.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            indirect_objects_threshold,
             archive_readers,
             pruner_db,
         );
@@ -3006,11 +3001,9 @@ impl AuthorityState {
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
             self.rest_index.as_deref(),
-            &self.database_for_testing().objects_lock_table,
             None,
             config.authority_store_pruning_config,
             metrics,
-            config.indirect_objects_threshold,
             archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
         )
@@ -3144,6 +3137,7 @@ impl AuthorityState {
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
+        epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         Self::check_protocol_version(
             supported_protocol_versions,
@@ -3159,6 +3153,32 @@ impl AuthorityState {
 
         // Terminate all epoch-specific tasks (those started with within_alive_epoch).
         cur_epoch_store.epoch_terminated().await;
+
+        let highest_locally_built_checkpoint_seq = self
+            .checkpoint_store
+            .get_latest_locally_computed_checkpoint()?
+            .map(|c| *c.sequence_number())
+            .unwrap_or(0);
+
+        assert!(
+            epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
+            "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
+        );
+        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint {
+            // if we built the last checkpoint locally (as opposed to receiving it from a
+            // peer), then all shared_version_assignments except the one for the
+            // ChangeEpoch transaction should have been removed
+            let num_shared_version_assignments = cur_epoch_store.num_shared_version_assignments();
+            // Note that while 1 is the typical value, 0 is possible if the node restarts
+            // after committing the last checkpoint but before reconfiguring.
+            if num_shared_version_assignments > 1 {
+                // If this happens in prod, we have a memory leak, but not a correctness issue.
+                debug_fatal!(
+                    "all shared_version_assignments should have been removed \
+                    (num_shared_version_assignments: {num_shared_version_assignments})"
+                );
+            }
+        }
 
         // Safe to reconfigure now. No transactions are being executed,
         // and no epoch-specific tasks are running.
@@ -3207,6 +3227,7 @@ impl AuthorityState {
                 new_committee,
                 epoch_start_configuration,
                 expensive_safety_check_config,
+                epoch_last_checkpoint,
             )
             .await?;
         assert_eq!(new_epoch_store.epoch(), new_epoch);
@@ -3239,6 +3260,11 @@ impl AuthorityState {
             self.get_backing_package_store().clone(),
             self.get_object_store().clone(),
             &self.config.expensive_safety_check_config,
+            self.checkpoint_store
+                .get_epoch_last_checkpoint(epoch_store.epoch())
+                .unwrap()
+                .map(|c| *c.sequence_number())
+                .unwrap_or_default(),
         );
         let new_epoch = new_epoch_store.epoch();
         self.transaction_manager.reconfigure(new_epoch);
@@ -4957,6 +4983,7 @@ impl AuthorityState {
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
+        epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let new_epoch = new_committee.epoch;
         info!(new_epoch = ?new_epoch, "re-opening AuthorityEpochTables for new epoch");
@@ -4973,6 +5000,7 @@ impl AuthorityState {
             self.get_object_store().clone(),
             expensive_safety_check_config,
             cur_epoch_store.get_chain_identifier(),
+            epoch_last_checkpoint,
         );
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
@@ -5067,6 +5095,14 @@ impl RandomnessRoundReceiver {
         let transaction = VerifiedExecutableTransaction::new_system(transaction, epoch);
         let digest = *transaction.digest();
 
+        // Randomness state updates contain the full bls signature for the random round,
+        // which cannot necessarily be reconstructed again later. Therefore we must
+        // immediately persist this transaction. If we crash before its outputs
+        // are committed, this ensures we will be able to re-execute it.
+        self.authority_state
+            .get_cache_commit()
+            .persist_transaction(&transaction);
+
         // Send transaction to TransactionManager for execution.
         self.authority_state
             .transaction_manager()
@@ -5113,7 +5149,7 @@ impl RandomnessRoundReceiver {
             let mut effects = result.unwrap_or_else(|_| panic!("failed to get effects for randomness state update transaction at epoch {epoch}, round {round}"));
             let effects = effects.pop().expect("should return effects");
             if *effects.status() != ExecutionStatus::Success {
-                panic!(
+                fatal!(
                     "failed to execute randomness state update transaction at epoch {epoch}, round {round}: {effects:?}"
                 );
             }

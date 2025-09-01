@@ -4,10 +4,7 @@
 
 pub mod errors;
 pub(crate) mod iter;
-pub(crate) mod keys;
 pub(crate) mod safe_iter;
-pub mod util;
-pub(crate) mod values;
 
 use std::{
     borrow::Borrow,
@@ -24,7 +21,6 @@ use std::{
 use bincode::Options;
 use collectable::TryExtend;
 use iota_macros::{fail_point, nondeterministic};
-use itertools::Itertools;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::{
     AsColumnFamilyRef, BlockBasedOptions, BottommostLevelCompaction, CStrLike, Cache,
@@ -38,7 +34,7 @@ use tap::TapFallible;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument, warn};
 
-use self::{iter::Iter, keys::Keys, values::Values};
+use self::iter::Iter;
 use crate::{
     TypedStoreError,
     metrics::{DBMetrics, RocksDBPerfContext, SamplingInterval},
@@ -47,7 +43,7 @@ use crate::{
             typed_store_err_from_bcs_err, typed_store_err_from_bincode_err,
             typed_store_err_from_rocks_err,
         },
-        safe_iter::SafeIter,
+        safe_iter::{SafeIter, SafeRevIter},
     },
     traits::{Map, TableSummary},
 };
@@ -344,15 +340,6 @@ impl RocksDB {
 
     pub fn drop_cf(&self, name: &str) -> Result<(), rocksdb::Error> {
         delegate_call!(self.drop_cf(name))
-    }
-
-    pub fn delete_file_in_range<K: AsRef<[u8]>>(
-        &self,
-        cf: &impl AsColumnFamilyRef,
-        from: K,
-        to: K,
-    ) -> Result<(), rocksdb::Error> {
-        delegate_call!(self.delete_file_in_range_cf(cf, from, to))
     }
 
     pub fn delete_cf<K: AsRef<[u8]>>(
@@ -1338,6 +1325,43 @@ impl<K, V> DBMap<K, V> {
         readopts
     }
 
+    /// Creates a safe reversed iterator with optional bounds.
+    /// Upper bound is included.
+    pub fn reversed_safe_iter_with_bounds(
+        &self,
+        lower_bound: Option<K>,
+        upper_bound: Option<K>,
+    ) -> Result<SafeRevIter<'_, K, V>, TypedStoreError>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
+        let upper_bound_key = upper_bound.as_ref().map(|k| be_fix_int_ser(&k));
+        let readopts = self.create_read_options_with_range((
+            lower_bound
+                .as_ref()
+                .map(Bound::Included)
+                .unwrap_or(Bound::Unbounded),
+            upper_bound
+                .as_ref()
+                .map(Bound::Included)
+                .unwrap_or(Bound::Unbounded),
+        ));
+
+        let db_iter = self.rocksdb.raw_iterator_cf(&self.cf(), readopts);
+        let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
+        let iter = SafeIter::new(
+            self.cf.clone(),
+            db_iter,
+            _timer,
+            _perf_ctx,
+            bytes_scanned,
+            keys_scanned,
+            Some(self.db_metrics.clone()),
+        );
+        Ok(SafeRevIter::new(iter, upper_bound_key.transpose()?))
+    }
+
     // Creates a RocksDB read option with lower and upper bounds set corresponding
     // to `range`.
     fn create_read_options_with_range(&self, range: impl RangeBounds<K>) -> ReadOptions
@@ -1609,46 +1633,6 @@ impl DBBatch {
             .observe(total as f64);
         Ok(self)
     }
-
-    /// merges a range of (key, value) pairs given as an iterator
-    pub fn merge_batch<J: Borrow<K>, K: Serialize, U: Borrow<V>, V: Serialize>(
-        &mut self,
-        db: &DBMap<K, V>,
-        new_vals: impl IntoIterator<Item = (J, U)>,
-    ) -> Result<&mut Self, TypedStoreError> {
-        if !Arc::ptr_eq(&db.rocksdb, &self.rocksdb) {
-            return Err(TypedStoreError::CrossDBBatch);
-        }
-
-        new_vals
-            .into_iter()
-            .try_for_each::<_, Result<_, TypedStoreError>>(|(k, v)| {
-                let k_buf = be_fix_int_ser(k.borrow())?;
-                let v_buf = bcs::to_bytes(v.borrow()).map_err(typed_store_err_from_bcs_err)?;
-                self.batch.merge_cf(&db.cf(), k_buf, v_buf);
-                Ok(())
-            })?;
-        Ok(self)
-    }
-
-    /// similar to `merge_batch` but allows merge with partial values
-    pub fn partial_merge_batch<J: Borrow<K>, K: Serialize, V: Serialize, B: AsRef<[u8]>>(
-        &mut self,
-        db: &DBMap<K, V>,
-        new_vals: impl IntoIterator<Item = (J, B)>,
-    ) -> Result<&mut Self, TypedStoreError> {
-        if !Arc::ptr_eq(&db.rocksdb, &self.rocksdb) {
-            return Err(TypedStoreError::CrossDBBatch);
-        }
-        new_vals
-            .into_iter()
-            .try_for_each::<_, Result<_, TypedStoreError>>(|(k, v)| {
-                let k_buf = be_fix_int_ser(k.borrow())?;
-                self.batch.merge_cf(&db.cf(), k_buf, v);
-                Ok(())
-            })?;
-        Ok(self)
-    }
 }
 
 pub struct DBTransaction<'a> {
@@ -1802,32 +1786,6 @@ impl<'a> DBTransaction<'a> {
         )
     }
 
-    pub fn keys<K: DeserializeOwned, V: DeserializeOwned>(
-        &'a self,
-        db: &DBMap<K, V>,
-    ) -> Keys<'a, K> {
-        let mut db_iter = RocksDBRawIter::OptimisticTransaction(
-            self.transaction
-                .raw_iterator_cf_opt(&db.cf(), db.opts.readopts()),
-        );
-        db_iter.seek_to_first();
-
-        Keys::new(db_iter)
-    }
-
-    pub fn values<K: DeserializeOwned, V: DeserializeOwned>(
-        &'a self,
-        db: &DBMap<K, V>,
-    ) -> Values<'a, V> {
-        let mut db_iter = RocksDBRawIter::OptimisticTransaction(
-            self.transaction
-                .raw_iterator_cf_opt(&db.cf(), db.opts.readopts()),
-        );
-        db_iter.seek_to_first();
-
-        Values::new(db_iter)
-    }
-
     pub fn commit(self) -> Result<(), TypedStoreError> {
         fail_point!("transaction-commit");
         self.transaction.commit().map_err(|e| match e.kind() {
@@ -1921,8 +1879,6 @@ where
     type Error = TypedStoreError;
     type Iterator = Iter<'a, K, V>;
     type SafeIterator = SafeIter<'a, K, V>;
-    type Keys = Keys<'a, K>;
-    type Values = Values<'a, V>;
 
     #[instrument(level = "trace", skip_all, err)]
     fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
@@ -1984,40 +1940,6 @@ where
             Some(data) => Ok(Some(
                 bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
             )),
-            None => Ok(None),
-        }
-    }
-
-    #[instrument(level = "trace", skip_all, err)]
-    fn get_raw_bytes(&self, key: &K) -> Result<Option<Vec<u8>>, TypedStoreError> {
-        let _timer = self
-            .db_metrics
-            .op_metrics
-            .rocksdb_get_latency_seconds
-            .with_label_values(&[&self.cf])
-            .start_timer();
-        let perf_ctx = if self.get_sample_interval.sample() {
-            Some(RocksDBPerfContext)
-        } else {
-            None
-        };
-        let key_buf = be_fix_int_ser(key)?;
-        let res = self
-            .rocksdb
-            .get_pinned_cf_opt(&self.cf(), &key_buf, &self.opts.readopts())
-            .map_err(typed_store_err_from_rocks_err)?;
-        self.db_metrics
-            .op_metrics
-            .rocksdb_get_bytes
-            .with_label_values(&[&self.cf])
-            .observe(res.as_ref().map_or(0.0, |v| v.len() as f64));
-        if perf_ctx.is_some() {
-            self.db_metrics
-                .read_perf_ctx_metrics
-                .report_metrics(&self.cf);
-        }
-        match res {
-            Some(data) => Ok(Some(data.to_vec())),
             None => Ok(None),
         }
     }
@@ -2099,25 +2021,6 @@ where
         Ok(())
     }
 
-    /// Deletes a range of keys between `from` (inclusive) and `to`
-    /// (non-inclusive) by immediately deleting any sst files whose key
-    /// range overlaps with the range. Files whose range only partially
-    /// overlaps with the range are not deleted. This can be useful for
-    /// quickly removing a large amount of data without having
-    /// to delete individual keys. Only files at level 1 or higher are
-    /// considered ( Level 0 files are skipped). It doesn't guarantee that
-    /// all keys in the range are deleted, as there might be keys in files
-    /// that weren't entirely within the range.
-    #[instrument(level = "trace", skip_all, err)]
-    fn delete_file_in_range(&self, from: &K, to: &K) -> Result<(), TypedStoreError> {
-        let from_buf = be_fix_int_ser(from.borrow())?;
-        let to_buf = be_fix_int_ser(to.borrow())?;
-        self.rocksdb
-            .delete_file_in_range(&self.cf(), from_buf, to_buf)
-            .map_err(typed_store_err_from_rocks_err)?;
-        Ok(())
-    }
-
     /// This method first drops the existing column family and then creates a
     /// new one with the same name. The two operations are not atomic and
     /// hence it is possible to get into a race condition where the column
@@ -2141,9 +2044,12 @@ where
     /// overridden in the config), so please use this function with caution
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
-        let mut iter = self.unbounded_iter().seek_to_first();
-        let first_key = iter.next().map(|(k, _v)| k);
-        let last_key = iter.skip_to_last().next().map(|(k, _v)| k);
+        let first_key = self.unbounded_iter().next().map(|(k, _v)| k);
+        let last_key = self
+            .reversed_safe_iter_with_bounds(None, None)?
+            .next()
+            .transpose()?
+            .map(|(k, _v)| k);
         if let Some((first_key, last_key)) = first_key.zip(last_key) {
             let mut batch = self.batch();
             batch.schedule_delete_range(self, &first_key, &last_key)?;
@@ -2263,41 +2169,6 @@ where
         )
     }
 
-    fn keys(&'a self) -> Self::Keys {
-        let mut db_iter = self
-            .rocksdb
-            .raw_iterator_cf(&self.cf(), self.opts.readopts());
-        db_iter.seek_to_first();
-
-        Keys::new(db_iter)
-    }
-
-    fn values(&'a self) -> Self::Values {
-        let mut db_iter = self
-            .rocksdb
-            .raw_iterator_cf(&self.cf(), self.opts.readopts());
-        db_iter.seek_to_first();
-
-        Values::new(db_iter)
-    }
-
-    /// Returns a vector of raw values corresponding to the keys provided.
-    #[instrument(level = "trace", skip_all, err)]
-    fn multi_get_raw_bytes<J>(
-        &self,
-        keys: impl IntoIterator<Item = J>,
-    ) -> Result<Vec<Option<Vec<u8>>>, TypedStoreError>
-    where
-        J: Borrow<K>,
-    {
-        let results = self
-            .multi_get_pinned(keys)?
-            .into_iter()
-            .map(|val| val.map(|v| v.to_vec()))
-            .collect();
-        Ok(results)
-    }
-
     /// Returns a vector of values corresponding to the keys provided.
     #[instrument(level = "trace", skip_all, err)]
     fn multi_get<J>(
@@ -2319,42 +2190,6 @@ where
             .collect();
 
         values_parsed
-    }
-
-    /// Returns a vector of values corresponding to the keys provided.
-    #[instrument(level = "trace", skip_all, err)]
-    fn chunked_multi_get<J>(
-        &self,
-        keys: impl IntoIterator<Item = J>,
-        chunk_size: usize,
-    ) -> Result<Vec<Option<V>>, TypedStoreError>
-    where
-        J: Borrow<K>,
-    {
-        let cf = self.cf();
-        let keys_bytes = keys
-            .into_iter()
-            .map(|k| (&cf, be_fix_int_ser(k.borrow()).unwrap()));
-        let chunked_keys = keys_bytes.into_iter().chunks(chunk_size);
-        let snapshot = self.snapshot()?;
-        let mut results = vec![];
-        for chunk in chunked_keys.into_iter() {
-            let chunk_result = snapshot.multi_get_cf(chunk);
-            let values_parsed: Result<Vec<_>, TypedStoreError> = chunk_result
-                .into_iter()
-                .map(|value_byte| {
-                    let value_byte = value_byte.map_err(typed_store_err_from_rocks_err)?;
-                    match value_byte {
-                        Some(data) => Ok(Some(
-                            bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
-                        )),
-                        None => Ok(None),
-                    }
-                })
-                .collect();
-            results.extend(values_parsed?);
-        }
-        Ok(results)
     }
 
     /// Convenience method for batch insertion

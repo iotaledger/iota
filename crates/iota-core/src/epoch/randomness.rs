@@ -697,12 +697,11 @@ impl RandomnessManager {
         output: &mut ConsensusCommitOutput,
     ) -> IotaResult<Option<RandomnessRound>> {
         let epoch_store = self.epoch_store()?;
-        let tables = epoch_store.tables()?;
 
-        let last_round_timestamp = tables
-            .randomness_last_round_timestamp
-            .get(&SINGLETON_KEY)
-            .expect("typed_store should not fail");
+        let last_round_timestamp = epoch_store
+            .get_randomness_last_round_timestamp()
+            .expect("read should not fail");
+
         if let Some(last_round_timestamp) = last_round_timestamp {
             if commit_timestamp - last_round_timestamp
                 < epoch_store
@@ -717,7 +716,7 @@ impl RandomnessManager {
         self.next_randomness_round = self
             .next_randomness_round
             .checked_add(1)
-            .expect("RandomnessRound should not overflow");
+            .ok_or_else(|| IotaError::Unknown("RandomnessRound overflow".to_string()))?;
 
         output.reserve_next_randomness_round(self.next_randomness_round, commit_timestamp);
 
@@ -841,7 +840,11 @@ mod tests {
     use tokio::sync::mpsc;
 
     use crate::{
-        authority::test_authority_builder::TestAuthorityBuilder,
+        authority::{
+            authority_per_epoch_store::{ExecutionIndices, ExecutionIndicesWithStats},
+            test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::CheckpointStore,
         consensus_adapter::{
             ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
             MockConsensusClient,
@@ -891,6 +894,7 @@ mod tests {
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
                 Arc::new(mock_consensus_client),
+                CheckpointStore::new_for_tests(),
                 state.name,
                 Arc::new(ConnectionMonitorStatusForTests {}),
                 100_000,
@@ -931,6 +935,13 @@ mod tests {
         }
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new();
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_managers[i]
                     .add_message(&epoch_stores[j].name, dkg_message)
@@ -961,6 +972,13 @@ mod tests {
         }
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new();
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
             for (j, dkg_confirmation) in dkg_confirmations.iter().cloned().enumerate() {
                 randomness_managers[i]
                     .add_confirmation(&mut output, &epoch_stores[j].name, dkg_confirmation)
@@ -1026,6 +1044,7 @@ mod tests {
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
                 Arc::new(mock_consensus_client),
+                CheckpointStore::new_for_tests(),
                 state.name,
                 Arc::new(ConnectionMonitorStatusForTests {}),
                 100_000,
@@ -1066,6 +1085,13 @@ mod tests {
         }
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new();
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_managers[i]
                     .add_message(&epoch_stores[j].name, dkg_message)
