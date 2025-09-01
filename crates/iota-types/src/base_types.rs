@@ -132,6 +132,9 @@ pub trait ConciseableName<'a> {
 
 #[serde_as]
 #[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+/// `Storage ID` of any shared Object
+/// 
+/// The ID by which the object can be identified in global storage.
 pub struct ObjectID(
     #[schemars(with = "Hex")]
     #[serde_as(as = "Readable<HexAccountAddress, _>")]

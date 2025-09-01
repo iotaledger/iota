@@ -2,6 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Move package
+//!
+//! This module contains the [MovePackage] and types necessary for describing
+//! its update behavior and linkage information for module resolution during
+//! execution.
+//!
+//! The code contains terminology that may be confusing for the uninitiated,
+//! like `Module ID`, `Package ID`, `Storage ID` and `Runtime ID`. For avoidance
+//! of doubt these concepts are defined as so:
+//! - `Package ID` is the [ObjectID] representing the address by which the given
+//!   package may be found in storage.
+//! - `Storage ID` represents the [ObjectID] by which an object may be found in
+//!   storage. Be that a [MovePackage], [CompiledModule] or just any shared
+//!   object.
+//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the
+//!   initially published package. For a non upgradeable package this will
+//!   always be the `Storage ID`. For an upgradeable package, it will be the
+//!   `Storage ID` of the package's first deployed version.
+//! - `Module ID` is the the type
+//!   [ModuleID](move_core_types::language_storage::ModuleId).
+//!
+//! Some of these are redundant and have overlapping meaning, so whenever
+//! reasonable/necessary the possible naming will be listed. From all of these
+//! `Runtime ID` and `Module ID` are the most confusing. `Module ID` may be used
+//! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
+//! ID` is mostly used in name resolution during runtime, when a package with
+//! its modules has been loaded.
+//!
+//! Upgradeable packages form a version chain. This is simply the conceptual
+//! chain of package versions, with their monotonically increasing version
+//! numbers. Package { version: 1 } => Package { version: 2 } => ...
 use std::collections::{BTreeMap, BTreeSet};
 
 use derive_more::Display;
@@ -31,11 +62,6 @@ use crate::{
     object::OBJECT_START_VERSION,
 };
 
-// TODO: robust MovePackage tests
-// #[cfg(test)]
-// #[path = "unit_tests/move_package.rs"]
-// mod base_types_tests;
-
 pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
 pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
 pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
@@ -59,24 +85,42 @@ pub struct FnInfoKey {
 /// A map from function info keys to function info
 pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
 
-/// Identifies a struct and the module it was defined in
+/// Store the origin of a data type where it first appeared in the version chain
+///
+/// A data type is identified by the name of the module and the name of the
+/// struct/enum in combination.
+///
+/// # Undefined behavior
+///
+/// Directly modifying any field is undefined behavior. The fields are only
+/// public for read-only access.
 #[derive(
     Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash, JsonSchema,
 )]
 pub struct TypeOrigin {
+    /// The name of the module the data type resides in
     pub module_name: String,
     // `struct_name` alias to support backwards compatibility with the old name
     #[serde(alias = "struct_name")]
+    /// The name of the data type
+    ///
+    /// Here this either refers to an enum or a struct identifier.
     pub datatype_name: String,
+    /// `Storage ID` of the package, where the given type first appeared
     pub package: ObjectID,
 }
 
-/// Upgraded package info for the linkage table
+/// Value for the [MovePackage]'s linkage_table
+///
+/// # Undefined behavior
+///
+/// Directly modifying any field is undefined behavior. The fields are only
+/// public for read-only access.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash, JsonSchema)]
 pub struct UpgradeInfo {
-    /// ID of the upgraded packages
+    /// `Storage ID`/`Package ID` of the referred package
     pub upgraded_id: ObjectID,
-    /// Version of the upgraded package
+    /// The version of the package at `upgraded_id`
     pub upgraded_version: SequenceNumber,
 }
 
@@ -85,6 +129,7 @@ pub struct UpgradeInfo {
 #[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MovePackage {
+    /// The `Storage ID` of package
     pub(crate) id: ObjectID,
     /// Most move packages are uniquely identified by their ID (i.e. there is
     /// only one version per ID), but the version is still stored because
@@ -98,16 +143,23 @@ pub struct MovePackage {
     /// In all cases, packages are referred to by move calls using just their
     /// ID, and they are always loaded at their latest version.
     pub(crate) version: SequenceNumber,
-    // TODO use session cache
+    /// Map module identifiers to their serialized [CompiledModule]
+    ///
+    /// All modules within a package share the `Storage ID` of their containing
+    /// package.
     #[serde_as(as = "BTreeMap<_, Bytes>")]
     pub(crate) module_map: BTreeMap<String, Vec<u8>>,
 
-    /// Maps struct/module to a package version where it was first defined,
-    /// stored as a vector for simple serialization and deserialization.
+    /// Maps structs and enums in a given module to a package version where they
+    /// were first defined
+    ///  
+    /// Stored as a vector for simple serialization and
+    /// deserialization.
     pub(crate) type_origin_table: Vec<TypeOrigin>,
 
-    // For each dependency, maps original package ID to the info about the (upgraded) dependency
-    // version that this package is using
+    /// For each dependency, it maps the `Runtime ID` (the first package's
+    /// `Storage ID` in a version chain) of the containing package to the
+    /// `UpgradeInfo` containing the actually used version.
     pub(crate) linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
 
@@ -176,7 +228,10 @@ pub struct UpgradeReceipt {
 
 impl MovePackage {
     /// Create a package with all required data (including serialized modules,
-    /// type origin and linkage tables) already supplied.
+    /// type origin and linkage tables) already supplied
+    ///
+    /// It does not perform any type of validation. Ensure that the supplied
+    /// parts are semantically valid.
     pub fn new(
         id: ObjectID,
         version: SequenceNumber,
@@ -203,6 +258,7 @@ impl MovePackage {
         Ok(pkg)
     }
 
+    /// Calculate the digest of the [MovePackage]
     pub fn digest(&self) -> [u8; 32] {
         Self::compute_digest_for_modules_and_deps(
             self.module_map.values(),
@@ -241,7 +297,11 @@ impl MovePackage {
     }
 
     /// Create an initial version of the package along with this version's type
-    /// origin and linkage tables.
+    /// origin and linkage tables
+    /// 
+    /// # Undefined behavior
+    /// 
+    /// All passed modules must have the same `Runtime ID` or the behavior is undefined.
     pub fn new_initial<'p>(
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
@@ -265,7 +325,11 @@ impl MovePackage {
     }
 
     /// Create an upgraded version of the package along with this version's type
-    /// origin and linkage tables.
+    /// origin and linkage tables
+    /// 
+    /// # Undefined behavior
+    /// 
+    /// All passed modules must have the same `Runtime ID` or the behavior is undefined.
     pub fn new_upgraded<'p>(
         &self,
         storage_id: ObjectID,
@@ -390,11 +454,11 @@ impl MovePackage {
         )
     }
 
-    // Retrieve the module with `ModuleId` in the given package.
-    // The module must be the `storage_id` or the call will return `None`.
-    // Check if the address of the module is the same of the package
-    // and return `None` if that is not the case.
-    // All modules in a package share the address with the package.
+    /// Retrieve the module from this package with the given [ModuleId]
+    ///
+    /// [ModuleId] is expected to contain the `Storage ID` of this package.
+    /// In case the `Storage ID` doesn't match or the module name is not
+    /// present in this package the function returns None.
     pub fn get_module(&self, storage_id: &ModuleId) -> Option<&Vec<u8>> {
         if self.id != ObjectID::from(*storage_id.address()) {
             None
@@ -432,6 +496,7 @@ impl MovePackage {
         8 /* SequenceNumber */ + module_map_size + type_origin_table_size + linkage_table_size
     }
 
+    /// `Package ID`/`Storage ID` of this package
     pub fn id(&self) -> ObjectID {
         self.id
     }
@@ -478,9 +543,13 @@ impl MovePackage {
         &self.linkage_table
     }
 
-    /// The ObjectID that this package's modules believe they are from, at
-    /// runtime (can differ from `MovePackage::id()` in the case of package
-    /// upgrades).
+    /// The `Package ID` of the first version of this package
+    ///
+    /// Also referred to as `Runtime ID`.
+    ///
+    /// Regardless of which version of the package we are working with, this
+    /// function will always return the `Package ID`/`Storage ID` of the first
+    /// package version in the version chain.
     pub fn original_package_id(&self) -> ObjectID {
         if self.version == OBJECT_START_VERSION {
             // for a non-upgraded package, original ID is just the package ID
@@ -488,6 +557,9 @@ impl MovePackage {
         }
 
         let bytes = self.module_map.values().next().expect("Empty module map");
+        // Remember, that all modules will contain the `Package ID` of the first
+        // deployed package. This is why taking any of them will produce the
+        // original package id.
         let module = CompiledModule::deserialize_with_defaults(bytes)
             .expect("A Move package contains a module that cannot be deserialized");
         (*module.address()).into()
