@@ -71,8 +71,7 @@ impl InMemoryObjectStore {
                         .get_or_init(|| {
                             epoch_store
                                 .get_assigned_shared_object_versions(tx_key)
-                                .expect("get_assigned_shared_object_versions should not fail")
-                                .map(|l| l.into_iter().collect())
+                                .map(|versions| versions.into_iter().collect())
                         })
                         .as_ref()
                         .ok_or_else(|| IotaError::GenericAuthority {

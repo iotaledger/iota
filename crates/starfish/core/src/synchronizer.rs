@@ -656,8 +656,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 "Missing committed transactions after fetching blocks: {:?}",
                 missing_committed_txns
             );
-            // TODO: decide whether remove this live transactions synchronizer
-            // here or not.
             if let Err(err) = transactions_synchronizer
                 .fetch_transactions(missing_committed_txns)
                 .await
@@ -1377,6 +1375,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 },
                 _ = &mut fetcher_timeout => {
                     debug!("Timed out while fetching missing block headers");
+                    // Drop all pending requests immediately — frees all block guards
+                    drop(request_futures);
                     break;
                 }
             }
