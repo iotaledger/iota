@@ -1604,7 +1604,6 @@ mod test {
     use std::vec;
 
     use parking_lot::RwLock;
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -2116,12 +2115,22 @@ mod test {
         let result = dag_state.get_block_headers(&block_refs);
 
         let mut expected = block_headers
+            .clone()
             .into_iter()
             .map(Some)
             .collect::<Vec<Option<VerifiedBlockHeader>>>();
 
         // Ensure everything is found
         assert_eq!(result, expected.clone());
+
+        // Now try to find only cached headers
+        let result_cached = dag_state.get_cached_block_headers(&block_refs);
+        // Ensure everything is found in the cache for rounds > 4
+        let expected_cached = block_headers
+            .iter()
+            .map(|h| if h.round() > 4 { Some(h.clone()) } else { None })
+            .collect::<Vec<_>>();
+        assert_eq!(result_cached, expected_cached);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
         block_refs.insert(
@@ -2414,7 +2423,6 @@ mod test {
         assert_eq!(cached_block_headers[0].round(), 10);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_get_last_cached_block_header() {
         // GIVEN
