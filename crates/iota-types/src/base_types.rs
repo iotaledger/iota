@@ -130,11 +130,13 @@ pub trait ConciseableName<'a> {
     fn concise_owned(&self) -> Self::ConciseType;
 }
 
+/// The ID by which the object can be identified in global storage
+///
+/// Be that a [MovePackage](crate::move_package::MovePackage),
+/// [CompiledModule](move_binary_format::CompiledModule) or just
+/// any shared/immutable object.
 #[serde_as]
 #[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
-/// `Storage ID` of any shared Object
-/// 
-/// The ID by which the object can be identified in global storage.
 pub struct ObjectID(
     #[schemars(with = "Hex")]
     #[serde_as(as = "Readable<HexAccountAddress, _>")]

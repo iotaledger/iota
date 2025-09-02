@@ -8,18 +8,22 @@
 //! its update behavior and linkage information for module resolution during
 //! execution.
 //!
+//! Upgradeable packages form a version chain. This is simply the conceptual
+//! chain of package versions, with their monotonically increasing version
+//! numbers. Package { version: 1 } => Package { version: 2 } => ...
+//!
 //! The code contains terminology that may be confusing for the uninitiated,
 //! like `Module ID`, `Package ID`, `Storage ID` and `Runtime ID`. For avoidance
-//! of doubt these concepts are defined as so:
+//! of doubt these concepts are defined like so:
 //! - `Package ID` is the [ObjectID] representing the address by which the given
 //!   package may be found in storage.
-//! - `Storage ID` represents the [ObjectID] by which an object may be found in
-//!   storage. Be that a [MovePackage], [CompiledModule] or just any shared
-//!   object.
 //! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the
 //!   initially published package. For a non upgradeable package this will
-//!   always be the `Storage ID`. For an upgradeable package, it will be the
-//!   `Storage ID` of the package's first deployed version.
+//!   always be equal to `Storage ID`. For an upgradeable package, it will be
+//!   the `Storage ID` of the package's first deployed version.
+//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight
+//!   that we are talking about
+//! the current `Package ID` and not the `Runtime ID`
 //! - `Module ID` is the the type
 //!   [ModuleID](move_core_types::language_storage::ModuleId).
 //!
@@ -29,10 +33,6 @@
 //! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
 //! ID` is mostly used in name resolution during runtime, when a package with
 //! its modules has been loaded.
-//!
-//! Upgradeable packages form a version chain. This is simply the conceptual
-//! chain of package versions, with their monotonically increasing version
-//! numbers. Package { version: 1 } => Package { version: 2 } => ...
 use std::collections::{BTreeMap, BTreeSet};
 
 use derive_more::Display;
@@ -298,10 +298,11 @@ impl MovePackage {
 
     /// Create an initial version of the package along with this version's type
     /// origin and linkage tables
-    /// 
+    ///
     /// # Undefined behavior
-    /// 
-    /// All passed modules must have the same `Runtime ID` or the behavior is undefined.
+    ///
+    /// All passed modules must have the same `Runtime ID` or the behavior is
+    /// undefined.
     pub fn new_initial<'p>(
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
@@ -326,10 +327,11 @@ impl MovePackage {
 
     /// Create an upgraded version of the package along with this version's type
     /// origin and linkage tables
-    /// 
+    ///
     /// # Undefined behavior
-    /// 
-    /// All passed modules must have the same `Runtime ID` or the behavior is undefined.
+    ///
+    /// All passed modules must have the same `Runtime ID` or the behavior is
+    /// undefined.
     pub fn new_upgraded<'p>(
         &self,
         storage_id: ObjectID,
