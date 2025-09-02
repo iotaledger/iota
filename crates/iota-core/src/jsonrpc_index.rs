@@ -15,6 +15,8 @@ use std::{
     },
 };
 
+use either::Either;
+use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
@@ -32,15 +34,17 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use parking_lot::ArcMutexGuard;
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tokio::{sync::OwnedMutexGuard, task::spawn_blocking};
 use tracing::{debug, trace};
 use typed_store::{
     DBMapUtils, TypedStoreError,
     rocks::{DBBatch, DBMap, DBOptions, MetricConf, default_db_options, read_size_from_env},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
+
+type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
 
 type OwnerIndexKey = (IotaAddress, ObjectID);
 type CoinIndexKey = (IotaAddress, String, ObjectID);
@@ -101,7 +105,7 @@ impl IndexStoreMetrics {
         Self {
             balance_lookup_from_db: register_int_counter_with_registry!(
                 "balance_lookup_from_db",
-                "Total number of balance requests served from cache",
+                "Total number of balance requests served from database",
                 registry,
             )
             .unwrap(),
@@ -113,7 +117,7 @@ impl IndexStoreMetrics {
             .unwrap(),
             all_balance_lookup_from_db: register_int_counter_with_registry!(
                 "all_balance_lookup_from_db",
-                "Total number of all balance requests served from cache",
+                "Total number of all balance requests served from database",
                 registry,
             )
             .unwrap(),
@@ -295,9 +299,11 @@ impl IndexStore {
         };
         let next_sequence_number = tables
             .transaction_order
-            .unbounded_iter()
-            .skip_to_last()
+            .reversed_safe_iter_with_bounds(None, None)
+            .expect("failed to initialize indexes")
             .next()
+            .transpose()
+            .expect("failed to initialize indexes")
             .map(|(seq, _)| seq + 1)
             .unwrap_or(0)
             .into();
@@ -316,7 +322,7 @@ impl IndexStore {
         &self.tables
     }
 
-    pub async fn index_coin(
+    pub fn index_coin(
         &self,
         digest: &TransactionDigest,
         batch: &mut DBBatch,
@@ -343,7 +349,7 @@ impl IndexStore {
                 .iter()
                 .map(|((owner, _), _)| *owner),
         );
-        let _locks = self.caches.locks.acquire_locks(addresses.into_iter()).await;
+        let _locks = self.caches.locks.acquire_locks(addresses.into_iter());
         let mut balance_changes: HashMap<IotaAddress, HashMap<TypeTag, TotalBalance>> =
             HashMap::new();
         // Index coin info
@@ -457,7 +463,7 @@ impl IndexStore {
 
     /// Indexes a transaction by updating various indices in the `IndexStore`
     /// with the provided transaction details.
-    pub async fn index_tx(
+    pub fn index_tx(
         &self,
         sender: IotaAddress,
         active_inputs: impl Iterator<Item = ObjectID>,
@@ -519,9 +525,7 @@ impl IndexStore {
         )?;
 
         // Coin Index
-        let cache_updates = self
-            .index_coin(digest, &mut batch, &object_index_changes, tx_coins)
-            .await?;
+        let cache_updates = self.index_coin(digest, &mut batch, &object_index_changes, tx_coins)?;
 
         // Owner index
         batch.delete_batch(
@@ -619,26 +623,21 @@ impl IndexStore {
                     .per_coin_type_balance_changes
                     .iter()
                     .map(|x| x.0.clone()),
-            )
-            .await?;
+            )?;
             self.invalidate_all_balance_cache(
                 cache_updates.all_balance_changes.iter().map(|x| x.0),
-            )
-            .await?;
+            )?;
         }
 
         batch.write()?;
 
         if !invalidate_caches {
             // We cannot update the cache before updating the db or else on failing to write
-            // to db we will update the cache (when we retry to index this
-            // transaction again we would have updated the cache twice).
-            // However, this only means cache is eventually consistent with
-            // the db (within a very short delay)
-            self.update_per_coin_type_cache(cache_updates.per_coin_type_balance_changes)
-                .await?;
-            self.update_all_balance_cache(cache_updates.all_balance_changes)
-                .await?;
+            // to db we will update the cache twice). However, this only means
+            // cache is eventually consistent with the db (within a very short
+            // delay)
+            self.update_per_coin_type_cache(cache_updates.per_coin_type_balance_changes)?;
+            self.update_all_balance_cache(cache_updates.all_balance_changes)?;
         }
         Ok(sequence)
     }
@@ -689,22 +688,26 @@ impl IndexStore {
                 error: UserInputError::Unsupported(format!("{filter:?}")),
             }),
             None => {
-                let iter = self.tables.transaction_order.unbounded_iter();
-
                 if reverse {
-                    let iter = iter
-                        .skip_prior_to(&cursor.unwrap_or(TxSequenceNumber::MAX))?
-                        .reverse()
+                    let iter = self
+                        .tables
+                        .transaction_order
+                        .reversed_safe_iter_with_bounds(
+                            None,
+                            Some(cursor.unwrap_or(TxSequenceNumber::MAX)),
+                        )?
                         .skip(usize::from(cursor.is_some()))
-                        .map(|(_, digest)| digest);
+                        .map(|result| result.map(|(_, digest)| digest));
                     if let Some(limit) = limit {
-                        Ok(iter.take(limit).collect())
+                        Ok(iter.take(limit).collect::<Result<Vec<_>, _>>()?)
                     } else {
-                        Ok(iter.collect())
+                        Ok(iter.collect::<Result<Vec<_>, _>>()?)
                     }
                 } else {
-                    let iter = iter
-                        .skip_to(&cursor.unwrap_or(TxSequenceNumber::MIN))?
+                    let iter = self
+                        .tables
+                        .transaction_order
+                        .iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
                         .skip(usize::from(cursor.is_some()))
                         .map(|(_, digest)| digest);
                     if let Some(limit) = limit {
@@ -724,34 +727,22 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        Ok(if reverse {
-            let iter = index
-                .unbounded_iter()
-                .skip_prior_to(&(key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX)))?
-                .reverse()
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, _), _)| *id == key)
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
+        let iter = if reverse {
+            Either::Left(index.reversed_safe_iter_with_bounds(
+                None,
+                Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX))),
+            )?)
         } else {
-            let iter = index
-                .unbounded_iter()
-                .skip_to(&(key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN)))?
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, _), _)| *id == key)
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
-        })
+            Either::Right(index.safe_iter_with_bounds(
+                Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN))),
+                None,
+            ))
+        };
+        iter
+            // skip one more if exclusive cursor is Some
+            .skip(usize::from(cursor.is_some()))
+            .try_take_map_while_and_collect(limit, |((id, _), _)| *id == key, |(_, digest)| digest)
+            .map_err(Into::into)
     }
 
     pub fn get_transactions_by_input_object(
@@ -856,41 +847,32 @@ impl IndexStore {
                 .unwrap_or(if reverse { max_string } else { "".to_string() });
 
         let key = (package, module_val, function_val, cursor_val);
-        let iter = self.tables.transactions_by_move_function.unbounded_iter();
-        Ok(if reverse {
-            let iter = iter
-                .skip_prior_to(&key)?
-                .reverse()
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, m, f, _), _)| {
-                    *id == package
-                        && module.as_ref().map(|x| x == m).unwrap_or(true)
-                        && function.as_ref().map(|x| x == f).unwrap_or(true)
-                })
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
+        let iter = if reverse {
+            Either::Left(
+                self.tables
+                    .transactions_by_move_function
+                    .reversed_safe_iter_with_bounds(None, Some(key))?,
+            )
         } else {
-            let iter = iter
-                .skip_to(&key)?
-                // skip one more if exclusive cursor is Some
-                .skip(usize::from(cursor.is_some()))
-                .take_while(|((id, m, f, _), _)| {
+            Either::Right(
+                self.tables
+                    .transactions_by_move_function
+                    .safe_iter_with_bounds(Some(key), None),
+            )
+        };
+        iter
+            // skip one more if exclusive cursor is Some
+            .skip(usize::from(cursor.is_some()))
+            .try_take_map_while_and_collect(
+                limit,
+                |((id, m, f, _), _)| {
                     *id == package
                         && module.as_ref().map(|x| x == m).unwrap_or(true)
                         && function.as_ref().map(|x| x == f).unwrap_or(true)
-                })
-                .map(|(_, digest)| digest);
-            if let Some(limit) = limit {
-                iter.take(limit).collect()
-            } else {
-                iter.collect()
-            }
-        })
+                },
+                |(_, digest)| digest,
+            )
+            .map_err(Into::into)
     }
 
     pub fn get_transactions_to_addr(
@@ -926,19 +908,18 @@ impl IndexStore {
         Ok(if descending {
             self.tables
                 .event_order
-                .unbounded_iter()
-                .skip_prior_to(&(tx_seq, event_seq))?
-                .reverse()
+                .reversed_safe_iter_with_bounds(None, Some((tx_seq, event_seq)))?
                 .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
+                .map(|result| {
+                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, _>>()?
         } else {
             self.tables
                 .event_order
-                .unbounded_iter()
-                .skip_to(&(tx_seq, event_seq))?
+                .iter_with_bounds(Some((tx_seq, event_seq)), None)
                 .take(limit)
                 .map(|((_, event_seq), (digest, tx_digest, time))| {
                     (digest, tx_digest, event_seq, time)
@@ -958,30 +939,25 @@ impl IndexStore {
         let seq = self
             .get_transaction_seq(digest)?
             .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
-        Ok(if descending {
-            self.tables
-                .event_order
-                .unbounded_iter()
-                .skip_prior_to(&(min(tx_seq, seq), event_seq))?
-                .reverse()
-                .take_while(|((tx, _), _)| tx == &seq)
-                .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+        let iter = if descending {
+            Either::Left(
+                self.tables
+                    .event_order
+                    .reversed_safe_iter_with_bounds(None, Some((min(tx_seq, seq), event_seq)))?,
+            )
         } else {
-            self.tables
-                .event_order
-                .unbounded_iter()
-                .skip_to(&(max(tx_seq, seq), event_seq))?
-                .take_while(|((tx, _), _)| tx == &seq)
-                .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        })
+            Either::Right(
+                self.tables
+                    .event_order
+                    .safe_iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None),
+            )
+        };
+        iter.try_take_map_while_and_collect(
+            Some(limit),
+            |((tx, _), _)| tx == &seq,
+            |((_, event_seq), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
+        )
+        .map_err(Into::into)
     }
 
     fn get_event_from_index<KeyT: Clone + PartialEq + Serialize + DeserializeOwned>(
@@ -992,28 +968,23 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Ok(if descending {
-            index
-                .unbounded_iter()
-                .skip_prior_to(&(key.clone(), (tx_seq, event_seq)))?
-                .reverse()
-                .take_while(|((m, _), _)| m == key)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        } else {
-            index
-                .unbounded_iter()
-                .skip_to(&(key.clone(), (tx_seq, event_seq)))?
-                .take_while(|((m, _), _)| m == key)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        })
+        let iter =
+            if descending {
+                Either::Left(index.reversed_safe_iter_with_bounds(
+                    None,
+                    Some((key.clone(), (tx_seq, event_seq))),
+                )?)
+            } else {
+                Either::Right(
+                    index.safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None),
+                )
+            };
+        iter.try_take_map_while_and_collect(
+            Some(limit),
+            |((m, _), _)| m == key,
+            |((_, (_, event_seq)), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
+        )
+        .map_err(Into::into)
     }
 
     pub fn events_by_module_id(
@@ -1097,30 +1068,31 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Ok(if descending {
+        if descending {
             self.tables
                 .event_by_time
-                .unbounded_iter()
-                .skip_prior_to(&(end_time, (tx_seq, event_seq)))?
-                .reverse()
-                .take_while(|((m, _), _)| m >= &start_time)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
+                .reversed_safe_iter_with_bounds(None, Some((end_time, (tx_seq, event_seq))))?
+                .try_take_map_while_and_collect(
+                    Some(limit),
+                    |((m, _), _)| m >= &start_time,
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )
+                .map_err(Into::into)
         } else {
             self.tables
                 .event_by_time
-                .unbounded_iter()
-                .skip_to(&(start_time, (tx_seq, event_seq)))?
-                .take_while(|((m, _), _)| m <= &end_time)
-                .take(limit)
-                .map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
-                })
-                .collect()
-        })
+                .safe_iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
+                .try_take_map_while_and_collect(
+                    Some(limit),
+                    |((m, _), _)| m <= &end_time,
+                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    },
+                )
+                .map_err(Into::into)
+        }
     }
 
     pub fn get_dynamic_fields_iterator(
@@ -1130,14 +1102,13 @@ impl IndexStore {
     ) -> IotaResult<impl Iterator<Item = Result<(ObjectID, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         debug!(?object, "get_dynamic_fields");
-        let iter_lower_bound = (object, ObjectID::ZERO);
+        // The object id 0 is the smallest possible
+        let iter_lower_bound = (object, cursor.unwrap_or(ObjectID::ZERO));
         let iter_upper_bound = (object, ObjectID::MAX);
         Ok(self
             .tables
             .dynamic_field_index
             .safe_iter_with_bounds(Some(iter_lower_bound), Some(iter_upper_bound))
-            // The object id 0 is the smallest possible
-            .skip_to(&(object, cursor.unwrap_or(ObjectID::ZERO)))?
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
             .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
@@ -1222,8 +1193,10 @@ impl IndexStore {
         let starting_coin_type =
             coin_type_tag.unwrap_or_else(|| String::from_utf8([0u8].to_vec()).unwrap());
         Ok(coin_index
-            .unbounded_iter()
-            .skip_to(&(owner, starting_coin_type.clone(), ObjectID::ZERO))?
+            .iter_with_bounds(
+                Some((owner, starting_coin_type.clone(), ObjectID::ZERO)),
+                None,
+            )
             .take_while(move |((addr, coin_type, _), _)| {
                 if addr != &owner {
                     return false;
@@ -1247,8 +1220,10 @@ impl IndexStore {
         Ok(self
             .tables
             .coin_index
-            .unbounded_iter()
-            .skip_to(&(owner, starting_coin_type.clone(), starting_object_id))?
+            .iter_with_bounds(
+                Some((owner, starting_coin_type.clone(), starting_object_id)),
+                None,
+            )
             .filter(move |((_, _, obj_id), _)| obj_id != &starting_object_id)
             .enumerate()
             .take_while(move |(index, ((addr, coin_type, _), _))| {
@@ -1278,9 +1253,8 @@ impl IndexStore {
         Ok(self
             .tables
             .owner_index
-            .unbounded_iter()
             // The object id 0 is the smallest possible
-            .skip_to(&(owner, starting_object_id))?
+            .iter_with_bounds(Some((owner, starting_object_id)), None)
             .skip(usize::from(starting_object_id != ObjectID::ZERO))
             .take_while(move |((address_owner, _), _)| address_owner == &owner)
             .filter(move |(_, o)| {
@@ -1324,41 +1298,31 @@ impl IndexStore {
     /// the `all_balance` cache. Only on the second cache miss, we go to the
     /// database (expensive) and update the cache. Notice that db read is
     /// done with `spawn_blocking` as that is expected to block
-    pub async fn get_balance(
-        &self,
-        owner: IotaAddress,
-        coin_type: TypeTag,
-    ) -> IotaResult<TotalBalance> {
+    pub fn get_balance(&self, owner: IotaAddress, coin_type: TypeTag) -> IotaResult<TotalBalance> {
+        self.metrics.balance_lookup_from_total.inc();
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let cloned_coin_type = coin_type.clone();
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
         if force_disable_cache {
-            return spawn_blocking(move || {
-                Self::get_balance_from_db(
-                    metrics_cloned,
-                    coin_index_cloned,
-                    owner,
-                    cloned_coin_type,
-                )
-            })
-            .await
-            .unwrap()
+            return Self::get_balance_from_db(
+                metrics_cloned,
+                coin_index_cloned,
+                owner,
+                cloned_coin_type,
+            )
             .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
         }
-
-        self.metrics.balance_lookup_from_total.inc();
 
         let balance = self
             .caches
             .per_coin_type_balance
-            .get(&(owner, coin_type.clone()))
-            .await;
+            .get(&(owner, coin_type.clone()));
         if let Some(balance) = balance {
             return balance;
         }
         // cache miss, lookup in all balance cache
-        let all_balance = self.caches.all_balances.get(&owner.clone()).await;
+        let all_balance = self.caches.all_balances.get(&owner.clone());
         if let Some(Ok(all_balance)) = all_balance {
             if let Some(balance) = all_balance.get(&coin_type) {
                 return Ok(*balance);
@@ -1369,20 +1333,15 @@ impl IndexStore {
         let coin_index_cloned = self.tables.coin_index.clone();
         self.caches
             .per_coin_type_balance
-            .get_with((owner, coin_type), async move {
-                spawn_blocking(move || {
-                    Self::get_balance_from_db(
-                        metrics_cloned,
-                        coin_index_cloned,
-                        owner,
-                        cloned_coin_type,
-                    )
-                })
-                .await
-                .unwrap()
+            .get_with((owner, coin_type), move || {
+                Self::get_balance_from_db(
+                    metrics_cloned,
+                    coin_index_cloned,
+                    owner,
+                    cloned_coin_type,
+                )
                 .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")))
             })
-            .await
     }
 
     /// This method gets the balance for all coin types from the `all_balance`
@@ -1391,45 +1350,27 @@ impl IndexStore {
     /// serves `get_AllBalance()` calls but is also used for serving
     /// `get_Balance()` queries. Notice that db read is performed with
     /// `spawn_blocking` as that is expected to block
-    pub async fn get_all_balance(
+    pub fn get_all_balance(
         &self,
         owner: IotaAddress,
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
+        self.metrics.all_balance_lookup_from_total.inc();
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let metrics_cloned = self.metrics.clone();
         let coin_index_cloned = self.tables.coin_index.clone();
-        if force_disable_cache {
-            return spawn_blocking(move || {
-                Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
-            })
-            .await
-            .unwrap()
-            .map_err(|e| {
-                IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-            });
-        }
 
-        self.metrics.all_balance_lookup_from_total.inc();
-        let metrics_cloned = self.metrics.clone();
-        let coin_index_cloned = self.tables.coin_index.clone();
-        self.caches
-            .all_balances
-            .get_with(owner, async move {
-                spawn_blocking(move || {
-                    Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
-                })
-                .await
-                .unwrap()
+        if force_disable_cache {
+            return Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
                 .map_err(|e| {
                     IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-                })
+                });
+        }
+
+        self.caches.all_balances.get_with(owner, move || {
+            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(|e| {
+                IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
             })
-            .await
-            .map(|mut balances_map| {
-                Arc::make_mut(&mut balances_map)
-                    .retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
-                balances_map
-            })
+        })
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
@@ -1472,6 +1413,12 @@ impl IndexStore {
                 total_balance += coin_info.balance as i128;
                 coin_object_count += 1;
             }
+
+            if coin_object_count == 0 {
+                // we do not want to return coins with 0 balance
+                continue;
+            }
+
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
                 |e| IotaError::Execution(format!("Failed to parse event sender address: {e:?}")),
             )?));
@@ -1483,36 +1430,33 @@ impl IndexStore {
                 },
             );
         }
+
         Ok(Arc::new(balances))
     }
 
-    async fn invalidate_per_coin_type_cache(
+    fn invalidate_per_coin_type_cache(
         &self,
         keys: impl IntoIterator<Item = (IotaAddress, TypeTag)>,
     ) -> IotaResult {
-        self.caches
-            .per_coin_type_balance
-            .batch_invalidate(keys)
-            .await;
+        self.caches.per_coin_type_balance.batch_invalidate(keys);
         Ok(())
     }
 
-    async fn invalidate_all_balance_cache(
+    fn invalidate_all_balance_cache(
         &self,
         addresses: impl IntoIterator<Item = IotaAddress>,
     ) -> IotaResult {
-        self.caches.all_balances.batch_invalidate(addresses).await;
+        self.caches.all_balances.batch_invalidate(addresses);
         Ok(())
     }
 
-    async fn update_per_coin_type_cache(
+    fn update_per_coin_type_cache(
         &self,
         keys: impl IntoIterator<Item = ((IotaAddress, TypeTag), IotaResult<TotalBalance>)>,
     ) -> IotaResult {
         self.caches
             .per_coin_type_balance
-            .batch_merge(keys, Self::merge_balance)
-            .await;
+            .batch_merge(keys, Self::merge_balance);
         Ok(())
     }
 
@@ -1534,14 +1478,13 @@ impl IndexStore {
         }
     }
 
-    async fn update_all_balance_cache(
+    fn update_all_balance_cache(
         &self,
         keys: impl IntoIterator<Item = (IotaAddress, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>)>,
     ) -> IotaResult {
         self.caches
             .all_balances
-            .batch_merge(keys, Self::merge_all_balance)
-            .await;
+            .batch_merge(keys, Self::merge_all_balance);
         Ok(())
     }
 
@@ -1551,12 +1494,10 @@ impl IndexStore {
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         if let Ok(old_balance) = old_balance {
             if let Ok(balance_delta) = balance_delta {
-                let mut new_balance = HashMap::new();
-                for (key, value) in old_balance.iter() {
-                    new_balance.insert(key.clone(), *value);
-                }
+                // create a deep copy of the old balance hashmap
+                let mut new_balance = old_balance.as_ref().clone();
                 for (key, delta) in balance_delta.iter() {
-                    let old = new_balance.entry(key.clone()).or_insert(TotalBalance {
+                    let old = new_balance.get(key).unwrap_or(&TotalBalance {
                         balance: 0,
                         num_coins: 0,
                     });
@@ -1564,7 +1505,13 @@ impl IndexStore {
                         balance: old.balance + delta.balance,
                         num_coins: old.num_coins + delta.num_coins,
                     };
-                    new_balance.insert(key.clone(), new_total);
+
+                    // Remove entries where num_coins becomes zero to prevent cache bloat
+                    if new_total.num_coins == 0 {
+                        new_balance.remove(key);
+                    } else {
+                        new_balance.insert(key.clone(), new_total);
+                    }
                 }
                 Ok(Arc::new(new_balance))
             } else {
@@ -1632,19 +1579,17 @@ mod tests {
         };
 
         let tx_coins = (object_map.clone(), written_objects.clone());
-        index_store
-            .index_tx(
-                address,
-                vec![].into_iter(),
-                vec![].into_iter(),
-                vec![].into_iter(),
-                &TransactionEvents { data: vec![] },
-                object_index_changes,
-                &TransactionDigest::random(),
-                1234,
-                Some(tx_coins),
-            )
-            .await?;
+        index_store.index_tx(
+            address,
+            vec![].into_iter(),
+            vec![].into_iter(),
+            vec![].into_iter(),
+            &TransactionEvents { data: vec![] },
+            object_index_changes,
+            &TransactionDigest::random(),
+            1234,
+            Some(tx_coins),
+        )?;
 
         let balance_from_db = IndexStore::get_balance_from_db(
             index_store.metrics.clone(),
@@ -1652,12 +1597,12 @@ mod tests {
             address,
             GAS::type_tag(),
         )?;
-        let balance = index_store.get_balance(address, GAS::type_tag()).await?;
+        let balance = index_store.get_balance(address, GAS::type_tag())?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 1000);
         assert_eq!(balance.num_coins, 10);
 
-        let all_balance = index_store.get_all_balance(address).await?;
+        let all_balance = index_store.get_all_balance(address)?;
         let balance = all_balance.get(&GAS::type_tag()).unwrap();
         assert_eq!(*balance, balance_from_db);
         assert_eq!(balance.balance, 1000);
@@ -1676,26 +1621,24 @@ mod tests {
             new_dynamic_fields: vec![],
         };
         let tx_coins = (object_map, written_objects);
-        index_store
-            .index_tx(
-                address,
-                vec![].into_iter(),
-                vec![].into_iter(),
-                vec![].into_iter(),
-                &TransactionEvents { data: vec![] },
-                object_index_changes,
-                &TransactionDigest::random(),
-                1234,
-                Some(tx_coins),
-            )
-            .await?;
+        index_store.index_tx(
+            address,
+            vec![].into_iter(),
+            vec![].into_iter(),
+            vec![].into_iter(),
+            &TransactionEvents { data: vec![] },
+            object_index_changes,
+            &TransactionDigest::random(),
+            1234,
+            Some(tx_coins),
+        )?;
         let balance_from_db = IndexStore::get_balance_from_db(
             index_store.metrics.clone(),
             index_store.tables.coin_index.clone(),
             address,
             GAS::type_tag(),
         )?;
-        let balance = index_store.get_balance(address, GAS::type_tag()).await?;
+        let balance = index_store.get_balance(address, GAS::type_tag())?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);
@@ -1704,13 +1647,11 @@ mod tests {
         index_store
             .caches
             .per_coin_type_balance
-            .invalidate(&(address, GAS::type_tag()))
-            .await;
-        let all_balance = index_store.get_all_balance(address).await;
-        let all_balance = all_balance?;
+            .invalidate(&(address, GAS::type_tag()));
+        let all_balance = index_store.get_all_balance(address)?;
         assert_eq!(all_balance.get(&GAS::type_tag()).unwrap().balance, 700);
         assert_eq!(all_balance.get(&GAS::type_tag()).unwrap().num_coins, 7);
-        let balance = index_store.get_balance(address, GAS::type_tag()).await?;
+        let balance = index_store.get_balance(address, GAS::type_tag())?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);

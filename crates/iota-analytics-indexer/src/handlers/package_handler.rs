@@ -7,8 +7,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::CheckpointData;
-use iota_types::{full_checkpoint_content::CheckpointTransaction, object::Object};
+use iota_types::{
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    object::Object,
+};
 use tokio::sync::Mutex;
 
 use crate::{FileType, handlers::AnalyticsHandler, tables::MovePackageEntry};

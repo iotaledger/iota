@@ -2,9 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback } from 'react';
-import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
+import {
+    Button,
+    Address,
+    Dialog,
+    DialogContent,
+    DialogBody,
+    Header,
+    Panel,
+} from '@iota/apps-ui-kit';
 import { useCopyToClipboard, useActiveAccount } from '_hooks';
-import { QR, toast } from '@iota/core';
+import { QR, toast, useGetDefaultIotaName } from '@iota/core';
 import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
     isLedgerAccountSerializedUI,
@@ -20,6 +28,7 @@ interface ReceiveTokensDialogProps {
 export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDialogProps) {
     const activeAccount = useActiveAccount();
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
+    const { data: iotaName } = useGetDefaultIotaName(address);
 
     const onCopy = useCopyToClipboard(address, {
         copySuccessMessage: 'Address copied',
@@ -55,11 +64,25 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
             <DialogContent containerId="overlay-portal-container">
                 <Header title="Receive" onClose={() => setOpen(false)} />
                 <DialogBody>
-                    <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
+                    <div className="flex max-h-[500px] flex-col gap-lg overflow-y-auto text-center [&_span]:w-full [&_span]:break-words">
                         <div className="self-center">
                             <QR value={address} size={130} marginSize={2} />
                         </div>
-                        <Address text={address} />
+                        <div className="flex flex-col gap-xs">
+                            {iotaName && (
+                                <Panel bgColor="bg-iota-neutral-96 dark:bg-iota-neutral-12">
+                                    <div className="break-words px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96">
+                                        {iotaName}
+                                    </div>
+                                </Panel>
+                            )}
+
+                            <Panel bgColor="bg-iota-neutral-96 dark:bg-iota-neutral-12">
+                                <div className="px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96">
+                                    <Address text={address} />
+                                </div>
+                            </Panel>
+                        </div>
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">

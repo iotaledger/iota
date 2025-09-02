@@ -16,13 +16,13 @@ import {
 import {
     type BalanceChange,
     type BalanceChangeSummary,
-    CoinFormat,
     getRecognizedUnRecognizedTokenChanges,
     useCoinMetadata,
     useFormatCoin,
     ImageIconSize,
     CoinIcon,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
@@ -37,7 +37,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
     const isMdScreen = useMediaQuery(
         `(min-width: ${BREAK_POINT.md}px) and (max-width: ${BREAK_POINT.lg - 1}px)`,
     );
-    const coinFormat = isMdScreen ? CoinFormat.ROUNDED : CoinFormat.FULL;
+    const coinFormat = isMdScreen ? CoinFormat.Rounded : CoinFormat.Full;
     const [formatted, symbol] = useFormatCoin({ balance: amount, coinType, format: coinFormat });
     const { data: coinMetaData } = useCoinMetadata(coinType);
     const isPositive = BigInt(amount) > 0n;
@@ -93,7 +93,14 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                         <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                             Owner
                         </span>
-                        <AddressLink address={owner} copyText={owner} />
+                        <div className="flex flex-row items-center gap-xs">
+                            <AddressLink
+                                address={owner}
+                                copyText={owner}
+                                className="[&>div]:max-w-[200px] [&>div]:truncate"
+                                display="block"
+                            />
+                        </div>
                     </div>
                 ) : null
             }

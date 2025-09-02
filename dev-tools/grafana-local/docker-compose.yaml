@@ -5,7 +5,7 @@ services:
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
-      - ${TMPDIR}/tempo-data:/tmp/tempo
+      - ./tempo-data:/tmp/tempo
     networks:
       iota-network:
     ports:

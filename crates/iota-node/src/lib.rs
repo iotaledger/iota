@@ -36,7 +36,10 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
+        authority_store_pruner::ObjectsCompactionFilter,
+        authority_store_tables::{
+            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
+        },
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
@@ -497,9 +500,25 @@ impl IotaNode {
             None,
         ));
 
+        let mut pruner_db = None;
+        if config
+            .authority_store_pruning_config
+            .enable_compaction_filter
+        {
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
+                &config.db_path().join("store"),
+            )));
+        }
+        let compaction_filter = pruner_db
+            .clone()
+            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
+
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+            enable_write_stall,
+            compaction_filter,
+        };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
             Some(perpetual_tables_options),
@@ -565,6 +584,10 @@ impl IotaNode {
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
             ChainIdentifier::from(*genesis.checkpoint().digest()),
+            checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .expect("checkpoint store read cannot fail")
+                .unwrap_or(0),
         );
 
         info!("created epoch store");
@@ -599,8 +622,6 @@ impl IotaNode {
                 "buffer_stake_for_protocol_upgrade_bps is currently overridden"
             );
         }
-
-        info!("creating checkpoint store");
 
         checkpoint_store.insert_genesis_checkpoint(
             genesis.checkpoint(),
@@ -730,10 +751,10 @@ impl IotaNode {
             &genesis_objects,
             &db_checkpoint_config,
             config.clone(),
-            config.indirect_objects_threshold,
             archive_readers,
             validator_tx_finalizer,
             chain_identifier,
+            pruner_db,
         )
         .await;
 
@@ -764,10 +785,6 @@ impl IotaNode {
                 }
             }
         }
-
-        checkpoint_store
-            .reexecute_local_checkpoints(&state, &epoch_store)
-            .await;
 
         // Start the loop that receives new randomness and generates transactions for
         // it.
@@ -911,7 +928,7 @@ impl IotaNode {
         let node = Arc::new(node);
         let node_copy = node.clone();
         spawn_monitored_task!(async move {
-            let result = Self::monitor_reconfiguration(node_copy).await;
+            let result = Self::monitor_reconfiguration(node_copy, epoch_store).await;
             if let Err(error) = result {
                 warn!("Reconfiguration finished with error {:?}", error);
             }
@@ -1067,7 +1084,6 @@ impl IotaNode {
                     db_checkpoint_config
                         .prune_and_compact_before_upload
                         .unwrap_or(true),
-                    config.indirect_objects_threshold,
                     config.authority_store_pruning_config.clone(),
                     prometheus_registry,
                     state_snapshot_enabled,
@@ -1251,6 +1267,7 @@ impl IotaNode {
             connection_monitor_status.clone(),
             &validator_registry,
             client.clone(),
+            checkpoint_store.clone(),
         ));
         let consensus_manager = ConsensusManager::new(
             &config,
@@ -1347,7 +1364,7 @@ impl IotaNode {
         let checkpoint_service = Self::build_checkpoint_service(
             config,
             consensus_adapter.clone(),
-            checkpoint_store,
+            checkpoint_store.clone(),
             epoch_store.clone(),
             state.clone(),
             state_sync_handle,
@@ -1384,6 +1401,8 @@ impl IotaNode {
             backpressure_manager,
         );
 
+        info!("Starting consensus manager");
+
         consensus_manager
             .start(
                 config,
@@ -1398,6 +1417,16 @@ impl IotaNode {
             )
             .await;
 
+        if !epoch_store
+            .epoch_start_config()
+            .is_data_quarantine_active_from_beginning_of_epoch()
+        {
+            checkpoint_store
+                .reexecute_local_checkpoints(&state, &epoch_store)
+                .await;
+        }
+
+        info!("Spawning checkpoint service");
         let checkpoint_service_tasks = checkpoint_service.spawn().await;
 
         if epoch_store.authenticator_state_enabled() {
@@ -1485,6 +1514,7 @@ impl IotaNode {
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         prometheus_registry: &Registry,
         consensus_client: Arc<dyn ConsensusClient>,
+        checkpoint_store: Arc<CheckpointStore>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
         // The consensus adapter allows the authority to send user certificates through
@@ -1492,6 +1522,7 @@ impl IotaNode {
 
         ConsensusAdapter::new(
             consensus_client,
+            checkpoint_store,
             authority,
             connection_monitor_status,
             consensus_config.max_pending_transactions(),
@@ -1706,15 +1737,22 @@ impl IotaNode {
     /// entire system. This function also handles role changes for the node when
     /// epoch changes and advertises capabilities to the committee if the node
     /// is a validator.
-    pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
+    pub async fn monitor_reconfiguration(
+        self: Arc<Self>,
+        mut epoch_store: Arc<AuthorityPerEpochStore>,
+    ) -> Result<()> {
         let checkpoint_executor_metrics =
             CheckpointExecutorMetrics::new(&self.registry_service.default_registry());
 
         loop {
             let mut accumulator_guard = self.accumulator.lock().await;
             let accumulator = accumulator_guard.take().unwrap();
-            let mut checkpoint_executor = CheckpointExecutor::new(
-                self.state_sync_handle.subscribe_to_synced_checkpoints(),
+            info!(
+                "Creating checkpoint executor for epoch {}",
+                epoch_store.epoch()
+            );
+            let checkpoint_executor = CheckpointExecutor::new(
+                epoch_store.clone(),
                 self.checkpoint_store.clone(),
                 self.state.clone(),
                 accumulator.clone(),
@@ -1754,10 +1792,7 @@ impl IotaNode {
                     .submit(transaction, None, &cur_epoch_store)?;
             }
 
-            let stop_condition = checkpoint_executor
-                .run_epoch(cur_epoch_store.clone(), run_with_range)
-                .await;
-            drop(checkpoint_executor);
+            let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
 
             if stop_condition == StopReason::RunWithRangeCondition {
                 IotaNode::shutdown(&self).await;
@@ -1832,9 +1867,20 @@ impl IotaNode {
                 &new_epoch_start_state,
             );
 
+            let mut validator_components_lock_guard = self.validator_components.lock().await;
+
             // The following code handles 4 different cases, depending on whether the node
             // was a validator in the previous epoch, and whether the node is a validator
             // in the new epoch.
+            let new_epoch_store = self
+                .reconfigure_state(
+                    &self.state,
+                    &cur_epoch_store,
+                    next_epoch_committee.clone(),
+                    new_epoch_start_state,
+                    accumulator.clone(),
+                )
+                .await?;
 
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_spawn_handle,
@@ -1847,7 +1893,7 @@ impl IotaNode {
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
                 validator_registry_id,
-            }) = self.validator_components.lock().await.take()
+            }) = validator_components_lock_guard.take()
             {
                 info!("Reconfiguring the validator.");
                 // Cancel the old checkpoint service tasks.
@@ -1868,15 +1914,6 @@ impl IotaNode {
                 consensus_manager.shutdown().await;
                 info!("Consensus has shut down.");
 
-                let new_epoch_store = self
-                    .reconfigure_state(
-                        &self.state,
-                        &cur_epoch_store,
-                        next_epoch_committee.clone(),
-                        new_epoch_start_state,
-                        accumulator.clone(),
-                    )
-                    .await?;
                 info!("Epoch store finished reconfiguration.");
 
                 // No other components should be holding a strong reference to state accumulator
@@ -1931,16 +1968,6 @@ impl IotaNode {
                     None
                 }
             } else {
-                let new_epoch_store = self
-                    .reconfigure_state(
-                        &self.state,
-                        &cur_epoch_store,
-                        next_epoch_committee.clone(),
-                        new_epoch_start_state,
-                        accumulator.clone(),
-                    )
-                    .await?;
-
                 // No other components should be holding a strong reference to state accumulator
                 // at this point. Confirm here before we swap in the new accumulator.
                 let accumulator_metrics = Arc::into_inner(accumulator)
@@ -1980,7 +2007,7 @@ impl IotaNode {
                     None
                 }
             };
-            *self.validator_components.lock().await = new_validator_components;
+            *validator_components_lock_guard = new_validator_components;
 
             // Force releasing current epoch store DB handle, because the
             // Arc<AuthorityPerEpochStore> may linger.
@@ -2002,6 +2029,7 @@ impl IotaNode {
                 .await?;
             }
 
+            epoch_store = new_epoch_store;
             info!("Reconfiguration finished");
         }
     }
@@ -2037,6 +2065,15 @@ impl IotaNode {
             })?
             .epoch_supply_change;
 
+        let last_checkpoint_seq = *last_checkpoint.sequence_number();
+
+        assert_eq!(
+            Some(last_checkpoint_seq),
+            self.checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .expect("Error loading highest executed checkpoint sequence number")
+        );
+
         let epoch_start_configuration = EpochStartConfiguration::new(
             next_epoch_start_system_state,
             *last_checkpoint.digest(),
@@ -2055,6 +2092,7 @@ impl IotaNode {
                 accumulator,
                 &self.config.expensive_safety_check_config,
                 epoch_supply_change,
+                last_checkpoint_seq,
             )
             .await
             .expect("Reconfigure authority state cannot fail");
@@ -2078,6 +2116,7 @@ impl IotaNode {
         tx: &Transaction,
         span: tracing::Span,
     ) {
+        let _guard = span.enter();
         let transaction =
             iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
                 iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
@@ -2087,8 +2126,6 @@ impl IotaNode {
             );
         state
             .try_execute_immediately(&transaction, None, epoch_store)
-            .instrument(span)
-            .await
             .unwrap();
     }
 

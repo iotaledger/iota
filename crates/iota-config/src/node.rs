@@ -168,11 +168,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
-    /// Defines a threshold for an object size above which object
-    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
-    #[serde(default)]
-    pub indirect_objects_threshold: usize,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
@@ -688,6 +683,8 @@ impl NodeConfig {
 pub enum ConsensusProtocol {
     #[serde(rename = "mysticeti")]
     Mysticeti,
+    #[serde(rename = "starfish")]
+    Starfish,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -866,7 +863,7 @@ impl ExpensiveSafetyCheckConfig {
 }
 
 fn default_checkpoint_execution_max_concurrency() -> usize {
-    200
+    40
 }
 
 fn default_local_execution_timeout_sec() -> u64 {
@@ -924,6 +921,13 @@ pub struct AuthorityStorePruningConfig {
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
     pub smooth: bool,
+    /// Enables the compaction filter for pruning the objects table.
+    /// If disabled, a range deletion approach is used instead.
+    /// While it is generally safe to switch between the two modes,
+    /// switching from the compaction filter approach back to range deletion
+    /// may result in some old versions that will never be pruned.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub enable_compaction_filter: bool,
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
@@ -962,6 +966,7 @@ impl Default for AuthorityStorePruningConfig {
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             smooth: true,
+            enable_compaction_filter: cfg!(test) || cfg!(msim),
         }
     }
 }
@@ -1458,6 +1463,13 @@ impl RunWithRange {
 
     pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
+    }
+
+    pub fn into_checkpoint_bound(self) -> Option<CheckpointSequenceNumber> {
+        match self {
+            RunWithRange::Epoch(_) => None,
+            RunWithRange::Checkpoint(seq) => Some(seq),
+        }
     }
 }
 

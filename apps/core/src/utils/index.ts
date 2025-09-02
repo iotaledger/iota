@@ -3,7 +3,6 @@
 
 export * from './calculateStakeShare';
 export * from './chunkArray';
-export * from './formatAmount';
 export * from './formatDate';
 export * from './formatPercentageDisplay';
 export * from './getRefGasPrice';
@@ -13,7 +12,6 @@ export * from './persistableStorage';
 export * from './roundFloat';
 export * from './filterAndSortTokenBalances';
 export * from './getOwnerDisplay';
-export * from './parseAmount';
 export * from './parseObjectDetails';
 export * from './getStakeIotaByIotaId';
 export * from './getTokenStakeIotaForValidator';
@@ -31,6 +29,7 @@ export * from './extractMediaFileType';
 export * from './nftMediaUtils';
 export * from './mapTimelockObjects';
 export * from './formatDelegatedTimelockedStake';
+export * from './formatIotaName';
 
 export * from './stake';
 export * from './transaction';

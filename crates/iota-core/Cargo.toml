@@ -14,9 +14,11 @@ workspace = true
 anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
+async-stream.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true
+bincode.workspace = true
 bytes.workspace = true
 count-min-sketch = "0.1.7"
 dashmap.workspace = true
@@ -84,6 +86,8 @@ move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 shared-crypto.workspace = true
+starfish-config.workspace = true
+starfish-core.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

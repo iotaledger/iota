@@ -480,6 +480,7 @@ fn test_timelocked_unstaking() {
 }
 
 #[test]
+#[ignore = "https://github.com/iotaledger/iota/issues/6127"]
 fn get_latest_iota_system_state_v2() {
     let ApiTestSetup {
         runtime,

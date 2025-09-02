@@ -96,7 +96,7 @@ function LeftContent({
     isLegacyAccount?: boolean;
     isMainAccount?: boolean;
 }) {
-    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (

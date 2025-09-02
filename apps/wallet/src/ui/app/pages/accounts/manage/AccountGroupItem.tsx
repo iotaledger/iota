@@ -42,7 +42,7 @@ export function AccountGroupItem({
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
-    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
@@ -71,7 +71,7 @@ export function AccountGroupItem({
         setDialogNicknameOpen(true);
     }
 
-    function handleExportPrivateKey() {
+    function handleExportKeys() {
         navigate(`/accounts/export/${account!.id}`);
     }
 
@@ -168,11 +168,9 @@ export function AccountGroupItem({
                                 <ListItem hideBottomBorder onClick={handleRename}>
                                     Rename
                                 </ListItem>
-                                {account.isKeyPairExportable ? (
-                                    <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
-                                        Export Private Key
-                                    </ListItem>
-                                ) : null}
+                                <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                    Export Account Keys
+                                </ListItem>
                                 {allAccounts.isPending ? null : (
                                     <ListItem hideBottomBorder onClick={handleRemove}>
                                         Delete

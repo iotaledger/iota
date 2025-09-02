@@ -12,6 +12,7 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, Owner},
@@ -157,48 +158,27 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult>;
+        digests: &[TransactionDigest],
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_commit_transaction_outputs`.
-    fn commit_transaction_outputs<'a>(
-        &'a self,
-        epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_commit_transaction_outputs(epoch, digests)
-                .await
-                .expect("storage access failed")
-        })
+    fn commit_transaction_outputs(&self, epoch: EpochId, digests: &[TransactionDigest]) {
+        self.try_commit_transaction_outputs(epoch, digests)
+            .expect("storage access failed");
     }
 
-    /// Durably commit transactions (but not their outputs) to the database.
-    /// Called before writing a locally built checkpoint to the CheckpointStore,
-    /// so that the inputs of the checkpoint cannot be lost.
-    /// These transactions are guaranteed to be final unless this validator
-    /// forks (i.e. constructs a checkpoint which will never be certified). In
-    /// this case some non-final transactions could be left in the database.
-    ///
-    /// This is an intermediate solution until we delay commits to the epoch db.
-    /// After we have done that, crash recovery will be done by
-    /// re-processing consensus commits and pending_consensus_transactions,
-    /// and this method can be removed.
-    fn try_persist_transactions<'a>(
-        &'a self,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult>;
+    /// Durably commit a transaction to the database. Used to store any
+    /// transactions that cannot be reconstructed at start-up by consensus
+    /// replay. Currently the only case of this is RandomnessStateUpdate.
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult;
 
     /// Non-fallible version of `try_persist_transactions`.
-    fn persist_transactions<'a>(&'a self, digests: &'a [TransactionDigest]) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_persist_transactions(digests)
-                .await
-                .expect("storage access failed")
-        })
+    fn persist_transaction(&self, tx: &VerifiedExecutableTransaction) {
+        self.try_persist_transaction(tx)
+            .expect("storage access failed")
     }
 
     // Number of pending uncommitted transactions
@@ -958,41 +938,31 @@ pub trait ExecutionCacheWrite: Send + Sync {
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult>;
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_write_transaction_outputs`.
-    fn write_transaction_outputs(
-        &self,
-        epoch_id: EpochId,
-        tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, ()> {
-        Box::pin(async move {
-            self.try_write_transaction_outputs(epoch_id, tx_outputs)
-                .await
-                .expect("storage access failed")
-        })
+    fn write_transaction_outputs(&self, epoch_id: EpochId, tx_outputs: Arc<TransactionOutputs>) {
+        self.try_write_transaction_outputs(epoch_id, tx_outputs)
+            .expect("storage access failed")
     }
 
     /// Attempt to acquire object locks for all of the owned input locks.
-    fn try_acquire_transaction_locks<'a>(
-        &'a self,
-        epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+    fn try_acquire_transaction_locks(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult>;
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_acquire_transaction_locks`.
-    fn acquire_transaction_locks<'a>(
-        &'a self,
-        epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+    fn acquire_transaction_locks(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
-                .await
-                .expect("storage access failed")
-        })
+    ) {
+        self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
+            .expect("storage access failed")
     }
 }
 

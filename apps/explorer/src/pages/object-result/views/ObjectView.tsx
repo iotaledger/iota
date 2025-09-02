@@ -3,15 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import {
-    capitalize,
-    CoinFormat,
-    resolveNFTMedia,
-    useFormatCoin,
-    useNFTMediaHeaders,
-} from '@iota/core';
+import { capitalize, resolveNFTMedia, useFormatCoin, useNFTMediaHeaders } from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
+    CoinFormat,
     formatAddress,
     formatDigest,
     formatType,
@@ -204,7 +199,7 @@ interface StorageRebateCardProps {
 function StorageRebateCard({ storageRebate }: StorageRebateCardProps): JSX.Element | null {
     const [storageRebateFormatted, symbol] = useFormatCoin({
         balance: storageRebate,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
 
     return (
@@ -301,16 +296,20 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             </div>
             <div className="flex flex-row gap-md">
                 {display && display.link && (
-                    <DisplayStats
-                        label="Link"
-                        value={<Link to={display.link}>{display.link}</Link>}
-                    />
+                    <div className="flex-1">
+                        <DisplayStats
+                            label="Link"
+                            value={<Link to={display.link}>{display.link}</Link>}
+                        />
+                    </div>
                 )}
                 {display && display.project_url && (
-                    <DisplayStats
-                        label="Website"
-                        value={<Link to={display.project_url}>{display.project_url}</Link>}
-                    />
+                    <div className="flex-1">
+                        <DisplayStats
+                            label="Website"
+                            value={<Link to={display.project_url}>{display.project_url}</Link>}
+                        />
+                    </div>
                 )}
             </div>
         </div>

@@ -476,7 +476,6 @@ async fn per_object_congestion_control_mode_is_none() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -550,7 +549,6 @@ async fn max_execution_duration_per_commit_is_none() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -638,7 +636,6 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -856,7 +853,6 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -1008,7 +1004,6 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -1186,8 +1181,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     let deferred_transactions = tester
         .authority_state
         .epoch_store_for_testing()
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+        .get_all_deferred_transactions_for_test();
     assert_eq!(deferred_transactions.len(), 1);
     assert_eq!(deferred_transactions[0].1.len(), 1);
     assert!(matches!(
@@ -1416,7 +1410,6 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -1734,7 +1727,6 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             .authority_state
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 

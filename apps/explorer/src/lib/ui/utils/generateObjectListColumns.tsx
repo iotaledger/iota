@@ -24,7 +24,9 @@ function Asset({ object }: { object: IotaObjectResponse }) {
                 disableVideoControls
                 disableAutoPlay
             />
-            <div className="whitespace-nowrap text-label-lg">{name ? name : '--'}</div>
+            <div className="max-w-[200px]">
+                <span className="block truncate text-label-lg">{name ? name : '--'}</span>
+            </div>
         </div>
     );
 }

@@ -57,13 +57,14 @@ use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::WritebackCacheConfig;
-use iota_macros::fail_point_async;
+use iota_macros::fail_point;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -81,7 +82,7 @@ use super::{
     CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
     TransactionCacheRead,
-    cache_types::{CachedVersionMap, IsNewer, MonotonicCache, Ticket},
+    cache_types::{CacheResult, CachedVersionMap, IsNewer, MonotonicCache, Ticket},
     implement_passthrough_traits,
     object_locks::ObjectLocks,
 };
@@ -94,6 +95,7 @@ use crate::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
+    fallback_fetch::try_do_fallback_lookup,
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
 };
@@ -190,15 +192,6 @@ impl IsNewer for LatestObjectCacheEntry {
 }
 
 type MarkerKey = (EpochId, ObjectID);
-
-enum CacheResult<T> {
-    /// Entry is in the cache
-    Hit(T),
-    /// Entry is not in the cache and is known to not exist
-    NegativeHit,
-    /// Entry is not in the cache and may or may not exist in the store
-    Miss,
-}
 
 /// UncommittedData stores execution outputs that are not yet written to the db.
 /// Entries in this struct can only be purged after they are committed.
@@ -514,14 +507,13 @@ impl WritebackCache {
         std::mem::swap(self, &mut new);
     }
 
-    async fn write_object_entry(
+    fn write_object_entry(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         object: ObjectEntry,
     ) {
         trace!(?object_id, ?version, ?object, "inserting object entry");
-        fail_point_async!("write_object_entry");
         self.metrics.record_cache_write("object");
 
         // We must hold the lock for the object entry while inserting to the
@@ -563,7 +555,7 @@ impl WritebackCache {
         entry.insert(version, object);
     }
 
-    async fn write_marker_value(
+    fn write_marker_value(
         &self,
         epoch_id: EpochId,
         object_key: &ObjectKey,
@@ -574,7 +566,7 @@ impl WritebackCache {
             object_key,
             marker_value
         );
-        fail_point_async!("write_marker_entry");
+        fail_point!("write_marker_entry");
         self.metrics.record_cache_write("marker");
         self.dirty
             .markers
@@ -836,7 +828,7 @@ impl WritebackCache {
     }
 
     #[instrument(level = "debug", skip_all)]
-    async fn write_transaction_outputs(
+    fn write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
@@ -860,33 +852,28 @@ impl WritebackCache {
         // object, instead of the deleted/wrapped tombstone, which would cause
         // an execution fork
         for ObjectKey(id, version) in deleted.iter() {
-            self.write_object_entry(id, *version, ObjectEntry::Deleted)
-                .await;
+            self.write_object_entry(id, *version, ObjectEntry::Deleted);
         }
 
         for ObjectKey(id, version) in wrapped.iter() {
-            self.write_object_entry(id, *version, ObjectEntry::Wrapped)
-                .await;
+            self.write_object_entry(id, *version, ObjectEntry::Wrapped);
         }
 
         // Update all markers
         for (object_key, marker_value) in markers.iter() {
-            self.write_marker_value(epoch_id, object_key, *marker_value)
-                .await;
+            self.write_marker_value(epoch_id, object_key, *marker_value);
         }
 
         // Write children before parents to ensure that readers do not observe a parent
         // object before its most recent children are visible.
         for (object_id, object) in written.iter() {
             if object.is_child_object() {
-                self.write_object_entry(object_id, object.version(), object.clone().into())
-                    .await;
+                self.write_object_entry(object_id, object.version(), object.clone().into());
             }
         }
         for (object_id, object) in written.iter() {
             if !object.is_child_object() {
-                self.write_object_entry(object_id, object.version(), object.clone().into())
-                    .await;
+                self.write_object_entry(object_id, object.version(), object.clone().into());
                 if object.is_package() {
                     debug!("caching package: {:?}", object.compute_object_reference());
                     self.packages
@@ -956,12 +943,12 @@ impl WritebackCache {
 
     // Commits dirty data for the given TransactionDigest to the db.
     #[instrument(level = "debug", skip_all)]
-    async fn commit_transaction_outputs(
+    fn commit_transaction_outputs(
         &self,
         epoch: EpochId,
         digests: &[TransactionDigest],
     ) -> IotaResult {
-        fail_point_async!("writeback-cache-commit");
+        fail_point!("writeback-cache-commit");
         trace!(?digests);
 
         let mut all_outputs = Vec::with_capacity(digests.len());
@@ -988,9 +975,7 @@ impl WritebackCache {
         // Flush writes to disk before removing anything from dirty set. otherwise,
         // a cache eviction could cause a value to disappear briefly, even if we insert
         // to the cache before removing from the dirty set.
-        self.store
-            .write_transaction_outputs(epoch, &all_outputs)
-            .await?;
+        self.store.write_transaction_outputs(epoch, &all_outputs)?;
 
         for outputs in all_outputs.iter() {
             let tx_digest = outputs.transaction.digest();
@@ -1167,34 +1152,6 @@ impl WritebackCache {
         }
     }
 
-    async fn persist_transactions(&self, digests: &[TransactionDigest]) -> IotaResult {
-        let mut txns = Vec::with_capacity(digests.len());
-        for tx_digest in digests {
-            let Some(tx) = self
-                .dirty
-                .pending_transaction_writes
-                .get(tx_digest)
-                .map(|o| o.transaction.clone())
-            else {
-                // tx should exist in the db if it is not in dirty set.
-                debug_assert!(
-                    self.store
-                        .get_transaction_block(tx_digest)
-                        .unwrap()
-                        .is_some()
-                );
-                // If the transaction is not in dirty, it does not need to be committed.
-                // This situation can happen if we build a checkpoint locally which was just
-                // executed via state sync.
-                continue;
-            };
-
-            txns.push((*tx_digest, (*tx).clone()));
-        }
-
-        self.store.commit_transactions(&txns)
-    }
-
     // Move the oldest/least entry from the dirty queue to the cache queue.
     // This is called after the entry is committed to the db.
     fn move_version_from_dirty_to_cache<K, V>(
@@ -1333,19 +1290,16 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
-        WritebackCache::commit_transaction_outputs(self, epoch, digests).boxed()
+        digests: &[TransactionDigest],
+    ) -> IotaResult {
+        WritebackCache::commit_transaction_outputs(self, epoch, digests)
     }
 
-    fn try_persist_transactions<'a>(
-        &'a self,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
-        WritebackCache::persist_transactions(self, digests).boxed()
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
+        self.store.persist_transaction(tx)
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {
@@ -1359,9 +1313,19 @@ impl ObjectCacheRead for WritebackCache {
             .record_cache_request("package", "package_cache");
         if let Some(p) = self.packages.get(package_id) {
             if cfg!(debug_assertions) {
-                if let Some(store_package) = self.store.try_get_object(package_id).unwrap() {
+                let canonical_package = self
+                    .dirty
+                    .objects
+                    .get(package_id)
+                    .and_then(|v| match v.get_highest().map(|v| v.1.clone()) {
+                        Some(ObjectEntry::Object(object)) => Some(object),
+                        _ => None,
+                    })
+                    .or_else(|| self.store.get_object(package_id));
+
+                if let Some(canonical_package) = canonical_package {
                     assert_eq!(
-                        store_package.digest(),
+                        canonical_package.digest(),
                         p.object().digest(),
                         "Package object cache is inconsistent for package {package_id:?}"
                     );
@@ -1427,7 +1391,7 @@ impl ObjectCacheRead for WritebackCache {
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             object_keys,
             |key| {
                 Ok(match self.get_object_by_key_cache_only(&key.0, key.1) {
@@ -1458,7 +1422,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             object_keys,
             |key| {
                 Ok(match self.get_object_by_key_cache_only(&key.0, key.1) {
@@ -1776,7 +1740,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
                 CacheResult::Hit((version, obj)) => {
@@ -1820,7 +1784,7 @@ impl TransactionCacheRead for WritebackCache {
             .iter()
             .map(|d| (*d, self.cached.transactions.get_ticket_for_read(d)))
             .collect();
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -1884,7 +1848,7 @@ impl TransactionCacheRead for WritebackCache {
                 )
             })
             .collect();
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -1944,7 +1908,7 @@ impl TransactionCacheRead for WritebackCache {
             .iter()
             .map(|d| (*d, self.cached.transaction_effects.get_ticket_for_read(d)))
             .collect();
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -2024,7 +1988,7 @@ impl TransactionCacheRead for WritebackCache {
             .iter()
             .map(|d| (*d, self.cached.transaction_events.get_ticket_for_read(d)))
             .collect();
-        do_fallback_lookup(
+        try_do_fallback_lookup(
             &digests_and_tickets,
             |(digest, _)| {
                 self.metrics
@@ -2086,67 +2050,27 @@ impl TransactionCacheRead for WritebackCache {
 }
 
 impl ExecutionCacheWrite for WritebackCache {
-    fn try_acquire_transaction_locks<'a>(
-        &'a self,
-        epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+    fn try_acquire_transaction_locks(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
-        self.object_locks
-            .acquire_transaction_locks(self, epoch_store, owned_input_objects, transaction)
-            .boxed()
+    ) -> IotaResult {
+        self.object_locks.acquire_transaction_locks(
+            self,
+            epoch_store,
+            owned_input_objects,
+            transaction,
+        )
     }
 
     fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult> {
-        WritebackCache::write_transaction_outputs(self, epoch_id, tx_outputs).boxed()
+    ) -> IotaResult {
+        WritebackCache::write_transaction_outputs(self, epoch_id, tx_outputs)
     }
-}
-
-/// do_fallback_lookup is a helper function for multi-get operations.
-/// It takes a list of keys and first attempts to look up each key in the cache.
-/// The cache can return a hit, a miss, or a negative hit (if the object is
-/// known to not exist). Any keys that result in a miss are then looked up in
-/// the store.
-///
-/// The "get from cache" and "get from store" behavior are implemented by the
-/// caller and provided via the get_cached_key and multiget_fallback functions.
-fn do_fallback_lookup<K: Copy, V: Default + Clone>(
-    keys: &[K],
-    get_cached_key: impl Fn(&K) -> IotaResult<CacheResult<V>>,
-    multiget_fallback: impl Fn(&[K]) -> IotaResult<Vec<V>>,
-) -> IotaResult<Vec<V>> {
-    let mut results = vec![V::default(); keys.len()];
-    let mut fallback_keys = Vec::with_capacity(keys.len());
-    let mut fallback_indices = Vec::with_capacity(keys.len());
-
-    for (i, key) in keys.iter().enumerate() {
-        match get_cached_key(key)? {
-            CacheResult::Miss => {
-                fallback_keys.push(*key);
-                fallback_indices.push(i);
-            }
-            CacheResult::NegativeHit => (),
-            CacheResult::Hit(value) => {
-                results[i] = value;
-            }
-        }
-    }
-
-    let fallback_results = multiget_fallback(&fallback_keys)?;
-    assert_eq!(fallback_results.len(), fallback_indices.len());
-    assert_eq!(fallback_results.len(), fallback_keys.len());
-
-    for (i, result) in fallback_indices
-        .into_iter()
-        .zip(fallback_results.into_iter())
-    {
-        results[i] = result;
-    }
-    Ok(results)
 }
 
 implement_passthrough_traits!(WritebackCache);

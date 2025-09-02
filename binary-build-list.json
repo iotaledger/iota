@@ -1,6 +1,6 @@
 {
   "release_binaries": {
-    "iota": ["indexer", "gen-completions", "tracing"],
+    "iota": ["indexer", "iota-names", "gen-completions", "tracing"],
     "iota-node": [],
     "iota-tool": [],
     "iota-faucet": [],

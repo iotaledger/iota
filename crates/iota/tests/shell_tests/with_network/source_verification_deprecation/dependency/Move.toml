@@ -1,6 +1,6 @@
 [package]
 name = "dependency"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 Iota = { local = "FRAMEWORK_DIR", override = true }

@@ -12,13 +12,13 @@ import {
     type TransferAssetExecuteFn,
     useAssetGasBudgetEstimation,
     useFormatCoin,
-    CoinFormat,
     toast,
     type SendNftFormValues,
     RECEIVING_ADDRESS_FIELD_IDS,
     useFeatureEnabledByNetwork,
     Feature,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
 import { useNavigate } from 'react-router-dom';
@@ -51,7 +51,7 @@ function GasBudgetComponent({
     objectType?: string | null;
 }) {
     const { values, isValid } = useFormikContext<SendNftFormValues>();
-    const recipientAddress = isValid ? (values.resolvedAddress ?? values.to ?? '') : '';
+    const recipientAddress = isValid ? values.resolvedAddress || values.to || '' : '';
 
     const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
         objectId,
@@ -61,7 +61,7 @@ function GasBudgetComponent({
     });
     const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     return (
         <KeyValueInfo
@@ -129,7 +129,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
     });
 
     function handleSubmit(values: SendNftFormValues) {
-        const recipient = values.resolvedAddress ?? values.to;
+        const recipient = values.resolvedAddress || values.to;
         transferNFT.mutate(recipient);
     }
 

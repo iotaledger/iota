@@ -1,7 +1,7 @@
 # isc-sdk
 
 Use the `isc-sdk` to construct IOTA transactions that call
-[ISC smart contracts](https://docs.iota.org/iota-evm/references/magic-contract/ISC).
+[ISC smart contracts](https://docs.iota.org/developer/iota-evm/references/magic-contract/ISC).
 
 ### Installation
 

@@ -393,9 +393,8 @@ async fn test_congestion_control_execution_cancellation() {
             &effects,
             authority_state_2.get_object_cache_reader().as_ref(),
         )
-        .await
         .unwrap();
-    let (effects_2, execution_error) = authority_state_2.execute_for_test(&cert).await;
+    let (effects_2, execution_error) = authority_state_2.execute_for_test(&cert);
 
     // Should result in the same cancellation.
     assert_eq!(
