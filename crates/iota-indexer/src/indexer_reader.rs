@@ -18,7 +18,6 @@ use diesel::{
     sql_types::{BigInt, Bool},
 };
 use fastcrypto::encoding::{Encoding, Hex};
-use futures::future::Either;
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
@@ -744,14 +743,14 @@ impl IndexerReader {
         digest: TransactionDigest,
     ) -> IndexerResult<Option<StoredTransaction>> {
         let digest_bytes = digest.inner().to_vec();
-        let checkpointed_tx_future = {
+        let mut checkpointed_tx_future = {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
                 this.get_checkpointed_transactions(&[digest_bytes])
                     .map(|mut txs| txs.pop())
             }))
         };
-        let optimistic_tx_future = {
+        let mut optimistic_tx_future = {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
                 this.get_optimistic_transactions_with_cp_info(&[digest_bytes])
@@ -759,15 +758,14 @@ impl IndexerReader {
             }))
         };
 
-        let result =
-            match futures::future::select(checkpointed_tx_future, optimistic_tx_future).await {
-                Either::Left((checkpointed_tx, optimistic_tx_future)) => match checkpointed_tx? {
+        let result = tokio::select! {
+                checkpointed_tx = &mut checkpointed_tx_future => match checkpointed_tx? {
                     Some(checkpointed_tx) => Some(checkpointed_tx),
                     None => optimistic_tx_future
                         .await?
                         .map(|(optimistic_tx, _)| optimistic_tx.into()),
                 },
-                Either::Right((optimistic_tx_with_cp_info, checkpointed_tx_future)) => {
+                optimistic_tx_with_cp_info = &mut optimistic_tx_future => {
                     match optimistic_tx_with_cp_info? {
                         Some((optimistic_tx, Some(_cp_info))) => Some(
                             checkpointed_tx_future
@@ -778,7 +776,7 @@ impl IndexerReader {
                         None => checkpointed_tx_future.await?,
                     }
                 }
-            };
+        };
 
         Ok(result)
     }

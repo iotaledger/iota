@@ -361,10 +361,9 @@ impl StoredTransaction {
                         })
                         .collect::<Result<Vec<Event>, IndexerError>>()?
             };
-            let timestamp = self.timestamp_ms as u64;
             let tx_events = TransactionEvents { data: events };
 
-            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, Some(timestamp))
+            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp_ms)
                 .await?
         } else {
             None
