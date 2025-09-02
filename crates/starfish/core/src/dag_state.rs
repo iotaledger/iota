@@ -2200,6 +2200,7 @@ mod test {
                 dag_state.add_commit_info(ReputationScores::default());
             }
         }
+        dag_state.update_last_solid_commit_leader_round(5);
 
         // Flush the dag state
         dag_state.flush();
@@ -2861,5 +2862,88 @@ mod test {
                 .build(),
         );
         dag_state.accept_block_header(block_header);
+    }
+
+    #[tokio::test]
+    async fn test_eviction() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        const CACHED_ROUNDS: Round = 5;
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // Create test blocks and commits for round 1 ~ 200
+        let num_rounds: u32 = 200;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        let mut commits = vec![];
+        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            commits.push(commit);
+        }
+
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds));
+        for verified_transactions in dag_builder.transactions(1..=num_rounds).into_iter() {
+            dag_state.add_transactions(verified_transactions);
+        }
+
+        for commit in commits.clone() {
+            dag_state.add_commit(commit.clone());
+        }
+        dag_state.update_last_solid_commit_leader_round(num_rounds);
+
+        // Flush the dag state (eviction is happening inside the flush)
+        dag_state.flush();
+
+        let last_committed_round = dag_state.last_committed_rounds();
+        let expected_committed_rounds = (0..num_authorities)
+            .map(|x| {
+                num_rounds - 1 + (x % (num_authorities) == num_rounds % (num_authorities)) as u32
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(last_committed_round, expected_committed_rounds);
+
+        let mut all_block_headers = dag_state.genesis_block_headers();
+        all_block_headers.extend(dag_builder.block_headers(1..=num_rounds));
+
+        let block_refs = all_block_headers
+            .iter()
+            .map(|block_header| block_header.reference())
+            .collect::<Vec<_>>();
+
+        let result = dag_state
+            .get_cached_block_headers(&block_refs)
+            .into_iter()
+            .filter_map(|b| b)
+            .collect::<Vec<_>>();
+        let expected_block_headers = all_block_headers
+            .into_iter()
+            .filter(|x| {
+                x.round() > last_committed_round[x.author().value()] - CACHED_ROUNDS
+                    || x.round() == GENESIS_ROUND
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(result, expected_block_headers);
+
+        // Collect genesis transactions
+        let mut all_transactions = dag_state
+            .genesis_blocks()
+            .into_iter()
+            .map(|b| b.verified_transactions)
+            .collect::<Vec<_>>();
+
+        // Extend with the rest of the transactions
+        all_transactions.extend(dag_builder.transactions(1..=num_rounds));
+
+        // All transactions should be found in DagState or store.
+        let result = dag_state
+            .get_transactions(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, all_transactions);
     }
 }
