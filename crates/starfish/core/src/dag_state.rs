@@ -2205,6 +2205,10 @@ mod test {
         // Flush the dag state
         dag_state.flush();
 
+        let (commit_ref, commit_info) = dag_state.recover_last_commit_info().unwrap();
+        assert_eq!(commit_ref, commits[1].reference());
+        assert_eq!(commit_info.committed_rounds, [1, 1, 2, 1]);
+
         // Add the rest of the block headers, transaction, and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
