@@ -46,12 +46,6 @@ pub trait ReadStore: ObjectStore {
     /// available for the returned checkpoint.
     fn try_get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint>;
 
-    /// Non-fallible version of `try_get_latest_checkpoint`.
-    fn get_latest_checkpoint(&self) -> VerifiedCheckpoint {
-        self.try_get_latest_checkpoint()
-            .expect("storage access failed")
-    }
-
     /// Get the latest available checkpoint sequence number. This is the
     /// sequence number of the latest executed checkpoint.
     fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {

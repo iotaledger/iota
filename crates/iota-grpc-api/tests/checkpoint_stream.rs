@@ -136,11 +136,6 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
         }
     }
 
-    fn get_latest_checkpoint(&self) -> VerifiedCheckpoint {
-        self.try_get_latest_checkpoint()
-            .expect("storage access failed")
-    }
-
     fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {

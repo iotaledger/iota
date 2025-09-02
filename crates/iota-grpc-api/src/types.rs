@@ -10,8 +10,9 @@ use iota_grpc_types::{
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
-    storage::RestStateReader,
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CertifiedCheckpointSummary,
+    storage::{RestStateReader, error::Kind},
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
@@ -234,7 +235,16 @@ pub struct RestStateReaderAdapter {
 
 impl GrpcStateReader for RestStateReaderAdapter {
     fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
-        Some(*self.inner.get_latest_checkpoint().sequence_number())
+        match self.inner.try_get_latest_checkpoint() {
+            Ok(checkpoint) => Some(*checkpoint.sequence_number()),
+            Err(e) => match e.kind() {
+                // Expected during server initialization when no checkpoints have been executed yet
+                // Return None to indicate service is not ready rather than panicking
+                Kind::Missing => None,
+                // Unexpected storage errors
+                _ => panic!("Unexpected storage error: {e}"),
+            },
+        }
     }
 
     fn get_checkpoint_summary(&self, seq: u64) -> Option<CertifiedCheckpointSummary> {

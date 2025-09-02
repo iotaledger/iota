@@ -34,11 +34,7 @@ async fn setup_test_cluster_and_client() -> (TestCluster, CheckpointClient) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_stream_checkpoints() {
-    let (cluster, mut client) = setup_test_cluster_and_client().await;
-
-    //  Ensures the checkpoint executor is properly initialized and running before
-    // the gRPC streaming
-    cluster.wait_for_checkpoint(0, None).await;
+    let (_cluster, mut client) = setup_test_cluster_and_client().await;
 
     // Request all checkpoints using the higher-level GrpcNodeClient API
     let mut stream = client
@@ -154,11 +150,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_stream_full_checkpoint_data() {
-    let (cluster, mut client) = setup_test_cluster_and_client().await;
-
-    //  Ensures the checkpoint executor is properly initialized and running before
-    // the gRPC streaming
-    cluster.wait_for_checkpoint(0, None).await;
+    let (_cluster, mut client) = setup_test_cluster_and_client().await;
 
     let mut stream = client
         .stream_checkpoints(None, Some(2), true)
