@@ -143,6 +143,7 @@ impl CongestionTracker {
         }
     }
 
+    /// Process effects of all transactions included in a certain checkpoint.
     pub fn process_checkpoint_effects(
         &self,
         transaction_cache_reader: &dyn TransactionCacheRead,
