@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::CheckpointData;
-use iota_types::{base_types::ObjectID, transaction::TransactionDataAPI};
+use iota_types::{
+    base_types::ObjectID, full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI,
+};
 use tokio::sync::Mutex;
 
 use crate::{FileType, handlers::AnalyticsHandler, tables::MoveCallEntry};
