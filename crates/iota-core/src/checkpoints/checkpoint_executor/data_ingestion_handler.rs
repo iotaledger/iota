@@ -2,49 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::Path};
 
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    messages_checkpoint::VerifiedCheckpoint,
     storage::ObjectKey,
 };
 
 use crate::{
-    checkpoints::CheckpointStore,
+    checkpoints::checkpoint_executor::CheckpointExecutionData,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
 
 pub(crate) fn load_checkpoint_data(
-    checkpoint: VerifiedCheckpoint,
+    checkpoint_exec_data: &CheckpointExecutionData,
     object_cache_reader: &dyn ObjectCacheRead,
     transaction_cache_reader: &dyn TransactionCacheRead,
-    checkpoint_store: Arc<CheckpointStore>,
-    transaction_digests: &[TransactionDigest],
 ) -> IotaResult<CheckpointData> {
-    let checkpoint_contents = checkpoint_store
-        .get_checkpoint_contents(&checkpoint.content_digest)?
-        .expect("checkpoint content has to be stored");
-
-    let transactions = transaction_cache_reader
-        .try_multi_get_transaction_blocks(transaction_digests)?
-        .into_iter()
-        .zip(transaction_digests)
-        .map(|(tx, digest)| tx.ok_or(IotaError::TransactionNotFound { digest: *digest }))
-        .collect::<IotaResult<Vec<_>>>()?;
-
-    let effects = transaction_cache_reader
-        .try_multi_get_executed_effects(transaction_digests)?
-        .into_iter()
-        .zip(transaction_digests)
-        .map(|(effects, &digest)| effects.ok_or(IotaError::TransactionNotFound { digest }))
-        .collect::<IotaResult<Vec<_>>>()?;
-
-    let event_digests = effects
+    let event_digests = checkpoint_exec_data
+        .effects
         .iter()
         .flat_map(|fx| fx.events_digest().copied())
         .collect::<Vec<_>>();
@@ -59,8 +38,12 @@ pub(crate) fn load_checkpoint_data(
         .collect::<IotaResult<Vec<_>>>()?;
 
     let events: HashMap<_, _> = event_digests.into_iter().zip(events).collect();
-    let mut full_transactions = Vec::with_capacity(transactions.len());
-    for (tx, fx) in transactions.into_iter().zip(effects) {
+    let mut full_transactions = Vec::with_capacity(checkpoint_exec_data.transactions.len());
+    for (tx, fx) in checkpoint_exec_data
+        .transactions
+        .iter()
+        .zip(checkpoint_exec_data.effects.iter())
+    {
         let events = fx.events_digest().map(|event_digest| {
             events
                 .get(event_digest)
@@ -109,8 +92,8 @@ pub(crate) fn load_checkpoint_data(
             .collect::<IotaResult<Vec<_>>>()?;
 
         let full_transaction = CheckpointTransaction {
-            transaction: (*tx).clone().into(),
-            effects: fx,
+            transaction: (*tx).clone().into_unsigned().into(),
+            effects: fx.clone(),
             events,
             input_objects,
             output_objects,
@@ -118,20 +101,21 @@ pub(crate) fn load_checkpoint_data(
         full_transactions.push(full_transaction);
     }
     let checkpoint_data = CheckpointData {
-        checkpoint_summary: checkpoint.into(),
-        checkpoint_contents,
+        checkpoint_summary: checkpoint_exec_data.checkpoint.clone().into(),
+        checkpoint_contents: checkpoint_exec_data.checkpoint_contents.clone(),
         transactions: full_transactions,
     };
     Ok(checkpoint_data)
 }
 
 pub(crate) fn store_checkpoint_locally(
-    path: PathBuf,
+    path: impl AsRef<Path>,
     checkpoint_data: &CheckpointData,
 ) -> IotaResult {
+    let path = path.as_ref();
     let file_name = format!("{}.chk", checkpoint_data.checkpoint_summary.sequence_number);
 
-    std::fs::create_dir_all(&path).map_err(|err| {
+    std::fs::create_dir_all(path).map_err(|err| {
         IotaError::FileIO(format!(
             "failed to save full checkpoint content locally {err:?}"
         ))

@@ -47,11 +47,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -178,11 +177,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -309,11 +307,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -440,11 +437,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -571,11 +567,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -702,11 +697,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -833,11 +827,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
