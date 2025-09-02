@@ -899,17 +899,12 @@ impl AuthorityState {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            let (kind, signer, _) = tx_data.execution_parts();
-
-            // Make sure the sender is a Move account.
-            let authenticator_info = self.check_move_account(move_authenticator, &signer)?;
-
             // Check the `MoveAuthenticator` input objects.
             //
             // TODO: Since the authenticator input is loaded with a dedicated call, we can
             // load the same object twice if it is presented in the transaction and
             // authenticator inputs.
-            let (authenticator_gas_status, authenticator_input_objects) = self
+            let (authenticator_gas_status, authenticator_input_objects, authenticator_info) = self
                 .check_move_authenticator_inputs_for_signing(
                     move_authenticator,
                     &tx_input_objects,
@@ -918,6 +913,8 @@ impl AuthorityState {
                     reference_gas_price,
                     tx_data,
                 )?;
+
+            let (kind, signer, _) = tx_data.execution_parts();
 
             // Execute the Move authenticator.
             let validation_result = epoch_store.executor().validate_transaction(
@@ -1270,11 +1267,12 @@ impl AuthorityState {
         // TODO: Since the authenticator input is loaded with a dedicated call, we
         // can load the same object twice if it is presented in the transaction and
         // authenticator inputs.
-        let authenticator_input_objects = self.read_authenticator_objects_for_execution(
-            tx_guard.as_lock_guard(),
-            certificate,
-            epoch_store,
-        )?;
+        let (account_object, authenticator_input_objects) = self
+            .read_authenticator_objects_for_execution(
+                tx_guard.as_lock_guard(),
+                certificate,
+                epoch_store,
+            )?;
 
         // If no expected_effects_digest was provided, try to get it from storage.
         // We could be re-executing a previously executed but uncommitted transaction,
@@ -1288,6 +1286,7 @@ impl AuthorityState {
             tx_guard,
             certificate,
             tx_input_objects,
+            account_object,
             authenticator_input_objects,
             expected_effects_digest,
             epoch_store,
@@ -1320,42 +1319,63 @@ impl AuthorityState {
         )
     }
 
-    /// Reads the Move authenticator input objects if a `MoveAuthenticator`
-    /// signature is used in the transaction.
+    /// Reads the `MoveAuthenticator`-related input and account objects if a
+    /// `MoveAuthenticator` signature is used in the transaction.
     pub fn read_authenticator_objects_for_execution(
         &self,
         tx_lock: &CertLockGuard,
         certificate: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<Option<InputObjects>> {
+    ) -> IotaResult<(Option<ObjectReadResult>, Option<InputObjects>)> {
         let _scope = monitored_scope("Execution::load_move_authenticator_input_objects");
         let _metrics_guard = self
             .metrics
             .execution_load_input_objects_latency
             .start_timer();
 
-        let authenticator_input_objects =
-            if let Some(move_authenticator) = certificate.move_authenticator() {
-                // It is supposed that `Move authentication` availability is checked in
-                // `SenderSignedData::validity_check`.
+        let objects = if let Some(move_authenticator) = certificate.move_authenticator() {
+            // It is supposed that `Move authentication` availability is checked in
+            // `SenderSignedData::validity_check`.
 
-                let input_object_kinds = move_authenticator.input_objects();
+            // Load the account object.
+            let account_object = self.input_loader.read_objects_for_execution(
+                epoch_store,
+                // This key is used for resolving transaction shared object versions.
+                // It is supposed that the authenticator shared inputs are also can be
+                // resolved using this key.
+                &certificate.key(),
+                tx_lock,
+                &move_authenticator.object_to_authenticate().input_objects(),
+                epoch_store.epoch(),
+            )?;
 
-                Some(self.input_loader.read_objects_for_execution(
-                    epoch_store,
-                    // This key is used for resolving transaction shared object versions.
-                    // It is supposed that the authenticator shared inputs are also can be
-                    // resolved using this key.
-                    &certificate.key(),
-                    tx_lock,
-                    &input_object_kinds,
-                    epoch_store.epoch(),
-                )?)
-            } else {
-                None
-            };
+            debug_assert!(
+                account_object.len() <= 1,
+                "Only one account object must be loaded or none if the `object_to_authenticate` type is not supported"
+            );
 
-        Ok(authenticator_input_objects)
+            let account_object = account_object.iter().next().cloned();
+
+            // Load the `MoveAuthenticator` input objects.
+            let input_object_kinds = move_authenticator.input_objects();
+
+            let input_objects = self.input_loader.read_objects_for_execution(
+                epoch_store,
+                // This key is used for resolving transaction shared object versions.
+                // It is supposed that the authenticator shared inputs are also can be
+                // resolved using this key.
+                &certificate.key(),
+                tx_lock,
+                &input_object_kinds,
+                epoch_store.epoch(),
+            )?;
+
+            (account_object, Some(input_objects))
+        } else {
+            (None, None)
+        };
+
+        Ok(objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -1441,6 +1461,7 @@ impl AuthorityState {
         tx_guard: CertTxGuard,
         certificate: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
+        account_object: Option<ObjectReadResult>,
         authenticator_input_objects: Option<InputObjects>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1490,6 +1511,7 @@ impl AuthorityState {
             &execution_guard,
             certificate,
             tx_input_objects,
+            account_object,
             authenticator_input_objects,
             epoch_store,
         ) {
@@ -1716,6 +1738,7 @@ impl AuthorityState {
         _execution_guard: &ExecutionLockReadGuard<'_>,
         certificate: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
+        account_object: Option<ObjectReadResult>,
         authenticator_input_objects: Option<InputObjects>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(
@@ -1754,7 +1777,8 @@ impl AuthorityState {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            let authenticator_info = self.check_move_account(move_authenticator, &signer)?;
+            let authenticator_info =
+                self.check_move_account(move_authenticator, account_object, &signer)?;
 
             let authenticator_input_objects = authenticator_input_objects.expect(
                 "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
@@ -1874,6 +1898,7 @@ impl AuthorityState {
             &execution_guard,
             certificate,
             input_objects,
+            None,
             None,
             epoch_store,
         )
@@ -5058,6 +5083,7 @@ impl AuthorityState {
             &executable_tx,
             input_objects,
             None,
+            None,
             epoch_store,
         )?;
         let system_obj = get_iota_system_state(&temporary_store.written)
@@ -5171,10 +5197,35 @@ impl AuthorityState {
     fn check_move_account(
         &self,
         authenticator: &MoveAuthenticator,
+        account_object: Option<ObjectReadResult>,
         signer: &IotaAddress,
     ) -> IotaResult<AuthenticatorInfo> {
+        // Check basic `object_to_authenticate` preconditions and get its components.
         let (account_object_id, account_object_seq_number, account_object_digest) =
             authenticator.object_to_authenticate_components()?;
+
+        // Since the `object_to_authenticate` components are provided, it is supposed
+        // that the account object is loaded.
+        let account_object = account_object.expect("Account object must be provided");
+
+        let account_object = match account_object.object {
+            ObjectReadResultKind::Object(object) => Ok(object),
+            ObjectReadResultKind::DeletedSharedObject(version, digest) => {
+                Err(UserInputError::AccountObjectDeleted {
+                    account_id: account_object.id(),
+                    account_version: version,
+                    transaction_digest: digest,
+                })
+            }
+            // It is impossible to check the account object because it is used in a canceled
+            // transaction and is not loaded.
+            ObjectReadResultKind::CancelledTransactionSharedObject(version) => {
+                Err(UserInputError::AccountObjectInCanceledTransaction {
+                    account_id: account_object.id(),
+                    account_version: version,
+                })
+            }
+        }?;
 
         let account_object_addr = IotaAddress::from(account_object_id);
 
@@ -5186,82 +5237,74 @@ impl AuthorityState {
             .into()
         );
 
-        let account_object = self.get_object_read(&account_object_id)?;
+        fp_ensure!(
+            account_object.is_shared() || account_object.is_immutable(),
+            UserInputError::AccountObjectNotSupported {
+                object_id: account_object_id
+            }
+            .into()
+        );
 
-        match account_object {
-            ObjectRead::Exists(_, object, _) => {
+        let account_object_seq_number =
+            if let Some(account_object_seq_number) = account_object_seq_number {
+                let account_object_version = account_object.version();
+
                 fp_ensure!(
-                    object.is_shared() || object.is_immutable(),
-                    UserInputError::AccountObjectNotSupported {
-                        object_id: account_object_id
+                    account_object_version == account_object_seq_number,
+                    UserInputError::AccountObjectVersionMismatch {
+                        object_id: account_object_id,
+                        expected_version: account_object_seq_number,
+                        actual_version: account_object_version,
                     }
                     .into()
                 );
 
-                if let Some(account_object_seq_number) = account_object_seq_number {
-                    fp_ensure!(
-                        object.version() == account_object_seq_number,
-                        UserInputError::AccountObjectVersionMismatch {
-                            object_id: account_object_id,
-                            expected_version: account_object_seq_number,
-                            actual_version: object.version(),
-                        }
-                        .into()
-                    );
-                }
+                account_object_seq_number
+            } else {
+                account_object.version()
+            };
 
-                if let Some(account_object_digest) = account_object_digest {
-                    let expected_digest = object.digest();
-                    fp_ensure!(
-                        expected_digest == account_object_digest,
-                        UserInputError::InvalidAccountObjectDigest {
-                            object_id: account_object_id,
-                            expected_digest,
-                            actual_digest: account_object_digest,
-                        }
-                        .into()
-                    );
-                }
-
-                let authenticator_id = self.get_dynamic_field_object_id(
-                    account_object_id,
-                    AuthenticatorInfo::tag().into(),
-                    AUTHENTICATOR_DF_NAME.as_bytes(),
-                )?;
-
-                match authenticator_id {
-                    Some(authenticator_id) => {
-                        let authenticator_info = self.get_object_read(&authenticator_id)?;
-
-                        match authenticator_info {
-                            ObjectRead::Exists(_, object, _) => AuthenticatorInfo::try_from(object),
-                            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
-                                Err(UserInputError::MoveAuthenticatorNotFound {
-                                    authenticator_object_id: authenticator_id,
-                                    account_object_id,
-                                }
-                                .into())
-                            }
-                        }
-                    }
-                    None => {
-                        Err(
-                            UserInputError::UnableToGetMoveAuthenticatorId { account_object_id }
-                                .into(),
-                        )
-                    }
-                }
-            }
-            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
-                Err(UserInputError::AccountObjectNotFound {
+        if let Some(account_object_digest) = account_object_digest {
+            let expected_digest = account_object.digest();
+            fp_ensure!(
+                expected_digest == account_object_digest,
+                UserInputError::InvalidAccountObjectDigest {
                     object_id: account_object_id,
+                    expected_digest,
+                    actual_digest: account_object_digest,
+                }
+                .into()
+            );
+        }
+
+        let authenticator_id = self.get_dynamic_field_object_id(
+            account_object_id,
+            AuthenticatorInfo::tag().into(),
+            AUTHENTICATOR_DF_NAME.as_bytes(),
+        )?;
+
+        if let Some(authenticator_id) = authenticator_id {
+            let authenticator_info = self
+                .get_object_cache_reader()
+                .try_find_object_lt_or_eq_version(authenticator_id, account_object_seq_number)?;
+
+            if let Some(authenticator_info) = authenticator_info {
+                AuthenticatorInfo::try_from(authenticator_info)
+            } else {
+                Err(UserInputError::MoveAuthenticatorNotFound {
+                    authenticator_object_id: authenticator_id,
+                    account_object_id,
+                    account_object_version: account_object_seq_number,
                 }
                 .into())
             }
+        } else {
+            Err(UserInputError::UnableToGetMoveAuthenticatorId { account_object_id }.into())
         }
     }
 
-    /// Checks the `MoveAuthenticator` inputs for signing.
+    /// Checks the `MoveAuthenticator` inputs for signing including the related
+    /// account object.
     fn check_move_authenticator_inputs_for_signing(
         &self,
         move_authenticator: &MoveAuthenticator,
@@ -5270,7 +5313,43 @@ impl AuthorityState {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
-    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, AuthenticatorInfo)> {
+        let digest = transaction.digest();
+        let signer = transaction.sender();
+
+        let epoch = epoch_store.epoch();
+
+        // Load the account object.
+        let (account_object, object_to_authenticate_receiving) =
+            self.input_loader.read_objects_for_signing(
+                Some(&digest),
+                &move_authenticator.object_to_authenticate().input_objects(),
+                &Vec::new(),
+                epoch,
+            )?;
+
+        debug_assert!(
+            object_to_authenticate_receiving.objects.is_empty(),
+            "Move authenticator receiving objects loaded for transaction {:?}, that is not expected {:?}",
+            transaction.digest(),
+            object_to_authenticate_receiving
+                .objects
+                .iter()
+                .map(|o| o.object_ref)
+                .collect::<Vec<_>>()
+        );
+
+        debug_assert!(
+            account_object.len() <= 1,
+            "Only one account object must be loaded or none if the `object_to_authenticate` type is not supported"
+        );
+
+        let account_object = account_object.iter().next().cloned();
+
+        // Make sure the sender is a Move account.
+        let authenticator_info =
+            self.check_move_account(move_authenticator, account_object, &signer)?;
+
         // Load the `MoveAuthenticator` input objects.
         let authenticator_input_object_kinds = move_authenticator.input_objects();
         let authenticator_receiving_objects_refs = move_authenticator.receiving_objects();
@@ -5288,10 +5367,10 @@ impl AuthorityState {
         // different inputs but the same transaction digest.
         let (authenticator_input_objects, authenticator_receiving_objects) =
             self.input_loader.read_objects_for_signing(
-                Some(&transaction.digest()),
+                Some(&digest),
                 &authenticator_input_object_kinds,
                 &Vec::new(),
-                epoch_store.epoch(),
+                epoch,
             )?;
 
         debug_assert!(
@@ -5311,16 +5390,19 @@ impl AuthorityState {
         // not a part of the transaction data.
         let authenticator_gas_budget = protocol_config.max_auth_gas();
 
-        iota_transaction_checks::check_move_authenticator_input(
-            protocol_config,
-            reference_gas_price,
-            transaction.gas(),
-            authenticator_gas_budget,
-            transaction.gas_budget(),
-            transaction.gas_price(),
-            authenticator_input_objects,
-            tx_input_objects,
-        )
+        let (gas_status, checked_input_objects) =
+            iota_transaction_checks::check_move_authenticator_input(
+                protocol_config,
+                reference_gas_price,
+                transaction.gas(),
+                authenticator_gas_budget,
+                transaction.gas_budget(),
+                transaction.gas_price(),
+                authenticator_input_objects,
+                tx_input_objects,
+            )?;
+
+        Ok((gas_status, checked_input_objects, authenticator_info))
     }
 
     /// Checks the `MoveAuthenticator` inputs for executing.

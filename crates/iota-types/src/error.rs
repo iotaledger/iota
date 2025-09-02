@@ -319,8 +319,21 @@ pub enum UserInputError {
     InvalidIdentifier { error: String },
 
     // `MoveAuthenticator` related errors
-    #[error("Account object {object_id:?} not found")]
-    AccountObjectNotFound { object_id: ObjectID },
+    #[error(
+        "Account object {account_id:?} with version {account_version:?} was deleted in transaction {transaction_digest:?}"
+    )]
+    AccountObjectDeleted {
+        account_id: ObjectID,
+        account_version: SequenceNumber,
+        transaction_digest: TransactionDigest,
+    },
+    #[error(
+        "Account object {account_id:?} with version {account_version:?} is used in a canceled transaction"
+    )]
+    AccountObjectInCanceledTransaction {
+        account_id: ObjectID,
+        account_version: SequenceNumber,
+    },
     #[error("Account object {object_id:?} is not a shared or immutable object that is unsupported")]
     AccountObjectNotSupported { object_id: ObjectID },
     #[error(
@@ -341,11 +354,12 @@ pub enum UserInputError {
     },
 
     #[error(
-        "Move authenticator object {authenticator_object_id:?} not found for account {account_object_id:?}"
+        "Move authenticator object {authenticator_object_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
     )]
     MoveAuthenticatorNotFound {
         authenticator_object_id: ObjectID,
         account_object_id: ObjectID,
+        account_object_version: SequenceNumber,
     },
     #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },

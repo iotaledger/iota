@@ -2411,13 +2411,19 @@ impl<S> Envelope<SenderSignedData, S> {
         self.shared_input_objects().next().is_some()
     }
 
+    /// Returns an iterator over all shared input objects related to this
+    /// transaction, including those from the `MoveAuthenticator` if any.
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         // Add the Move authenticator shared objects if any.
-        //
-        // TODO: Make sure this is correct.
         let authenticator_shared_objects =
             if let Some(move_authenticator) = self.move_authenticator() {
-                move_authenticator.shared_objects().into_iter()
+                move_authenticator
+                    .shared_objects()
+                    .into_iter()
+                    // Add `object_to_authenticate` if it is a shared object.
+                    .chain(move_authenticator.object_to_authenticate().shared_objects())
+                    .collect::<Vec<_>>()
+                    .into_iter()
             } else {
                 Vec::new().into_iter()
             };
