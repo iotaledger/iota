@@ -2722,16 +2722,22 @@ mod test {
 
         // WHEN no block headers exist, then genesis should be returned
         {
-            let genesis = genesis_block_headers(context.clone());
-            let my_genesis = genesis
+            let genesis_headers = genesis_block_headers(context.clone());
+            let my_genesis_header = genesis_headers
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
 
             assert_eq!(
                 dag_state.read().get_last_proposed_block_header(),
-                my_genesis
+                my_genesis_header
             );
+            let genesis_blocks = genesis_blocks(context.clone());
+            let my_genesis_block = genesis_blocks
+                .into_iter()
+                .find(|block| block.author() == context.own_index)
+                .unwrap();
+            assert_eq!(dag_state.read().get_last_proposed_block(), my_genesis_block);
         }
 
         // WHEN adding some block headers for authorities, only the last ones should be
@@ -2916,7 +2922,7 @@ mod test {
         let result = dag_state
             .get_cached_block_headers(&block_refs)
             .into_iter()
-            .filter_map(|b| b)
+            .flatten()
             .collect::<Vec<_>>();
         let expected_block_headers = all_block_headers
             .into_iter()
