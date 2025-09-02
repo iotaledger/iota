@@ -2255,6 +2255,12 @@ mod test {
             dag_builder.last_committed_rounds.clone()
         );
 
+        // Check the last proposed block
+        assert_eq!(
+            dag_state.get_last_proposed_block(),
+            dag_builder.blocks(num_rounds..=num_rounds)[0].clone()
+        );
+
         // Destroy the dag state.
         drop(dag_state);
 
@@ -2281,6 +2287,12 @@ mod test {
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, vec_transactions);
+
+        // The last proposed block should be from the round 5
+        assert_eq!(
+            dag_state.get_last_proposed_block(),
+            dag_builder.blocks(5..=5)[0].clone()
+        );
 
         // Block headers and transactions above round 5 should not be in DagState,
         // because they are not flushed.
