@@ -64,7 +64,6 @@ function BalanceChangePanel({
                         value={
                             <NamedAddressTooltip name={name} address={owner}>
                                 <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                    {name || formatAddress(owner)}
                                     {formatIotaName(name) || formatAddress(owner)}
                                 </ExplorerLink>
                             </NamedAddressTooltip>
