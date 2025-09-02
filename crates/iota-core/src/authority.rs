@@ -1777,8 +1777,24 @@ impl AuthorityState {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            let authenticator_info =
-                self.check_move_account(move_authenticator, account_object, &signer)?;
+            // Check basic `object_to_authenticate` preconditions and get its components.
+            let (
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+            ) = move_authenticator.object_to_authenticate_components()?;
+
+            // Since the `object_to_authenticate` components are provided, it is supposed
+            // that the account object is loaded.
+            let account_object = account_object.expect("Account object must be provided");
+
+            let authenticator_info = self.check_move_account(
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+                account_object,
+                &signer,
+            )?;
 
             let authenticator_input_objects = authenticator_input_objects.expect(
                 "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
@@ -5196,18 +5212,12 @@ impl AuthorityState {
     /// account-related `AuthenticatorInfo` object.
     fn check_move_account(
         &self,
-        authenticator: &MoveAuthenticator,
-        account_object: Option<ObjectReadResult>,
+        auth_account_object_id: ObjectID,
+        auth_account_object_seq_number: Option<SequenceNumber>,
+        auth_account_object_digest: Option<ObjectDigest>,
+        account_object: ObjectReadResult,
         signer: &IotaAddress,
     ) -> IotaResult<AuthenticatorInfo> {
-        // Check basic `object_to_authenticate` preconditions and get its components.
-        let (account_object_id, account_object_seq_number, account_object_digest) =
-            authenticator.object_to_authenticate_components()?;
-
-        // Since the `object_to_authenticate` components are provided, it is supposed
-        // that the account object is loaded.
-        let account_object = account_object.expect("Account object must be provided");
-
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
             ObjectReadResultKind::DeletedSharedObject(version, digest) => {
@@ -5227,7 +5237,7 @@ impl AuthorityState {
             }
         }?;
 
-        let account_object_addr = IotaAddress::from(account_object_id);
+        let account_object_addr = IotaAddress::from(auth_account_object_id);
 
         fp_ensure!(
             signer == &account_object_addr,
@@ -5240,45 +5250,45 @@ impl AuthorityState {
         fp_ensure!(
             account_object.is_shared() || account_object.is_immutable(),
             UserInputError::AccountObjectNotSupported {
-                object_id: account_object_id
+                object_id: auth_account_object_id
             }
             .into()
         );
 
-        let account_object_seq_number =
-            if let Some(account_object_seq_number) = account_object_seq_number {
+        let auth_account_object_seq_number =
+            if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
                 let account_object_version = account_object.version();
 
                 fp_ensure!(
-                    account_object_version == account_object_seq_number,
+                    account_object_version == auth_account_object_seq_number,
                     UserInputError::AccountObjectVersionMismatch {
-                        object_id: account_object_id,
-                        expected_version: account_object_seq_number,
+                        object_id: auth_account_object_id,
+                        expected_version: auth_account_object_seq_number,
                         actual_version: account_object_version,
                     }
                     .into()
                 );
 
-                account_object_seq_number
+                auth_account_object_seq_number
             } else {
                 account_object.version()
             };
 
-        if let Some(account_object_digest) = account_object_digest {
+        if let Some(auth_account_object_digest) = auth_account_object_digest {
             let expected_digest = account_object.digest();
             fp_ensure!(
-                expected_digest == account_object_digest,
+                expected_digest == auth_account_object_digest,
                 UserInputError::InvalidAccountObjectDigest {
-                    object_id: account_object_id,
+                    object_id: auth_account_object_id,
                     expected_digest,
-                    actual_digest: account_object_digest,
+                    actual_digest: auth_account_object_digest,
                 }
                 .into()
             );
         }
 
         let authenticator_id = self.get_dynamic_field_object_id(
-            account_object_id,
+            auth_account_object_id,
             AuthenticatorInfo::tag().into(),
             AUTHENTICATOR_DF_NAME.as_bytes(),
         )?;
@@ -5286,20 +5296,26 @@ impl AuthorityState {
         if let Some(authenticator_id) = authenticator_id {
             let authenticator_info = self
                 .get_object_cache_reader()
-                .try_find_object_lt_or_eq_version(authenticator_id, account_object_seq_number)?;
+                .try_find_object_lt_or_eq_version(
+                    authenticator_id,
+                    auth_account_object_seq_number,
+                )?;
 
             if let Some(authenticator_info) = authenticator_info {
                 AuthenticatorInfo::try_from(authenticator_info)
             } else {
                 Err(UserInputError::MoveAuthenticatorNotFound {
                     authenticator_object_id: authenticator_id,
-                    account_object_id,
-                    account_object_version: account_object_seq_number,
+                    account_object_id: auth_account_object_id,
+                    account_object_version: auth_account_object_seq_number,
                 }
                 .into())
             }
         } else {
-            Err(UserInputError::UnableToGetMoveAuthenticatorId { account_object_id }.into())
+            Err(UserInputError::UnableToGetMoveAuthenticatorId {
+                account_object_id: auth_account_object_id,
+            }
+            .into())
         }
     }
 
@@ -5318,6 +5334,10 @@ impl AuthorityState {
         let signer = transaction.sender();
 
         let epoch = epoch_store.epoch();
+
+        // Check basic `object_to_authenticate` preconditions and get its components.
+        let (auth_account_object_id, auth_account_object_seq_number, auth_account_object_digest) =
+            move_authenticator.object_to_authenticate_components()?;
 
         // Load the account object.
         let (account_object, object_to_authenticate_receiving) =
@@ -5340,15 +5360,26 @@ impl AuthorityState {
         );
 
         debug_assert!(
-            account_object.len() <= 1,
-            "Only one account object must be loaded or none if the `object_to_authenticate` type is not supported"
+            account_object.len() == 1,
+            "Only one account object must be loaded"
         );
 
-        let account_object = account_object.iter().next().cloned();
+        // Since the `object_to_authenticate` components are provided, it is supposed
+        // that the account object is loaded.
+        let account_object = account_object
+            .iter()
+            .next()
+            .cloned()
+            .expect("Account object must be loaded");
 
         // Make sure the sender is a Move account.
-        let authenticator_info =
-            self.check_move_account(move_authenticator, account_object, &signer)?;
+        let authenticator_info = self.check_move_account(
+            auth_account_object_id,
+            auth_account_object_seq_number,
+            auth_account_object_digest,
+            account_object,
+            &signer,
+        )?;
 
         // Load the `MoveAuthenticator` input objects.
         let authenticator_input_object_kinds = move_authenticator.input_objects();
