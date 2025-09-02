@@ -6,27 +6,27 @@ processed 10 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-18:
+task 1, lines 9-19:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 4605600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4598000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 19-22:
+task 2, lines 20-23:
 //# programmable --inputs 0u8
 //> test::m::take_b(Input(0), Input(1))
 // input out of bounds
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(0) } }
 
-task 3, lines 23-26:
+task 3, lines 24-27:
 //# programmable --inputs 0u8
 //> test::m::take_b(Input(0), Input(100))
 // result out of bounds at len
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 100
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 100 } }, source: None, command: Some(0) } }
 
-task 4, lines 27-31:
+task 4, lines 28-32:
 //# programmable
 //> test::m::a();
 //> test::m::take_b(Result(0), Result(1))
@@ -34,7 +34,7 @@ task 4, lines 27-31:
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
 
-task 5, lines 32-36:
+task 5, lines 33-37:
 //# programmable
 //> test::m::a();
 //> test::m::take_b(Result(0), Result(5123))
@@ -42,7 +42,7 @@ task 5, lines 32-36:
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 5123
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 5123 } }, source: None, command: Some(1) } }
 
-task 6, lines 37-42:
+task 6, lines 38-43:
 //# programmable
 //> test::m::a();
 //> test::m::a2();
@@ -51,7 +51,7 @@ task 6, lines 37-42:
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 2
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 2 } }, source: None, command: Some(2) } }
 
-task 7, lines 43-48:
+task 7, lines 44-49:
 //# programmable
 //> test::m::a();
 //> test::m::a2();
@@ -60,7 +60,7 @@ task 7, lines 43-48:
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 115
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 115 } }, source: None, command: Some(2) } }
 
-task 8, lines 49-54:
+task 8, lines 50-55:
 //# programmable
 //> test::m::a();
 //> test::m::a2();
@@ -69,7 +69,7 @@ task 8, lines 49-54:
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds secondary access to result vector 1 at secondary index 2
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: SecondaryIndexOutOfBounds { result_idx: 1, secondary_idx: 2 } }, source: None, command: Some(2) } }
 
-task 9, lines 55-58:
+task 9, lines 56-59:
 //# programmable
 //> test::m::a();
 //> test::m::a2();

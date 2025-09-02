@@ -50,5 +50,5 @@ task 7, lines 44-46:
 //# programmable --sender A --inputs @A
 //> TransferObjects([Gas], Input(0));
 //> test::m1::t1<iota::coin::Coin<iota::iota::IOTA>>(Gas)
-Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue }, source: None, command: Some(1) } }
