@@ -743,17 +743,17 @@ impl IndexerReader {
         digest: TransactionDigest,
     ) -> IndexerResult<Option<StoredTransaction>> {
         let digest_bytes = digest.inner().to_vec();
-        let mut checkpointed_tx_future = {
-            let digest_bytes = digest_bytes.clone();
-            Box::pin(self.spawn_blocking(move |this| {
-                this.get_checkpointed_transactions(&[digest_bytes])
-                    .map(|mut txs| txs.pop())
-            }))
-        };
         let mut optimistic_tx_future = {
             let digest_bytes = digest_bytes.clone();
             Box::pin(self.spawn_blocking(move |this| {
                 this.get_optimistic_transactions_with_cp_info(&[digest_bytes])
+                    .map(|mut txs| txs.pop())
+            }))
+        };
+        let mut checkpointed_tx_future = {
+            let digest_bytes = digest_bytes.clone();
+            Box::pin(self.spawn_blocking(move |this| {
+                this.get_checkpointed_transactions(&[digest_bytes])
                     .map(|mut txs| txs.pop())
             }))
         };
