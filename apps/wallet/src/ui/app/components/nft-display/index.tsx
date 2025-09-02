@@ -55,20 +55,22 @@ export function NFTDisplayCard({
     return (
         <div className={nftDisplayCardStyles({ isHoverable, wideView })}>
             <Loading loading={isPending}>
-                <div className="flex w-full max-w-[172px] flex-col items-center gap-xs">
-                    {objectData?.data && isOwnerToken ? (
-                        <KioskTile object={objectData} address={address} />
-                    ) : (
-                        <NFTMediaDisplayCard
-                            title={nftName}
-                            src={nftMeta?.imageUrl}
-                            isHoverable={isHoverable ?? false}
-                            icon={icon}
-                            onIconClick={onIconClick}
-                        />
-                    )}
+                <div className="flex w-full flex-col items-center gap-xs">
+                    <div className="max-w-[172px]">
+                        {objectData?.data && isOwnerToken ? (
+                            <KioskTile object={objectData} address={address} />
+                        ) : (
+                            <NFTMediaDisplayCard
+                                title={nftName}
+                                src={nftMeta?.imageUrl}
+                                isHoverable={isHoverable ?? false}
+                                icon={icon}
+                                onIconClick={onIconClick}
+                            />
+                        )}
+                    </div>
                     {wideView && (
-                        <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
+                        <span className="max-w-full break-words text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                             {nftName}
                         </span>
                     )}
