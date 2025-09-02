@@ -183,6 +183,13 @@ pub enum UserInputError {
     InvalidGasObject { object_id: ObjectID },
     #[error("Gas object does not have enough balance to cover minimal gas spend")]
     InsufficientBalanceToCoverMinimalGas,
+    #[error(
+        "Computation budget {computation_budget:?} is less then gas spent for authentication {gas_spent_for_authentication:?}"
+    )]
+    ComputationBudgetLessThenGasSpentForAuthentication {
+        computation_budget: u64,
+        gas_spent_for_authentication: u64,
+    },
 
     #[error(
         "Could not find the referenced object {:?} as the asked version {:?} is higher than the latest {:?}",
@@ -311,10 +318,70 @@ pub enum UserInputError {
     #[error("Invalid identifier found in the transaction: {error}")]
     InvalidIdentifier { error: String },
 
+    // `MoveAuthenticator` related errors
     #[error(
-        "Authenticator input objects should be either shared or immutable. However, this object is neither shared nor immutable : {object_id}"
+        "Account object {account_id:?} with version {account_version:?} was deleted in transaction {transaction_digest:?}"
     )]
-    ImmutableOrSharedObjectsExpected { object_id: String },
+    AccountObjectDeleted {
+        account_id: ObjectID,
+        account_version: SequenceNumber,
+        transaction_digest: TransactionDigest,
+    },
+    #[error(
+        "Account object {account_id:?} with version {account_version:?} is used in a canceled transaction"
+    )]
+    AccountObjectInCanceledTransaction {
+        account_id: ObjectID,
+        account_version: SequenceNumber,
+    },
+    #[error("Account object {object_id:?} is not a shared or immutable object that is unsupported")]
+    AccountObjectNotSupported { object_id: ObjectID },
+    #[error(
+        "The fetched account object version {actual_version:?} does not match the expected version {expected_version:?}, object id: {object_id:?}"
+    )]
+    AccountObjectVersionMismatch {
+        object_id: ObjectID,
+        expected_version: SequenceNumber,
+        actual_version: SequenceNumber,
+    },
+    #[error(
+        "The fetched account object digest {actual_digest:?} does not match the expected digest {expected_digest:?}, object id: {object_id:?}"
+    )]
+    InvalidAccountObjectDigest {
+        object_id: ObjectID,
+        expected_digest: ObjectDigest,
+        actual_digest: ObjectDigest,
+    },
+
+    #[error(
+        "Move authenticator object {authenticator_object_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
+    )]
+    MoveAuthenticatorNotFound {
+        authenticator_object_id: ObjectID,
+        account_object_id: ObjectID,
+        account_object_version: SequenceNumber,
+    },
+    #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
+    UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
+
+    #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
+    PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
+    #[error(
+        "Address-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Object-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Mutable shared object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Receiving objects {receiving_objects:?} are in the `MoveAuthenticator` input that is unsupported"
+    )]
+    ReceivingObjectsIsInMoveAuthenticatorInput { receiving_objects: Vec<ObjectRef> },
 }
 
 #[derive(
@@ -481,6 +548,9 @@ pub enum IotaError {
 
     #[error("Unexpected message.")]
     UnexpectedMessage,
+
+    #[error("Failed to execute the Move authenticator, reason: {error:?}.")]
+    MoveAuthenticatorExecutionFailure { error: String },
 
     // Move module publishing related errors
     #[error("Failed to verify the Move module, reason: {error:?}.")]

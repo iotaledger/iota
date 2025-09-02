@@ -114,6 +114,10 @@ impl GenericSignature {
         matches!(self, GenericSignature::MultiSig(_))
     }
 
+    pub fn is_move_authenticator(&self) -> bool {
+        matches!(self, GenericSignature::MoveAuthenticator(_))
+    }
+
     pub fn verify_authenticator<T>(
         &self,
         value: &IntentMessage<T>,

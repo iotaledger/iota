@@ -207,11 +207,14 @@ impl SingleValidator {
         let executable = VerifiedExecutableTransaction::new_from_certificate(
             VerifiedCertificate::new_unchecked(transaction),
         );
+        // `MoveAuthenticator` is not supported here.
+        let authenticator_computation_cost = 0;
         let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             &executable,
             objects,
             self.epoch_store.protocol_config(),
             self.epoch_store.reference_gas_price(),
+            authenticator_computation_cost,
         )
         .unwrap();
         let (kind, signer, gas) = executable.transaction_data().execution_parts();

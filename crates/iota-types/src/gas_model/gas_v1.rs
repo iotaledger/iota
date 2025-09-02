@@ -252,23 +252,20 @@ mod checked {
 
         pub(crate) fn new_with_budget(
             gas_budget: u64,
+            gas_spent_for_authentication: u64,
             gas_price: u64,
             reference_gas_price: u64,
             config: &ProtocolConfig,
         ) -> IotaGasStatus {
             let storage_gas_price = config.storage_gas_price();
-            let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
-            let computation_budget = if gas_budget > max_computation_budget {
-                max_computation_budget
-            } else {
-                gas_budget
-            };
+            let computation_budget = computation_budget(gas_budget, gas_price, config);
             let iota_cost_table = IotaCostTable::new(config, gas_price);
             let gas_rounding_step = config.gas_rounding_step_as_option();
             Self::new(
                 GasStatus::new(
                     iota_cost_table.execution_cost_table.clone(),
                     computation_budget,
+                    gas_spent_for_authentication,
                     gas_price,
                     config.gas_model_version(),
                 ),
@@ -465,6 +462,10 @@ mod checked {
             self.gas_status.gas_used_pre_gas_price()
         }
 
+        fn gas_used_for_authentication(&self) -> u64 {
+            self.gas_status.gas_spent_for_authentication_pre_gas_price()
+        }
+
         fn reset_storage_cost_and_rebate(&mut self) {
             self.per_object_storage = Vec::new();
             self.unmetered_storage_rebate = 0;
@@ -549,6 +550,16 @@ mod checked {
         fn adjust_computation_on_out_of_gas(&mut self) {
             self.per_object_storage = Vec::new();
             self.computation_cost = self.gas_budget;
+        }
+    }
+
+    pub fn computation_budget(gas_budget: u64, gas_price: u64, config: &ProtocolConfig) -> u64 {
+        let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
+
+        if gas_budget > max_computation_budget {
+            max_computation_budget
+        } else {
+            gas_budget
         }
     }
 }

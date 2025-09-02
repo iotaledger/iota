@@ -916,11 +916,14 @@ impl LocalExec {
             VerifiedTransaction::new_unchecked(transaction),
             executed_epoch,
         );
+        // `MoveAuthenticator` is not supported here.
+        let authenticator_computation_cost = 0;
         let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             &executable,
             input_objects,
             &protocol_config,
             reference_gas_price,
+            authenticator_computation_cost,
         )
         .unwrap();
         let (kind, signer, gas) = executable.transaction_data().execution_parts();

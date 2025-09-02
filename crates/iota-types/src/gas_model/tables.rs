@@ -10,6 +10,7 @@ use move_core_types::{
     vm_status::StatusCode,
 };
 use move_vm_profiler::GasProfiler;
+use move_vm_test_utils::gas_schedule::GasUnit;
 use once_cell::sync::Lazy;
 
 use crate::gas_model::units_types::{CostTable, Gas, GasCost};
@@ -50,6 +51,7 @@ pub struct GasStatus {
     pub gas_left: InternalGas,
     gas_price: u64,
     initial_budget: InternalGas,
+    gas_spent_for_authentication: InternalGas,
     pub charge: bool,
 
     // The current height of the operand stack, and the maximal height that it has reached.
@@ -79,10 +81,29 @@ impl GasStatus {
     /// Charge for every operation and fail when there is no more gas to pay for
     /// operations. This is the instantiation that must be used when
     /// executing a user script.
-    pub fn new(cost_table: CostTable, budget: u64, gas_price: u64, gas_model_version: u64) -> Self {
+    pub fn new(
+        cost_table: CostTable,
+        budget: u64,
+        gas_spent_for_authentication: u64,
+        gas_price: u64,
+        gas_model_version: u64,
+    ) -> Self {
         assert!(gas_price > 0, "gas price cannot be 0");
-        let budget_in_unit = budget / gas_price;
-        let gas_left = Self::to_internal_units(budget_in_unit);
+        assert!(
+            budget >= gas_spent_for_authentication,
+            "`budget` cannot be less than `gas_spent_for_authentication`"
+        );
+
+        let initial_budget = Self::to_internal_units(budget / gas_price);
+        let gas_left = Self::to_internal_units((budget - gas_spent_for_authentication) / gas_price);
+        let gas_spent_for_authentication =
+            Self::to_internal_units(gas_spent_for_authentication / gas_price);
+
+        assert!(
+            (gas_spent_for_authentication + gas_left) == initial_budget,
+            "`initial_budget` must be equal to `gas_spent_for_authentication` + `gas_left`"
+        );
+
         let (stack_height_current_tier_mult, stack_height_next_tier_start) =
             cost_table.stack_height_tier(0);
         let (stack_size_current_tier_mult, stack_size_next_tier_start) =
@@ -93,7 +114,8 @@ impl GasStatus {
             gas_model_version,
             gas_left,
             gas_price,
-            initial_budget: gas_left,
+            initial_budget,
+            gas_spent_for_authentication,
             cost_table,
             charge: true,
             stack_height_high_water_mark: 0,
@@ -122,6 +144,7 @@ impl GasStatus {
             gas_left: InternalGas::new(0),
             gas_price: 1,
             initial_budget: InternalGas::new(0),
+            gas_spent_for_authentication: InternalGas::new(0),
             cost_table: ZERO_COST_SCHEDULE.clone(),
             charge: false,
             stack_height_high_water_mark: 0,
@@ -314,6 +337,15 @@ impl GasStatus {
             None => InternalGas::to_unit_round_down(self.initial_budget),
         };
         u64::from(gas)
+    }
+
+    // The amount of gas spent for authentication, it does not include the
+    // multiplication for the gas price
+    pub fn gas_spent_for_authentication_pre_gas_price(&self) -> u64 {
+        u64::from(
+            self.gas_spent_for_authentication
+                .to_unit_round_down::<GasUnit>(),
+        )
     }
 
     // Charge the number of bytes with the cost per byte value

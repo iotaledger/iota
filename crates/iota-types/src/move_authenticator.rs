@@ -14,14 +14,14 @@ use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentMessage;
 
 use crate::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::EpochId,
     crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticatorDigest, ZKLoginInputsDigest},
-    error::IotaResult,
+    digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
+    error::{IotaResult, UserInputError},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::CallArg,
+    transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
 };
 
 /// MoveAuthenticator is a GenericSignature variant that enables a new
@@ -35,9 +35,9 @@ pub struct MoveAuthenticator {
     /// Type arguments for the Move authenticate function
     #[schemars(with = "String")]
     type_arguments: Vec<TypeTag>,
-    /// The reference to the object that this authenticates. This object
-    /// represents the account being the sender of the transaction.
-    object_to_authenticate: ObjectRef,
+    /// The object that is authenticated. Represents the account being the
+    /// sender of the transaction.
+    object_to_authenticate: CallArg,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing trait [AsRef](core::convert::AsRef).
     #[serde(skip)]
@@ -53,8 +53,9 @@ impl Hash for MoveAuthenticator {
 }
 
 impl MoveAuthenticator {
-    pub fn address(&self) -> IotaAddress {
-        self.object_to_authenticate.0.into()
+    pub fn address(&self) -> IotaResult<IotaAddress> {
+        let (id, _, _) = self.object_to_authenticate_components()?;
+        Ok(IotaAddress::from(id))
     }
 
     pub fn digest(&self) -> MoveAuthenticatorDigest {
@@ -69,10 +70,63 @@ impl MoveAuthenticator {
         &self.type_arguments
     }
 
+    pub fn object_to_authenticate(&self) -> &CallArg {
+        &self.object_to_authenticate
+    }
+
+    pub fn object_to_authenticate_components(
+        &self,
+    ) -> IotaResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
+        Ok(match self.object_to_authenticate() {
+            CallArg::Pure(_) => {
+                return Err(UserInputError::Unsupported(
+                    "MoveAuthenticator cannot authenticate pure inputs".to_string(),
+                )
+                .into());
+            }
+            CallArg::Object(object_arg) => match object_arg {
+                ObjectArg::ImmOrOwnedObject((id, sequence_number, digest)) => {
+                    (*id, Some(*sequence_number), Some(*digest))
+                }
+                ObjectArg::SharedObject { id, mutable, .. } => {
+                    if *mutable {
+                        return Err(UserInputError::Unsupported(
+                            "MoveAuthenticator cannot authenticate mutable shared objects"
+                                .to_string(),
+                        )
+                        .into());
+                    }
+
+                    (*id, None, None)
+                }
+                ObjectArg::Receiving(_) => {
+                    return Err(UserInputError::Unsupported(
+                        "MoveAuthenticator cannot authenticate receiving objects".to_string(),
+                    )
+                    .into());
+                }
+            },
+        })
+    }
+
+    pub fn input_objects(&self) -> Vec<InputObjectKind> {
+        self.call_args
+            .iter()
+            .flat_map(|arg| arg.input_objects())
+            .collect::<Vec<_>>()
+    }
+
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args
             .iter()
             .flat_map(|arg| arg.receiving_objects())
+            .collect()
+    }
+
+    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+        self.call_args
+            .iter()
+            .flat_map(|arg| arg.shared_objects())
             .collect()
     }
 }

@@ -52,17 +52,31 @@ mod checked {
         gas: &[ObjectRef],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
+        authenticator_computation_cost: u64,
         transaction: &TransactionData,
     ) -> IotaResult<IotaGasStatus> {
-        check_gas(
-            objects,
-            protocol_config,
-            reference_gas_price,
-            gas,
-            transaction.gas_budget(),
-            transaction.gas_price(),
-            transaction.kind(),
-        )
+        if transaction.is_system_tx() {
+            Ok(IotaGasStatus::new_unmetered())
+        } else {
+            let transaction_gas_budget = transaction.gas_budget();
+
+            // To be sure that we can cover the Move authenticator + transaction execution
+            // gas cost.
+            let gas_budget_to_check = authenticator_computation_cost + transaction_gas_budget;
+            let gas_budget_to_use = transaction_gas_budget;
+            let gas_spent_for_authentication = authenticator_computation_cost;
+
+            check_gas(
+                objects,
+                protocol_config,
+                reference_gas_price,
+                gas,
+                gas_budget_to_check,
+                gas_budget_to_use,
+                gas_spent_for_authentication,
+                transaction.gas_price(),
+            )
+        }
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -75,9 +89,13 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+        // `MoveAuthenticator`computation cost is not used here at the moment.
+        let authenticator_computation_cost = 0;
+
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[],
@@ -107,9 +125,13 @@ mod checked {
         let gas_object_ref = gas_object.compute_object_reference();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
 
+        // `MoveAuthenticator`computation cost is not used here at the moment.
+        let authenticator_computation_cost = 0;
+
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[gas_object_ref],
@@ -137,11 +159,13 @@ mod checked {
         input_objects: InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
+        authenticator_computation_cost: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let transaction = cert.data().transaction_data();
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[],
@@ -190,10 +214,51 @@ mod checked {
         Ok(input_objects.into_checked())
     }
 
+    /// A common function to check the `MoveAuthenticator` inputs for signing
+    /// and execution.
+    ///
+    /// Checks that there is enough gas to pay for the authenticator and
+    /// transaction execution in the transaction inputs. And that the
+    /// authenticator inputs meet the requirements.
+    #[instrument(level = "trace", skip_all)]
+    pub fn check_move_authenticator_input(
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        gas: &[ObjectRef],
+        authenticator_gas_budget: u64,
+        transaction_gas_budget: u64,
+        gas_price: u64,
+        authenticator_input_objects: InputObjects,
+        tx_input_objects: &InputObjects,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+        // To be sure that we can cover the Move authenticator + transaction execution
+        // gas cost.
+        let gas_budget_to_check = authenticator_gas_budget + transaction_gas_budget;
+        let gas_budget_to_use = authenticator_gas_budget;
+        let gas_spent_for_authentication = 0;
+
+        let gas_status = check_gas(
+            // Only the transaction input objects are used for gas checks.
+            tx_input_objects,
+            protocol_config,
+            reference_gas_price,
+            gas,
+            gas_budget_to_check,
+            gas_budget_to_use,
+            gas_spent_for_authentication,
+            gas_price,
+        )?;
+
+        check_move_authenticator_objects(&authenticator_input_objects)?;
+
+        Ok((gas_status, authenticator_input_objects.into_checked()))
+    }
+
     // Common checks performed for transactions and certificates.
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
+        authenticator_computation_cost: u64,
         transaction: &TransactionData,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
@@ -211,6 +276,7 @@ mod checked {
             gas,
             protocol_config,
             reference_gas_price,
+            authenticator_computation_cost,
             transaction,
         )?;
         check_objects(transaction, input_objects)?;
@@ -344,31 +410,40 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         gas: &[ObjectRef],
-        gas_budget: u64,
+        gas_budget_to_check: u64,
+        gas_budget_to_use: u64,
+        gas_spent_for_authentication: u64,
         gas_price: u64,
-        tx_kind: &TransactionKind,
     ) -> IotaResult<IotaGasStatus> {
-        if tx_kind.is_system_tx() {
-            Ok(IotaGasStatus::new_unmetered())
-        } else {
-            let gas_status =
-                IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+        debug_assert!(
+            gas_budget_to_use <= gas_budget_to_check,
+            "It is expected that the gas budget {:?} is used for execution less or equal to the gas budget {:?} is used to check the gas coins balance",
+            gas_budget_to_use,
+            gas_budget_to_check
+        );
 
-            // check balance and coins consistency
-            // load all gas coins
-            let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
-            let mut gas_objects = vec![];
-            for obj_ref in gas {
-                let obj = objects.get(&obj_ref.0);
-                let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
-                    version: Some(obj_ref.1),
-                })?;
-                gas_objects.push(obj);
-            }
-            gas_status.check_gas_balance(&gas_objects, gas_budget)?;
-            Ok(gas_status)
+        let gas_status = IotaGasStatus::new_with_gas_spent_for_authentication(
+            gas_budget_to_use,
+            gas_spent_for_authentication,
+            gas_price,
+            reference_gas_price,
+            protocol_config,
+        )?;
+
+        // Check the balance and coins consistency; Load all the gas coins.
+        let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
+        let mut gas_objects = vec![];
+        for obj_ref in gas {
+            let obj = objects.get(&obj_ref.0);
+            let obj = *obj.ok_or(UserInputError::ObjectNotFound {
+                object_id: obj_ref.0,
+                version: Some(obj_ref.1),
+            })?;
+            gas_objects.push(obj);
         }
+        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
+
+        Ok(gas_status)
     }
 
     /// Check all the objects used in the transaction against the database, and
@@ -541,6 +616,133 @@ mod checked {
                         object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                     });
                 }
+            }
+            InputObjectKind::SharedMoveObject {
+                initial_shared_version: input_initial_shared_version,
+                ..
+            } => {
+                fp_ensure!(
+                    object.version() < SequenceNumber::MAX_VALID_EXCL,
+                    UserInputError::InvalidSequenceNumber
+                );
+
+                match object.owner {
+                    Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+                        // When someone locks an object as shared it must be shared already.
+                        return Err(UserInputError::NotSharedObject);
+                    }
+                    Owner::Shared {
+                        initial_shared_version: actual_initial_shared_version,
+                    } => {
+                        fp_ensure!(
+                            input_initial_shared_version == actual_initial_shared_version,
+                            UserInputError::SharedObjectStartingVersionMismatch
+                        )
+                    }
+                }
+            }
+        };
+        Ok(())
+    }
+
+    /// Check all the `MoveAuthenticator`-related input objects against the
+    /// database.
+    #[instrument(level = "trace", skip_all)]
+    fn check_move_authenticator_objects(
+        authenticator_objects: &InputObjects,
+    ) -> UserInputResult<()> {
+        for object in authenticator_objects.iter() {
+            let input_object_kind = object.input_object_kind;
+
+            match &object.object {
+                ObjectReadResultKind::Object(object) => {
+                    check_one_move_authenticator_object(input_object_kind, object)?;
+                }
+                // We skip checking a deleted shared object because it no longer exists.
+                ObjectReadResultKind::DeletedSharedObject(_, _) => (),
+                // We skip checking shared objects from cancelled transactions since we are not
+                // reading it.
+                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check one `MoveAuthenticator` input object.
+    fn check_one_move_authenticator_object(
+        object_kind: InputObjectKind,
+        object: &Object,
+    ) -> UserInputResult {
+        match object_kind {
+            InputObjectKind::MovePackage(package_id) => {
+                return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
+            }
+            InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
+                fp_ensure!(
+                    !object.is_package(),
+                    UserInputError::MovePackageAsObject { object_id }
+                );
+                fp_ensure!(
+                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
+                    UserInputError::InvalidSequenceNumber
+                );
+
+                // This is an invariant - we just load the object with the given ID and version.
+                assert_eq!(
+                    object.version(),
+                    sequence_number,
+                    "The fetched object version {} does not match the requested version {}, object id: {}",
+                    object.version(),
+                    sequence_number,
+                    object.id(),
+                );
+
+                // Check the digest matches - user could give a mismatched `ObjectDigest`.
+                let expected_digest = object.digest();
+                fp_ensure!(
+                    expected_digest == object_digest,
+                    UserInputError::InvalidObjectDigest {
+                        object_id,
+                        expected_digest
+                    }
+                );
+
+                match object.owner {
+                    Owner::Immutable => {
+                        // Nothing else to check for Immutable.
+                    }
+                    Owner::AddressOwner { .. } => {
+                        return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
+                            object_id: object.id(),
+                        });
+                    }
+                    Owner::ObjectOwner { .. } => {
+                        return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {
+                            object_id: object.id(),
+                        });
+                    }
+                    Owner::Shared { .. } => {
+                        // This object is a mutable shared object. However the transaction
+                        // specifies it as an owned object. This is inconsistent.
+                        return Err(UserInputError::NotSharedObject);
+                    }
+                };
+            }
+            InputObjectKind::SharedMoveObject {
+                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                ..
+            } => {
+                return Err(UserInputError::InaccessibleSystemObject {
+                    object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                });
+            }
+            InputObjectKind::SharedMoveObject {
+                id, mutable: true, ..
+            } => {
+                return Err(UserInputError::MutableSharedIsInMoveAuthenticatorInput {
+                    object_id: id,
+                });
             }
             InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,

@@ -16,7 +16,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use move_core_types::{
     ident_str,
     identifier::{self, Identifier},
@@ -51,6 +51,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
+    move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -488,7 +489,7 @@ impl EndOfEpochTransactionKind {
 }
 
 impl CallArg {
-    fn input_objects(&self) -> Vec<InputObjectKind> {
+    pub fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             CallArg::Pure(_) => vec![],
             CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
@@ -520,6 +521,24 @@ impl CallArg {
                 ObjectArg::ImmOrOwnedObject(_) => vec![],
                 ObjectArg::SharedObject { .. } => vec![],
                 ObjectArg::Receiving(obj_ref) => vec![*obj_ref],
+            },
+        }
+    }
+
+    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+        match self {
+            CallArg::Pure(_) => vec![],
+            CallArg::Object(o) => match o {
+                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::Receiving(_) => vec![],
+                ObjectArg::SharedObject {
+                    id,
+                    initial_shared_version,
+                    mutable,
+                } => vec![SharedInputObject {
+                    id: *id,
+                    initial_shared_version: *initial_shared_version,
+                    mutable: *mutable,
+                }],
             },
         }
     }
@@ -1158,7 +1177,7 @@ impl Display for ProgrammableTransaction {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct SharedInputObject {
     pub id: ObjectID,
     pub initial_shared_version: SequenceNumber,
@@ -2313,6 +2332,15 @@ impl SenderSignedData {
             }
         );
 
+        // Check the `MoveAuthenticator` transactions limitations.
+        if self.move_authenticator().is_some() && !tx_data.kind().is_programmable_transaction() {
+            return Err(UserInputError::Unsupported(
+                "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                    .to_string(),
+            )
+            .into());
+        }
+
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
             TransactionExpiration::None => false,
@@ -2342,6 +2370,21 @@ impl SenderSignedData {
 
         Ok(tx_size)
     }
+
+    // TODO: A temporary created function. Needs to be replaced with a proper check.
+    pub fn move_authenticator(&self) -> Option<&MoveAuthenticator> {
+        let signatures = self.tx_signatures();
+
+        if signatures.len() == 1 {
+            if let GenericSignature::MoveAuthenticator(move_authenticator) = &signatures[0] {
+                Some(move_authenticator)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl Message for SenderSignedData {
@@ -2368,13 +2411,31 @@ impl<S> Envelope<SenderSignedData, S> {
         self.shared_input_objects().next().is_some()
     }
 
+    /// Returns an iterator over all shared input objects related to this
+    /// transaction, including those from the `MoveAuthenticator` if any.
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
+        // Add the Move authenticator shared objects if any.
+        let authenticator_shared_objects =
+            if let Some(move_authenticator) = self.move_authenticator() {
+                move_authenticator
+                    .shared_objects()
+                    .into_iter()
+                    // Add `object_to_authenticate` if it is a shared object.
+                    .chain(move_authenticator.object_to_authenticate().shared_objects())
+                    .collect::<Vec<_>>()
+                    .into_iter()
+            } else {
+                Vec::new().into_iter()
+            };
+
         self.data()
             .inner()
             .intent_message
             .value
             .shared_input_objects()
             .into_iter()
+            .chain(authenticator_shared_objects)
+            .unique()
     }
 
     // Returns the primary key for this transaction.
