@@ -2993,7 +2993,40 @@ mod test {
                 .with_label_values(&["get_transactions"])
                 .get(),
             1,
-            "dag_state_store_read_count for get_transactions should be zero"
+            "dag_state_store_read_count for get_transactions should be one"
         );
+
+        // Calculate the eviction round for acknowledgments
+        let clock_round = dag_state.threshold_clock_round();
+        let acknowledgements_eviction_round =
+            clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + 1);
+
+        // Assert: for all blocks with round > eviction round, we have an
+        // acknowledgement
+        for block_ref in block_refs
+            .iter()
+            .filter(|b| b.round > acknowledgements_eviction_round)
+        {
+            assert!(
+                dag_state.pending_acknowledgments.contains(block_ref),
+                "Missing acknowledgment for block {:?} (round {})",
+                block_ref,
+                block_ref.round
+            );
+        }
+
+        // Assert: for all blocks with round <= eviction round, there is no
+        // acknowledgement
+        for block_ref in block_refs
+            .iter()
+            .filter(|b| b.round <= acknowledgements_eviction_round)
+        {
+            assert!(
+                !dag_state.pending_acknowledgments.contains(block_ref),
+                "Unexpected acknowledgment for block {:?} (round {})",
+                block_ref,
+                block_ref.round
+            );
+        }
     }
 }
