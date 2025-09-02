@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use iota_json::IotaJsonValue;
@@ -10,23 +12,35 @@ use iota_json_rpc_api::{WriteApiClient, WriteApiServer, error_object_from_rpc};
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
+    MoveFunctionName,
 };
 use iota_open_rpc::Module;
+use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
-use crate::types::IotaTransactionBlockResponseWithOptions;
+use crate::{
+    errors::IndexerError, indexer_reader::IndexerReader,
+    store::package_resolver::IndexerStorePackageResolver,
+    types::IotaTransactionBlockResponseWithOptions,
+};
 
 pub(crate) struct WriteApi {
     fullnode: HttpClient,
+    transaction_builder: TransactionBuilder,
+    package_resolver: IndexerStorePackageResolver,
 }
 
 impl WriteApi {
-    pub fn new(fullnode_client: HttpClient) -> Self {
+    pub fn new(fullnode_client: HttpClient, reader: IndexerReader) -> Self {
+        let package_resolver = IndexerStorePackageResolver::new(reader.get_pool());
+        let data_reader = Arc::new(reader);
         Self {
             fullnode: fullnode_client,
+            transaction_builder: TransactionBuilder::new(data_reader),
+            package_resolver,
         }
     }
 }
@@ -88,7 +102,27 @@ impl WriteApiServer for WriteApi {
         type_args: Vec<IotaTypeTag>,
         call_args: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        todo!()
+        let MoveFunctionName {
+            package,
+            module,
+            function,
+        } = function_name.as_str().parse().map_err(IndexerError::from)?;
+        let sender = IotaAddress::ZERO;
+        let tx_kind = self
+            .transaction_builder
+            .move_view_call_tx_kind(package, &module, &function, type_args, call_args)
+            .await
+            .map_err(IndexerError::from)?;
+        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(IndexerError::from)?);
+        let dev_inspect_results = self
+            .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
+            .await?;
+        Ok(IotaMoveViewCallResults::from_dev_inspect_results(
+            self.package_resolver.clone(),
+            dev_inspect_results,
+        )
+        .await
+        .map_err(IndexerError::from)?)
     }
 }
 
