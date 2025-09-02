@@ -1380,8 +1380,9 @@ impl DagState {
     /// Return the garbage collection round. Transactions of blocks at or below
     /// this round which are not yet sequenced will never be sequenced.
     pub(crate) fn gc_round(&self) -> Round {
-        let last_commit_round = self.last_commit_round();
-        last_commit_round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
+        let last_solid_commit_round = self.last_solid_commit_leader_round.unwrap_or(0);
+        last_solid_commit_round
+            .saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + 1)
     }
 
     /// Last committed round per authority.
@@ -2947,6 +2948,33 @@ mod test {
 
         // Extend with the rest of the transactions
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
+        let gc_round = dag_state.gc_round();
+
+        let block_refs_with_transactions_in_dag: Vec<BlockRef> = block_refs
+            .iter()
+            .filter(|x| x.round > gc_round)
+            .cloned()
+            .collect();
+        let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
+        // All transactions should be found in DagState or store.
+        let result = dag_state
+            .get_transactions(&block_refs_with_transactions_in_dag)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, expected_transactions_in_dag);
+
+        assert_eq!(
+            dag_state
+                .context
+                .metrics
+                .node_metrics
+                .dag_state_store_read_count
+                .with_label_values(&["get_transactions"])
+                .get(),
+            0,
+            "dag_state_store_read_count for get_transactions should be zero"
+        );
 
         // All transactions should be found in DagState or store.
         let result = dag_state
@@ -2955,5 +2983,17 @@ mod test {
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, all_transactions);
+        // But some of them are already evicted and can be found only in the store.
+        assert_eq!(
+            dag_state
+                .context
+                .metrics
+                .node_metrics
+                .dag_state_store_read_count
+                .with_label_values(&["get_transactions"])
+                .get(),
+            1,
+            "dag_state_store_read_count for get_transactions should be zero"
+        );
     }
 }
