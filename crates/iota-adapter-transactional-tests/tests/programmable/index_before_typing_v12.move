@@ -4,7 +4,7 @@
 
 // in this protocol version, these typing errors should happen before bounds checking
 
-//# init --addresses test=0x0 --accounts A --protocol-version 76
+//# init --addresses test=0x0 --accounts A --protocol-version 12
 
 //# publish
 module test::m;
