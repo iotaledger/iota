@@ -1264,6 +1264,120 @@ delete_impl
 record_new_uid
 	fun
 	0x2::object
+ProgrammableMoveCall
+	public struct
+	0x2::programmable_transaction
+ProgrammableTransaction
+	public struct
+	0x2::programmable_transaction
+ObjectRef
+	public struct
+	0x2::programmable_transaction
+CallArg
+	public enum
+	0x2::programmable_transaction
+Command
+	public enum
+	0x2::programmable_transaction
+Argument
+	public enum
+	0x2::programmable_transaction
+ObjectArg
+	public enum
+	0x2::programmable_transaction
+package_id
+	public fun
+	0x2::programmable_transaction
+module_name
+	public fun
+	0x2::programmable_transaction
+function_name
+	public fun
+	0x2::programmable_transaction
+type_arguments
+	public fun
+	0x2::programmable_transaction
+arguments
+	public fun
+	0x2::programmable_transaction
+object_id
+	public fun
+	0x2::programmable_transaction
+sequence_number
+	public fun
+	0x2::programmable_transaction
+object_digest
+	public fun
+	0x2::programmable_transaction
+inputs
+	public fun
+	0x2::programmable_transaction
+commands
+	public fun
+	0x2::programmable_transaction
+pure_data
+	public fun
+	0x2::programmable_transaction
+object_data
+	public fun
+	0x2::programmable_transaction
+command_to_int
+	public fun
+	0x2::programmable_transaction
+move_call_data
+	public fun
+	0x2::programmable_transaction
+transfer_objects_data
+	public fun
+	0x2::programmable_transaction
+split_coins_data
+	public fun
+	0x2::programmable_transaction
+merge_coins_data
+	public fun
+	0x2::programmable_transaction
+publish_data
+	public fun
+	0x2::programmable_transaction
+make_move_vec_data
+	public fun
+	0x2::programmable_transaction
+upgrade_data
+	public fun
+	0x2::programmable_transaction
+argument_input
+	public fun
+	0x2::programmable_transaction
+argument_result
+	public fun
+	0x2::programmable_transaction
+argument_nested_result
+	public fun
+	0x2::programmable_transaction
+object_ref
+	public fun
+	0x2::programmable_transaction
+shared_object_data
+	public fun
+	0x2::programmable_transaction
+is_pure_data
+	public fun
+	0x2::programmable_transaction
+is_object_data
+	public fun
+	0x2::programmable_transaction
+AuthContext
+	public struct
+	0x2::auth_context
+digest
+	public fun
+	0x2::auth_context
+tx_inputs
+	public fun
+	0x2::auth_context
+tx_commands
+	public fun
+	0x2::auth_context
 Receiving
 	public struct
 	0x2::transfer
