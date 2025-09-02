@@ -15,7 +15,7 @@ const EInvalidArgumentType: u64 = 1;
 
 // These structs are the move-side replication of iota-types's rust transaction
 // They are used in the MoveAuthenticator and the AuthContext
-// The main reason we need this is beacuse AuthContext requires a way to read PTBs on the move level
+// The main reason we need this is because AuthContext requires a way to read PTBs on the move level
 
 // Replicates MoveCall(Box<ProgrammableMoveCall>), used in the Command enum
 // It represents a call to a Move function in a programmable transaction

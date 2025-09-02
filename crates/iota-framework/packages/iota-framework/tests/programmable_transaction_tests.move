@@ -64,10 +64,6 @@ fun test_pure_data_type_safety() {
     assert!(retrieved_data.length() == 4);
     assert!(*retrieved_data == pure_bytes);
 
-    // Test that we can access individual elements through the reference
-    // assert!((*retrieved_data)[0] == 1u8);
-    // assert!((*retrieved_data)[3] == 4u8);
-
     //failing assert
     object_data(&pure_arg); // this will arise abort EInvalidEnumVariant
 }
