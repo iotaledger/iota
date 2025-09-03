@@ -54,7 +54,7 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::{AUTHENTICATOR_DF_NAME, AuthenticatorInfo},
+    account::{AUTHENTICATOR_DF_NAME, AuthenticatorInfoV1},
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -5217,7 +5217,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &IotaAddress,
-    ) -> IotaResult<AuthenticatorInfo> {
+    ) -> IotaResult<AuthenticatorInfoV1> {
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
             ObjectReadResultKind::DeletedSharedObject(version, digest) => {
@@ -5289,7 +5289,7 @@ impl AuthorityState {
 
         let authenticator_id = self.get_dynamic_field_object_id(
             auth_account_object_id,
-            AuthenticatorInfo::tag().into(),
+            AuthenticatorInfoV1::tag().into(),
             AUTHENTICATOR_DF_NAME.as_bytes(),
         )?;
 
@@ -5302,7 +5302,7 @@ impl AuthorityState {
                 )?;
 
             if let Some(authenticator_info) = authenticator_info {
-                AuthenticatorInfo::try_from(authenticator_info)
+                AuthenticatorInfoV1::try_from(authenticator_info)
             } else {
                 Err(UserInputError::MoveAuthenticatorNotFound {
                     authenticator_object_id: authenticator_id,
@@ -5329,7 +5329,7 @@ impl AuthorityState {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
-    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, AuthenticatorInfo)> {
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, AuthenticatorInfoV1)> {
         let digest = transaction.digest();
         let signer = transaction.sender();
 

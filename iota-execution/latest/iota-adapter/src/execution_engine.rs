@@ -16,7 +16,7 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account::AuthenticatorInfo,
+        account::AuthenticatorInfoV1,
         auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
@@ -269,7 +269,7 @@ mod checked {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfo,
+        authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
@@ -1566,7 +1566,7 @@ mod checked {
     /// last input.
     fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfo,
+        authenticator_info: AuthenticatorInfoV1,
         auth_ctx: AuthContext,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();

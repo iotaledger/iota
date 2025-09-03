@@ -15,7 +15,7 @@ use iota_adapter_latest::{
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    account::AuthenticatorInfo,
+    account::AuthenticatorInfoV1,
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -182,7 +182,7 @@ impl executor::Executor for Executor {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfo,
+        authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,

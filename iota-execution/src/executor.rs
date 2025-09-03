@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    account::AuthenticatorInfo,
+    account::AuthenticatorInfoV1,
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -94,7 +94,7 @@ pub trait Executor {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfo,
+        authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
