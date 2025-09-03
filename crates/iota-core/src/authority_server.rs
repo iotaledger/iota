@@ -202,147 +202,147 @@ impl ValidatorServiceMetrics {
                 "Number of transaction signature errors",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             tx_verification_latency: register_histogram_with_registry!(
                 "validator_service_tx_verification_latency",
                 "Latency of verifying a transaction",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             cert_verification_latency: register_histogram_with_registry!(
                 "validator_service_cert_verification_latency",
                 "Latency of verifying a certificate",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             consensus_latency: register_histogram_with_registry!(
                 "validator_service_consensus_latency",
                 "Time spent between submitting a shared obj txn to consensus and getting result",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_transaction_latency: register_histogram_with_registry!(
                 "validator_service_handle_transaction_latency",
                 "Latency of handling a transaction",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
                 iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             submit_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_submit_certificate_consensus_latency",
                 "Latency of submit_certificate RPC handler",
                 iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_certificate_non_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_soft_bundle_certificates_consensus_latency",
                 "Latency of handling a consensus soft bundle",
                 iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_soft_bundle_certificates_count: register_histogram_with_registry!(
                 "validator_service_handle_soft_bundle_certificates_count",
                 "The number of certificates included in a soft bundle",
                 iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_soft_bundle_certificates_size_bytes: register_histogram_with_registry!(
                 "validator_service_handle_soft_bundle_certificates_size_bytes",
                 "The size of soft bundle in bytes",
                 iota_metrics::BYTES_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             handle_capability_notification_latency: register_histogram_with_registry!(
                 "validator_service_handle_capability_notification_latency",
                 "Latency of handling a capability notification",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             num_rejected_tx_in_epoch_boundary: register_int_counter_with_registry!(
                 "validator_service_num_rejected_tx_in_epoch_boundary",
                 "Number of rejected transaction during epoch transitioning",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             num_rejected_cert_in_epoch_boundary: register_int_counter_with_registry!(
                 "validator_service_num_rejected_cert_in_epoch_boundary",
                 "Number of rejected transaction certificate during epoch transitioning",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             num_rejected_tx_during_overload: register_int_counter_vec_with_registry!(
                 "validator_service_num_rejected_tx_during_overload",
                 "Number of rejected transaction due to system overload",
                 &["error_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             num_rejected_cert_during_overload: register_int_counter_vec_with_registry!(
                 "validator_service_num_rejected_cert_during_overload",
                 "Number of rejected transaction certificate due to system overload",
                 &["error_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             num_rejected_capability_notifications_during_overload: register_int_counter_vec_with_registry!(
                 "num_rejected_capability_notifications_during_overload",
                 "Number of rejected capability notifications from non-committee active validators due to system overload",
                 &["error_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             connection_ip_not_found: register_int_counter_with_registry!(
                 "validator_service_connection_ip_not_found",
                 "Number of times connection IP was not extractable from request",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             forwarded_header_parse_error: register_int_counter_with_registry!(
                 "validator_service_forwarded_header_parse_error",
                 "Number of times x-forwarded-for header could not be parsed",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             forwarded_header_invalid: register_int_counter_with_registry!(
                 "validator_service_forwarded_header_invalid",
                 "Number of times x-forwarded-for header was invalid",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             forwarded_header_not_included: register_int_counter_with_registry!(
                 "validator_service_forwarded_header_not_included",
                 "Number of times x-forwarded-for header was (unexpectedly) not included in request",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             client_id_source_config_mismatch: register_int_counter_with_registry!(
                 "validator_service_client_id_source_config_mismatch",
                 "Number of times detected that client id source config doesn't agree with x-forwarded-for header",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
         }
     }
 

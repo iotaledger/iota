@@ -2334,7 +2334,7 @@ impl AuthorityPerEpochStore {
 
     /// Record most recently advertised capabilities of all authorities
     pub fn record_capabilities_v1(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
-        info!("received capabilities v1 {:?}", capabilities);
+        info!("received capabilities v1 {capabilities:?}");
         let authority = &capabilities.authority;
         let tables = self.tables()?;
 
