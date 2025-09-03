@@ -553,7 +553,7 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV3(e.into())
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
@@ -635,7 +635,7 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV3(e.into())
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
@@ -726,6 +726,10 @@ pub struct IotaChangeEpochV2 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_start_timestamp_ms: u64,
+    #[schemars(with = "Vec<BigInt<u64>>")]
+    #[serde_as(as = "Vec<BigInt<u64>>")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub eligible_active_validators: Vec<u64>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -737,37 +741,12 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: Vec::new(),
         }
     }
 }
 
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaChangeEpochV3 {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: EpochId,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub storage_charge: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub computation_charge: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub computation_charge_burned: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub storage_rebate: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch_start_timestamp_ms: u64,
-    #[schemars(with = "Vec<BigInt<u64>>")]
-    #[serde_as(as = "Vec<BigInt<u64>>")]
-    pub eligible_active_validators: Vec<u64>,
-}
-
-impl From<ChangeEpochV3> for IotaChangeEpochV3 {
+impl From<ChangeEpochV3> for IotaChangeEpochV2 {
     fn from(e: ChangeEpochV3) -> Self {
         Self {
             epoch: e.epoch,
@@ -1733,7 +1712,6 @@ pub struct IotaEndOfEpochTransaction {
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     ChangeEpochV2(IotaChangeEpochV2),
-    ChangeEpochV3(IotaChangeEpochV3),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
 }
