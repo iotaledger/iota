@@ -87,22 +87,6 @@ jobs:
       changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
       changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
 
-  #  rust-starfish-tests:
-  #    if: (!cancelled() && !failure() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
-  #    needs:
-  #      - crates-changes
-  #      - external-changes
-  #    uses: ./.github/workflows/_rust_tests.yml
-  #    with:
-  #      isRust: ${{ inputs.isRust }}
-  #      consensusProtocol: "starfish"
-  #      isPgIntegration: ${{ inputs.isPgIntegration }}
-  #      isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
-  #      runSimtest: true
-  #      testOnlyChangedCrates: true
-  #      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
-  #      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
-
   execution-cut:
     if: (!cancelled() && !failure() && inputs.isRust)
     needs:
