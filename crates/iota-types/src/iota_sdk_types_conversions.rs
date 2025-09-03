@@ -693,6 +693,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into(),
                 })
             }
+            EndOfEpochTransactionKind::ChangeEpochV3(_) => unimplemented!(),
         }
     }
 }
@@ -1130,8 +1131,9 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                         InternalCmdArgErr::SharedObjectOperationNotAllowed => {
                             CommandArgumentError::SharedObjectOperationNotAllowed
                         }
-                        // TODO: replace it with real type from iota-rust-sdk.
-                        InternalCmdArgErr::InvalidArgumentArity => todo!(),
+                        InternalCmdArgErr::InvalidArgumentArity => {
+                            CommandArgumentError::InvalidArgumentArity
+                        }
                     },
                 }
             }
@@ -1331,6 +1333,9 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                         }
                         CommandArgumentError::SharedObjectOperationNotAllowed => {
                             InternalCmdArgErr::SharedObjectOperationNotAllowed
+                        }
+                        CommandArgumentError::InvalidArgumentArity => {
+                            InternalCmdArgErr::InvalidArgumentArity
                         }
                     },
                 }
