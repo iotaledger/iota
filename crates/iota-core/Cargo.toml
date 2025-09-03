@@ -14,6 +14,7 @@ workspace = true
 anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
+async-stream.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true

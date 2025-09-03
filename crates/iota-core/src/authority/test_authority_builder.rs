@@ -238,7 +238,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                     perpetual_tables,
                     &genesis_committee,
                     genesis,
-                    0,
                 )
                 .await
                 .unwrap()
@@ -301,6 +300,10 @@ impl<'a> TestAuthorityBuilder<'a> {
             signature_verifier_metrics,
             &expensive_safety_checks,
             ChainIdentifier::from(*genesis.checkpoint().digest()),
+            checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or(0),
         );
         let committee_store = Arc::new(CommitteeStore::new(
             path.join("epochs"),
@@ -366,7 +369,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             genesis.objects(),
             &DBCheckpointConfig::default(),
             config.clone(),
-            usize::MAX,
             ArchiveReaderBalancer::default(),
             None,
             chain_identifier,
@@ -416,7 +418,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             state
                 .get_cache_commit()
                 .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
-                .await;
         }
 
         // We want to insert these objects directly instead of relying on genesis

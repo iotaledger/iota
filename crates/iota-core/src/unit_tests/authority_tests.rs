@@ -2951,7 +2951,7 @@ async fn test_authority_persist() {
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     // Create an authority
     let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
             .await
             .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
@@ -2978,7 +2978,7 @@ async fn test_authority_persist() {
     let committee = genesis.committee().unwrap();
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
             .await
             .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
@@ -3466,8 +3466,7 @@ async fn test_store_revert_wrap_move_call() {
         .commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[*create_effects.transaction_digest()],
-        )
-        .await;
+        );
 
     assert!(create_effects.status().is_ok());
     assert_eq!(create_effects.created().len(), 1);
@@ -3565,8 +3564,7 @@ async fn test_store_revert_unwrap_move_call() {
                 *create_effects.transaction_digest(),
                 *wrap_effects.transaction_digest(),
             ],
-        )
-        .await;
+        );
 
     assert!(wrap_effects.status().is_ok());
     assert_eq!(wrap_effects.created().len(), 1);
@@ -3838,8 +3836,7 @@ async fn test_store_revert_add_ofield() {
                 *create_outer_effects.transaction_digest(),
                 *create_inner_effects.transaction_digest(),
             ],
-        )
-        .await;
+        );
 
     let add_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
@@ -3965,8 +3962,7 @@ async fn test_store_revert_remove_ofield() {
                 *create_inner_effects.transaction_digest(),
                 *add_effects.transaction_digest(),
             ],
-        )
-        .await;
+        );
 
     let field_v0 = add_effects.created()[0].0;
     let outer_v1 = find_by_id(&add_effects.mutated(), outer_v0.0).unwrap();
@@ -4801,7 +4797,6 @@ async fn test_shared_object_transaction_ok() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&certificate.key())
-        .expect("Reading shared version assignments should not fail")
         .expect("Versions should be set")
         .into_iter()
         .find_map(|(object_id, version)| {
@@ -4912,7 +4907,6 @@ async fn test_consensus_commit_prologue_generation() {
         authority_state
             .epoch_store_for_testing()
             .get_assigned_shared_object_versions(txn_key)
-            .unwrap()
             .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
@@ -5017,7 +5011,6 @@ async fn test_consensus_message_processed() {
                     &effects1,
                     authority2.get_object_cache_reader().as_ref(),
                 )
-                .await
                 .unwrap();
             authority2.execute_for_test(&certificate);
             authority2
@@ -5988,9 +5981,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // Checks that deferral keys are formed correctly.
     let epoch_store = authority.epoch_store_for_testing();
     let commit_round = epoch_store.get_highest_pending_checkpoint_height() / 2;
-    let deferred_txns = epoch_store
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+    let deferred_txns = epoch_store.get_all_deferred_transactions_for_test();
     assert_eq!(deferred_txns.len(), 1);
     assert_eq!(deferred_txns[0].1.len(), 3);
     let deferral_key = deferred_txns[0].0;
@@ -6049,8 +6040,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let deferred_txns = authority
         .epoch_store_for_testing()
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+        .get_all_deferred_transactions_for_test();
     assert_eq!(deferred_txns.len(), 1);
     assert_eq!(deferred_txns[0].1.len(), 1);
     let deferral_key = deferred_txns[0].0;
@@ -6077,7 +6067,6 @@ async fn test_consensus_handler_per_object_congestion_control(
         authority
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 }
@@ -6231,7 +6220,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         authority
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -6239,7 +6227,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&cancelled_txn.key())
-        .expect("Reading shared version assignments should not fail")
         .expect("Versions should be set")
         .into_iter()
         .collect::<HashMap<_, _>>();

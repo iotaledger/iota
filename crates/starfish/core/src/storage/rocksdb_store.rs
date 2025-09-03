@@ -372,12 +372,10 @@ impl Store for RocksDBStore {
         let mut refs = std::collections::VecDeque::new();
         for kv in self
             .digests_by_authorities
-            .safe_range_iter((
-                Included((author, Round::MIN, BlockHeaderDigest::MIN)),
-                Included((author, before_round, BlockHeaderDigest::MAX)),
-            ))
-            .skip_to_last()
-            .reverse()
+            .reversed_safe_iter_with_bounds(
+                Some((author, Round::MIN, BlockHeaderDigest::MIN)),
+                Some((author, before_round, BlockHeaderDigest::MAX)),
+            )?
             .take(num_of_rounds as usize)
         {
             let ((author, round, digest), _) = kv?;
@@ -394,7 +392,11 @@ impl Store for RocksDBStore {
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {
-        let Some(result) = self.commits.safe_iter().skip_to_last().next() else {
+        let Some(result) = self
+            .commits
+            .reversed_safe_iter_with_bounds(None, None)?
+            .next()
+        else {
             return Ok(None);
         };
         let ((_index, digest), serialized) = result?;
@@ -436,7 +438,11 @@ impl Store for RocksDBStore {
     }
 
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
-        let Some(result) = self.commit_info.safe_iter().skip_to_last().next() else {
+        let Some(result) = self
+            .commit_info
+            .reversed_safe_iter_with_bounds(None, None)?
+            .next()
+        else {
             return Ok(None);
         };
         let (key, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
