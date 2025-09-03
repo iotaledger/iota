@@ -167,7 +167,7 @@ pub fn verify_authenticate_func(
 /// before calling the function itself.
 ///
 /// A general struct, with no unresolved template arguments:
-/// ```
+/// ```move
 /// public struct Simple has store {
 ///   a: u8,
 ///   some_vec: vector<ascii::String>
