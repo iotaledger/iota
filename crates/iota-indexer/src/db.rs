@@ -2,18 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use anyhow::anyhow;
 use clap::Args;
 use diesel::{
-    PgConnection,
+    PgConnection, QueryableByName,
     connection::BoxableConnection,
     query_dsl::RunQueryDsl,
     r2d2::{ConnectionManager, Pool, PooledConnection, R2D2Connection},
 };
+use strum::IntoEnumIterator;
+use tracing::info;
 
-use crate::errors::IndexerError;
+use crate::{errors::IndexerError, handlers::pruner::PrunableTable};
 
 pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
 pub type PoolConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -152,6 +154,53 @@ pub fn reset_database(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
                 },
             )?;
     }
+    Ok(())
+}
+
+/// Check that prunable tables exist in the database.
+pub async fn check_prunable_tables_valid(conn: &mut PoolConnection) -> Result<(), IndexerError> {
+    info!("Starting compatibility check");
+
+    use diesel::RunQueryDsl;
+
+    let select_parent_tables = r#"
+    SELECT c.relname AS table_name
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN pg_partitioned_table pt ON pt.partrelid = c.oid
+    WHERE c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+        AND n.nspname = 'public'
+        AND (
+            pt.partrelid IS NOT NULL  -- This is a partitioned (parent) table
+            OR NOT EXISTS (  -- This is not a partition (child table)
+                SELECT 1
+                FROM pg_inherits i
+                WHERE i.inhrelid = c.oid
+            )
+        );
+    "#;
+
+    #[derive(QueryableByName)]
+    struct TableName {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        table_name: String,
+    }
+
+    let result: Vec<TableName> = diesel::sql_query(select_parent_tables)
+        .load(conn)
+        .map_err(|e| IndexerError::DbMigration(format!("Failed to fetch tables: {e}")))?;
+
+    let parent_tables_from_db: HashSet<_> = result.into_iter().map(|t| t.table_name).collect();
+
+    for key in PrunableTable::iter() {
+        if !parent_tables_from_db.contains(key.as_ref()) {
+            return Err(IndexerError::Generic(format!(
+                "Invalid retention policy override provided for table {key}: does not exist in the database",
+            )));
+        }
+    }
+
+    info!("Compatibility check passed");
     Ok(())
 }
 
