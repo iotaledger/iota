@@ -59,7 +59,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_objects_version(
+    async fn persist_object_versions(
         &self,
         object_versions: Vec<StoredObjectVersion>,
     ) -> Result<(), IndexerError>;

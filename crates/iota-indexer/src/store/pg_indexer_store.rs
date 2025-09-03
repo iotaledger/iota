@@ -504,7 +504,7 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_objects_version_chunk(
+    fn persist_object_version_chunk(
         &self,
         object_versions: Vec<StoredObjectVersion>,
     ) -> Result<(), IndexerError> {
@@ -1628,7 +1628,7 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_objects_version(
+    async fn persist_object_versions(
         &self,
         object_versions: Vec<StoredObjectVersion>,
     ) -> Result<(), IndexerError> {
@@ -1646,7 +1646,7 @@ impl IndexerStore for PgIndexerStore {
         let chunks = chunk!(object_versions, self.config.parallel_objects_chunk_size);
         let futures = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_objects_version_chunk(c)))
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_version_chunk(c)))
             .collect::<Vec<_>>();
 
         futures::future::try_join_all(futures)
