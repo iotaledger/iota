@@ -203,6 +203,10 @@ fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptio
         // match
         assert_eq!(fullnode_tx, tx);
 
+        // Those fields should be present for checkpoint indexed transactions
+        assert!(tx.checkpoint.is_some());
+        assert!(tx.timestamp_ms.is_some());
+
         assert!(
             match_transaction_block_resp_options(&options, &[fullnode_tx]),
             "fullnode transaction block assertion failed"
@@ -916,6 +920,96 @@ fn get_events() {
 
         assert!(!events.is_empty());
     });
+}
+
+#[test]
+fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+
+        // Update the object to generate new event
+        let res = crate::coin_api::execute_move_call(
+            client,
+            sender,
+            &sender_kp,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
+        )
+        .await?;
+        assert_eq!(res.status_ok(), Some(true));
+
+        // despite the naming, there is no 100% guarantee that the result here comes
+        // from optimistic indexing, but it's very likely
+        let result_optimistic = client
+            .get_transaction_block(
+                res.digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+        let tx_data_to_compare_opt = (
+            &result_optimistic.digest,
+            &result_optimistic.transaction,
+            &result_optimistic.raw_transaction,
+            &result_optimistic.effects,
+            &result_optimistic.object_changes,
+            &result_optimistic.balance_changes,
+            &result_optimistic.errors,
+            &result_optimistic.raw_effects,
+        );
+
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let result_checkpointed = client
+            .get_transaction_block(
+                res.digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+        let tx_data_to_compare_ckpt = (
+            &result_checkpointed.digest,
+            &result_checkpointed.transaction,
+            &result_checkpointed.raw_transaction,
+            &result_checkpointed.effects,
+            &result_checkpointed.object_changes,
+            &result_checkpointed.balance_changes,
+            &result_checkpointed.errors,
+            &result_checkpointed.raw_effects,
+        );
+        assert_eq!(tx_data_to_compare_opt, tx_data_to_compare_ckpt);
+        // comparing only selected fields, because timestamp_ms/checkpoint changes from
+        // None to Some after checkpoint indexing kicks in
+
+        assert!(result_checkpointed.checkpoint.is_some());
+        assert!(result_checkpointed.timestamp_ms.is_some());
+
+        Ok(())
+    })
 }
 
 #[test]
