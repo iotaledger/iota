@@ -63,7 +63,7 @@ export function ConnectLedgerModal({
                             </span>
                             <div className="flex w-full flex-wrap justify-center gap-xs text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                 <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger"
+                                    to="https://docs.iota.org/users/iota-wallet/how-to/import/ledger"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"
@@ -72,7 +72,7 @@ export function ConnectLedgerModal({
                                     <ArrowTopRight />
                                 </Link>
                                 <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger#manually-for-deprecated-devices-such-as-ledger-nano-s"
+                                    to="https://docs.iota.org/users/iota-wallet/how-to/import/ledger?install-method=manual#install-the-iota-app-on-your-ledger-device"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"

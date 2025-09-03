@@ -2,7 +2,7 @@
 name = "Invalid"
 version = "0.0.1"
 published-at = "mystery"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 MoveStdlib = { local = "../../../../iota-framework/packages/move-stdlib" }

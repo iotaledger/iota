@@ -296,7 +296,7 @@ impl StateSnapshotReaderV1 {
                     }
 
                     bar.inc(1);
-                    bar.set_message(format!("Bucket: {}, Part: {}", bucket, part));
+                    bar.set_message(format!("Bucket: {bucket}, Part: {part}"));
                     Ok::<(), anyhow::Error>(())
                 }
             })
