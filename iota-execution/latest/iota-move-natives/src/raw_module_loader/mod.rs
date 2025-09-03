@@ -37,18 +37,13 @@ impl<'package_store> RawModuleLoader<'package_store> {
         let Ok(package_object) = self.package_store.get_package_object(package_id) else {
             return None;
         };
-        let Some(module_bytes) = package_object.and_then(|package| {
+        let module_bytes = package_object.and_then(|package| {
             package
                 .move_package()
                 .serialized_module_map()
                 .get(module_name.as_str())
                 .cloned()
-        }) else {
-            return None;
-        };
-        match CompiledModule::deserialize_with_defaults(&module_bytes) {
-            Ok(compiled_module) => Some(compiled_module),
-            Err(_) => None,
-        }
+        })?;
+        CompiledModule::deserialize_with_defaults(&module_bytes).ok()
     }
 }

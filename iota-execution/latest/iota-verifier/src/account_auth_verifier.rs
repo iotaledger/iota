@@ -142,7 +142,7 @@ pub fn verify_authenticate_func(
 ///    not considered pure. This verify function works as this because it is
 ///    executed in a moment in which the concrete types of a generic are not
 ///    known. However, since the authenticate function is executed equivalently
-///    to a PTB with a single command, this assures that onpy pure types and
+///    to a PTB with a single command, this assures that only pure types and
 ///    objects can actually be passed by design. So the case of having ´Simple´
 ///    as concrete type of `T` cannot exist.
 /// 2. Moreover, this check assures that no object can be passed as concrete
@@ -160,10 +160,10 @@ pub fn verify_authenticate_func(
 ///    3. use the `<T: drop>` constraint -> this means no object type can be
 ///       used as concrete type because an object with `drop` ability cannot
 ///       exist.
-/// ////////////
+///
 ///
 /// A parameter is considered `pure input` if that can't be used to modify
-/// ledger state in any way, i.e., not an object, and thatcan be constructed
+/// ledger state in any way, i.e., not an object, and that can be constructed
 /// before calling the function itself.
 ///
 /// A general struct, with no unresolved template arguments:

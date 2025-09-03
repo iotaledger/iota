@@ -12,7 +12,16 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber}, config, digests::{ObjectDigest, TransactionDigest}, dynamic_field::DynamicFieldInfo, execution::DynamicallyLoadedObjectMetadata, id::UID, in_memory_storage::InMemoryStorage, object::{MoveObject, Object, Owner}, storage::{BackingPackageStore, ChildObjectResolver}, TypeTag
+    TypeTag,
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    config,
+    digests::{ObjectDigest, TransactionDigest},
+    dynamic_field::DynamicFieldInfo,
+    execution::DynamicallyLoadedObjectMetadata,
+    id::UID,
+    in_memory_storage::InMemoryStorage,
+    object::{MoveObject, Object, Owner},
+    storage::{BackingPackageStore, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{

@@ -22,8 +22,8 @@
 //!   always be equal to `Storage ID`. For an upgradeable package, it will be
 //!   the `Storage ID` of the package's first deployed version.
 //! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight
-//!   that we are talking about
-//! the current `Package ID` and not the `Runtime ID`
+//!   that we are talking about the current `Package ID` and not the `Runtime
+//!   ID`
 //! - `Module ID` is the the type
 //!   [ModuleID](move_core_types::language_storage::ModuleId).
 //!
