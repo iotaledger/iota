@@ -1,4 +1,4 @@
-// Copyright (c) IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Account `authenticate` function verifier

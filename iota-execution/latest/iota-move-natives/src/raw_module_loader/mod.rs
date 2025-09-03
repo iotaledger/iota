@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use better_any::{Tid, TidAble};
 use iota_types::{base_types::ObjectID, storage::BackingPackageStore};
 use move_binary_format::CompiledModule;

@@ -1,4 +1,3 @@
-
 # Note
 
 This is a completely temporary move project which will get removed.
