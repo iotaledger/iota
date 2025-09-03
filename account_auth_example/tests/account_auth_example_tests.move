@@ -24,8 +24,7 @@ fun bind_to_test_module() {
 
 #[test]
 fun test_minimally_viable_auth_function() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"minimally_viable_auth_function"),
     );
@@ -34,8 +33,7 @@ fun test_minimally_viable_auth_function() {
 
 #[test, expected_failure]
 fun has_to_be_public_auth_function() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"has_to_be_public_auth_function"),
     );
@@ -44,8 +42,7 @@ fun has_to_be_public_auth_function() {
 
 #[test, expected_failure]
 fun crate_auth_at_least_two_args() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"crate_auth_at_least_two_args"),
     );
@@ -54,8 +51,7 @@ fun crate_auth_at_least_two_args() {
 
 #[test, expected_failure]
 fun crate_auth_auth_context_cant_be_value() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"crate_auth_auth_context_cant_be_value"),
     );
@@ -64,8 +60,7 @@ fun crate_auth_auth_context_cant_be_value() {
 
 #[test, expected_failure]
 fun auth_context_cant_be_mutable_ref() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"auth_context_cant_be_mutable_ref"),
     );
@@ -74,8 +69,7 @@ fun auth_context_cant_be_mutable_ref() {
 
 #[test, expected_failure]
 fun tx_context_cant_be_value() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"tx_context_cant_be_value"),
     );
@@ -84,8 +78,7 @@ fun tx_context_cant_be_value() {
 
 #[test, expected_failure]
 fun tx_context_cant_be_mutable_ref() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"tx_context_cant_be_mutable_ref"),
     );
@@ -94,8 +87,7 @@ fun tx_context_cant_be_mutable_ref() {
 
 #[test, expected_failure]
 fun auth_context_isnt_struct() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"auth_context_isnt_struct"),
     );
@@ -104,8 +96,7 @@ fun auth_context_isnt_struct() {
 
 #[test, expected_failure]
 fun tx_context_isnt_struct() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"tx_context_is_struct"),
     );
@@ -114,8 +105,7 @@ fun tx_context_isnt_struct() {
 
 #[test]
 fun arg_value() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"arg_value"),
     );
@@ -124,8 +114,7 @@ fun arg_value() {
 
 #[test]
 fun arg_mutable_value() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"arg_mutable_value"),
     );
@@ -134,8 +123,7 @@ fun arg_mutable_value() {
 
 #[test, expected_failure]
 fun with_signer() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"main_m"),
         ascii::string(b"with_signer"),
     );
@@ -144,8 +132,7 @@ fun with_signer() {
 
 #[test]
 fun object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"object_m"),
         ascii::string(b"object_immutable_ref_success"),
     );
@@ -154,8 +141,7 @@ fun object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"object_m"),
         ascii::string(b"object_by_value_fail"),
     );
@@ -164,8 +150,7 @@ fun object_by_value_fail() {
 
 #[test, expected_failure]
 fun object_by_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"object_m"),
         ascii::string(b"object_by_mutable_ref_fail"),
     );
@@ -174,8 +159,7 @@ fun object_by_mutable_ref_fail() {
 
 #[test]
 fun template_primitive_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"template_primitive_success"),
     );
@@ -184,8 +168,7 @@ fun template_primitive_success() {
 
 #[test]
 fun templated_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"templated_non_object_immutable_ref_success"),
     );
@@ -194,8 +177,7 @@ fun templated_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun templated_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"templated_non_object_mutable_ref_fail"),
     );
@@ -204,8 +186,7 @@ fun templated_non_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun templated_non_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"templated_non_object_by_value_fail"),
     );
@@ -214,8 +195,7 @@ fun templated_non_object_by_value_fail() {
 
 #[test]
 fun template_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"template_object_immutable_ref_success"),
     );
@@ -224,8 +204,7 @@ fun template_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun template_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"template_object_by_value_fail"),
     );
@@ -234,8 +213,7 @@ fun template_object_by_value_fail() {
 
 #[test, expected_failure]
 fun template_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"template_object_mutable_ref_fail"),
     );
@@ -244,8 +222,7 @@ fun template_object_mutable_ref_fail() {
 
 #[test]
 fun templated_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"templated_object_immutable_ref_success"),
     );
@@ -254,8 +231,7 @@ fun templated_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun templated_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"templated_object_by_value_fail"),
     );
@@ -264,8 +240,7 @@ fun templated_object_by_value_fail() {
 
 #[test, expected_failure]
 fun templated_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"template_m"),
         ascii::string(b"templated_object_mutable_ref_fail"),
     );
@@ -274,8 +249,7 @@ fun templated_object_mutable_ref_fail() {
 
 #[test]
 fun vector_primitive_immutable_reference_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_primitive_immutable_reference_success"),
     );
@@ -284,8 +258,7 @@ fun vector_primitive_immutable_reference_success() {
 
 #[test, expected_failure]
 fun vector_primitive_mutable_reference_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_primitive_mutable_reference_fail"),
     );
@@ -294,8 +267,7 @@ fun vector_primitive_mutable_reference_fail() {
 
 #[test]
 fun vector_primitive_by_value_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_primitive_by_value_success"),
     );
@@ -304,8 +276,7 @@ fun vector_primitive_by_value_success() {
 
 #[test]
 fun vector_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_non_object_immutable_ref_success"),
     );
@@ -314,8 +285,7 @@ fun vector_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun vector_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_non_object_mutable_ref_fail"),
     );
@@ -324,8 +294,7 @@ fun vector_non_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun vector_non_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_non_object_by_value_fail"),
     );
@@ -334,8 +303,7 @@ fun vector_non_object_by_value_fail() {
 
 #[test]
 fun vector_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_object_immutable_ref_success"),
     );
@@ -344,8 +312,7 @@ fun vector_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun vector_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_object_mutable_ref_fail"),
     );
@@ -354,8 +321,7 @@ fun vector_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun vector_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_object_by_value_fail"),
     );
@@ -364,8 +330,7 @@ fun vector_object_by_value_fail() {
 
 #[test]
 fun vector_template_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_template_non_object_immutable_ref_success"),
     );
@@ -374,8 +339,7 @@ fun vector_template_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun vector_template_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_template_non_object_mutable_ref_fail"),
     );
@@ -384,8 +348,7 @@ fun vector_template_non_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun vector_templated_non_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_templated_non_object_by_value_success"),
     );
@@ -394,8 +357,7 @@ fun vector_templated_non_object_by_value_fail() {
 
 #[test]
 fun vector_templated_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_templated_non_object_immutable_ref_success"),
     );
@@ -404,8 +366,7 @@ fun vector_templated_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun vector_templated_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_templated_non_object_mutable_ref_fail"),
     );
@@ -414,8 +375,7 @@ fun vector_templated_non_object_mutable_ref_fail() {
 
 #[test]
 fun vector_template_object_immutable_reference_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_template_object_immutable_reference_success"),
     );
@@ -424,8 +384,7 @@ fun vector_template_object_immutable_reference_success() {
 
 #[test, expected_failure]
 fun vector_template_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_template_object_by_value_fail"),
     );
@@ -434,8 +393,7 @@ fun vector_template_object_by_value_fail() {
 
 #[test, expected_failure]
 fun vector_template_object_mutable_reference_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_template_object_mutable_reference_fail"),
     );
@@ -444,8 +402,7 @@ fun vector_template_object_mutable_reference_fail() {
 
 #[test]
 fun vector_templated_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_templated_object_immutable_ref_success"),
     );
@@ -454,8 +411,7 @@ fun vector_templated_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun vector_templated_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_templated_object_by_value_fail"),
     );
@@ -464,8 +420,7 @@ fun vector_templated_object_by_value_fail() {
 
 #[test, expected_failure]
 fun vector_templated_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"vector_m"),
         ascii::string(b"vector_templated_object_mutable_ref_fail"),
     );
@@ -474,8 +429,7 @@ fun vector_templated_object_mutable_ref_fail() {
 
 #[test]
 fun option_primitive_immutable_reference_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_primitive_immutable_reference_success"),
     );
@@ -484,8 +438,7 @@ fun option_primitive_immutable_reference_success() {
 
 #[test, expected_failure]
 fun option_primitive_mutable_reference_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_primitive_mutable_reference_fail"),
     );
@@ -494,8 +447,7 @@ fun option_primitive_mutable_reference_fail() {
 
 #[test]
 fun option_primitive_by_value_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_primitive_by_value_success"),
     );
@@ -504,8 +456,7 @@ fun option_primitive_by_value_success() {
 
 #[test]
 fun option_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_non_object_immutable_ref_success"),
     );
@@ -514,8 +465,7 @@ fun option_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun option_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_non_object_mutable_ref_fail"),
     );
@@ -524,8 +474,7 @@ fun option_non_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun option_non_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_non_object_by_value_fail"),
     );
@@ -534,8 +483,7 @@ fun option_non_object_by_value_fail() {
 
 #[test]
 fun option_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_object_immutable_ref_success"),
     );
@@ -544,8 +492,7 @@ fun option_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun option_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_object_mutable_ref_fail"),
     );
@@ -554,8 +501,7 @@ fun option_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun option_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_object_by_value_fail"),
     );
@@ -564,8 +510,7 @@ fun option_object_by_value_fail() {
 
 #[test]
 fun option_template_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_template_non_object_immutable_ref_success"),
     );
@@ -574,8 +519,7 @@ fun option_template_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun option_template_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_template_non_object_mutable_ref_fail"),
     );
@@ -584,8 +528,7 @@ fun option_template_non_object_mutable_ref_fail() {
 
 #[test, expected_failure]
 fun option_templated_non_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_templated_non_object_by_value_success"),
     );
@@ -594,8 +537,7 @@ fun option_templated_non_object_by_value_fail() {
 
 #[test]
 fun option_templated_non_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_templated_non_object_immutable_ref_success"),
     );
@@ -604,8 +546,7 @@ fun option_templated_non_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun option_templated_non_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_templated_non_object_mutable_ref_fail"),
     );
@@ -614,8 +555,7 @@ fun option_templated_non_object_mutable_ref_fail() {
 
 #[test]
 fun option_template_object_immutable_reference_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_template_object_immutable_reference_success"),
     );
@@ -624,8 +564,7 @@ fun option_template_object_immutable_reference_success() {
 
 #[test, expected_failure]
 fun option_template_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_template_object_by_value_fail"),
     );
@@ -634,8 +573,7 @@ fun option_template_object_by_value_fail() {
 
 #[test, expected_failure]
 fun option_template_object_mutable_reference_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_template_object_mutable_reference_fail"),
     );
@@ -644,8 +582,7 @@ fun option_template_object_mutable_reference_fail() {
 
 #[test]
 fun option_templated_object_immutable_ref_success() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_templated_object_immutable_ref_success"),
     );
@@ -654,8 +591,7 @@ fun option_templated_object_immutable_ref_success() {
 
 #[test, expected_failure]
 fun option_templated_object_by_value_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_templated_object_by_value_fail"),
     );
@@ -664,8 +600,7 @@ fun option_templated_object_by_value_fail() {
 
 #[test, expected_failure]
 fun option_templated_object_mutable_ref_fail() {
-    let account_info = account::create_auth_info_v1(
-        @0x0,
+    let account_info = account::create_auth_info_self_v1(
         ascii::string(b"option_m"),
         ascii::string(b"option_templated_object_mutable_ref_fail"),
     );

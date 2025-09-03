@@ -779,8 +779,11 @@ pub struct ProtocolConfig {
 
     // `account` module
     // Cost params for the Move native function `create_auth_info_v1(package: address, module:
-    // String, function: String`
+    // String, function: String): AuthenticatorInfoV1`
     create_auth_info_v1_cost_base: Option<u64>,
+    // Cost params for the Move native function `create_auth_info_self_v1(module_name:
+    // ascii::String, function_name: ascii::String): AuthenticatorInfoV1
+    create_auth_info_self_v1_cost_base: Option<u64>,
 
     // `address` module
     // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
@@ -1580,6 +1583,7 @@ impl ProtocolConfig {
             // === Native Function Costs ===
             // `address` module
             create_auth_info_v1_cost_base: None,
+            create_auth_info_self_v1_cost_base: None,
             // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
             address_from_bytes_cost_base: Some(52),
             // Cost params for the Move native function `address::to_u256(address): u256`
@@ -2149,7 +2153,9 @@ impl ProtocolConfig {
                         cfg.feature_flags.move_auth = true;
                         // === Native Function Costs ===
                         // `account` module
-                        cfg.create_auth_info_v1_cost_base = Some(1000); /* TODO how do you decide on a good gas * price? */
+                        cfg.create_auth_info_v1_cost_base = Some(1000); /* TODO how do you decide on a good gas * 
+                        price? */
+                        cfg.create_auth_info_self_v1_cost_base = Some(800); // could be a bit cheaper as we don't have to load a package while executing it
                     }
                 }
                 // Use this template when making changes:

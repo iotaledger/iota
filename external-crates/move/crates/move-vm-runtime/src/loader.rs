@@ -819,17 +819,6 @@ pub(crate) struct Loader {
 }
 
 impl Loader {
-    // Nasty heck expecting that all the relevant modules have been loaded.
-    pub fn loaded_modules(&self) -> Vec<CompiledModule> {
-        let cache = self.module_cache.read();
-        cache
-            .compiled_modules
-            .binaries
-            .iter()
-            .map(|entry| (**entry).clone())
-            .collect()
-    }
-
     pub(crate) fn new(natives: NativeFunctions, vm_config: VMConfig) -> Self {
         Self {
             module_cache: RwLock::new(ModuleCache::new()),

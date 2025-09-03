@@ -68,7 +68,7 @@ use self::{
     validator::ValidatorValidateMetadataBcsCostParams,
 };
 use crate::{
-    account::CreateAuthInfoV1ImplCostParams,
+    account::{CreateAuthInfoSelfV1ImplCostParams, CreateAuthInfoV1ImplCostParams},
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
@@ -97,6 +97,7 @@ mod validator;
 pub struct NativesCostTable {
     // Account natives
     pub account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams,
+    pub account_create_auth_info_self_v1_impl_params: CreateAuthInfoSelfV1ImplCostParams,
     // Address natives
     pub address_from_bytes_cost_params: AddressFromBytesCostParams,
     pub address_to_u256_cost_params: AddressToU256CostParams,
@@ -193,6 +194,11 @@ impl NativesCostTable {
             account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams {
                 create_auth_info_v1_cost_base: protocol_config
                     .create_auth_info_v1_cost_base()
+                    .into(),
+            },
+            account_create_auth_info_self_v1_impl_params: CreateAuthInfoSelfV1ImplCostParams {
+                create_auth_info_self_v1_cost_base: protocol_config
+                    .create_auth_info_self_v1_cost_base()
                     .into(),
             },
             // address
@@ -786,6 +792,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "account",
             "create_auth_info_v1_impl",
             make_native!(account::create_auth_info_v1_impl),
+        ),
+        (
+            "account",
+            "create_auth_info_self_v1_impl",
+            make_native!(account::create_auth_info_self_v1_impl),
         ),
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
