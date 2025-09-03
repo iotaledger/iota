@@ -93,8 +93,6 @@ jobs:
       # run all tests by default
       testOnlyChangedCrates: false
 
-
-
   deny:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_cargo_deny.yml
@@ -120,7 +118,7 @@ jobs:
   simtest:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
     timeout-minutes: 600
-    runs-on: [ self-hosted-x64 ]
+    runs-on: [self-hosted-x64]
     env:
       CONSENSUS_PROTOCOL: mysticeti
 
@@ -138,7 +136,7 @@ jobs:
   simtest-with-starfish:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
     timeout-minutes: 600
-    runs-on: [ self-hosted-x64 ]
+    runs-on: [self-hosted-x64]
     env:
       CONSENSUS_PROTOCOL: starfish
 
@@ -152,4 +150,3 @@ jobs:
           git checkout ${{ github.sha }} -- scripts/simtest/simtest-run.sh
       - name: Run simtest
         run: scripts/simtest/simtest-run.sh
-
