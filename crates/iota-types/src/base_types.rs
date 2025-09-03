@@ -130,11 +130,10 @@ pub trait ConciseableName<'a> {
     fn concise_owned(&self) -> Self::ConciseType;
 }
 
-/// The ID by which the object can be identified in global storage
+/// The ID by which the `Move object` can be identified in global storage
 ///
-/// Be that a [MovePackage](crate::move_package::MovePackage),
-/// [CompiledModule](move_binary_format::CompiledModule) or just
-/// any shared/immutable object.
+/// This could be a [MovePackage](crate::move_package::MovePackage) or
+/// any other [MoveObject](crate::object::MoveObject).
 #[serde_as]
 #[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct ObjectID(
