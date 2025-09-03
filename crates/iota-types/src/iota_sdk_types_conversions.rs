@@ -631,7 +631,6 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     storage_rebate: change_epoch_v3.storage_rebate,
                     non_refundable_storage_fee: change_epoch_v3.non_refundable_storage_fee,
                     epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
-                    // eligible_active_validators: change_epoch_v3.eligible_active_validators,
                     system_packages: change_epoch_v3
                         .system_packages
                         .into_iter()

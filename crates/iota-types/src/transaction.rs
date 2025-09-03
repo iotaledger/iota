@@ -180,7 +180,7 @@ fn type_input_validity_check(
     Ok(())
 }
 
-// System transaction for advancing the epoch.
+/// System transaction for advancing the epoch.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpoch {
     /// The next (to become) epoch ID.
@@ -206,9 +206,9 @@ pub struct ChangeEpoch {
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
 }
 
-// System transaction for advancing the epoch.
-// This version includes the computation_charge_burned field for when
-// protocol_defined_base_fee is enabled in the protocol config.
+/// System transaction for advancing the epoch.
+/// This version includes the computation_charge_burned field for when
+/// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpochV2 {
     /// The next (to become) epoch ID.
@@ -236,9 +236,9 @@ pub struct ChangeEpochV2 {
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
 }
 
-// System transaction for advancing the epoch.
-// This version includes active validator indices that are eligible
-// to take part in committee selection based on protocol version support.
+/// System transaction for advancing the epoch.
+/// This version includes active validator indices that are eligible
+/// to take part in committee selection based on protocol version support.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpochV3 {
     /// The next (to become) epoch ID.
@@ -556,6 +556,11 @@ impl EndOfEpochTransactionKind {
                 }
             }
             Self::ChangeEpochV3(_) => {
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
                 if !config.select_committee_from_eligible_validators() {
                     return Err(UserInputError::Unsupported(
                         "selecting committee only among validators supporting the protocol version required".to_string(),
