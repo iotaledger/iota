@@ -49,7 +49,7 @@ use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{Instrument, error, error_span, info};
+use tracing::{Instrument, debug, error, error_span, info};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -1183,11 +1183,9 @@ impl ValidatorService {
                 self.metrics.signature_errors.inc();
             })?;
 
+        let authority_name = verified_authority_capabilities.authority;
         // Process the verified capabilities
-        info!(
-            "Received capability notification: {:?}",
-            verified_authority_capabilities.data()
-        );
+        debug!("Verified capability notification for authority {authority_name:?}");
 
         // Submit the signed capability notification to consensus instead of processing
         // directly
@@ -1202,6 +1200,8 @@ impl ValidatorService {
             None,
             &epoch_store,
         )?;
+
+        debug!("Submitted capability notification to consensus for authority {authority_name:?}");
 
         Ok((
             tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),

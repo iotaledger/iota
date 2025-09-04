@@ -5107,9 +5107,9 @@ async fn test_choose_next_system_packages() {
 
     // Create an active validators list for testing
     // get_validators_supporting_protocol_version
-    let active_validators: Vec<(AuthorityName, AuthorityPublicKey)> = v
+    let active_validators: Vec<AuthorityPublicKey> = v
         .iter()
-        .map(|(name, _weight)| (*name, committee.public_key(name).unwrap().clone()))
+        .map(|(name, _weight)| committee.public_key(name).unwrap().clone())
         .collect();
 
     // all validators agree on new system packages, but without a new protocol
@@ -5133,8 +5133,8 @@ async fn test_choose_next_system_packages() {
     // for decided version
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0, // decided protocol version
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
@@ -5158,8 +5158,8 @@ async fn test_choose_next_system_packages() {
     // for decided version
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0, // decided protocol version
-        active_validators.clone(),
-        capabilities.clone(),
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators still support version 1
 
@@ -5178,8 +5178,8 @@ async fn test_choose_next_system_packages() {
     // for decided version
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0, // decided protocol version (ver(2))
-        active_validators.clone(),
-        capabilities.clone(),
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support
 
@@ -5202,8 +5202,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1 without upgrading
 
@@ -5226,8 +5226,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 2
 
@@ -5250,8 +5250,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1  without making an upgrade
 
@@ -5274,8 +5274,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 3
 
@@ -5298,8 +5298,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
@@ -5323,8 +5323,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 3
 
@@ -5350,8 +5350,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
@@ -5377,8 +5377,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        active_validators.clone(),
-        capabilities,
+        &active_validators,
+        &capabilities,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
@@ -5397,8 +5397,8 @@ async fn test_choose_next_system_packages() {
 
     // Create expanded active_validators list including zero-weight authorities
     let mut all_active_validators = active_validators.clone();
-    for (i, auth) in zero_weight_authorities.iter().enumerate() {
-        all_active_validators.push((*auth, all_keys[4 + i].public().clone())); // Indices 4, 5, 6 for zero-weight authorities
+    for (i, _auth) in zero_weight_authorities.iter().enumerate() {
+        all_active_validators.push(all_keys[4 + i].public().clone()); // Indices 4, 5, 6 for zero-weight authorities
     }
 
     // Test 1: Zero-weight authorities support the same version as quorum - should
@@ -5426,8 +5426,8 @@ async fn test_choose_next_system_packages() {
     // including zero-weight authorities
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_with_zero_weight,
+        &all_active_validators,
+        &capabilities_with_zero_weight,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators (including zero-weight) support version 2
 
@@ -5454,8 +5454,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_higher_version,
+        &all_active_validators,
+        &capabilities_higher_version,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 2 (zero-weight authorities support higher versions)
 
@@ -5482,8 +5482,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_lower_version,
+        &all_active_validators,
+        &capabilities_lower_version,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // Only the committee validators support version 3
 
@@ -5510,8 +5510,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_different_objects,
+        &all_active_validators,
+        &capabilities_different_objects,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 2
 
@@ -5540,8 +5540,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_only_zero_weight,
+        &all_active_validators,
+        &capabilities_only_zero_weight,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 1
 
@@ -5570,8 +5570,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_conflicting_zero_weight,
+        &all_active_validators,
+        &capabilities_conflicting_zero_weight,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 4, 5, 6]); // Committee validators [0,1,2] + zero-weight authorities [4,5,6] support version 2
 
@@ -5601,8 +5601,8 @@ async fn test_choose_next_system_packages() {
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
-        all_active_validators.clone(),
-        capabilities_mixed_agreement,
+        &all_active_validators,
+        &capabilities_mixed_agreement,
     );
     assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 6]); // Committee validators [0,1,2,3] + agreeing zero-weight authorities [4,6] support version 2
 }

@@ -81,6 +81,7 @@ async fn test_authority_reject_authority_capabilities() {
     // Create a validator service around the `authority_state`.
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
         authority_state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,
@@ -186,6 +187,7 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
 
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
         authority_state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,

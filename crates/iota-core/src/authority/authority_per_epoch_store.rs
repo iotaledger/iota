@@ -11,7 +11,7 @@ use std::{
 
 use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
-use fastcrypto::groups::bls12381;
+use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
@@ -906,14 +906,12 @@ impl AuthorityPerEpochStore {
 
         // Get all active validators and filter out committee members to get
         // non-committee validators
-        let non_committee_validators: BTreeSet<_> = epoch_start_configuration
+        let non_committee_validators: BTreeSet<AuthorityName> = epoch_start_configuration
             .epoch_start_state()
             .get_active_validators()
             .into_iter()
-            .filter(|authority_public_key| {
-                let authority_name = AuthorityName::from(authority_public_key);
-                !committee.authority_exists(&authority_name)
-            })
+            .filter_map(|pubkey| AuthorityName::from_bytes(pubkey.as_bytes()).ok())
+            .filter(|authority_name| !committee.authority_exists(authority_name))
             .collect();
 
         let signature_verifier = SignatureVerifier::new(

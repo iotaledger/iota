@@ -601,7 +601,6 @@ pub struct SequencedConsensusTransaction {
 }
 
 #[derive(Debug, Clone)]
-#[expect(clippy::large_enum_variant)]
 pub enum SequencedConsensusTransactionKind {
     External(ConsensusTransaction),
     System(VerifiedExecutableTransaction),
