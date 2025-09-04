@@ -328,9 +328,10 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     select_committee_from_eligible_validators: bool,
 
-    // If true, use ChangeEpochV3 for epoch change to pass an additional eligible_active_validators
-    // parameter to IotaSystem's advance_epoch call. This should only be enabled when on-chain
-    // IotaSystem objects are updated as well.
+    // If true, non-committee active validators will sign and send AuthorityCapabilitiesV1 to the
+    // committee. The committee will track them and include them in the epoch change. If this is
+    // disabled, then all active validators are used for selecting the committee (same as previous
+    // behavior).
     #[serde(skip_serializing_if = "is_false")]
     track_non_committee_eligible_validators: bool,
 }
@@ -1339,7 +1340,7 @@ impl ProtocolConfig {
         0
     }
 
-    pub fn select_committee_supporting_protocol_version(&self) -> bool {
+    pub fn select_committee_from_eligible_validators(&self) -> bool {
         self.feature_flags.select_committee_from_eligible_validators
     }
 

@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 
 use either::Either;
-use fastcrypto::traits::AggregateAuthenticator;
+use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
@@ -14,7 +14,6 @@ use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
 use iota_types::{
-    base_types::AuthorityName,
     committee::Committee,
     crypto::{AuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
     digests::{CertificateDigest, SenderSignedDataDigest, ZKLoginInputsDigest},
@@ -98,7 +97,7 @@ impl CertBuffer {
 /// - User signed data - caching.
 pub struct SignatureVerifier {
     committee: Arc<Committee>,
-    non_committee_validators: BTreeMap<AuthorityName, AuthorityPublicKey>,
+    non_committee_validators: BTreeSet<AuthorityPublicKey>,
 
     certificate_cache: VerifiedDigestCache<CertificateDigest>,
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
@@ -140,7 +139,7 @@ struct ZkLoginParams {
 impl SignatureVerifier {
     pub fn new_with_batch_size(
         committee: Arc<Committee>,
-        non_committee_validators: BTreeMap<AuthorityName, AuthorityPublicKey>,
+        non_committee_validators: BTreeSet<AuthorityPublicKey>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
         env: ZkLoginEnv,
@@ -187,7 +186,7 @@ impl SignatureVerifier {
 
     pub fn new(
         committee: Arc<Committee>,
-        non_committee_validators: BTreeMap<AuthorityName, AuthorityPublicKey>,
+        non_committee_validators: BTreeSet<AuthorityPublicKey>,
         metrics: Arc<SignatureVerifierMetrics>,
         zklogin_env: ZkLoginEnv,
         accept_zklogin_in_multisig: bool,
@@ -434,12 +433,15 @@ impl SignatureVerifier {
             || {
                 // Check if authority exists in non-committee validators
                 let authority_name = signed_authority_capabilities.data().authority;
-                let authority_key = self
-                    .non_committee_validators
-                    .get(&authority_name)
-                    .ok_or_else(|| IotaError::IncorrectSigner {
-                        error: "Signer must be part of non-committee active validators".to_string(),
+                let authority_key = AuthorityPublicKey::from_bytes(authority_name.as_bytes())
+                    .map_err(|_| IotaError::IncorrectSigner {
+                        error: "Invalid authority public key bytes".to_string(),
                     })?;
+                if !self.non_committee_validators.contains(&authority_key) {
+                    return Err(IotaError::IncorrectSigner {
+                        error: "Signer must be part of non-committee active validators".to_string(),
+                    });
+                }
 
                 // Create a verification obligation
                 let mut obligation = VerificationObligation::default();
@@ -454,7 +456,7 @@ impl SignatureVerifier {
                     .public_keys
                     .get_mut(idx)
                     .ok_or(IotaError::InvalidAuthenticator)?
-                    .push(authority_key);
+                    .push(&authority_key);
 
                 obligation
                     .signatures

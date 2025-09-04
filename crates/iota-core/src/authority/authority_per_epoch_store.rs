@@ -906,11 +906,14 @@ impl AuthorityPerEpochStore {
 
         // Get all active validators and filter out committee members to get
         // non-committee validators
-        let non_committee_validators: BTreeMap<_, _> = epoch_start_configuration
+        let non_committee_validators: BTreeSet<_> = epoch_start_configuration
             .epoch_start_state()
             .get_active_validators()
             .into_iter()
-            .filter(|(authority_name, _)| !committee.authority_exists(authority_name))
+            .filter(|authority_public_key| {
+                let authority_name = AuthorityName::from(authority_public_key);
+                !committee.authority_exists(&authority_name)
+            })
             .collect();
 
         let signature_verifier = SignatureVerifier::new(

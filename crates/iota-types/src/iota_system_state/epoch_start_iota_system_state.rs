@@ -39,7 +39,7 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
-    fn get_active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)>;
+    fn get_active_validators(&self) -> Vec<AuthorityPublicKey>;
 }
 
 /// This type captures the minimum amount of information from IotaSystemState
@@ -90,13 +90,15 @@ impl EpochStartSystemState {
         active_validators: Vec<EpochStartValidatorInfoV1>,
     ) -> Self {
         Self::V2(EpochStartSystemStateV2 {
-            epoch,
-            protocol_version,
-            reference_gas_price,
-            safe_mode,
-            epoch_start_timestamp_ms,
-            epoch_duration_ms,
-            committee_validators,
+            v1: EpochStartSystemStateV1 {
+                epoch,
+                protocol_version,
+                reference_gas_price,
+                safe_mode,
+                epoch_start_timestamp_ms,
+                epoch_duration_ms,
+                committee_validators,
+            },
             active_validators,
         })
     }
@@ -118,13 +120,15 @@ impl EpochStartSystemState {
                 committee_validators: state.committee_validators.clone(),
             }),
             Self::V2(state) => Self::V2(EpochStartSystemStateV2 {
-                epoch: state.epoch + 1,
-                protocol_version: state.protocol_version,
-                reference_gas_price: state.reference_gas_price,
-                safe_mode: state.safe_mode,
-                epoch_start_timestamp_ms: state.epoch_start_timestamp_ms,
-                epoch_duration_ms: state.epoch_duration_ms,
-                committee_validators: state.committee_validators.clone(),
+                v1: EpochStartSystemStateV1 {
+                    epoch: state.v1.epoch + 1,
+                    protocol_version: state.v1.protocol_version,
+                    reference_gas_price: state.v1.reference_gas_price,
+                    safe_mode: state.v1.safe_mode,
+                    epoch_start_timestamp_ms: state.v1.epoch_start_timestamp_ms,
+                    epoch_duration_ms: state.v1.epoch_duration_ms,
+                    committee_validators: state.v1.committee_validators.clone(),
+                },
                 active_validators: state.active_validators.clone(),
             }),
         }
@@ -339,30 +343,19 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .collect()
     }
 
-    fn get_active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)> {
+    fn get_active_validators(&self) -> Vec<AuthorityPublicKey> {
         // for V1 the committee and active validators are the same as there is no
         // additional committee selection
         self.committee_validators
             .iter()
-            .map(|validator| {
-                (
-                    validator.authority_name(),
-                    validator.authority_pubkey.clone(),
-                )
-            })
+            .map(|validator| validator.authority_pubkey.clone())
             .collect()
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct EpochStartSystemStateV2 {
-    epoch: EpochId,
-    protocol_version: u64,
-    reference_gas_price: u64,
-    safe_mode: bool,
-    epoch_start_timestamp_ms: u64,
-    epoch_duration_ms: u64,
-    committee_validators: Vec<EpochStartValidatorInfoV1>,
+    v1: EpochStartSystemStateV1,
     active_validators: Vec<EpochStartValidatorInfoV1>,
 }
 
@@ -373,13 +366,7 @@ impl EpochStartSystemStateV2 {
 
     pub fn new_for_testing_with_epoch(epoch: EpochId) -> Self {
         Self {
-            epoch,
-            protocol_version: ProtocolVersion::MAX.as_u64(),
-            reference_gas_price: crate::transaction::DEFAULT_VALIDATOR_GAS_PRICE,
-            safe_mode: false,
-            epoch_start_timestamp_ms: 0,
-            epoch_duration_ms: 1000,
-            committee_validators: vec![],
+            v1: EpochStartSystemStateV1::new_for_testing_with_epoch(epoch),
             active_validators: vec![],
         }
     }
@@ -387,140 +374,65 @@ impl EpochStartSystemStateV2 {
 
 impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
     fn epoch(&self) -> EpochId {
-        self.epoch
+        self.v1.epoch()
     }
 
     fn protocol_version(&self) -> ProtocolVersion {
-        ProtocolVersion::new(self.protocol_version)
+        self.v1.protocol_version()
     }
 
     fn reference_gas_price(&self) -> u64 {
-        self.reference_gas_price
+        self.v1.reference_gas_price()
     }
 
     fn safe_mode(&self) -> bool {
-        self.safe_mode
+        self.v1.safe_mode()
     }
 
     fn epoch_start_timestamp_ms(&self) -> u64 {
-        self.epoch_start_timestamp_ms
+        self.v1.epoch_start_timestamp_ms()
     }
 
     fn epoch_duration_ms(&self) -> u64 {
-        self.epoch_duration_ms
+        self.v1.epoch_duration_ms()
     }
 
     fn get_validator_addresses(&self) -> Vec<IotaAddress> {
-        self.committee_validators
-            .iter()
-            .map(|validator| validator.iota_address)
-            .collect()
+        self.v1.get_validator_addresses()
     }
 
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata {
-        let validators = self
-            .committee_validators
-            .iter()
-            .map(|validator| {
-                (
-                    validator.authority_name(),
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: validator.iota_net_address.clone(),
-                            primary_address: validator.primary_address.clone(),
-                            network_public_key: Some(validator.network_pubkey.clone()),
-                        },
-                    ),
-                )
-            })
-            .collect();
-
-        CommitteeWithNetworkMetadata::new(self.epoch, validators)
+        self.v1.get_iota_committee_with_network_metadata()
     }
 
     fn get_iota_committee(&self) -> Committee {
-        let voting_rights = self
-            .committee_validators
-            .iter()
-            .map(|validator| (validator.authority_name(), validator.voting_power))
-            .collect();
-        Committee::new(self.epoch, voting_rights)
+        self.v1.get_iota_committee()
     }
 
-    impl_get_committee!(
-        fn get_consensus_committee -> ConsensusCommittee,
-        authority = Authority,
-        cfg = consensus_config,
-        label = "Mysticeti"
-    );
+    fn get_consensus_committee(&self) -> ConsensusCommittee {
+        self.v1.get_consensus_committee()
+    }
 
-    impl_get_committee!(
-        fn get_starfish_committee -> StarfishCommittee,
-        authority = StarfishAuthority,
-        cfg = starfish_config,
-        label = "Starfish"
-    );
+    fn get_starfish_committee(&self) -> StarfishCommittee {
+        self.v1.get_starfish_committee()
+    }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
-        self.committee_validators
-            .iter()
-            .filter(|validator| validator.authority_name() != excluding_self)
-            .map(|validator| {
-                let address = validator
-                    .p2p_address
-                    .to_anemo_address()
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
-                if address.is_empty() {
-                    warn!(
-                        ?peer_id,
-                        "Peer has invalid p2p address: {}", &validator.p2p_address
-                    );
-                }
-                PeerInfo {
-                    peer_id,
-                    affinity: PeerAffinity::High,
-                    address,
-                }
-            })
-            .collect()
+        self.v1.get_validator_as_p2p_peers(excluding_self)
     }
 
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId> {
-        self.committee_validators
-            .iter()
-            .map(|validator| {
-                let name = validator.authority_name();
-                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
-
-                (name, peer_id)
-            })
-            .collect()
+        self.v1.get_authority_names_to_peer_ids()
     }
 
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String> {
-        self.committee_validators
-            .iter()
-            .map(|validator| {
-                let name = validator.authority_name();
-                let hostname = validator.hostname.clone();
-
-                (name, hostname)
-            })
-            .collect()
+        self.v1.get_authority_names_to_hostnames()
     }
 
-    fn get_active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)> {
+    fn get_active_validators(&self) -> Vec<AuthorityPublicKey> {
         self.active_validators
             .iter()
-            .map(|validator| {
-                (
-                    validator.authority_name(),
-                    validator.authority_pubkey.clone(),
-                )
-            })
+            .map(|validator| validator.authority_pubkey.clone())
             .collect()
     }
 }
@@ -747,44 +659,30 @@ mod test {
             .collect();
 
         for (i, expected_validator) in expected_order.iter().enumerate() {
-            let expected_name = expected_validator.authority_name();
-            let (found_name, found_pubkey) = &active_validators[i];
-            assert_eq!(
-                *found_name, expected_name,
-                "Order not preserved: expected {expected_name} at index {i}",
-            );
+            let found_pubkey = &active_validators[i];
             assert_eq!(
                 found_pubkey.as_bytes(),
-                expected_validator.authority_pubkey.as_bytes()
+                expected_validator.authority_pubkey.as_bytes(),
+                "Order not preserved: expected validator at index {i}",
             );
         }
 
         // Verify committee validators are in active_validators
         for validator in committee_validators.iter() {
-            let authority_name = validator.authority_name();
-            let pubkey_from_vec = active_validators
+            let found = active_validators
                 .iter()
-                .find(|(name, _)| *name == authority_name)
-                .map(|(_, pubkey)| pubkey)
+                .find(|pubkey| pubkey.as_bytes() == validator.authority_pubkey.as_bytes())
                 .unwrap();
-            assert_eq!(
-                pubkey_from_vec.as_bytes(),
-                validator.authority_pubkey.as_bytes()
-            );
+            assert_eq!(found.as_bytes(), validator.authority_pubkey.as_bytes());
         }
 
         // Verify non-committee validators are in active_validators
         for validator in non_committee_validators.iter() {
-            let authority_name = validator.authority_name();
-            let pubkey_from_vec = active_validators
+            let found = active_validators
                 .iter()
-                .find(|(name, _)| *name == authority_name)
-                .map(|(_, pubkey)| pubkey)
+                .find(|pubkey| pubkey.as_bytes() == validator.authority_pubkey.as_bytes())
                 .unwrap();
-            assert_eq!(
-                pubkey_from_vec.as_bytes(),
-                validator.authority_pubkey.as_bytes()
-            );
+            assert_eq!(found.as_bytes(), validator.authority_pubkey.as_bytes());
         }
     }
 
@@ -897,8 +795,7 @@ mod test {
 
         let non_committee_validator_pubkey = v2_active_validators
             .iter()
-            .find(|(name, _)| *name == non_committee_validator.authority_name())
-            .map(|(_, pubkey)| pubkey)
+            .find(|pubkey| pubkey.as_bytes() == non_committee_validator.authority_pubkey.as_bytes())
             .unwrap();
 
         assert_eq!(
@@ -908,8 +805,7 @@ mod test {
 
         let committee_validator_pubkey = v2_active_validators
             .iter()
-            .find(|(name, _)| *name == committee_validator.authority_name())
-            .map(|(_, pubkey)| pubkey)
+            .find(|pubkey| pubkey.as_bytes() == committee_validator.authority_pubkey.as_bytes())
             .unwrap();
 
         assert_eq!(

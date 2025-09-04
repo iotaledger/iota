@@ -78,7 +78,7 @@ fn async_verifier_bench(c: &mut Criterion) {
                         .unwrap();
                     let batch_verifier = Arc::new(SignatureVerifier::new_with_batch_size(
                         committee.clone(),
-                        BTreeMap::new(),
+                        BTreeSet::new(),
                         batch_size,
                         metrics.clone(),
                         ZkLoginEnv::Test,

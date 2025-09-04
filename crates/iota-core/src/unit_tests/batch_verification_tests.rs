@@ -145,7 +145,7 @@ async fn test_async_verifier() {
     let metrics = SignatureVerifierMetrics::new(&registry);
     let verifier = Arc::new(SignatureVerifier::new(
         committee.clone(),
-        BTreeMap::new(),
+        BTreeSet::new(),
         metrics,
         ZkLoginEnv::Test,
         true, // accept_zklogin_in_multisig
