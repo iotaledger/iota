@@ -31,7 +31,9 @@ export function ObjectChangeDisplay({
                         disableAutoPlay
                     />
                 </CardImage>
-                <CardBody title={name} subtitle={display.description ?? ''} />
+                <div className="truncate overflow-x-hidden [&_div]:truncate">
+                    <CardBody title={name} subtitle={display.description ?? ''} />
+                </div>
                 {objectId && <CardAction type={CardActionType.Link} icon={<ArrowTopRight />} />}
             </Card>
         </ExplorerLink>

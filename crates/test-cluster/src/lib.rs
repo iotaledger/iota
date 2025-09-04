@@ -12,6 +12,7 @@ use std::{
 };
 
 use futures::{StreamExt, future::join_all};
+use iota_common::fatal;
 use iota_config::{
     Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
@@ -360,7 +361,12 @@ impl TestCluster {
             node.get_node_handle()
                 .unwrap()
                 .with_async(|node| async {
-                    node.close_epoch_for_testing().await.unwrap();
+                    node.close_epoch_for_testing().await.unwrap_or_else(|_| {
+                        fatal!(
+                            "Failed to close epoch for validator {:?}",
+                            node.state().name
+                        );
+                    });
                     cur_stake += cur_committee.weight(&node.state().name);
                 })
                 .await;

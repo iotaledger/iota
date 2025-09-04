@@ -21,7 +21,7 @@ import { BridgeFormInputName } from '../../lib/enums';
 import { MAX_DEPOSIT_INPUT_LENGTH, PLACEHOLDER_VALUE_DISPLAY } from '../../lib/constants';
 import { Loader, SwapAccount } from '@iota/apps-ui-icons';
 import { CoinSelector } from '../CoinSelector';
-import { IOTA_DECIMALS, IOTA_TYPE_ARG, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { useAvailableBalance } from '../../hooks/useAvailableBalance';
 
@@ -68,8 +68,7 @@ export function DepositForm({
     } = useAvailableBalance(selectedCoinType, isFromLayer1);
 
     const isPayingAllBalance =
-        parseIotaToNanos(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) ===
-        availableBalance;
+        parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) === availableBalance;
 
     useEffect(() => {
         const isFormIncomplete = Object.values(getValues()).some(

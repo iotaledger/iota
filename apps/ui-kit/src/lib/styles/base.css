@@ -114,6 +114,7 @@
 @supports selector(::-webkit-scrollbar) {
     *::-webkit-scrollbar {
         width: 0.875rem;
+        height: 0.875rem;
     }
 
     *::-webkit-scrollbar-track {
@@ -133,5 +134,11 @@
 
     .names *::-webkit-scrollbar-thumb {
         box-shadow: inset 0 0 10px 10px #3c4656;
+    }
+
+    *::-webkit-scrollbar-corner,
+    .dark *::-webkit-scrollbar-corner,
+    .names *::-webkit-scrollbar-corner {
+        background: transparent;
     }
 }

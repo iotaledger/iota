@@ -151,7 +151,7 @@ impl Parameters {
 
     // Maximum number of block headers to fetch per periodic or live sync request.
     pub(crate) fn default_max_transactions_per_fetch() -> usize {
-        if cfg!(msim) { 10 } else { 1000 }
+        if cfg!(msim) { 10 } else { 100 }
     }
 
     pub(crate) fn default_sync_last_known_own_block_timeout() -> Duration {

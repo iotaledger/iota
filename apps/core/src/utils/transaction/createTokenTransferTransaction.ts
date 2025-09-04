@@ -4,7 +4,7 @@
 
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
-import { IOTA_TYPE_ARG, parseIotaToNanos } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 interface Options {
     coinType: string;
@@ -27,7 +27,7 @@ export function createTokenTransferTransaction({
         return BigInt(acc) + BigInt(balance);
     }, BigInt(0));
 
-    const bigIntAmount = parseIotaToNanos(amount, coinDecimals);
+    const bigIntAmount = parseAmount(amount, coinDecimals);
     const isTransferAllObjects = totalBalance === bigIntAmount;
 
     if (coinType === IOTA_TYPE_ARG) {

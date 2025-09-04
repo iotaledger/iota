@@ -103,7 +103,6 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         0,
         &remote_store_config,
         &local_store_restore_config,
-        usize::MAX,
         NonZeroUsize::new(1).unwrap(),
         MultiProgress::new(),
         false, // skip_reset_local_store
@@ -157,7 +156,6 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         0,
         &remote_store_config,
         &local_store_restore_config,
-        usize::MAX,
         NonZeroUsize::new(1).unwrap(),
         MultiProgress::new(),
         false, // skip_reset_local_store
