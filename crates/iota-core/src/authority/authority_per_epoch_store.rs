@@ -1210,7 +1210,7 @@ impl AuthorityPerEpochStore {
         self.epoch_start_state().protocol_version()
     }
 
-    pub fn active_validators(&self) -> Vec<(AuthorityName, AuthorityPublicKey)> {
+    pub fn active_validators(&self) -> Vec<AuthorityPublicKey> {
         self.epoch_start_state().get_active_validators()
     }
 

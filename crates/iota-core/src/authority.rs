@@ -840,7 +840,7 @@ impl AuthorityState {
         epoch_store
             .active_validators()
             .iter()
-            .any(|a| a.0 == self.name)
+            .any(|a| AuthorityName::from(a) == self.name)
     }
 
     pub fn is_fullnode(&self, epoch_store: &AuthorityPerEpochStore) -> bool {

@@ -671,7 +671,7 @@ async fn test_reconfig_with_committee_change_basic() {
                 .epoch_store_for_testing()
                 .active_validators()
                 .iter()
-                .any(|v| v.0 == new_authority_name)
+                .any(|pubkey| AuthorityName::from(pubkey) == new_authority_name)
         );
         assert_eq!(
             node.state()
@@ -845,7 +845,7 @@ async fn test_reconfig_with_same_validator() {
                     .epoch_store_for_testing()
                     .active_validators()
                     .iter()
-                    .any(|v| v.0 == node_name)
+                    .any(|pubkey| AuthorityName::from(pubkey) == node_name)
             );
         });
 
