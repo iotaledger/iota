@@ -5,6 +5,7 @@ import {
     Collapsible,
     formatDelegatedStake,
     formatDelegatedTimelockedStake,
+    IOTA_COIN_METADATA,
     mapTimelockObjects,
     TIMELOCK_IOTA_TYPE,
     useBalance,
@@ -14,14 +15,22 @@ import {
     useGetTimelockedStakedObjects,
     useTotalDelegatedStake,
 } from '@iota/core';
-import { Divider, KeyValueInfo, Panel, Skeleton, Title, TitleSize } from '@iota/apps-ui-kit';
+import {
+    Divider,
+    KeyValueInfo,
+    Panel,
+    Skeleton,
+    Title,
+    TitleSize,
+    Tooltip,
+} from '@iota/apps-ui-kit';
 import { useState } from 'react';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 
 const TOOLTIP_TEXT = 'This balance breakdown does not include unmigrated stardust funds.';
 interface BalanceBreakdownElement {
     keyText: string;
-    value: string;
-    supportingLabel: string;
+    value: bigint;
     isLoading?: boolean;
     isError?: boolean;
     tooltipText?: string;
@@ -34,10 +43,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
         isLoading: isLoadingBalance,
         isError: isBalanceErrored,
     } = useBalance(address);
-
-    const [totalAvailableBalance, symbol] = useFormatCoin({
-        balance: balance?.totalBalance,
-    });
+    const totalAvailableBalance = balance?.totalBalance || '0';
 
     const {
         data: delegatedStake,
@@ -48,9 +54,6 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
     });
     const delegatedStakes = delegatedStake ? formatDelegatedStake(delegatedStake) : [];
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
-    const [formattedDelegatedStake] = useFormatCoin({
-        balance: totalDelegatedStake,
-    });
 
     const {
         data: timelockedStakedObjects,
@@ -63,9 +66,6 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
     );
 
     const totalTimelockedStaked = useTotalDelegatedStake(extendedDelegatedTimelockedStakes);
-    const [formattedTimelockedStake] = useFormatCoin({
-        balance: totalTimelockedStaked,
-    });
 
     const {
         data: timelockedObjects,
@@ -82,19 +82,11 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
         BigInt(0),
     );
 
-    const [formattedTimelockedTokens] = useFormatCoin({
-        balance: totalTimelockedTokens,
-    });
-
     const totalBalanceBreakdown =
         BigInt(balance?.totalBalance || 0) +
         BigInt(totalDelegatedStake || 0) +
         BigInt(totalTimelockedStaked || 0) +
         BigInt(totalTimelockedTokens || 0);
-
-    const [formattedTotalBalance] = useFormatCoin({
-        balance: totalBalanceBreakdown,
-    });
 
     const isLoadingTotalBalance =
         isLoadingBalance ||
@@ -112,23 +104,20 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
         {
             keyText: 'Available',
             value: totalAvailableBalance,
-            supportingLabel: symbol,
             isLoading: isLoadingBalance,
             isError: isBalanceErrored,
             tooltipText: 'IOTA that can be used or transferred immediately.',
         },
         {
             keyText: 'Staked',
-            value: formattedDelegatedStake,
-            supportingLabel: symbol,
+            value: totalDelegatedStake,
             isLoading: isLoadingDelegatedStakes,
             isError: isDelegatedStakeErrored,
             tooltipText: 'IOTA currently locked in staking. Cannot be used until unstaked.',
         },
         {
             keyText: 'Timelocked Staked',
-            value: formattedTimelockedStake,
-            supportingLabel: symbol,
+            value: totalTimelockedStaked,
             isLoading: isLoadingTimelockedStakeObjects,
             isError: isTimelockedStakedObjectsErrored,
             tooltipText:
@@ -136,8 +125,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
         },
         {
             keyText: 'Timelocked',
-            value: formattedTimelockedTokens,
-            supportingLabel: symbol,
+            value: totalTimelockedTokens,
             isLoading: isTimelockedObjectsLoading,
             isError: isTimelockedObjectsError,
             tooltipText:
@@ -175,7 +163,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
                                         isError={item.isError}
                                     />
                                 }
-                                supportingLabel={item.supportingLabel}
+                                supportingLabel={IOTA_COIN_METADATA.symbol}
                             />
                         ))}
                     </div>
@@ -186,13 +174,13 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
                         keyText="Total"
                         value={
                             <RenderBalanceValue
-                                value={formattedTotalBalance}
+                                value={totalBalanceBreakdown}
                                 isLoading={isLoadingTotalBalance}
                                 isError={isTotalBalanceErrored}
                             />
                         }
                         fullwidth
-                        supportingLabel={symbol}
+                        supportingLabel={IOTA_COIN_METADATA.symbol}
                     />
                 </div>
             </div>
@@ -201,7 +189,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
 }
 
 interface RenderBalanceValueProps {
-    value: string;
+    value: bigint;
     isLoading?: boolean;
     isError?: boolean;
 }
@@ -211,6 +199,13 @@ function RenderBalanceValue({
     isLoading,
     isError,
 }: RenderBalanceValueProps): React.JSX.Element | string {
+    const [roundedAmount] = useFormatCoin({
+        balance: value,
+    });
+    const [fullAmount] = useFormatCoin({
+        balance: value,
+        format: CoinFormat.Full,
+    });
     if (isLoading) {
         return <Skeleton className="h-4 w-20" />;
     }
@@ -218,5 +213,5 @@ function RenderBalanceValue({
         return '--';
     }
 
-    return value;
+    return <Tooltip text={fullAmount}>{roundedAmount}</Tooltip>;
 }
