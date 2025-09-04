@@ -821,7 +821,7 @@ impl<'a> LayerBuilder<'a> {
                     faulty_refs.push(faulty_block.reference);
                     self.dag_builder
                         .provably_faulty_blocks
-                        .insert(faulty_block.reference, faulty_block.clone().into());
+                        .insert(faulty_block.reference, faulty_block.clone());
                     self.provably_faulty_blocks.push(faulty_block);
                     continue;
                 } else {
@@ -852,12 +852,12 @@ impl<'a> LayerBuilder<'a> {
                 reports.push(MisbehaviorReport::new(
                     ancestor.author,
                     MisbehaviorProof::Equivocation {
-                        first: existing_ancestor.clone(),
-                        second: ancestor.clone(),
+                        first: *existing_ancestor,
+                        second: *ancestor,
                     },
                 ));
             } else {
-                seen_ancestors.insert(ancestor.author, ancestor.clone());
+                seen_ancestors.insert(ancestor.author, *ancestor);
             }
         }
         reports
@@ -921,7 +921,7 @@ impl<'a> LayerBuilder<'a> {
             && self
                 .specified_authorities
                 .as_ref()
-                .map_or(false, |authorities| authorities.contains(&authority))
+                .is_some_and(|authorities| authorities.contains(&authority))
     }
 }
 

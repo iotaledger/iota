@@ -1450,12 +1450,12 @@ mod test {
         );
 
         // Check faulty blocks that exist.
-        for (r, _) in &faulty_blocks {
+        for r in faulty_blocks.keys() {
             assert!(dag_state.contains_faulty_block(r))
         }
 
         // Check no verified blocks are stored as faulty.
-        for (r, _) in &blocks {
+        for r in blocks.keys() {
             assert!(!dag_state.contains_faulty_block(r))
         }
     }
