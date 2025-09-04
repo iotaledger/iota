@@ -30,7 +30,7 @@ import { CoinFormat } from '@iota/iota-sdk/utils';
 const TOOLTIP_TEXT = 'This balance breakdown does not include unmigrated stardust funds.';
 interface BalanceBreakdownElement {
     keyText: string;
-    value: bigint;
+    value: string | bigint;
     isLoading?: boolean;
     isError?: boolean;
     tooltipText?: string;
@@ -189,7 +189,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
 }
 
 interface RenderBalanceValueProps {
-    value: bigint;
+    value: string | bigint;
     isLoading?: boolean;
     isError?: boolean;
 }
