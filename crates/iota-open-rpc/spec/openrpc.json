@@ -7937,7 +7937,10 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "eligible_active_validators": {
-            "type": "array",
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "$ref": "#/components/schemas/BigInt_for_uint64"
             }

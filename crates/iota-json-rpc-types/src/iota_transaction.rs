@@ -726,10 +726,10 @@ pub struct IotaChangeEpochV2 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_start_timestamp_ms: u64,
-    #[schemars(with = "Vec<BigInt<u64>>")]
-    #[serde_as(as = "Vec<BigInt<u64>>")]
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub eligible_active_validators: Vec<u64>,
+    #[schemars(with = "Option<Vec<BigInt<u64>>>")]
+    #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub eligible_active_validators: Option<Vec<u64>>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -741,7 +741,7 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
-            eligible_active_validators: Vec::new(),
+            eligible_active_validators: None,
         }
     }
 }
@@ -755,7 +755,7 @@ impl From<ChangeEpochV3> for IotaChangeEpochV2 {
             computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
-            eligible_active_validators: e.eligible_active_validators,
+            eligible_active_validators: Some(e.eligible_active_validators),
         }
     }
 }
