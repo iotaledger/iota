@@ -104,8 +104,8 @@ task 12, lines 93-99:
 //> 2: TransferObjects([Result(1)], Input(2));
 //> 3: iota::transfer::public_share_object<iota::coin::Coin<iota::iota::IOTA>>(Input(1));
 // Try to double-use the input using a user-defined function
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
-Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue } at command Some(3)
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(3)
 
 task 13, lines 100-106:
 //# programmable --inputs 0 object(10,0) @0x0
@@ -114,8 +114,8 @@ task 13, lines 100-106:
 //> 2: TransferObjects([Result(1)], Input(2));
 //> 3: t2::o2::share_coin(Input(1));
 // Try to transfer the shared object and double-use the input
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
-Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue } at command Some(3)
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(3)
 
 task 14, lines 107-113:
 //# programmable --inputs 0 object(10,0) @0x0
@@ -124,8 +124,8 @@ task 14, lines 107-113:
 //> 2: TransferObjects([Result(1)], Input(2));
 //> 3: TransferObjects([Input(1)], Input(2));
 // Try to transfer the shared object
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
-Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue } at command Some(3)
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(3)
 
 task 15, lines 114-118:
 //# programmable --inputs 0 object(10,0) @0x0

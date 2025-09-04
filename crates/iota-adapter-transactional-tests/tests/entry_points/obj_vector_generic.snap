@@ -88,8 +88,8 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 15, lines 156-159:
 //# run Test::M::same_objects_any --sender A --type-args Test::M::Any --args object(14,0) vector[object(14,0)]
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue }, source: None, command: Some(1) } }
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
 
 task 16, line 161:
 //# run Test::M::mint_any --sender A --type-args Test::M::Any --args 42

@@ -465,7 +465,7 @@ mod checked {
             let is_copyable = if let Some(val) = val_opt {
                 val.is_copyable()
             } else {
-                return Err(CommandArgumentError::InvalidObjectByValue.into());
+                return Err(CommandArgumentError::InvalidValueUsage.into());
             };
             // If it was taken, we catch this above.
             // If it was not copyable and was borrowed, error as it creates a dangling
