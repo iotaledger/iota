@@ -202,7 +202,7 @@ function RenderBalanceValue({
     const [roundedAmount] = useFormatCoin({
         balance: value,
     });
-    const [fullAmount] = useFormatCoin({
+    const [fullAmount, symbol] = useFormatCoin({
         balance: value,
         format: CoinFormat.Full,
     });
@@ -213,5 +213,5 @@ function RenderBalanceValue({
         return '--';
     }
 
-    return <Tooltip text={fullAmount}>{roundedAmount}</Tooltip>;
+    return <Tooltip text={`${fullAmount} ${symbol}`}>{roundedAmount}</Tooltip>;
 }
