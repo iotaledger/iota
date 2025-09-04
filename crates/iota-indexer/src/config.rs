@@ -4,6 +4,7 @@
 
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
+use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
@@ -11,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use url::Url;
 
-use crate::{backfill::BackfillKind, db::ConnectionPoolConfig, handlers::pruner::PrunableTable};
+use crate::{
+    backfill::BackfillKind, db::ConnectionPoolConfig, handlers::pruner::PrunableTable,
+    types::IndexerResult,
+};
 
 /// The primary purpose of objects_history is to serve consistency query.
 /// A short retention is sufficient.
@@ -250,13 +254,15 @@ pub struct RetentionConfig {
 
 impl PruningOptions {
     /// Load default retention policy and overrides from file.
-    pub fn load_from_file(&self) -> Option<RetentionConfig> {
-        let config_path = self.pruning_config_path.as_ref()?;
+    pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
+        let Some(config_path) = self.pruning_config_path.as_ref() else {
+            return Ok(None);
+        };
 
         let contents = std::fs::read_to_string(config_path)
-            .expect("Failed to read default retention policy and overrides from file");
+            .context("Failed to read default retention policy and overrides from file")?;
         let retention_with_overrides = toml::de::from_str::<RetentionConfig>(&contents)
-            .expect("Failed to parse into RetentionConfig struct");
+            .context("Failed to parse into RetentionConfig struct")?;
 
         let default_retention = retention_with_overrides.epochs_to_keep;
 
@@ -272,7 +278,7 @@ impl PruningOptions {
             "All retention overrides must be greater than 0"
         );
 
-        Some(retention_with_overrides)
+        Ok(Some(retention_with_overrides))
     }
 }
 
@@ -704,7 +710,7 @@ mod test {
         let pruning_options = PruningOptions {
             pruning_config_path: Some(temp_path.clone()),
         };
-        let retention_config = pruning_options.load_from_file().unwrap();
+        let retention_config = pruning_options.load_from_file().unwrap().unwrap();
 
         // Assert the parsed values
         assert_eq!(retention_config.epochs_to_keep, 5);
@@ -753,7 +759,7 @@ mod test {
         let pruning_options = PruningOptions {
             pruning_config_path: Some(temp_path.clone()),
         };
-        let retention_config = pruning_options.load_from_file().unwrap();
+        let retention_config = pruning_options.load_from_file().unwrap().unwrap();
 
         // Assert the parsed values
         assert_eq!(retention_config.epochs_to_keep, 5);

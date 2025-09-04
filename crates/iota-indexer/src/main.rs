@@ -71,7 +71,7 @@ async fn main() -> Result<(), IndexerError> {
             pruning_options,
             reset_db,
         } => {
-            let retention_config = pruning_options.load_from_file();
+            let retention_config = pruning_options.load_from_file()?;
             {
                 // Make sure to run all migrations on startup, and also serve as a compatibility
                 // check.

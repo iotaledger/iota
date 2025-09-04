@@ -146,10 +146,7 @@ impl Pruner {
                         }
                         self.partition_manager
                             .drop_table_partition(table_name.clone(), epoch)?;
-                        info!(
-                            "Batch dropped table partition {} epoch {}",
-                            table_name, epoch
-                        );
+                        info!("Batch dropped table partition {table_name} epoch {epoch}",);
                     }
                 }
             }
