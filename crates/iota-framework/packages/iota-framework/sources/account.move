@@ -3,7 +3,10 @@
 
 module iota::account;
 
+use iota::object::id_from_bytes;
+use iota::types;
 use std::ascii;
+use std::type_name;
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
@@ -59,4 +62,49 @@ public fun create_auth_info_v1_for_testing(
     function_name: ascii::String,
 ): AuthenticatorInfoV1 {
     AuthenticatorInfoV1{ package: package.to_id(), module_name, function_name }
+}
+
+/// Error code for non-OTW structures
+const ENotOneTimeWitness: u64 = 0;
+
+/// A record to mark the existence of a unique type, ensuring only one instance per type.
+public struct AuthenticateRegistry has key {
+    id: UID,
+    package: ascii::String,
+    module_name: ascii::String,
+    function_names: vector<vector<u8>>,
+}
+
+/// Public function to public a new registry of authenticate functions.
+/// The `is_one_time_witness` function ensures that this function
+/// can only be called once for a specific `T`.
+public fun public_authenticate_registry<OTW: drop>(
+    witness: &OTW,
+    function_names: vector<vector<u8>>,
+    ctx: &mut TxContext,
+) {
+    // Verify that the type is an OTW
+    assert!(types::is_one_time_witness(witness), ENotOneTimeWitness);
+
+    let type_name = type_name::get_with_original_ids<OTW>();
+
+    // Share the record globally
+    transfer::freeze_object(AuthenticateRegistry {
+        id: object::new(ctx),
+        package: type_name.get_address(),
+        module_name: type_name.get_module(),
+        function_names,
+    });
+}
+
+public fun create_auth_info_v2(
+    registry: &AuthenticateRegistry,
+    function_name: ascii::String,
+): AuthenticatorInfoV1 {
+    assert!(registry.function_names.contains(function_name.as_bytes()), 1);
+    AuthenticatorInfoV1 {
+        package: id_from_bytes(registry.package.into_bytes()),
+        module_name: registry.module_name,
+        function_name,
+    }
 }
