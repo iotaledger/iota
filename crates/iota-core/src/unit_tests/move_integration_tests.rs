@@ -1286,7 +1286,7 @@ async fn test_entry_point_vector_error() {
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
                 arg_idx: 0,
-                kind: CommandArgumentError::InvalidObjectByValue,
+                kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
         }
