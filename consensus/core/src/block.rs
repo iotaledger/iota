@@ -531,13 +531,32 @@ impl fmt::Debug for VerifiedBlock {
 }
 
 #[derive(Clone)]
-pub struct ProvablyFaultyBlock {
-    pub reference: BlockRef,
-    pub serialized: Bytes,
+pub(crate) struct ProvablyFaultyBlock {
+    pub(crate) reference: BlockRef,
+    pub(crate) serialized: Bytes,
 }
 
 impl ProvablyFaultyBlock {
     pub fn new(signed_block: SignedBlock, serialized: Bytes) -> Self {
+        Self {
+            reference: BlockRef {
+                round: signed_block.round(),
+                author: signed_block.author(),
+                digest: Self::compute_digest(&serialized),
+            },
+            serialized,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_test(block: Block) -> Self {
+        let signed_block = SignedBlock {
+            inner: block,
+            signature: Default::default(),
+        };
+        let serialized: Bytes = bcs::to_bytes(&signed_block)
+            .expect("Serialization should not fail")
+            .into();
         Self {
             reference: BlockRef {
                 round: signed_block.round(),
@@ -643,6 +662,11 @@ impl TestBlock {
 
     pub fn set_ancestors(mut self, ancestors: Vec<BlockRef>) -> Self {
         self.block.ancestors = ancestors;
+        self
+    }
+
+    pub fn set_misbehavior_reports(mut self, reports: Vec<MisbehaviorReport>) -> Self {
+        self.block.misbehavior_reports = reports;
         self
     }
 

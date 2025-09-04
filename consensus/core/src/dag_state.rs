@@ -1341,7 +1341,9 @@ mod test {
         let non_existent_round: u32 = 100;
         let num_authorities: u32 = 3;
         let num_blocks_per_slot: usize = 3;
+        let num_faulty_blocks_per_slot: usize = 2;
         let mut blocks = BTreeMap::new();
+        let mut faulty_blocks = BTreeMap::new();
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
                 // Create 3 blocks per slot, with different timestamps and digests.
@@ -1359,6 +1361,17 @@ mod test {
                     if AuthorityIndex::new_for_test(author) == own_index {
                         break;
                     }
+                }
+                for timestamp in base_ts + num_blocks_per_slot as u64
+                    ..base_ts + (num_blocks_per_slot + num_faulty_blocks_per_slot) as u64
+                {
+                    let faulty_block = ProvablyFaultyBlock::new_for_test(
+                        TestBlock::new(round, author)
+                            .set_timestamp_ms(timestamp)
+                            .build(),
+                    );
+                    dag_state.add_provably_faulty_block(faulty_block.clone());
+                    faulty_blocks.insert(faulty_block.reference, faulty_block);
                 }
             }
         }
@@ -1435,6 +1448,16 @@ mod test {
                 .get_uncommitted_blocks_at_round(non_existent_round)
                 .is_empty()
         );
+
+        // Check faulty blocks that exist.
+        for (r, _) in &faulty_blocks {
+            assert!(dag_state.contains_faulty_block(r))
+        }
+
+        // Check no verified blocks are stored as faulty.
+        for (r, _) in &blocks {
+            assert!(!dag_state.contains_faulty_block(r))
+        }
     }
 
     #[tokio::test]
@@ -1610,11 +1633,15 @@ mod test {
         let num_rounds: u32 = 10;
         let num_authorities: u32 = 4;
         let mut blocks = Vec::new();
+        let mut faulty_blocks = Vec::new();
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
                 let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
                 blocks.push(block);
+                let faulty_block =
+                    ProvablyFaultyBlock::new_for_test(TestBlock::new(round, author).build());
+                faulty_blocks.push(faulty_block);
             }
         }
 
@@ -1627,6 +1654,17 @@ mod test {
                     .unwrap();
             } else {
                 dag_state.accept_blocks(vec![block]);
+            }
+        });
+        // Also write faulty blocks from the first 4 rounds to the store and the rest to
+        // dag state.
+        faulty_blocks.clone().into_iter().for_each(|faulty_block| {
+            if faulty_block.reference.round <= 4 {
+                store
+                    .write(WriteBatch::default().provably_faulty_blocks(vec![faulty_block]))
+                    .unwrap();
+            } else {
+                dag_state.add_provably_faulty_block(faulty_block);
             }
         });
 
@@ -1642,6 +1680,13 @@ mod test {
         // Ensure everything is found
         let mut expected = vec![true; (num_rounds * num_authorities) as usize];
         assert_eq!(result, expected);
+
+        // Now check that all faulty blocks are found
+        assert!(
+            faulty_blocks
+                .iter()
+                .all(|b| dag_state.contains_faulty_block(&b.reference))
+        );
 
         // Now try to ask also for one block ref that is neither in cache nor in store
         block_refs.insert(
@@ -2107,6 +2152,130 @@ mod test {
             .filter_map(|b| b.verified_block())
             .collect::<Vec<_>>();
         assert!(retrieved_blocks.is_empty());
+
+        // Last commit index should be 5.
+        assert_eq!(dag_state.last_commit_index(), 5);
+
+        // This is the last_commit_rounds of the first 5 commits that were flushed
+        let expected_last_committed_rounds = vec![4, 5, 4, 4];
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            expected_last_committed_rounds
+        );
+        // Unscored subdags will be recovered based on the flushed commits and no commit
+        // info
+        assert_eq!(dag_state.scoring_subdags_count(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_flush_and_recovery_with_faulty_blocks() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (context, _) = Context::new_for_test(num_authorities as usize);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=3).build();
+        dag_builder
+            .layer(4)
+            .authorities(vec![AuthorityIndex::new_for_test(1)])
+            .faulty()
+            .build();
+        dag_builder.layers(5..=8).build();
+        dag_builder
+            .layer(9)
+            .authorities(vec![AuthorityIndex::new_for_test(2)])
+            .faulty()
+            .build();
+        dag_builder.layer(10).build();
+        let mut commits = vec![];
+        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=10) {
+            commits.push(commit);
+        }
+
+        // Add the blocks and faulty blocks from first 5 rounds and first 5 commits to
+        // the dag state
+        let temp_commits = commits.split_off(5);
+        dag_state.accept_blocks(dag_builder.blocks(1..=5));
+        for provably_faulty_block in dag_builder.provably_faulty_blocks(1..=5) {
+            dag_state.add_provably_faulty_block(provably_faulty_block);
+        }
+        for commit in commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Add the rest of the blocks, faulty blocks and commits to the dag state
+        dag_state.accept_blocks(dag_builder.blocks(6..=10));
+        for provably_faulty_block in dag_builder.provably_faulty_blocks(6..=10) {
+            dag_state.add_provably_faulty_block(provably_faulty_block);
+        }
+        for commit in temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // All blocks should be found in DagState.
+        let all_blocks = dag_builder.blocks(6..=10);
+        let block_refs = all_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .map(|b| b.verified_block().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, all_blocks);
+
+        // Last commit index should be 10.
+        assert_eq!(dag_state.last_commit_index(), 10);
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            dag_builder.last_committed_rounds.clone()
+        );
+
+        // Destroy the dag state.
+        drop(dag_state);
+
+        // Recover the state from the store
+        let dag_state = DagState::new(context.clone(), store.clone());
+
+        // Blocks and faulty blocks of first 5 rounds should be found in DagState.
+        let blocks = dag_builder.blocks(1..=5);
+        let block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .map(|b| b.verified_block().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, blocks);
+        for provably_faulty_block in dag_builder.provably_faulty_blocks(1..=5) {
+            assert!(dag_state.contains_faulty_block(&provably_faulty_block.reference));
+        }
+
+        // Blocks and faulty blocks above round 5 should not be in DagState, because
+        // they are not flushed.
+        let missing_blocks = dag_builder.blocks(6..=10);
+        let block_refs = missing_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let retrieved_blocks = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .filter_map(|b| b.verified_block())
+            .collect::<Vec<_>>();
+        assert!(retrieved_blocks.is_empty());
+        for provably_faulty_block in dag_builder.provably_faulty_blocks(6..=10) {
+            assert!(!dag_state.contains_faulty_block(&provably_faulty_block.reference));
+        }
 
         // Last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);

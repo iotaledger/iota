@@ -130,13 +130,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                             e.clone().name(),
                         ])
                         .inc();
-                    info!("Invalid block from {}: {}", peer, e);
+                    info!("Unprovably faulty block from {}: {}", peer, e);
                     return Err(e);
                 }
 
                 _ => {
                     // The block passes signature verification, but fails other checks.
-                    // Add a reference to this provably faulty block to the dag state.
+                    // Add this provably faulty block to the dag state.
                     self.core_dispatcher
                         .add_provably_faulty_block(ProvablyFaultyBlock::new(
                             signed_block,
@@ -144,6 +144,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         ))
                         .await
                         .map_err(|_| ConsensusError::Shutdown)?;
+                    info!("Provably faulty block from {}: {}", peer, e);
                     return Ok(());
                 }
             }

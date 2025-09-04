@@ -497,10 +497,49 @@ impl BlockManager {
 
         for report in block.misbehavior_reports() {
             match report.proof() {
-                MisbehaviorProof::InvalidBlock(block_ref) => {
+                MisbehaviorProof::InvalidBlock(ancestor) => {
                     // Check the dag state for the provably faulty block.
-                    if !dag_state.contains_faulty_block(block_ref) {
-                        missing_ancestors.insert(*block_ref);
+                    if !dag_state.contains_faulty_block(ancestor) {
+                        // mark the block as having missing ancestors
+                        self.missing_ancestors
+                            .entry(*ancestor)
+                            .or_default()
+                            .insert(block_ref);
+
+                        let ancestor_hostname =
+                            &self.context.committee.authority(ancestor.author).hostname;
+                        self.context
+                            .metrics
+                            .node_metrics
+                            .block_manager_missing_ancestors_by_authority
+                            .with_label_values(&[ancestor_hostname])
+                            .inc();
+
+                        // Add the ancestor to the ancestors_to_fetch set only if it doesn't already
+                        // exist in the suspended blocks - meaning that we already have
+                        // its payload.
+                        if !self.suspended_blocks.contains_key(ancestor) {
+                            // Fetches the block if it is not in dag state or suspended.
+                            ancestors_to_fetch.insert(*ancestor);
+                            // We also want to keep track of the authorities that have this block.
+                            // This block could be already missing, so we just update the set  of
+                            // authorities who have it.
+                            let entry = self.missing_blocks.entry(*ancestor);
+                            match entry {
+                                Entry::Vacant(v) => {
+                                    v.insert(BTreeSet::from([ancestor.author, block_ref.author]));
+                                    self.context
+                                        .metrics
+                                        .node_metrics
+                                        .block_manager_missing_blocks_by_authority
+                                        .with_label_values(&[ancestor_hostname])
+                                        .inc();
+                                }
+                                Entry::Occupied(mut o) => {
+                                    o.get_mut().insert(block_ref.author);
+                                }
+                            }
+                        }
                     }
                 }
                 MisbehaviorProof::Equivocation { .. } => {
@@ -874,8 +913,7 @@ mod tests {
             .authorities(vec![
                 AuthorityIndex::new_for_test(0),
                 AuthorityIndex::new_for_test(2),
-            ]) // Create equivocating blocks for 2 authorities
-            .equivocate(3)
+            ])
             .build();
 
         // Take only the blocks of round 2 and try to accept them
@@ -912,6 +950,157 @@ mod tests {
         );
 
         // AND each missing block should be known to all authorities
+        let known_by_manager = block_manager
+            .missing_blocks()
+            .iter()
+            .next()
+            .expect("We should expect at least two elements there")
+            .1
+            .clone();
+        assert_eq!(
+            known_by_manager,
+            context
+                .committee
+                .authorities()
+                .map(|(a, _)| a)
+                .collect::<BTreeSet<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn suspend_blocks_with_missing_equivocation_reports() {
+        // GIVEN
+        let (context, _key_pairs) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+
+        // create a DAG
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=2) // 2 rounds
+            .authorities(vec![
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(2),
+            ]) // Create equivocating blocks for 2 authorities
+            .equivocate(3)
+            .build();
+
+        // Take only the blocks of round 2 and try to accept them
+        let round_2_blocks = dag_builder.blocks(2..=2);
+
+        let (accepted_blocks, missing) = block_manager.try_accept_blocks(round_2_blocks.clone());
+
+        assert!(accepted_blocks.is_empty());
+
+        // the returned missing ancestors should be the same as the provided block
+        // ancestors. Since this is a fully connected DAG taking the ancestors of
+        // the first element suffices.
+        let first_round_2_block = round_2_blocks.first().unwrap();
+        let mut missing_block_refs = first_round_2_block.ancestors().to_vec();
+        missing_block_refs.extend(
+            first_round_2_block
+                .misbehavior_reports()
+                .iter()
+                .flat_map(|report| report.references()),
+        );
+        let missing_block_refs = missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+        assert_eq!(missing, missing_block_refs);
+
+        // the missing blocks are the ancestors and misbehavior reports of the round 2
+        // blocks.
+        assert_eq!(block_manager.missing_block_refs(), missing_block_refs);
+
+        // suspended blocks should return the round_2_blocks
+        assert_eq!(
+            block_manager.suspended_blocks_refs(),
+            round_2_blocks
+                .into_iter()
+                .map(|block| block.reference())
+                .collect::<BTreeSet<_>>()
+        );
+
+        // AND each missing block should be known to all authorities
+        let known_by_manager = block_manager
+            .missing_blocks()
+            .iter()
+            .next()
+            .expect("We should expect at least two elements there")
+            .1
+            .clone();
+        assert_eq!(
+            known_by_manager,
+            context
+                .committee
+                .authorities()
+                .map(|(a, _)| a)
+                .collect::<BTreeSet<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn suspend_blocks_with_missing_provably_faulty_block_reports() {
+        // GIVEN
+        let (context, _key_pairs) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+
+        // create a DAG
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layer(1) // 1st round
+            .authorities(vec![
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(2),
+            ]) // authorities 0 and 2 will create provably faulty blocks
+            .faulty()
+            .build();
+        dag_builder
+            .layer(2) // 2nd round with no faulty blocks
+            .build();
+
+        // Take only the blocks of round 2 and try to accept them
+        let round_2_blocks = dag_builder.blocks(2..=2);
+
+        let (accepted_blocks, missing) = block_manager.try_accept_blocks(round_2_blocks.clone());
+
+        assert!(accepted_blocks.is_empty());
+
+        // the returned missing ancestors should be the same as the provided block
+        // ancestors. Since this is a fully connected DAG taking the ancestors of
+        // the first element suffices.
+        let first_round_2_block = round_2_blocks.first().unwrap();
+        let mut missing_block_refs = first_round_2_block.ancestors().to_vec();
+        missing_block_refs.extend(
+            first_round_2_block
+                .misbehavior_reports()
+                .iter()
+                .flat_map(|report| report.references()),
+        );
+        let missing_block_refs = missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+        assert_eq!(missing, missing_block_refs);
+
+        // the missing blocks are the ancestors and misbehavior reports of the round 2
+        // blocks.
+        assert_eq!(block_manager.missing_block_refs(), missing_block_refs);
+
+        // suspended blocks should return the round_2_blocks
+        assert_eq!(
+            block_manager.suspended_blocks_refs(),
+            round_2_blocks
+                .into_iter()
+                .map(|block| block.reference())
+                .collect::<BTreeSet<_>>()
+        );
+
+        // each missing block should be known to all authorities
         let known_by_manager = block_manager
             .missing_blocks()
             .iter()

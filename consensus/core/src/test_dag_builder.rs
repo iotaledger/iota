@@ -15,8 +15,8 @@ use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use crate::{
     CommitRef, CommittedSubDag,
     block::{
-        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot, TestBlock, VerifiedBlock,
-        genesis_blocks,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, MisbehaviorProof, MisbehaviorReport,
+        ProvablyFaultyBlock, Round, Slot, TestBlock, VerifiedBlock, genesis_blocks,
     },
     commit::{CertifiedCommit, CommitDigest, DEFAULT_WAVE_LENGTH, TrustedCommit},
     context::Context,
@@ -87,6 +87,8 @@ pub(crate) struct DagBuilder {
     // All blocks created by dag builder. Will be used to pretty print or to be
     // retrieved for testing/persiting to dag state.
     pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlock>,
+    // All provably faulty blocks created by the dag builder.
+    pub(crate) provably_faulty_blocks: BTreeMap<BlockRef, ProvablyFaultyBlock>,
     // All the committed sub dags created by the dag builder.
     pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
     pub(crate) last_committed_rounds: Vec<Round>,
@@ -115,6 +117,7 @@ impl DagBuilder {
             genesis,
             last_ancestors,
             blocks: BTreeMap::new(),
+            provably_faulty_blocks: BTreeMap::new(),
             committed_sub_dags: vec![],
         }
     }
@@ -137,6 +140,17 @@ impl DagBuilder {
             "No blocks have been created, please make sure that you have called build method"
         );
         self.blocks.values().cloned().collect()
+    }
+
+    pub(crate) fn provably_faulty_blocks(
+        &self,
+        rounds: RangeInclusive<Round>,
+    ) -> Vec<ProvablyFaultyBlock> {
+        self.provably_faulty_blocks
+            .iter()
+            .filter_map(|(block_ref, block)| rounds.contains(&block_ref.round).then_some(block))
+            .cloned()
+            .collect::<Vec<ProvablyFaultyBlock>>()
     }
 
     pub(crate) fn get_sub_dag_and_commits(
@@ -424,6 +438,8 @@ pub struct LayerBuilder<'a> {
     skip_ancestor_links: Option<Vec<AuthorityIndex>>,
     // Skip leader link for specified authorities
     no_leader_link: bool,
+    // Issue a provably faulty block for specified authorities
+    faulty: bool,
 
     // Skip leader block proposal
     no_leader_block: bool,
@@ -444,9 +460,13 @@ pub struct LayerBuilder<'a> {
 
     // Ancestors to link to the current layer
     ancestors: Vec<BlockRef>,
+    // Ancestors that are provably faulty
+    provably_faulty_ancestors: Vec<BlockRef>,
 
     // Accumulated blocks to write to dag state
     blocks: Vec<VerifiedBlock>,
+    // Accumulated provably faulty blocks to write to the dag state
+    provably_faulty_blocks: Vec<ProvablyFaultyBlock>,
 }
 
 #[expect(unused)]
@@ -461,6 +481,7 @@ impl<'a> LayerBuilder<'a> {
             specified_authorities: None,
             equivocations: 0,
             skip_block: false,
+            faulty: false,
             skip_ancestor_links: None,
             no_leader_link: false,
             no_leader_block: false,
@@ -473,7 +494,9 @@ impl<'a> LayerBuilder<'a> {
             random_weak_links: false,
             random_weak_links_random_seed: None,
             ancestors,
+            provably_faulty_ancestors: vec![],
             blocks: vec![],
+            provably_faulty_blocks: vec![],
         }
     }
 
@@ -563,6 +586,15 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
+    // Blocks created by the specified authorities at the layer round will be
+    // provably faulty.
+    pub fn faulty(mut self) -> Self {
+        // authorities must be specified for this to apply
+        assert!(self.specified_authorities.is_some());
+        self.faulty = true;
+        self
+    }
+
     // Apply the configurations & build the dag layer(s).
     pub fn build(mut self) -> Self {
         for round in self.start_round..=self.end_round.unwrap_or(self.start_round) {
@@ -616,7 +648,9 @@ impl<'a> LayerBuilder<'a> {
     }
 
     // Layer round is minimally and randomly connected with ancestors.
-    pub fn configure_min_parent_links(&mut self) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
+    pub fn configure_min_parent_links(
+        &mut self,
+    ) -> Vec<(AuthorityIndex, Vec<BlockRef>, Vec<BlockRef>)> {
         let quorum_threshold = self.dag_builder.context.committee.quorum_threshold() as usize;
         let mut authorities: Vec<AuthorityIndex> = self
             .dag_builder
@@ -667,13 +701,16 @@ impl<'a> LayerBuilder<'a> {
                         })
                         .cloned()
                         .collect::<Vec<BlockRef>>(),
+                    self.provably_faulty_ancestors.clone(),
                 )
             })
             .collect()
     }
 
     // TODO: configure layer round randomly connected with weak links.
-    fn configure_random_weak_links(&mut self) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
+    fn configure_random_weak_links(
+        &mut self,
+    ) -> Vec<(AuthorityIndex, Vec<BlockRef>, Vec<BlockRef>)> {
         unimplemented!("configure_random_weak_links");
     }
 
@@ -683,7 +720,7 @@ impl<'a> LayerBuilder<'a> {
         &mut self,
         authorities: Vec<AuthorityIndex>,
         round: Round,
-    ) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
+    ) -> Vec<(AuthorityIndex, Vec<BlockRef>, Vec<BlockRef>)> {
         let mut missing_leaders = Vec::new();
         let mut specified_leader_offsets = self
             .specified_leader_link_offsets
@@ -708,12 +745,20 @@ impl<'a> LayerBuilder<'a> {
         self.configure_skipped_ancestor_links(authorities, missing_leaders)
     }
 
-    fn configure_fully_linked_ancestors(&mut self) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
+    fn configure_fully_linked_ancestors(
+        &mut self,
+    ) -> Vec<(AuthorityIndex, Vec<BlockRef>, Vec<BlockRef>)> {
         self.dag_builder
             .context
             .committee
             .authorities()
-            .map(|authority| (authority.0, self.ancestors.clone()))
+            .map(|authority| {
+                (
+                    authority.0,
+                    self.ancestors.clone(),
+                    self.provably_faulty_ancestors.clone(),
+                )
+            })
             .collect::<Vec<_>>()
     }
 
@@ -721,7 +766,7 @@ impl<'a> LayerBuilder<'a> {
         &mut self,
         authorities: Vec<AuthorityIndex>,
         ancestors_to_skip: Vec<AuthorityIndex>,
-    ) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
+    ) -> Vec<(AuthorityIndex, Vec<BlockRef>, Vec<BlockRef>)> {
         let filtered_ancestors = self
             .ancestors
             .clone()
@@ -730,37 +775,92 @@ impl<'a> LayerBuilder<'a> {
             .collect::<Vec<_>>();
         authorities
             .into_iter()
-            .map(|authority| (authority, filtered_ancestors.clone()))
+            .map(|authority| {
+                (
+                    authority,
+                    filtered_ancestors.clone(),
+                    self.provably_faulty_ancestors.clone(),
+                )
+            })
             .collect::<Vec<_>>()
     }
 
     // Creates the blocks for the new layer based on configured connections, also
     // sets the ancestors for future layers to be linked to
-    fn create_blocks(&mut self, round: Round, connections: Vec<(AuthorityIndex, Vec<BlockRef>)>) {
+    fn create_blocks(
+        &mut self,
+        round: Round,
+        connections: Vec<(AuthorityIndex, Vec<BlockRef>, Vec<BlockRef>)>,
+    ) {
         let mut references = Vec::new();
-        for (authority, ancestors) in connections {
+        let mut faulty_refs = Vec::new();
+        for (authority, ancestors, faulty_ancestors) in connections {
             if self.should_skip_block(round, authority) {
                 continue;
             };
+            let mut misbehavior_reports = self.equivocation_reports(ancestors.clone());
+            for faulty_ancestor in faulty_ancestors {
+                misbehavior_reports.push(MisbehaviorReport::new(
+                    faulty_ancestor.author,
+                    MisbehaviorProof::InvalidBlock(faulty_ancestor),
+                ));
+            }
             let num_blocks = self.num_blocks_to_create(authority);
 
             for num_block in 0..num_blocks {
                 let author = authority.value() as u32;
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
-                        .set_ancestors(ancestors.clone())
-                        .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
-                        .build(),
-                );
-                references.push(block.reference());
-                self.dag_builder
-                    .blocks
-                    .insert(block.reference(), block.clone());
-                self.blocks.push(block);
+                if self.should_create_faulty_block(authority) {
+                    let faulty_block = ProvablyFaultyBlock::new_for_test(
+                        TestBlock::new(round, author)
+                            .set_ancestors(ancestors.clone())
+                            .set_misbehavior_reports(misbehavior_reports.clone())
+                            .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
+                            .build(),
+                    );
+                    faulty_refs.push(faulty_block.reference);
+                    self.dag_builder
+                        .provably_faulty_blocks
+                        .insert(faulty_block.reference, faulty_block.clone().into());
+                    self.provably_faulty_blocks.push(faulty_block);
+                    continue;
+                } else {
+                    let block = VerifiedBlock::new_for_test(
+                        TestBlock::new(round, author)
+                            .set_ancestors(ancestors.clone())
+                            .set_misbehavior_reports(misbehavior_reports.clone())
+                            .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
+                            .build(),
+                    );
+                    references.push(block.reference());
+                    self.dag_builder
+                        .blocks
+                        .insert(block.reference(), block.clone());
+                    self.blocks.push(block);
+                }
             }
         }
         self.ancestors = references;
+        self.provably_faulty_ancestors = faulty_refs;
+    }
+
+    fn equivocation_reports(&self, ancestors: Vec<BlockRef>) -> Vec<MisbehaviorReport> {
+        let mut reports = vec![];
+        let mut seen_ancestors = BTreeMap::<AuthorityIndex, BlockRef>::new();
+        for ancestor in ancestors.iter() {
+            if let Some(existing_ancestor) = seen_ancestors.get(&ancestor.author) {
+                reports.push(MisbehaviorReport::new(
+                    ancestor.author,
+                    MisbehaviorProof::Equivocation {
+                        first: existing_ancestor.clone(),
+                        second: ancestor.clone(),
+                    },
+                ));
+            } else {
+                seen_ancestors.insert(ancestor.author, ancestor.clone());
+            }
+        }
+        reports
     }
 
     fn num_blocks_to_create(&self, authority: AuthorityIndex) -> u32 {
@@ -814,6 +914,14 @@ impl<'a> LayerBuilder<'a> {
             }
         }
         false
+    }
+
+    fn should_create_faulty_block(&self, authority: AuthorityIndex) -> bool {
+        self.faulty
+            && self
+                .specified_authorities
+                .as_ref()
+                .map_or(false, |authorities| authorities.contains(&authority))
     }
 }
 

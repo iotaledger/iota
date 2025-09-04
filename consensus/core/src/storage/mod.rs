@@ -125,4 +125,13 @@ impl WriteBatch {
         self.commit_info = commit_info;
         self
     }
+
+    #[cfg(test)]
+    pub(crate) fn provably_faulty_blocks(
+        mut self,
+        provably_faulty_blocks: Vec<ProvablyFaultyBlock>,
+    ) -> Self {
+        self.provably_faulty_blocks = provably_faulty_blocks;
+        self
+    }
 }
