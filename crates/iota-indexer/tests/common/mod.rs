@@ -28,7 +28,7 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -423,7 +423,7 @@ pub async fn publish_test_move_package(
     address: IotaAddress,
     account_keypair: &IotaKeyPair,
     test_package_name: &str,
-) -> Result<(ObjectID, IotaTransactionBlockResponse), anyhow::Error> {
+) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
     let _lock = PACKAGE_PUBLISH_LOCK
         .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
         .await
@@ -475,13 +475,13 @@ pub async fn publish_test_move_package(
         .unwrap();
 
     let object_changes = tx_response.object_changes.as_ref().unwrap();
-    let package_id = object_changes
+    let package_object_ref = object_changes
         .iter()
         .find_map(|change| match change {
-            ObjectChange::Published { package_id, .. } => Some(package_id),
+            ObjectChange::Published { .. } => Some(change.object_ref()),
             _ => None,
         })
         .unwrap();
 
-    Ok((*package_id, tx_response))
+    Ok((package_object_ref, tx_response))
 }

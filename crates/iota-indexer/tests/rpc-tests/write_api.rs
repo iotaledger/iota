@@ -325,27 +325,24 @@ fn move_view_function_call() {
             )
             .await;
         indexer_wait_for_object(client, gas_id, gas_version).await;
-        let (package_id, transaction_response) =
+        let ((package_id, version, _), transaction_response) =
             publish_test_move_package(client, address, &keypair, "wat_counter")
                 .await
                 .unwrap();
+        indexer_wait_for_object(client, package_id, version).await;
 
         let object_changes = transaction_response.object_changes.unwrap();
-        let (review_id, version) = object_changes
+        let review_id = object_changes
             .into_iter()
             .find_map(|change| match change {
                 ObjectChange::Created {
                     object_id,
-                    owner:
-                        Owner::Shared {
-                            initial_shared_version,
-                        },
+                    owner: Owner::Shared { .. },
                     ..
-                } => Some((object_id, initial_shared_version)),
+                } => Some(object_id),
                 _ => None,
             })
             .unwrap();
-        indexer_wait_for_object(client, review_id, version).await;
 
         // Call move view
         let fn_name = format!("{package_id}::wat_counter::get_counter");
