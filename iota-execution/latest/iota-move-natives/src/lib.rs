@@ -74,6 +74,7 @@ use crate::{
         poseidon::PoseidonBN254CostParams,
         zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
     },
+    types::TypesIsAuthenticateOneTimeWitnessCostParams,
 };
 
 mod account;
@@ -132,6 +133,8 @@ pub struct NativesCostTable {
 
     // Type
     pub type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams,
+    pub type_is_authenticate_one_time_witness_cost_params:
+        TypesIsAuthenticateOneTimeWitnessCostParams,
 
     // Validator
     pub validator_validate_metadata_bcs_cost_params: ValidatorValidateMetadataBcsCostParams,
@@ -374,6 +377,18 @@ impl NativesCostTable {
                     .types_is_one_time_witness_type_cost_per_byte()
                     .into(),
             },
+            type_is_authenticate_one_time_witness_cost_params:
+                TypesIsAuthenticateOneTimeWitnessCostParams {
+                    types_is_authenticate_one_time_witness_cost_base: protocol_config
+                        .types_is_authenticate_one_time_witness_cost_base()
+                        .into(),
+                    types_is_authenticate_one_time_witness_type_tag_cost_per_byte: protocol_config
+                        .types_is_authenticate_one_time_witness_type_tag_cost_per_byte()
+                        .into(),
+                    types_is_authenticate_one_time_witness_type_cost_per_byte: protocol_config
+                        .types_is_authenticate_one_time_witness_type_cost_per_byte()
+                        .into(),
+                },
             validator_validate_metadata_bcs_cost_params: ValidatorValidateMetadataBcsCostParams {
                 validator_validate_metadata_cost_base: protocol_config
                     .validator_validate_metadata_cost_base()
@@ -1042,6 +1057,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "types",
             "is_one_time_witness",
             make_native!(types::is_one_time_witness),
+        ),
+        (
+            "types",
+            "is_authenticate_one_time_witness",
+            make_native!(types::is_authenticate_one_time_witness),
         ),
         ("test_utils", "destroy", make_native!(test_utils::destroy)),
         (

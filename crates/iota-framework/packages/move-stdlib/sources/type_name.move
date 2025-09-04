@@ -11,6 +11,9 @@ use std::ascii::{Self, String};
 /// ASCII Character code for the `:` (colon) symbol.
 const ASCII_COLON: u8 = 58;
 
+/// ASCII Character code for the `:` (less-than) symbol.
+const ASCII_LESS: u8 = 60;
+
 /// ASCII Character code for the `v` (lowercase v) symbol.
 const ASCII_V: u8 = 118;
 /// ASCII Character code for the `e` (lowercase e) symbol.
@@ -120,6 +123,39 @@ public fun get_module(self: &TypeName): String {
     };
 
     ascii::string(module_name)
+}
+
+/// Get name of the struct.
+/// Aborts if given a primitive type.
+public fun get_struct(self: &TypeName): String {
+    assert!(!self.is_primitive(), ENonModuleType);
+
+    // Starts after address and a double colon: `<addr as HEX>::`
+    let mut i = address::length() * 2 + 2;
+    let str_bytes = self.name.as_bytes();
+    let colon = ASCII_COLON;
+    // Find the module name by reaching the first colon: `<module_name>:`
+    loop {
+        i = i + 1;
+        if (&str_bytes[i] == &colon) break
+    };
+    // Skip the second colon: `:`
+    i = i + 1;
+    // Finally, read the struct name up to a less-than sign `<` or up to the end of the string
+    let str_bytes_len = str_bytes.length();
+    let mut struct_name = vector[];
+    let less_than = ASCII_LESS;
+    loop {
+        let char = &str_bytes[i];
+        if (char != &less_than) {
+            struct_name.push_back(*char);
+            i = i + 1;
+            if (i < str_bytes_len) continue
+        };
+        break
+    };
+
+    ascii::string(struct_name)
 }
 
 /// Convert `self` into its inner String

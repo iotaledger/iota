@@ -114,7 +114,7 @@ pub fn verify_module(
 
 // Verifies all required properties of a one-time witness type candidate (that
 // is a type whose name is the same as the name of a module but capitalized)
-fn verify_one_time_witness(
+pub fn verify_one_time_witness(
     module: &CompiledModule,
     candidate_name: &str,
     candidate_handle: &DatatypeHandle,
@@ -201,7 +201,7 @@ fn verify_init_single_param(
 
 /// Checks if this module function does not contain instantiation of the
 /// one-time witness type
-fn verify_no_instantiations(
+pub fn verify_no_instantiations(
     module: &CompiledModule,
     fn_def: &FunctionDefinition,
     struct_name: &str,

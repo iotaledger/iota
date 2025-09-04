@@ -3,11 +3,23 @@
 
 module iota::account;
 
+use iota::address::from_ascii_bytes;
+use iota::object::id_from_address;
+use iota::types;
 use std::ascii;
+use std::type_name;
+
+/// Error code for non-OTW structures during the authenticator info creation.
+const ENotAuthenticateOneTimeWitness: u64 = 0;
+/// Error code empty function names during the authenticator info creation.
+const EAuthFnNameIsEmpty: u64 = 1;
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
 const AUTHENTICATOR_DF_NAME: vector<u8> = b"IOTA_AUTHENTICATION";
+
+// The length of the prefix used for AOTW
+const AOTW_PREFIX_LEN: u64 = 5; //AUTH_
 
 #[allow(unused_field)]
 public struct AuthenticatorInfoV1 has copy, drop, store {
@@ -51,6 +63,26 @@ public fun authenticator_df_name(): vector<u8> {
     AUTHENTICATOR_DF_NAME
 }
 
+public fun create_auth_info_v1_fotw<AOTW: drop>(): AuthenticatorInfoV1 {
+    // Verify that the type is an AOTW
+    assert!(types::is_authenticate_one_time_witness<AOTW>(), ENotAuthenticateOneTimeWitness);
+
+    let type_name = type_name::get_with_original_ids<AOTW>();
+    let package = id_from_address(from_ascii_bytes(type_name.get_address().as_bytes()));
+    let module_name = type_name.get_module();
+    let struct_name = type_name.get_struct();
+
+    // Remove the AOTW prefix and convert to lowercase
+    let function_name = struct_name.substring(AOTW_PREFIX_LEN, struct_name.length()).to_lowercase();
+    assert!(!function_name.is_empty(), EAuthFnNameIsEmpty);
+
+    AuthenticatorInfoV1 {
+        package,
+        module_name,
+        function_name,
+    }
+}
+
 /// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_info_v1_for_testing(
@@ -58,5 +90,5 @@ public fun create_auth_info_v1_for_testing(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorInfoV1 {
-    AuthenticatorInfoV1{ package: package.to_id(), module_name, function_name }
+    AuthenticatorInfoV1 { package: package.to_id(), module_name, function_name }
 }

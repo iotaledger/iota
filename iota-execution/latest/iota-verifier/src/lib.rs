@@ -5,6 +5,7 @@
 pub mod verifier;
 
 pub mod account_auth_verifier;
+pub mod authenticate_one_time_witness_verifier;
 pub mod entry_points_verifier;
 pub mod global_storage_access_verifier;
 pub mod id_leak_verifier;

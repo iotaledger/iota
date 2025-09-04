@@ -864,6 +864,11 @@ pub struct ProtocolConfig {
     types_is_one_time_witness_cost_base: Option<u64>,
     types_is_one_time_witness_type_tag_cost_per_byte: Option<u64>,
     types_is_one_time_witness_type_cost_per_byte: Option<u64>,
+    // Cost params for the Move native function `is_authenticate_one_time_witness<T: drop>(_: &T):
+    // bool`
+    types_is_authenticate_one_time_witness_cost_base: Option<u64>,
+    types_is_authenticate_one_time_witness_type_tag_cost_per_byte: Option<u64>,
+    types_is_authenticate_one_time_witness_type_cost_per_byte: Option<u64>,
 
     // Validator
     // Cost params for the Move native function `validate_metadata_bcs(metadata: vector<u8>)`
@@ -1660,6 +1665,11 @@ impl ProtocolConfig {
             types_is_one_time_witness_cost_base: Some(52),
             types_is_one_time_witness_type_tag_cost_per_byte: Some(2),
             types_is_one_time_witness_type_cost_per_byte: Some(2),
+            // Cost params for the Move native function `is_authenticate_one_time_witness<T:
+            // drop>(_: &T): bool`
+            types_is_authenticate_one_time_witness_cost_base: None,
+            types_is_authenticate_one_time_witness_type_tag_cost_per_byte: None,
+            types_is_authenticate_one_time_witness_type_cost_per_byte: None,
 
             // `validator` module
             // Cost params for the Move native function `validate_metadata_bcs(metadata:
@@ -2151,6 +2161,10 @@ impl ProtocolConfig {
                         // === Native Function Costs ===
                         // `account` module
                         cfg.check_auth_info_v1_cost_base = Some(1000);
+
+                        cfg.types_is_authenticate_one_time_witness_cost_base = Some(52);
+                        cfg.types_is_authenticate_one_time_witness_type_tag_cost_per_byte = Some(2);
+                        cfg.types_is_authenticate_one_time_witness_type_cost_per_byte = Some(2);
                     }
                 }
                 // Use this template when making changes:
