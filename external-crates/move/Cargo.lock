@@ -2165,6 +2165,7 @@ dependencies = [
  "clap 4.5.41",
  "colored",
  "datatest-stable",
+ "dunce",
  "expect-test",
  "itertools 0.10.5",
  "move-binary-format",
