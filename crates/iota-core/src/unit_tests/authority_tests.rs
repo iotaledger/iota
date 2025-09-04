@@ -807,7 +807,7 @@ async fn test_dev_inspect_gas_coin_argument() {
     check_coin_value(
         arg_value,
         arg_type,
-        DEV_INSPECT_GAS_COIN_VALUE - protocol_config.max_tx_gas() - amount,
+        SIMULATION_GAS_COIN_VALUE - protocol_config.max_tx_gas() - amount,
     );
 
     assert_eq!(return_values.len(), 1);
