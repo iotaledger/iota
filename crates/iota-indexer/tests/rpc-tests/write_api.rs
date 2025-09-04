@@ -5,12 +5,12 @@ use fastcrypto::encoding::Base64;
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -18,8 +18,11 @@ use iota_types::{
     transaction::TransactionKind,
     utils::to_sender_signed_transaction,
 };
+use serde_json::Value;
 
-use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object};
+use crate::common::{
+    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object, publish_test_move_package,
+};
 
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
@@ -298,5 +301,66 @@ fn execute_transaction_block() {
             actual_object_info.data.unwrap().owner.unwrap(),
             Owner::AddressOwner(receiver)
         );
+    });
+}
+
+#[test]
+fn move_view_function_call() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, keypair) = get_key_pair();
+        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (gas_id, gas_version, _) = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_id, gas_version).await;
+        let (package_id, transaction_response) =
+            publish_test_move_package(client, address, &keypair, "wat_counter")
+                .await
+                .unwrap();
+
+        let object_changes = transaction_response.object_changes.unwrap();
+        let (review_id, version) = object_changes
+            .into_iter()
+            .find_map(|change| match change {
+                ObjectChange::Created {
+                    object_id,
+                    owner:
+                        Owner::Shared {
+                            initial_shared_version,
+                        },
+                    ..
+                } => Some((object_id, initial_shared_version)),
+                _ => None,
+            })
+            .unwrap();
+        indexer_wait_for_object(client, review_id, version).await;
+
+        // Call move view
+        let fn_name = format!("{package_id}::wat_counter::get_counter");
+        let view_results = client
+            .view_function_call(
+                fn_name,
+                vec![],
+                vec![review_id.to_string().as_str().parse().unwrap()],
+            )
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        let return_values = view_results.into_return_values();
+        assert_eq!(return_values.len(), 1);
+        let wat_number = &return_values[0];
+        assert_eq!(wat_number, &Value::String("10".into()));
     });
 }

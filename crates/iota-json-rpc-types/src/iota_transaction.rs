@@ -1323,6 +1323,20 @@ impl IotaMoveViewCallResults {
         }
         Ok(Self::Results(move_call_results))
     }
+
+    pub fn into_return_values(self) -> Vec<serde_json::Value> {
+        match self {
+            IotaMoveViewCallResults::Error(_) => Default::default(),
+            IotaMoveViewCallResults::Results(values) => values,
+        }
+    }
+
+    pub fn error(&self) -> Option<&str> {
+        match self {
+            IotaMoveViewCallResults::Error(e) => Some(e.as_str()),
+            IotaMoveViewCallResults::Results(_) => None,
+        }
+    }
 }
 
 type ExecutionResult = (

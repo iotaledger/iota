@@ -18,13 +18,20 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{DBInitHook, IndexerTypeConfig, db_url, start_test_indexer},
 };
-use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
+use iota_json_rpc_api::{
+    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
+use iota_json_rpc_types::{
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
+};
 use iota_metrics::init_metrics;
+use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    crypto::Signature,
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
+    quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
@@ -34,7 +41,11 @@ use jsonrpsee::{
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::{runtime::Runtime, task::JoinHandle};
+use tokio::{
+    runtime::Runtime,
+    sync::{Mutex, OnceCell},
+    task::JoinHandle,
+};
 
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
@@ -43,6 +54,7 @@ const DEFAULT_SERVER_PORT: u16 = 3000;
 pub const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
+static PACKAGE_PUBLISH_LOCK: OnceCell<Arc<Mutex<i64>>> = OnceCell::const_new();
 
 pub struct ApiTestSetup {
     pub runtime: Runtime,
@@ -404,4 +416,72 @@ pub async fn wait_for_objects_snapshot(
     .await
     .expect("Timeout waiting for indexer to catchup to checkpoint for objects snapshot");
     Ok(())
+}
+
+pub async fn publish_test_move_package(
+    client: &HttpClient,
+    address: IotaAddress,
+    account_keypair: &IotaKeyPair,
+    test_package_name: &str,
+) -> Result<(ObjectID, IotaTransactionBlockResponse), anyhow::Error> {
+    let _lock = PACKAGE_PUBLISH_LOCK
+        .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
+        .await
+        .lock()
+        .await;
+
+    let coins = client
+        .get_coins(address, None, None, Some(1))
+        .await
+        .unwrap()
+        .data;
+    let gas = &coins[0];
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["tests", "data", test_package_name]);
+
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let with_unpublished_deps = false;
+    let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+    let transaction_bytes: TransactionBlockBytes = client
+        .publish(
+            address,
+            compiled_modules_bytes,
+            dependencies,
+            Some(gas.coin_object_id),
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+
+    let signed_transaction =
+        to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), account_keypair);
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_object_changes()
+                    .with_events(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+
+    let object_changes = tx_response.object_changes.as_ref().unwrap();
+    let package_id = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Published { package_id, .. } => Some(package_id),
+            _ => None,
+        })
+        .unwrap();
+
+    Ok((*package_id, tx_response))
 }
