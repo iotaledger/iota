@@ -7936,38 +7936,6 @@
           "computation_charge_burned": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
-          "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "epoch_start_timestamp_ms": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "storage_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "storage_rebate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          }
-        }
-      },
-      "IotaChangeEpochV3": {
-        "type": "object",
-        "required": [
-          "computation_charge",
-          "computation_charge_burned",
-          "eligible_active_validators",
-          "epoch",
-          "epoch_start_timestamp_ms",
-          "storage_charge",
-          "storage_rebate"
-        ],
-        "properties": {
-          "computation_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "computation_charge_burned": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
           "eligible_active_validators": {
             "type": "array",
             "items": {
@@ -8091,18 +8059,6 @@
             "properties": {
               "ChangeEpochV2": {
                 "$ref": "#/components/schemas/IotaChangeEpochV2"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ChangeEpochV3"
-            ],
-            "properties": {
-              "ChangeEpochV3": {
-                "$ref": "#/components/schemas/IotaChangeEpochV3"
               }
             },
             "additionalProperties": false
