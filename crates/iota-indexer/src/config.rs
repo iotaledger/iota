@@ -10,6 +10,7 @@ use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
+use tracing::warn;
 use url::Url;
 
 use crate::{
@@ -234,6 +235,9 @@ pub enum Command {
 
 #[derive(Args, Default, Debug, Clone)]
 pub struct PruningOptions {
+    // Argument left for backward compatibility, users are encouraged to use pruning_config_path
+    #[arg(long, env = "EPOCHS_TO_KEEP")]
+    pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
@@ -255,6 +259,21 @@ pub struct RetentionConfig {
 impl PruningOptions {
     /// Load default retention policy and overrides from file.
     pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
+        if let Some(epochs_to_keep) = self.epochs_to_keep {
+            warn!(
+                "Using the deprecated --epochs-to-keep argument for pruning configuration. \
+                Please use --pruning-config-path to specify a TOML configuration file instead."
+            );
+            assert!(
+                self.pruning_config_path.is_none(),
+                "Both --epochs-to-keep and --pruning-config-path cannot be provided at the same time."
+            );
+            return Ok(Some(RetentionConfig::new(
+                epochs_to_keep,
+                Default::default(),
+            )));
+        }
+
         let Some(config_path) = self.pruning_config_path.as_ref() else {
             return Ok(None);
         };
@@ -594,7 +613,10 @@ pub mod deprecated {
                         sleep_duration: SnapshotLagConfig::DEFAULT_SLEEP_DURATION_SEC,
                     },
                     pruning_options: PruningOptions {
-                        pruning_config_path: None, // no support for pruning in old CLI
+                        epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
+                            .map(|s| s.parse::<u64>().ok())
+                            .unwrap_or_else(|_e| None),
+                        pruning_config_path: None,
                     },
                     reset_db: old_conf.reset_db,
                 }
@@ -708,6 +730,7 @@ mod test {
         temp_file.write_all(toml_content.as_bytes()).unwrap();
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
+            epochs_to_keep: None,
             pruning_config_path: Some(temp_path.clone()),
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
@@ -757,6 +780,7 @@ mod test {
         temp_file.write_all(toml_content.as_bytes()).unwrap();
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
+            epochs_to_keep: None,
             pruning_config_path: Some(temp_path.clone()),
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
