@@ -8,14 +8,18 @@ mod checked {
     use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
     use anyhow::Result;
-    use iota_move_natives::{NativesCostTable, object_runtime, object_runtime::ObjectRuntime};
+    use iota_move_natives::{
+        NativesCostTable,
+        object_runtime::{self, ObjectRuntime},
+        raw_module_loader::RawModuleLoader,
+    };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         base_types::*,
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
         metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-        storage::ChildObjectResolver,
+        storage::{BackingPackageStore, ChildObjectResolver},
     };
     use iota_verifier::{
         check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
@@ -82,13 +86,15 @@ mod checked {
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
-    /// Creates a new set of `NativeContextExtensions` for the Move VM,
-    /// configuring extensions such as `ObjectRuntime` and
+    /// Creates a new set of `NativeContextExtensions`,
+    ///
+    /// Configuring extensions such as `ObjectRuntime` and
     /// `NativesCostTable`. These extensions manage object resolution, input
     /// objects, metering, protocol configuration, and metrics tracking.
     /// They are available and mainly used in native function implementations
     /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
+        package_store: &'r dyn BackingPackageStore,
         child_resolver: &'r dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
         is_metered: bool,
@@ -96,6 +102,8 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         current_epoch_id: EpochId,
     ) -> NativeContextExtensions<'r> {
+        // When changing the list of configured extensions, make sure you also
+        // update the one used while executing `move test` command.
         let mut extensions = NativeContextExtensions::default();
         extensions.add(ObjectRuntime::new(
             child_resolver,
@@ -106,6 +114,7 @@ mod checked {
             current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
+        extensions.add(RawModuleLoader::new(package_store));
         extensions
     }
 
