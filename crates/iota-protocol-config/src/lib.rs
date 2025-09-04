@@ -2172,7 +2172,8 @@ impl ProtocolConfig {
                     cfg.feature_flags.normalize_ptb_arguments = true;
                 }
                 13 => {
-                    // Enable selecting committee based on eligible active validators in devnet.
+                    // Enable selecting committee based on eligible active validators in all
+                    // networks.
                     cfg.feature_flags.select_committee_from_eligible_validators = true;
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable tracking non-committee eligible active validators in devnet.

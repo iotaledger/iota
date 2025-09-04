@@ -4723,8 +4723,8 @@ impl AuthorityState {
     /// indices.
     fn get_validators_supporting_protocol_version(
         target_protocol_version: ProtocolVersion,
-        active_validators: Vec<AuthorityPublicKey>,
-        capabilities: Vec<AuthorityCapabilitiesV1>,
+        active_validators: &[AuthorityPublicKey],
+        capabilities: &[AuthorityCapabilitiesV1],
     ) -> Vec<u64> {
         let mut eligible_validators = Vec::new();
 
@@ -4762,14 +4762,13 @@ impl AuthorityState {
         let mut total_weight = 0u64;
 
         for &index in eligible_validator_indices {
-            if let Some(authority_pubkey) = active_validators.get(index as usize) {
-                // Check if this validator is in the committee and get their weight
-                if let Some((_, weight)) = committee
-                    .members()
-                    .find(|(name, _)| *name == AuthorityName::from(authority_pubkey))
-                {
-                    total_weight += weight;
-                }
+            let authority_pubkey = &active_validators[index as usize];
+            // Check if this validator is in the committee and get their weight
+            if let Some((_, weight)) = committee
+                .members()
+                .find(|(name, _)| *name == AuthorityName::from(authority_pubkey))
+            {
+                total_weight += weight;
             }
         }
 
@@ -4845,14 +4844,14 @@ impl AuthorityState {
         let next_epoch = epoch_store.epoch() + 1;
 
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
-
+        let authority_capabilities = epoch_store
+            .get_capabilities_v1()
+            .expect("read capabilities from db cannot fail");
         let (next_epoch_protocol_version, next_epoch_system_packages) =
             Self::choose_protocol_version_and_system_packages_v1(
                 epoch_store.protocol_version(),
                 epoch_store.committee(),
-                epoch_store
-                    .get_capabilities_v1()
-                    .expect("read capabilities from db cannot fail"),
+                authority_capabilities.clone(),
                 buffer_stake_bps,
             );
 
@@ -4889,12 +4888,7 @@ impl AuthorityState {
             // Get the list of eligible validators that support the target protocol version
             let active_validators = epoch_store.epoch_start_state().get_active_validators();
 
-            //
-            let mut eligible_active_validators = active_validators
-                .iter()
-                .enumerate()
-                .map(|(i, _)| i as u64)
-                .collect();
+            let mut eligible_active_validators = (0..active_validators.len() as u64).collect();
 
             // Use validators supporting the target protocol version as eligible validators
             // in the next version if track_non_committee_eligible_validators feature flag
@@ -4902,10 +4896,8 @@ impl AuthorityState {
             if config.track_non_committee_eligible_validators() {
                 eligible_active_validators = Self::get_validators_supporting_protocol_version(
                     next_epoch_protocol_version,
-                    active_validators.clone(),
-                    epoch_store
-                        .get_capabilities_v1()
-                        .expect("read capabilities from db cannot fail"),
+                    &active_validators,
+                    &authority_capabilities,
                 );
 
                 // Calculate the total weight of eligible validators in the committee
@@ -4932,11 +4924,7 @@ impl AuthorityState {
                     // Pass all active validator indices as eligible validators
                     // to perform selection among all of
                     // them.
-                    eligible_active_validators = active_validators
-                        .iter()
-                        .enumerate()
-                        .map(|(i, _)| i as u64)
-                        .collect();
+                    eligible_active_validators = (0..active_validators.len() as u64).collect();
                 }
             }
 
