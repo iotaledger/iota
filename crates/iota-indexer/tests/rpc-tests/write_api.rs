@@ -4,8 +4,8 @@
 use fastcrypto::encoding::Base64;
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions, ObjectChange,
+    IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -18,7 +18,6 @@ use iota_types::{
     transaction::TransactionKind,
     utils::to_sender_signed_transaction,
 };
-use serde_json::Value;
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object, publish_test_move_package,
@@ -304,6 +303,7 @@ fn execute_transaction_block() {
     });
 }
 
+/// Uses the test smart contract under `tests/data/wat_counter`.
 #[test]
 fn move_view_function_call() {
     let ApiTestSetup {
@@ -344,7 +344,7 @@ fn move_view_function_call() {
             })
             .unwrap();
 
-        // Call move view
+        // Test u64 return value, which is cast to string.
         let fn_name = format!("{package_id}::wat_counter::get_counter");
         let view_results = client
             .view_function_call(
@@ -358,6 +358,26 @@ fn move_view_function_call() {
         let return_values = view_results.into_return_values();
         assert_eq!(return_values.len(), 1);
         let wat_number = &return_values[0];
-        assert_eq!(wat_number, &Value::String("10".into()));
+        assert_eq!(wat_number, &IotaMoveValue::String("10".into()));
+
+        // Test struct return value.
+        let fn_name = format!("{package_id}::wat_counter::get_wat_object");
+        let view_results = client
+            .view_function_call(
+                fn_name,
+                vec![],
+                vec![review_id.to_string().as_str().parse().unwrap()],
+            )
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        let return_values = view_results.into_return_values();
+        assert_eq!(return_values.len(), 1);
+        let wat = &return_values[0];
+        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
+            panic!("return value should have been a struct");
+        };
+        assert_eq!(type_.name.to_string(), format!("Wat"));
+        assert!(fields.contains_key(&"counter".to_string()));
     });
 }

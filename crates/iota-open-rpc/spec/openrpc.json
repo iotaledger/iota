@@ -8532,12 +8532,14 @@
             "description": "The return values of the move view function",
             "type": "object",
             "required": [
-              "viewFunctionReturnValues"
+              "functionReturnValues"
             ],
             "properties": {
-              "viewFunctionReturnValues": {
+              "functionReturnValues": {
                 "type": "array",
-                "items": true
+                "items": {
+                  "$ref": "#/components/schemas/MoveValue"
+                }
               }
             },
             "additionalProperties": false

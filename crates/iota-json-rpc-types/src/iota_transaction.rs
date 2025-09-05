@@ -1287,8 +1287,8 @@ pub enum IotaMoveViewCallResults {
     #[serde(rename = "executionError")]
     Error(String),
     /// The return values of the move view function
-    #[serde(rename = "viewFunctionReturnValues")]
-    Results(Vec<serde_json::Value>),
+    #[serde(rename = "functionReturnValues")]
+    Results(Vec<IotaMoveValue>),
 }
 
 impl IotaMoveViewCallResults {
@@ -1319,12 +1319,12 @@ impl IotaMoveViewCallResults {
         while let Some(result) = execution_results.next().await {
             let (bytes, move_type_layout) = result?;
             let move_value = BoundedVisitor::deserialize_value(&bytes, &move_type_layout)?;
-            move_call_results.push(IotaMoveValue::from(move_value).to_json_value());
+            move_call_results.push(IotaMoveValue::from(move_value));
         }
         Ok(Self::Results(move_call_results))
     }
 
-    pub fn into_return_values(self) -> Vec<serde_json::Value> {
+    pub fn into_return_values(self) -> Vec<IotaMoveValue> {
         match self {
             IotaMoveViewCallResults::Error(_) => Default::default(),
             IotaMoveViewCallResults::Results(values) => values,
