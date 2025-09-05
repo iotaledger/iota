@@ -1144,7 +1144,10 @@ impl DagState {
         assert!(
             self.last_commit
                 .as_ref()
-                .is_none_or(|prev| prev.round() < commit.round())
+                .is_none_or(|prev| prev.round() < commit.round()),
+            "Commit round ordering violated: prev = {:?}, new = {:?}",
+            self.last_commit.as_ref().map(|prev| prev.round()),
+            commit.round()
         );
 
         self.last_commit = Some(commit.clone());
