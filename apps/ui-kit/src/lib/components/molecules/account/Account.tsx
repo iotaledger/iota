@@ -125,13 +125,15 @@ export function Account({
                 },
             )}
         >
-            <div className="flex items-center space-x-3">
-                <Avatar isLocked={isLocked} />
-                <div className="flex flex-col items-start py-xs">
-                    <div className="flex items-center space-x-2">
-                        <span className="account-title-color font-inter text-title-md">
+            <div className="flex w-full items-center gap-x-3">
+                <div>
+                    <Avatar isLocked={isLocked} />
+                </div>
+                <div className="flex w-full min-w-0 flex-col items-start py-xs">
+                    <div className="flex w-full min-w-0 items-center space-x-2">
+                        <p className="account-title-color min-w-0 max-w-full truncate font-inter text-title-md">
                             {title}
-                        </span>
+                        </p>
                         {badgeText && badgeType ? (
                             badgeTooltipText ? (
                                 <Tooltip text={badgeTooltipText} position={badgeTooltipPosition}>
@@ -151,41 +153,42 @@ export function Account({
                         isExternal={isExternal}
                     />
                 </div>
-            </div>
-            <div className="z-10 ml-auto flex items-center space-x-2 [&_button]:h-5 [&_button]:w-5 [&_svg]:h-5 [&_svg]:w-5">
-                <div className="account-icon-color flex items-center space-x-2 [&_button:not(.locked)]:hidden group-hover:[&_button:not(.locked)]:flex">
-                    {onOptionsClick && (
-                        <ButtonUnstyled onClick={onOptionsClick}>
-                            <MoreHoriz />
+
+                <div className="ml-auto flex items-center space-x-2 [&_button]:h-5 [&_button]:w-5 [&_svg]:h-5 [&_svg]:w-5">
+                    <div className="account-icon-color flex items-center space-x-2 [&_button:not(.locked)]:invisible group-hover:[&_button:not(.locked)]:visible">
+                        {onOptionsClick && (
+                            <ButtonUnstyled onClick={onOptionsClick}>
+                                <MoreHoriz />
+                            </ButtonUnstyled>
+                        )}
+                        {onLockAccountClick &&
+                            onUnlockAccountClick &&
+                            (isLocked ? (
+                                <div className="flex items-center">
+                                    <ButtonUnstyled
+                                        onClick={onUnlockAccountClick}
+                                        testId="account-unlock"
+                                        className="locked"
+                                    >
+                                        <LockLocked />
+                                    </ButtonUnstyled>
+                                </div>
+                            ) : (
+                                <ButtonUnstyled onClick={onLockAccountClick} testId="account-lock">
+                                    <LockUnlocked />
+                                </ButtonUnstyled>
+                            ))}
+                    </div>
+                    {showSelected && (
+                        <ButtonUnstyled>
+                            {isSelected ? (
+                                <CheckmarkFilled className="account-check-active-color h-5 w-5" />
+                            ) : (
+                                <RadioOff className="account-check-inactive-color h-5 w-5" />
+                            )}
                         </ButtonUnstyled>
                     )}
-                    {onLockAccountClick &&
-                        onUnlockAccountClick &&
-                        (isLocked ? (
-                            <div className="flex items-center">
-                                <ButtonUnstyled
-                                    onClick={onUnlockAccountClick}
-                                    testId="account-unlock"
-                                    className="locked"
-                                >
-                                    <LockLocked />
-                                </ButtonUnstyled>
-                            </div>
-                        ) : (
-                            <ButtonUnstyled onClick={onLockAccountClick} testId="account-lock">
-                                <LockUnlocked />
-                            </ButtonUnstyled>
-                        ))}
                 </div>
-                {showSelected && (
-                    <ButtonUnstyled>
-                        {isSelected ? (
-                            <CheckmarkFilled className="account-check-active-color h-5 w-5" />
-                        ) : (
-                            <RadioOff className="account-check-inactive-color h-5 w-5" />
-                        )}
-                    </ButtonUnstyled>
-                )}
             </div>
         </div>
     );
