@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 11;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -71,6 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 11;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: Enable the normalization of PTB arguments.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -316,6 +317,11 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true, enables the normalization of PTB arguments but does not yet enable splatting
+    // `Result`s of length not equal to 1
+    #[serde(skip_serializing_if = "is_false")]
+    normalize_ptb_arguments: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1315,6 +1321,10 @@ impl ProtocolConfig {
     pub fn additional_multisig_checks(&self) -> bool {
         self.feature_flags.additional_multisig_checks
     }
+
+    pub fn normalize_ptb_arguments(&self) -> bool {
+        self.feature_flags.normalize_ptb_arguments
+    }
 }
 
 #[cfg(not(msim))]
@@ -2119,6 +2129,9 @@ impl ProtocolConfig {
                 11 => {
                     // version 11 is a new framework version but with no config
                     // changes
+                }
+                12 => {
+                    cfg.feature_flags.normalize_ptb_arguments = true;
                 }
                 // Use this template when making changes:
                 //

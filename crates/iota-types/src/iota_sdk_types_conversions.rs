@@ -693,6 +693,8 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into(),
                 })
             }
+            // TODO: This will be changed accordingly before merging to develop (depending on #8127)
+            EndOfEpochTransactionKind::ChangeEpochV3(_) => unimplemented!(),
         }
     }
 }
@@ -1130,6 +1132,9 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                         InternalCmdArgErr::SharedObjectOperationNotAllowed => {
                             CommandArgumentError::SharedObjectOperationNotAllowed
                         }
+                        InternalCmdArgErr::InvalidArgumentArity => {
+                            CommandArgumentError::InvalidArgumentArity
+                        }
                     },
                 }
             }
@@ -1329,6 +1334,9 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                         }
                         CommandArgumentError::SharedObjectOperationNotAllowed => {
                             InternalCmdArgErr::SharedObjectOperationNotAllowed
+                        }
+                        CommandArgumentError::InvalidArgumentArity => {
+                            InternalCmdArgErr::InvalidArgumentArity
                         }
                     },
                 }
