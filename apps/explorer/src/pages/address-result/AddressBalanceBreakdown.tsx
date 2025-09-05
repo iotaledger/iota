@@ -16,6 +16,7 @@ import {
     useTotalDelegatedStake,
 } from '@iota/core';
 import {
+    ButtonUnstyled,
     Divider,
     KeyValueInfo,
     Panel,
@@ -26,6 +27,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { CoinFormat } from '@iota/iota-sdk/utils';
+import { Copy } from '@iota/apps-ui-icons';
 
 const TOOLTIP_TEXT = 'This balance breakdown does not include unmigrated stardust funds.';
 interface BalanceBreakdownElement {
@@ -213,5 +215,32 @@ function RenderBalanceValue({
         return '--';
     }
 
-    return <Tooltip text={`${fullAmount} ${symbol}`}>{roundedAmount}</Tooltip>;
+    return (
+        <Tooltip openDelay={500} text={`${formatWithSeparation(fullAmount)} ${symbol}`}>
+            <div className="group flex items-center">
+                <div className="mr-1 opacity-0 group-hover:opacity-100">
+                    <ButtonUnstyled
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(fullAmount);
+                        }}
+                    >
+                        <Copy className="key-supporting-text-color text-body-lg" />
+                    </ButtonUnstyled>
+                </div>
+                <span>{roundedAmount}</span>
+            </div>
+        </Tooltip>
+    );
 }
+
+const formatWithSeparation = (amount: string) => {
+    const [wholePart, decimalPart = ''] = amount.split('.');
+
+    if (!decimalPart) return amount;
+
+    const paddedDecimal = decimalPart.padEnd(9, '0');
+    const formattedDecimal = paddedDecimal.match(/.{1,3}/g)?.join('\u2009');
+
+    return `${wholePart}.${formattedDecimal}`;
+};
