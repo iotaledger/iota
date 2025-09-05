@@ -1486,7 +1486,7 @@ Response: {
                 {
                   "cursor": "eyJpIjowLCJjIjoyfQ",
                   "node": {
-                    "__typename": "ChangeEpochTransactionV3"
+                    "__typename": "ChangeEpochTransactionV2"
                   }
                 }
               ]
