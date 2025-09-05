@@ -71,7 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
-// Version 12: normalize_ptb_arguments flag has been introduced.
+// Version 12: Enable the normalization of PTB arguments.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2131,8 +2131,7 @@ impl ProtocolConfig {
                     // changes
                 }
                 12 => {
-                    // TODO: determine network
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                    if chain != Chain::Mainnet {
                         cfg.feature_flags.normalize_ptb_arguments = true;
                     }
                 }
