@@ -46,13 +46,13 @@ export class KeystoneAccount
         publicKey,
         password,
         derivationPath,
-        masterFingerprint
+        masterFingerprint,
     }: {
         address: string;
         publicKey: string | null;
         password: string;
         derivationPath: string;
-        masterFingerprint: string
+        masterFingerprint: string;
     }): Promise<Omit<KeystoneAccountSerialized, 'id'>> {
         return {
             type: AccountType.KeystoneDerived,
@@ -64,7 +64,7 @@ export class KeystoneAccount
             selected: false,
             nickname: null,
             createdAt: Date.now(),
-            masterFingerprint
+            masterFingerprint,
         };
     }
 
@@ -115,7 +115,7 @@ export class KeystoneAccount
             nickname,
             isPasswordUnlockable: true,
             isKeyPairExportable: false,
-            masterFingerprint
+            masterFingerprint,
         };
     }
 }

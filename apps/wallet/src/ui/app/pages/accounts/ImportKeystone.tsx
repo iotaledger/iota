@@ -21,7 +21,7 @@ export function ImportKeystone() {
             publicKey: account.publicKey,
             derivationPath: account.path,
             address: new Ed25519PublicKey(fromHex(account.publicKey)).toIotaAddress(),
-            masterFingerprint: multiAccounts.masterFingerprint
+            masterFingerprint: multiAccounts.masterFingerprint,
         }));
         setAccountsFormValues({
             type: AccountsFormType.ImportKeystone,

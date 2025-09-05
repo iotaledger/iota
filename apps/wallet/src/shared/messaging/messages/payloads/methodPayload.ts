@@ -53,7 +53,12 @@ type MethodPayloads = {
           }
         | {
               type: AccountType.KeystoneDerived;
-              accounts: { publicKey: string; derivationPath: string; address: string, masterFingerprint: string }[];
+              accounts: {
+                  publicKey: string;
+                  derivationPath: string;
+                  address: string;
+                  masterFingerprint: string;
+              }[];
               password: string;
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
