@@ -266,7 +266,7 @@ impl BlockVerifier for SignedBlockVerifier {
                 MisbehaviorProof::Equivocation { first, second } => {
                     // Check that the two referenced blocks are not the same.
                     if first == second {
-                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                        return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
                     // Check that the two referenced blocks are from the same epoch, round, and
                     // author.
@@ -277,13 +277,13 @@ impl BlockVerifier for SignedBlockVerifier {
                         .get(1)
                         .expect("should have at least two proof blocks to verify the equivocation");
                     if first_proof_block.epoch() != second_proof_block.epoch() {
-                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                        return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
                     if first_proof_block.round() != second_proof_block.round() {
-                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                        return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
                     if first_proof_block.author() != second_proof_block.author() {
-                        return Err(ConsensusError::InvalidMisbehaviorReport(index));
+                        return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
                 }
             }

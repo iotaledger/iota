@@ -388,15 +388,7 @@ impl Metrics {
             return;
         }
 
-        if should_update_provable_metrics(&error, source) {
-            self.scoring_metrics.uncached[authority_index]
-                .faulty_blocks_provable
-                .fetch_add(1, Ordering::Relaxed);
-            self.node_metrics
-                .faulty_blocks_provable_by_authority
-                .with_label_values(&[hostname, source, error.name()])
-                .inc();
-        } else if should_update_unprovable_metrics(&error, source) {
+        if should_update_unprovable_metrics(&error, source) {
             self.scoring_metrics.uncached[authority_index]
                 .faulty_blocks_unprovable
                 .fetch_add(1, Ordering::Relaxed);
@@ -429,6 +421,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) proposed_block_misbehavior_reports: Histogram,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
     pub(crate) lowest_verified_authority_round: IntGaugeVec,
     pub(crate) block_proposal_interval: Histogram,
@@ -575,6 +568,12 @@ impl NodeMetrics {
                 "The depth in rounds of ancestors included in newly proposed blocks",
                 &["authority"],
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
+                registry,
+            ).unwrap(),
+            proposed_block_misbehavior_reports: register_histogram_with_registry!(
+                "proposed_block_misbehavior_reports",
+                "Number of misbehavior reports in proposed blocks",
+                exponential_buckets(1.0, 1.4, 20).unwrap(),
                 registry,
             ).unwrap(),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
@@ -1299,20 +1298,6 @@ fn calculate_scoring_metrics_for_range(
         (end + 1).saturating_sub(start + unique_block_rounds as u32) as u64;
 
     (number_of_equivocations, number_of_missing_blocks)
-}
-
-fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool {
-    if source == "handle_send_block"
-        && (is_from_signed_block_verification(error)
-            || matches!(
-                error,
-                ConsensusError::BlockRejected { .. }
-                //| ConsensusError::MalformedAncestorBlock { .. }
-                ))
-    {
-        return true;
-    }
-    false
 }
 
 fn should_update_unprovable_metrics(error: &ConsensusError, source: &str) -> bool {

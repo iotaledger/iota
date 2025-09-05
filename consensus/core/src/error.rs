@@ -117,7 +117,7 @@ pub(crate) enum ConsensusError {
     InvalidGenesisAncestor(BlockRef),
 
     #[error("Misbehavior report ({0}) cannot be verified")]
-    InvalidMisbehaviorReport(usize),
+    InvalidEquivocationReport(usize),
 
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),

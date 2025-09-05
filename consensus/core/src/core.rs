@@ -327,6 +327,14 @@ impl Core {
 
     /// Adds provably faulty blocks.
     pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
+        let _scope = monitored_scope("Core::add_provably_faulty_block");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_provably_faulty_block"])
+            .start_timer();
         self.block_manager.add_provably_faulty_block(block);
     }
 
@@ -569,7 +577,7 @@ impl Core {
 
         // Determine the ancestors to be included in proposal.
         // Smart ancestor selection requires distributed scoring to be enabled.
-        let (ancestors, excluded_ancestors, equivocation_reports) = if self
+        let (ancestors, excluded_ancestors, misbehavior_reports) = if self
             .context
             .protocol_config
             .consensus_distributed_vote_scoring_strategy()
@@ -578,7 +586,7 @@ impl Core {
                 .protocol_config
                 .consensus_smart_ancestor_selection()
         {
-            let (ancestors, excluded_and_equivocating_ancestors, equivocation_reports) =
+            let (ancestors, excluded_and_equivocating_ancestors, misbehavior_reports) =
                 self.smart_ancestors_to_propose(clock_round, !force);
 
             // If we did not find enough good ancestors to propose, continue to wait before
@@ -603,7 +611,7 @@ impl Core {
                 .take(excluded_ancestors_limit)
                 .collect();
 
-            (ancestors, excluded_ancestors, equivocation_reports)
+            (ancestors, excluded_ancestors, misbehavior_reports)
         } else {
             (self.ancestors_to_propose(clock_round), vec![], vec![])
         };
@@ -650,6 +658,12 @@ impl Core {
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
 
+        self.context
+            .metrics
+            .node_metrics
+            .proposed_block_misbehavior_reports
+            .observe(misbehavior_reports.len() as f64);
+
         // Ensure ancestor timestamps are not more advanced than the current time.
         // Also catch the issue if system's clock go backwards.
         let now = self.context.clock.timestamp_utc_ms();
@@ -676,10 +690,6 @@ impl Core {
             .dag_state
             .write()
             .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
-
-        // Assemble misbehavior reports.
-        let mut misbehavior_reports = Vec::new();
-        misbehavior_reports.extend(equivocation_reports);
 
         // Create the block and insert to storage.
         let block = Block::V1(BlockV1::new(
@@ -1168,10 +1178,10 @@ impl Core {
         ancestors
     }
 
-    /// Retrieves the next ancestors to propose to form a block at `clock_round`
-    /// round. If smart selection is enabled then this will try to select
-    /// the best ancestors based on the propagation scores of the
-    /// authorities.
+    /// Retrieves the next ancestors and misbehavior reports to propose to form
+    /// a block at `clock_round` round. If smart selection is enabled then
+    /// this will try to select the best ancestors based on the propagation
+    /// scores of the authorities.
     fn smart_ancestors_to_propose(
         &mut self,
         clock_round: Round,

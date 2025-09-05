@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    pin::Pin,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -137,13 +142,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 _ => {
                     // The block passes signature verification, but fails other checks.
                     // Add this provably faulty block to the dag state.
+                    let provably_faulty_block =
+                        ProvablyFaultyBlock::new(signed_block, serialized_block.block);
+                    let authority_index = provably_faulty_block.reference.author;
                     self.core_dispatcher
-                        .add_provably_faulty_block(ProvablyFaultyBlock::new(
-                            signed_block,
-                            serialized_block.block,
-                        ))
+                        .add_provably_faulty_block(provably_faulty_block)
                         .await
                         .map_err(|_| ConsensusError::Shutdown)?;
+                    self.context.metrics.scoring_metrics.uncached[authority_index]
+                        .faulty_blocks_provable
+                        .fetch_add(1, Ordering::Relaxed);
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .faulty_blocks_provable_by_authority
+                        .with_label_values(&[peer_hostname.as_str(), "handle_send_block", e.name()])
+                        .inc();
                     info!("Provably faulty block from {}: {}", peer, e);
                     return Ok(());
                 }

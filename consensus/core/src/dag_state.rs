@@ -504,7 +504,12 @@ impl DagState {
             .store
             .read_provably_faulty_blocks(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-        // TODO: track metrics for reading provably faulty
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["get_faulty_blocks"])
+            .inc();
 
         for ((index, _), result) in missing.into_iter().zip(pf_results.into_iter()) {
             if let Some(pf_block) = result {
