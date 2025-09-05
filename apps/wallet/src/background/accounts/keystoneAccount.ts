@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
@@ -17,11 +16,13 @@ export interface KeystoneAccountSerialized extends SerializedAccount {
     derivationPath: string;
     // just used for authentication nothing is stored here at the moment
     encrypted: string;
+    masterFingerprint: string;
 }
 
 export interface KeystoneAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.KeystoneDerived;
     derivationPath: string;
+    masterFingerprint: string;
 }
 
 export function isKeystoneAccountSerializedUI(
@@ -45,11 +46,13 @@ export class KeystoneAccount
         publicKey,
         password,
         derivationPath,
+        masterFingerprint
     }: {
         address: string;
         publicKey: string | null;
         password: string;
         derivationPath: string;
+        masterFingerprint: string
     }): Promise<Omit<KeystoneAccountSerialized, 'id'>> {
         return {
             type: AccountType.KeystoneDerived,
@@ -61,6 +64,7 @@ export class KeystoneAccount
             selected: false,
             nickname: null,
             createdAt: Date.now(),
+            masterFingerprint
         };
     }
 
@@ -97,7 +101,7 @@ export class KeystoneAccount
     }
 
     async toUISerialized(): Promise<KeystoneAccountSerializedUI> {
-        const { address, type, publicKey, derivationPath, selected, nickname } =
+        const { address, type, publicKey, derivationPath, selected, nickname, masterFingerprint } =
             await this.getStoredData();
         return {
             id: this.id,
@@ -111,6 +115,7 @@ export class KeystoneAccount
             nickname,
             isPasswordUnlockable: true,
             isKeyPairExportable: false,
+            masterFingerprint
         };
     }
 }
