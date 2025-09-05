@@ -2131,9 +2131,7 @@ impl ProtocolConfig {
                     // changes
                 }
                 12 => {
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.normalize_ptb_arguments = true;
-                    }
+                    cfg.feature_flags.normalize_ptb_arguments = true;
                 }
                 // Use this template when making changes:
                 //
