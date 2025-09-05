@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 12;
+pub const MAX_PROTOCOL_VERSION: u64 = 13;
 
 // Record history of protocol version allocations here:
 //
@@ -72,6 +72,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Enable the gas price feedback mechanism in all networks.
+// Version 13: Score integration with consensus.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -317,10 +318,6 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
-
-    // TO DO: move this to the correct place
-    #[serde(skip_serializing_if = "Option::is_none")]
-    scorer_version: Option<u64>,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1106,6 +1103,9 @@ pub struct ProtocolConfig {
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
+
+    // Scorer version
+    scorer_version: Option<u64>,
 }
 
 // feature flags
@@ -1159,11 +1159,6 @@ impl ProtocolConfig {
 
     pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta
-    }
-
-    pub fn scorer_version(&self) -> Option<u64> {
-        // self.feature_flags.scorer_version
-        Some(0)
     }
 
     pub fn hardened_otw_check(&self) -> bool {
@@ -1887,6 +1882,8 @@ impl ProtocolConfig {
             max_committee_members_count: None,
 
             consensus_gc_depth: None,
+
+            scorer_version: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2141,6 +2138,9 @@ impl ProtocolConfig {
                     // cancelled due to congestion in all networks
                     cfg.feature_flags
                         .congestion_control_gas_price_feedback_mechanism = true;
+                }
+                13 => {
+                    cfg.scorer_version = Some(1);
                 }
                 // Use this template when making changes:
                 //

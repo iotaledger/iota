@@ -236,6 +236,37 @@ pub struct ChangeEpochV2 {
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
 }
 
+// System transaction for advancing the epoch.
+// This version includes a vector of scores to be used to modify the reward
+// distribution.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct ChangeEpochV4 {
+    /// The next (to become) epoch ID.
+    pub epoch: EpochId,
+    /// The protocol version in effect in the new epoch.
+    pub protocol_version: ProtocolVersion,
+    /// The total amount of gas charged for storage during the epoch.
+    pub storage_charge: u64,
+    /// The total amount of gas charged for computation during the epoch.
+    pub computation_charge: u64,
+    /// The burned component of the total computation/execution costs.
+    pub computation_charge_burned: u64,
+    /// The amount of storage rebate refunded to the txn senders.
+    pub storage_rebate: u64,
+    /// The non-refundable storage fee.
+    pub non_refundable_storage_fee: u64,
+    /// Unix timestamp when epoch started
+    pub epoch_start_timestamp_ms: u64,
+    /// System packages (specifically framework and move stdlib) that are
+    /// written before the new epoch starts. This tracks framework upgrades
+    /// on chain. When executing the ChangeEpochV2 txn, the validator must
+    /// write out the modules below.  Modules are provided with the version they
+    /// will be upgraded to, their modules in serialized form (which include
+    /// their package ID), and a list of their transitive dependencies.
+    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    pub scores: Vec<u64>,
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
     pub objects: Vec<GenesisObject>,
@@ -346,6 +377,7 @@ pub enum TransactionKind {
 pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     ChangeEpochV2(ChangeEpochV2),
+    ChangeEpochV4(ChangeEpochV4),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
 }
@@ -383,7 +415,7 @@ impl EndOfEpochTransactionKind {
         non_refundable_storage_fee: u64,
         epoch_start_timestamp_ms: u64,
         system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-        _aggregated_partial_scores: Option<Vec<u32>>,
+        aggregated_partial_scores: Vec<u64>,
     ) -> Self {
         Self::ChangeEpochV2(ChangeEpochV2 {
             epoch: next_epoch,
@@ -395,6 +427,32 @@ impl EndOfEpochTransactionKind {
             non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             system_packages,
+        })
+    }
+
+    pub fn new_change_epoch_v4(
+        next_epoch: EpochId,
+        protocol_version: ProtocolVersion,
+        storage_charge: u64,
+        computation_charge: u64,
+        computation_charge_burned: u64,
+        storage_rebate: u64,
+        non_refundable_storage_fee: u64,
+        epoch_start_timestamp_ms: u64,
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        scores: Vec<u64>,
+    ) -> Self {
+        Self::ChangeEpochV4(ChangeEpochV4 {
+            epoch: next_epoch,
+            protocol_version,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            system_packages,
+            scores,
         })
     }
 

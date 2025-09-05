@@ -76,7 +76,7 @@ impl IotaTxValidator {
                     }
                 }
                 ConsensusTransactionKind::EndOfPublishV2(_, _) => {
-                    if self.epoch_store.protocol_config.scorer_version() == None {
+                    if self.epoch_store.protocol_config.scorer_version() == 0u64 {
                         warn!("batch verification error: wrong version of EndOfPublish");
                         return Err(IotaError::WrongMessageVersion {
                             error: ("Unexpected EndOfPublishV2".to_string()),
@@ -84,7 +84,7 @@ impl IotaTxValidator {
                     }
                 }
                 ConsensusTransactionKind::EndOfPublishV1(_) => {
-                    if self.epoch_store.protocol_config.scorer_version() == Some(0) {
+                    if self.epoch_store.protocol_config.scorer_version() == 1u64 {
                         warn!("batch verification error: wrong version of EndOfPublish");
                         return Err(IotaError::WrongMessageVersion {
                             error: ("Unexpected EndOfPublishV1".to_string()),

@@ -20,10 +20,11 @@ use crate::{
 };
 #[derive(Clone, Copy)]
 pub enum ScorerVersion {
-    // Version 0: initial version, with basic scoring metrics and scoring. Rewards are not yet
-    // modified by the score. This version is backwards compatible with no scoring, as the core
-    // protocol is not modified.
+    // Version 0: Initial version, with basic scoring metrics and scoring. Rewards are not yet
+    // modified by the score. (scores are not integrated to consensus).
     V0,
+    // Version 1: Scores are integrated to consensus, but rewards are not modified by the score.
+    V1,
 }
 
 pub struct Scorer {
@@ -33,10 +34,15 @@ pub struct Scorer {
 }
 
 impl Scorer {
-    pub fn new(committee_size: usize, _protocol_config: &ProtocolConfig) -> Self {
-        let _scorer_version = ScorerVersion::V0;
+    pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        let scorer_version = match protocol_config.scorer_version() {
+            0 => ScorerVersion::V0,
+            1 => ScorerVersion::V1,
+            v => panic!("Unsupported scorer version: {}", v),
+        };
+
         Self {
-            version: ScorerVersion::V0,
+            version: scorer_version,
             scoring_metrics: ValidatorScoringMetrics::new(committee_size),
             partial_scores: PartialScores::new(committee_size),
         }
@@ -184,7 +190,7 @@ impl Scorer {
 
     pub(crate) fn initialize_scoring_metrics(
         &self,
-        recovered_scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        mut recovered_scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
@@ -196,6 +202,37 @@ impl Scorer {
             .map(|(_, x)| x.hostname.as_str())
             .collect::<Vec<_>>();
 
+        // It is possible that the vector recovered_scoring_metrics does not have a
+        // components for every authorites. A perfectly functioning validator, for
+        // example, will never have its metrics updated, so no metric will ever be
+        // stored. For this reason, we manually "fill" this vector.
+
+        if recovered_scoring_metrics.len() < context.committee.size() {
+            for i in 0..context.committee.size() {
+                if !recovered_scoring_metrics
+                    .iter()
+                    .any(|(index, _)| index.value() == i)
+                {
+                    // We add a component with zeroed metrics for the authority with index i.
+                    // This will ensure that every authority has its metrics initialized.
+                    // Note that this is correct, as if an authority does not have any
+                    // recovered metrics, it means that it never misbehaved in a way that
+                    // was detected by the node.
+                    recovered_scoring_metrics.insert(
+                        i,
+                        (
+                            AuthorityIndex::new_for_test(i as u32),
+                            StorageScoringMetrics {
+                                faulty_blocks_provable: 0,
+                                faulty_blocks_unprovable: 0,
+                                equivocations: 0,
+                                missing_proposals: 0,
+                            },
+                        ),
+                    );
+                }
+            }
+        }
         for ((authority_index, metrics), hostname, blocks_in_cache, &eviction_round) in izip!(
             recovered_scoring_metrics,
             hostnames,

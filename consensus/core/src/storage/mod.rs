@@ -42,7 +42,8 @@ pub(crate) trait Store: Send + Sync {
 
     // The method reads and returns all metrics stored. Used for restoring the
     // scoring metrics in case of DagState initialization from storage
-    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>>;
+    fn scan_scoring_metrics(&self)
+    -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
@@ -112,11 +113,20 @@ impl WriteBatch {
         self.commit_info = commit_info;
         self
     }
+
+    #[cfg(test)]
+    pub(crate) fn scoring_metrics(
+        mut self,
+        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+    ) -> Self {
+        self.scoring_metrics = scoring_metrics;
+        self
+    }
 }
 
 // This struct is used in storage. It holds the same data as
 // `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub(crate) struct StorageScoringMetrics {
     pub(crate) faulty_blocks_provable: u64,
     pub(crate) faulty_blocks_unprovable: u64,

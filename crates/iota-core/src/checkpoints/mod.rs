@@ -97,7 +97,6 @@ pub struct PendingCheckpointInfo {
     pub timestamp_ms: CheckpointTimestamp,
     pub last_of_epoch: bool,
     pub checkpoint_height: CheckpointHeight,
-    pub aggregated_partial_scores: Option<Vec<u32>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1612,7 +1611,12 @@ impl CheckpointBuilder {
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
-                let aggregated_partial_scores = details.aggregated_partial_scores.clone();
+                let aggregated_partial_scores = self
+                    .epoch_store
+                    .partial_scores_received
+                    .try_lock()
+                    .expect("No contention on partial_scores_received lock")
+                    .weighted_average();
                 let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
                         &epoch_rolling_gas_cost_summary,
@@ -1766,7 +1770,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-        aggregated_partial_scores: Option<Vec<u32>>,
+        aggregated_partial_scores: Vec<u64>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
@@ -3009,7 +3013,6 @@ mod tests {
                 timestamp_ms,
                 last_of_epoch: false,
                 checkpoint_height: i,
-                aggregated_partial_scores: None,
             },
         })
     }

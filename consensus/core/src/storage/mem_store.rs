@@ -132,7 +132,9 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
         let inner = self.inner.read();
         let metrics_by_author = inner
             .scoring_metrics

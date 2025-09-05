@@ -122,6 +122,33 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
     }
 }
 
+impl<T, const STRENGTH: bool> StakeAggregator<Vec<T>, STRENGTH>
+where
+    T: Into<u64> + Copy, // Ensure T supports arithmetic
+{
+    pub fn weighted_average(&self) -> Vec<u64> {
+        let mut total_weight = 0u64;
+        let mut weighted_sum = vec![0u64; self.committee.num_members()]; // Initialize to zero value of T
+        for (authority, value) in self.data.iter() {
+            let authority_weight = self.committee.weight(&authority);
+            total_weight = total_weight + authority_weight;
+
+            weighted_sum = weighted_sum
+                .iter()
+                .zip(value)
+                .map(|(&old_weighted_sum, &additional_partial_score)| {
+                    old_weighted_sum + additional_partial_score.into() * authority_weight
+                })
+                .collect(); // Clone current weighted_sum
+        }
+
+        weighted_sum
+            .iter()
+            .map(|&weighted_sum| weighted_sum / total_weight)
+            .collect() // Weighted average
+    }
+}
+
 impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
     /// Insert an authority signature. This is the primary way to use the
     /// aggregator and a few dedicated checks are performed to make sure

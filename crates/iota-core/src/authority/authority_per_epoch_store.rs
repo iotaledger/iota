@@ -460,8 +460,8 @@ pub struct AuthorityPerEpochStore {
     /// epoch(and will open instance of per-epoch store for a new epoch).
     epoch_alive: tokio::sync::RwLock<bool>,
     end_of_publish: Mutex<StakeAggregator<(), true>>,
-    partial_scores_received: Mutex<StakeAggregator<Vec<u32>, true>>,
-    _aggregated_partial_scores: Option<Vec<u32>>,
+    pub(crate) partial_scores_received: Mutex<StakeAggregator<Vec<u32>, true>>,
+    aggregated_partial_scores: Option<Vec<u32>>,
     /// Pending certificates that are waiting to be sequenced by the consensus.
     /// This is an in-memory 'index' of a
     /// AuthorityPerEpochTables::pending_consensus_transactions. We need to
@@ -982,7 +982,7 @@ impl AuthorityPerEpochStore {
             executed_digests_notify_read: NotifyRead::new(),
             end_of_publish: Mutex::new(end_of_publish),
             partial_scores_received: Mutex::new(partial_scores_received),
-            _aggregated_partial_scores: None,
+            aggregated_partial_scores: None,
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             version_assignment_mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -2979,7 +2979,6 @@ impl AuthorityPerEpochStore {
                     timestamp_ms: consensus_commit_info.timestamp,
                     last_of_epoch: final_round && !should_write_random_checkpoint,
                     checkpoint_height,
-                    aggregated_partial_scores: aggregated_partial_scores.clone(),
                 },
             });
             self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
@@ -2991,7 +2990,6 @@ impl AuthorityPerEpochStore {
                         timestamp_ms: consensus_commit_info.timestamp,
                         last_of_epoch: final_round,
                         checkpoint_height: checkpoint_height + 1,
-                        aggregated_partial_scores,
                     },
                 });
                 self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;

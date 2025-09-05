@@ -4769,7 +4769,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-        aggregated_partial_scores: Option<Vec<u32>>,
+        aggregated_partial_scores: Vec<u64>,
     ) -> anyhow::Result<(
         IotaSystemState,
         Option<SystemEpochInfoEvent>,

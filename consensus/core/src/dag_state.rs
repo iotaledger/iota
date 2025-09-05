@@ -248,7 +248,7 @@ impl DagState {
 
         // Initialize scoring metrics according to the metrics in store and the blocks
         // that were loaded to cache.
-        let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
+        let recovered_scoring_metrics = state.store.scan_scoring_metrics().expect("Database error");
         state.context.scorer.initialize_scoring_metrics(
             recovered_scoring_metrics,
             &state.recent_refs_by_authority,

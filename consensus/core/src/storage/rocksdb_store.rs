@@ -224,7 +224,7 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
         let mut metrics_by_author = vec![];
         for kv in self.scoring_metrics.safe_iter() {
             metrics_by_author.push(kv?);

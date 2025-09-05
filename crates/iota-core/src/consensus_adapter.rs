@@ -871,7 +871,7 @@ impl ConsensusAdapter {
         } else {
             false
         };
-        if send_end_of_publish && epoch_store.protocol_config.scorer_version() == Some(0) {
+        if send_end_of_publish && epoch_store.protocol_config.scorer_version() == 1u64 {
             // sending message outside of any locks scope
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV2 message to consensus");
             let partial_scores = epoch_store
@@ -887,7 +887,7 @@ impl ConsensusAdapter {
             ) {
                 warn!("Error when sending end of publish message: {:?}", err);
             }
-        } else if send_end_of_publish && epoch_store.protocol_config.scorer_version() == None {
+        } else if send_end_of_publish && epoch_store.protocol_config.scorer_version() == 0u64 {
             // sending message outside of any locks scope
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV1 message to consensus");
             if let Err(err) = self.submit(
@@ -1127,7 +1127,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             send_end_of_publish
             // reconfig_guard lock is dropped here.
         };
-        if send_end_of_publish && epoch_store.protocol_config.scorer_version() == Some(0) {
+        if send_end_of_publish && epoch_store.protocol_config.scorer_version() == 1u64 {
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV2 message to consensus");
             let partial_scores = epoch_store
                 .scorer
@@ -1142,7 +1142,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             ) {
                 warn!("Error when sending end of publish message: {:?}", err);
             }
-        } else if send_end_of_publish && epoch_store.protocol_config.scorer_version() == None {
+        } else if send_end_of_publish && epoch_store.protocol_config.scorer_version() == 0u64 {
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV1 message to consensus");
             if let Err(err) = self.submit(
                 ConsensusTransaction::new_end_of_publish_v1(self.authority),
