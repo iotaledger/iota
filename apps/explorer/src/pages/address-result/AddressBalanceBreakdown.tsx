@@ -170,7 +170,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
                         ))}
                     </div>
                 </Collapsible>
-                <div className="flex flex-col gap-y-sm px-md pb-md">
+                <div className="flex flex-col gap-y-sm px-md pb-md md:px-lg">
                     <Divider />
                     <KeyValueInfo
                         keyText="Total"
