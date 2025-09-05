@@ -693,7 +693,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into(),
                 })
             }
-            //TODO: This will be changed accordingly before merging to develop (depending on #8127)
+            // TODO: This will be changed accordingly before merging to develop (depending on #8127)
             EndOfEpochTransactionKind::ChangeEpochV3(_) => unimplemented!(),
         }
     }
