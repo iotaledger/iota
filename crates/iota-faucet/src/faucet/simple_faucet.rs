@@ -5,7 +5,7 @@
 #[cfg(test)]
 use std::collections::HashSet;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     fmt,
     path::Path,
     sync::{Arc, Weak},
@@ -43,8 +43,6 @@ use tracing::{debug, error, info, warn};
 use ttl_cache::TtlCache;
 use typed_store::Map;
 use uuid::Uuid;
-
-use std::collections::VecDeque;
 
 use super::write_ahead_log::WriteAheadLog;
 use crate::{
@@ -963,7 +961,8 @@ impl Faucet for SimpleFaucet {
             drop(request_times);
         }
 
-        // Continue with transaction processing if rate limiting is either disabled or the check passed.
+        // Continue with transaction processing if rate limiting is either disabled or
+        // the check passed.
         let (digest, coin_ids) = self.transfer_gases(amounts, recipient, id).await?;
 
         info!(uuid = ?id, ?recipient, ?digest, "PayIota txn succeeded");
