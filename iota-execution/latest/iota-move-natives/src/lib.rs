@@ -192,8 +192,8 @@ impl NativesCostTable {
             // account
             account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams {
                 create_auth_info_v1_cost_base: protocol_config
-                    .create_auth_info_v1_cost_base()
-                    .into(),
+                    .create_auth_info_v1_cost_base_as_option()
+                    .map(Into::into),
             },
             // address
             address_from_bytes_cost_params: AddressFromBytesCostParams {

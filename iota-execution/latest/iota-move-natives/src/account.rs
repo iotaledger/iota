@@ -22,7 +22,7 @@ use crate::{NativesCostTable, raw_module_loader::RawModuleLoader};
 
 #[derive(Copy, Clone, Debug)]
 pub struct CreateAuthInfoV1ImplCostParams {
-    pub create_auth_info_v1_cost_base: InternalGas,
+    pub create_auth_info_v1_cost_base: Option<InternalGas>,
 }
 
 pub fn create_auth_info_v1_impl(
@@ -38,10 +38,15 @@ pub fn create_auth_info_v1_impl(
         .extensions_mut()
         .get::<NativesCostTable>()
         .account_create_auth_info_v1_impl_params;
-    native_charge_gas_early_exit!(
-        context,
-        account_create_auth_info_v1_impl_params.create_auth_info_v1_cost_base
-    );
+
+    let create_auth_info_v1_cost_base = account_create_auth_info_v1_impl_params
+        .create_auth_info_v1_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("gas cost is not set".to_string())
+        })?;
+
+    native_charge_gas_early_exit!(context, create_auth_info_v1_cost_base);
 
     let function_name_bytes = pop_arg!(args, VectorRef);
     let function_name = String::from(unsafe {
