@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +14,7 @@ export function ImportKeystone() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
 
-    function onSucceed({ type, cbor }: any) {
+    function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));
         const iotaAccounts = multiAccounts.keys.filter((key) => key.chain === 'IOTA');
         const accounts = iotaAccounts.map((account) => ({
@@ -22,7 +22,6 @@ export function ImportKeystone() {
             derivationPath: account.path,
             address: new Ed25519PublicKey(fromHex(account.publicKey)).toIotaAddress(),
         }));
-        console.log(accounts);
         setAccountsFormValues({
             type: AccountsFormType.ImportKeystone,
             accounts,
@@ -34,6 +33,8 @@ export function ImportKeystone() {
         );
     }
 
+    function onError(_error: string) {}
+
     return (
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
             <div className="flex h-full w-full flex-col items-center ">
@@ -42,7 +43,7 @@ export function ImportKeystone() {
                         <div className="flex flex-col gap-sm">
                             <AnimatedQRScanner
                                 handleScan={onSucceed}
-                                handleError={console.log}
+                                handleError={onError}
                                 urTypes={[URType.CryptoMultiAccounts]}
                             />
                         </div>
