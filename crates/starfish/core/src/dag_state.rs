@@ -1383,9 +1383,8 @@ impl DagState {
     /// Return the garbage collection round. Transactions of blocks at or below
     /// this round which are not yet sequenced will never be sequenced.
     pub(crate) fn gc_round(&self) -> Round {
-        let last_solid_commit_round = self.last_solid_commit_leader_round.unwrap_or(0);
-        last_solid_commit_round
-            .saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + 1)
+        let last_commit_round = self.last_commit_round();
+        last_commit_round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
     }
 
     /// Last committed round per authority.
