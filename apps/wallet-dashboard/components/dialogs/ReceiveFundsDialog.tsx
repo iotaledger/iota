@@ -38,7 +38,7 @@ export function ReceiveFundsDialog({
             <DialogContent containerId="overlay-portal-container">
                 <Header title="Receive" onClose={() => setOpen(false)} />
                 <DialogBody>
-                    <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
+                    <div className="flex max-h-[500px] flex-col gap-lg overflow-y-auto text-center [&_span]:w-full [&_span]:break-words">
                         <div className="self-center">
                             <QR value={address} size={130} marginSize={2} />
                         </div>
@@ -46,7 +46,7 @@ export function ReceiveFundsDialog({
                         <div className="flex flex-col gap-xs">
                             {iotaName && (
                                 <Panel bgColor="bg-iota-neutral-96 dark:bg-iota-neutral-12">
-                                    <div className="px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96">
+                                    <div className="break-words px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96">
                                         {iotaName}
                                     </div>
                                 </Panel>

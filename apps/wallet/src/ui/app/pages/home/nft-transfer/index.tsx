@@ -24,9 +24,7 @@ export function NftTransferPage() {
                 <div className="flex h-full w-full flex-col gap-md">
                     {nftId && !!ownedNFT && isAssetTransferable ? (
                         <>
-                            <div className="w-[172px] self-center">
-                                <NFTDisplayCard objectId={nftId} wideView />
-                            </div>
+                            <NFTDisplayCard objectId={nftId} wideView />
                             <TransferNFTForm objectId={nftId} objectType={ownedNFT.type} />
                         </>
                     ) : (
