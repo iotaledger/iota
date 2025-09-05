@@ -2148,7 +2148,11 @@ mod tests {
                     index,
                     CommitDigest::MIN,
                     0,
-                    BlockRef::MIN,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
                     vec![],
                     vec![],
                 );
