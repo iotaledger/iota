@@ -902,6 +902,55 @@ impl SimpleFaucet {
 
 #[async_trait]
 impl Faucet for SimpleFaucet {
+    async fn rate_limit(&self, recipient: IotaAddress) -> Result<(), FaucetError> {
+        let mut request_times = self.request_times.lock().await;
+
+        // Define the time window based on configuration.
+        let window = Duration::from_secs(self.rate_window_secs);
+        let now = Instant::now();
+
+        // clean map
+        if request_times.len() >= MAX_TRACKED_ADDRESSES {
+            request_times.retain(|_, times| {
+                times.retain(|&t| now.duration_since(t) < window);
+                !times.is_empty()
+            });
+            if request_times.len() >= MAX_TRACKED_ADDRESSES
+                && !request_times.contains_key(&recipient)
+            {
+                return Err(FaucetError::BatchSendQueueFull);
+            }
+        }
+
+        let entries = request_times.entry(recipient).or_insert_with(VecDeque::new);
+
+        // Remove timestamps older than the configured window.
+        entries.retain(|&timestamp| now.duration_since(timestamp) < window);
+
+        // Check if the number of requests in the window exceeds the configured limit.
+        if entries.len() >= self.max_requests_per_window {
+            info!(
+                "{:?} has {} requests in the past {} seconds; blocking.",
+                recipient,
+                entries.len(),
+                self.rate_window_secs
+            );
+            return Err(FaucetError::BatchSendQueueFull);
+        }
+
+        // Debug: log before recording the new request.
+        debug!(
+            "Allowing a new request for recipient {:?}; current count: {}",
+            recipient,
+            entries.len()
+        );
+
+        // Record the current request.
+        entries.push_back(now);
+
+        Ok(())
+    }
+
     async fn send(
         &self,
         id: Uuid,
@@ -912,53 +961,7 @@ impl Faucet for SimpleFaucet {
 
         // If rate limiting is enabled, perform the rate check.
         if self.enable_rate_limiting {
-            let mut request_times = self.request_times.lock().await;
-
-            // Define the time window based on configuration.
-            let window = Duration::from_secs(self.rate_window_secs);
-            let now = Instant::now();
-
-            // clean map
-            if request_times.len() >= MAX_TRACKED_ADDRESSES {
-                request_times.retain(|_, times| {
-                    times.retain(|&t| now.duration_since(t) < window);
-                    !times.is_empty()
-                });
-                if request_times.len() >= MAX_TRACKED_ADDRESSES
-                    && !request_times.contains_key(&recipient)
-                {
-                    return Err(FaucetError::BatchSendQueueFull);
-                }
-            }
-
-            let entries = request_times.entry(recipient).or_insert_with(VecDeque::new);
-
-            // Remove timestamps older than the configured window.
-            entries.retain(|&timestamp| now.duration_since(timestamp) < window);
-
-            // Check if the number of requests in the window exceeds the configured limit.
-            if entries.len() >= self.max_requests_per_window {
-                info!(
-                    "{:?} has {} requests in the past {} seconds; blocking.",
-                    recipient,
-                    entries.len(),
-                    self.rate_window_secs
-                );
-                return Err(FaucetError::BatchSendQueueFull);
-            }
-
-            // Debug: log before recording the new request.
-            debug!(
-                "Allowing a new request for recipient {:?}; current count: {}",
-                recipient,
-                entries.len()
-            );
-
-            // Record the current request.
-            entries.push_back(now);
-
-            // Release the lock.
-            drop(request_times);
+            self.rate_limit(recipient).await?;
         }
 
         // Continue with transaction processing if rate limiting is either disabled or
