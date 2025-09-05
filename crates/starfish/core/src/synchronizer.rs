@@ -225,7 +225,14 @@ impl SynchronizerHandle {
         let mut tasks = self.tasks.lock().await;
         tasks.abort_all();
         while let Some(result) = tasks.join_next().await {
-            result?
+            match result {
+                // task finished successfully
+                Ok(_) => (),
+                // task was cancelled, which is expected on shutdown
+                Err(e) if e.is_cancelled() => (),
+                // propagate other errors (e.g. panics)
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
