@@ -1253,7 +1253,7 @@ fun test_add_preactive_remove_active() {
     // Now the preactive becomes active
     add_validator(NEW_VALIDATOR_ADDR, scenario);
     // Advance one more epoch because a validator can't immediately become a committee member,
-    // but first needs to announce its AuthorityCapabilities to other validators, 
+    // but first needs to announce its AuthorityCapabilities to other validators,
     // showing that it supports the correct ProtocolVersion.
     advance_epoch(scenario);
     // Now it becomes eligible to be selected to the committee.
@@ -1310,7 +1310,7 @@ fun test_add_preactive_remove_post_active() {
     // Now the preactive becomes active
     add_validator(NEW_VALIDATOR_ADDR, scenario);
     // Advance one more epoch because a validator can't immediately become a committee member,
-    // but first needs to announce its AuthorityCapabilities to other validators, 
+    // but first needs to announce its AuthorityCapabilities to other validators,
     // showing that it supports the correct ProtocolVersion.
     advance_epoch(scenario);
     // Now it becomes eligible to be selected to the committee.

@@ -444,7 +444,7 @@ public(package) fun request_set_commission_rate(
 ///
 /// IMPORTANT: With the new authority capability notification system, newly activated validators
 /// cannot immediately join the committee. They must wait one epoch after activation to:
-/// 1. Notify their AuthorityCapabilities to the network  
+/// 1. Notify their AuthorityCapabilities to the network
 /// 2. Show that they support the correct ProtocolVersion
 /// This means validators activated in epoch N can only become committee members in epoch N+2.
 public(package) fun advance_epoch(
@@ -512,7 +512,7 @@ public(package) fun advance_epoch(
     // Getting this later would result in incorrect addresses, because `committee_members` values
     // would be pointing to incorrect validators in `active_validators`.
     let prev_committee_validator_addresses = self.committee_validator_addresses();
-    
+
     // Collect active validator addresses before modifying the `active_validators`.
     // This is needed for proper eligible validator index mapping.
     let prev_active_validator_addresses = self.active_validator_addresses();
@@ -1249,7 +1249,8 @@ fun validate_eligible_validators_voting_power(
     eligible_active_validators.do_ref!(|idx| {
         // Validate index bounds
         assert!(*idx < active_validators.length(), EInvalidEligibleValidatorIndex);
-        eligible_total_voting_power = eligible_total_voting_power + active_validators[*idx].voting_power();
+        eligible_total_voting_power =
+            eligible_total_voting_power + active_validators[*idx].voting_power();
     });
 
     // If eligible validators don't have enough voting power, fallback to all validators.
@@ -1520,7 +1521,6 @@ public(package) fun select_committee_members_from_eligible(
     n: u64,
     eligible_indices: vector<u64>,
 ): vector<u64> {
-
     // Use take_top_n on eligible indices, comparing the validators they point to
     let selected_positions = eligible_indices.take_top_n!(n, |idx1, idx2| {
         self.active_validators[*idx1].smaller_than(&self.active_validators[*idx2])
@@ -1530,7 +1530,7 @@ public(package) fun select_committee_members_from_eligible(
 }
 
 // Emits events for committee validators that were added or left the committee.
-// 
+//
 // IMPORTANT: With the new authority capability notification system, newly activated validators
 // cannot immediately join the committee. They must wait one epoch after activation to:
 // 1. Notify their AuthorityCapabilities to the network
@@ -1544,14 +1544,13 @@ public(package) fun process_new_committee(
     eligible_active_validators: vector<u64>,
     ctx: &TxContext,
 ) {
-
     // Convert eligible validator indices into current active_validators indices, independent of the changes in active_validators.
     let mut current_eligible_indices = vector[];
 
     eligible_active_validators.do_ref!(|idx| {
         // Validate that the index is within bounds of prev_active_validator_addresses
         assert!(*idx < prev_active_validator_addresses.length(), EInvalidEligibleValidatorIndex);
-        
+
         // Get address from prev_active_validator_addresses using the old index
         let addr = prev_active_validator_addresses[*idx];
 

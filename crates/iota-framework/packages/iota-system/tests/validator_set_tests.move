@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Test module for validator set functionality.
-/// 
+///
 /// This module tests the core validator set operations including:
 /// - Validator lifecycle (joining, leaving, staking changes)
 /// - Committee selection based on stake ranking
@@ -33,7 +33,7 @@ const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
 /// Tests the complete validator set lifecycle including joining, staking, committee transitions,
 /// and the authority capability notification delay mechanism.
-/// 
+///
 /// This test demonstrates:
 /// - How validators join and become active over multiple epochs
 /// - The two-epoch delay for new validators to join the committee (authority capability notification)
@@ -46,7 +46,7 @@ fun test_validator_set_flow() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
-    let validator1 = create_validator(@0x1, 1, 1, true, ctx);  // 100 IOTA initial validator
+    let validator1 = create_validator(@0x1, 1, 1, true, ctx); // 100 IOTA initial validator
     let validator2 = create_validator(@0x2, 3, 1, false, ctx); // 300 IOTA
     let validator3 = create_validator(@0x3, 4, 1, false, ctx); // 400 IOTA
     let validator4 = create_validator(@0x4, 5, 1, false, ctx); // 500 IOTA
@@ -111,7 +111,7 @@ fun test_validator_set_flow() {
 
     advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
     // EPOCH 1 TRANSITION: New validators become active but cannot join committee immediately
-    // 
+    //
     // Key concept: Authority Capability Notification Delay
     // - Newly activated validators must wait one additional epoch before joining committee
     // - This allows time for them to notify their AuthorityCapabilities to the network
@@ -239,7 +239,7 @@ fun test_validator_set_flow() {
 }
 
 /// Tests committee selection when validators have equal stakes.
-/// 
+///
 /// This test verifies that when validators have identical stakes, the committee selection
 /// algorithm produces deterministic results based on the tie-breaking mechanism.
 /// Tests the ordering and selection logic when stake amounts are equal.
@@ -288,7 +288,7 @@ fun test_top_stakers_committee_selection_equal_stakes() {
 }
 
 /// Tests that validator initialization order doesn't affect committee selection.
-/// 
+///
 /// This comprehensive test verifies that regardless of the order validators are added
 /// to the validator set, the final committee selection is based purely on stake ranking.
 /// Tests multiple different initialization orders to ensure deterministic behavior.
@@ -309,14 +309,14 @@ fun test_top_stakers_committee_selection_various_orders() {
     // Test Case 1: Random initialization order
     // Validator set created in non-stake order: 4,9,1,7,5,6,3,8,2
     {
-        let v1 = create_validator(@0x1, 2, 1, true, ctx);   // 200 IOTA
-        let v2 = create_validator(@0x2, 4, 1, true, ctx);   // 400 IOTA
-        let v3 = create_validator(@0x3, 6, 1, true, ctx);   // 600 IOTA
-        let v4 = create_validator(@0x4, 8, 1, true, ctx);   // 800 IOTA
+        let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA
+        let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA
+        let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
+        let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA
         let v5 = create_validator(@0x5, 20, 1, false, ctx); // 2000 IOTA
         let v6 = create_validator(@0x6, 22, 1, false, ctx); // 2200 IOTA
         let v7 = create_validator(@0x7, 24, 1, false, ctx); // 2400 IOTA
-        let v8 = create_validator(@0x8, 3, 2, false, ctx);  // 300 IOTA
+        let v8 = create_validator(@0x8, 3, 2, false, ctx); // 300 IOTA
         let v9 = create_validator(@0x9, 28, 1, false, ctx); // 2800 IOTA
 
         let validator_set_instance = validator_set::new_v2(
@@ -331,17 +331,17 @@ fun test_top_stakers_committee_selection_various_orders() {
         test_utils::destroy(validator_set_instance);
     };
 
-    // Test Case 2: Alternative random initialization order  
+    // Test Case 2: Alternative random initialization order
     // Validators created in different non-stake order: 5,2,8,3,6,9,1,7,4
     {
-        let v1 = create_validator(@0x1, 2, 1, true, ctx);   // 200 IOTA
-        let v2 = create_validator(@0x2, 4, 1, true, ctx);   // 400 IOTA
-        let v3 = create_validator(@0x3, 6, 1, true, ctx);   // 600 IOTA
-        let v4 = create_validator(@0x4, 8, 1, true, ctx);   // 800 IOTA
+        let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA
+        let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA
+        let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
+        let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA
         let v5 = create_validator(@0x5, 20, 1, false, ctx); // 2000 IOTA
         let v6 = create_validator(@0x6, 22, 1, false, ctx); // 2200 IOTA
         let v7 = create_validator(@0x7, 24, 1, false, ctx); // 2400 IOTA
-        let v8 = create_validator(@0x8, 3, 2, false, ctx);  // 300 IOTA
+        let v8 = create_validator(@0x8, 3, 2, false, ctx); // 300 IOTA
         let v9 = create_validator(@0x9, 28, 1, false, ctx); // 2800 IOTA
 
         let validator_set_instance = validator_set::new_v2(
@@ -359,14 +359,14 @@ fun test_top_stakers_committee_selection_various_orders() {
     // Test Case 3: Ascending stake order initialization
     // Validators created in ascending stake order: 1,8,2,3,4,5,6,7,9
     {
-        let v1 = create_validator(@0x1, 2, 1, true, ctx);   // 200 IOTA
-        let v2 = create_validator(@0x2, 4, 1, true, ctx);   // 400 IOTA
-        let v3 = create_validator(@0x3, 6, 1, true, ctx);   // 600 IOTA
-        let v4 = create_validator(@0x4, 8, 1, true, ctx);   // 800 IOTA
+        let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA
+        let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA
+        let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
+        let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA
         let v5 = create_validator(@0x5, 20, 1, false, ctx); // 2000 IOTA
         let v6 = create_validator(@0x6, 22, 1, false, ctx); // 2200 IOTA
         let v7 = create_validator(@0x7, 24, 1, false, ctx); // 2400 IOTA
-        let v8 = create_validator(@0x8, 3, 2, false, ctx);  // 300 IOTA
+        let v8 = create_validator(@0x8, 3, 2, false, ctx); // 300 IOTA
         let v9 = create_validator(@0x9, 28, 1, false, ctx); // 2800 IOTA
 
         let validator_set_instance = validator_set::new_v2(
@@ -385,7 +385,7 @@ fun test_top_stakers_committee_selection_various_orders() {
 }
 
 /// Tests comprehensive committee selection based on stake ranking.
-/// 
+///
 /// This test demonstrates the complete validator lifecycle and committee dynamics:
 /// - Initial committee formation with fewer validators than committee size
 /// - Sequential validator additions with authority capability delays
@@ -397,14 +397,14 @@ fun test_top_stakers_committee_selection() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
-    let v1 = create_validator(@0x1, 2, 1, true, ctx);   // 200 IOTA
-    let v2 = create_validator(@0x2, 4, 1, true, ctx);   // 400 IOTA  
-    let v3 = create_validator(@0x3, 6, 1, true, ctx);   // 600 IOTA
-    let v4 = create_validator(@0x4, 8, 1, true, ctx);   // 800 IOTA
+    let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA
+    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA
+    let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
+    let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA
     let v5 = create_validator(@0x5, 20, 1, false, ctx); // 2000 IOTA
     let v6 = create_validator(@0x6, 22, 1, false, ctx); // 2200 IOTA
     let v7 = create_validator(@0x7, 24, 1, false, ctx); // 2400 IOTA
-    let v8 = create_validator(@0x8, 3, 2, false, ctx);  // 300 IOTA (high gas price)
+    let v8 = create_validator(@0x8, 3, 2, false, ctx); // 300 IOTA (high gas price)
     let v9 = create_validator(@0x9, 28, 1, false, ctx); // 2800 IOTA
 
     let committee_size = 5;
@@ -1066,7 +1066,7 @@ fun test_eligible_committee_selection_ineligible_top_validators() {
 
     // Create validators with different stakes to test both ineligible top validators and sparse indices
     let v1 = create_validator(@0x1, 1, 1, true, ctx); // 100 IOTA
-    let v2 = create_validator(@0x2, 3, 1, true, ctx); // 300 IOTA 
+    let v2 = create_validator(@0x2, 3, 1, true, ctx); // 300 IOTA
     let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
     let v4 = create_validator(@0x4, 7, 1, false, ctx); // 700 IOTA
     let v5 = create_validator(@0x5, 9, 1, false, ctx); // 900 IOTA
@@ -1151,7 +1151,11 @@ fun test_eligible_committee_selection_eligible_removed_replaced() {
     let v6 = create_validator(@0x6, 10, 1, true, ctx); // 1000 IOTA - index 5
 
     let committee_size = 4;
-    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5, v6], committee_size, ctx);
+    let mut validator_set = validator_set::new_v2(
+        vector[v1, v2, v3, v4, v5, v6],
+        committee_size,
+        ctx,
+    );
     scenario_val.end();
 
     let mut scenario_val = test_scenario::begin(@0x1);
@@ -1312,19 +1316,19 @@ fun test_eligible_committee_selection_single_eligible_validator_scenarios() {
     let ctx = scenario.ctx();
 
     // Create validators to test single eligible validator fallback scenario
-    let v1 = create_validator(@0x1, 1, 1, true, ctx);   // 100 IOTA - index 0
-    let v2 = create_validator(@0x2, 2, 1, true, ctx);   // 200 IOTA - index 1
-    let v3 = create_validator(@0x3, 15, 1, true, ctx);  // 1500 IOTA - index 2
-    let v4 = create_validator(@0x4, 4, 1, true, ctx);   // 400 IOTA - index 3
-    let v5 = create_validator(@0x5, 5, 1, true, ctx);   // 500 IOTA - index 4
-    
+    let v1 = create_validator(@0x1, 1, 1, true, ctx); // 100 IOTA - index 0
+    let v2 = create_validator(@0x2, 2, 1, true, ctx); // 200 IOTA - index 1
+    let v3 = create_validator(@0x3, 15, 1, true, ctx); // 1500 IOTA - index 2
+    let v4 = create_validator(@0x4, 4, 1, true, ctx); // 400 IOTA - index 3
+    let v5 = create_validator(@0x5, 5, 1, true, ctx); // 500 IOTA - index 4
+
     let committee_size = 3;
     let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5], committee_size, ctx);
     scenario_val.end();
-    
+
     let mut scenario_val = test_scenario::begin(@0x1);
     let scenario = &mut scenario_val;
-    
+
     // Check initial committee and active validators
     assert_eq(validator_set.committee_validator_addresses(), vector[@0x3, @0x5, @0x4]);
     assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
@@ -1334,8 +1338,13 @@ fun test_eligible_committee_selection_single_eligible_validator_scenarios() {
     // So it falls back to using all active validators for committee selection
     // This ensures committee has sufficient validators for consensus and security
     let eligible_validators = vector[2]; // Only v3:1500 at index 2 is eligible
-    advance_epoch_with_eligible_validators(&mut validator_set, committee_size, eligible_validators, scenario);
-    
+    advance_epoch_with_eligible_validators(
+        &mut validator_set,
+        committee_size,
+        eligible_validators,
+        scenario,
+    );
+
     // With single eligible validator, system falls back to all active validators
     // Committee should contain top 3 validators by stake from all active validators: v3:1500, v5:500, v4:400
     // This fallback behavior ensures committee has enough validators for proper consensus
@@ -1345,7 +1354,7 @@ fun test_eligible_committee_selection_single_eligible_validator_scenarios() {
         vector[@0x3, @0x5, @0x4], // Top 3 validators by stake (fallback to all active validators)
     );
     assert_eq(validator_set.total_stake_inner(), (1500 + 500 + 400) * NANOS_PER_IOTA);
-    
+
     test_utils::destroy(validator_set);
     scenario_val.end();
 }
@@ -1367,7 +1376,7 @@ fun test_eligible_committee_selection_with_validator_changes() {
     let committee_size = 4;
     let mut validator_set = validator_set::new_v2(vector[v1, v2, v3], committee_size, ctx);
     scenario_val.end();
-    
+
     let mut scenario_val = test_scenario::begin(@0x1);
     let scenario = &mut scenario_val;
 
@@ -1430,23 +1439,27 @@ fun test_eligible_committee_selection_with_validator_changes() {
     );
     assert_eq(
         validator_set.active_validator_addresses(),
-        vector[@0x1, @0x3, @0x4, @0x5, @0x6, @0x7], 
+        vector[@0x1, @0x3, @0x4, @0x5, @0x6, @0x7],
     );
     assert_eq(
         validator_set.committee_validator_addresses(),
         vector[@0x1, @0x3, @0x4, @0x5], // Top 4 eligible validators by stake (all active validators from the previous epoch)
     );
 
-    
     // Now we have 6 active validators with 4 committee slots
     // Make 5 validators eligible (more than committee_size)
     let eligible_validators = vector[0, 1, 2, 3, 5]; // 5 eligible validators, committee_size = 4
-    advance_epoch_with_eligible_validators(&mut validator_set, committee_size, eligible_validators, scenario);
+    advance_epoch_with_eligible_validators(
+        &mut validator_set,
+        committee_size,
+        eligible_validators,
+        scenario,
+    );
 
     // Should select top 3 eligible validators by stake
     assert_eq(
         validator_set.active_validator_addresses(),
-        vector[@0x1, @0x3, @0x4, @0x5, @0x6, @0x7], 
+        vector[@0x1, @0x3, @0x4, @0x5, @0x6, @0x7],
     );
     assert_eq(
         validator_set.committee_validator_addresses(),
@@ -1466,7 +1479,7 @@ fun test_empty_eligible_validators_fallback_to_all_prev_validators() {
 
     // Create validators with different stakes to test comprehensive fallback scenarios
     let v1 = create_validator(@0x1, 2, 1, true, ctx); // 200 IOTA - index 0
-    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA - index 1  
+    let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA - index 1
     let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA - index 2
     let v4 = create_validator(@0x4, 8, 1, true, ctx); // 800 IOTA - index 3
     let v5 = create_validator(@0x5, 10, 1, true, ctx); // 1000 IOTA - index 4
@@ -1482,7 +1495,7 @@ fun test_empty_eligible_validators_fallback_to_all_prev_validators() {
     assert_eq(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
     assert_eq(validator_set.committee_validator_addresses(), vector[@0x5, @0x4, @0x3]); // Top 3 by stake
 
-    // Test Case 1: Empty eligible validators with committee_size < active_validators  
+    // Test Case 1: Empty eligible validators with committee_size < active_validators
     // Should fall back to all prev validators and select top committee_size by stake
     let eligible_validators = vector[]; // Empty list
     advance_epoch_with_eligible_validators(
