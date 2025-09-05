@@ -39,10 +39,12 @@ use tokio::{
     },
     time::{Duration, Instant, timeout},
 };
-use tracing::{error, info, warn, debug};
+use tracing::{debug, error, info, warn};
 use ttl_cache::TtlCache;
 use typed_store::Map;
 use uuid::Uuid;
+
+use std::collections::VecDeque;
 
 use super::write_ahead_log::WriteAheadLog;
 use crate::{
@@ -64,7 +66,7 @@ pub struct SimpleFaucet {
     task_id_cache: Mutex<TtlCache<Uuid, BatchSendStatus>>,
     ttl_expiration: u64,
     coin_amount: u64,
-    request_times: Mutex<HashMap<IotaAddress, Vec<Instant>>>,
+    request_times: Mutex<HashMap<IotaAddress, VecDeque<Instant>>>,
     /// Shuts down the batch transfer task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
@@ -102,6 +104,8 @@ const DEFAULT_GAS_COMPUTATION_BUCKET: u64 = 10_000_000;
 const LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const RECV_TIMEOUT: Duration = Duration::from_secs(5);
 const BATCH_TIMEOUT: Duration = Duration::from_secs(10);
+
+const MAX_TRACKED_ADDRESSES: usize = 100_000;
 
 impl SimpleFaucet {
     pub async fn new(
@@ -210,7 +214,7 @@ impl SimpleFaucet {
             coin_amount: config.amount,
             batch_transfer_shutdown: parking_lot::Mutex::new(Some(batch_transfer_shutdown)),
             // rate limiting
-            request_times: Mutex::new(HashMap::<IotaAddress, Vec<Instant>>::new()),
+            request_times: Mutex::new(HashMap::<IotaAddress, VecDeque<Instant>>::new()),
             enable_rate_limiting: config.enable_rate_limiting,
             max_requests_per_window: config.max_requests_per_window,
             rate_window_secs: config.rate_window_secs,
@@ -911,11 +915,25 @@ impl Faucet for SimpleFaucet {
         // If rate limiting is enabled, perform the rate check.
         if self.enable_rate_limiting {
             let mut request_times = self.request_times.lock().await;
-            let entries = request_times.entry(recipient.clone()).or_insert_with(Vec::new);
 
             // Define the time window based on configuration.
             let window = Duration::from_secs(self.rate_window_secs);
             let now = Instant::now();
+
+            // clean map
+            if request_times.len() >= MAX_TRACKED_ADDRESSES {
+                request_times.retain(|_, times| {
+                    times.retain(|&t| now.duration_since(t) < window);
+                    !times.is_empty()
+                });
+                if request_times.len() >= MAX_TRACKED_ADDRESSES
+                    && !request_times.contains_key(&recipient)
+                {
+                    return Err(FaucetError::BatchSendQueueFull);
+                }
+            }
+
+            let entries = request_times.entry(recipient).or_insert_with(VecDeque::new);
 
             // Remove timestamps older than the configured window.
             entries.retain(|&timestamp| now.duration_since(timestamp) < window);
@@ -939,12 +957,11 @@ impl Faucet for SimpleFaucet {
             );
 
             // Record the current request.
-            entries.push(now);
+            entries.push_back(now);
 
             // Release the lock.
             drop(request_times);
         }
-
 
         // Continue with transaction processing if rate limiting is either disabled or the check passed.
         let (digest, coin_ids) = self.transfer_gases(amounts, recipient, id).await?;
