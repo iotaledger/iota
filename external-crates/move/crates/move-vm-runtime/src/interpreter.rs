@@ -145,6 +145,7 @@ impl Interpreter {
                     extensions,
                     function.clone(),
                     &ty_args,
+                    data_store,
                 )
                 .map_err(|e| {
                     e.at_code_offset(function.index(), 0)
@@ -263,8 +264,14 @@ impl Interpreter {
                     if func.is_native() {
                         let func_clone = func.clone();
                         // Defer the error handling until we can trace the closure of the frame.
-                        let deferred_err =
-                            self.call_native(&resolver, gas_meter, extensions, func, vec![]);
+                        let deferred_err = self.call_native(
+                            &resolver,
+                            gas_meter,
+                            extensions,
+                            func,
+                            vec![],
+                            data_store,
+                        );
 
                         close_frame!(
                             tracer,
@@ -331,8 +338,9 @@ impl Interpreter {
                     if func.is_native() {
                         let func_clone = func.clone();
                         // Defer the error handling until we can trace the closure of the frame.
-                        let deferred_err =
-                            self.call_native(&resolver, gas_meter, extensions, func, ty_args);
+                        let deferred_err = self.call_native(
+                            &resolver, gas_meter, extensions, func, ty_args, data_store,
+                        );
                         close_frame!(
                             tracer,
                             &current_frame,
@@ -415,19 +423,27 @@ impl Interpreter {
         extensions: &mut NativeContextExtensions,
         function: Arc<Function>,
         ty_args: Vec<Type>,
+        data_store: &impl DataStore,
     ) -> VMResult<()> {
         // Note: refactor if native functions push a frame on the stack
-        self.call_native_impl(resolver, gas_meter, extensions, function.clone(), ty_args)
-            .map_err(|e| {
-                let id = function.module_id();
-                let e = if resolver.loader().vm_config().error_execution_state {
-                    e.with_exec_state(self.get_internal_state())
-                } else {
-                    e
-                };
-                e.at_code_offset(function.index(), 0)
-                    .finish(Location::Module(id.clone()))
-            })
+        self.call_native_impl(
+            resolver,
+            gas_meter,
+            extensions,
+            function.clone(),
+            ty_args,
+            data_store,
+        )
+        .map_err(|e| {
+            let id = function.module_id();
+            let e = if resolver.loader().vm_config().error_execution_state {
+                e.with_exec_state(self.get_internal_state())
+            } else {
+                e
+            };
+            e.at_code_offset(function.index(), 0)
+                .finish(Location::Module(id.clone()))
+        })
     }
 
     fn call_native_impl(
@@ -437,6 +453,7 @@ impl Interpreter {
         extensions: &mut NativeContextExtensions,
         function: Arc<Function>,
         ty_args: Vec<Type>,
+        data_store: &impl DataStore,
     ) -> PartialVMResult<()> {
         let return_values = self.call_native_return_values(
             resolver,
@@ -444,6 +461,7 @@ impl Interpreter {
             extensions,
             function.clone(),
             &ty_args,
+            data_store,
         )?;
         // Put return values on the top of the operand stack, where the caller will find
         // them. This is one of only two times the operand stack is shared
@@ -463,6 +481,7 @@ impl Interpreter {
         extensions: &mut NativeContextExtensions,
         function: Arc<Function>,
         ty_args: &[Type],
+        data_store: &impl DataStore,
     ) -> PartialVMResult<SmallVec<[Value; 1]>> {
         let return_type_count = function.return_type_count();
         let mut args = VecDeque::new();
@@ -471,8 +490,13 @@ impl Interpreter {
             args.push_front(self.operand_stack.pop()?);
         }
 
-        let mut native_context =
-            NativeContext::new(self, resolver, extensions, gas_meter.remaining_gas());
+        let mut native_context = NativeContext::new(
+            self,
+            resolver,
+            extensions,
+            gas_meter.remaining_gas(),
+            data_store,
+        );
         let native_function = function.get_native()?;
 
         gas_meter.charge_native_function_before_execution(
@@ -728,7 +752,11 @@ impl Interpreter {
         self.get_stack_frames(usize::MAX)
     }
 
-    /// Get count stack frames starting from the top of the stack.
+    /// Get the last `count` stack frames including the currently active one.
+    ///
+    /// It will return either exactly `count` number of frames or as many
+    /// as there is present.
+    /// Calling it with zero, returns an empty list.
     pub(crate) fn get_stack_frames(&self, count: usize) -> ExecutionState {
         // collect frames in the reverse order as this is what is
         // normally expected from the stack trace (outermost frame

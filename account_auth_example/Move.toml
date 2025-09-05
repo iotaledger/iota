@@ -1,0 +1,13 @@
+[package]
+name = "account_auth__example"
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+
+[dependencies]
+Iota = { local = "../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+account_auth_example = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

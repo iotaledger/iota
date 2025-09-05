@@ -1464,6 +1464,7 @@
                 "consensus_max_transactions_in_block_bytes": {
                   "u64": "524288"
                 },
+                "create_auth_info_self_v1_cost_base": null,
                 "create_auth_info_v1_cost_base": null,
                 "crypto_invalid_arguments_cost": {
                   "u64": "100"

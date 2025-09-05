@@ -45,6 +45,31 @@ native fun create_auth_info_v1_impl(
     function_name: &vector<u8>,
 ): AuthenticatorInfoV1;
 
+/// Create an "AuthenticatorInfoV1" using an `authenticate` function defined within the current version of the package
+///
+/// Used in cases where the desired `authenticate` function is located within the current package.
+/// For this reason only the `module_name` and the `function_name` are required.
+/// This function call will always resolve to the package where it was called in, automatically
+/// adjusting with any package upgrades.
+///
+/// For example package A has two versions V1 and V2 and in both it calls `create_auth_info_self_v1`.
+/// Then if the user executes code using
+/// V1 of A then `create_auth_info_self_v1` will look for `authenticate` in V1
+/// V2 of A then `create_auth_info_self_v1` will look for `authenticate` in V2
+///
+/// This function cannot be directly called through any API. It can only be called through move code.
+public fun create_auth_info_self_v1(
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorInfoV1 {
+    create_auth_info_self_v1_impl(module_name.as_bytes(), function_name.as_bytes())
+}
+
+native fun create_auth_info_self_v1_impl(
+    module_name: &vector<u8>,
+    function_name: &vector<u8>,
+): AuthenticatorInfoV1;
+
 public fun drop_auth_info_v1(auth_info: AuthenticatorInfoV1) {
     let AuthenticatorInfoV1 { .. } = auth_info;
 }

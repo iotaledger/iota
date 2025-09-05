@@ -11,8 +11,8 @@ use move_core_types::{
 };
 
 use crate::{
-    file_format::{CodeOffset, FunctionDefinitionIndex, TableIndex},
     IndexKind,
+    file_format::{CodeOffset, FunctionDefinitionIndex, TableIndex},
 };
 
 pub type VMResult<T> = ::std::result::Result<T, VMError>;
@@ -25,8 +25,7 @@ pub enum Location {
     Module(ModuleId),
 }
 
-/// A representation of the execution state (e.g., stack trace) at an
-/// error point.
+/// A representation of the execution state.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ExecutionState {
     stack_trace: Vec<(ModuleId, FunctionDefinitionIndex, CodeOffset)>,
@@ -38,6 +37,10 @@ impl ExecutionState {
         Self { stack_trace }
     }
 
+    /// A list of stack frames in reversed order.
+    ///
+    /// This is no longer a stack, but a vector of frames, where the
+    /// first element is the newest frame and the last is the oldest.
     pub fn stack_trace(&self) -> &Vec<(ModuleId, FunctionDefinitionIndex, CodeOffset)> {
         &self.stack_trace
     }
@@ -297,8 +300,8 @@ impl PartialVMError {
         self
     }
 
-    /// Append the message `message` to the message field of the VM status, and insert a separator
-    /// if the original message is non-empty.
+    // Append the message `message` to the message field of the VM status, and
+    /// insert a separator if the original message is non-empty.
     pub fn append_message_with_separator(
         mut self,
         separator: char,

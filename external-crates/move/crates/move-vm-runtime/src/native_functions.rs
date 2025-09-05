@@ -11,6 +11,7 @@ use std::{
 };
 
 use move_binary_format::{
+    CompiledModule,
     errors::{ExecutionState, PartialVMError, PartialVMResult},
     file_format::AbilitySet,
 };
@@ -19,13 +20,14 @@ use move_core_types::{
     annotated_value as A,
     gas_algebra::InternalGas,
     identifier::Identifier,
-    language_storage::TypeTag,
+    language_storage::{ModuleId, TypeTag},
     runtime_value as R,
     vm_status::{StatusCode, StatusType},
 };
 use move_vm_config::runtime::VMRuntimeLimitsConfig;
 use move_vm_types::{
-    loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
+    data_store::DataStore, loaded_data::runtime_types::Type, natives::function::NativeResult,
+    values::Value,
 };
 
 use crate::{
@@ -104,6 +106,7 @@ pub struct NativeContext<'a, 'b> {
     extensions: &'a mut NativeContextExtensions<'b>,
     gas_left: RefCell<InternalGas>,
     gas_budget: InternalGas,
+    data_store: &'a dyn DataStore,
 }
 
 impl<'a, 'b> NativeContext<'a, 'b> {
@@ -112,6 +115,7 @@ impl<'a, 'b> NativeContext<'a, 'b> {
         resolver: &'a Resolver<'a>,
         extensions: &'a mut NativeContextExtensions<'b>,
         gas_budget: InternalGas,
+        data_store: &'a dyn DataStore,
     ) -> Self {
         Self {
             interpreter,
@@ -119,6 +123,7 @@ impl<'a, 'b> NativeContext<'a, 'b> {
             extensions,
             gas_left: RefCell::new(gas_budget),
             gas_budget,
+            data_store,
         }
     }
 
@@ -197,6 +202,24 @@ impl<'b> NativeContext<'_, 'b> {
 
     pub fn gas_used(&self) -> InternalGas {
         self.gas_budget.saturating_sub(*self.gas_left.borrow())
+    }
+
+    /// Get an already loaded module.
+    ///
+    /// It requires the current `link context` and runtime [ModuleId].
+    /// Should be used in circumstances when a native functions requires access
+    /// to the module level information.
+    ///
+    /// # Panics
+    ///
+    /// If the module wasn't loaded yet.
+    pub fn get_module(&self, link_context: AccountAddress, module_id: &ModuleId) -> CompiledModule {
+        let (compiled_module, _) = self.resolver.loader().get_module(link_context, module_id);
+        (*compiled_module).clone()
+    }
+
+    pub fn data_store(&self) -> &dyn DataStore {
+        self.data_store
     }
 }
 

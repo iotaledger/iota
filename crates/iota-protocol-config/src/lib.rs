@@ -73,7 +73,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Max authentication gas budget property.
 //             Introduce gas cost for 'create_auth_info_v1_cost_base'.
-
+//             Introduce gas cost for 'create_auth_info_self_v1_cost_base'.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -781,6 +781,9 @@ pub struct ProtocolConfig {
     // Cost params for the Move native function `create_auth_info_v1(package: address, module:
     // String, function: String): AuthenticatorInfoV1`
     create_auth_info_v1_cost_base: Option<u64>,
+    // Cost params for the Move native function `create_auth_info_self_v1(module_name:
+    // ascii::String, function_name: ascii::String): AuthenticatorInfoV1
+    create_auth_info_self_v1_cost_base: Option<u64>,
 
     // `address` module
     // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
@@ -1580,6 +1583,7 @@ impl ProtocolConfig {
             // === Native Function Costs ===
             // `account` module
             create_auth_info_v1_cost_base: None,
+            create_auth_info_self_v1_cost_base: None,
             // `address` module
             // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
             address_from_bytes_cost_base: Some(52),
@@ -2152,6 +2156,7 @@ impl ProtocolConfig {
                         // `account` module
                         cfg.create_auth_info_v1_cost_base = Some(1000); /* TODO how do you decide on a good gas * 
                         price? */
+                        cfg.create_auth_info_self_v1_cost_base = Some(800); // could be a bit cheaper as we don't have to load a package while executing it
                     }
                 }
                 // Use this template when making changes:
