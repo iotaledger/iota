@@ -39,6 +39,14 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
+async function openTabWithPath(path: string) {
+    const currentURL = new URL(`ui.html#${path}`, window.location.href);
+    currentURL.searchParams.delete('type');
+    await Browser.tabs.create({
+        url: currentURL.href,
+    });
+}
+
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -85,12 +93,18 @@ export function AddAccountPage() {
             ],
         },
         {
-            title: 'Import from Ledger',
+            title: 'Hardware Wallets',
             cards: [
                 {
                     title: 'Ledger',
                     icon: Ledger,
                     actionType: AccountsFormType.ImportLedger,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'Keystone',
+                    icon: Ledger,
+                    actionType: AccountsFormType.ImportKeystone,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -125,6 +139,9 @@ export function AddAccountPage() {
                 } else {
                     setConnectLedgerModalOpen(true);
                 }
+                break;
+            case AccountsFormType.ImportKeystone:
+                openTabWithPath('/accounts/import-keystone');
                 break;
             default:
                 break;
