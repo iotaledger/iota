@@ -3003,7 +3003,7 @@ mod test {
         let acknowledgements_eviction_round =
             clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + 1);
 
-        // Assert: for all blocks with round > eviction round, we have an
+        // Verify that for all blocks with round > eviction round, we have an
         // acknowledgement
         for block_ref in block_refs
             .iter()
@@ -3017,7 +3017,7 @@ mod test {
             );
         }
 
-        // Assert: for all blocks with round <= eviction round, there is no
+        // Verify that for all blocks with round <= eviction round, there is no
         // acknowledgement
         for block_ref in block_refs
             .iter()
