@@ -9,7 +9,7 @@ import { ExplorerLinkType } from '../../enums';
 import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
-import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
+import { formatIotaName, getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
 import { useGetDefaultIotaName } from '../../hooks';
 import { NamedAddressTooltip } from '../NamedAddressTooltip';
@@ -64,7 +64,7 @@ function BalanceChangePanel({
                         value={
                             <NamedAddressTooltip name={name} address={owner}>
                                 <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                    {name || formatAddress(owner)}
+                                    {formatIotaName(name) || formatAddress(owner)}
                                 </ExplorerLink>
                             </NamedAddressTooltip>
                         }

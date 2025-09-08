@@ -71,15 +71,17 @@ export function VisualAssetCard({
             )}
             {isHoverable && onIconClick && (
                 <ButtonUnstyled
-                    className="visual-asset-icon-color absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5"
+                    className="visual-asset-icon-color absolute right-2 top-2 z-10 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5"
                     onClick={handleIconClick}
                 >
                     {icon}
                 </ButtonUnstyled>
             )}
             {isHoverable && assetTitle && (
-                <div className="absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <span className="visual-asset-title-color text-title-md">{assetTitle}</span>
+                <div className="absolute bottom-0 w-full p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                    <span className="visual-asset-title-color break-words text-title-md">
+                        {assetTitle}
+                    </span>
                 </div>
             )}
         </div>
