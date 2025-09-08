@@ -235,7 +235,8 @@ pub enum Command {
 
 #[derive(Args, Default, Debug, Clone)]
 pub struct PruningOptions {
-    // Argument left for backward compatibility, users are encouraged to use pruning_config_path
+    /// Argument left for backward compatibility, users are encouraged to use
+    /// pruning_config_path
     #[arg(long, env = "EPOCHS_TO_KEEP")]
     pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
@@ -257,25 +258,26 @@ pub struct RetentionConfig {
 }
 
 impl PruningOptions {
-    /// Load default retention policy and overrides from file.
+    /// Loads default retention policy and overrides from file.
     pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
-        if let Some(epochs_to_keep) = self.epochs_to_keep {
+        let Some(config_path) = self.pruning_config_path.as_ref() else {
+            let Some(epochs_to_keep) = self.epochs_to_keep else {
+                return Ok(None);
+            };
             warn!(
                 "Using the deprecated --epochs-to-keep argument for pruning configuration. \
-                Please use --pruning-config-path to specify a TOML configuration file instead."
-            );
-            assert!(
-                self.pruning_config_path.is_none(),
-                "Both --epochs-to-keep and --pruning-config-path cannot be provided at the same time."
+                 Please use --pruning-config-path to specify a TOML configuration file instead."
             );
             return Ok(Some(RetentionConfig::new(
                 epochs_to_keep,
                 Default::default(),
             )));
-        }
+        };
 
-        let Some(config_path) = self.pruning_config_path.as_ref() else {
-            return Ok(None);
+        if self.epochs_to_keep.is_some() {
+            warn!(
+                "The --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
+            );
         };
 
         let contents = std::fs::read_to_string(config_path)
@@ -302,10 +304,12 @@ impl PruningOptions {
 }
 
 impl RetentionConfig {
-    /// Create a new `RetentionConfig` with the specified default retention and
-    /// overrides. Call `finalize()` on the instance to update the
-    /// `policies` field with the default retention policy for all tables
-    /// that do not have an override specified.
+    /// Creates a new `RetentionConfig` with the specified default retention and
+    /// overrides.
+    ///
+    /// Call `finalize()` on the instance to update the `policies` field with
+    /// the default retention policy for all tables that do not have an
+    /// override specified.
     pub fn new(epochs_to_keep: u64, overrides: HashMap<PrunableTable, u64>) -> Self {
         Self {
             epochs_to_keep,
@@ -323,11 +327,13 @@ impl RetentionConfig {
         Self::new(epochs_to_keep, HashMap::new())
     }
 
-    /// Consumes this struct to produce a full mapping of every prunable table
-    /// and its retention policy. By default, every prunable table will have
-    /// the default retention policy from `epochs_to_keep`. Some tables like
-    /// `objects_history` will observe a different default retention policy.
-    /// These default values are overridden by any entries in `overrides`.
+    /// Consumes the struct and produces a mapping of every prunable table
+    /// and its retention policy.
+    ///
+    /// By default, every prunable table will have the default retention policy
+    /// from `epochs_to_keep`. Some tables like `objects_history` will
+    /// observe a different default retention policy. These default values
+    /// are overridden by any entries in `overrides`.
     pub fn retention_policies(self) -> HashMap<PrunableTable, u64> {
         let RetentionConfig {
             epochs_to_keep,

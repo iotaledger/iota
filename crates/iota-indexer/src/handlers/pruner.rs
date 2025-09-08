@@ -43,6 +43,7 @@ pub struct Pruner {
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PrunableTable {
     ObjectsHistory,
     Transactions,
