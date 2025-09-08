@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 11;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -71,6 +71,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 11;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: Enable the gas price feedback mechanism in all networks.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1315,6 +1316,12 @@ impl ProtocolConfig {
     pub fn additional_multisig_checks(&self) -> bool {
         self.feature_flags.additional_multisig_checks
     }
+
+    pub fn consensus_num_requested_prior_commits_at_startup(&self) -> u32 {
+        // TODO: this will eventually be the max of some number of other
+        // parameters.
+        0
+    }
 }
 
 #[cfg(not(msim))]
@@ -2119,6 +2126,12 @@ impl ProtocolConfig {
                 11 => {
                     // version 11 is a new framework version but with no config
                     // changes
+                }
+                12 => {
+                    // Enable the gas price feedback mechanism for transactions
+                    // cancelled due to congestion in all networks
+                    cfg.feature_flags
+                        .congestion_control_gas_price_feedback_mechanism = true;
                 }
                 // Use this template when making changes:
                 //

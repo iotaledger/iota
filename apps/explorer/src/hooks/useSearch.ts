@@ -82,7 +82,7 @@ const getResultsForAddress = async (
     if (iotaNamesClient && isNamesEnabled && isValidIotaName(query)) {
         const nameRecord = await iotaNamesClient.getNameRecord(query.toLowerCase());
 
-        if (!nameRecord) return null;
+        if (!nameRecord || !nameRecord.targetAddress) return null;
 
         return [
             {

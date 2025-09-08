@@ -62,7 +62,7 @@ where
                 batch = vec![];
             }
         }
-        if !batch.is_empty() && unprocessed.is_empty() {
+        if !batch.is_empty() {
             commit_checkpoints(&state, batch, None, &metrics).await;
             batch = vec![];
         }

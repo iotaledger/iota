@@ -1,5 +1,11 @@
 # @iota/iota-sdk
 
+## 1.6.1
+
+### Patch Changes
+
+-   3244c29: Rename `parseIotaToNanos` util back to `parseAmount`
+
 ## 1.6.0
 
 ### Minor Changes
@@ -21,7 +27,7 @@
     All existing methods will continue to work, but the following methods have been deprecated and
     replaced with methods with improved names:
 
-    -   `toHEX` -> `toHEX`
+    -   `toHEX` -> `toHex`
     -   `fromHEX` -> `fromHex`
     -   `toB64` -> `toBase64`
     -   `fromB64` -> `fromBase64`

@@ -123,9 +123,11 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_tx_insertion_order_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot: Histogram,
+    pub checkpoint_db_commit_latency_objects_version: Histogram,
     pub checkpoint_db_commit_latency_objects_history: Histogram,
     pub checkpoint_db_commit_latency_objects_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot_chunks: Histogram,
+    pub checkpoint_db_commit_latency_objects_version_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_history_chunks: Histogram,
     pub checkpoint_db_commit_latency_events: Histogram,
     pub checkpoint_db_commit_latency_events_chunks: Histogram,
@@ -474,6 +476,12 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_objects_version: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_objects_version",
+                "Time spent committing objects version",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             checkpoint_db_commit_latency_objects_history: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history",
                 "Time spent committing objects history",
@@ -494,6 +502,12 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_objects_version_chunks: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_objects_version_chunks",
+                "Time spent committing objects version chunks",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             checkpoint_db_commit_latency_objects_history_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history_chunks",
                 "Time spent committing objects history chunks",

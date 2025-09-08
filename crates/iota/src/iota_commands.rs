@@ -354,6 +354,8 @@ pub enum IotaCommand {
     },
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
+    /// By using this service, you agree to the Terms & Conditions:
+    /// testnet.iotanames.com/?modal=terms_conditions."
     Name {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
@@ -582,6 +584,12 @@ impl IotaCommand {
             }
             #[cfg(feature = "iota-names")]
             IotaCommand::Name { config, json, cmd } => {
+                eprintln!(
+                    "{}",
+                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/?modal=terms_conditions."
+                        .bold()
+                        .yellow()
+                );
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
