@@ -1258,9 +1258,10 @@ impl DagState {
     pub(crate) fn evict_transactions(&mut self) {
         let last_solid_leader_round = self.last_solid_commit_leader_round;
         if let Some(round) = last_solid_leader_round {
-            let min_round: Round =
+            let tr_eviction_round: Round =
                 round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
-
+            let eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
+            let min_round = min(tr_eviction_round, eviction_round + 1);
             // Construct a dummy BlockRef with the minimum round to split on.
             // All entries < dummy will be removed.
             let lower_bound =
