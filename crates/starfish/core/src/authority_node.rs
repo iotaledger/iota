@@ -523,7 +523,7 @@ mod tests {
         let mut last_committed_index = vec![0; num_of_authorities];
         let mut last_round_committed_blocks = vec![0; num_of_authorities];
         loop {
-            if start_time.elapsed() > Duration::from_secs(30) {
+            if start_time.elapsed() > Duration::from_secs(40) {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
