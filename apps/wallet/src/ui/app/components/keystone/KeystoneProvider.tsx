@@ -1,5 +1,6 @@
 import { Button, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import { fromHex } from '@iota/bcs';
+import { toast } from '@iota/core';
 import { toSerializedSignature } from '@iota/iota-sdk/cryptography';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { AnimatedQRCode, AnimatedQRScanner } from '@keystonehq/animated-qr';
@@ -12,14 +13,6 @@ interface KeystoneContextValue {
 }
 
 const KeystoneContext = createContext<KeystoneContextValue | undefined>(undefined);
-
-export function useKeystoneContext() {
-    const keystoneContext = useContext(KeystoneContext);
-    if (!keystoneContext) {
-        throw new Error('useIotaLedgerClient must be used within IotaLedgerClientContext');
-    }
-    return keystoneContext;
-}
 
 interface KeystoneProviderProps {
     children: React.ReactNode;
@@ -57,17 +50,19 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
 }
 
 enum Step {
+    // Wallet renders and Keystone scans
     ShowQr,
+    // Keystone renders  and Wallet scans
     ScanQr,
 }
 
-export function ScanBothWays({ request: { ur, reply: ack } }: { request: Request }) {
+export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
     const [step, setState] = useState<Step>(Step.ShowQr);
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const { signature, publicKey } = new KeystoneIotaSDK().parseSignature(
             new UR(Buffer.from(cbor, 'hex'), type),
         );
-        ack(
+        reply(
             toSerializedSignature({
                 signature: fromHex(signature),
                 publicKey: new Ed25519PublicKey(fromHex(publicKey)),
@@ -76,14 +71,18 @@ export function ScanBothWays({ request: { ur, reply: ack } }: { request: Request
         );
     }
 
-    function onError() {}
+    function onError(error: string) {
+        toast.error(`Error while scanning QR: ${error}`);
+    }
 
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Scan" titleCentered />
+                <Header
+                    title={step === Step.ShowQr ? 'Scan with your Keystone' : 'Scan your keystone'}
+                    titleCentered
+                />
                 <DialogBody>
-                    <p>hi</p>
                     {step === Step.ShowQr ? (
                         <>
                             <AnimatedQRCode type={ur.type} cbor={ur.cbor.toString('hex')} />
@@ -105,4 +104,12 @@ export function ScanBothWays({ request: { ur, reply: ack } }: { request: Request
             </DialogContent>
         </Dialog>
     );
+}
+
+export function useKeystoneContext() {
+    const keystoneContext = useContext(KeystoneContext);
+    if (!keystoneContext) {
+        throw new Error('useKeystoneContext must be used within KeystoneProvider');
+    }
+    return keystoneContext;
 }

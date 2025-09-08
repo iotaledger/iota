@@ -5,8 +5,8 @@
 import { type IotaClient } from '@iota/iota-sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import { type SignedMessage, type SignedTransaction, WalletSigner } from './walletSigner';
-import { KeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
-import { KeystoneIotaSDK, UR } from '@keystonehq/keystone-sdk';
+import type { KeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
+import { KeystoneIotaSDK, type UR } from '@keystonehq/keystone-sdk';
 import { bcs, toBase64, toHex } from '@iota/bcs';
 import { messageWithIntent } from '@iota/iota-sdk/cryptography';
 
@@ -33,7 +33,7 @@ export class KeystoneSigner extends WalletSigner {
     }
 
     async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
-        let iotaSignRequest = {
+        const iotaSignRequest = {
             requestId: uuidv4(),
             intentMessage: toHex(
                 messageWithIntent(
@@ -60,7 +60,7 @@ export class KeystoneSigner extends WalletSigner {
     }
 
     async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
-        let iotaSignRequest = {
+        const iotaSignRequest = {
             requestId: uuidv4(),
             intentMessage: toHex(messageWithIntent('TransactionData', bytes)),
             accounts: [
