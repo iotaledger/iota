@@ -17,14 +17,16 @@ import store from '_store';
 import { thunkExtras } from '_src/ui/app/redux/store/thunkExtras';
 import {
     ClipboardPasteSafetyWrapper,
-    IotaGraphQLClientProvider,
-    IotaNamesClientProvider,
     KioskClientProvider,
     StardustIndexerClientProvider,
     ThemeProvider,
 } from '@iota/core';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
-import { IotaClientProvider } from '@iota/dapp-kit';
+import {
+    IotaClientProvider,
+    IotaGraphQLClientProvider,
+    IotaNamesClientProvider,
+} from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import cn from 'clsx';
 import { Fragment, StrictMode } from 'react';

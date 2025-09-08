@@ -10,7 +10,8 @@ import {
     Header,
     Panel,
 } from '@iota/apps-ui-kit';
-import { QR, useCopyToClipboard, toast, useGetDefaultIotaName } from '@iota/core';
+import { QR, useCopyToClipboard, toast } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 
 interface ReceiveFundsDialogProps {
     address: string;

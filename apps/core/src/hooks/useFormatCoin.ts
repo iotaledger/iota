@@ -9,7 +9,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
-import { useIotaGraphQLClientContext } from '../contexts';
+import { useIotaGraphQLClientContext } from '@iota/dapp-kit';
 
 type FormattedCoin = [
     formattedBalance: string,

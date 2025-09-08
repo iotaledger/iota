@@ -63,8 +63,5 @@ export * from './useMaxCommitteeSize';
 export * from './useGetNextEpochCommitteeMember';
 export * from './useAddressAliasLookup';
 export * from './useNFTMediaHeaders';
-export * from './useGetIotaNameRecord';
-export * from './useGetDefaultIotaName';
-
 export * from './stake';
 export * from './ui';

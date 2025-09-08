@@ -3,16 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
-import {
-    type TransactionSummaryType,
-    useFormatCoin,
-    useGetIotaNameRecord,
-    NamedAddressTooltip,
-} from '@iota/core';
+import { type TransactionSummaryType, useFormatCoin, NamedAddressTooltip } from '@iota/core';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 import { CoinFormat } from '@iota/iota-sdk/utils';
 import { Fragment } from 'react';
 import { normalizeIotaName } from '@iota/iota-names-sdk';
+import { useGetIotaNameRecord } from '@iota/dapp-kit';
 
 interface GasProps {
     amount?: bigint | number | string;

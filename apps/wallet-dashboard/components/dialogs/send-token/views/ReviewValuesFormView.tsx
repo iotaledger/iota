@@ -25,12 +25,12 @@ import {
     useFormatCoin,
     ExplorerLinkType,
     useCoinMetadata,
-    useGetIotaNameRecord,
     NamedAddressTooltip,
 } from '@iota/core';
 import { Loader } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '@/components';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { useGetIotaNameRecord } from '@iota/dapp-kit';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;

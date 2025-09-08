@@ -12,7 +12,8 @@ import {
     Panel,
 } from '@iota/apps-ui-kit';
 import { useCopyToClipboard, useActiveAccount } from '_hooks';
-import { QR, toast, useGetDefaultIotaName } from '@iota/core';
+import { QR, toast } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
     isLedgerAccountSerializedUI,

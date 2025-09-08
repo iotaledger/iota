@@ -2,15 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { KioskClientProvider, useCookieConsentBanner, ThemeProvider, Toaster } from '@iota/core';
 import {
-    KioskClientProvider,
-    useCookieConsentBanner,
-    ThemeProvider,
-    Toaster,
-    IotaGraphQLClientProvider,
+    IotaClientProvider,
+    WalletProvider,
     IotaNamesClientProvider,
-} from '@iota/core';
-import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+    IotaGraphQLClientProvider,
+} from '@iota/dapp-kit';
 import type { Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';

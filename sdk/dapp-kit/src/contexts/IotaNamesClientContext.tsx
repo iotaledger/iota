@@ -3,11 +3,11 @@
 
 'use client';
 
-import { useIotaClientContext } from '@iota/dapp-kit';
+import { useIotaClientContext } from '../hooks/useIotaClient.js';
 import { IotaNamesClient } from '@iota/iota-names-sdk';
 import { getNetwork } from '@iota/iota-sdk/client';
 import React, { createContext, useContext, useMemo } from 'react';
-import { useIotaGraphQLClientContext } from './IotaGraphQLClientContext';
+import { useIotaGraphQLClientContext } from './IotaGraphQLClientContext.js';
 
 export const IotaNamesClientProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
     const ctx = useIotaClientContext();

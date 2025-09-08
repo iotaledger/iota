@@ -9,13 +9,13 @@ import {
     useAssetGasBudgetEstimation,
     useFormatCoin,
     useNftDetails,
-    useGetIotaNameRecord,
 } from '@iota/core';
 import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Button, ButtonHtmlType, Divider, Header, KeyValueInfo, Title } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
+import { useGetIotaNameRecord } from '@iota/dapp-kit';
 
 interface SendViewProps {
     objectId: string;

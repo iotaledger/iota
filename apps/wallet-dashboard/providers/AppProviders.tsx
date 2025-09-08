@@ -4,7 +4,14 @@
 'use client';
 
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
-import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
+import {
+    IotaClientProvider,
+    lightTheme,
+    darkTheme,
+    WalletProvider,
+    IotaNamesClientProvider,
+    IotaGraphQLClientProvider,
+} from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -14,12 +21,10 @@ import {
     StardustIndexerClientProvider,
     useLocalStorage,
     Toaster,
+    ThemeProvider,
     ClipboardPasteSafetyWrapper,
-    IotaGraphQLClientProvider,
-    IotaNamesClientProvider,
 } from '@iota/core';
 import { growthbook } from '@/lib/utils';
-import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 
 growthbook.init();

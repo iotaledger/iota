@@ -11,7 +11,7 @@ import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { formatIotaName, getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
-import { useGetDefaultIotaName } from '../../hooks';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 import { NamedAddressTooltip } from '../NamedAddressTooltip';
 
 interface BalanceChangesProps {

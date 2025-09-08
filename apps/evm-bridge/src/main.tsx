@@ -26,7 +26,7 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
-import { IotaGraphQLClientProvider } from '@iota/core';
+import { IotaGraphQLClientProvider } from '@iota/dapp-kit';
 import { growthbook } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 

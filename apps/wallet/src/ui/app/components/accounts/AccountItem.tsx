@@ -9,7 +9,7 @@ import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
-import { useGetDefaultIotaName } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 
 interface AccountItemProps {
     accountID: string;

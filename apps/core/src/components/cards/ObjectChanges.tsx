@@ -9,10 +9,10 @@ import {
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     ExplorerLinkType,
-    useGetDefaultIotaName,
     formatIotaName,
 } from '../../';
 import { formatAddress } from '@iota/iota-sdk/utils';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 import cx from 'clsx';
 import { ExpandableList } from '../lists';
 import { Collapsible } from '../collapsible';

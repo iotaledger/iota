@@ -4,13 +4,9 @@
 
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_hooks';
-import {
-    NamedAddressTooltip,
-    useCoinMetadata,
-    useFormatCoin,
-    useGetIotaNameRecord,
-} from '@iota/core';
+import { NamedAddressTooltip, useCoinMetadata, useFormatCoin } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
+import { useGetIotaNameRecord } from '@iota/dapp-kit';
 import { CoinFormat, formatAddress, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {

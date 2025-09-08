@@ -1,5 +1,5 @@
-import { IOTA_COIN_METADATA, useIotaGraphQLClientContext } from '@iota/core';
-import { useIotaClient } from '@iota/dapp-kit';
+import { IOTA_COIN_METADATA } from '@iota/core';
+import { useIotaClient, useIotaGraphQLClientContext } from '@iota/dapp-kit';
 import { CoinMetadata } from '@iota/iota-sdk/client';
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';

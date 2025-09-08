@@ -4,7 +4,8 @@
 
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
-import { NamedAddressTooltip, AddressAlias, useGetDefaultIotaName } from '@iota/core';
+import { NamedAddressTooltip, AddressAlias } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';

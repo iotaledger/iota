@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getNetwork } from '@iota/iota-sdk/client';
-import { useNetwork } from './useNetwork';
-import { useIotaNamesClient } from '../contexts';
-import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork';
-import { Feature } from '../enums';
+import { useNetwork } from './useNetwork.js';
+import { useIotaNamesClient } from '../contexts/IotaNamesClientContext.js';
+import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork.js';
+import { Feature } from '../enums/features.enums.js';
 import { useQuery } from '@tanstack/react-query';
 import { isValidIotaName } from '@iota/iota-names-sdk';
-import { shouldResolveInputAsName } from '../utils/validation/names';
+import { shouldResolveInputAsName } from '../utils/validation/names.js';
 
 export function useGetIotaNameRecord(value: string | null | undefined) {
     const networkName = useNetwork();

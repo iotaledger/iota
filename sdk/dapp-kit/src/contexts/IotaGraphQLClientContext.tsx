@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useIotaClientContext } from '@iota/dapp-kit';
+import { useIotaClientContext } from '../hooks/useIotaClient.js';
 import { useContext, createContext, useMemo } from 'react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';

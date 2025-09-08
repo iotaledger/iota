@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Feature, useFeatureEnabledByNetwork, useIotaNamesClient } from '@iota/core';
-import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
+import { useIotaClient, useIotaClientQuery, useIotaNamesClient } from '@iota/dapp-kit';
 import { type IotaNamesClient, isValidIotaName } from '@iota/iota-names-sdk';
 import {
     getNetwork,

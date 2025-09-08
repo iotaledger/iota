@@ -16,6 +16,7 @@ import { ChevronIcon } from './icons/ChevronIcon.js';
 import { StyleMarker } from './styling/StyleMarker.js';
 import { Button } from './ui/Button.js';
 import { Text } from './ui/Text.js';
+import { useGetDefaultIotaName } from '../hooks/useGetDefaultIotaName.js';
 
 type AccountDropdownMenuProps = {
     currentAccount: WalletAccount;
@@ -25,6 +26,7 @@ type AccountDropdownMenuProps = {
 export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDropdownMenuProps) {
     const { mutate: disconnectWallet } = useDisconnectWallet();
     const accounts = useAccounts();
+    const { data: iotaName } = useGetDefaultIotaName(currentAccount.address);
 
     return (
         <DropdownMenu.Root modal={false}>
@@ -32,7 +34,9 @@ export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDrop
                 <DropdownMenu.Trigger asChild>
                     <Button size={size} className={styles.connectedAccount}>
                         <Text mono weight="bold">
-                            {currentAccount.label ?? formatAddress(currentAccount.address)}
+                            {iotaName ??
+                                currentAccount.label ??
+                                formatAddress(currentAccount.address)}
                         </Text>
                         <ChevronIcon />
                     </Button>
@@ -72,13 +76,16 @@ export function AccountDropdownMenuItem({
     active?: boolean;
 }) {
     const { mutate: switchAccount } = useSwitchAccount();
-
+    const { data: iotaName } = useGetDefaultIotaName(account.address);
+    console.log('account', account.address);
     return (
         <DropdownMenu.Item
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}
-            onSelect={() => switchAccount({ account })}
+            onSelect={() => {
+                switchAccount({ account });
+            }}
         >
-            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
+            <Text mono>{iotaName ?? account.label ?? formatAddress(account.address)}</Text>
             {active ? <CheckIcon /> : null}
         </DropdownMenu.Item>
     );

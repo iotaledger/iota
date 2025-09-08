@@ -7,10 +7,10 @@ import {
     Collapsible,
     useNFTBasicData,
     NFTMediaDisplayCard,
-    useGetDefaultIotaName,
     formatIotaName,
     NamedAddressTooltip,
 } from '@iota/core';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 import { Button, ButtonType, Header, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';

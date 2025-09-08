@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Address } from '@iota/apps-ui-kit';
-import { useGetDefaultIotaName } from '../../hooks';
+import { useGetDefaultIotaName } from '@iota/dapp-kit';
 import clsx from 'clsx';
 import { truncateString } from '../../utils';
 import { formatAddress } from '@iota/iota-sdk/utils';
