@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module iota::account;
 
 use std::ascii;
@@ -25,12 +28,6 @@ public struct AuthenticatorInfoV1 has store {
 /// function defined in package B version 2.
 /// Refiring to an `authenticate` function with `create_auth_info_v1` is a strictly runtime dependency and
 /// it does not collide with any compile time restrictions.
-///
-/// The only scenario which cannot be handled by this function is that of referring to an `authenticate`
-/// function from the current version of the package. Simply because the current package address won't be know
-/// before publishing, thus the user cannot specify it in code.
-/// If an `authenticate` function should be used from the current version of the package please use
-/// `create_auth_info_self_v1` instead.
 public fun create_auth_info_v1(
     package: address,
     module_name: ascii::String,

@@ -426,7 +426,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => AuthenticatorInfoV1::is_authenticator_info(s),
+            MoveObjectType_::Other(s) => AuthenticatorInfoV1::is_authenticator_info_v1(s),
         }
     }
 

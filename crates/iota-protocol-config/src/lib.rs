@@ -2150,8 +2150,7 @@ impl ProtocolConfig {
                         cfg.feature_flags.move_auth = true;
                         // === Native Function Costs ===
                         // `account` module
-                        cfg.create_auth_info_v1_cost_base = Some(1000); /* TODO how do you decide on a good gas * 
-                        price? */
+                        cfg.create_auth_info_v1_cost_base = Some(1000);
                     }
                 }
                 // Use this template when making changes:

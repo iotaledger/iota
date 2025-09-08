@@ -78,7 +78,7 @@ impl AuthContext {
         bcs::to_bytes(&self).unwrap()
     }
 
-    /// Returns whether the type signature is &mut TxContext, &TxContext, or
+    /// Returns whether the type signature is &mut AuthContext, &AuthContext, or
     /// none of the above.
     pub fn kind(module: &CompiledModule, token: &SignatureToken) -> AuthContextKind {
         use SignatureToken as S;
@@ -95,11 +95,11 @@ impl AuthContext {
 
         let (module_addr, module_name, struct_name) = resolve_struct(module, *idx);
 
-        let is_tx_context_type = module_name == AUTH_CONTEXT_MODULE_NAME
+        let is_auth_context_type = module_name == AUTH_CONTEXT_MODULE_NAME
             && module_addr == &IOTA_FRAMEWORK_ADDRESS
             && struct_name == AUTH_CONTEXT_STRUCT_NAME;
 
-        if is_tx_context_type {
+        if is_auth_context_type {
             kind
         } else {
             AuthContextKind::None

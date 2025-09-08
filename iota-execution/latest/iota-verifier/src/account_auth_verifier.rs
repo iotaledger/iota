@@ -34,7 +34,7 @@ use crate::verification_failure;
 /// - has no return type
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
-/// - TxContext hat to be an immutable reference
+/// - TxContext has to be an immutable reference
 pub fn verify_authenticate_func(
     module: &CompiledModule,
     function_identifier: Identifier,
@@ -93,7 +93,7 @@ pub fn verify_authenticate_func(
     let auth_context = &function_signature.0[function_signature.len() - 2];
     let tx_context = &function_signature.0[function_signature.len() - 1];
 
-    // AuthContext could potentially passed as value, but that opens up the
+    // AuthContext could potentially be passed as value, but that opens up the
     // possibility for the `authenticate` function to receive it as mutable
     // value, from which it could mutate before passing it to further `authenticate`
     // functions, so similarly to TxContext, it is simply not allowed.
@@ -198,8 +198,7 @@ fn verify_pure_input_type(
                 Ok(())
             } else {
                 Err(format!(
-                    "Invalid pure type. A datatype must be a string or an ID, offending argument: {:?}",
-                    param
+                    "Invalid pure type. A datatype must be a string or an ID, offending argument: {param:?}"
                 ))
             }
         }
@@ -210,32 +209,27 @@ fn verify_pure_input_type(
                 verify_pure_input_type(module, function_type_args, &type_args[0])
             } else {
                 Err(format!(
-                    "Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: {:?}",
-                    param
+                    "Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: {param:?}"
                 ))
             }
         }
         TypeParameter(idx) => {
             if function_type_args[*idx as usize].has_key() {
                 Err(format!(
-                    "Invalid pure type. A type parameter cannot have the 'key' ability, offending argument: {:?}",
-                    param
+                    "Invalid pure type. A type parameter cannot have the 'key' ability, offending argument: {param:?}"
                 ))
             } else {
                 Ok(())
             }
         }
         Signer => Err(format!(
-            "Invalid pure type. Signer is not a pure type, offending argument: {:?}",
-            param
+            "Invalid pure type. Signer is not a pure type, offending argument: {param:?}"
         )),
         Reference(_) => Err(format!(
-            "Invalid pure type. Reference is not a pure type, offending argument: {:?}",
-            param
+            "Invalid pure type. Reference is not a pure type, offending argument: {param:?}"
         )),
         MutableReference(_) => Err(format!(
-            "Invalid pure type. MutableReference is not a pure type, offending argument: {:?}",
-            param
+            "Invalid pure type. MutableReference is not a pure type, offending argument: {param:?}"
         )),
     }
 }

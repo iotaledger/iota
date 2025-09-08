@@ -86,7 +86,7 @@ mod checked {
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
-    /// Creates a new set of `NativeContextExtensions`,
+    /// Creates a new set of `NativeContextExtensions`.
     ///
     /// Configuring extensions such as `ObjectRuntime` and
     /// `NativesCostTable`. These extensions manage object resolution, input

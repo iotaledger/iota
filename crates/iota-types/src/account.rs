@@ -11,9 +11,6 @@ use crate::{
     object::{Data, Object},
 };
 
-// Temporary created structures.
-// This part will be removed once the real types are implemented.
-
 pub const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
 
 pub const AUTHENTICATOR_INFO_MODULE_NAME: &IdentStr = ident_str!("account");
@@ -42,7 +39,7 @@ impl AuthenticatorInfoV1 {
         })
     }
 
-    pub fn is_authenticator_info(tag: &StructTag) -> bool {
+    pub fn is_authenticator_info_v1(tag: &StructTag) -> bool {
         tag.address == IOTA_FRAMEWORK_ADDRESS
             && tag.module.as_ident_str() == AUTHENTICATOR_INFO_MODULE_NAME
             && tag.name.as_ident_str() == AUTHENTICATOR_INFO_STRUCT_NAME
