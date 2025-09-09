@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
+import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
 export function getKey(account: SerializedUIAccount): string {
     if (isMnemonicSerializedUiAccount(account)) return account.sourceID;
     if (isSeedSerializedUiAccount(account)) return account.sourceID;
+    if (isKeystoneAccountSerializedUI(account)) return account.sourceID;
     return account.type;
 }
 
@@ -17,6 +19,7 @@ export const DEFAULT_SORT_ORDER: AccountType[] = [
     AccountType.SeedDerived,
     AccountType.PrivateKeyDerived,
     AccountType.LedgerDerived,
+    AccountType.KeystoneDerived,
 ];
 
 export function groupByType(accounts: SerializedUIAccount[]) {

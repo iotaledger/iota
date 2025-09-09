@@ -36,11 +36,11 @@ export type AccountsFormValues =
       }
     | {
           type: AccountsFormType.ImportKeystone;
+          masterFingerprint: string;
           accounts: {
               publicKey: string;
               derivationPath: string;
               address: string;
-              masterFingerprint: string;
           }[];
       }
     | null;

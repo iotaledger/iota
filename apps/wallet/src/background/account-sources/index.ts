@@ -74,6 +74,15 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
                     }),
                 )
             ).toUISerialized();
+        case AccountSourceType.Keystone:
+            return (
+                await KeystoneAccountSource.save(
+                    await KeystoneAccountSource.createNew({
+                        password,
+                        masterFingerprint: params.masterFingerprint,
+                    }),
+                )
+            ).toUISerialized();
         default: {
             throw new Error(`Unknown Account source type ${type}`);
         }
@@ -106,6 +115,7 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
     if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
         const { id, password } = payload.args;
         const accountSource = await getAccountSourceByID(id);
+        console.log(accountSource, id, password);
         if (accountSource) {
             if (!password) {
                 throw new Error('Missing password');

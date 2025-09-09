@@ -9,7 +9,6 @@ import Dexie from 'dexie';
 import { getAccountSources } from '.';
 import { setupAutoLockAlarm } from '../autoLockAccounts';
 import { backupDB, getDB } from '../db';
-import { makeUniqueKey } from '../storageUtils';
 import {
     AccountSource,
     AccountSourceType,
@@ -38,11 +37,13 @@ export class KeystoneAccountSource extends AccountSource<KeystoneAccountSourceSe
         password: string;
         masterFingerprint: string;
     }) {
+        // This way the UI can always know the source id by just knowing the master fingerprint
+        const id = `keystone-${masterFingerprint}`;
         const dataSerialized: KeystoneAccountSourceSerialized = {
-            id: makeUniqueKey(),
+            id,
             type: AccountSourceType.Keystone,
-            encryptedData: await encrypt('', password),
-            sourceHash: bytesToHex(sha256(masterFingerprint)),
+            encryptedData: await encrypt(password, {}),
+            sourceHash: bytesToHex(sha256(id)),
             createdAt: Date.now(),
             masterFingerprint,
         };

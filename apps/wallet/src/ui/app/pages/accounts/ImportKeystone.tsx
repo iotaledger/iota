@@ -21,11 +21,11 @@ export function ImportKeystone() {
             publicKey: account.publicKey,
             derivationPath: account.path,
             address: new Ed25519PublicKey(fromHex(account.publicKey)).toIotaAddress(),
-            masterFingerprint: multiAccounts.masterFingerprint,
         }));
         setAccountsFormValues({
             type: AccountsFormType.ImportKeystone,
-            accounts,
+            accounts: accounts.slice(0, 1), // TODO: Wait for https://github.com/iotaledger/iota/issues/8474
+            masterFingerprint: multiAccounts.masterFingerprint,
         });
         navigate(
             `/accounts/protect-account?${new URLSearchParams({

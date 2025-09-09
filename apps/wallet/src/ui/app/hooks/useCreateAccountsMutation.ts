@@ -144,10 +144,26 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.ImportKeystone &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
+                const sourceID = `keystone-${accountsFormValues.masterFingerprint}`;
+                try {
+                    await backgroundClient.createKeystoneAccountSource({
+                        // validateAccountFormValues checks the password
+                        password: password!,
+                        masterFingerprint: accountsFormValues.masterFingerprint,
+                    });
+                } catch (e) {
+                    console.log(e);
+                }
+
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    password,
+                    id: sourceID,
+                });
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.KeystoneDerived,
                     accounts: accountsFormValues.accounts,
                     password: password!,
+                    sourceID,
                 });
             } else {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);

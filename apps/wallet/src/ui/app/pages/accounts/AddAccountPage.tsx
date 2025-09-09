@@ -39,14 +39,6 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
-async function openTabWithPath(path: string) {
-    const currentURL = new URL(`ui.html#${path}`, window.location.href);
-    currentURL.searchParams.delete('type');
-    await Browser.tabs.create({
-        url: currentURL.href,
-    });
-}
-
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -141,7 +133,7 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                openTabWithPath('/accounts/import-keystone');
+                navigate('/accounts/import-keystone');
                 break;
             default:
                 break;
